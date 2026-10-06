@@ -27,6 +27,8 @@ This document is an index for the detailed WellSite AutoPilot requirements. Deta
 - The platform owns control governance and physical ControlAction.
 - WAMI is an external Engineering Calculation Provider over CoreWCF/net.tcp.
 - CygNet remains the authoritative SCADA/process source where applicable.
+- CygNet and WAMI require no AutoPilot-specific product development for normal integration; AutoPilot adapts to their existing supported interfaces.
+- Integration configuration such as endpoints, service identities, permissions, certificates, mappings, and compatibility settings is allowed and is not considered provider product development.
 - PostgreSQL is the V1 application system of record.
 - NATS + JetStream provide messaging/durable work.
 - New configurations default to Shadow.

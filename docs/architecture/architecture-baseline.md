@@ -77,6 +77,19 @@ Workers may perform authorized reads/calculations through the Integration Gatewa
 - Server -> PostgreSQL: EF Core.
 - Server/processes -> NATS: authenticated, subject-scoped connections.
 
+## Provider product boundary
+
+WellSite AutoPilot is a non-invasive consumer of CygNet and WAMI capabilities.
+
+- AutoPilot-specific behavior is implemented in WellSite AutoPilot adapters, orchestration, workers, policy, and UI.
+- CygNet and WAMI are not expected to add AutoPilot-specific APIs, services, database objects, worker types, or product code.
+- CygNet integration uses existing supported CygNet interfaces and capabilities.
+- WAMI integration uses its existing supported service contract; AutoPilot does not participate in or replace WAMI's internal worker routing.
+- Deployment may require configuration of endpoints, service identities, permissions, certificates, provider mappings, or compatibility settings.
+- If a required capability is absent from an existing supported provider interface, it is recorded as an explicit integration gap and does not silently become an assumption that the provider product will be modified.
+
+This boundary keeps the AutoPilot core provider-neutral and prevents provider release cycles from becoming an implicit AutoPilot feature dependency.
+
 ## Reliability
 
 - Durable operations use stable identifiers and idempotent consumers.
