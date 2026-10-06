@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Application.System;
+using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
 
@@ -17,6 +18,7 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Server";
 });
 builder.Services.AddHealthChecks();
+builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services
     .AddApiVersioning(options =>
@@ -57,6 +59,8 @@ builder.Services.AddWellSiteMessaging(
 
 var app = builder.Build();
 
+app.UseWellSiteHttpErrorHandling();
+
 var swaggerEnabled = app.Environment.IsDevelopment() ||
                      app.Configuration.GetValue("Swagger:Enabled", false);
 
@@ -93,7 +97,10 @@ v1.MapGet(
                 .ToArray());
     })
     .WithName("GetSystemInformation")
-    .Produces<SystemInfoResponse>(StatusCodes.Status200OK);
+    .Produces<SystemInfoResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status500InternalServerError,
+        "application/problem+json");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {

@@ -54,19 +54,24 @@ jobs:
       - name: Build .NET
         run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
 
+      - name: Verify failure contracts
+        run: dotnet run --project tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj --configuration Release --no-build
+
       - name: Generate OpenAPI contract
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts/openapi/v1 | Out-Null
           $env:ASPNETCORE_ENVIRONMENT = "Development"
           $env:Swagger__Enabled = "true"
+          $stdout = "artifacts/openapi/server-startup.stdout.log"
+          $stderr = "artifacts/openapi/server-startup.stderr.log"
           $server = Start-Process dotnet -ArgumentList @(
             "run",
             "--project", "src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj",
             "--configuration", "Release",
             "--no-build",
             "--urls", "http://127.0.0.1:5080"
-          ) -PassThru
+          ) -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
           try {
             $ready = $false
             for ($attempt = 0; $attempt -lt 30; $attempt++) {
@@ -79,6 +84,8 @@ jobs:
               }
             }
             if (-not $ready) {
+              if (Test-Path $stdout) { Get-Content $stdout }
+              if (Test-Path $stderr) { Get-Content $stderr }
               throw "WellSite AutoPilot Server did not become ready for OpenAPI generation."
             }
 

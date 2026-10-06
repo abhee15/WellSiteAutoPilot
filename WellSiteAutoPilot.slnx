@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/src/platform/">
+    <Project Path="src/platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
+    <Project Path="src/platform/WellSiteAutoPilot.Http/WellSiteAutoPilot.Http.csproj" />
+  </Folder>
   <Folder Name="/src/server/">
     <Project Path="src/server/WellSiteAutoPilot.Api.Contracts/WellSiteAutoPilot.Api.Contracts.csproj" />
     <Project Path="src/server/WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
@@ -22,6 +26,9 @@
   </Folder>
   <Folder Name="/src/simulators/">
     <Project Path="src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj" />
