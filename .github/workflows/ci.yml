@@ -97,12 +97,24 @@ jobs:
             }
 
             Invoke-WebRequest "http://127.0.0.1:5080/swagger/v1/swagger.json" -UseBasicParsing -OutFile "artifacts/openapi/v1/server.json"
-            $openApi = Get-Content "artifacts/openapi/v1/server.json" -Raw
-            if ($openApi -notmatch '/api/v1/system/info' -or
-                $openApi -notmatch '/api/v1/executions/shadow' -or
-                $openApi -notmatch '/api/v1/executions/\\{executionId\\}' -or
-                $openApi -match 'v\\{version') {
-              throw "OpenAPI v1 did not contain the expected substituted versioned product routes."
+            $openApi = Get-Content "artifacts/openapi/v1/server.json" -Raw | ConvertFrom-Json
+            $paths = @($openApi.paths.PSObject.Properties.Name)
+            $requiredPaths = @(
+              "/api/v1/system/info",
+              "/api/v1/executions/shadow",
+              "/api/v1/executions/{executionId}"
+            )
+
+            foreach ($requiredPath in $requiredPaths) {
+              if ($paths -notcontains $requiredPath) {
+                Write-Host "OpenAPI paths:"
+                $paths | Sort-Object | ForEach-Object { Write-Host "  $_" }
+                throw "OpenAPI v1 did not contain expected route: $requiredPath"
+              }
+            }
+
+            if ($paths | Where-Object { $_ -match 'v\\{version' }) {
+              throw "OpenAPI v1 still contained an unsubstituted API version route."
             }
           }
           finally {
