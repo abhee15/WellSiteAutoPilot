@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace WellSiteAutoPilot.Persistence.Migrations;
 
 [DbContext(typeof(WellSiteAutoPilotDbContext))]
-partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
+sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
 {
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
