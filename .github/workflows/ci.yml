@@ -114,6 +114,11 @@ jobs:
               "/api/v1/asset-types/{assetTypeId}",
               "/api/v1/assets",
               "/api/v1/assets/{assetId}",
+              "/api/v1/configured-logic",
+              "/api/v1/configured-logic/{configuredLogicId}",
+              "/api/v1/configured-logic/{configuredLogicId}/revisions",
+              "/api/v1/configured-logic/{configuredLogicId}/revisions/{revisionId}/validate",
+              "/api/v1/configured-logic/{configuredLogicId}/revisions/{revisionId}/activate",
               "/api/v1/executions/shadow",
               "/api/v1/executions/{executionId}"
             )
@@ -484,6 +489,9 @@ jobs:
 
       - name: Verify asset persistence
         run: dotnet run --project tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj --configuration Release --no-build
+
+      - name: Verify Configured Logic persistence
+        run: dotnet run --project tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj --configuration Release --no-build
 
 
   messaging-integration:
