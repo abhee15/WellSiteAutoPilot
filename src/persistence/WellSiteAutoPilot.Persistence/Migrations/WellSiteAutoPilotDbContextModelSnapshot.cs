@@ -49,6 +49,54 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<Guid?>("ActiveRevisionId").HasColumnType("uuid");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("Name").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.HasKey("Id");
+                entity.HasIndex("ActiveRevisionId");
+                entity.ToTable("configured_logic", "logic");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<DateTimeOffset?>("ActivatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<Guid>("ConfiguredLogicId").HasColumnType("uuid");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("Mode").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<string>("ModuleId").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("ModuleManifestJson").IsRequired().HasColumnType("text");
+                entity.Property<string>("ModuleVersion").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                entity.Property<string>("ParametersJson").IsRequired().HasColumnType("text");
+                entity.Property<int>("RevisionNumber").HasColumnType("integer");
+                entity.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<DateTimeOffset?>("ValidatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.HasKey("Id");
+                entity.HasIndex("ConfiguredLogicId", "RevisionNumber").IsUnique();
+                entity.HasIndex("Status");
+                entity.ToTable("configured_logic_revisions", "logic");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicAssetBindingEntity",
+            entity =>
+            {
+                entity.Property<Guid>("RevisionId").HasColumnType("uuid");
+                entity.Property<string>("Role").HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<Guid>("AssetId").HasColumnType("uuid");
+                entity.Property<string>("ParameterOverridesJson").IsRequired().HasColumnType("text");
+                entity.HasKey("RevisionId", "Role", "AssetId");
+                entity.HasIndex("AssetId");
+                entity.ToTable("configured_logic_asset_bindings", "logic");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Executions.ExecutionEntity",
             entity =>
             {
@@ -116,6 +164,34 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("ParentAssetId")
                     .OnDelete(DeleteBehavior.Restrict);
             });
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicEntity", null)
+                    .WithMany()
+                    .HasForeignKey("ConfiguredLogicId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicAssetBindingEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                    .WithMany()
+                    .HasForeignKey("AssetId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("RevisionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
 #pragma warning restore 612, 618
     }
 }
