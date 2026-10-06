@@ -1,0 +1,175 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  background: #0f1419;
+  color: #e7edf3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #0f1419;
+}
+
+button, a {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.navigation {
+  min-height: 100vh;
+  padding: 24px 16px 16px;
+  border-right: 1px solid #27313a;
+  background: #151b21;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.product-mark {
+  display: grid;
+  gap: 4px;
+}
+
+.product-kicker,
+.eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9facb8;
+}
+
+.navigation nav {
+  display: grid;
+  gap: 6px;
+}
+
+.navigation a,
+.user-menu {
+  color: #d5dee6;
+  text-decoration: none;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.navigation a:hover,
+.navigation a.active,
+.user-menu:hover {
+  background: #202a33;
+}
+
+.user-menu {
+  margin-top: auto;
+  cursor: pointer;
+}
+
+.content {
+  min-width: 0;
+  padding: 28px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  margin: 4px 0 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.page-header p {
+  margin: 0;
+}
+
+.environment-badge {
+  border: 1px solid #53616e;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #c9d4dd;
+  font-size: 0.8rem;
+}
+
+.status-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.status-card {
+  min-height: 120px;
+  padding: 18px;
+  border: 1px solid #29343e;
+  background: #151b21;
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.status-card h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.status-card p {
+  margin: 0;
+  color: #9facb8;
+  font-size: 0.875rem;
+}
+
+.status-error {
+  border: 1px solid #6a3e3e;
+  background: #291b1b;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.status-loading {
+  color: #9facb8;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .navigation {
+    padding-inline: 8px;
+  }
+
+  .product-mark strong,
+  .product-kicker,
+  .navigation a {
+    font-size: 0;
+  }
+
+  .navigation a::first-letter {
+    font-size: 1rem;
+  }
+
+  .user-menu {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .content {
+    padding: 18px;
+  }
+}
