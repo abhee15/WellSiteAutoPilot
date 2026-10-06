@@ -38,7 +38,20 @@ builder.Services.AddSwaggerGen(options =>
         Description = "HTTP API for WellSite AutoPilot."
     });
 });
-builder.Services.AddSingleton<IPlatformInformationService, PlatformInformationService>();
+builder.Services.AddHttpClient("PlatformHealth", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(2);
+});
+builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
+{
+    var clientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+    var client = clientFactory.CreateClient("PlatformHealth");
+
+    return new PlatformInformationService(
+        client,
+        builder.Configuration["Runtime:IntegrationGatewayUrl"] ?? "http://127.0.0.1:5081",
+        builder.Configuration["Runtime:DotNetWorkerUrl"] ?? "http://127.0.0.1:5082");
+});
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 
@@ -64,15 +77,21 @@ var v1 = productApi
     .MapGroup("/api/v{version:apiVersion}")
     .HasApiVersion(1.0);
 
-v1.MapGet("/system/info", (IPlatformInformationService service) =>
-    new SystemInfoResponse(
-        "WellSite AutoPilot",
-        service.GetComponents()
-            .Select(component => new PlatformComponentResponse(
-                component.Name,
-                component.Version,
-                component.Status.ToString()))
-            .ToArray()))
+v1.MapGet(
+    "/system/info",
+    async (IPlatformInformationService service, CancellationToken cancellationToken) =>
+    {
+        var components = await service.GetComponentsAsync(cancellationToken);
+
+        return new SystemInfoResponse(
+            "WellSite AutoPilot",
+            components
+                .Select(component => new PlatformComponentResponse(
+                    component.Name,
+                    component.Version,
+                    component.Status.ToString()))
+                .ToArray());
+    })
     .WithName("GetSystemInformation")
     .Produces<SystemInfoResponse>(StatusCodes.Status200OK);
 
