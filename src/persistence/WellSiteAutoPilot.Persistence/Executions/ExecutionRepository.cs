@@ -65,6 +65,27 @@ public sealed class ExecutionRepository(
         return entity is null ? null : ToDomain(entity);
     }
 
+    public async Task<IReadOnlyCollection<ExecutionRecord>> ListAsync(
+        ExecutionStatus? status,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Executions.AsNoTracking();
+
+        if (status is not null)
+        {
+            var statusName = status.Value.ToString();
+            query = query.Where(item => item.Status == statusName);
+        }
+
+        return (await query
+            .OrderByDescending(item => item.RequestedAtUtc)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken))
+            .Select(ToDomain)
+            .ToArray();
+    }
+
     public Task<bool> ApplyCompletedAsync(
         Guid messageId,
         string consumer,

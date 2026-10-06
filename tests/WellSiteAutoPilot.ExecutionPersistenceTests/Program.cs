@@ -120,5 +120,15 @@ if (duplicateApplied)
     throw new InvalidOperationException("Duplicate result message was not rejected by the Inbox.");
 }
 
-Console.WriteLine("Shadow execution persistence, outbox, result, and Inbox checks passed.");
+var recentExecutions = await service.ListAsync(
+    nameof(ExecutionStatus.Completed),
+    10);
+
+if (!recentExecutions.Any(item => item.Id == execution.Id))
+{
+    throw new InvalidOperationException(
+        "Completed execution was not returned by the recent execution query.");
+}
+
+Console.WriteLine("Shadow execution persistence, outbox, result, Inbox, and activity query checks passed.");
 return 0;

@@ -46,6 +46,40 @@ public sealed class ExecutionService(
             "The requested execution was not found.");
     }
 
+    public Task<IReadOnlyCollection<ExecutionRecord>> ListAsync(
+        string? status,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 500)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Execution list limit must be between 1 and 500.");
+        }
+
+        ExecutionStatus? parsedStatus = null;
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (!Enum.TryParse<ExecutionStatus>(
+                    status.Trim(),
+                    ignoreCase: true,
+                    out var value))
+            {
+                throw new WellSiteAutoPilotException(
+                    FailureCodes.ValidationFailed,
+                    FailureKind.Validation,
+                    "Execution status is not recognized.");
+            }
+
+            parsedStatus = value;
+        }
+
+        return repository.ListAsync(parsedStatus, limit, cancellationToken);
+    }
+
     private static void Validate(ShadowExecutionCommand command)
     {
         if (command.LogicInstanceId == Guid.Empty ||

@@ -101,6 +101,7 @@ jobs:
             $paths = @($openApi.paths.PSObject.Properties.Name)
             $requiredPaths = @(
               "/api/v1/system/info",
+              "/api/v1/executions",
               "/api/v1/executions/shadow",
               "/api/v1/executions/{executionId}"
             )
@@ -809,6 +810,15 @@ jobs:
           assert output["unit"] == "%"
           assert output["quality"] == "Good"
           assert output["source"] == "simulator:WELL-101"
+          PY
+
+          activity=$(curl --fail --silent "http://127.0.0.1:5080/api/v1/executions?limit=10")
+          ACTIVITY="$activity" EXECUTION_ID="$execution_id" python - <<'PY'
+          import json, os
+          activity=json.loads(os.environ["ACTIVITY"])
+          execution_id=os.environ["EXECUTION_ID"]
+          if not any(item["executionId"] == execution_id for item in activity):
+              raise SystemExit("Recent execution activity did not contain the completed execution.")
           PY
 
       - name: Show runtime logs on failure
