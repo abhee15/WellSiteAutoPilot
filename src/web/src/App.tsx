@@ -28,6 +28,8 @@ export function App() {
     return () => controller.abort();
   }, []);
 
+  const components = systemInfo?.components ?? [];
+
   return (
     <div className="app-shell">
       <aside className="navigation">
@@ -57,7 +59,7 @@ export function App() {
           {!error && !systemInfo && <div className="status-loading">Loading system health…</div>}
           {systemInfo && (
             <div className="status-grid">
-              {systemInfo.components.map(component => (
+              {components.map(component => (
                 <article className="status-card" key={component.name}>
                   <div>
                     <h2>{component.name}</h2>
