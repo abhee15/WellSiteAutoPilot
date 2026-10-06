@@ -1,10 +1,14 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using WellSiteAutoPilot.Api.Contracts.Executions;
 using WellSiteAutoPilot.Api.Contracts.System;
+using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.System;
+using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Persistence;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -54,6 +58,12 @@ builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
         builder.Configuration["Runtime:IntegrationGatewayUrl"] ?? "http://127.0.0.1:5081",
         builder.Configuration["Runtime:DotNetWorkerUrl"] ?? "http://127.0.0.1:5082");
 });
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddScoped<ExecutionService>();
+builder.Services.AddWellSitePersistence(
+    builder.Configuration.GetConnectionString("WellSiteAutoPilot") ??
+    Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") ??
+    "Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa");
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 
@@ -102,6 +112,55 @@ v1.MapGet(
         StatusCodes.Status500InternalServerError,
         "application/problem+json");
 
+v1.MapPost(
+    "/executions/shadow",
+    async (
+        RequestShadowExecutionRequest request,
+        ExecutionService executionService,
+        HttpContext httpContext,
+        CancellationToken cancellationToken) =>
+    {
+        var execution = await executionService.RequestShadowAsync(
+            new ShadowExecutionCommand(
+                request.LogicInstanceId,
+                request.ModuleId,
+                request.ModuleVersion,
+                request.ConfigurationRevisionId,
+                request.AssetId,
+                request.AssetExternalId,
+                request.Quantity),
+            CorrelationContext.GetCorrelationId(httpContext),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/executions/{execution.Id}",
+            ToResponse(execution));
+    })
+    .WithName("RequestShadowExecution")
+    .Produces<ExecutionResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest,
+        "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status500InternalServerError,
+        "application/problem+json");
+
+v1.MapGet(
+    "/executions/{executionId:guid}",
+    async (
+        Guid executionId,
+        ExecutionService executionService,
+        CancellationToken cancellationToken) =>
+        ToResponse(await executionService.GetRequiredAsync(executionId, cancellationToken)))
+    .WithName("GetExecution")
+    .Produces<ExecutionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status404NotFound,
+        "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status500InternalServerError,
+        "application/problem+json");
+
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
@@ -110,5 +169,23 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 app.MapHealthChecks("/health/ready");
 
 app.Run();
+
+static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
+    execution.Id,
+    execution.LogicInstanceId,
+    execution.ModuleId,
+    execution.ModuleVersion,
+    execution.ConfigurationRevisionId,
+    execution.AssetId,
+    execution.AssetExternalId,
+    execution.Quantity,
+    execution.Mode.ToString(),
+    execution.Status.ToString(),
+    execution.CorrelationId,
+    execution.RequestedAtUtc,
+    execution.StartedAtUtc,
+    execution.CompletedAtUtc,
+    execution.ResultCode,
+    execution.FailureCode);
 
 public partial class Program;

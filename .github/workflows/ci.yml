@@ -98,8 +98,11 @@ jobs:
 
             Invoke-WebRequest "http://127.0.0.1:5080/swagger/v1/swagger.json" -UseBasicParsing -OutFile "artifacts/openapi/v1/server.json"
             $openApi = Get-Content "artifacts/openapi/v1/server.json" -Raw
-            if ($openApi -notmatch '/api/v1/system/info' -or $openApi -match 'v\\{version') {
-              throw "OpenAPI v1 did not contain the substituted versioned product route."
+            if ($openApi -notmatch '/api/v1/system/info' -or
+                $openApi -notmatch '/api/v1/executions/shadow' -or
+                $openApi -notmatch '/api/v1/executions/\\{executionId\\}' -or
+                $openApi -match 'v\\{version') {
+              throw "OpenAPI v1 did not contain the expected substituted versioned product routes."
             }
           }
           finally {
@@ -450,6 +453,9 @@ jobs:
 
       - name: Verify migrations are idempotently current
         run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
+
+      - name: Verify shadow execution persistence and outbox
+        run: dotnet run --project tests/WellSiteAutoPilot.ExecutionPersistenceTests/WellSiteAutoPilot.ExecutionPersistenceTests.csproj --configuration Release --no-build
 
 
   messaging-integration:
