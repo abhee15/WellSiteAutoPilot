@@ -59,6 +59,9 @@ jobs:
       - name: Verify failure contracts
         run: dotnet run --project tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj --configuration Release --no-build
 
+      - name: Verify provider-neutral integration contracts
+        run: dotnet run --project tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj --configuration Release --no-build
+
       - name: Generate OpenAPI contract
         shell: pwsh
         run: |
