@@ -4,6 +4,10 @@ using Microsoft.Extensions.Logging;
 using WellSiteAutoPilot.Messaging.Nats;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = "Weatherford.WellSiteAutoPilot.Worker.DotNet";
+});
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 builder.Services.AddHostedService<Worker>();

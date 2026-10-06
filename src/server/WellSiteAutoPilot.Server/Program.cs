@@ -11,6 +11,10 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
 });
 
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = "Weatherford.WellSiteAutoPilot.Server";
+});
 builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

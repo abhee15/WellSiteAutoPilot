@@ -1,6 +1,7 @@
 Unicode true
 
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
 
 !ifndef VERSION
   !define VERSION "0.1.0-dev"
@@ -88,10 +89,18 @@ Section "WellSite AutoPilot" SEC_CORE
   WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
+
+  ExecWait '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR"' $0
+  ${If} $0 != 0
+    Abort "WellSite AutoPilot service registration failed with exit code $0."
+  ${EndIf}
 SectionEnd
 
 Section "Uninstall"
   SetShellVarContext all
+
+  IfFileExists "$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" 0 +2
+    ExecWait '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" uninstall-services' $0
 
   DeleteRegKey HKLM "${UNINSTALL_KEY}"
   DeleteRegKey HKLM "Software\Weatherford\WellSiteAutoPilot"

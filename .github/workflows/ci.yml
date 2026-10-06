@@ -207,7 +207,7 @@ jobs:
         shell: pwsh
         run: |
           $installer = (Resolve-Path "artifacts\WellSiteAutoPilot-$env:WSA_VERSION-Setup.exe").Path
-          $installRoot = Join-Path $env:RUNNER_TEMP "WSAInstall"
+          $installRoot = Join-Path $env:ProgramFiles "Weatherford\WellSite AutoPilot CI"
           if (Test-Path $installRoot) {
             Remove-Item -Recurse -Force $installRoot
           }
@@ -236,6 +236,45 @@ jobs:
             }
           }
 
+          $services = @(
+            "Weatherford.WellSiteAutoPilot.Server",
+            "Weatherford.WellSiteAutoPilot.IntegrationGateway",
+            "Weatherford.WellSiteAutoPilot.Worker.DotNet"
+          )
+
+          foreach ($serviceName in $services) {
+            $running = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+              if ($service -and $service.Status -eq "Running") {
+                $running = $true
+                break
+              }
+              Start-Sleep -Seconds 1
+            }
+
+            if (-not $running) {
+              throw "Installed Windows service did not reach Running: $serviceName"
+            }
+          }
+
+          $uiReady = $false
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            try {
+              $page = Invoke-WebRequest "http://127.0.0.1:5080/" -UseBasicParsing
+              if ($page.StatusCode -eq 200 -and $page.Content -match "WellSite AutoPilot") {
+                $uiReady = $true
+                break
+              }
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+
+          if (-not $uiReady) {
+            throw "Installed WellSite AutoPilot Server did not serve the UI."
+          }
+
           $uninstaller = Join-Path $installRoot "Uninstall.exe"
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) {
@@ -245,6 +284,12 @@ jobs:
           Start-Sleep -Seconds 1
           if (Test-Path $installRoot) {
             throw "Uninstaller smoke test left the application installation directory behind."
+          }
+
+          foreach ($serviceName in $services) {
+            if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+              throw "Uninstaller smoke test left Windows service registered: $serviceName"
+            }
           }
 
       - name: Upload installer
