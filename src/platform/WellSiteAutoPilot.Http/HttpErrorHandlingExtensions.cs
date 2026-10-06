@@ -9,6 +9,7 @@ public static class HttpErrorHandlingExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddProblemDetails();
         services.AddExceptionHandler<GlobalExceptionHandler>();
         return services;
     }
