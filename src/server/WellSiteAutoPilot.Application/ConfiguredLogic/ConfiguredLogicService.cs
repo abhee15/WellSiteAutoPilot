@@ -26,10 +26,15 @@ public sealed class ConfiguredLogicService(
         var manifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
         ValidateJson(command.ParametersJson, "Configured Logic parameters must be valid JSON.");
 
-        var bindings = await ValidateBindingsAsync(
+        var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
             command.AssetBindings,
             cancellationToken);
+        var dataBindings = ValidateDataBindings(
+            manifest,
+            assetBindings,
+            command.DataBindings);
+        var schedule = ValidateSchedule(manifest, command.Schedule);
 
         var now = timeProvider.GetUtcNow();
         var configuredLogicId = Guid.NewGuid();
@@ -46,7 +51,9 @@ public sealed class ConfiguredLogicService(
             now,
             null,
             null,
-            bindings);
+            schedule,
+            assetBindings,
+            dataBindings);
 
         var configuredLogic = new ConfiguredLogicDefinition(
             configuredLogicId,
@@ -70,10 +77,15 @@ public sealed class ConfiguredLogicService(
         var manifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
         ValidateJson(command.ParametersJson, "Configured Logic parameters must be valid JSON.");
 
-        var bindings = await ValidateBindingsAsync(
+        var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
             command.AssetBindings,
             cancellationToken);
+        var dataBindings = ValidateDataBindings(
+            manifest,
+            assetBindings,
+            command.DataBindings);
+        var schedule = ValidateSchedule(manifest, command.Schedule);
 
         var revision = new ConfiguredLogicRevision(
             Guid.NewGuid(),
@@ -90,7 +102,9 @@ public sealed class ConfiguredLogicService(
             timeProvider.GetUtcNow(),
             null,
             null,
-            bindings);
+            schedule,
+            assetBindings,
+            dataBindings);
 
         await repository.AddRevisionAsync(revision, cancellationToken);
         return revision;
@@ -113,7 +127,7 @@ public sealed class ConfiguredLogicService(
         }
 
         var manifest = DeserializeAndValidateManifest(revision.ModuleManifestJson);
-        await ValidateBindingsAsync(
+        var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
             revision.AssetBindings
                 .Select(item => new ConfiguredLogicAssetBindingCommand(
@@ -122,6 +136,28 @@ public sealed class ConfiguredLogicService(
                     item.ParameterOverridesJson))
                 .ToArray(),
             cancellationToken);
+
+        ValidateDataBindings(
+            manifest,
+            assetBindings,
+            revision.DataBindings
+                .Select(item => new ConfiguredLogicDataBindingCommand(
+                    item.RequirementId,
+                    item.AssetId,
+                    item.ProviderId,
+                    item.ProviderAssetExternalId,
+                    item.ProviderMappingJson))
+                .ToArray());
+
+        ValidateSchedule(
+            manifest,
+            revision.Schedule is null
+                ? null
+                : new ConfiguredLogicScheduleCommand(
+                    revision.Schedule.Enabled,
+                    revision.Schedule.CadenceSeconds,
+                    revision.Schedule.StartAtUtc,
+                    revision.Schedule.TimeZoneId));
 
         await repository.SetRevisionValidatedAsync(
             configuredLogicId,
@@ -183,7 +219,7 @@ public sealed class ConfiguredLogicService(
         return repository.ListAsync(limit, cancellationToken);
     }
 
-    private async Task<IReadOnlyCollection<ConfiguredLogicAssetBinding>> ValidateBindingsAsync(
+    private async Task<IReadOnlyCollection<ConfiguredLogicAssetBinding>> ValidateAssetBindingsAsync(
         LogicModuleManifest manifest,
         IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> commands,
         CancellationToken cancellationToken)
@@ -289,6 +325,175 @@ public sealed class ConfiguredLogicService(
         return normalized;
     }
 
+    private static IReadOnlyCollection<ConfiguredLogicDataBinding> ValidateDataBindings(
+        LogicModuleManifest manifest,
+        IReadOnlyCollection<ConfiguredLogicAssetBinding> assetBindings,
+        IReadOnlyCollection<ConfiguredLogicDataBindingCommand> commands)
+    {
+        if (commands is null)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Configured Logic data bindings are required.");
+        }
+
+        var requirements = manifest.DataRequirements
+            .ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
+        var normalized = new List<ConfiguredLogicDataBinding>(commands.Count);
+        var uniqueBindings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var command in commands)
+        {
+            var requirementId = RequireText(
+                command.RequirementId,
+                "Configured Logic data requirement ID is required.");
+
+            if (!requirements.TryGetValue(requirementId, out var requirement))
+            {
+                throw new WellSiteAutoPilotException(
+                    "CONFIGURED_LOGIC_DATA_REQUIREMENT_UNKNOWN",
+                    FailureKind.Validation,
+                    $"Data requirement '{requirementId}' is not declared by the Logic Module.");
+            }
+
+            if (command.AssetId == Guid.Empty)
+            {
+                throw new WellSiteAutoPilotException(
+                    FailureCodes.ValidationFailed,
+                    FailureKind.Validation,
+                    $"Data requirement '{requirementId}' requires an Asset ID.");
+            }
+
+            var roleBindingExists = assetBindings.Any(
+                item => item.AssetId == command.AssetId &&
+                        string.Equals(
+                            item.Role,
+                            requirement.AssetRole,
+                            StringComparison.OrdinalIgnoreCase));
+
+            if (!roleBindingExists)
+            {
+                throw new WellSiteAutoPilotException(
+                    "CONFIGURED_LOGIC_DATA_ASSET_ROLE_MISMATCH",
+                    FailureKind.Validation,
+                    $"Data requirement '{requirementId}' must bind to an Asset in role '{requirement.AssetRole}'.");
+            }
+
+            var providerId = RequireText(
+                command.ProviderId,
+                $"Provider ID for data requirement '{requirementId}' is required.");
+            var providerAssetExternalId = RequireText(
+                command.ProviderAssetExternalId,
+                $"Provider Asset ID for data requirement '{requirementId}' is required.");
+
+            ValidateJson(
+                command.ProviderMappingJson,
+                $"Provider mapping for data requirement '{requirementId}' must be valid JSON.");
+
+            if (!uniqueBindings.Add($"{requirementId}:{command.AssetId:D}"))
+            {
+                throw new WellSiteAutoPilotException(
+                    "CONFIGURED_LOGIC_DATA_BINDING_DUPLICATE",
+                    FailureKind.Validation,
+                    $"Data requirement '{requirementId}' is bound more than once for Asset '{command.AssetId}'.");
+            }
+
+            normalized.Add(new ConfiguredLogicDataBinding(
+                requirementId,
+                command.AssetId,
+                providerId,
+                providerAssetExternalId,
+                NormalizeJson(command.ProviderMappingJson)));
+        }
+
+        foreach (var requirement in manifest.DataRequirements)
+        {
+            var requiredAssets = assetBindings
+                .Where(item => string.Equals(
+                    item.Role,
+                    requirement.AssetRole,
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.AssetId)
+                .ToArray();
+
+            foreach (var assetId in requiredAssets)
+            {
+                if (!normalized.Any(
+                        item => item.AssetId == assetId &&
+                                string.Equals(
+                                    item.RequirementId,
+                                    requirement.Id,
+                                    StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new WellSiteAutoPilotException(
+                        "CONFIGURED_LOGIC_DATA_BINDING_MISSING",
+                        FailureKind.Validation,
+                        $"Data requirement '{requirement.Id}' has no provider binding for Asset '{assetId}'.");
+                }
+            }
+        }
+
+        return normalized;
+    }
+
+    private static ConfiguredLogicSchedule? ValidateSchedule(
+        LogicModuleManifest manifest,
+        ConfiguredLogicScheduleCommand? command)
+    {
+        if (command is null)
+        {
+            return null;
+        }
+
+        if (manifest.ExecutionProfile != ExecutionProfile.ScheduledOneShot)
+        {
+            throw new WellSiteAutoPilotException(
+                "CONFIGURED_LOGIC_SCHEDULE_PROFILE_INVALID",
+                FailureKind.Validation,
+                "A cadence schedule can only be assigned to a ScheduledOneShot Logic Module.");
+        }
+
+        if (command.CadenceSeconds <= 0)
+        {
+            throw new WellSiteAutoPilotException(
+                "CONFIGURED_LOGIC_SCHEDULE_CADENCE_INVALID",
+                FailureKind.Validation,
+                "Schedule cadence must be greater than zero seconds.");
+        }
+
+        var timeZoneId = RequireText(
+            command.TimeZoneId,
+            "Schedule timezone is required.");
+
+        try
+        {
+            _ = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        }
+        catch (TimeZoneNotFoundException exception)
+        {
+            throw new WellSiteAutoPilotException(
+                "CONFIGURED_LOGIC_SCHEDULE_TIMEZONE_INVALID",
+                FailureKind.Validation,
+                $"Schedule timezone '{timeZoneId}' is not recognized.",
+                innerException: exception);
+        }
+        catch (InvalidTimeZoneException exception)
+        {
+            throw new WellSiteAutoPilotException(
+                "CONFIGURED_LOGIC_SCHEDULE_TIMEZONE_INVALID",
+                FailureKind.Validation,
+                $"Schedule timezone '{timeZoneId}' is invalid.",
+                innerException: exception);
+        }
+
+        return new ConfiguredLogicSchedule(
+            command.Enabled,
+            command.CadenceSeconds,
+            command.StartAtUtc.ToUniversalTime(),
+            timeZoneId);
+    }
+
     private static ConfiguredLogicRevision GetRequiredRevision(
         ConfiguredLogicDefinition configuredLogic,
         Guid revisionId) =>
@@ -298,7 +503,7 @@ public sealed class ConfiguredLogicService(
             FailureKind.NotFound,
             "The requested Configured Logic revision was not found.");
 
-    private static LogicModuleManifest DeserializeAndValidateManifest(string json)
+    internal static LogicModuleManifest DeserializeAndValidateManifest(string json)
     {
         ValidateJson(json, "Logic Module manifest must be valid JSON.");
 
