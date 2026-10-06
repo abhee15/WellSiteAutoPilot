@@ -6,6 +6,9 @@ public sealed record ExecutionRequestedV1(
     string ModuleId,
     string ModuleVersion,
     Guid ConfigurationRevisionId,
+    Guid AssetId,
+    string AssetExternalId,
+    string Quantity,
     string Mode,
     DateTimeOffset RequestedAtUtc);
 
