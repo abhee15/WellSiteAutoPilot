@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Infrastructure.System;
 
@@ -29,12 +30,16 @@ if (swaggerEnabled)
 }
 
 app.MapGet("/api/v1/system/info", (IPlatformInformationService service) =>
-    Results.Ok(new
-    {
-        product = "WellSite AutoPilot",
-        components = service.GetComponents()
-    }))
-    .WithName("GetSystemInformation");
+    new SystemInfoResponse(
+        "WellSite AutoPilot",
+        service.GetComponents()
+            .Select(component => new PlatformComponentResponse(
+                component.Name,
+                component.Version,
+                component.Status.ToString()))
+            .ToArray()))
+    .WithName("GetSystemInformation")
+    .Produces<SystemInfoResponse>(StatusCodes.Status200OK);
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {

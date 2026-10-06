@@ -1,20 +1,8 @@
 import { useEffect, useState } from 'react';
-
-type ComponentStatus = 'Unknown' | 'Healthy' | 'Degraded' | 'Unavailable';
-
-type PlatformComponent = {
-  name: string;
-  version: string;
-  status: ComponentStatus | number;
-};
-
-type SystemInfo = {
-  product: string;
-  components: PlatformComponent[];
-};
+import type { SystemInfoResponse } from './api/generated/types.gen';
 
 export function App() {
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
+  const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,7 +14,7 @@ export function App() {
           throw new Error(`System information request failed (${response.status}).`);
         }
 
-        return response.json() as Promise<SystemInfo>;
+        return response.json() as Promise<SystemInfoResponse>;
       })
       .then(setSystemInfo)
       .catch(reason => {
@@ -75,7 +63,7 @@ export function App() {
                     <h2>{component.name}</h2>
                     <p>Version {component.version}</p>
                   </div>
-                  <strong>{String(component.status)}</strong>
+                  <strong>{component.status}</strong>
                 </article>
               ))}
             </div>

@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/server/">
+    <Project Path="src/server/WellSiteAutoPilot.Api.Contracts/WellSiteAutoPilot.Api.Contracts.csproj" />
     <Project Path="src/server/WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
     <Project Path="src/server/WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
     <Project Path="src/server/WellSiteAutoPilot.Infrastructure/WellSiteAutoPilot.Infrastructure.csproj" />
