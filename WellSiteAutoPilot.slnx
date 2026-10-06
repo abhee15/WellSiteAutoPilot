@@ -9,6 +9,9 @@
   <Folder Name="/src/persistence/">
     <Project Path="src/persistence/WellSiteAutoPilot.Persistence/WellSiteAutoPilot.Persistence.csproj" />
   </Folder>
+  <Folder Name="/src/messaging/">
+    <Project Path="src/messaging/WellSiteAutoPilot.Messaging.Contracts/WellSiteAutoPilot.Messaging.Contracts.csproj" />
+  </Folder>
   <Folder Name="/src/integration/">
     <Project Path="src/integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj" />
