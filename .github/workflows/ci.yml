@@ -59,6 +59,11 @@ jobs:
       - name: Verify failure contracts
         run: dotnet run --project tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj --configuration Release --no-build
 
+      - name: Verify Logic Module manifest contracts
+        run: |
+          dotnet run --project tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj --configuration Release --no-build
+          dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module validate modules/samples/sample-shadow-read.manifest.json
+
       - name: Generate OpenAPI contract
         shell: pwsh
         run: |

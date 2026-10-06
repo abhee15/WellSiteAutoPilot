@@ -1,0 +1,32 @@
+{
+  "manifestVersion": 1,
+  "moduleId": "weatherford.sample-shadow-read",
+  "version": "1.0.0",
+  "displayName": "Sample Shadow Read",
+  "publisher": "Weatherford",
+  "runtime": "DotNet",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "Weatherford.SampleShadowRead.EntryPoint",
+  "minimumSdkVersion": "1.0.0",
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": "well",
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "pump-fillage",
+      "assetRole": "well",
+      "quantity": "PumpFillage",
+      "access": "Current",
+      "canonicalUnit": "%",
+      "maximumAgeSeconds": 60,
+      "allowUncertainQuality": false
+    }
+  ],
+  "commandRequirements": []
+}
