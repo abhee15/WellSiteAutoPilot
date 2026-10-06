@@ -38,9 +38,24 @@ if (execution.Mode != ExecutionMode.Shadow || execution.Status != ExecutionStatu
 }
 
 var roundTrip = await service.GetRequiredAsync(execution.Id);
-if (roundTrip != execution)
+if (roundTrip.Id != execution.Id ||
+    roundTrip.LogicInstanceId != execution.LogicInstanceId ||
+    roundTrip.ModuleId != execution.ModuleId ||
+    roundTrip.ModuleVersion != execution.ModuleVersion ||
+    roundTrip.ConfigurationRevisionId != execution.ConfigurationRevisionId ||
+    roundTrip.AssetId != execution.AssetId ||
+    roundTrip.AssetExternalId != execution.AssetExternalId ||
+    roundTrip.Quantity != execution.Quantity ||
+    roundTrip.Mode != execution.Mode ||
+    roundTrip.Status != execution.Status ||
+    roundTrip.CorrelationId != execution.CorrelationId)
 {
-    throw new InvalidOperationException("Persisted execution did not round-trip correctly.");
+    throw new InvalidOperationException("Persisted execution identity or contract fields did not round-trip correctly.");
+}
+
+if (Math.Abs((roundTrip.RequestedAtUtc - execution.RequestedAtUtc).TotalMilliseconds) > 1)
+{
+    throw new InvalidOperationException("Persisted execution timestamp drifted unexpectedly.");
 }
 
 var outbox = await dbContext.OutboxMessages
