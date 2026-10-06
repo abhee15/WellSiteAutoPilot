@@ -9,6 +9,7 @@ namespace WellSiteAutoPilot.Persistence.Migrations;
 [Migration("20261006173000_AddExecutionRequests")]
 public partial class AddExecutionRequests : Migration
 {
+    private static readonly string[] StatusRequestedAtUtcColumns = ["Status", "RequestedAtUtc"];
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         ArgumentNullException.ThrowIfNull(migrationBuilder);
@@ -59,7 +60,7 @@ public partial class AddExecutionRequests : Migration
             name: "IX_executions_Status_RequestedAtUtc",
             schema: "operations",
             table: "executions",
-            columns: new[] { "Status", "RequestedAtUtc" });
+            columns: StatusRequestedAtUtcColumns);
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)

@@ -502,3 +502,68 @@ jobs:
       - name: Stop NATS
         if: always()
         run: docker rm --force wsa-nats-ci
+
+
+  execution-dispatch-integration:
+    name: Execution outbox to JetStream integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WSA_DATABASE_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa;Password=wsa_ci_password
+      WSA_NATS_URL: nats://127.0.0.1:4222
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wsa
+          POSTGRES_PASSWORD: wsa_ci_password
+          POSTGRES_DB: wellsite_autopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wsa -d wellsite_autopilot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start NATS with JetStream
+        run: |
+          docker run --detach --name wsa-nats-execution-ci --publish 4222:4222 nats:2.15.0-alpine -js
+          for attempt in {1..30}; do
+            if docker logs wsa-nats-execution-ci 2>&1 | grep -q "Server is ready"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs wsa-nats-execution-ci
+          exit 1
+
+      - name: Restore
+        run: dotnet restore WellSiteAutoPilot.slnx
+
+      - name: Build
+        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Apply database migrations
+        run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
+
+      - name: Verify durable execution dispatch
+        run: dotnet run --project tests/WellSiteAutoPilot.ExecutionDispatchTests/WellSiteAutoPilot.ExecutionDispatchTests.csproj --configuration Release --no-build
+
+      - name: Show NATS logs on failure
+        if: failure()
+        run: docker logs wsa-nats-execution-ci
+
+      - name: Stop NATS
+        if: always()
+        run: docker rm --force wsa-nats-execution-ci

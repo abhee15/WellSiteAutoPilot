@@ -6,6 +6,7 @@ using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Http;
+using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
@@ -60,6 +61,8 @@ builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
 });
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<ExecutionService>();
+builder.Services.AddScoped<OutboxPublisher>();
+builder.Services.AddHostedService<OutboxDispatcher>();
 builder.Services.AddWellSitePersistence(
     builder.Configuration.GetConnectionString("WellSiteAutoPilot") ??
     Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") ??

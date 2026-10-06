@@ -1,6 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="NATS.Net" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
+    <ProjectReference Include="../../messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
+    <ProjectReference Include="../../persistence/WellSiteAutoPilot.Persistence/WellSiteAutoPilot.Persistence.csproj" />
   </ItemGroup>
 </Project>
