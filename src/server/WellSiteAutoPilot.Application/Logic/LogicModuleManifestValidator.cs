@@ -190,7 +190,7 @@ public static partial class LogicModuleManifestValidator
     private static partial Regex Identifier();
 
     [GeneratedRegex(
-        @"^(0|[1-9]d*).(0|[1-9]d*).(0|[1-9]d*)(?:-[0-9A-Za-z.-]+)?(?:+[0-9A-Za-z.-]+)?$",
+        @"^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:[+][0-9A-Za-z.-]+)?$",
         RegexOptions.CultureInvariant)]
     private static partial Regex SemanticVersion();
 }
