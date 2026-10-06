@@ -127,7 +127,7 @@ v1.MapPost(
 
         return Results.Created(
             $"/api/v1/asset-types/{assetType.Id}",
-            ToResponse(assetType));
+            ToAssetTypeResponse(assetType));
     })
     .WithName("CreateAssetType")
     .Produces<AssetTypeResponse>(StatusCodes.Status201Created)
@@ -138,7 +138,7 @@ v1.MapGet(
     "/asset-types",
     async (AssetService assetService, CancellationToken cancellationToken) =>
         (await assetService.ListAssetTypesAsync(cancellationToken))
-            .Select(ToResponse)
+            .Select(ToAssetTypeResponse)
             .ToArray())
     .WithName("ListAssetTypes")
     .Produces<AssetTypeResponse[]>(StatusCodes.Status200OK);
@@ -149,7 +149,7 @@ v1.MapGet(
         Guid assetTypeId,
         AssetService assetService,
         CancellationToken cancellationToken) =>
-        ToResponse(await assetService.GetRequiredAssetTypeAsync(assetTypeId, cancellationToken)))
+        ToAssetTypeResponse(await assetService.GetRequiredAssetTypeAsync(assetTypeId, cancellationToken)))
     .WithName("GetAssetType")
     .Produces<AssetTypeResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -171,7 +171,7 @@ v1.MapPost(
 
         return Results.Created(
             $"/api/v1/assets/{asset.Id}",
-            ToResponse(asset));
+            ToAssetResponse(asset));
     })
     .WithName("CreateAsset")
     .Produces<AssetResponse>(StatusCodes.Status201Created)
@@ -191,7 +191,7 @@ v1.MapGet(
             parentAssetId,
             limit ?? 100,
             cancellationToken))
-        .Select(ToResponse)
+        .Select(ToAssetResponse)
         .ToArray())
     .WithName("ListAssets")
     .Produces<AssetResponse[]>(StatusCodes.Status200OK);
@@ -202,7 +202,7 @@ v1.MapGet(
         Guid assetId,
         AssetService assetService,
         CancellationToken cancellationToken) =>
-        ToResponse(await assetService.GetRequiredAssetAsync(assetId, cancellationToken)))
+        ToAssetResponse(await assetService.GetRequiredAssetAsync(assetId, cancellationToken)))
     .WithName("GetAsset")
     .Produces<AssetResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -216,7 +216,7 @@ app.MapHealthChecks("/health/ready");
 
 app.Run();
 
-static AssetTypeResponse ToResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(
+static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(
     assetType.Id,
     assetType.Key,
     assetType.DisplayName,
@@ -225,7 +225,7 @@ static AssetTypeResponse ToResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDef
     assetType.IsActive,
     assetType.CreatedAtUtc);
 
-static AssetResponse ToResponse(WellSiteAutoPilot.Domain.Assets.Asset asset) => new(
+static AssetResponse ToAssetResponse(WellSiteAutoPilot.Domain.Assets.Asset asset) => new(
     asset.Id,
     asset.AssetTypeId,
     asset.Name,
