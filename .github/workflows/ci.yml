@@ -225,7 +225,7 @@ jobs:
             "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe",
             "Tools\DatabaseMigrator\WellSiteAutoPilot.DatabaseMigrator.exe",
             "Tools\Cli\WellSiteAutoPilot.Cli.exe",
-            "Web\index.html",
+            "Server\wwwroot\index.html",
             "Uninstall.exe"
           )
 
