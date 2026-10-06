@@ -1,7 +1,12 @@
+using Microsoft.Extensions.Hosting.WindowsServices;
 using WellSiteAutoPilot.Messaging.Nats;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = "Weatherford.WellSiteAutoPilot.IntegrationGateway";
+});
 builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
