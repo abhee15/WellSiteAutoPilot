@@ -59,7 +59,7 @@ internal static class Bootstrapper
                 WorkerServiceName,
                 "WellSite AutoPilot .NET Runtime",
                 Path.Combine(installRoot, "Workers", "DotNet", "WellSiteAutoPilot.Worker.DotNet.exe"),
-                string.Empty),
+                "--urls http://127.0.0.1:5082"),
             new ServiceDefinition(
                 ServerServiceName,
                 "WellSite AutoPilot Server",
