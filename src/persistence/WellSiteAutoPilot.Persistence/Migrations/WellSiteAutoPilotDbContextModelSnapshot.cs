@@ -12,7 +12,7 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
     {
 #pragma warning disable 612, 618
         modelBuilder
-            .HasAnnotation("ProductVersion", "10.0.12")
+            .HasAnnotation("ProductVersion", "10.0.4")
             .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
         modelBuilder.Entity(
