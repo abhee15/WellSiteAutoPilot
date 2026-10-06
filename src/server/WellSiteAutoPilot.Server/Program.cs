@@ -2,11 +2,14 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.Assets;
 using WellSiteAutoPilot.Api.Contracts.Executions;
+using WellSiteAutoPilot.Api.Contracts.ConfiguredLogic;
 using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Domain.Executions;
+using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Infrastructure.System;
@@ -64,6 +67,7 @@ builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<AssetService>();
 builder.Services.AddScoped<ExecutionService>();
+builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<OutboxPublisher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
 builder.Services.AddHostedService<ExecutionResultConsumer>();
@@ -216,6 +220,125 @@ v1.MapGet(
     .Produces<AssetResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+v1.MapPost(
+    "/configured-logic",
+    async (
+        CreateConfiguredLogicRequest request,
+        ConfiguredLogicService service,
+        CancellationToken cancellationToken) =>
+    {
+        var created = await service.CreateAsync(
+            new CreateConfiguredLogicCommand(
+                request.Name,
+                request.ModuleManifestJson,
+                request.ParametersJson,
+                request.AssetBindings
+                    .Select(binding => new ConfiguredLogicAssetBindingCommand(
+                        binding.Role,
+                        binding.AssetId,
+                        binding.ParameterOverridesJson))
+                    .ToArray()),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/configured-logic/{created.Id}",
+            ToConfiguredLogicResponse(created));
+    })
+    .WithName("CreateConfiguredLogic")
+    .Produces<ConfiguredLogicResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet(
+    "/configured-logic",
+    async (
+        int? limit,
+        ConfiguredLogicService service,
+        CancellationToken cancellationToken) =>
+        (await service.ListAsync(limit ?? 100, cancellationToken))
+            .Select(ToConfiguredLogicResponse)
+            .ToArray())
+    .WithName("ListConfiguredLogic")
+    .Produces<ConfiguredLogicResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapGet(
+    "/configured-logic/{configuredLogicId:guid}",
+    async (
+        Guid configuredLogicId,
+        ConfiguredLogicService service,
+        CancellationToken cancellationToken) =>
+        ToConfiguredLogicResponse(
+            await service.GetRequiredAsync(configuredLogicId, cancellationToken)))
+    .WithName("GetConfiguredLogic")
+    .Produces<ConfiguredLogicResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/revisions",
+    async (
+        Guid configuredLogicId,
+        CreateConfiguredLogicRevisionRequest request,
+        ConfiguredLogicService service,
+        CancellationToken cancellationToken) =>
+    {
+        var revision = await service.CreateRevisionAsync(
+            configuredLogicId,
+            new CreateConfiguredLogicRevisionCommand(
+                request.ModuleManifestJson,
+                request.ParametersJson,
+                request.AssetBindings
+                    .Select(binding => new ConfiguredLogicAssetBindingCommand(
+                        binding.Role,
+                        binding.AssetId,
+                        binding.ParameterOverridesJson))
+                    .ToArray()),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/configured-logic/{configuredLogicId}/revisions/{revision.Id}",
+            ToConfiguredLogicRevisionResponse(revision));
+    })
+    .WithName("CreateConfiguredLogicRevision")
+    .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/validate",
+    async (
+        Guid configuredLogicId,
+        Guid revisionId,
+        ConfiguredLogicService service,
+        CancellationToken cancellationToken) =>
+        ToConfiguredLogicRevisionResponse(
+            await service.ValidateRevisionAsync(
+                configuredLogicId,
+                revisionId,
+                cancellationToken)))
+    .WithName("ValidateConfiguredLogicRevision")
+    .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/activate",
+    async (
+        Guid configuredLogicId,
+        Guid revisionId,
+        ConfiguredLogicService service,
+        CancellationToken cancellationToken) =>
+        ToConfiguredLogicRevisionResponse(
+            await service.ActivateRevisionAsync(
+                configuredLogicId,
+                revisionId,
+                cancellationToken)))
+    .WithName("ActivateConfiguredLogicRevision")
+    .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
 v1.MapGet(
     "/executions",
     async (
@@ -310,6 +433,34 @@ static AssetResponse ToAssetResponse(WellSiteAutoPilot.Domain.Assets.Asset asset
     asset.AttributeValuesJson,
     asset.IsActive,
     asset.CreatedAtUtc);
+
+static ConfiguredLogicResponse ToConfiguredLogicResponse(ConfiguredLogicDefinition configuredLogic) => new(
+    configuredLogic.Id,
+    configuredLogic.Name,
+    configuredLogic.ActiveRevisionId,
+    configuredLogic.CreatedAtUtc,
+    configuredLogic.Revisions
+        .Select(ToConfiguredLogicRevisionResponse)
+        .ToArray());
+
+static ConfiguredLogicRevisionResponse ToConfiguredLogicRevisionResponse(ConfiguredLogicRevision revision) => new(
+    revision.Id,
+    revision.RevisionNumber,
+    revision.ModuleId,
+    revision.ModuleVersion,
+    revision.ModuleManifestJson,
+    revision.Mode.ToString(),
+    revision.ParametersJson,
+    revision.Status.ToString(),
+    revision.CreatedAtUtc,
+    revision.ValidatedAtUtc,
+    revision.ActivatedAtUtc,
+    revision.AssetBindings
+        .Select(binding => new ConfiguredLogicAssetBindingResponse(
+            binding.Role,
+            binding.AssetId,
+            binding.ParameterOverridesJson))
+        .ToArray());
 
 static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.Id,
