@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
+    <ProjectReference Include="../WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
+  </ItemGroup>
+</Project>
