@@ -35,8 +35,7 @@ app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
 
         return Results.Ok(value);
     })
-    .WithName("GetSimulatedCurrentValue")
-    .WithOpenApi();
+    .WithName("GetSimulatedCurrentValue");
 
 app.Run();
 

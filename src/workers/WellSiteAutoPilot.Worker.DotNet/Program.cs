@@ -7,15 +7,21 @@ builder.Services.AddHostedService<Worker>();
 
 await builder.Build().RunAsync();
 
-internal sealed class Worker(ILogger<Worker> logger) : BackgroundService
+internal sealed partial class Worker(ILogger<Worker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("WellSite AutoPilot .NET Worker started.");
+        LogWorkerStarted(logger);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         }
     }
+
+    [LoggerMessage(
+        EventId = 1000,
+        Level = LogLevel.Information,
+        Message = "WellSite AutoPilot .NET Worker started.")]
+    private static partial void LogWorkerStarted(ILogger logger);
 }

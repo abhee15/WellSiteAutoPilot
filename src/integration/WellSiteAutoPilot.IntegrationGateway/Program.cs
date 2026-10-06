@@ -24,8 +24,7 @@ app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
 
 app.MapGet("/api/internal/v1/integrations", () => Results.Ok(Array.Empty<object>()))
-    .WithName("ListIntegrations")
-    .WithOpenApi();
+    .WithName("ListIntegrations");
 
 app.Run();
 

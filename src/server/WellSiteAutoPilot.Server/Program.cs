@@ -34,8 +34,7 @@ app.MapGet("/api/v1/system/info", (IPlatformInformationService service) =>
         product = "WellSite AutoPilot",
         components = service.GetComponents()
     }))
-    .WithName("GetSystemInformation")
-    .WithOpenApi();
+    .WithName("GetSystemInformation");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
