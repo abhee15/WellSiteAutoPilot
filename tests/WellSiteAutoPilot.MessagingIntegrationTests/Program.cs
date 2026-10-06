@@ -38,8 +38,6 @@ var duplicate = await jetStream.PublishAsync(
         MsgId = messageId
     });
 
-duplicate.EnsureSuccess();
-
 if (!duplicate.Duplicate)
 {
     throw new InvalidOperationException(
