@@ -5,5 +5,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
+    <ProjectReference Include="../../messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
   </ItemGroup>
 </Project>

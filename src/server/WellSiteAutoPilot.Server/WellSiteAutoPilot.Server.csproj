@@ -7,5 +7,6 @@
     <ProjectReference Include="../WellSiteAutoPilot.Api.Contracts/WellSiteAutoPilot.Api.Contracts.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Infrastructure/WellSiteAutoPilot.Infrastructure.csproj" />
+    <ProjectReference Include="../../messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
   </ItemGroup>
 </Project>

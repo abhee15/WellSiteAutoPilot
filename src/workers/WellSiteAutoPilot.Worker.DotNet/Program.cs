@@ -1,8 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using WellSiteAutoPilot.Messaging.Nats;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddWellSiteMessaging(
+    builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 builder.Services.AddHostedService<Worker>();
 
 await builder.Build().RunAsync();

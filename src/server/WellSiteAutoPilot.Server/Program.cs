@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Infrastructure.System;
+using WellSiteAutoPilot.Messaging.Nats;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,8 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 builder.Services.AddSingleton<IPlatformInformationService, PlatformInformationService>();
+builder.Services.AddWellSiteMessaging(
+    builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 
 var app = builder.Build();
 

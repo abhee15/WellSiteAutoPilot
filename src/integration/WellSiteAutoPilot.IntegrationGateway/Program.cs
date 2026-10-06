@@ -1,3 +1,5 @@
+using WellSiteAutoPilot.Messaging.Nats;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHealthChecks();
@@ -11,6 +13,8 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Internal integration gateway contract."
     });
 });
+builder.Services.AddWellSiteMessaging(
+    builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 
 var app = builder.Build();
 
