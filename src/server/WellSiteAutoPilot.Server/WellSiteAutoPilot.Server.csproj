@@ -11,6 +11,7 @@
     <ProjectReference Include="../WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Infrastructure/WellSiteAutoPilot.Infrastructure.csproj" />
     <ProjectReference Include="../../messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
+    <ProjectReference Include="../../persistence/WellSiteAutoPilot.Persistence/WellSiteAutoPilot.Persistence.csproj" />
     <ProjectReference Include="../../platform/WellSiteAutoPilot.Http/WellSiteAutoPilot.Http.csproj" />
   </ItemGroup>
 </Project>

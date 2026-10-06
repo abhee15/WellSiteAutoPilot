@@ -97,9 +97,24 @@ jobs:
             }
 
             Invoke-WebRequest "http://127.0.0.1:5080/swagger/v1/swagger.json" -UseBasicParsing -OutFile "artifacts/openapi/v1/server.json"
-            $openApi = Get-Content "artifacts/openapi/v1/server.json" -Raw
-            if ($openApi -notmatch '/api/v1/system/info' -or $openApi -match 'v\\{version') {
-              throw "OpenAPI v1 did not contain the substituted versioned product route."
+            $openApi = Get-Content "artifacts/openapi/v1/server.json" -Raw | ConvertFrom-Json
+            $paths = @($openApi.paths.PSObject.Properties.Name)
+            $requiredPaths = @(
+              "/api/v1/system/info",
+              "/api/v1/executions/shadow",
+              "/api/v1/executions/{executionId}"
+            )
+
+            foreach ($requiredPath in $requiredPaths) {
+              if ($paths -notcontains $requiredPath) {
+                Write-Host "OpenAPI paths:"
+                $paths | Sort-Object | ForEach-Object { Write-Host "  $_" }
+                throw "OpenAPI v1 did not contain expected route: $requiredPath"
+              }
+            }
+
+            if ($paths | Where-Object { $_ -match 'v\\{version' }) {
+              throw "OpenAPI v1 still contained an unsubstituted API version route."
             }
           }
           finally {
@@ -451,6 +466,9 @@ jobs:
       - name: Verify migrations are idempotently current
         run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
 
+      - name: Verify shadow execution persistence and outbox
+        run: dotnet run --project tests/WellSiteAutoPilot.ExecutionPersistenceTests/WellSiteAutoPilot.ExecutionPersistenceTests.csproj --configuration Release --no-build
+
 
   messaging-integration:
     name: NATS JetStream integration
@@ -496,3 +514,318 @@ jobs:
       - name: Stop NATS
         if: always()
         run: docker rm --force wsa-nats-ci
+
+
+  execution-dispatch-integration:
+    name: Execution outbox to JetStream integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WSA_DATABASE_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa;Password=wsa_ci_password
+      WSA_NATS_URL: nats://127.0.0.1:4222
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wsa
+          POSTGRES_PASSWORD: wsa_ci_password
+          POSTGRES_DB: wellsite_autopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wsa -d wellsite_autopilot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start NATS with JetStream
+        run: |
+          docker run --detach --name wsa-nats-execution-ci --publish 4222:4222 nats:2.15.0-alpine -js
+          for attempt in {1..30}; do
+            if docker logs wsa-nats-execution-ci 2>&1 | grep -q "Server is ready"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs wsa-nats-execution-ci
+          exit 1
+
+      - name: Restore
+        run: dotnet restore WellSiteAutoPilot.slnx
+
+      - name: Build
+        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Apply database migrations
+        run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
+
+      - name: Verify durable execution dispatch
+        run: dotnet run --project tests/WellSiteAutoPilot.ExecutionDispatchTests/WellSiteAutoPilot.ExecutionDispatchTests.csproj --configuration Release --no-build
+
+      - name: Show NATS logs on failure
+        if: failure()
+        run: docker logs wsa-nats-execution-ci
+
+      - name: Stop NATS
+        if: always()
+        run: docker rm --force wsa-nats-execution-ci
+
+
+  provider-gateway-integration:
+    name: Provider simulator through Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore WellSiteAutoPilot.slnx
+
+      - name: Build
+        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Start provider simulator and Integration Gateway
+        shell: bash
+        run: |
+          dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
+          echo $! > simulator.pid
+
+          Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
+          echo $! > gateway.pid
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:5091/health/ready >/dev/null &&
+               curl --fail --silent http://127.0.0.1:5081/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat simulator.log || true
+          cat gateway.log || true
+          exit 1
+
+      - name: Verify semantic engineering value through Gateway
+        shell: bash
+        run: |
+          response=$(curl --fail --silent --get             --data-urlencode "assetExternalId=WELL-101"             --data-urlencode "quantity=PumpFillage"             http://127.0.0.1:5081/api/internal/v1/data/current)
+
+          echo "$response"
+
+          RESPONSE="$response" python - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["RESPONSE"])
+          assert value["quantity"] == "PumpFillage"
+          assert value["value"] == 82
+          assert value["unit"] == "%"
+          assert value["quality"] == "Good"
+          assert value["source"] == "simulator:WELL-101"
+          PY
+
+      - name: Show service logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          cat simulator.log || true
+          cat gateway.log || true
+
+      - name: Stop services
+        if: always()
+        shell: bash
+        run: |
+          if test -f gateway.pid; then kill $(cat gateway.pid) || true; fi
+          if test -f simulator.pid; then kill $(cat simulator.pid) || true; fi
+
+
+  shadow-execution-e2e:
+    name: Shadow execution end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WSA_DATABASE_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa;Password=wsa_ci_password
+      WSA_NATS_URL: nats://127.0.0.1:4222
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wsa
+          POSTGRES_PASSWORD: wsa_ci_password
+          POSTGRES_DB: wellsite_autopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wsa -d wellsite_autopilot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start NATS with JetStream
+        run: |
+          docker run --detach --name wsa-nats-shadow-ci --publish 4222:4222 nats:2.15.0-alpine -js
+          for attempt in {1..30}; do
+            if docker logs wsa-nats-shadow-ci 2>&1 | grep -q "Server is ready"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs wsa-nats-shadow-ci
+          exit 1
+
+      - name: Restore and build
+        run: |
+          dotnet restore WellSiteAutoPilot.slnx
+          dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Apply database migrations
+        run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
+
+      - name: Start runtime processes
+        shell: bash
+        run: |
+          dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
+          echo $! > simulator.pid
+
+          Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
+          echo $! > gateway.pid
+
+          Runtime__IntegrationGatewayUrl=http://127.0.0.1:5081             dotnet run --project src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --urls http://127.0.0.1:5082 > worker.log 2>&1 &
+          echo $! > worker.pid
+
+          ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
+          echo $! > server.pid
+
+          for attempt in {1..45}; do
+            if curl --fail --silent http://127.0.0.1:5091/health/ready >/dev/null &&
+               curl --fail --silent http://127.0.0.1:5081/health/ready >/dev/null &&
+               curl --fail --silent http://127.0.0.1:5082/health/ready >/dev/null &&
+               curl --fail --silent http://127.0.0.1:5080/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat simulator.log || true
+          cat gateway.log || true
+          cat worker.log || true
+          cat server.log || true
+          exit 1
+
+      - name: Request and verify Shadow execution
+        shell: bash
+        run: |
+          request=$(python - <<'PY'
+          import json, uuid
+          print(json.dumps({
+              "logicInstanceId": str(uuid.uuid4()),
+              "moduleId": "sample.shadow.logic",
+              "moduleVersion": "1.0.0",
+              "configurationRevisionId": str(uuid.uuid4()),
+              "assetId": str(uuid.uuid4()),
+              "assetExternalId": "WELL-101",
+              "quantity": "PumpFillage"
+          }))
+          PY
+          )
+
+          response=$(curl --fail --silent             -H "Content-Type: application/json"             -H "X-Correlation-ID: ci-shadow-e2e"             -d "$request"             http://127.0.0.1:5080/api/v1/executions/shadow)
+
+          echo "$response"
+
+          execution_id=$(RESPONSE="$response" python - <<'PY'
+          import json, os
+          data=json.loads(os.environ["RESPONSE"])
+          assert data["mode"] == "Shadow"
+          assert data["status"] == "Requested"
+          assert data["correlationId"] == "ci-shadow-e2e"
+          print(data["executionId"])
+          PY
+          )
+
+          completed=""
+          for attempt in {1..45}; do
+            state=$(curl --fail --silent "http://127.0.0.1:5080/api/v1/executions/$execution_id")
+            status=$(STATE="$state" python - <<'PY'
+          import json, os
+          print(json.loads(os.environ["STATE"])["status"])
+          PY
+            )
+
+            if [ "$status" = "Completed" ]; then
+              completed="$state"
+              break
+            fi
+
+            if [ "$status" = "Failed" ]; then
+              echo "$state"
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          if [ -z "$completed" ]; then
+            echo "Shadow execution did not complete in time."
+            exit 1
+          fi
+
+          echo "$completed"
+
+          STATE="$completed" python - <<'PY'
+          import json, os
+          execution=json.loads(os.environ["STATE"])
+          assert execution["resultCode"] == "SHADOW_OBSERVATION_COMPLETED"
+          output=json.loads(execution["outputJson"])
+          assert output["quantity"] == "PumpFillage"
+          assert output["value"] == 82
+          assert output["unit"] == "%"
+          assert output["quality"] == "Good"
+          assert output["source"] == "simulator:WELL-101"
+          PY
+
+      - name: Show runtime logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          cat simulator.log || true
+          cat gateway.log || true
+          cat worker.log || true
+          cat server.log || true
+          docker logs wsa-nats-shadow-ci || true
+
+      - name: Stop runtime processes
+        if: always()
+        shell: bash
+        run: |
+          for pid_file in server.pid worker.pid gateway.pid simulator.pid; do
+            if test -f "$pid_file"; then kill $(cat "$pid_file") || true; fi
+          done
+          docker rm --force wsa-nats-shadow-ci || true
