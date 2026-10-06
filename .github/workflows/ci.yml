@@ -8,6 +8,7 @@ on:
       - 'feature/**'
       - 'fix/**'
       - 'chore/**'
+      - 'validation/**'
   pull_request:
     branches:
       - main
@@ -24,7 +25,7 @@ jobs:
   foundation-build:
     name: Foundation build and installer
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       WSA_VERSION: 0.1.0-dev.${{ github.run_number }}
 
@@ -80,6 +81,12 @@ jobs:
             if (-not $ready) {
               throw "WellSite AutoPilot Server did not become ready for OpenAPI generation."
             }
+
+            $systemInfo = Invoke-RestMethod "http://127.0.0.1:5080/api/v1/system/info"
+            if ($systemInfo.product -ne "WellSite AutoPilot") {
+              throw "Unexpected system information response."
+            }
+
             Invoke-WebRequest "http://127.0.0.1:5080/swagger/v1/swagger.json" -UseBasicParsing -OutFile "artifacts/openapi/server.json"
           }
           finally {
@@ -160,6 +167,50 @@ jobs:
           & $makensis "/DVERSION=$env:WSA_VERSION" "/DSTAGING=$staging" "/DOUTFILE=$outFile" "installer\nsis\WellSiteAutoPilot.nsi"
           if ($LASTEXITCODE -ne 0) {
             throw "NSIS failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Smoke test installer
+        shell: pwsh
+        run: |
+          $installer = (Resolve-Path "artifacts\WellSiteAutoPilot-$env:WSA_VERSION-Setup.exe").Path
+          $installRoot = Join-Path $env:RUNNER_TEMP "WSAInstall"
+          if (Test-Path $installRoot) {
+            Remove-Item -Recurse -Force $installRoot
+          }
+
+          $install = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installRoot") -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Installer smoke test failed with exit code $($install.ExitCode)."
+          }
+
+          $required = @(
+            "Server\WellSiteAutoPilot.Server.exe",
+            "IntegrationGateway\WellSiteAutoPilot.IntegrationGateway.exe",
+            "Workers\DotNet\WellSiteAutoPilot.Worker.DotNet.exe",
+            "ProviderSimulator\WellSiteAutoPilot.ProviderSimulator.exe",
+            "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe",
+            "Tools\DatabaseMigrator\WellSiteAutoPilot.DatabaseMigrator.exe",
+            "Tools\Cli\WellSiteAutoPilot.Cli.exe",
+            "Web\index.html",
+            "Uninstall.exe"
+          )
+
+          foreach ($relativePath in $required) {
+            $installedPath = Join-Path $installRoot $relativePath
+            if (-not (Test-Path $installedPath)) {
+              throw "Installer smoke test did not install required file: $relativePath"
+            }
+          }
+
+          $uninstaller = Join-Path $installRoot "Uninstall.exe"
+          $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "Uninstaller smoke test failed with exit code $($uninstall.ExitCode)."
+          }
+
+          Start-Sleep -Seconds 1
+          if (Test-Path $installRoot) {
+            throw "Uninstaller smoke test left the application installation directory behind."
           }
 
       - name: Upload installer
