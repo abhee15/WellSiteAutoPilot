@@ -1,0 +1,498 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'validation/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  foundation-build:
+    name: Foundation build and installer
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      WSA_VERSION: 0.1.0-dev.${{ github.run_number }}
+      WSA_NATS_SERVER_VERSION: 2.15.0
+      WSA_NATS_SERVER_SHA256: 2d0861dc2ca3567d17f7d19611d7b346cc2ccbd7086a0a77cc957a2c71663200
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore .NET
+        run: dotnet restore WellSiteAutoPilot.slnx
+
+      - name: Build .NET
+        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Verify failure contracts
+        run: dotnet run --project tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj --configuration Release --no-build
+
+      - name: Generate OpenAPI contract
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/openapi/v1 | Out-Null
+          $env:ASPNETCORE_ENVIRONMENT = "Development"
+          $env:Swagger__Enabled = "true"
+          $stdout = "artifacts/openapi/server-startup.stdout.log"
+          $stderr = "artifacts/openapi/server-startup.stderr.log"
+          $server = Start-Process dotnet -ArgumentList @(
+            "run",
+            "--project", "src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj",
+            "--configuration", "Release",
+            "--no-build",
+            "--urls", "http://127.0.0.1:5080"
+          ) -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              try {
+                Invoke-WebRequest "http://127.0.0.1:5080/health/live" -UseBasicParsing | Out-Null
+                $ready = $true
+                break
+              } catch {
+                Start-Sleep -Seconds 1
+              }
+            }
+            if (-not $ready) {
+              if (Test-Path $stdout) { Get-Content $stdout }
+              if (Test-Path $stderr) { Get-Content $stderr }
+              throw "WellSite AutoPilot Server did not become ready for OpenAPI generation."
+            }
+
+            $systemInfo = Invoke-RestMethod "http://127.0.0.1:5080/api/v1/system/info"
+            if ($systemInfo.product -ne "WellSite AutoPilot") {
+              throw "Unexpected system information response."
+            }
+
+            Invoke-WebRequest "http://127.0.0.1:5080/swagger/v1/swagger.json" -UseBasicParsing -OutFile "artifacts/openapi/v1/server.json"
+            $openApi = Get-Content "artifacts/openapi/v1/server.json" -Raw
+            if ($openApi -notmatch '/api/v1/system/info' -or $openApi -match 'v\\{version') {
+              throw "OpenAPI v1 did not contain the substituted versioned product route."
+            }
+          }
+          finally {
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Generate TypeScript API client and build React
+        working-directory: src/web
+        run: |
+          npm install
+          npm run generate-api
+          npm run build
+
+      - name: Validate Python worker
+        run: python -m compileall -q src/workers/python/src
+
+      - name: Publish server
+        run: dotnet publish src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/server
+
+      - name: Publish integration gateway
+        run: dotnet publish src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/gateway
+
+      - name: Publish .NET worker
+        run: dotnet publish src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/worker-dotnet
+
+      - name: Publish provider simulator
+        run: dotnet publish src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/provider-simulator
+
+      - name: Publish NATS Windows service host
+        run: dotnet publish src/infrastructure/WellSiteAutoPilot.NatsHost/WellSiteAutoPilot.NatsHost.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/nats-host
+
+      - name: Publish bootstrapper
+        run: dotnet publish tools/WellSiteAutoPilot.Bootstrapper/WellSiteAutoPilot.Bootstrapper.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/bootstrapper
+
+      - name: Publish database migrator
+        run: dotnet publish tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/database-migrator
+
+      - name: Publish CLI
+        run: dotnet publish tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/cli
+
+      - name: Stage pinned NATS server
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "nats-server.zip"
+          $extractRoot = Join-Path $env:RUNNER_TEMP "nats-server"
+          $url = "https://github.com/nats-io/nats-server/releases/download/v$env:WSA_NATS_SERVER_VERSION/nats-server-v$env:WSA_NATS_SERVER_VERSION-windows-amd64.zip"
+
+          Invoke-WebRequest $url -UseBasicParsing -OutFile $archive
+
+          $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $env:WSA_NATS_SERVER_SHA256.ToLowerInvariant()) {
+            throw "NATS server checksum mismatch. Expected $env:WSA_NATS_SERVER_SHA256, actual $actualHash."
+          }
+
+          if (Test-Path $extractRoot) {
+            Remove-Item -Recurse -Force $extractRoot
+          }
+          Expand-Archive $archive -DestinationPath $extractRoot
+
+          $natsExe = Get-ChildItem $extractRoot -Filter "nats-server.exe" -Recurse | Select-Object -First 1
+          $license = Get-ChildItem $extractRoot -Filter "LICENSE" -Recurse | Select-Object -First 1
+          if (-not $natsExe) {
+            throw "The pinned NATS server archive did not contain nats-server.exe."
+          }
+
+          New-Item -ItemType Directory -Force artifacts/nats | Out-Null
+          Copy-Item $natsExe.FullName artifacts/nats/nats-server.exe
+          if ($license) {
+            Copy-Item $license.FullName artifacts/nats/LICENSE
+          }
+
+          & artifacts/nats/nats-server.exe --version
+
+      - name: Stage web assets and Python worker
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/server/wwwroot | Out-Null
+          Copy-Item -Recurse -Force src/web/dist/* artifacts/server/wwwroot/
+          New-Item -ItemType Directory -Force artifacts/python-worker | Out-Null
+          Copy-Item -Recurse -Force src/workers/python/pyproject.toml artifacts/python-worker/
+          Copy-Item -Recurse -Force src/workers/python/src artifacts/python-worker/
+
+      - name: Smoke test published server and UI
+        shell: pwsh
+        run: |
+          $env:ASPNETCORE_ENVIRONMENT = "Production"
+          $serverPath = (Resolve-Path "artifacts/server/WellSiteAutoPilot.Server.exe").Path
+          $server = Start-Process -FilePath $serverPath -ArgumentList @(
+            "--urls", "http://127.0.0.1:5090"
+          ) -PassThru
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              try {
+                Invoke-WebRequest "http://127.0.0.1:5090/health/live" -UseBasicParsing | Out-Null
+                $ready = $true
+                break
+              } catch {
+                Start-Sleep -Seconds 1
+              }
+            }
+            if (-not $ready) {
+              throw "Published WellSite AutoPilot Server did not become healthy."
+            }
+
+            $page = Invoke-WebRequest "http://127.0.0.1:5090/" -UseBasicParsing
+            if ($page.StatusCode -ne 200 -or $page.Content -notmatch "WellSite AutoPilot") {
+              throw "Published Server did not serve the WellSite AutoPilot UI."
+            }
+          }
+          finally {
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Write release manifest
+        shell: pwsh
+        run: |
+          @{
+            product = "WellSite AutoPilot"
+            version = $env:WSA_VERSION
+            commit = "${{ github.sha }}"
+            build = ${{ github.run_number }}
+            generatedAtUtc = (Get-Date).ToUniversalTime().ToString("O")
+            natsServerVersion = $env:WSA_NATS_SERVER_VERSION
+          } | ConvertTo-Json | Set-Content artifacts/release-manifest.json
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis --yes --no-progress
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+            "$env:ProgramFiles\NSIS\makensis.exe"
+          )
+          $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $makensis) {
+            throw "makensis.exe was not found after installing NSIS."
+          }
+
+          $staging = (Resolve-Path artifacts).Path
+          $outFile = Join-Path $staging "WellSiteAutoPilot-$env:WSA_VERSION-Setup.exe"
+          & $makensis "/DVERSION=$env:WSA_VERSION" "/DSTAGING=$staging" "/DOUTFILE=$outFile" "installer\nsis\WellSiteAutoPilot.nsi"
+          if ($LASTEXITCODE -ne 0) {
+            throw "NSIS failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Smoke test installer
+        shell: pwsh
+        run: |
+          $installer = (Resolve-Path "artifacts\WellSiteAutoPilot-$env:WSA_VERSION-Setup.exe").Path
+          $installRoot = Join-Path $env:ProgramFiles "Weatherford\WellSite AutoPilot CI"
+          if (Test-Path $installRoot) {
+            Remove-Item -Recurse -Force $installRoot
+          }
+
+          $install = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installRoot") -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Installer smoke test failed with exit code $($install.ExitCode)."
+          }
+
+          $required = @(
+            "Server\WellSiteAutoPilot.Server.exe",
+            "IntegrationGateway\WellSiteAutoPilot.IntegrationGateway.exe",
+            "Workers\DotNet\WellSiteAutoPilot.Worker.DotNet.exe",
+            "ProviderSimulator\WellSiteAutoPilot.ProviderSimulator.exe",
+            "Infrastructure\NATS\nats-server.exe",
+            "Infrastructure\NATSHost\WellSiteAutoPilot.NatsHost.exe",
+            "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe",
+            "Tools\DatabaseMigrator\WellSiteAutoPilot.DatabaseMigrator.exe",
+            "Tools\Cli\WellSiteAutoPilot.Cli.exe",
+            "Server\wwwroot\index.html",
+            "Uninstall.exe"
+          )
+
+          foreach ($relativePath in $required) {
+            $installedPath = Join-Path $installRoot $relativePath
+            if (-not (Test-Path $installedPath)) {
+              throw "Installer smoke test did not install required file: $relativePath"
+            }
+          }
+
+          $services = @(
+            "Weatherford.WellSiteAutoPilot.Nats",
+            "Weatherford.WellSiteAutoPilot.Server",
+            "Weatherford.WellSiteAutoPilot.IntegrationGateway",
+            "Weatherford.WellSiteAutoPilot.Worker.DotNet"
+          )
+
+          foreach ($serviceName in $services) {
+            $running = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+              if ($service -and $service.Status -eq "Running") {
+                $running = $true
+                break
+              }
+              Start-Sleep -Seconds 1
+            }
+
+            if (-not $running) {
+              throw "Installed Windows service did not reach Running: $serviceName"
+            }
+          }
+
+          $natsReady = $false
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 4222 -WarningAction SilentlyContinue
+            if ($probe.TcpTestSucceeded) {
+              $natsReady = $true
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+
+          if (-not $natsReady) {
+            throw "Installed NATS service did not accept connections on loopback port 4222."
+          }
+
+          $env:WSA_NATS_URL = "nats://127.0.0.1:4222"
+          dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed NATS JetStream validation failed with exit code $LASTEXITCODE."
+          }
+
+          $uiReady = $false
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            try {
+              $page = Invoke-WebRequest "http://127.0.0.1:5080/" -UseBasicParsing
+              if ($page.StatusCode -eq 200 -and $page.Content -match "WellSite AutoPilot") {
+                $uiReady = $true
+                break
+              }
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+
+          if (-not $uiReady) {
+            throw "Installed WellSite AutoPilot Server did not serve the UI."
+          }
+
+          $workerReady = $false
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            try {
+              Invoke-WebRequest "http://127.0.0.1:5082/health/ready" -UseBasicParsing | Out-Null
+              $workerReady = $true
+              break
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+
+          if (-not $workerReady) {
+            throw "Installed .NET worker health endpoint did not become ready."
+          }
+
+          $systemInfo = Invoke-RestMethod "http://127.0.0.1:5080/api/v1/system/info"
+          $expectedComponents = @(
+            "WellSite AutoPilot Server",
+            "WellSite AutoPilot Integration Gateway",
+            "WellSite AutoPilot .NET Runtime"
+          )
+
+          foreach ($componentName in $expectedComponents) {
+            $component = $systemInfo.components | Where-Object { $_.name -eq $componentName }
+            if (-not $component) {
+              throw "System Health did not report component: $componentName"
+            }
+            if ($component.status -ne "Healthy") {
+              throw "System Health component was not healthy: $componentName ($($component.status))"
+            }
+          }
+
+          $uninstaller = Join-Path $installRoot "Uninstall.exe"
+          $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "Uninstaller smoke test failed with exit code $($uninstall.ExitCode)."
+          }
+
+          Start-Sleep -Seconds 1
+          if (Test-Path $installRoot) {
+            throw "Uninstaller smoke test left the application installation directory behind."
+          }
+
+          foreach ($serviceName in $services) {
+            if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+              throw "Uninstaller smoke test left Windows service registered: $serviceName"
+            }
+          }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: WellSiteAutoPilot-installer-${{ github.run_number }}
+          path: |
+            artifacts/*-Setup.exe
+            artifacts/release-manifest.json
+            artifacts/openapi/v1/server.json
+          if-no-files-found: error
+          retention-days: 14
+
+  persistence-integration:
+    name: PostgreSQL migration integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WSA_DATABASE_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa;Password=wsa_ci_password
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wsa
+          POSTGRES_PASSWORD: wsa_ci_password
+          POSTGRES_DB: wellsite_autopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wsa -d wellsite_autopilot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore WellSiteAutoPilot.slnx
+
+      - name: Build
+        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Apply migrations to clean PostgreSQL
+        run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
+
+      - name: Verify migrations are idempotently current
+        run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
+
+
+  messaging-integration:
+    name: NATS JetStream integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WSA_NATS_URL: nats://127.0.0.1:4222
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start NATS with JetStream
+        run: |
+          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.15.0-alpine -js
+          for attempt in {1..30}; do
+            if docker logs wsa-nats-ci 2>&1 | grep -q "Server is ready"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs wsa-nats-ci
+          exit 1
+
+      - name: Restore
+        run: dotnet restore WellSiteAutoPilot.slnx
+
+      - name: Build
+        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Verify JetStream topology and deduplication
+        run: dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build
+
+      - name: Show NATS logs on failure
+        if: failure()
+        run: docker logs wsa-nats-ci
+
+      - name: Stop NATS
+        if: always()
+        run: docker rm --force wsa-nats-ci

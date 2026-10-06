@@ -1,0 +1,13 @@
+[project]
+name = "wellsite-autopilot-python-worker"
+version = "0.1.0"
+description = "Python Logic Module worker for WellSite AutoPilot"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+wellsite-autopilot-python-worker = "wellsite_autopilot_worker.main:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,42 @@
+<Solution>
+  <Folder Name="/src/platform/">
+    <Project Path="src/platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
+    <Project Path="src/platform/WellSiteAutoPilot.Http/WellSiteAutoPilot.Http.csproj" />
+  </Folder>
+  <Folder Name="/src/server/">
+    <Project Path="src/server/WellSiteAutoPilot.Api.Contracts/WellSiteAutoPilot.Api.Contracts.csproj" />
+    <Project Path="src/server/WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
+    <Project Path="src/server/WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
+    <Project Path="src/server/WellSiteAutoPilot.Infrastructure/WellSiteAutoPilot.Infrastructure.csproj" />
+    <Project Path="src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj" />
+  </Folder>
+  <Folder Name="/src/persistence/">
+    <Project Path="src/persistence/WellSiteAutoPilot.Persistence/WellSiteAutoPilot.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/src/messaging/">
+    <Project Path="src/messaging/WellSiteAutoPilot.Messaging.Contracts/WellSiteAutoPilot.Messaging.Contracts.csproj" />
+    <Project Path="src/messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
+  </Folder>
+  <Folder Name="/src/infrastructure/">
+    <Project Path="src/infrastructure/WellSiteAutoPilot.NatsHost/WellSiteAutoPilot.NatsHost.csproj" />
+  </Folder>
+  <Folder Name="/src/integration/">
+    <Project Path="src/integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
+    <Project Path="src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj" />
+  </Folder>
+  <Folder Name="/src/workers/">
+    <Project Path="src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj" />
+  </Folder>
+  <Folder Name="/src/simulators/">
+    <Project Path="src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj" />
+    <Project Path="tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj" />
+    <Project Path="tools/WellSiteAutoPilot.Bootstrapper/WellSiteAutoPilot.Bootstrapper.csproj" />
+  </Folder>
+</Solution>

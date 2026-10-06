@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="NATS.Net" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../WellSiteAutoPilot.Messaging.Contracts/WellSiteAutoPilot.Messaging.Contracts.csproj" />
+  </ItemGroup>
+</Project>
