@@ -4,6 +4,7 @@ return Bootstrapper.Run(args);
 
 internal static class Bootstrapper
 {
+    private const string NatsServiceName = "Weatherford.WellSiteAutoPilot.Nats";
     private const string ServerServiceName = "Weatherford.WellSiteAutoPilot.Server";
     private const string GatewayServiceName = "Weatherford.WellSiteAutoPilot.IntegrationGateway";
     private const string WorkerServiceName = "Weatherford.WellSiteAutoPilot.Worker.DotNet";
@@ -48,8 +49,22 @@ internal static class Bootstrapper
 
         installRoot = Path.GetFullPath(installRoot);
 
+        var programDataRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "Weatherford",
+            "WellSite AutoPilot");
+
+        var natsDataRoot = Path.Combine(programDataRoot, "NATS", "JetStream");
+        Directory.CreateDirectory(natsDataRoot);
+        GrantLocalServiceModifyAccess(Path.Combine(programDataRoot, "NATS"));
+
         var services = new[]
         {
+            new ServiceDefinition(
+                NatsServiceName,
+                "WellSite AutoPilot NATS",
+                Path.Combine(installRoot, "Infrastructure", "NATS", "nats-server.exe"),
+                $"-js -a 127.0.0.1 -p 4222 -sd \"{natsDataRoot}\""),
             new ServiceDefinition(
                 GatewayServiceName,
                 "WellSite AutoPilot Integration Gateway",
@@ -112,13 +127,37 @@ internal static class Bootstrapper
 
     private static int UninstallServices()
     {
-        foreach (var serviceName in new[] { ServerServiceName, WorkerServiceName, GatewayServiceName })
+        foreach (var serviceName in new[]
+        {
+            ServerServiceName,
+            WorkerServiceName,
+            GatewayServiceName,
+            NatsServiceName
+        })
         {
             RemoveServiceIfPresent(serviceName);
         }
 
         Console.WriteLine("WellSite AutoPilot Windows services removed.");
         return 0;
+    }
+
+    private static void GrantLocalServiceModifyAccess(string path)
+    {
+        var result = RunProcessAllowFailure(
+            "icacls.exe",
+            path,
+            "/grant",
+            @"NT AUTHORITY\LOCAL SERVICE:(OI)(CI)M",
+            "/T",
+            "/C");
+
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Failed to grant LocalService access to {path}: " +
+                $"{result.StandardOutput} {result.StandardError}".Trim());
+        }
     }
 
     private static void RemoveServiceIfPresent(string serviceName)
@@ -199,13 +238,16 @@ internal static class Bootstrapper
         return result;
     }
 
-    private static ScResult RunScAllowFailure(params string[] arguments)
+    private static ScResult RunScAllowFailure(params string[] arguments) =>
+        RunProcessAllowFailure("sc.exe", arguments);
+
+    private static ScResult RunProcessAllowFailure(string fileName, params string[] arguments)
     {
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "sc.exe",
+                FileName = fileName,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
