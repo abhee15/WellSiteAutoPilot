@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.JetStream.Models;
+using NATS.Client.Core;
 using NATS.Net;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Messaging.Contracts;
