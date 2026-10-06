@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using Microsoft.Extensions.Hosting.WindowsServices;
+using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Messaging.Nats;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +10,7 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.IntegrationGateway";
 });
 builder.Services.AddHealthChecks();
+builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services
     .AddApiVersioning(options =>
@@ -34,6 +36,8 @@ builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 
 var app = builder.Build();
+
+app.UseWellSiteHttpErrorHandling();
 
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Swagger:Enabled", false))
 {

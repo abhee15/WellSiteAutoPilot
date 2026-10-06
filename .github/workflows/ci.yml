@@ -54,6 +54,9 @@ jobs:
       - name: Build .NET
         run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
 
+      - name: Verify failure contracts
+        run: dotnet run --project tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj --configuration Release --no-build
+
       - name: Generate OpenAPI contract
         shell: pwsh
         run: |
