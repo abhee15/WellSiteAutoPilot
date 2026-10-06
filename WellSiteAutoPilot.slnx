@@ -17,6 +17,9 @@
     <Project Path="src/messaging/WellSiteAutoPilot.Messaging.Contracts/WellSiteAutoPilot.Messaging.Contracts.csproj" />
     <Project Path="src/messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
   </Folder>
+  <Folder Name="/src/infrastructure/">
+    <Project Path="src/infrastructure/WellSiteAutoPilot.NatsHost/WellSiteAutoPilot.NatsHost.csproj" />
+  </Folder>
   <Folder Name="/src/integration/">
     <Project Path="src/integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj" />

@@ -28,6 +28,8 @@ jobs:
     timeout-minutes: 40
     env:
       WSA_VERSION: 0.1.0-dev.${{ github.run_number }}
+      WSA_NATS_SERVER_VERSION: 2.15.0
+      WSA_NATS_SERVER_SHA256: 2d0861dc2ca3567d17f7d19611d7b346cc2ccbd7086a0a77cc957a2c71663200
 
     steps:
       - name: Checkout
@@ -128,6 +130,9 @@ jobs:
       - name: Publish provider simulator
         run: dotnet publish src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/provider-simulator
 
+      - name: Publish NATS Windows service host
+        run: dotnet publish src/infrastructure/WellSiteAutoPilot.NatsHost/WellSiteAutoPilot.NatsHost.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/nats-host
+
       - name: Publish bootstrapper
         run: dotnet publish tools/WellSiteAutoPilot.Bootstrapper/WellSiteAutoPilot.Bootstrapper.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/bootstrapper
 
@@ -136,6 +141,39 @@ jobs:
 
       - name: Publish CLI
         run: dotnet publish tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/cli
+
+      - name: Stage pinned NATS server
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "nats-server.zip"
+          $extractRoot = Join-Path $env:RUNNER_TEMP "nats-server"
+          $url = "https://github.com/nats-io/nats-server/releases/download/v$env:WSA_NATS_SERVER_VERSION/nats-server-v$env:WSA_NATS_SERVER_VERSION-windows-amd64.zip"
+
+          Invoke-WebRequest $url -UseBasicParsing -OutFile $archive
+
+          $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $env:WSA_NATS_SERVER_SHA256.ToLowerInvariant()) {
+            throw "NATS server checksum mismatch. Expected $env:WSA_NATS_SERVER_SHA256, actual $actualHash."
+          }
+
+          if (Test-Path $extractRoot) {
+            Remove-Item -Recurse -Force $extractRoot
+          }
+          Expand-Archive $archive -DestinationPath $extractRoot
+
+          $natsExe = Get-ChildItem $extractRoot -Filter "nats-server.exe" -Recurse | Select-Object -First 1
+          $license = Get-ChildItem $extractRoot -Filter "LICENSE" -Recurse | Select-Object -First 1
+          if (-not $natsExe) {
+            throw "The pinned NATS server archive did not contain nats-server.exe."
+          }
+
+          New-Item -ItemType Directory -Force artifacts/nats | Out-Null
+          Copy-Item $natsExe.FullName artifacts/nats/nats-server.exe
+          if ($license) {
+            Copy-Item $license.FullName artifacts/nats/LICENSE
+          }
+
+          & artifacts/nats/nats-server.exe --version
 
       - name: Stage web assets and Python worker
         shell: pwsh
@@ -189,6 +227,7 @@ jobs:
             commit = "${{ github.sha }}"
             build = ${{ github.run_number }}
             generatedAtUtc = (Get-Date).ToUniversalTime().ToString("O")
+            natsServerVersion = $env:WSA_NATS_SERVER_VERSION
           } | ConvertTo-Json | Set-Content artifacts/release-manifest.json
 
       - name: Install NSIS
@@ -233,6 +272,8 @@ jobs:
             "IntegrationGateway\WellSiteAutoPilot.IntegrationGateway.exe",
             "Workers\DotNet\WellSiteAutoPilot.Worker.DotNet.exe",
             "ProviderSimulator\WellSiteAutoPilot.ProviderSimulator.exe",
+            "Infrastructure\NATS\nats-server.exe",
+            "Infrastructure\NATSHost\WellSiteAutoPilot.NatsHost.exe",
             "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe",
             "Tools\DatabaseMigrator\WellSiteAutoPilot.DatabaseMigrator.exe",
             "Tools\Cli\WellSiteAutoPilot.Cli.exe",
@@ -248,6 +289,7 @@ jobs:
           }
 
           $services = @(
+            "Weatherford.WellSiteAutoPilot.Nats",
             "Weatherford.WellSiteAutoPilot.Server",
             "Weatherford.WellSiteAutoPilot.IntegrationGateway",
             "Weatherford.WellSiteAutoPilot.Worker.DotNet"
@@ -267,6 +309,26 @@ jobs:
             if (-not $running) {
               throw "Installed Windows service did not reach Running: $serviceName"
             }
+          }
+
+          $natsReady = $false
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 4222 -WarningAction SilentlyContinue
+            if ($probe.TcpTestSucceeded) {
+              $natsReady = $true
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+
+          if (-not $natsReady) {
+            throw "Installed NATS service did not accept connections on loopback port 4222."
+          }
+
+          $env:WSA_NATS_URL = "nats://127.0.0.1:4222"
+          dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed NATS JetStream validation failed with exit code $LASTEXITCODE."
           }
 
           $uiReady = $false
@@ -408,7 +470,7 @@ jobs:
 
       - name: Start NATS with JetStream
         run: |
-          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.11-alpine -js
+          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.15.0-alpine -js
           for attempt in {1..30}; do
             if docker logs wsa-nats-ci 2>&1 | grep -q "Server is ready"; then
               exit 0
