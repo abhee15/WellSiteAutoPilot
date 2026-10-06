@@ -17,10 +17,12 @@ permissions:
   contents: read
 
 jobs:
-  dotnet-build:
-    name: .NET build
+  foundation-build:
+    name: Foundation build and installer
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
+    env:
+      WSA_VERSION: 0.1.0-dev.${{ github.run_number }}
 
     steps:
       - name: Checkout
@@ -31,28 +33,101 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore .NET
         run: dotnet restore WellSiteAutoPilot.slnx
 
-      - name: Build
+      - name: Build .NET
         run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
 
+      - name: Build React
+        working-directory: src/web
+        run: |
+          npm install
+          npm run build
+
+      - name: Validate Python worker
+        run: python -m compileall -q src/workers/python/src
+
       - name: Publish server
-        run: dotnet publish src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --output artifacts/server
+        run: dotnet publish src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/server
 
       - name: Publish integration gateway
-        run: dotnet publish src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --output artifacts/gateway
+        run: dotnet publish src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/gateway
 
       - name: Publish .NET worker
-        run: dotnet publish src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --output artifacts/worker-dotnet
+        run: dotnet publish src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/worker-dotnet
 
       - name: Publish provider simulator
-        run: dotnet publish src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --output artifacts/provider-simulator
+        run: dotnet publish src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/provider-simulator
 
-      - name: Upload foundation binaries
+      - name: Publish bootstrapper
+        run: dotnet publish tools/WellSiteAutoPilot.Bootstrapper/WellSiteAutoPilot.Bootstrapper.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/bootstrapper
+
+      - name: Publish database migrator
+        run: dotnet publish tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/database-migrator
+
+      - name: Publish CLI
+        run: dotnet publish tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/cli
+
+      - name: Stage web and Python worker
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/web | Out-Null
+          Copy-Item -Recurse -Force src/web/dist/* artifacts/web/
+          New-Item -ItemType Directory -Force artifacts/python-worker | Out-Null
+          Copy-Item -Recurse -Force src/workers/python/pyproject.toml artifacts/python-worker/
+          Copy-Item -Recurse -Force src/workers/python/src artifacts/python-worker/
+
+      - name: Write release manifest
+        shell: pwsh
+        run: |
+          @{
+            product = "WellSite AutoPilot"
+            version = $env:WSA_VERSION
+            commit = "${{ github.sha }}"
+            build = ${{ github.run_number }}
+            generatedAtUtc = (Get-Date).ToUniversalTime().ToString("O")
+          } | ConvertTo-Json | Set-Content artifacts/release-manifest.json
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis --yes --no-progress
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+            "$env:ProgramFiles\NSIS\makensis.exe"
+          )
+          $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $makensis) {
+            throw "makensis.exe was not found after installing NSIS."
+          }
+
+          $staging = (Resolve-Path artifacts).Path
+          $outFile = Join-Path $staging "WellSiteAutoPilot-$env:WSA_VERSION-Setup.exe"
+          & $makensis "/DVERSION=$env:WSA_VERSION" "/DSTAGING=$staging" "/DOUTFILE=$outFile" "installer\nsis\WellSiteAutoPilot.nsi"
+          if ($LASTEXITCODE -ne 0) {
+            throw "NSIS failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: WellSiteAutoPilot-foundation-${{ github.run_number }}
-          path: artifacts/
+          name: WellSiteAutoPilot-installer-${{ github.run_number }}
+          path: |
+            artifacts/*-Setup.exe
+            artifacts/release-manifest.json
           if-no-files-found: error
           retention-days: 14
