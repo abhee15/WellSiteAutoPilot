@@ -63,6 +63,7 @@ builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<OutboxPublisher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
+builder.Services.AddHostedService<ExecutionResultConsumer>();
 builder.Services.AddWellSitePersistence(
     builder.Configuration.GetConnectionString("WellSiteAutoPilot") ??
     Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") ??
@@ -189,6 +190,7 @@ static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.StartedAtUtc,
     execution.CompletedAtUtc,
     execution.ResultCode,
-    execution.FailureCode);
+    execution.FailureCode,
+    execution.OutputJson);
 
 public partial class Program;

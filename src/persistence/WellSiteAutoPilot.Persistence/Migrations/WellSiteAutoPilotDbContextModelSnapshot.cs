@@ -30,12 +30,12 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.Property<string>("Mode").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
                 entity.Property<string>("ModuleId").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
                 entity.Property<string>("ModuleVersion").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                entity.Property<string>("OutputJson").HasColumnType("text");
                 entity.Property<string>("Quantity").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
                 entity.Property<DateTimeOffset>("RequestedAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<string>("ResultCode").HasMaxLength(128).HasColumnType("character varying(128)");
                 entity.Property<DateTimeOffset?>("StartedAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
-
                 entity.HasKey("Id");
                 entity.HasIndex("AssetId");
                 entity.HasIndex("LogicInstanceId");

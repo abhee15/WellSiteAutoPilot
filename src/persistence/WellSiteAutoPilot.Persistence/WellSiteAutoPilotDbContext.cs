@@ -8,9 +8,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     : DbContext(options)
 {
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
-
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
-
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -30,6 +28,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         execution.Property(x => x.RequestedAtUtc).IsRequired();
         execution.Property(x => x.ResultCode).HasMaxLength(128);
         execution.Property(x => x.FailureCode).HasMaxLength(128);
+        execution.Property(x => x.OutputJson);
         execution.HasIndex(x => x.LogicInstanceId);
         execution.HasIndex(x => x.AssetId);
         execution.HasIndex(x => new { x.Status, x.RequestedAtUtc });

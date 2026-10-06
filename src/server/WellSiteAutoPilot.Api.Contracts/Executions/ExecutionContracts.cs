@@ -25,4 +25,5 @@ public sealed record ExecutionResponse(
     DateTimeOffset? StartedAtUtc,
     DateTimeOffset? CompletedAtUtc,
     string? ResultCode,
-    string? FailureCode);
+    string? FailureCode,
+    string? OutputJson);

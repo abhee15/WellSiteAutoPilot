@@ -60,11 +60,107 @@ public sealed class ExecutionRepository(
     {
         var entity = await dbContext.Executions
             .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.Id == executionId,
-                cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == executionId, cancellationToken);
 
         return entity is null ? null : ToDomain(entity);
+    }
+
+    public Task<bool> ApplyCompletedAsync(
+        Guid messageId,
+        string consumer,
+        Guid executionId,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset completedAtUtc,
+        string resultCode,
+        string? outputJson,
+        CancellationToken cancellationToken = default) =>
+        ApplyResultAsync(
+            messageId,
+            consumer,
+            executionId,
+            ExecutionStatus.Completed,
+            startedAtUtc,
+            completedAtUtc,
+            resultCode,
+            null,
+            outputJson,
+            cancellationToken);
+
+    public Task<bool> ApplyFailedAsync(
+        Guid messageId,
+        string consumer,
+        Guid executionId,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset failedAtUtc,
+        string failureCode,
+        CancellationToken cancellationToken = default) =>
+        ApplyResultAsync(
+            messageId,
+            consumer,
+            executionId,
+            ExecutionStatus.Failed,
+            startedAtUtc,
+            failedAtUtc,
+            null,
+            failureCode,
+            null,
+            cancellationToken);
+
+    private async Task<bool> ApplyResultAsync(
+        Guid messageId,
+        string consumer,
+        Guid executionId,
+        ExecutionStatus status,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset completedAtUtc,
+        string? resultCode,
+        string? failureCode,
+        string? outputJson,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumer);
+
+        var alreadyProcessed = await dbContext.InboxMessages.AnyAsync(
+            message => message.MessageId == messageId && message.Consumer == consumer,
+            cancellationToken);
+
+        if (alreadyProcessed)
+        {
+            return false;
+        }
+
+        var execution = await dbContext.Executions.SingleOrDefaultAsync(
+            item => item.Id == executionId,
+            cancellationToken);
+
+        if (execution is null)
+        {
+            throw new KeyNotFoundException($"Execution {executionId} does not exist.");
+        }
+
+        if (execution.Status is not nameof(ExecutionStatus.Completed) and
+            not nameof(ExecutionStatus.Failed) and
+            not nameof(ExecutionStatus.Cancelled) and
+            not nameof(ExecutionStatus.Suspended) and
+            not nameof(ExecutionStatus.TimedOut))
+        {
+            execution.Status = status.ToString();
+            execution.StartedAtUtc = startedAtUtc;
+            execution.CompletedAtUtc = completedAtUtc;
+            execution.ResultCode = resultCode;
+            execution.FailureCode = failureCode;
+            execution.OutputJson = outputJson;
+        }
+
+        dbContext.InboxMessages.Add(new InboxMessageEntity
+        {
+            MessageId = messageId,
+            Consumer = consumer,
+            ProcessedAtUtc = completedAtUtc
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     private static ExecutionEntity ToEntity(ExecutionRecord execution) => new()
@@ -84,7 +180,8 @@ public sealed class ExecutionRepository(
         StartedAtUtc = execution.StartedAtUtc,
         CompletedAtUtc = execution.CompletedAtUtc,
         ResultCode = execution.ResultCode,
-        FailureCode = execution.FailureCode
+        FailureCode = execution.FailureCode,
+        OutputJson = execution.OutputJson
     };
 
     private static ExecutionRecord ToDomain(ExecutionEntity entity) => new(
@@ -103,5 +200,6 @@ public sealed class ExecutionRepository(
         entity.StartedAtUtc,
         entity.CompletedAtUtc,
         entity.ResultCode,
-        entity.FailureCode);
+        entity.FailureCode,
+        entity.OutputJson);
 }

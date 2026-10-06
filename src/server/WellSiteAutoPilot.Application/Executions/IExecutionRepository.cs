@@ -11,4 +11,23 @@ public interface IExecutionRepository
     Task<ExecutionRecord?> GetAsync(
         Guid executionId,
         CancellationToken cancellationToken = default);
+
+    Task<bool> ApplyCompletedAsync(
+        Guid messageId,
+        string consumer,
+        Guid executionId,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset completedAtUtc,
+        string resultCode,
+        string? outputJson,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> ApplyFailedAsync(
+        Guid messageId,
+        string consumer,
+        Guid executionId,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset failedAtUtc,
+        string failureCode,
+        CancellationToken cancellationToken = default);
 }

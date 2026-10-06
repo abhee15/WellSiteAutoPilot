@@ -10,12 +10,12 @@ namespace WellSiteAutoPilot.Persistence.Migrations;
 public partial class AddExecutionRequests : Migration
 {
     private static readonly string[] StatusRequestedAtUtcColumns = ["Status", "RequestedAtUtc"];
+
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         ArgumentNullException.ThrowIfNull(migrationBuilder);
 
-        migrationBuilder.EnsureSchema(
-            name: "operations");
+        migrationBuilder.EnsureSchema(name: "operations");
 
         migrationBuilder.CreateTable(
             name: "executions",
@@ -37,7 +37,8 @@ public partial class AddExecutionRequests : Migration
                 StartedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                 CompletedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                 ResultCode = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                FailureCode = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true)
+                FailureCode = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                OutputJson = table.Column<string>(type: "text", nullable: true)
             },
             constraints: table =>
             {
@@ -66,9 +67,6 @@ public partial class AddExecutionRequests : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         ArgumentNullException.ThrowIfNull(migrationBuilder);
-
-        migrationBuilder.DropTable(
-            name: "executions",
-            schema: "operations");
+        migrationBuilder.DropTable(name: "executions", schema: "operations");
     }
 }

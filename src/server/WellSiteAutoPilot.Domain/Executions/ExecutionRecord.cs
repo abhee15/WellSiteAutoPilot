@@ -16,4 +16,5 @@ public sealed record ExecutionRecord(
     DateTimeOffset? StartedAtUtc = null,
     DateTimeOffset? CompletedAtUtc = null,
     string? ResultCode = null,
-    string? FailureCode = null);
+    string? FailureCode = null,
+    string? OutputJson = null);
