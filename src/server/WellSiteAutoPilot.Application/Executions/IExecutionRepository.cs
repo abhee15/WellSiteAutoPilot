@@ -12,6 +12,11 @@ public interface IExecutionRepository
         Guid executionId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<ExecutionRecord>> ListAsync(
+        ExecutionStatus? status,
+        int limit,
+        CancellationToken cancellationToken = default);
+
     Task<bool> ApplyCompletedAsync(
         Guid messageId,
         string consumer,
