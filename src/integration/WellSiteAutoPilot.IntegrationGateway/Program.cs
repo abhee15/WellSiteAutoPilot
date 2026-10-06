@@ -1,6 +1,8 @@
 using Asp.Versioning;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using WellSiteAutoPilot.Http;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.IntegrationGateway.Providers;
 using WellSiteAutoPilot.Messaging.Nats;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +34,19 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Internal integration gateway contract."
     });
 });
+builder.Services.AddHttpClient<SimulatorCurrentDataProvider>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["Providers:Simulator:BaseUrl"] ??
+        "http://127.0.0.1:5091");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+builder.Services.AddTransient<ICurrentDataProvider>(
+    serviceProvider =>
+        serviceProvider.GetRequiredService<SimulatorCurrentDataProvider>());
+builder.Services.AddTransient<IProviderHealthProvider>(
+    serviceProvider =>
+        serviceProvider.GetRequiredService<SimulatorCurrentDataProvider>());
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 
@@ -56,8 +71,47 @@ var v1 = internalApi
     .MapGroup("/api/internal/v{version:apiVersion}")
     .HasApiVersion(1.0);
 
-v1.MapGet("/integrations", () => Results.Ok(Array.Empty<object>()))
+v1.MapGet(
+    "/integrations",
+    async (
+        IProviderHealthProvider provider,
+        CancellationToken cancellationToken) =>
+    {
+        var health = await provider.GetHealthAsync(cancellationToken);
+
+        return Results.Ok(new[]
+        {
+            new
+            {
+                id = health.ProviderId,
+                name = health.DisplayName,
+                status = health.State.ToString(),
+                reason = health.Reason
+            }
+        });
+    })
     .WithName("ListIntegrations");
+
+v1.MapGet(
+    "/data/current",
+    async (
+        string assetExternalId,
+        string quantity,
+        ICurrentDataProvider provider,
+        CancellationToken cancellationToken) =>
+        Results.Ok(
+            await provider.GetCurrentAsync(
+                assetExternalId,
+                quantity,
+                cancellationToken)))
+    .WithName("GetCurrentEngineeringValue")
+    .Produces<EngineeringValue>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest,
+        "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status503ServiceUnavailable,
+        "application/problem+json");
 
 app.Run();
 

@@ -567,3 +567,78 @@ jobs:
       - name: Stop NATS
         if: always()
         run: docker rm --force wsa-nats-execution-ci
+
+
+  provider-gateway-integration:
+    name: Provider simulator through Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore WellSiteAutoPilot.slnx
+
+      - name: Build
+        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Start provider simulator and Integration Gateway
+        shell: bash
+        run: |
+          dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
+          echo $! > simulator.pid
+
+          Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
+          echo $! > gateway.pid
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:5091/health/ready >/dev/null &&
+               curl --fail --silent http://127.0.0.1:5081/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat simulator.log || true
+          cat gateway.log || true
+          exit 1
+
+      - name: Verify semantic engineering value through Gateway
+        shell: bash
+        run: |
+          response=$(curl --fail --silent --get             --data-urlencode "assetExternalId=WELL-101"             --data-urlencode "quantity=PumpFillage"             http://127.0.0.1:5081/api/internal/v1/data/current)
+
+          echo "$response"
+
+          RESPONSE="$response" python - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["RESPONSE"])
+          assert value["quantity"] == "PumpFillage"
+          assert value["value"] == 82
+          assert value["unit"] == "%"
+          assert value["quality"] == "Good"
+          assert value["source"] == "simulator:WELL-101"
+          PY
+
+      - name: Show service logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          cat simulator.log || true
+          cat gateway.log || true
+
+      - name: Stop services
+        if: always()
+        shell: bash
+        run: |
+          if test -f gateway.pid; then kill $(cat gateway.pid) || true; fi
+          if test -f simulator.pid; then kill $(cat simulator.pid) || true; fi
