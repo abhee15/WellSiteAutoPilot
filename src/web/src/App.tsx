@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { SystemInfoResponse } from './api/generated/types.gen';
+import type { SystemInfoResponse } from './api/generated/v1/types.gen';
 
 export function App() {
   const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);

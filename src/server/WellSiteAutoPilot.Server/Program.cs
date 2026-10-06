@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Application.System;
@@ -17,6 +18,17 @@ builder.Services.AddWindowsService(options =>
 });
 builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services
+    .AddApiVersioning(options =>
+    {
+        options.ReportApiVersions = true;
+        options.ApiVersionReader = new UrlSegmentApiVersionReader();
+    })
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = true;
+    });
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new()
@@ -38,13 +50,21 @@ var swaggerEnabled = app.Environment.IsDevelopment() ||
 if (swaggerEnabled)
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "WellSite AutoPilot API v1");
+    });
 }
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/api/v1/system/info", (IPlatformInformationService service) =>
+var productApi = app.NewVersionedApi("WellSite AutoPilot API");
+var v1 = productApi
+    .MapGroup("/api/v{version:apiVersion}")
+    .HasApiVersion(1.0);
+
+v1.MapGet("/system/info", (IPlatformInformationService service) =>
     new SystemInfoResponse(
         "WellSite AutoPilot",
         service.GetComponents()

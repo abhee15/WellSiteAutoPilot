@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using WellSiteAutoPilot.Messaging.Nats;
 
@@ -9,6 +10,17 @@ builder.Services.AddWindowsService(options =>
 });
 builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services
+    .AddApiVersioning(options =>
+    {
+        options.ReportApiVersions = true;
+        options.ApiVersionReader = new UrlSegmentApiVersionReader();
+    })
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = true;
+    });
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new()
@@ -26,13 +38,21 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Swagger:Enabled", false))
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Integration Gateway API v1");
+    });
 }
 
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
 
-app.MapGet("/api/internal/v1/integrations", () => Results.Ok(Array.Empty<object>()))
+var internalApi = app.NewVersionedApi("WellSite AutoPilot Integration Gateway API");
+var v1 = internalApi
+    .MapGroup("/api/internal/v{version:apiVersion}")
+    .HasApiVersion(1.0);
+
+v1.MapGet("/integrations", () => Results.Ok(Array.Empty<object>()))
     .WithName("ListIntegrations");
 
 app.Run();
