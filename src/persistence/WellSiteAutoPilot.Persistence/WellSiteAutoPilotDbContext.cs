@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Persistence.Assets;
+using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Messaging;
 
@@ -11,6 +12,9 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
+    public DbSet<ConfiguredLogicEntity> ConfiguredLogicDefinitions => Set<ConfiguredLogicEntity>();
+    public DbSet<ConfiguredLogicRevisionEntity> ConfiguredLogicRevisions => Set<ConfiguredLogicRevisionEntity>();
+    public DbSet<ConfiguredLogicAssetBindingEntity> ConfiguredLogicAssetBindings => Set<ConfiguredLogicAssetBindingEntity>();
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
 
@@ -45,6 +49,46 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         asset.HasOne<AssetEntity>()
             .WithMany()
             .HasForeignKey(x => x.ParentAssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        var configuredLogic = modelBuilder.Entity<ConfiguredLogicEntity>();
+        configuredLogic.ToTable("configured_logic", "logic");
+        configuredLogic.HasKey(x => x.Id);
+        configuredLogic.Property(x => x.Name).HasMaxLength(256).IsRequired();
+        configuredLogic.Property(x => x.CreatedAtUtc).IsRequired();
+        configuredLogic.HasIndex(x => x.ActiveRevisionId);
+
+        var configuredLogicRevision = modelBuilder.Entity<ConfiguredLogicRevisionEntity>();
+        configuredLogicRevision.ToTable("configured_logic_revisions", "logic");
+        configuredLogicRevision.HasKey(x => x.Id);
+        configuredLogicRevision.Property(x => x.RevisionNumber).IsRequired();
+        configuredLogicRevision.Property(x => x.ModuleId).HasMaxLength(256).IsRequired();
+        configuredLogicRevision.Property(x => x.ModuleVersion).HasMaxLength(64).IsRequired();
+        configuredLogicRevision.Property(x => x.ModuleManifestJson).IsRequired();
+        configuredLogicRevision.Property(x => x.Mode).HasMaxLength(32).IsRequired();
+        configuredLogicRevision.Property(x => x.ParametersJson).IsRequired();
+        configuredLogicRevision.Property(x => x.Status).HasMaxLength(32).IsRequired();
+        configuredLogicRevision.Property(x => x.CreatedAtUtc).IsRequired();
+        configuredLogicRevision.HasIndex(x => new { x.ConfiguredLogicId, x.RevisionNumber }).IsUnique();
+        configuredLogicRevision.HasIndex(x => x.Status);
+        configuredLogicRevision.HasOne<ConfiguredLogicEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ConfiguredLogicId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var configuredLogicBinding = modelBuilder.Entity<ConfiguredLogicAssetBindingEntity>();
+        configuredLogicBinding.ToTable("configured_logic_asset_bindings", "logic");
+        configuredLogicBinding.HasKey(x => new { x.RevisionId, x.Role, x.AssetId });
+        configuredLogicBinding.Property(x => x.Role).HasMaxLength(128).IsRequired();
+        configuredLogicBinding.Property(x => x.ParameterOverridesJson).IsRequired();
+        configuredLogicBinding.HasIndex(x => x.AssetId);
+        configuredLogicBinding.HasOne<ConfiguredLogicRevisionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.RevisionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        configuredLogicBinding.HasOne<AssetEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
 
         var execution = modelBuilder.Entity<ExecutionEntity>();
