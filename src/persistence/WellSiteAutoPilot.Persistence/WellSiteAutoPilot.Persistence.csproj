@@ -7,4 +7,8 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../server/WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
+    <ProjectReference Include="../../server/WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
+  </ItemGroup>
 </Project>
