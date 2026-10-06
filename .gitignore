@@ -1,0 +1,54 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+TestResults/
+artifacts/
+
+# Node / React
+node_modules/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local configuration / secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+secrets/
+*.pfx
+*.p12
+*.key
+
+# Installer/build output
+installer/out/
+installer/staging/
+
+# Logs / local data
+logs/
+data/
+diagnostics/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
