@@ -71,9 +71,6 @@ Section "WellSite AutoPilot" SEC_CORE
   SetOutPath "$INSTDIR\Tools\Cli"
   File /r "${STAGING}\cli\*"
 
-  SetOutPath "$INSTDIR\Web"
-  File /r "${STAGING}\web\*"
-
   CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot"
   CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Logs"
   CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Diagnostics"
