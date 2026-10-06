@@ -88,7 +88,7 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             entity =>
             {
                 entity.Property<Guid>("RevisionId").HasColumnType("uuid");
-                entity.Property<string>("Role").HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<string>("Role").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
                 entity.Property<Guid>("AssetId").HasColumnType("uuid");
                 entity.Property<string>("ParameterOverridesJson").IsRequired().HasColumnType("text");
                 entity.HasKey("RevisionId", "Role", "AssetId");
