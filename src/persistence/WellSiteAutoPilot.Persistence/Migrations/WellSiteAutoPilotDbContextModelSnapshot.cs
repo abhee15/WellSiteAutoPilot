@@ -16,6 +16,39 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Assets.AssetTypeEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<string>("AttributeSchemaJson").IsRequired().HasColumnType("text");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<bool>("IsActive").HasColumnType("boolean");
+                entity.Property<string>("Key").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<int>("SchemaVersion").HasColumnType("integer");
+                entity.HasKey("Id");
+                entity.HasIndex("Key").IsUnique();
+                entity.ToTable("asset_types", "assets");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Assets.AssetEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<Guid>("AssetTypeId").HasColumnType("uuid");
+                entity.Property<string>("AttributeValuesJson").IsRequired().HasColumnType("text");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<bool>("IsActive").HasColumnType("boolean");
+                entity.Property<string>("Name").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<Guid?>("ParentAssetId").HasColumnType("uuid");
+                entity.HasKey("Id");
+                entity.HasIndex("AssetTypeId");
+                entity.HasIndex("ParentAssetId");
+                entity.ToTable("assets", "assets");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Executions.ExecutionEntity",
             entity =>
             {
@@ -66,6 +99,22 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.HasKey("Id");
                 entity.HasIndex("ProcessedAtUtc");
                 entity.ToTable("outbox_messages", "messaging");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Assets.AssetEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetTypeEntity", null)
+                    .WithMany()
+                    .HasForeignKey("AssetTypeId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                    .WithMany()
+                    .HasForeignKey("ParentAssetId")
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 #pragma warning restore 612, 618
     }

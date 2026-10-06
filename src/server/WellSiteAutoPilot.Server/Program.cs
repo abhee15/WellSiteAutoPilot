@@ -1,7 +1,9 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using WellSiteAutoPilot.Api.Contracts.Assets;
 using WellSiteAutoPilot.Api.Contracts.Executions;
 using WellSiteAutoPilot.Api.Contracts.System;
+using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Domain.Executions;
@@ -60,6 +62,7 @@ builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
         builder.Configuration["Runtime:DotNetWorkerUrl"] ?? "http://127.0.0.1:5082");
 });
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddScoped<AssetService>();
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<OutboxPublisher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
@@ -115,6 +118,103 @@ v1.MapGet(
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status500InternalServerError,
         "application/problem+json");
+
+v1.MapPost(
+    "/asset-types",
+    async (
+        CreateAssetTypeRequest request,
+        AssetService assetService,
+        CancellationToken cancellationToken) =>
+    {
+        var assetType = await assetService.CreateAssetTypeAsync(
+            new CreateAssetTypeCommand(
+                request.Key,
+                request.DisplayName,
+                request.AttributeSchemaJson),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/asset-types/{assetType.Id}",
+            ToAssetTypeResponse(assetType));
+    })
+    .WithName("CreateAssetType")
+    .Produces<AssetTypeResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapGet(
+    "/asset-types",
+    async (AssetService assetService, CancellationToken cancellationToken) =>
+        (await assetService.ListAssetTypesAsync(cancellationToken))
+            .Select(ToAssetTypeResponse)
+            .ToArray())
+    .WithName("ListAssetTypes")
+    .Produces<AssetTypeResponse[]>(StatusCodes.Status200OK);
+
+v1.MapGet(
+    "/asset-types/{assetTypeId:guid}",
+    async (
+        Guid assetTypeId,
+        AssetService assetService,
+        CancellationToken cancellationToken) =>
+        ToAssetTypeResponse(
+            await assetService.GetRequiredAssetTypeAsync(assetTypeId, cancellationToken)))
+    .WithName("GetAssetType")
+    .Produces<AssetTypeResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/assets",
+    async (
+        CreateAssetRequest request,
+        AssetService assetService,
+        CancellationToken cancellationToken) =>
+    {
+        var asset = await assetService.CreateAssetAsync(
+            new CreateAssetCommand(
+                request.AssetTypeId,
+                request.Name,
+                request.ParentAssetId,
+                request.AttributeValuesJson),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/assets/{asset.Id}",
+            ToAssetResponse(asset));
+    })
+    .WithName("CreateAsset")
+    .Produces<AssetResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet(
+    "/assets",
+    async (
+        Guid? assetTypeId,
+        Guid? parentAssetId,
+        int? limit,
+        AssetService assetService,
+        CancellationToken cancellationToken) =>
+        (await assetService.ListAssetsAsync(
+            assetTypeId,
+            parentAssetId,
+            limit ?? 100,
+            cancellationToken))
+        .Select(ToAssetResponse)
+        .ToArray())
+    .WithName("ListAssets")
+    .Produces<AssetResponse[]>(StatusCodes.Status200OK);
+
+v1.MapGet(
+    "/assets/{assetId:guid}",
+    async (
+        Guid assetId,
+        AssetService assetService,
+        CancellationToken cancellationToken) =>
+        ToAssetResponse(await assetService.GetRequiredAssetAsync(assetId, cancellationToken)))
+    .WithName("GetAsset")
+    .Produces<AssetResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 v1.MapPost(
     "/executions/shadow",
@@ -173,6 +273,24 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 app.MapHealthChecks("/health/ready");
 
 app.Run();
+
+static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(
+    assetType.Id,
+    assetType.Key,
+    assetType.DisplayName,
+    assetType.SchemaVersion,
+    assetType.AttributeSchemaJson,
+    assetType.IsActive,
+    assetType.CreatedAtUtc);
+
+static AssetResponse ToAssetResponse(WellSiteAutoPilot.Domain.Assets.Asset asset) => new(
+    asset.Id,
+    asset.AssetTypeId,
+    asset.Name,
+    asset.ParentAssetId,
+    asset.AttributeValuesJson,
+    asset.IsActive,
+    asset.CreatedAtUtc);
 
 static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.Id,

@@ -101,6 +101,10 @@ jobs:
             $paths = @($openApi.paths.PSObject.Properties.Name)
             $requiredPaths = @(
               "/api/v1/system/info",
+              "/api/v1/asset-types",
+              "/api/v1/asset-types/{assetTypeId}",
+              "/api/v1/assets",
+              "/api/v1/assets/{assetId}",
               "/api/v1/executions/shadow",
               "/api/v1/executions/{executionId}"
             )
@@ -468,6 +472,9 @@ jobs:
 
       - name: Verify shadow execution persistence and outbox
         run: dotnet run --project tests/WellSiteAutoPilot.ExecutionPersistenceTests/WellSiteAutoPilot.ExecutionPersistenceTests.csproj --configuration Release --no-build
+
+      - name: Verify asset persistence
+        run: dotnet run --project tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj --configuration Release --no-build
 
 
   messaging-integration:
