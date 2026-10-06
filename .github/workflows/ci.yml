@@ -57,7 +57,7 @@ jobs:
       - name: Generate OpenAPI contract
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force artifacts/openapi | Out-Null
+          New-Item -ItemType Directory -Force artifacts/openapi/v1 | Out-Null
           $env:ASPNETCORE_ENVIRONMENT = "Development"
           $env:Swagger__Enabled = "true"
           $server = Start-Process dotnet -ArgumentList @(
@@ -87,7 +87,11 @@ jobs:
               throw "Unexpected system information response."
             }
 
-            Invoke-WebRequest "http://127.0.0.1:5080/swagger/v1/swagger.json" -UseBasicParsing -OutFile "artifacts/openapi/server.json"
+            Invoke-WebRequest "http://127.0.0.1:5080/swagger/v1/swagger.json" -UseBasicParsing -OutFile "artifacts/openapi/v1/server.json"
+            $openApi = Get-Content "artifacts/openapi/v1/server.json" -Raw
+            if ($openApi -notmatch '/api/v1/system/info' -or $openApi -match 'v\\{version') {
+              throw "OpenAPI v1 did not contain the substituted versioned product route."
+            }
           }
           finally {
             if ($server -and -not $server.HasExited) {
@@ -299,7 +303,7 @@ jobs:
           path: |
             artifacts/*-Setup.exe
             artifacts/release-manifest.json
-            artifacts/openapi/server.json
+            artifacts/openapi/v1/server.json
           if-no-files-found: error
           retention-days: 14
 

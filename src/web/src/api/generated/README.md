@@ -1,5 +1,12 @@
 # Generated API client
 
-This directory is reserved for TypeScript transport DTOs and API clients generated from the WellSite AutoPilot OpenAPI document.
+Transport DTOs and typed clients are generated from the version-specific WellSite AutoPilot OpenAPI contract.
 
-Generated files must not be hand-edited.
+Current layout:
+
+```text
+v1/
+  ...
+```
+
+Generated files must never be hand-edited. Breaking API changes require a new major API version and a separate generated client folder.
