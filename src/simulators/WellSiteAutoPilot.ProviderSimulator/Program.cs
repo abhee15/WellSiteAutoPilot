@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.ProviderSimulator.Simulation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,7 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Development and test provider simulation endpoints."
     });
 });
+builder.Services.AddSingleton<SimulatorState>();
 
 var app = builder.Build();
 
@@ -22,20 +24,52 @@ app.UseSwaggerUI();
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
 
-app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
-    (string assetId, string quantity) =>
+app.MapGet("/api/sim/v1/state", (SimulatorState state) =>
+    Results.Ok(new
     {
-        var value = new EngineeringValue(
-            quantity,
-            Value: 0m,
-            Unit: "simulated",
-            TimestampUtc: DateTimeOffset.UtcNow,
-            Quality: "Good",
-            Source: $"simulator:{assetId}");
+        mode = "SIMULATION",
+        scenario = state.Scenario,
+        providerAvailable = state.ProviderAvailable
+    }))
+    .WithName("GetSimulatorState");
 
-        return Results.Ok(value);
+app.MapPost("/api/sim/v1/scenarios/reset", (ResetScenarioRequest request, SimulatorState state) =>
+    {
+        state.Reset(request.Scenario);
+        return Results.NoContent();
     })
-    .WithName("GetSimulatedCurrentValue");
+    .WithName("ResetSimulatorScenario");
+
+app.MapPost("/api/sim/v1/provider/availability", (SetAvailabilityRequest request, SimulatorState state) =>
+    {
+        state.SetAvailability(request.Available);
+        return Results.NoContent();
+    })
+    .WithName("SetSimulatorProviderAvailability");
+
+app.MapPut("/api/sim/v1/assets/{assetId}/current/{quantity}",
+    (string assetId, string quantity, SetCurrentValueRequest request, SimulatorState state) =>
+    {
+        state.SetCurrent(assetId, quantity, request.Value, request.Unit, request.Quality);
+        return Results.NoContent();
+    })
+    .WithName("SetSimulatedCurrentValue");
+
+app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
+    (string assetId, string quantity, SimulatorState state) =>
+    {
+        try
+        {
+            return Results.Ok(state.GetCurrent(assetId, quantity));
+        }
+        catch (SimulatorProviderUnavailableException)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+    })
+    .WithName("GetSimulatedCurrentValue")
+    .Produces<EngineeringValue>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status503ServiceUnavailable);
 
 app.Run();
 
