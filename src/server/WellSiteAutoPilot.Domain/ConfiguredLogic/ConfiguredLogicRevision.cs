@@ -15,4 +15,6 @@ public sealed record ConfiguredLogicRevision(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? ValidatedAtUtc,
     DateTimeOffset? ActivatedAtUtc,
-    IReadOnlyCollection<ConfiguredLogicAssetBinding> AssetBindings);
+    ConfiguredLogicSchedule? Schedule,
+    IReadOnlyCollection<ConfiguredLogicAssetBinding> AssetBindings,
+    IReadOnlyCollection<ConfiguredLogicDataBinding> DataBindings);
