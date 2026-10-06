@@ -66,6 +66,9 @@ Section "WellSite AutoPilot" SEC_CORE
   SetOutPath "$INSTDIR\Infrastructure\NATS"
   File /r "${STAGING}\nats\*"
 
+  SetOutPath "$INSTDIR\Infrastructure\NATSHost"
+  File /r "${STAGING}\nats-host\*"
+
   SetOutPath "$INSTDIR\Tools\Bootstrapper"
   File /r "${STAGING}\bootstrapper\*"
 

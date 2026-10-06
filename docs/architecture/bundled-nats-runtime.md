@@ -8,7 +8,8 @@ WellSite AutoPilot V1 bundles a pinned NATS Server binary for the local Runtime 
 - CI downloads the official Windows AMD64 release archive and verifies its SHA-256 digest before packaging it.
 - The same NATS minor version is exercised by the JetStream integration job.
 - The installer places the binary under `Infrastructure/NATS`.
-- The bootstrapper registers `Weatherford.WellSiteAutoPilot.Nats` as a Windows service.
+- NATS Server itself is not treated as a native Windows Service executable. A small WellSite AutoPilot `NatsHost` Windows Service owns the child `nats-server.exe` process and its lifecycle.
+- The bootstrapper registers `Weatherford.WellSiteAutoPilot.Nats` using the WSA `NatsHost` executable.
 - NATS listens only on `127.0.0.1:4222`.
 - JetStream storage is placed under the WellSite AutoPilot ProgramData tree.
 - Mutable JetStream data is preserved when the product is uninstalled.

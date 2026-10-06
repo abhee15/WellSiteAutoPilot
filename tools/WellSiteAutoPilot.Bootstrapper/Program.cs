@@ -63,8 +63,8 @@ internal static class Bootstrapper
             new ServiceDefinition(
                 NatsServiceName,
                 "WellSite AutoPilot NATS",
-                Path.Combine(installRoot, "Infrastructure", "NATS", "nats-server.exe"),
-                $"-js -a 127.0.0.1 -p 4222 -sd \"{natsDataRoot}\""),
+                Path.Combine(installRoot, "Infrastructure", "NATSHost", "WellSiteAutoPilot.NatsHost.exe"),
+                string.Empty),
             new ServiceDefinition(
                 GatewayServiceName,
                 "WellSite AutoPilot Integration Gateway",
