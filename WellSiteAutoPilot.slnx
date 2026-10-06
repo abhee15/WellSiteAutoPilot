@@ -5,6 +5,9 @@
     <Project Path="src/server/WellSiteAutoPilot.Infrastructure/WellSiteAutoPilot.Infrastructure.csproj" />
     <Project Path="src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj" />
   </Folder>
+  <Folder Name="/src/persistence/">
+    <Project Path="src/persistence/WellSiteAutoPilot.Persistence/WellSiteAutoPilot.Persistence.csproj" />
+  </Folder>
   <Folder Name="/src/integration/">
     <Project Path="src/integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj" />
