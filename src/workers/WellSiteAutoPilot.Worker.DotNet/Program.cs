@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Logging;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Worker.DotNet.Execution;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -13,9 +13,17 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Worker.DotNet";
 });
 builder.Services.AddHealthChecks();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddHttpClient<GatewayDataClient>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["Runtime:IntegrationGatewayUrl"] ??
+        "http://127.0.0.1:5081");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
-builder.Services.AddHostedService<Worker>();
+builder.Services.AddHostedService<ExecutionRequestConsumer>();
 
 var app = builder.Build();
 
@@ -26,22 +34,3 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 app.MapHealthChecks("/health/ready");
 
 await app.RunAsync();
-
-internal sealed partial class Worker(ILogger<Worker> logger) : BackgroundService
-{
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        LogWorkerStarted(logger);
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-        }
-    }
-
-    [LoggerMessage(
-        EventId = 1000,
-        Level = LogLevel.Information,
-        Message = "WellSite AutoPilot .NET Worker started.")]
-    private static partial void LogWorkerStarted(ILogger logger);
-}

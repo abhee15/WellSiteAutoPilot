@@ -21,21 +21,21 @@ public static class JetStreamTopology
 
         var jetStream = connection.CreateJetStreamContext();
 
-        await jetStream.CreateStreamAsync(
+        await jetStream.CreateOrUpdateStreamAsync(
             new StreamConfig(ExecutionStream, ["wsa.execution.>"])
             {
                 Description = "WellSite AutoPilot durable execution messages"
             },
             cancellationToken);
 
-        await jetStream.CreateStreamAsync(
+        await jetStream.CreateOrUpdateStreamAsync(
             new StreamConfig(ControlStream, ["wsa.control.>"])
             {
                 Description = "WellSite AutoPilot governed control messages"
             },
             cancellationToken);
 
-        await jetStream.CreateStreamAsync(
+        await jetStream.CreateOrUpdateStreamAsync(
             new StreamConfig(IntegrationStream, ["wsa.integration.>"])
             {
                 Description = "WellSite AutoPilot integration events"
