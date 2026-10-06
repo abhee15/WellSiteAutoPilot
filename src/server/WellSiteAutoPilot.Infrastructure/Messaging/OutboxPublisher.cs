@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Net;
 using WellSiteAutoPilot.Messaging.Nats;
