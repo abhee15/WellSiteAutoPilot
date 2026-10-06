@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
+    <ProjectReference Include="../WellSiteAutoPilot.Infrastructure/WellSiteAutoPilot.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
