@@ -388,3 +388,49 @@ jobs:
 
       - name: Verify migrations are idempotently current
         run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
+
+
+  messaging-integration:
+    name: NATS JetStream integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WSA_NATS_URL: nats://127.0.0.1:4222
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start NATS with JetStream
+        run: |
+          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.11-alpine -js
+          for attempt in {1..30}; do
+            if docker logs wsa-nats-ci 2>&1 | grep -q "Server is ready"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs wsa-nats-ci
+          exit 1
+
+      - name: Restore
+        run: dotnet restore WellSiteAutoPilot.slnx
+
+      - name: Build
+        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
+
+      - name: Verify JetStream topology and deduplication
+        run: dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build
+
+      - name: Show NATS logs on failure
+        if: failure()
+        run: docker logs wsa-nats-ci
+
+      - name: Stop NATS
+        if: always()
+        run: docker rm --force wsa-nats-ci
