@@ -216,6 +216,25 @@ v1.MapGet(
     .Produces<AssetResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+v1.MapGet(
+    "/executions",
+    async (
+        string? status,
+        int? limit,
+        ExecutionService executionService,
+        CancellationToken cancellationToken) =>
+        (await executionService.ListAsync(
+            status,
+            limit ?? 50,
+            cancellationToken))
+        .Select(ToResponse)
+        .ToArray())
+    .WithName("ListExecutions")
+    .Produces<ExecutionResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest,
+        "application/problem+json");
+
 v1.MapPost(
     "/executions/shadow",
     async (
