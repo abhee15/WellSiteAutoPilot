@@ -9,6 +9,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations;
 [Migration("20261006233000_AddConfiguredLogic")]
 public partial class AddConfiguredLogic : Migration
 {
+    private static readonly string[] RevisionIndexColumns =
+        ["ConfiguredLogicId", "RevisionNumber"];
+
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         ArgumentNullException.ThrowIfNull(migrationBuilder);
@@ -135,7 +138,7 @@ public partial class AddConfiguredLogic : Migration
             name: "IX_configured_logic_revisions_ConfiguredLogicId_RevisionNumber",
             schema: "logic",
             table: "configured_logic_revisions",
-            columns: new[] { "ConfiguredLogicId", "RevisionNumber" },
+            columns: RevisionIndexColumns,
             unique: true);
 
         migrationBuilder.CreateIndex(
