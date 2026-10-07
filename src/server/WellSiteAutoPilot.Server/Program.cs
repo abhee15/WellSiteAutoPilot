@@ -237,7 +237,22 @@ v1.MapPost(
                         binding.Role,
                         binding.AssetId,
                         binding.ParameterOverridesJson))
-                    .ToArray()),
+                    .ToArray(),
+                request.DataBindings
+                    .Select(binding => new ConfiguredLogicDataBindingCommand(
+                        binding.RequirementId,
+                        binding.AssetId,
+                        binding.ProviderId,
+                        binding.ProviderAssetExternalId,
+                        binding.ProviderMappingJson))
+                    .ToArray(),
+                request.Schedule is null
+                    ? null
+                    : new ConfiguredLogicScheduleCommand(
+                        request.Schedule.Enabled,
+                        request.Schedule.CadenceSeconds,
+                        request.Schedule.StartAtUtc,
+                        request.Schedule.TimeZoneId)),
             cancellationToken);
 
         return Results.Created(
@@ -292,7 +307,22 @@ v1.MapPost(
                         binding.Role,
                         binding.AssetId,
                         binding.ParameterOverridesJson))
-                    .ToArray()),
+                    .ToArray(),
+                request.DataBindings
+                    .Select(binding => new ConfiguredLogicDataBindingCommand(
+                        binding.RequirementId,
+                        binding.AssetId,
+                        binding.ProviderId,
+                        binding.ProviderAssetExternalId,
+                        binding.ProviderMappingJson))
+                    .ToArray(),
+                request.Schedule is null
+                    ? null
+                    : new ConfiguredLogicScheduleCommand(
+                        request.Schedule.Enabled,
+                        request.Schedule.CadenceSeconds,
+                        request.Schedule.StartAtUtc,
+                        request.Schedule.TimeZoneId)),
             cancellationToken);
 
         return Results.Created(
@@ -455,11 +485,26 @@ static ConfiguredLogicRevisionResponse ToConfiguredLogicRevisionResponse(Configu
     revision.CreatedAtUtc,
     revision.ValidatedAtUtc,
     revision.ActivatedAtUtc,
+    revision.Schedule is null
+        ? null
+        : new ConfiguredLogicScheduleResponse(
+            revision.Schedule.Enabled,
+            revision.Schedule.CadenceSeconds,
+            revision.Schedule.StartAtUtc,
+            revision.Schedule.TimeZoneId),
     revision.AssetBindings
         .Select(binding => new ConfiguredLogicAssetBindingResponse(
             binding.Role,
             binding.AssetId,
             binding.ParameterOverridesJson))
+        .ToArray(),
+    revision.DataBindings
+        .Select(binding => new ConfiguredLogicDataBindingResponse(
+            binding.RequirementId,
+            binding.AssetId,
+            binding.ProviderId,
+            binding.ProviderAssetExternalId,
+            binding.ProviderMappingJson))
         .ToArray());
 
 static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
