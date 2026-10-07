@@ -230,7 +230,9 @@ public sealed class ExecutionService(
             })
             .ToArray();
 
-        DateTimeOffset? scheduledForUtc = command.ScheduledForUtc?.ToUniversalTime();
+        DateTimeOffset? scheduledForUtc = command.ScheduledForUtc is null
+            ? null
+            : NormalizeUtcTimestamp(command.ScheduledForUtc.Value);
 
         if (command.Trigger == ExecutionTriggerKind.Scheduled && scheduledForUtc is null)
         {
@@ -254,6 +256,13 @@ public sealed class ExecutionService(
             normalizedInputs,
             command.Trigger,
             scheduledForUtc);
+    }
+
+    private static DateTimeOffset NormalizeUtcTimestamp(DateTimeOffset value)
+    {
+        var utc = value.ToUniversalTime();
+        var ticks = utc.Ticks - (utc.Ticks % TimeSpan.TicksPerMicrosecond);
+        return new DateTimeOffset(ticks, TimeSpan.Zero);
     }
 
     private static string RequireText(string? value, string message)
