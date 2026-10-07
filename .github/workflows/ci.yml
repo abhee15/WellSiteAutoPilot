@@ -88,6 +88,9 @@ jobs:
             throw "Logic Module packaging is not deterministic."
           }
 
+          dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module verify $package1
+          if ($LASTEXITCODE -ne 0) { throw "Logic Module package verification failed." }
+
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $package1))
           try {
