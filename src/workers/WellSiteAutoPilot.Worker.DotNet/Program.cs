@@ -14,6 +14,8 @@ builder.Services.AddWindowsService(options =>
 });
 builder.Services.AddHealthChecks();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddSingleton<ILogicModuleResolver, BuiltInLogicModuleResolver>();
+builder.Services.AddTransient<ModuleExecutionEngine>();
 builder.Services.AddHttpClient<GatewayDataClient>(client =>
 {
     client.BaseAddress = new Uri(
