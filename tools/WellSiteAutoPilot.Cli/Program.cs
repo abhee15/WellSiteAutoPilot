@@ -256,11 +256,11 @@ internal static class Cli
                     manifestEntry = entry;
                 }
                 else if (name.StartsWith("payload/", StringComparison.Ordinal) &&
-                         !name.EndsWith("/", StringComparison.Ordinal))
+                         !name.EndsWith('/'))
                 {
                     payloadFileCount++;
                 }
-                else if (!name.EndsWith("/", StringComparison.Ordinal))
+                else if (!name.EndsWith('/'))
                 {
                     Console.Error.WriteLine(
                         $"Logic Module package contains a file outside the payload directory: {entry.FullName}");
@@ -320,7 +320,7 @@ internal static class Cli
     private static bool IsSafeArchiveEntry(string entryName)
     {
         if (string.IsNullOrWhiteSpace(entryName) ||
-            entryName.StartsWith("/", StringComparison.Ordinal) ||
+            entryName.StartsWith('/') ||
             entryName.Contains(':'))
         {
             return false;
