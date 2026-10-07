@@ -37,6 +37,13 @@ internal static class Cli
             return await PackModuleAsync(args[2], args[3], args[4]);
         }
 
+        if (args.Length == 3 &&
+            string.Equals(args[0], "module", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(args[1], "verify", StringComparison.OrdinalIgnoreCase))
+        {
+            return await VerifyPackageAsync(args[2]);
+        }
+
         WriteUsage();
         return args.Length == 0 ? 0 : 2;
     }
@@ -169,6 +176,165 @@ internal static class Cli
         }
     }
 
+
+    private static async Task<int> VerifyPackageAsync(string packagePath)
+    {
+        const long maximumPackageBytes = 256L * 1024L * 1024L;
+        const long maximumExpandedBytes = 512L * 1024L * 1024L;
+        const long maximumManifestBytes = 1024L * 1024L;
+        const int maximumEntries = 10_000;
+
+        try
+        {
+            var fullPath = Path.GetFullPath(packagePath);
+
+            if (!File.Exists(fullPath))
+            {
+                Console.Error.WriteLine($"Logic Module package was not found: {fullPath}");
+                return 2;
+            }
+
+            if (!string.Equals(
+                    Path.GetExtension(fullPath),
+                    ".wsamodule",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine("Logic Module package must use the .wsamodule extension.");
+                return 2;
+            }
+
+            var packageInfo = new FileInfo(fullPath);
+            if (packageInfo.Length > maximumPackageBytes)
+            {
+                Console.Error.WriteLine("Logic Module package exceeds the maximum supported package size.");
+                return 2;
+            }
+
+            await using var stream = File.OpenRead(fullPath);
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
+
+            if (archive.Entries.Count > maximumEntries)
+            {
+                Console.Error.WriteLine("Logic Module package contains too many archive entries.");
+                return 2;
+            }
+
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            long expandedBytes = 0;
+            ZipArchiveEntry? manifestEntry = null;
+            var payloadFileCount = 0;
+
+            foreach (var entry in archive.Entries)
+            {
+                var name = entry.FullName.Replace('\\', '/');
+
+                if (!IsSafeArchiveEntry(name))
+                {
+                    Console.Error.WriteLine($"Logic Module package contains an unsafe archive entry: {entry.FullName}");
+                    return 2;
+                }
+
+                if (!names.Add(name))
+                {
+                    Console.Error.WriteLine($"Logic Module package contains a duplicate archive entry: {entry.FullName}");
+                    return 2;
+                }
+
+                checked
+                {
+                    expandedBytes += entry.Length;
+                }
+
+                if (expandedBytes > maximumExpandedBytes)
+                {
+                    Console.Error.WriteLine("Logic Module package exceeds the maximum expanded size.");
+                    return 2;
+                }
+
+                if (string.Equals(name, "manifest.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    manifestEntry = entry;
+                }
+                else if (name.StartsWith("payload/", StringComparison.Ordinal) &&
+                         !name.EndsWith("/", StringComparison.Ordinal))
+                {
+                    payloadFileCount++;
+                }
+                else if (!name.EndsWith("/", StringComparison.Ordinal))
+                {
+                    Console.Error.WriteLine(
+                        $"Logic Module package contains a file outside the payload directory: {entry.FullName}");
+                    return 2;
+                }
+            }
+
+            if (manifestEntry is null)
+            {
+                Console.Error.WriteLine("Logic Module package does not contain manifest.json.");
+                return 2;
+            }
+
+            if (manifestEntry.Length > maximumManifestBytes)
+            {
+                Console.Error.WriteLine("Logic Module manifest exceeds the maximum supported size.");
+                return 2;
+            }
+
+            if (payloadFileCount == 0)
+            {
+                Console.Error.WriteLine("Logic Module package does not contain a payload.");
+                return 2;
+            }
+
+            LogicModuleManifest manifest;
+            await using (var manifestStream = manifestEntry.Open())
+            {
+                manifest = await JsonSerializer.DeserializeAsync<LogicModuleManifest>(
+                               manifestStream,
+                               SerializerOptions) ??
+                           throw new JsonException(
+                               "Logic Module package manifest is empty.");
+            }
+
+            LogicModuleManifestValidator.Validate(manifest);
+            var checksum = await ComputeSha256Async(fullPath);
+
+            Console.WriteLine($"Valid Logic Module package: {manifest.ModuleId} {manifest.Version}");
+            Console.WriteLine($"SHA256: {checksum}");
+            Console.WriteLine($"Payload files: {payloadFileCount}");
+            return 0;
+        }
+        catch (Exception exception) when (
+            exception is JsonException or
+            InvalidDataException or
+            OverflowException or
+            WellSiteAutoPilotException or
+            IOException or
+            UnauthorizedAccessException)
+        {
+            WriteSafeError(exception);
+            return 2;
+        }
+    }
+
+    private static bool IsSafeArchiveEntry(string entryName)
+    {
+        if (string.IsNullOrWhiteSpace(entryName) ||
+            entryName.StartsWith("/", StringComparison.Ordinal) ||
+            entryName.Contains(':', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var segments = entryName.Split(
+            '/',
+            StringSplitOptions.RemoveEmptyEntries);
+
+        return segments.Length > 0 &&
+               segments.All(segment =>
+                   segment is not "." and not "..");
+    }
+
     private static async Task<LogicModuleManifest> LoadManifestAsync(string path)
     {
         var fullPath = Path.GetFullPath(path);
@@ -246,5 +412,6 @@ internal static class Cli
         Console.WriteLine("WellSite AutoPilot CLI");
         Console.WriteLine("  module validate <manifest.json>");
         Console.WriteLine("  module pack <manifest.json> <payload-directory> <output.wsamodule>");
+        Console.WriteLine("  module verify <package.wsamodule>");
     }
 }
