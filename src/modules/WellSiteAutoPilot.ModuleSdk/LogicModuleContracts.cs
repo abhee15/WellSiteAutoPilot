@@ -21,7 +21,7 @@ public sealed record LogicInputValue(
 
 public sealed record LogicModuleExecutionContext(
     Guid ExecutionId,
-    LogicModuleIdentity Module,
+    LogicModuleIdentity ModuleIdentity,
     string CorrelationId,
     DateTimeOffset EvaluationTimeUtc,
     string ParametersJson,
