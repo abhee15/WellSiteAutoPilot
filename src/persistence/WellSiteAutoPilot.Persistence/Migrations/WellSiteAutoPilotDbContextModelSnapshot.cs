@@ -74,6 +74,7 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.Property<string>("ModuleManifestJson").IsRequired().HasColumnType("text");
                 entity.Property<string>("ModuleVersion").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
                 entity.Property<string>("ParametersJson").IsRequired().HasColumnType("text");
+                entity.Property<string>("ScheduleJson").HasColumnType("text");
                 entity.Property<int>("RevisionNumber").HasColumnType("integer");
                 entity.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
                 entity.Property<DateTimeOffset?>("ValidatedAtUtc").HasColumnType("timestamp with time zone");
@@ -94,6 +95,21 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.HasKey("RevisionId", "Role", "AssetId");
                 entity.HasIndex("AssetId");
                 entity.ToTable("configured_logic_asset_bindings", "logic");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicDataBindingEntity",
+            entity =>
+            {
+                entity.Property<Guid>("RevisionId").HasColumnType("uuid");
+                entity.Property<string>("RequirementId").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<Guid>("AssetId").HasColumnType("uuid");
+                entity.Property<string>("ProviderAssetExternalId").IsRequired().HasMaxLength(512).HasColumnType("character varying(512)");
+                entity.Property<string>("ProviderId").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("ProviderMappingJson").IsRequired().HasColumnType("text");
+                entity.HasKey("RevisionId", "RequirementId", "AssetId");
+                entity.HasIndex("AssetId");
+                entity.ToTable("configured_logic_data_bindings", "logic");
             });
 
         modelBuilder.Entity(
@@ -177,6 +193,23 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicAssetBindingEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                    .WithMany()
+                    .HasForeignKey("AssetId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("RevisionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicDataBindingEntity",
             entity =>
             {
                 entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
