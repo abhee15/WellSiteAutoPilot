@@ -778,7 +778,7 @@ jobs:
           import json, uuid
           print(json.dumps({
               "logicInstanceId": str(uuid.uuid4()),
-              "moduleId": "sample.shadow.logic",
+              "moduleId": "weatherford.sample-shadow-read",
               "moduleVersion": "1.0.0",
               "configurationRevisionId": str(uuid.uuid4()),
               "assetId": str(uuid.uuid4()),
@@ -834,13 +834,14 @@ jobs:
           STATE="$completed" python - <<'PY'
           import json, os
           execution=json.loads(os.environ["STATE"])
-          assert execution["resultCode"] == "SHADOW_OBSERVATION_COMPLETED"
+          assert execution["resultCode"] == "SHADOW_MODULE_COMPLETED"
           output=json.loads(execution["outputJson"])
-          assert output["quantity"] == "PumpFillage"
-          assert output["value"] == 82
-          assert output["unit"] == "%"
-          assert output["quality"] == "Good"
-          assert output["source"] == "simulator:WELL-101"
+          result=output["engineeringResults"][0]
+          assert result["quantity"] == "PumpFillage"
+          assert result["value"] == 82
+          assert result["unit"] == "%"
+          assert output["controlIntents"] == []
+          assert output["recommendations"] == []
           PY
 
           activity=$(curl --fail --silent "http://127.0.0.1:5080/api/v1/executions?limit=10")
