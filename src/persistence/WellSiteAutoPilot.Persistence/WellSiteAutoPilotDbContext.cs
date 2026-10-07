@@ -15,6 +15,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<ConfiguredLogicEntity> ConfiguredLogicDefinitions => Set<ConfiguredLogicEntity>();
     public DbSet<ConfiguredLogicRevisionEntity> ConfiguredLogicRevisions => Set<ConfiguredLogicRevisionEntity>();
     public DbSet<ConfiguredLogicAssetBindingEntity> ConfiguredLogicAssetBindings => Set<ConfiguredLogicAssetBindingEntity>();
+    public DbSet<ConfiguredLogicDataBindingEntity> ConfiguredLogicDataBindings => Set<ConfiguredLogicDataBindingEntity>();
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
 
@@ -67,6 +68,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         configuredLogicRevision.Property(x => x.ModuleManifestJson).IsRequired();
         configuredLogicRevision.Property(x => x.Mode).HasMaxLength(32).IsRequired();
         configuredLogicRevision.Property(x => x.ParametersJson).IsRequired();
+        configuredLogicRevision.Property(x => x.ScheduleJson);
         configuredLogicRevision.Property(x => x.Status).HasMaxLength(32).IsRequired();
         configuredLogicRevision.Property(x => x.CreatedAtUtc).IsRequired();
         configuredLogicRevision.HasIndex(x => new { x.ConfiguredLogicId, x.RevisionNumber }).IsUnique();
@@ -87,6 +89,23 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .HasForeignKey(x => x.RevisionId)
             .OnDelete(DeleteBehavior.Cascade);
         configuredLogicBinding.HasOne<AssetEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.AssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        var configuredLogicDataBinding = modelBuilder.Entity<ConfiguredLogicDataBindingEntity>();
+        configuredLogicDataBinding.ToTable("configured_logic_data_bindings", "logic");
+        configuredLogicDataBinding.HasKey(x => new { x.RevisionId, x.RequirementId, x.AssetId });
+        configuredLogicDataBinding.Property(x => x.RequirementId).HasMaxLength(128).IsRequired();
+        configuredLogicDataBinding.Property(x => x.ProviderId).HasMaxLength(256).IsRequired();
+        configuredLogicDataBinding.Property(x => x.ProviderAssetExternalId).HasMaxLength(512).IsRequired();
+        configuredLogicDataBinding.Property(x => x.ProviderMappingJson).IsRequired();
+        configuredLogicDataBinding.HasIndex(x => x.AssetId);
+        configuredLogicDataBinding.HasOne<ConfiguredLogicRevisionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.RevisionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        configuredLogicDataBinding.HasOne<AssetEntity>()
             .WithMany()
             .HasForeignKey(x => x.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
