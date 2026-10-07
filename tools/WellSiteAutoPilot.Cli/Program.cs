@@ -321,7 +321,7 @@ internal static class Cli
     {
         if (string.IsNullOrWhiteSpace(entryName) ||
             entryName.StartsWith("/", StringComparison.Ordinal) ||
-            entryName.Contains(':', StringComparison.Ordinal))
+            entryName.Contains(':'))
         {
             return false;
         }
