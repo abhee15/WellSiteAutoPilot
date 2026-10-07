@@ -113,7 +113,7 @@ jobs:
             $requiredPaths = @(
               "/api/v1/system/info",
               "/api/v1/logic-modules",
-              "/api/v1/logic-modules/{moduleId}/{version}",
+              "/api/v1/logic-modules/{moduleId}/{moduleVersion}",
               "/api/v1/executions",
               "/api/v1/asset-types",
               "/api/v1/asset-types/{assetTypeId}",
