@@ -67,6 +67,9 @@ jobs:
       - name: Verify Logic Module SDK contracts
         run: dotnet run --project tests/WellSiteAutoPilot.ModuleSdkTests/WellSiteAutoPilot.ModuleSdkTests.csproj --configuration Release --no-build
 
+      - name: Verify execution contract V2
+        run: dotnet run --project tests/WellSiteAutoPilot.ExecutionContractV2Tests/WellSiteAutoPilot.ExecutionContractV2Tests.csproj --configuration Release --no-build
+
       - name: Verify provider-neutral integration contracts
         run: dotnet run --project tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj --configuration Release --no-build
 
