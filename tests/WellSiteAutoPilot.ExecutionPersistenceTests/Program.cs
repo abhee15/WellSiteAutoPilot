@@ -180,7 +180,10 @@ var configuredExecution = await service.RequestConfiguredShadowAsync(
 
 if (configuredExecution.RequestContractVersion != 2 ||
     configuredExecution.Trigger != ExecutionTriggerKind.Scheduled ||
-    configuredExecution.ScheduledForUtc != scheduledForUtc ||
+    configuredExecution.ScheduledForUtc is null ||
+    Math.Abs(
+        (configuredExecution.ScheduledForUtc.Value - scheduledForUtc.ToUniversalTime()).Ticks) >=
+        TimeSpan.TicksPerMicrosecond ||
     configuredExecution.AssetId is not null ||
     configuredExecution.AssetExternalId is not null ||
     configuredExecution.Quantity is not null ||
@@ -193,7 +196,7 @@ if (configuredExecution.RequestContractVersion != 2 ||
 var configuredRoundTrip = await service.GetRequiredAsync(configuredExecution.Id);
 if (configuredRoundTrip.RequestContractVersion != 2 ||
     configuredRoundTrip.Trigger != ExecutionTriggerKind.Scheduled ||
-    configuredRoundTrip.ScheduledForUtc != scheduledForUtc ||
+    configuredRoundTrip.ScheduledForUtc != configuredExecution.ScheduledForUtc ||
     string.IsNullOrWhiteSpace(configuredRoundTrip.RequestPayloadJson))
 {
     throw new InvalidOperationException(
