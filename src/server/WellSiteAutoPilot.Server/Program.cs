@@ -74,6 +74,7 @@ builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<OutboxPublisher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
 builder.Services.AddHostedService<ExecutionResultConsumer>();
+builder.Services.AddHostedService<ExecutionResultV2Consumer>();
 builder.Services.AddWellSitePersistence(
     builder.Configuration.GetConnectionString("WellSiteAutoPilot") ??
     Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") ??
@@ -583,6 +584,9 @@ static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.AssetId,
     execution.AssetExternalId,
     execution.Quantity,
+    execution.RequestContractVersion,
+    execution.Trigger.ToString(),
+    execution.ScheduledForUtc,
     execution.Mode.ToString(),
     execution.Status.ToString(),
     execution.CorrelationId,
