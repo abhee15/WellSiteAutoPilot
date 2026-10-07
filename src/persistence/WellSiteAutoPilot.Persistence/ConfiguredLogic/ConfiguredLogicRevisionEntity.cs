@@ -10,6 +10,7 @@ public sealed class ConfiguredLogicRevisionEntity
     public string ModuleManifestJson { get; set; } = "{}";
     public string Mode { get; set; } = string.Empty;
     public string ParametersJson { get; set; } = "{}";
+    public string? ScheduleJson { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTimeOffset CreatedAtUtc { get; init; }
     public DateTimeOffset? ValidatedAtUtc { get; set; }
