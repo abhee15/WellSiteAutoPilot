@@ -4,6 +4,7 @@ using NATS.Client.JetStream.Models;
 using NATS.Client.Core;
 using NATS.Net;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Nats;
@@ -101,5 +102,89 @@ if (!outboxProcessed)
         "The dispatched outbox message was not marked processed.");
 }
 
-Console.WriteLine("Execution outbox to JetStream dispatch checks passed.");
+var v2ConsumerName = $"execution-v2-dispatch-{Guid.NewGuid():N}";
+var v2Consumer = await jetStream.CreateOrUpdateConsumerAsync(
+    JetStreamTopology.ExecutionStream,
+    new ConsumerConfig(v2ConsumerName)
+    {
+        AckPolicy = ConsumerConfigAckPolicy.Explicit,
+        FilterSubject = Subjects.ExecutionRequestedV2
+    });
+
+var configuredAssetId = Guid.NewGuid();
+var configuredExecution = await service.RequestConfiguredShadowAsync(
+    new ConfiguredShadowExecutionCommand(
+        Guid.NewGuid(),
+        Guid.NewGuid(),
+        "weatherford.multi-input-test",
+        "1.0.0",
+        """{"target":75}""",
+        [
+            new ConfiguredExecutionAssetCommand(
+                "well",
+                configuredAssetId,
+                "{}")
+        ],
+        [
+            new ConfiguredExecutionInputCommand(
+                "pump-fillage",
+                configuredAssetId,
+                "simulator",
+                "WELL-101",
+                "PumpFillage",
+                "Current",
+                "%",
+                60,
+                false,
+                "{}")
+        ],
+        ExecutionTriggerKind.Scheduled,
+        DateTimeOffset.UtcNow.AddMinutes(1)),
+    "ci-execution-v2-dispatch");
+
+var v2Dispatched = await publisher.DispatchBatchAsync();
+if (v2Dispatched < 1)
+{
+    throw new InvalidOperationException(
+        "No execution V2 outbox message was dispatched.");
+}
+
+using var v2Timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+string? v2ReceivedPayload = null;
+
+await foreach (var message in v2Consumer.ConsumeAsync<string>(
+    opts: new NatsJSConsumeOpts
+    {
+        MaxMsgs = 1
+    },
+    cancellationToken: v2Timeout.Token))
+{
+    v2ReceivedPayload = message.Data;
+    await message.AckAsync(cancellationToken: v2Timeout.Token);
+    break;
+}
+
+if (string.IsNullOrWhiteSpace(v2ReceivedPayload) ||
+    !v2ReceivedPayload.Contains(
+        configuredExecution.Id.ToString(),
+        StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "The durable execution V2 request was not observed on JetStream.");
+}
+
+var v2OutboxProcessed = await dbContext.OutboxMessages
+    .AsNoTracking()
+    .AnyAsync(
+        message =>
+            message.Type == Subjects.ExecutionRequestedV2 &&
+            message.ProcessedAtUtc != null);
+
+if (!v2OutboxProcessed)
+{
+    throw new InvalidOperationException(
+        "The dispatched V2 outbox message was not marked processed.");
+}
+
+Console.WriteLine("Execution V1/V2 outbox to JetStream dispatch checks passed.");
 return 0;
