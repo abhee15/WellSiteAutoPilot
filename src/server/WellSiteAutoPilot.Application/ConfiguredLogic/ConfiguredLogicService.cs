@@ -12,6 +12,7 @@ namespace WellSiteAutoPilot.Application.ConfiguredLogic;
 public sealed class ConfiguredLogicService(
     IConfiguredLogicRepository repository,
     IAssetRepository assetRepository,
+    ILogicModuleCatalogRepository moduleCatalogRepository,
     TimeProvider timeProvider)
 {
     private static readonly JsonSerializerOptions ManifestSerializerOptions = CreateManifestSerializerOptions();
@@ -23,7 +24,13 @@ public sealed class ConfiguredLogicService(
         ArgumentNullException.ThrowIfNull(command);
 
         var name = RequireText(command.Name, "Configured Logic name is required.");
-        var manifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
+        var requestedManifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
+        var installedModule = await GetInstalledModuleAsync(
+            requestedManifest.ModuleId,
+            requestedManifest.Version,
+            cancellationToken);
+        EnsureManifestMatchesInstalled(command.ModuleManifestJson, installedModule);
+        var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
         ValidateJson(command.ParametersJson, "Configured Logic parameters must be valid JSON.");
 
         var assetBindings = await ValidateAssetBindingsAsync(
@@ -74,7 +81,13 @@ public sealed class ConfiguredLogicService(
         ArgumentNullException.ThrowIfNull(command);
 
         var existing = await GetRequiredAsync(configuredLogicId, cancellationToken);
-        var manifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
+        var requestedManifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
+        var installedModule = await GetInstalledModuleAsync(
+            requestedManifest.ModuleId,
+            requestedManifest.Version,
+            cancellationToken);
+        EnsureManifestMatchesInstalled(command.ModuleManifestJson, installedModule);
+        var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
         ValidateJson(command.ParametersJson, "Configured Logic parameters must be valid JSON.");
 
         var assetBindings = await ValidateAssetBindingsAsync(
@@ -126,7 +139,13 @@ public sealed class ConfiguredLogicService(
                 "Only Draft Configured Logic revisions can be validated.");
         }
 
-        var manifest = DeserializeAndValidateManifest(revision.ModuleManifestJson);
+        var installedModule = await GetInstalledModuleAsync(
+            revision.ModuleId,
+            revision.ModuleVersion,
+            cancellationToken);
+        EnsureModuleEnabled(installedModule);
+        EnsureManifestMatchesInstalled(revision.ModuleManifestJson, installedModule);
+        var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
             revision.AssetBindings
@@ -184,6 +203,13 @@ public sealed class ConfiguredLogicService(
                 FailureKind.Conflict,
                 "Only Validated Configured Logic revisions can be activated.");
         }
+
+        var installedModule = await GetInstalledModuleAsync(
+            revision.ModuleId,
+            revision.ModuleVersion,
+            cancellationToken);
+        EnsureModuleEnabled(installedModule);
+        EnsureManifestMatchesInstalled(revision.ModuleManifestJson, installedModule);
 
         await repository.ActivateRevisionAsync(
             configuredLogicId,
@@ -492,6 +518,47 @@ public sealed class ConfiguredLogicService(
             command.CadenceSeconds,
             command.StartAtUtc.ToUniversalTime(),
             timeZoneId);
+    }
+
+
+    private async Task<InstalledLogicModule> GetInstalledModuleAsync(
+        string moduleId,
+        string version,
+        CancellationToken cancellationToken) =>
+        await moduleCatalogRepository.GetAsync(
+            moduleId,
+            version,
+            cancellationToken) ??
+        throw new WellSiteAutoPilotException(
+            "CONFIGURED_LOGIC_MODULE_NOT_INSTALLED",
+            FailureKind.DependencyUnavailable,
+            $"Logic Module '{moduleId}' version '{version}' is not installed.");
+
+    private static void EnsureModuleEnabled(InstalledLogicModule installedModule)
+    {
+        if (!installedModule.IsEnabled)
+        {
+            throw new WellSiteAutoPilotException(
+                "CONFIGURED_LOGIC_MODULE_NOT_TRUSTED",
+                FailureKind.DependencyUnavailable,
+                $"Logic Module '{installedModule.ModuleId}' version '{installedModule.Version}' is not trusted and enabled.");
+        }
+    }
+
+    private static void EnsureManifestMatchesInstalled(
+        string requestedManifestJson,
+        InstalledLogicModule installedModule)
+    {
+        if (!string.Equals(
+                NormalizeJson(requestedManifestJson),
+                NormalizeJson(installedModule.ManifestJson),
+                StringComparison.Ordinal))
+        {
+            throw new WellSiteAutoPilotException(
+                "CONFIGURED_LOGIC_MODULE_MANIFEST_MISMATCH",
+                FailureKind.Conflict,
+                $"Configured Logic manifest does not match installed Logic Module '{installedModule.ModuleId}' version '{installedModule.Version}'.");
+        }
     }
 
     private static ConfiguredLogicRevision GetRequiredRevision(
