@@ -43,25 +43,25 @@ public sealed class LogicModuleCatalogRepository(
     }
 
     public async Task AddAsync(
-        InstalledLogicModule module,
+        InstalledLogicModule logicModule,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(logicModule);
 
         dbContext.LogicModules.Add(new LogicModuleCatalogEntity
         {
-            Id = module.Id,
-            ModuleId = module.ModuleId,
-            Version = module.Version,
-            DisplayName = module.DisplayName,
-            Publisher = module.Publisher,
-            Runtime = module.Runtime.ToString(),
-            ExecutionProfile = module.ExecutionProfile.ToString(),
-            ManifestJson = module.ManifestJson,
-            PackageSha256 = module.PackageSha256,
-            TrustStatus = module.TrustStatus.ToString(),
-            IsEnabled = module.IsEnabled,
-            InstalledAtUtc = module.InstalledAtUtc
+            Id = logicModule.Id,
+            ModuleId = logicModule.ModuleId,
+            Version = logicModule.Version,
+            DisplayName = logicModule.DisplayName,
+            Publisher = logicModule.Publisher,
+            Runtime = logicModule.Runtime.ToString(),
+            ExecutionProfile = logicModule.ExecutionProfile.ToString(),
+            ManifestJson = logicModule.ManifestJson,
+            PackageSha256 = logicModule.PackageSha256,
+            TrustStatus = logicModule.TrustStatus.ToString(),
+            IsEnabled = logicModule.IsEnabled,
+            InstalledAtUtc = logicModule.InstalledAtUtc
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
