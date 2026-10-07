@@ -215,7 +215,7 @@ var v2Envelope = JsonSerializer.Deserialize<MessageEnvelope<ExecutionRequestedV2
     new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
 if (v2Envelope is null ||
-    v2Envelope.Version != 2 ||
+    v2Envelope.ContractVersion != 2 ||
     v2Envelope.Payload.ExecutionId != configuredExecution.Id ||
     v2Envelope.Payload.ConfiguredLogicId != configuredLogicId ||
     v2Envelope.Payload.Assets.Count != 1 ||
