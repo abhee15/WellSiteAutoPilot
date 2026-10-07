@@ -15,6 +15,6 @@ public interface ILogicModuleCatalogRepository
         CancellationToken cancellationToken = default);
 
     Task AddAsync(
-        InstalledLogicModule module,
+        InstalledLogicModule logicModule,
         CancellationToken cancellationToken = default);
 }
