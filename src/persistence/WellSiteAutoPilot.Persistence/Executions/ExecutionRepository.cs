@@ -11,7 +11,8 @@ namespace WellSiteAutoPilot.Persistence.Executions;
 public sealed class ExecutionRepository(
     WellSiteAutoPilotDbContext dbContext) : IExecutionRepository
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions SerializerOptions =
+        new(JsonSerializerDefaults.Web);
 
     public async Task AddRequestedAsync(
         ExecutionRecord execution,
@@ -19,37 +20,83 @@ public sealed class ExecutionRepository(
     {
         ArgumentNullException.ThrowIfNull(execution);
 
-        dbContext.Executions.Add(ToEntity(execution));
+        if (execution.AssetId is null ||
+            string.IsNullOrWhiteSpace(execution.AssetExternalId) ||
+            string.IsNullOrWhiteSpace(execution.Quantity))
+        {
+            throw new InvalidOperationException(
+                "Execution V1 requires the legacy single-input Asset projection.");
+        }
 
-        var messageId = Guid.NewGuid();
         var payload = new ExecutionRequestedV1(
             execution.Id,
             execution.LogicInstanceId,
             execution.ModuleId,
             execution.ModuleVersion,
             execution.ConfigurationRevisionId,
-            execution.AssetId,
+            execution.AssetId.Value,
             execution.AssetExternalId,
             execution.Quantity,
             execution.Mode.ToString(),
             execution.RequestedAtUtc);
 
-        var envelope = new MessageEnvelope<ExecutionRequestedV1>(
-            messageId,
+        AddRequested(
+            execution with
+            {
+                RequestContractVersion = 1,
+                RequestPayloadJson = JsonSerializer.Serialize(payload, SerializerOptions)
+            },
             Subjects.ExecutionRequestedV1,
-            1,
-            execution.RequestedAtUtc,
-            execution.CorrelationId,
-            null,
             payload);
 
-        dbContext.OutboxMessages.Add(new OutboxMessageEntity
-        {
-            Id = messageId,
-            Type = Subjects.ExecutionRequestedV1,
-            Payload = JsonSerializer.Serialize(envelope, SerializerOptions),
-            CreatedAtUtc = execution.RequestedAtUtc
-        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddConfiguredRequestedAsync(
+        ExecutionRecord execution,
+        ConfiguredShadowExecutionCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+        ArgumentNullException.ThrowIfNull(command);
+
+        var payload = new ExecutionRequestedV2(
+            execution.Id,
+            command.ConfiguredLogicId,
+            command.ConfigurationRevisionId,
+            command.ModuleId,
+            command.ModuleVersion,
+            execution.Mode.ToString(),
+            command.ParametersJson,
+            command.Assets
+                .Select(asset => new ExecutionAssetBindingV2(
+                    asset.Role,
+                    asset.AssetId,
+                    asset.ParameterOverridesJson))
+                .ToArray(),
+            command.Inputs
+                .Select(input => new ExecutionInputBindingV2(
+                    input.RequirementId,
+                    input.AssetId,
+                    input.ProviderId,
+                    input.ProviderAssetExternalId,
+                    input.Quantity,
+                    input.Access,
+                    input.CanonicalUnit,
+                    input.MaximumAgeSeconds,
+                    input.AllowUncertainQuality,
+                    input.ProviderMappingJson))
+                .ToArray(),
+            execution.RequestedAtUtc);
+
+        AddRequested(
+            execution with
+            {
+                RequestContractVersion = 2,
+                RequestPayloadJson = JsonSerializer.Serialize(payload, SerializerOptions)
+            },
+            Subjects.ExecutionRequestedV2,
+            payload);
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -127,6 +174,32 @@ public sealed class ExecutionRepository(
             null,
             cancellationToken);
 
+    private void AddRequested<TPayload>(
+        ExecutionRecord execution,
+        string subject,
+        TPayload payload)
+    {
+        dbContext.Executions.Add(ToEntity(execution));
+
+        var messageId = Guid.NewGuid();
+        var envelope = new MessageEnvelope<TPayload>(
+            messageId,
+            subject,
+            execution.RequestContractVersion,
+            execution.RequestedAtUtc,
+            execution.CorrelationId,
+            null,
+            payload);
+
+        dbContext.OutboxMessages.Add(new OutboxMessageEntity
+        {
+            Id = messageId,
+            Type = subject,
+            Payload = JsonSerializer.Serialize(envelope, SerializerOptions),
+            CreatedAtUtc = execution.RequestedAtUtc
+        });
+    }
+
     private async Task<bool> ApplyResultAsync(
         Guid messageId,
         string consumer,
@@ -198,6 +271,10 @@ public sealed class ExecutionRepository(
         Status = execution.Status.ToString(),
         CorrelationId = execution.CorrelationId,
         RequestedAtUtc = execution.RequestedAtUtc,
+        RequestContractVersion = execution.RequestContractVersion,
+        Trigger = execution.Trigger.ToString(),
+        ScheduledForUtc = execution.ScheduledForUtc,
+        RequestPayloadJson = execution.RequestPayloadJson,
         StartedAtUtc = execution.StartedAtUtc,
         CompletedAtUtc = execution.CompletedAtUtc,
         ResultCode = execution.ResultCode,
@@ -218,6 +295,10 @@ public sealed class ExecutionRepository(
         Enum.Parse<ExecutionStatus>(entity.Status),
         entity.CorrelationId,
         entity.RequestedAtUtc,
+        entity.RequestContractVersion,
+        Enum.Parse<ExecutionTriggerKind>(entity.Trigger),
+        entity.ScheduledForUtc,
+        entity.RequestPayloadJson,
         entity.StartedAtUtc,
         entity.CompletedAtUtc,
         entity.ResultCode,
