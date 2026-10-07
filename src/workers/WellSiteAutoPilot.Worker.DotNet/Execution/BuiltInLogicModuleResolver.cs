@@ -5,7 +5,7 @@ namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 
 public sealed class BuiltInLogicModuleResolver : ILogicModuleResolver
 {
-    private readonly IReadOnlyDictionary<string, ILogicModuleV1> _modules =
+    private readonly Dictionary<string, ILogicModuleV1> _modules =
         new ILogicModuleV1[]
         {
             new SampleShadowReadModule()
