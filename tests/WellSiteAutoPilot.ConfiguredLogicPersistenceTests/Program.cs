@@ -84,7 +84,20 @@ var created = await configuredLogicService.CreateAsync(
                 "well",
                 well.Id,
                 """{"targetFillage":80}""")
-        ]));
+        ],
+        [
+            new ConfiguredLogicDataBindingCommand(
+                "pump-fillage",
+                well.Id,
+                "provider-simulator",
+                "well-cl-101",
+                """{"source":"PumpFillage"}""")
+        ],
+        new ConfiguredLogicScheduleCommand(
+            true,
+            60,
+            DateTimeOffset.UtcNow,
+            "UTC")));
 
 var revision1 = created.Revisions.Single();
 
@@ -92,7 +105,10 @@ if (created.ActiveRevisionId is not null ||
     revision1.RevisionNumber != 1 ||
     revision1.Mode != ExecutionMode.Shadow ||
     revision1.Status != ConfiguredLogicRevisionStatus.Draft ||
-    revision1.AssetBindings.Single().AssetId != well.Id)
+    revision1.AssetBindings.Single().AssetId != well.Id ||
+    revision1.DataBindings.Single().AssetId != well.Id ||
+    revision1.Schedule is null ||
+    revision1.Schedule.CadenceSeconds != 60)
 {
     throw new InvalidOperationException(
         "New Configured Logic did not persist as a Shadow Draft with the expected Asset binding.");
@@ -128,7 +144,20 @@ var revision2 = await configuredLogicService.CreateRevisionAsync(
                 "well",
                 well.Id,
                 """{"targetFillage":82}""")
-        ]));
+        ],
+        [
+            new ConfiguredLogicDataBindingCommand(
+                "pump-fillage",
+                well.Id,
+                "provider-simulator",
+                "well-cl-101",
+                """{"source":"PumpFillage"}""")
+        ],
+        new ConfiguredLogicScheduleCommand(
+            true,
+            120,
+            DateTimeOffset.UtcNow,
+            "UTC")));
 
 if (revision2.RevisionNumber != 2 ||
     revision2.Status != ConfiguredLogicRevisionStatus.Draft ||
@@ -148,6 +177,8 @@ if (roundTrip.ActiveRevisionId != revision2.Id ||
     firstRoundTrip.Status != ConfiguredLogicRevisionStatus.Superseded ||
     secondRoundTrip.Status != ConfiguredLogicRevisionStatus.Active ||
     secondRoundTrip.ModuleVersion != "1.1.0" ||
+    secondRoundTrip.DataBindings.Single().ProviderId != "provider-simulator" ||
+    secondRoundTrip.Schedule?.CadenceSeconds != 120 ||
     roundTrip.Revisions.Count != 2)
 {
     throw new InvalidOperationException(
@@ -155,5 +186,5 @@ if (roundTrip.ActiveRevisionId != revision2.Id ||
 }
 
 Console.WriteLine(
-    "Configured Logic draft, Asset binding, validation, activation, and revision-history checks passed.");
+    "Configured Logic draft, schedule, Asset/data bindings, validation, activation, and revision-history checks passed.");
 return 0;
