@@ -5,6 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="../../integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
     <ProjectReference Include="../../messaging/WellSiteAutoPilot.Messaging.Contracts/WellSiteAutoPilot.Messaging.Contracts.csproj" />
+    <ProjectReference Include="../../modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
     <ProjectReference Include="../../messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
     <ProjectReference Include="../../platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
   </ItemGroup>
