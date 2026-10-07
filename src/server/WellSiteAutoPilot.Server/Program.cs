@@ -74,6 +74,7 @@ builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<OutboxPublisher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
 builder.Services.AddHostedService<ExecutionResultConsumer>();
+builder.Services.AddHostedService<ExecutionResultV2Consumer>();
 builder.Services.AddWellSitePersistence(
     builder.Configuration.GetConnectionString("WellSiteAutoPilot") ??
     Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") ??
