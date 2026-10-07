@@ -8,6 +8,11 @@ public interface IExecutionRepository
         ExecutionRecord execution,
         CancellationToken cancellationToken = default);
 
+    Task AddConfiguredRequestedAsync(
+        ExecutionRecord execution,
+        ConfiguredShadowExecutionCommand command,
+        CancellationToken cancellationToken = default);
+
     Task<ExecutionRecord?> GetAsync(
         Guid executionId,
         CancellationToken cancellationToken = default);
