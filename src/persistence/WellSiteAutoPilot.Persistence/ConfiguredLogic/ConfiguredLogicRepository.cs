@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
@@ -142,6 +143,7 @@ public sealed class ConfiguredLogicRepository(
             ModuleManifestJson = revision.ModuleManifestJson,
             Mode = revision.Mode.ToString(),
             ParametersJson = revision.ParametersJson,
+            ScheduleJson = revision.Schedule is null ? null : JsonSerializer.Serialize(revision.Schedule),
             Status = revision.Status.ToString(),
             CreatedAtUtc = revision.CreatedAtUtc,
             ValidatedAtUtc = revision.ValidatedAtUtc,
@@ -156,6 +158,19 @@ public sealed class ConfiguredLogicRepository(
                 Role = binding.Role,
                 AssetId = binding.AssetId,
                 ParameterOverridesJson = binding.ParameterOverridesJson
+            });
+        }
+
+        foreach (var binding in revision.DataBindings)
+        {
+            dbContext.ConfiguredLogicDataBindings.Add(new ConfiguredLogicDataBindingEntity
+            {
+                RevisionId = revision.Id,
+                RequirementId = binding.RequirementId,
+                AssetId = binding.AssetId,
+                ProviderId = binding.ProviderId,
+                ProviderAssetExternalId = binding.ProviderAssetExternalId,
+                ProviderMappingJson = binding.ProviderMappingJson
             });
         }
     }
@@ -176,17 +191,28 @@ public sealed class ConfiguredLogicRepository(
         }
 
         var revisionIds = revisions.Select(item => item.Id).ToArray();
-        var bindings = await dbContext.ConfiguredLogicAssetBindings
+        var assetBindings = await dbContext.ConfiguredLogicAssetBindings
             .AsNoTracking()
             .Where(item => revisionIds.Contains(item.RevisionId))
             .OrderBy(item => item.Role)
             .ThenBy(item => item.AssetId)
             .ToArrayAsync(cancellationToken);
 
+        var dataBindings = await dbContext.ConfiguredLogicDataBindings
+            .AsNoTracking()
+            .Where(item => revisionIds.Contains(item.RevisionId))
+            .OrderBy(item => item.RequirementId)
+            .ThenBy(item => item.AssetId)
+            .ToArrayAsync(cancellationToken);
+
         return revisions
             .Select(revision => ToDomain(
                 revision,
-                bindings
+                assetBindings
+                    .Where(binding => binding.RevisionId == revision.Id)
+                    .Select(ToDomain)
+                    .ToArray(),
+                dataBindings
                     .Where(binding => binding.RevisionId == revision.Id)
                     .Select(ToDomain)
                     .ToArray()))
@@ -204,7 +230,8 @@ public sealed class ConfiguredLogicRepository(
 
     private static ConfiguredLogicRevision ToDomain(
         ConfiguredLogicRevisionEntity entity,
-        IReadOnlyCollection<ConfiguredLogicAssetBinding> bindings) => new(
+        IReadOnlyCollection<ConfiguredLogicAssetBinding> assetBindings,
+        IReadOnlyCollection<ConfiguredLogicDataBinding> dataBindings) => new(
             entity.Id,
             entity.ConfiguredLogicId,
             entity.RevisionNumber,
@@ -217,11 +244,23 @@ public sealed class ConfiguredLogicRepository(
             entity.CreatedAtUtc,
             entity.ValidatedAtUtc,
             entity.ActivatedAtUtc,
-            bindings);
+            entity.ScheduleJson is null
+                ? null
+                : JsonSerializer.Deserialize<ConfiguredLogicSchedule>(entity.ScheduleJson),
+            assetBindings,
+            dataBindings);
 
     private static ConfiguredLogicAssetBinding ToDomain(
         ConfiguredLogicAssetBindingEntity entity) => new(
             entity.Role,
             entity.AssetId,
             entity.ParameterOverridesJson);
+
+    private static ConfiguredLogicDataBinding ToDomain(
+        ConfiguredLogicDataBindingEntity entity) => new(
+            entity.RequirementId,
+            entity.AssetId,
+            entity.ProviderId,
+            entity.ProviderAssetExternalId,
+            entity.ProviderMappingJson);
 }
