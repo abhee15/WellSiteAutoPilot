@@ -7,13 +7,17 @@ public sealed class ExecutionEntity
     public string ModuleId { get; init; } = string.Empty;
     public string ModuleVersion { get; init; } = string.Empty;
     public Guid ConfigurationRevisionId { get; init; }
-    public Guid AssetId { get; init; }
-    public string AssetExternalId { get; init; } = string.Empty;
-    public string Quantity { get; init; } = string.Empty;
+    public Guid? AssetId { get; init; }
+    public string? AssetExternalId { get; init; }
+    public string? Quantity { get; init; }
     public string Mode { get; init; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string CorrelationId { get; init; } = string.Empty;
     public DateTimeOffset RequestedAtUtc { get; init; }
+    public int RequestContractVersion { get; init; } = 1;
+    public string Trigger { get; init; } = string.Empty;
+    public DateTimeOffset? ScheduledForUtc { get; init; }
+    public string? RequestPayloadJson { get; init; }
     public DateTimeOffset? StartedAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
     public string? ResultCode { get; set; }
