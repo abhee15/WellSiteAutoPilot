@@ -4,6 +4,7 @@ using NATS.Client.JetStream.Models;
 using NATS.Client.Core;
 using NATS.Net;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Nats;
