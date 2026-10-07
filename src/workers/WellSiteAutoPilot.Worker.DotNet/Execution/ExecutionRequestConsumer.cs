@@ -14,7 +14,7 @@ namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 
 public sealed partial class ExecutionRequestConsumer(
     INatsConnection connection,
-    GatewayDataClient gatewayDataClient,
+    ModuleExecutionEngine moduleExecutionEngine,
     TimeProvider timeProvider,
     ILogger<ExecutionRequestConsumer> logger) : BackgroundService
 {
@@ -107,9 +107,10 @@ public sealed partial class ExecutionRequestConsumer(
                     "The .NET foundation worker currently accepts Shadow executions only.");
             }
 
-            var engineeringValue = await gatewayDataClient.GetCurrentAsync(
-                envelope.Payload.AssetExternalId,
-                envelope.Payload.Quantity,
+            var moduleResult = await moduleExecutionEngine.ExecuteAsync(
+                envelope.Payload,
+                envelope.CorrelationId,
+                startedAtUtc,
                 cancellationToken);
 
             var completedAtUtc = timeProvider.GetUtcNow();
@@ -117,8 +118,8 @@ public sealed partial class ExecutionRequestConsumer(
                 envelope.Payload.ExecutionId,
                 startedAtUtc,
                 completedAtUtc,
-                "SHADOW_OBSERVATION_COMPLETED",
-                JsonSerializer.Serialize(engineeringValue, SerializerOptions));
+                moduleResult.OutcomeCode,
+                JsonSerializer.Serialize(moduleResult, SerializerOptions));
 
             await PublishResultAsync(
                 Subjects.ExecutionCompletedV1,
