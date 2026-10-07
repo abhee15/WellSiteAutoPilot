@@ -67,6 +67,40 @@ jobs:
       - name: Verify Logic Module SDK contracts
         run: dotnet run --project tests/WellSiteAutoPilot.ModuleSdkTests/WellSiteAutoPilot.ModuleSdkTests.csproj --configuration Release --no-build
 
+      - name: Verify deterministic Logic Module packaging
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/module-packages | Out-Null
+          $manifest = "modules/samples/sample-shadow-read.manifest.json"
+          $payload = "modules/samples/sample-shadow-read/payload"
+          $package1 = "artifacts/module-packages/sample-shadow-read-1.wsamodule"
+          $package2 = "artifacts/module-packages/sample-shadow-read-2.wsamodule"
+
+          dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module pack $manifest $payload $package1
+          if ($LASTEXITCODE -ne 0) { throw "First module pack failed." }
+
+          dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module pack $manifest $payload $package2
+          if ($LASTEXITCODE -ne 0) { throw "Second module pack failed." }
+
+          $hash1 = (Get-FileHash $package1 -Algorithm SHA256).Hash
+          $hash2 = (Get-FileHash $package2 -Algorithm SHA256).Hash
+          if ($hash1 -ne $hash2) {
+            throw "Logic Module packaging is not deterministic."
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $package1))
+          try {
+            $names = @($archive.Entries | ForEach-Object { $_.FullName })
+            if ($names -notcontains "manifest.json" -or
+                $names -notcontains "payload/README.txt") {
+              throw "Logic Module package did not contain the expected manifest and payload entries."
+            }
+          }
+          finally {
+            $archive.Dispose()
+          }
+
       - name: Verify provider-neutral integration contracts
         run: dotnet run --project tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj --configuration Release --no-build
 
