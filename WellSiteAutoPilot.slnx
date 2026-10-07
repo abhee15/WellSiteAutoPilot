@@ -44,6 +44,7 @@
     <Project Path="tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.LogicModuleCatalogTests/WellSiteAutoPilot.LogicModuleCatalogTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ModuleSdkTests/WellSiteAutoPilot.ModuleSdkTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.ExecutionContractV2Tests/WellSiteAutoPilot.ExecutionContractV2Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj" />
