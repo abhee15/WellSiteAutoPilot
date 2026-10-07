@@ -325,7 +325,7 @@ public sealed class ConfiguredLogicService(
         return normalized;
     }
 
-    private static IReadOnlyCollection<ConfiguredLogicDataBinding> ValidateDataBindings(
+    private static List<ConfiguredLogicDataBinding> ValidateDataBindings(
         LogicModuleManifest manifest,
         IReadOnlyCollection<ConfiguredLogicAssetBinding> assetBindings,
         IReadOnlyCollection<ConfiguredLogicDataBindingCommand> commands)
