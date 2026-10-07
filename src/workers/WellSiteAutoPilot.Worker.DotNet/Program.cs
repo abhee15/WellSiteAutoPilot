@@ -26,6 +26,7 @@ builder.Services.AddHttpClient<GatewayDataClient>(client =>
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 builder.Services.AddHostedService<ExecutionRequestConsumer>();
+builder.Services.AddHostedService<ExecutionRequestV2Consumer>();
 
 var app = builder.Build();
 
