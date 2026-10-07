@@ -9,6 +9,7 @@ using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Logic;
+using WellSiteAutoPilot.Failures;
 
 var connectionString = Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -207,6 +208,53 @@ if (roundTrip.ActiveRevisionId != revision2.Id ||
         "Configured Logic revision activation did not preserve immutable revision history.");
 }
 
+var manifestV12 = manifest.Replace("\"version\": \"1.0.0\"", "\"version\": \"1.2.0\"");
+
+await moduleCatalogService.RegisterAsync(
+    new RegisterLogicModuleCommand(
+        manifestV12,
+        "3333333333333333333333333333333333333333333333333333333333333333",
+        LogicModuleTrustStatus.Untrusted));
+
+var untrustedRevision = await configuredLogicService.CreateRevisionAsync(
+    created.Id,
+    new CreateConfiguredLogicRevisionCommand(
+        manifestV12,
+        """{"targetFillage":79}""",
+        [
+            new ConfiguredLogicAssetBindingCommand(
+                "well",
+                well.Id,
+                """{"targetFillage":83}""")
+        ],
+        [
+            new ConfiguredLogicDataBindingCommand(
+                "pump-fillage",
+                well.Id,
+                "provider-simulator",
+                "well-cl-101",
+                """{"source":"PumpFillage"}""")
+        ],
+        new ConfiguredLogicScheduleCommand(
+            true,
+            180,
+            DateTimeOffset.UtcNow,
+            "UTC")));
+
+try
+{
+    await configuredLogicService.ValidateRevisionAsync(
+        created.Id,
+        untrustedRevision.Id);
+
+    throw new InvalidOperationException(
+        "Untrusted Logic Module revision was allowed to validate.");
+}
+catch (WellSiteAutoPilotException exception) when (
+    exception.Code == "CONFIGURED_LOGIC_MODULE_NOT_TRUSTED")
+{
+}
+
 Console.WriteLine(
-    "Configured Logic draft, schedule, Asset/data bindings, validation, activation, and revision-history checks passed.");
+    "Configured Logic persistence, module readiness, trust gating, activation, and revision-history checks passed.");
 return 0;
