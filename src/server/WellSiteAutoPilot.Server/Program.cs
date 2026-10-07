@@ -477,14 +477,14 @@ v1.MapGet(
     .Produces<LogicModuleResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
-    "/logic-modules/{moduleId}/{version}",
+    "/logic-modules/{moduleId}/{moduleVersion}",
     async (
         string moduleId,
-        string version,
+        string moduleVersion,
         LogicModuleCatalogService catalog,
         CancellationToken cancellationToken) =>
         ToLogicModuleResponse(
-            await catalog.GetRequiredAsync(moduleId, version, cancellationToken)))
+            await catalog.GetRequiredAsync(moduleId, moduleVersion, cancellationToken)))
     .WithName("GetLogicModule")
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
