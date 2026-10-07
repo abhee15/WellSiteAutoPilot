@@ -64,6 +64,46 @@ jobs:
           dotnet run --project tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj --configuration Release --no-build
           dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module validate modules/samples/sample-shadow-read.manifest.json
 
+      - name: Verify Logic Module SDK contracts
+        run: dotnet run --project tests/WellSiteAutoPilot.ModuleSdkTests/WellSiteAutoPilot.ModuleSdkTests.csproj --configuration Release --no-build
+
+      - name: Verify deterministic Logic Module packaging
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/module-packages | Out-Null
+          $manifest = "modules/samples/sample-shadow-read.manifest.json"
+          $payload = "modules/samples/sample-shadow-read/payload"
+          $package1 = "artifacts/module-packages/sample-shadow-read-1.wsamodule"
+          $package2 = "artifacts/module-packages/sample-shadow-read-2.wsamodule"
+
+          dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module pack $manifest $payload $package1
+          if ($LASTEXITCODE -ne 0) { throw "First module pack failed." }
+
+          dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module pack $manifest $payload $package2
+          if ($LASTEXITCODE -ne 0) { throw "Second module pack failed." }
+
+          $hash1 = (Get-FileHash $package1 -Algorithm SHA256).Hash
+          $hash2 = (Get-FileHash $package2 -Algorithm SHA256).Hash
+          if ($hash1 -ne $hash2) {
+            throw "Logic Module packaging is not deterministic."
+          }
+
+          dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module verify $package1
+          if ($LASTEXITCODE -ne 0) { throw "Logic Module package verification failed." }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $package1))
+          try {
+            $names = @($archive.Entries | ForEach-Object { $_.FullName })
+            if ($names -notcontains "manifest.json" -or
+                $names -notcontains "payload/README.txt") {
+              throw "Logic Module package did not contain the expected manifest and payload entries."
+            }
+          }
+          finally {
+            $archive.Dispose()
+          }
+
       - name: Verify provider-neutral integration contracts
         run: dotnet run --project tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj --configuration Release --no-build
 
@@ -109,6 +149,8 @@ jobs:
             $paths = @($openApi.paths.PSObject.Properties.Name)
             $requiredPaths = @(
               "/api/v1/system/info",
+              "/api/v1/logic-modules",
+              "/api/v1/logic-modules/{moduleId}/{moduleVersion}",
               "/api/v1/executions",
               "/api/v1/asset-types",
               "/api/v1/asset-types/{assetTypeId}",
@@ -493,6 +535,9 @@ jobs:
       - name: Verify Configured Logic persistence
         run: dotnet run --project tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj --configuration Release --no-build
 
+      - name: Verify Logic Module catalog persistence
+        run: dotnet run --project tests/WellSiteAutoPilot.LogicModuleCatalogTests/WellSiteAutoPilot.LogicModuleCatalogTests.csproj --configuration Release --no-build
+
 
   messaging-integration:
     name: NATS JetStream integration
@@ -770,7 +815,7 @@ jobs:
           import json, uuid
           print(json.dumps({
               "logicInstanceId": str(uuid.uuid4()),
-              "moduleId": "sample.shadow.logic",
+              "moduleId": "weatherford.sample-shadow-read",
               "moduleVersion": "1.0.0",
               "configurationRevisionId": str(uuid.uuid4()),
               "assetId": str(uuid.uuid4()),
@@ -826,13 +871,14 @@ jobs:
           STATE="$completed" python - <<'PY'
           import json, os
           execution=json.loads(os.environ["STATE"])
-          assert execution["resultCode"] == "SHADOW_OBSERVATION_COMPLETED"
+          assert execution["resultCode"] == "SHADOW_MODULE_COMPLETED"
           output=json.loads(execution["outputJson"])
-          assert output["quantity"] == "PumpFillage"
-          assert output["value"] == 82
-          assert output["unit"] == "%"
-          assert output["quality"] == "Good"
-          assert output["source"] == "simulator:WELL-101"
+          result=output["engineeringResults"][0]
+          assert result["quantity"] == "PumpFillage"
+          assert result["value"] == 82
+          assert result["unit"] == "%"
+          assert output["controlIntents"] == []
+          assert output["recommendations"] == []
           PY
 
           activity=$(curl --fail --silent "http://127.0.0.1:5080/api/v1/executions?limit=10")

@@ -141,6 +141,28 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Logic.LogicModuleCatalogEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("ExecutionProfile").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                entity.Property<DateTimeOffset>("InstalledAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<bool>("IsEnabled").HasColumnType("boolean");
+                entity.Property<string>("ManifestJson").IsRequired().HasColumnType("text");
+                entity.Property<string>("ModuleId").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("PackageSha256").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                entity.Property<string>("Publisher").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("Runtime").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<string>("TrustStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<string>("Version").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                entity.HasKey("Id");
+                entity.HasIndex("TrustStatus");
+                entity.HasIndex("ModuleId", "Version").IsUnique();
+                entity.ToTable("logic_modules", "logic");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Messaging.InboxMessageEntity",
             entity =>
             {

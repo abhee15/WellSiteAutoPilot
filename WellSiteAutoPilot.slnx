@@ -13,6 +13,9 @@
   <Folder Name="/src/persistence/">
     <Project Path="src/persistence/WellSiteAutoPilot.Persistence/WellSiteAutoPilot.Persistence.csproj" />
   </Folder>
+  <Folder Name="/src/modules/">
+    <Project Path="src/modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
+  </Folder>
   <Folder Name="/src/messaging/">
     <Project Path="src/messaging/WellSiteAutoPilot.Messaging.Contracts/WellSiteAutoPilot.Messaging.Contracts.csproj" />
     <Project Path="src/messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
@@ -39,6 +42,8 @@
     <Project Path="tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.LogicModuleCatalogTests/WellSiteAutoPilot.LogicModuleCatalogTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.ModuleSdkTests/WellSiteAutoPilot.ModuleSdkTests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj" />
