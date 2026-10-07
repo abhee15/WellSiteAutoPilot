@@ -109,6 +109,8 @@ jobs:
             $paths = @($openApi.paths.PSObject.Properties.Name)
             $requiredPaths = @(
               "/api/v1/system/info",
+              "/api/v1/logic-modules",
+              "/api/v1/logic-modules/{moduleId}/{moduleVersion}",
               "/api/v1/executions",
               "/api/v1/asset-types",
               "/api/v1/asset-types/{assetTypeId}",
@@ -492,6 +494,9 @@ jobs:
 
       - name: Verify Configured Logic persistence
         run: dotnet run --project tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj --configuration Release --no-build
+
+      - name: Verify Logic Module catalog persistence
+        run: dotnet run --project tests/WellSiteAutoPilot.LogicModuleCatalogTests/WellSiteAutoPilot.LogicModuleCatalogTests.csproj --configuration Release --no-build
 
 
   messaging-integration:

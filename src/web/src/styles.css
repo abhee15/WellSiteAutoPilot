@@ -253,6 +253,9 @@ button:disabled {
 }
 
 .status-completed,
+.status-active,
+.status-trustedpublisher,
+.status-customerapproved,
 .health-healthy {
   border-color: #406552;
   background: #18271f;
@@ -260,6 +263,8 @@ button:disabled {
 
 .status-failed,
 .status-timedout,
+.status-inactive,
+.status-signatureinvalid,
 .health-unavailable {
   border-color: #704646;
   background: #2b1c1c;
@@ -267,6 +272,9 @@ button:disabled {
 
 .status-suspended,
 .status-waiting,
+.status-untrusted,
+.status-draft,
+.status-validated,
 .health-degraded {
   border-color: #6d6240;
   background: #2a2619;

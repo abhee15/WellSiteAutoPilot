@@ -2,10 +2,12 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.Assets;
 using WellSiteAutoPilot.Api.Contracts.Executions;
+using WellSiteAutoPilot.Api.Contracts.Logic;
 using WellSiteAutoPilot.Api.Contracts.ConfiguredLogic;
 using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Domain.Executions;
@@ -67,6 +69,7 @@ builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<AssetService>();
 builder.Services.AddScoped<ExecutionService>();
+builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<OutboxPublisher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
@@ -437,6 +440,55 @@ v1.MapGet(
         StatusCodes.Status500InternalServerError,
         "application/problem+json");
 
+v1.MapPost(
+    "/logic-modules",
+    async (
+        RegisterLogicModuleRequest request,
+        LogicModuleCatalogService catalog,
+        CancellationToken cancellationToken) =>
+    {
+        var module = await catalog.RegisterAsync(
+            new RegisterLogicModuleCommand(
+                request.ManifestJson,
+                request.PackageSha256,
+                WellSiteAutoPilot.Domain.Logic.LogicModuleTrustStatus.Untrusted),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/logic-modules/{Uri.EscapeDataString(module.ModuleId)}/{Uri.EscapeDataString(module.Version)}",
+            ToLogicModuleResponse(module));
+    })
+    .WithName("RegisterLogicModule")
+    .Produces<LogicModuleResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapGet(
+    "/logic-modules",
+    async (
+        string? moduleId,
+        int? limit,
+        LogicModuleCatalogService catalog,
+        CancellationToken cancellationToken) =>
+        (await catalog.ListAsync(moduleId, limit ?? 100, cancellationToken))
+            .Select(ToLogicModuleResponse)
+            .ToArray())
+    .WithName("ListLogicModules")
+    .Produces<LogicModuleResponse[]>(StatusCodes.Status200OK);
+
+v1.MapGet(
+    "/logic-modules/{moduleId}/{moduleVersion}",
+    async (
+        string moduleId,
+        string moduleVersion,
+        LogicModuleCatalogService catalog,
+        CancellationToken cancellationToken) =>
+        ToLogicModuleResponse(
+            await catalog.GetRequiredAsync(moduleId, moduleVersion, cancellationToken)))
+    .WithName("GetLogicModule")
+    .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
@@ -506,6 +558,21 @@ static ConfiguredLogicRevisionResponse ToConfiguredLogicRevisionResponse(Configu
             binding.ProviderAssetExternalId,
             binding.ProviderMappingJson))
         .ToArray());
+
+static LogicModuleResponse ToLogicModuleResponse(
+    WellSiteAutoPilot.Domain.Logic.InstalledLogicModule module) => new(
+    module.Id,
+    module.ModuleId,
+    module.Version,
+    module.DisplayName,
+    module.Publisher,
+    module.Runtime.ToString(),
+    module.ExecutionProfile.ToString(),
+    module.ManifestJson,
+    module.PackageSha256,
+    module.TrustStatus.ToString(),
+    module.IsEnabled,
+    module.InstalledAtUtc);
 
 static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.Id,

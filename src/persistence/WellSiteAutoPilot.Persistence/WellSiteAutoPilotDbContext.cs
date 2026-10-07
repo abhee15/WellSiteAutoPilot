@@ -3,6 +3,7 @@ using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Messaging;
+using WellSiteAutoPilot.Persistence.Logic;
 
 namespace WellSiteAutoPilot.Persistence;
 
@@ -18,6 +19,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<ConfiguredLogicDataBindingEntity> ConfiguredLogicDataBindings => Set<ConfiguredLogicDataBindingEntity>();
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
+    public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -109,6 +111,23 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .WithMany()
             .HasForeignKey(x => x.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        var logicModule = modelBuilder.Entity<LogicModuleCatalogEntity>();
+        logicModule.ToTable("logic_modules", "logic");
+        logicModule.HasKey(x => x.Id);
+        logicModule.Property(x => x.ModuleId).HasMaxLength(256).IsRequired();
+        logicModule.Property(x => x.Version).HasMaxLength(64).IsRequired();
+        logicModule.Property(x => x.DisplayName).HasMaxLength(256).IsRequired();
+        logicModule.Property(x => x.Publisher).HasMaxLength(256).IsRequired();
+        logicModule.Property(x => x.Runtime).HasMaxLength(32).IsRequired();
+        logicModule.Property(x => x.ExecutionProfile).HasMaxLength(64).IsRequired();
+        logicModule.Property(x => x.ManifestJson).IsRequired();
+        logicModule.Property(x => x.PackageSha256).HasMaxLength(64).IsRequired();
+        logicModule.Property(x => x.TrustStatus).HasMaxLength(32).IsRequired();
+        logicModule.Property(x => x.IsEnabled).IsRequired();
+        logicModule.Property(x => x.InstalledAtUtc).IsRequired();
+        logicModule.HasIndex(x => new { x.ModuleId, x.Version }).IsUnique();
+        logicModule.HasIndex(x => x.TrustStatus);
 
         var execution = modelBuilder.Entity<ExecutionEntity>();
         execution.ToTable("executions", "operations");
