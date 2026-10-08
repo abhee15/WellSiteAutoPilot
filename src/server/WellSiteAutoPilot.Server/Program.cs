@@ -10,6 +10,7 @@ using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.System;
+using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Http;
@@ -17,6 +18,7 @@ using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
+using WellSiteAutoPilot.Server.Scheduling;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -71,10 +73,14 @@ builder.Services.AddScoped<AssetService>();
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
+builder.Services.AddScoped<ScheduledShadowSchedulerService>();
+builder.Services.Configure<ScheduledShadowSchedulerOptions>(
+    builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
 builder.Services.AddScoped<OutboxPublisher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
 builder.Services.AddHostedService<ExecutionResultConsumer>();
 builder.Services.AddHostedService<ExecutionResultV2Consumer>();
+builder.Services.AddHostedService<ScheduledShadowSchedulerHostedService>();
 builder.Services.AddWellSitePersistence(
     builder.Configuration.GetConnectionString("WellSiteAutoPilot") ??
     Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") ??
