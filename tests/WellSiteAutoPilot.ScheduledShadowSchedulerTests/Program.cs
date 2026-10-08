@@ -281,16 +281,19 @@ var scheduledExecutions = await dbContext.Executions
     .OrderBy(item => item.ScheduledForUtc)
     .ToArrayAsync();
 
-if (scheduledExecutions.Length != 3 ||
-    scheduledExecutions.Select(item => item.ScheduledForUtc).ToArray() is not
-    [
-        var first,
-        var second,
-        var resumed
-    ] ||
-    first != expectedFirstOccurrence ||
-    second != expectedSecondOccurrence ||
-    resumed != expectedResumedOccurrence)
+if (scheduledExecutions.Length != 3)
+{
+    throw new InvalidOperationException(
+        "Scheduler persisted an unexpected number of occurrences.");
+}
+
+var occurrenceTimes = scheduledExecutions
+    .Select(item => item.ScheduledForUtc)
+    .ToArray();
+
+if (occurrenceTimes[0] != expectedFirstOccurrence ||
+    occurrenceTimes[1] != expectedSecondOccurrence ||
+    occurrenceTimes[2] != expectedResumedOccurrence)
 {
     throw new InvalidOperationException(
         "Scheduler persisted an unexpected occurrence sequence.");
