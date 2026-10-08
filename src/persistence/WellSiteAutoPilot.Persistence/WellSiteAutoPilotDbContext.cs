@@ -134,17 +134,23 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         execution.HasKey(x => x.Id);
         execution.Property(x => x.ModuleId).HasMaxLength(256).IsRequired();
         execution.Property(x => x.ModuleVersion).HasMaxLength(64).IsRequired();
-        execution.Property(x => x.AssetExternalId).HasMaxLength(512).IsRequired();
-        execution.Property(x => x.Quantity).HasMaxLength(256).IsRequired();
+        execution.Property(x => x.AssetExternalId).HasMaxLength(512);
+        execution.Property(x => x.Quantity).HasMaxLength(256);
         execution.Property(x => x.Mode).HasMaxLength(32).IsRequired();
         execution.Property(x => x.Status).HasMaxLength(32).IsRequired();
         execution.Property(x => x.CorrelationId).HasMaxLength(128).IsRequired();
         execution.Property(x => x.RequestedAtUtc).IsRequired();
+        execution.Property(x => x.RequestContractVersion).IsRequired();
+        execution.Property(x => x.Trigger).HasMaxLength(32).IsRequired();
+        execution.Property(x => x.RequestPayloadJson);
         execution.Property(x => x.ResultCode).HasMaxLength(128);
         execution.Property(x => x.FailureCode).HasMaxLength(128);
         execution.Property(x => x.OutputJson);
         execution.HasIndex(x => x.LogicInstanceId);
         execution.HasIndex(x => x.AssetId);
+        execution.HasIndex(x => new { x.ConfigurationRevisionId, x.ScheduledForUtc })
+            .IsUnique()
+            .HasFilter("\"ScheduledForUtc\" IS NOT NULL");
         execution.HasIndex(x => new { x.Status, x.RequestedAtUtc });
 
         var outbox = modelBuilder.Entity<OutboxMessageEntity>();

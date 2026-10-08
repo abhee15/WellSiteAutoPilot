@@ -117,8 +117,8 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             entity =>
             {
                 entity.Property<Guid>("Id").HasColumnType("uuid");
-                entity.Property<Guid>("AssetId").HasColumnType("uuid");
-                entity.Property<string>("AssetExternalId").IsRequired().HasMaxLength(512).HasColumnType("character varying(512)");
+                entity.Property<Guid?>("AssetId").HasColumnType("uuid");
+                entity.Property<string>("AssetExternalId").HasMaxLength(512).HasColumnType("character varying(512)");
                 entity.Property<DateTimeOffset?>("CompletedAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<Guid>("ConfigurationRevisionId").HasColumnType("uuid");
                 entity.Property<string>("CorrelationId").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
@@ -128,14 +128,21 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.Property<string>("ModuleId").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
                 entity.Property<string>("ModuleVersion").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
                 entity.Property<string>("OutputJson").HasColumnType("text");
-                entity.Property<string>("Quantity").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("Quantity").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<int>("RequestContractVersion").HasColumnType("integer");
+                entity.Property<string>("RequestPayloadJson").HasColumnType("text");
                 entity.Property<DateTimeOffset>("RequestedAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<string>("ResultCode").HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<DateTimeOffset?>("ScheduledForUtc").HasColumnType("timestamp with time zone");
                 entity.Property<DateTimeOffset?>("StartedAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<string>("Trigger").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
                 entity.HasKey("Id");
                 entity.HasIndex("AssetId");
                 entity.HasIndex("LogicInstanceId");
+                entity.HasIndex("ConfigurationRevisionId", "ScheduledForUtc")
+                    .IsUnique()
+                    .HasFilter("\"ScheduledForUtc\" IS NOT NULL");
                 entity.HasIndex("Status", "RequestedAtUtc");
                 entity.ToTable("executions", "operations");
             });
