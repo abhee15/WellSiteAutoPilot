@@ -11,6 +11,7 @@ using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Application.Scheduling;
+using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Http;
@@ -74,6 +75,7 @@ builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
+builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
 builder.Services.AddScoped<OutboxPublisher>();
