@@ -38,6 +38,7 @@
     <Project Path="tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ExecutionPersistenceTests/WellSiteAutoPilot.ExecutionPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ScheduledShadowSchedulerTests/WellSiteAutoPilot.ScheduledShadowSchedulerTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.RecommendationPersistenceTests/WellSiteAutoPilot.RecommendationPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ExecutionDispatchTests/WellSiteAutoPilot.ExecutionDispatchTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj" />
