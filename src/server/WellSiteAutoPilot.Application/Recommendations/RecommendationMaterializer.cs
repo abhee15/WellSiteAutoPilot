@@ -33,7 +33,7 @@ public sealed class RecommendationMaterializer(
                 FailureKind.NotFound,
                 "The source execution was not found.");
 
-        if (execution.Mode != ExecutionMode.Recommended)
+        if (execution.Mode != ExecutionMode.Recommendation)
         {
             return 0;
         }
