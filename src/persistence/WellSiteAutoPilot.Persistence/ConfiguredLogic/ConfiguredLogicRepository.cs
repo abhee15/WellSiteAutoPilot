@@ -84,7 +84,7 @@ public sealed class ConfiguredLogicRepository(
         var rows = await (
             from definition in dbContext.ConfiguredLogicDefinitions.AsNoTracking()
             join revision in dbContext.ConfiguredLogicRevisions.AsNoTracking()
-                on definition.ActiveRevisionId equals revision.Id
+                on definition.ActiveRevisionId equals (Guid?)revision.Id
             where definition.ActiveRevisionId != null &&
                   revision.Status == nameof(ConfiguredLogicRevisionStatus.Active) &&
                   revision.Mode == nameof(ExecutionMode.Shadow) &&
