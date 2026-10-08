@@ -77,6 +77,67 @@ public sealed class ConfiguredLogicRepository(
         return results;
     }
 
+    public async Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListActiveScheduledAsync(
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await (
+            from definition in dbContext.ConfiguredLogicDefinitions.AsNoTracking()
+            join revision in dbContext.ConfiguredLogicRevisions.AsNoTracking()
+                on definition.ActiveRevisionId equals revision.Id
+            where definition.ActiveRevisionId != null &&
+                  revision.Status == nameof(ConfiguredLogicRevisionStatus.Active) &&
+                  revision.Mode == nameof(ExecutionMode.Shadow) &&
+                  revision.ScheduleJson != null
+            orderby definition.Name
+            select new { Definition = definition, Revision = revision })
+            .Take(limit)
+            .ToArrayAsync(cancellationToken);
+
+        if (rows.Length == 0)
+        {
+            return [];
+        }
+
+        var revisionIds = rows
+            .Select(item => item.Revision.Id)
+            .ToArray();
+
+        var assetBindings = await dbContext.ConfiguredLogicAssetBindings
+            .AsNoTracking()
+            .Where(item => revisionIds.Contains(item.RevisionId))
+            .OrderBy(item => item.Role)
+            .ThenBy(item => item.AssetId)
+            .ToArrayAsync(cancellationToken);
+
+        var dataBindings = await dbContext.ConfiguredLogicDataBindings
+            .AsNoTracking()
+            .Where(item => revisionIds.Contains(item.RevisionId))
+            .OrderBy(item => item.RequirementId)
+            .ThenBy(item => item.AssetId)
+            .ToArrayAsync(cancellationToken);
+
+        return rows
+            .Select(item =>
+            {
+                var revision = ToDomain(
+                    item.Revision,
+                    assetBindings
+                        .Where(binding => binding.RevisionId == item.Revision.Id)
+                        .Select(ToDomain)
+                        .ToArray(),
+                    dataBindings
+                        .Where(binding => binding.RevisionId == item.Revision.Id)
+                        .Select(ToDomain)
+                        .ToArray());
+
+                return ToDomain(
+                    item.Definition,
+                    [revision]);
+            })
+            .ToArray();
+    }
+
     public async Task SetRevisionValidatedAsync(
         Guid configuredLogicId,
         Guid revisionId,
