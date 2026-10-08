@@ -22,6 +22,10 @@ public interface IExecutionRepository
         int limit,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<Guid>> GetAssetScopeAsync(
+        Guid executionId,
+        CancellationToken cancellationToken = default);
+
     Task<bool> ScheduledOccurrenceExistsAsync(
         Guid configurationRevisionId,
         DateTimeOffset scheduledForUtc,
