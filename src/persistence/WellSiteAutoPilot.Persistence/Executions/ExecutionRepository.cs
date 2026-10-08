@@ -153,6 +153,16 @@ public sealed class ExecutionRepository(
             .ToArray();
     }
 
+    public async Task<IReadOnlyCollection<Guid>> GetAssetScopeAsync(
+        Guid executionId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.ExecutionAssetScopes
+            .AsNoTracking()
+            .Where(item => item.ExecutionId == executionId)
+            .OrderBy(item => item.AssetId)
+            .Select(item => item.AssetId)
+            .ToArrayAsync(cancellationToken);
+
     public Task<bool> ScheduledOccurrenceExistsAsync(
         Guid configurationRevisionId,
         DateTimeOffset scheduledForUtc,
