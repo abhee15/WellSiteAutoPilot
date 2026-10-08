@@ -62,6 +62,17 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Executions.ExecutionAssetScopeEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Executions.ExecutionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("ExecutionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity",
             entity =>
             {
@@ -145,6 +156,18 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                     .HasFilter("\"ScheduledForUtc\" IS NOT NULL");
                 entity.HasIndex("Status", "RequestedAtUtc");
                 entity.ToTable("executions", "operations");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Executions.ExecutionAssetScopeEntity",
+            entity =>
+            {
+                entity.Property<Guid>("ExecutionId").HasColumnType("uuid");
+                entity.Property<Guid>("AssetId").HasColumnType("uuid");
+                entity.Property<Guid>("LogicInstanceId").HasColumnType("uuid");
+                entity.HasKey("ExecutionId", "AssetId");
+                entity.HasIndex("LogicInstanceId", "AssetId");
+                entity.ToTable("execution_asset_scopes", "operations");
             });
 
         modelBuilder.Entity(
