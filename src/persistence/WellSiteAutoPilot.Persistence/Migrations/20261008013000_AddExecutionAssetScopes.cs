@@ -9,6 +9,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations;
 [Migration("20261008013000_AddExecutionAssetScopes")]
 public partial class AddExecutionAssetScopes : Migration
 {
+    private static readonly string[] LogicAssetScopeIndexColumns =
+        ["LogicInstanceId", "AssetId"];
+
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         ArgumentNullException.ThrowIfNull(migrationBuilder);
@@ -40,7 +43,7 @@ public partial class AddExecutionAssetScopes : Migration
             name: "IX_execution_asset_scopes_LogicInstanceId_AssetId",
             schema: "operations",
             table: "execution_asset_scopes",
-            columns: new[] { "LogicInstanceId", "AssetId" });
+            columns: LogicAssetScopeIndexColumns);
 
         migrationBuilder.Sql(
             """
