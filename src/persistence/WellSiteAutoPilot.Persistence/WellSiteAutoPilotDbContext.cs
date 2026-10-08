@@ -13,6 +13,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
+    public DbSet<ExecutionAssetScopeEntity> ExecutionAssetScopes => Set<ExecutionAssetScopeEntity>();
     public DbSet<ConfiguredLogicEntity> ConfiguredLogicDefinitions => Set<ConfiguredLogicEntity>();
     public DbSet<ConfiguredLogicRevisionEntity> ConfiguredLogicRevisions => Set<ConfiguredLogicRevisionEntity>();
     public DbSet<ConfiguredLogicAssetBindingEntity> ConfiguredLogicAssetBindings => Set<ConfiguredLogicAssetBindingEntity>();
@@ -152,6 +153,17 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .IsUnique()
             .HasFilter("\"ScheduledForUtc\" IS NOT NULL");
         execution.HasIndex(x => new { x.Status, x.RequestedAtUtc });
+
+        var executionAssetScope = modelBuilder.Entity<ExecutionAssetScopeEntity>();
+        executionAssetScope.ToTable("execution_asset_scopes", "operations");
+        executionAssetScope.HasKey(x => new { x.ExecutionId, x.AssetId });
+        executionAssetScope.Property(x => x.LogicInstanceId).IsRequired();
+        executionAssetScope.Property(x => x.AssetId).IsRequired();
+        executionAssetScope.HasIndex(x => new { x.LogicInstanceId, x.AssetId });
+        executionAssetScope.HasOne<ExecutionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ExecutionId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var outbox = modelBuilder.Entity<OutboxMessageEntity>();
         outbox.ToTable("outbox_messages", "messaging");

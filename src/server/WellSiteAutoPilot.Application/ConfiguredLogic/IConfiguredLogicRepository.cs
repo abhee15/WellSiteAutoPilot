@@ -20,6 +20,10 @@ public interface IConfiguredLogicRepository
         int limit,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListActiveScheduledAsync(
+        int limit,
+        CancellationToken cancellationToken = default);
+
     Task SetRevisionValidatedAsync(
         Guid configuredLogicId,
         Guid revisionId,

@@ -22,6 +22,16 @@ public interface IExecutionRepository
         int limit,
         CancellationToken cancellationToken = default);
 
+    Task<bool> ScheduledOccurrenceExistsAsync(
+        Guid configurationRevisionId,
+        DateTimeOffset scheduledForUtc,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> HasActiveAssetOverlapAsync(
+        Guid logicInstanceId,
+        IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default);
+
     Task<bool> ApplyCompletedAsync(
         Guid messageId,
         string consumer,

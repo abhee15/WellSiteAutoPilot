@@ -14,6 +14,15 @@ public sealed class ExecutionRepository(
     private static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
 
+    private static readonly string[] ActiveExecutionStatuses =
+    [
+        nameof(ExecutionStatus.Requested),
+        nameof(ExecutionStatus.Queued),
+        nameof(ExecutionStatus.Starting),
+        nameof(ExecutionStatus.Running),
+        nameof(ExecutionStatus.Waiting)
+    ];
+
     public async Task AddRequestedAsync(
         ExecutionRecord execution,
         CancellationToken cancellationToken = default)
@@ -48,6 +57,10 @@ public sealed class ExecutionRepository(
             },
             Subjects.ExecutionRequestedV1,
             payload);
+
+        AddAssetScopes(
+            execution,
+            [execution.AssetId.Value]);
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -98,6 +111,13 @@ public sealed class ExecutionRepository(
             Subjects.ExecutionRequestedV2,
             payload);
 
+        AddAssetScopes(
+            execution,
+            command.Assets
+                .Select(asset => asset.AssetId)
+                .Distinct()
+                .ToArray());
+
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -131,6 +151,45 @@ public sealed class ExecutionRepository(
             .ToArrayAsync(cancellationToken))
             .Select(ToDomain)
             .ToArray();
+    }
+
+    public Task<bool> ScheduledOccurrenceExistsAsync(
+        Guid configurationRevisionId,
+        DateTimeOffset scheduledForUtc,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Executions
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.ConfigurationRevisionId == configurationRevisionId &&
+                        item.ScheduledForUtc == scheduledForUtc,
+                cancellationToken);
+
+    public async Task<bool> HasActiveAssetOverlapAsync(
+        Guid logicInstanceId,
+        IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(assetIds);
+
+        var ids = assetIds
+            .Where(item => item != Guid.Empty)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return false;
+        }
+
+        return await (
+            from scope in dbContext.ExecutionAssetScopes.AsNoTracking()
+            join execution in dbContext.Executions.AsNoTracking()
+                on scope.ExecutionId equals execution.Id
+            where scope.LogicInstanceId == logicInstanceId &&
+                  ids.Contains(scope.AssetId) &&
+                  ActiveExecutionStatuses.Contains(execution.Status)
+            select scope.ExecutionId)
+            .AnyAsync(cancellationToken);
     }
 
     public Task<bool> ApplyCompletedAsync(
@@ -173,6 +232,21 @@ public sealed class ExecutionRepository(
             failureCode,
             null,
             cancellationToken);
+
+    private void AddAssetScopes(
+        ExecutionRecord execution,
+        IReadOnlyCollection<Guid> assetIds)
+    {
+        foreach (var assetId in assetIds.Distinct())
+        {
+            dbContext.ExecutionAssetScopes.Add(new ExecutionAssetScopeEntity
+            {
+                ExecutionId = execution.Id,
+                LogicInstanceId = execution.LogicInstanceId,
+                AssetId = assetId
+            });
+        }
+    }
 
     private void AddRequested<TPayload>(
         ExecutionRecord execution,
