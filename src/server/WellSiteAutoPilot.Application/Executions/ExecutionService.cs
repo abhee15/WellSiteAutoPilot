@@ -100,25 +100,60 @@ public sealed class ExecutionService(
                 "Execution list limit must be between 1 and 500.");
         }
 
-        ExecutionStatus? parsedStatus = null;
+        var parsedStatus = ParseStatus(status);
+        return repository.ListAsync(parsedStatus, limit, cancellationToken);
+    }
 
-        if (!string.IsNullOrWhiteSpace(status))
+    public Task<IReadOnlyCollection<ExecutionRecord>> ListInScopeAsync(
+        string? status,
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (limit is < 1 or > 500)
         {
-            if (!Enum.TryParse<ExecutionStatus>(
-                    status.Trim(),
-                    ignoreCase: true,
-                    out var value))
-            {
-                throw new WellSiteAutoPilotException(
-                    FailureCodes.ValidationFailed,
-                    FailureKind.Validation,
-                    "Execution status is not recognized.");
-            }
-
-            parsedStatus = value;
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Execution list limit must be between 1 and 500.");
         }
 
-        return repository.ListAsync(parsedStatus, limit, cancellationToken);
+        var parsedStatus = ParseStatus(status);
+        return repository.ListInScopeAsync(
+            parsedStatus,
+            limit,
+            allowedAssetIds,
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyCollection<Guid>> GetAssetScopeAsync(
+        Guid executionId,
+        CancellationToken cancellationToken = default) =>
+        repository.GetAssetScopeAsync(
+            executionId,
+            cancellationToken);
+
+    private static ExecutionStatus? ParseStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        if (!Enum.TryParse<ExecutionStatus>(
+                status.Trim(),
+                ignoreCase: true,
+                out var value))
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Execution status is not recognized.");
+        }
+
+        return value;
     }
 
     private static void Validate(ShadowExecutionCommand command)
