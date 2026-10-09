@@ -263,12 +263,14 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.Property<Guid>("Id").HasColumnType("uuid");
                 entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<string>("DisplayName").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("IdentityKey").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
                 entity.Property<string>("IdentityName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
                 entity.Property<bool>("IsActive").HasColumnType("boolean");
                 entity.Property<DateTimeOffset>("LastSeenAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<string>("NormalizedIdentityName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
                 entity.HasKey("Id");
-                entity.HasIndex("NormalizedIdentityName").IsUnique();
+                entity.HasIndex("IdentityKey").IsUnique();
+                entity.HasIndex("NormalizedIdentityName");
                 entity.ToTable("users", "security");
             });
 
