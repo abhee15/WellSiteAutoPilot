@@ -60,7 +60,8 @@ public sealed class AssetScopeAuthorizer
             .Distinct()
             .ToArray();
 
-        if (requested.Any(item => !allowedSet.Contains(item)))
+        if (requested.Length == 0 ||
+            requested.Any(item => !allowedSet.Contains(item)))
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_ASSET_SCOPE_FORBIDDEN",
