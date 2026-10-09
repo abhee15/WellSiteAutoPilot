@@ -7,6 +7,8 @@ namespace WellSiteAutoPilot.Persistence.Security;
 public sealed class UserAccessRepository(
     WellSiteAutoPilotDbContext dbContext) : IUserAccessRepository
 {
+    private static readonly TimeSpan LastSeenWriteInterval =
+        TimeSpan.FromMinutes(5);
     public async Task<UserAccessProfile?> GetByIdentityAsync(
         string normalizedIdentityName,
         CancellationToken cancellationToken = default)
@@ -84,6 +86,8 @@ public sealed class UserAccessRepository(
         ArgumentException.ThrowIfNullOrWhiteSpace(identityName);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalizedIdentityName);
 
+        seenAtUtc = seenAtUtc.ToUniversalTime();
+
         var user = await dbContext.Users
             .SingleOrDefaultAsync(
                 item => item.NormalizedIdentityName == normalizedIdentityName,
@@ -91,7 +95,7 @@ public sealed class UserAccessRepository(
 
         if (user is null)
         {
-            user = new UserEntity
+            var candidate = new UserEntity
             {
                 Id = Guid.NewGuid(),
                 IdentityName = identityName,
@@ -101,16 +105,64 @@ public sealed class UserAccessRepository(
                 CreatedAtUtc = seenAtUtc,
                 LastSeenAtUtc = seenAtUtc
             };
-            dbContext.Users.Add(user);
-        }
-        else
-        {
-            user.IdentityName = identityName;
-            user.DisplayName = displayName;
-            user.LastSeenAtUtc = seenAtUtc;
+
+            dbContext.Users.Add(candidate);
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                user = candidate;
+            }
+            catch (DbUpdateException)
+            {
+                dbContext.Entry(candidate).State = EntityState.Detached;
+
+                user = await dbContext.Users
+                    .SingleOrDefaultAsync(
+                        item =>
+                            item.NormalizedIdentityName ==
+                            normalizedIdentityName,
+                        cancellationToken);
+
+                if (user is null)
+                {
+                    throw;
+                }
+            }
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var changed = false;
+
+        if (!string.Equals(
+                user.IdentityName,
+                identityName,
+                StringComparison.Ordinal))
+        {
+            user.IdentityName = identityName;
+            changed = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(displayName) &&
+            !string.Equals(
+                user.DisplayName,
+                displayName,
+                StringComparison.Ordinal))
+        {
+            user.DisplayName = displayName;
+            changed = true;
+        }
+
+        if (seenAtUtc - user.LastSeenAtUtc >= LastSeenWriteInterval)
+        {
+            user.LastSeenAtUtc = seenAtUtc;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
         return await LoadProfileAsync(user, cancellationToken);
     }
 
@@ -192,12 +244,30 @@ public sealed class UserAccessRepository(
             return;
         }
 
-        dbContext.UserRoles.Add(new UserRoleEntity
+        var assignment = new UserRoleEntity
         {
             UserId = userId,
             Role = roleName
-        });
-        await dbContext.SaveChangesAsync(cancellationToken);
+        };
+        dbContext.UserRoles.Add(assignment);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            dbContext.Entry(assignment).State = EntityState.Detached;
+
+            if (!await dbContext.UserRoles.AnyAsync(
+                    item =>
+                        item.UserId == userId &&
+                        item.Role == roleName,
+                    cancellationToken))
+            {
+                throw;
+            }
+        }
     }
 
     public Task<int> CountActiveUsersInRoleAsync(
