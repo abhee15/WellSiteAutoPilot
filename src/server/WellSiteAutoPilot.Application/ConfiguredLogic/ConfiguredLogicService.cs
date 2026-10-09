@@ -245,6 +245,27 @@ public sealed class ConfiguredLogicService(
         return repository.ListAsync(limit, cancellationToken);
     }
 
+    public Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListInScopeAsync(
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (limit is < 1 or > 500)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Configured Logic list limit must be between 1 and 500.");
+        }
+
+        return repository.ListInScopeAsync(
+            limit,
+            allowedAssetIds,
+            cancellationToken);
+    }
+
     private async Task<IReadOnlyCollection<ConfiguredLogicAssetBinding>> ValidateAssetBindingsAsync(
         LogicModuleManifest manifest,
         IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> commands,
