@@ -41,12 +41,17 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Server";
 });
 builder.Services.AddHealthChecks();
+var securityOptions = SecurityOptionsLoader.Load(
+    builder.Configuration);
 builder.Services.Configure<SecurityOptions>(
-    builder.Configuration.GetSection(SecurityOptions.SectionName));
+    options =>
+    {
+        options.AuthenticationMode = securityOptions.AuthenticationMode;
+        options.BootstrapAdministrators =
+            securityOptions.BootstrapAdministrators;
+    });
 
-var authenticationMode =
-    builder.Configuration[$"{SecurityOptions.SectionName}:AuthenticationMode"] ??
-    SecurityOptions.NegotiateAuthenticationMode;
+var authenticationMode = securityOptions.AuthenticationMode;
 
 if (string.Equals(
         authenticationMode,
