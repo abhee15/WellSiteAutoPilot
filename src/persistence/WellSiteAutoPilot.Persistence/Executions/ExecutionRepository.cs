@@ -153,6 +153,44 @@ public sealed class ExecutionRepository(
             .ToArray();
     }
 
+    public async Task<IReadOnlyCollection<ExecutionRecord>> ListInScopeAsync(
+        ExecutionStatus? status,
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (allowedAssetIds.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = allowedAssetIds.Distinct().ToArray();
+        var query = dbContext.Executions
+            .AsNoTracking()
+            .Where(execution =>
+                dbContext.ExecutionAssetScopes.Any(
+                    scope => scope.ExecutionId == execution.Id) &&
+                !dbContext.ExecutionAssetScopes.Any(
+                    scope =>
+                        scope.ExecutionId == execution.Id &&
+                        !ids.Contains(scope.AssetId)));
+
+        if (status is not null)
+        {
+            var statusName = status.Value.ToString();
+            query = query.Where(item => item.Status == statusName);
+        }
+
+        return (await query
+            .OrderByDescending(item => item.RequestedAtUtc)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken))
+            .Select(ToDomain)
+            .ToArray();
+    }
+
     public async Task<IReadOnlyCollection<Guid>> GetAssetScopeAsync(
         Guid executionId,
         CancellationToken cancellationToken = default) =>
