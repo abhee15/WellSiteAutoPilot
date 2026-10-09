@@ -62,6 +62,35 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Recommendations.RecommendationEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                    .WithMany()
+                    .HasForeignKey("AssetId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicEntity", null)
+                    .WithMany()
+                    .HasForeignKey("ConfiguredLogicId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("ConfigurationRevisionId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.Executions.ExecutionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("ExecutionId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Executions.ExecutionAssetScopeEntity",
             entity =>
             {
@@ -168,6 +197,41 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.HasKey("ExecutionId", "AssetId");
                 entity.HasIndex("LogicInstanceId", "AssetId");
                 entity.ToTable("execution_asset_scopes", "operations");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Recommendations.RecommendationEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<Guid>("AssetId").HasColumnType("uuid");
+                entity.Property<string>("Code").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<string>("Command").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<Guid>("ConfiguredLogicId").HasColumnType("uuid");
+                entity.Property<Guid>("ConfigurationRevisionId").HasColumnType("uuid");
+                entity.Property<Guid?>("ControlActionId").HasColumnType("uuid");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<DateTimeOffset?>("DecisionAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("DecisionBy").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("DecisionReason").HasMaxLength(1024).HasColumnType("character varying(1024)");
+                entity.Property<Guid>("ExecutionId").HasColumnType("uuid");
+                entity.Property<DateTimeOffset?>("ExpiresAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<int>("IntentIndex").HasColumnType("integer");
+                entity.Property<string>("IntentJson").IsRequired().HasColumnType("text");
+                entity.Property<string>("ModuleId").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("ModuleVersion").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                entity.Property<string>("Quantity").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("ReasonCode").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<decimal?>("SuggestedValue").HasColumnType("numeric");
+                entity.Property<string>("Unit").HasMaxLength(64).HasColumnType("character varying(64)");
+                entity.HasKey("Id");
+                entity.HasIndex("AssetId");
+                entity.HasIndex("ConfiguredLogicId");
+                entity.HasIndex("ConfigurationRevisionId");
+                entity.HasIndex("ExecutionId", "IntentIndex").IsUnique();
+                entity.HasIndex("Status", "CreatedAtUtc");
+                entity.ToTable("recommendations", "operations");
             });
 
         modelBuilder.Entity(

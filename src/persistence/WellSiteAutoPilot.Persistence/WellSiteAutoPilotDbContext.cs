@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Messaging;
 using WellSiteAutoPilot.Persistence.Logic;
+using WellSiteAutoPilot.Persistence.Recommendations;
 
 namespace WellSiteAutoPilot.Persistence;
 
@@ -21,6 +22,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
+    public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -164,6 +166,44 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .WithMany()
             .HasForeignKey(x => x.ExecutionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        var recommendation = modelBuilder.Entity<RecommendationEntity>();
+        recommendation.ToTable("recommendations", "operations");
+        recommendation.HasKey(x => x.Id);
+        recommendation.Property(x => x.IntentIndex).IsRequired();
+        recommendation.Property(x => x.ModuleId).HasMaxLength(256).IsRequired();
+        recommendation.Property(x => x.ModuleVersion).HasMaxLength(64).IsRequired();
+        recommendation.Property(x => x.Code).HasMaxLength(128).IsRequired();
+        recommendation.Property(x => x.Command).HasMaxLength(256).IsRequired();
+        recommendation.Property(x => x.Quantity).HasMaxLength(256);
+        recommendation.Property(x => x.Unit).HasMaxLength(64);
+        recommendation.Property(x => x.ReasonCode).HasMaxLength(128).IsRequired();
+        recommendation.Property(x => x.IntentJson).IsRequired();
+        recommendation.Property(x => x.Status).HasMaxLength(32).IsRequired();
+        recommendation.Property(x => x.CreatedAtUtc).IsRequired();
+        recommendation.Property(x => x.DecisionBy).HasMaxLength(256);
+        recommendation.Property(x => x.DecisionReason).HasMaxLength(1024);
+        recommendation.HasIndex(x => new { x.ExecutionId, x.IntentIndex }).IsUnique();
+        recommendation.HasIndex(x => x.ConfiguredLogicId);
+        recommendation.HasIndex(x => x.ConfigurationRevisionId);
+        recommendation.HasIndex(x => x.AssetId);
+        recommendation.HasIndex(x => new { x.Status, x.CreatedAtUtc });
+        recommendation.HasOne<ExecutionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ExecutionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        recommendation.HasOne<AssetEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.AssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+        recommendation.HasOne<ConfiguredLogicEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ConfiguredLogicId)
+            .OnDelete(DeleteBehavior.Restrict);
+        recommendation.HasOne<ConfiguredLogicRevisionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ConfigurationRevisionId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         var outbox = modelBuilder.Entity<OutboxMessageEntity>();
         outbox.ToTable("outbox_messages", "messaging");

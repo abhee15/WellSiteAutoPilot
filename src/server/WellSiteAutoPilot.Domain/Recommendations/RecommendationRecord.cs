@@ -1,0 +1,25 @@
+namespace WellSiteAutoPilot.Domain.Recommendations;
+
+public sealed record RecommendationRecord(
+    Guid Id,
+    Guid ExecutionId,
+    int IntentIndex,
+    Guid ConfiguredLogicId,
+    Guid ConfigurationRevisionId,
+    string ModuleId,
+    string ModuleVersion,
+    Guid AssetId,
+    string Code,
+    string Command,
+    string? Quantity,
+    decimal? SuggestedValue,
+    string? Unit,
+    string ReasonCode,
+    string IntentJson,
+    RecommendationStatus Status,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? ExpiresAtUtc = null,
+    string? DecisionBy = null,
+    DateTimeOffset? DecisionAtUtc = null,
+    string? DecisionReason = null,
+    Guid? ControlActionId = null);

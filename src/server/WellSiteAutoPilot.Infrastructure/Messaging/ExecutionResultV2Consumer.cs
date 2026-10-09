@@ -6,6 +6,7 @@ using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.Messaging.Nats;
@@ -94,6 +95,14 @@ public sealed partial class ExecutionResultV2Consumer(
                     envelope.Payload.StartedAtUtc,
                     envelope.Payload.CompletedAtUtc,
                     envelope.Payload.ResultCode,
+                    envelope.Payload.OutputJson,
+                    cancellationToken);
+
+                var materializer = scope.ServiceProvider
+                    .GetRequiredService<RecommendationMaterializer>();
+
+                await materializer.MaterializeAsync(
+                    envelope.Payload.ExecutionId,
                     envelope.Payload.OutputJson,
                     cancellationToken);
             }

@@ -2,5 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="../WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
     <ProjectReference Include="../../platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
+    <ProjectReference Include="../../modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
   </ItemGroup>
 </Project>
