@@ -32,6 +32,10 @@ public interface IUserAccessRepository
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken = default);
 
+    Task<bool> HasActiveUserInRoleAsync(
+        ApplicationRole role,
+        CancellationToken cancellationToken = default);
+
     Task EnsureRoleAsync(
         Guid userId,
         ApplicationRole role,
