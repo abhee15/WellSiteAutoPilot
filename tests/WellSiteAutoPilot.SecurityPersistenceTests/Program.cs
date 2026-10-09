@@ -1,10 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Assets;
+using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.ConfiguredLogic;
+using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Security;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Assets;
+using WellSiteAutoPilot.Persistence.ConfiguredLogic;
+using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Security;
 
 var connectionString = Environment.GetEnvironmentVariable(
@@ -41,6 +46,150 @@ var asset = await assetService.CreateAssetAsync(
         "Security Well 101",
         null,
         "{}"));
+
+var otherAsset = await assetService.CreateAssetAsync(
+    new CreateAssetCommand(
+        assetType.Id,
+        "Security Well 202",
+        null,
+        "{}"));
+
+var scopedAssets = await assetService.ListAssetsInScopeAsync(
+    null,
+    null,
+    100,
+    [asset.Id]);
+
+if (scopedAssets.Count != 1 ||
+    scopedAssets.Single().Id != asset.Id)
+{
+    throw new InvalidOperationException(
+        "Asset query did not isolate the authorized Asset scope.");
+}
+
+var inScopeConfiguredLogicId = Guid.NewGuid();
+var inScopeRevisionId = Guid.NewGuid();
+var outOfScopeConfiguredLogicId = Guid.NewGuid();
+var outOfScopeRevisionId = Guid.NewGuid();
+
+dbContext.ConfiguredLogicDefinitions.AddRange(
+    new ConfiguredLogicEntity
+    {
+        Id = inScopeConfiguredLogicId,
+        Name = "Scoped Configured Logic",
+        CreatedAtUtc = clock.GetUtcNow()
+    },
+    new ConfiguredLogicEntity
+    {
+        Id = outOfScopeConfiguredLogicId,
+        Name = "Out Of Scope Configured Logic",
+        CreatedAtUtc = clock.GetUtcNow()
+    });
+
+dbContext.ConfiguredLogicRevisions.AddRange(
+    new ConfiguredLogicRevisionEntity
+    {
+        Id = inScopeRevisionId,
+        ConfiguredLogicId = inScopeConfiguredLogicId,
+        RevisionNumber = 1,
+        ModuleId = "security.scope-test",
+        ModuleVersion = "1.0.0",
+        ModuleManifestJson = "{}",
+        Mode = nameof(ExecutionMode.Shadow),
+        ParametersJson = "{}",
+        Status = nameof(ConfiguredLogicRevisionStatus.Draft),
+        CreatedAtUtc = clock.GetUtcNow()
+    },
+    new ConfiguredLogicRevisionEntity
+    {
+        Id = outOfScopeRevisionId,
+        ConfiguredLogicId = outOfScopeConfiguredLogicId,
+        RevisionNumber = 1,
+        ModuleId = "security.scope-test",
+        ModuleVersion = "1.0.0",
+        ModuleManifestJson = "{}",
+        Mode = nameof(ExecutionMode.Shadow),
+        ParametersJson = "{}",
+        Status = nameof(ConfiguredLogicRevisionStatus.Draft),
+        CreatedAtUtc = clock.GetUtcNow()
+    });
+
+dbContext.ConfiguredLogicAssetBindings.AddRange(
+    new ConfiguredLogicAssetBindingEntity
+    {
+        RevisionId = inScopeRevisionId,
+        Role = "well",
+        AssetId = asset.Id,
+        ParameterOverridesJson = "{}"
+    },
+    new ConfiguredLogicAssetBindingEntity
+    {
+        RevisionId = outOfScopeRevisionId,
+        Role = "well",
+        AssetId = otherAsset.Id,
+        ParameterOverridesJson = "{}"
+    });
+
+await dbContext.SaveChangesAsync();
+
+var configuredLogicRepository =
+    new ConfiguredLogicRepository(dbContext);
+var scopedConfiguredLogic =
+    await configuredLogicRepository.ListInScopeAsync(
+        100,
+        [asset.Id]);
+
+if (scopedConfiguredLogic.Count != 1 ||
+    scopedConfiguredLogic.Single().Id != inScopeConfiguredLogicId ||
+    await configuredLogicRepository.GetInScopeAsync(
+        outOfScopeConfiguredLogicId,
+        [asset.Id]) is not null)
+{
+    throw new InvalidOperationException(
+        "Configured Logic query did not isolate the authorized Asset scope.");
+}
+
+var executionRepository = new ExecutionRepository(dbContext);
+var executionService = new ExecutionService(
+    executionRepository,
+    clock);
+
+var inScopeExecution = await executionService.RequestShadowAsync(
+    new ShadowExecutionCommand(
+        Guid.NewGuid(),
+        "security.scope-test",
+        "1.0.0",
+        Guid.NewGuid(),
+        asset.Id,
+        "WELL-101",
+        "PumpFillage"),
+    "security-scope-in");
+
+var outOfScopeExecution = await executionService.RequestShadowAsync(
+    new ShadowExecutionCommand(
+        Guid.NewGuid(),
+        "security.scope-test",
+        "1.0.0",
+        Guid.NewGuid(),
+        otherAsset.Id,
+        "WELL-202",
+        "PumpFillage"),
+    "security-scope-out");
+
+var scopedExecutions = await executionService.ListInScopeAsync(
+    null,
+    100,
+    [asset.Id]);
+
+if (!scopedExecutions.Any(item => item.Id == inScopeExecution.Id) ||
+    scopedExecutions.Any(item => item.Id == outOfScopeExecution.Id) ||
+    await executionRepository.GetInScopeAsync(
+        outOfScopeExecution.Id,
+        [asset.Id]) is not null)
+{
+    throw new InvalidOperationException(
+        "Execution query did not isolate the authorized Asset scope.");
+}
 
 var bootstrapIdentity =
     UserAccessService.NormalizeIdentity(@"FIELD\wsa-admin");
@@ -172,7 +321,7 @@ if (users.Count < 3 ||
 }
 
 Console.WriteLine(
-    "Security identity, bootstrap Admin, RBAC, Asset scope, and last-Admin invariants passed.");
+    "Security identity, bootstrap Admin, RBAC, exact Asset scope isolation, and last-Admin invariants passed.");
 return 0;
 
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
