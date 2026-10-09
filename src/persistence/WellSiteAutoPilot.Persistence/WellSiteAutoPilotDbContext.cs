@@ -229,13 +229,15 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         var user = modelBuilder.Entity<UserEntity>();
         user.ToTable("users", "security");
         user.HasKey(x => x.Id);
+        user.Property(x => x.IdentityKey).HasMaxLength(256).IsRequired();
         user.Property(x => x.IdentityName).HasMaxLength(256).IsRequired();
         user.Property(x => x.NormalizedIdentityName).HasMaxLength(256).IsRequired();
         user.Property(x => x.DisplayName).HasMaxLength(256);
         user.Property(x => x.IsActive).IsRequired();
         user.Property(x => x.CreatedAtUtc).IsRequired();
         user.Property(x => x.LastSeenAtUtc).IsRequired();
-        user.HasIndex(x => x.NormalizedIdentityName).IsUnique();
+        user.HasIndex(x => x.IdentityKey).IsUnique();
+        user.HasIndex(x => x.NormalizedIdentityName);
 
         var userRole = modelBuilder.Entity<UserRoleEntity>();
         userRole.ToTable("user_roles", "security");
