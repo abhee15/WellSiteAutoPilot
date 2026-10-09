@@ -66,6 +66,10 @@ public partial class AddSecurityAccessModel : Migration
             columns: table => new
             {
                 Id = table.Column<Guid>(type: "uuid", nullable: false),
+                IdentityKey = table.Column<string>(
+                    type: "character varying(256)",
+                    maxLength: 256,
+                    nullable: false),
                 IdentityName = table.Column<string>(
                     type: "character varying(256)",
                     maxLength: 256,
@@ -170,11 +174,17 @@ public partial class AddSecurityAccessModel : Migration
             column: "OccurredAtUtc");
 
         migrationBuilder.CreateIndex(
+            name: "IX_users_IdentityKey",
+            schema: "security",
+            table: "users",
+            column: "IdentityKey",
+            unique: true);
+
+        migrationBuilder.CreateIndex(
             name: "IX_users_NormalizedIdentityName",
             schema: "security",
             table: "users",
-            column: "NormalizedIdentityName",
-            unique: true);
+            column: "NormalizedIdentityName");
 
         migrationBuilder.CreateIndex(
             name: "IX_user_roles_Role",
