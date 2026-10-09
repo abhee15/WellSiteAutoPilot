@@ -28,11 +28,15 @@ public interface IUserAccessRepository
         IReadOnlyCollection<ApplicationRole> roles,
         IReadOnlyCollection<Guid> assetScopeIds,
         bool preserveLastAdministrator,
+        SecurityActorContext actor,
+        DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken = default);
 
     Task EnsureRoleAsync(
         Guid userId,
         ApplicationRole role,
+        SecurityActorContext actor,
+        DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken = default);
 
 }
