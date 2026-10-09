@@ -91,6 +91,43 @@ public sealed class AssetRepository(
             .ToArray();
     }
 
+    public async Task<IReadOnlyCollection<Asset>> ListAssetsInScopeAsync(
+        Guid? assetTypeId,
+        Guid? parentAssetId,
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (allowedAssetIds.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = allowedAssetIds.Distinct().ToArray();
+        var query = dbContext.Assets
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.Id));
+
+        if (assetTypeId is not null)
+        {
+            query = query.Where(item => item.AssetTypeId == assetTypeId.Value);
+        }
+
+        if (parentAssetId is not null)
+        {
+            query = query.Where(item => item.ParentAssetId == parentAssetId.Value);
+        }
+
+        return (await query
+            .OrderBy(item => item.Name)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken))
+            .Select(ToDomain)
+            .ToArray();
+    }
+
     public async Task AddAssetAsync(
         Asset asset,
         CancellationToken cancellationToken = default)
