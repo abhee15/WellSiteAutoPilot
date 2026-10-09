@@ -16,6 +16,28 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Audit.AuditEventEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<string>("Action").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<string>("ActorIdentity").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<Guid?>("ActorUserId").HasColumnType("uuid");
+                entity.Property<Guid?>("AssetId").HasColumnType("uuid");
+                entity.Property<string>("CorrelationId").HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<string>("DetailsJson").IsRequired().HasColumnType("text");
+                entity.Property<DateTimeOffset>("OccurredAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("TargetId").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("TargetType").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.HasKey("Id");
+                entity.HasIndex("Action");
+                entity.HasIndex("ActorUserId");
+                entity.HasIndex("AssetId");
+                entity.HasIndex("OccurredAtUtc");
+                entity.ToTable("audit_events", "audit");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Assets.AssetTypeEntity",
             entity =>
             {
