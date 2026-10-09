@@ -230,6 +230,23 @@ public sealed class ConfiguredLogicService(
             FailureKind.NotFound,
             "The requested Configured Logic was not found.");
 
+    public async Task<ConfiguredLogicDefinition> GetRequiredInScopeAsync(
+        Guid configuredLogicId,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        return await repository.GetInScopeAsync(
+                   configuredLogicId,
+                   allowedAssetIds,
+                   cancellationToken) ??
+               throw new WellSiteAutoPilotException(
+                   "CONFIGURED_LOGIC_NOT_FOUND",
+                   FailureKind.NotFound,
+                   "The requested Configured Logic was not found.");
+    }
+
     public Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListAsync(
         int limit,
         CancellationToken cancellationToken = default)
