@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 
 return Bootstrapper.Run(args);
 
@@ -53,6 +54,11 @@ internal static class Bootstrapper
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
             "Weatherford",
             "WellSite AutoPilot");
+
+        Directory.CreateDirectory(programDataRoot);
+        ConfigureBootstrapAdministrator(
+            programDataRoot,
+            GetOption(args, "--bootstrap-admin"));
 
         var natsDataRoot = Path.Combine(programDataRoot, "NATS", "JetStream");
         Directory.CreateDirectory(natsDataRoot);
@@ -140,6 +146,142 @@ internal static class Bootstrapper
 
         Console.WriteLine("WellSite AutoPilot Windows services removed.");
         return 0;
+    }
+
+    private static void ConfigureBootstrapAdministrator(
+        string programDataRoot,
+        string? requestedIdentity)
+    {
+        var settingsPath = Path.Combine(
+            programDataRoot,
+            "server.settings.json");
+
+        var existingIdentities = ReadBootstrapAdministrators(settingsPath);
+
+        if (existingIdentities.Count > 0)
+        {
+            if (!string.IsNullOrWhiteSpace(requestedIdentity))
+            {
+                var normalizedRequested = ValidateBootstrapIdentity(
+                    requestedIdentity);
+
+                if (!existingIdentities.Contains(
+                        normalizedRequested,
+                        StringComparer.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "A different bootstrap administrator is already configured. " +
+                        "Change administrator access through WellSite AutoPilot after installation instead of replacing bootstrap settings during an upgrade.");
+                }
+            }
+
+            GrantLocalServiceReadAccess(settingsPath);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(requestedIdentity))
+        {
+            throw new InvalidOperationException(
+                "Fresh installation requires --bootstrap-admin <WindowsIdentity>. " +
+                "Use DOMAIN\\user, MACHINE\\user, or a Windows UPN.");
+        }
+
+        var bootstrapIdentity = ValidateBootstrapIdentity(
+            requestedIdentity);
+
+        var payload = JsonSerializer.Serialize(
+            new
+            {
+                Security = new
+                {
+                    BootstrapAdministrators = new[]
+                    {
+                        bootstrapIdentity
+                    }
+                }
+            },
+            new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+        var temporaryPath =
+            settingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+
+        File.WriteAllText(temporaryPath, payload);
+        File.Move(temporaryPath, settingsPath, overwrite: true);
+
+        GrantLocalServiceReadAccess(settingsPath);
+    }
+
+    private static IReadOnlyCollection<string> ReadBootstrapAdministrators(
+        string settingsPath)
+    {
+        if (!File.Exists(settingsPath))
+        {
+            return [];
+        }
+
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(settingsPath));
+
+        if (!document.RootElement.TryGetProperty(
+                "Security",
+                out var securityElement) ||
+            !securityElement.TryGetProperty(
+                "BootstrapAdministrators",
+                out var administratorsElement) ||
+            administratorsElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException(
+                $"Security settings file is invalid: {settingsPath}");
+        }
+
+        return administratorsElement
+            .EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.String)
+            .Select(item => item.GetString())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string ValidateBootstrapIdentity(string identity)
+    {
+        var value = identity.Trim();
+
+        if (value.Length is < 1 or > 256 ||
+            value.Any(char.IsControl))
+        {
+            throw new InvalidOperationException(
+                "Bootstrap administrator identity is invalid.");
+        }
+
+        if (!value.Contains('\\', StringComparison.Ordinal) &&
+            !value.Contains('@', StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Bootstrap administrator must be a Windows DOMAIN\\user, MACHINE\\user, or UPN identity.");
+        }
+
+        return value;
+    }
+
+    private static void GrantLocalServiceReadAccess(string path)
+    {
+        var result = RunProcessAllowFailure(
+            "icacls.exe",
+            path,
+            "/grant:r",
+            @"NT AUTHORITY\LOCAL SERVICE:R");
+
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Failed to grant LocalService read access to {path}: " +
+                $"{result.StandardOutput} {result.StandardError}".Trim());
+        }
     }
 
     private static void GrantLocalServiceModifyAccess(string path)
@@ -293,7 +435,10 @@ internal static class Bootstrapper
     private static void WriteUsage()
     {
         Console.WriteLine("WellSite AutoPilot Bootstrapper");
-        Console.WriteLine("  install-services --install-root <path>");
+        Console.WriteLine(
+            "  install-services --install-root <path> [--bootstrap-admin <WindowsIdentity>]");
+        Console.WriteLine(
+            "    --bootstrap-admin is required on a fresh installation and preserved on upgrades.");
         Console.WriteLine("  uninstall-services");
     }
 
