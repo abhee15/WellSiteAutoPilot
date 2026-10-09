@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using WellSiteAutoPilot.Application.Security;
 
 namespace WellSiteAutoPilot.Server.Security;
