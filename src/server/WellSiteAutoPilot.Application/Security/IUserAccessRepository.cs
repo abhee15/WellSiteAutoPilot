@@ -27,6 +27,7 @@ public interface IUserAccessRepository
         Guid userId,
         IReadOnlyCollection<ApplicationRole> roles,
         IReadOnlyCollection<Guid> assetScopeIds,
+        bool preserveLastAdministrator,
         CancellationToken cancellationToken = default);
 
     Task EnsureRoleAsync(
@@ -34,7 +35,4 @@ public interface IUserAccessRepository
         ApplicationRole role,
         CancellationToken cancellationToken = default);
 
-    Task<int> CountActiveUsersInRoleAsync(
-        ApplicationRole role,
-        CancellationToken cancellationToken = default);
 }
