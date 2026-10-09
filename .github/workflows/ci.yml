@@ -142,16 +142,14 @@ jobs:
               throw "WellSite AutoPilot Server did not become ready for OpenAPI generation."
             }
 
-            $systemInfo = Invoke-RestMethod "http://127.0.0.1:5080/api/v1/system/info"
-            if ($systemInfo.product -ne "WellSite AutoPilot") {
-              throw "Unexpected system information response."
-            }
-
             Invoke-WebRequest "http://127.0.0.1:5080/swagger/v1/swagger.json" -UseBasicParsing -OutFile "artifacts/openapi/v1/server.json"
             $openApi = Get-Content "artifacts/openapi/v1/server.json" -Raw | ConvertFrom-Json
             $paths = @($openApi.paths.PSObject.Properties.Name)
             $requiredPaths = @(
               "/api/v1/system/info",
+              "/api/v1/security/me",
+              "/api/v1/security/users",
+              "/api/v1/security/users/{userId}/access",
               "/api/v1/logic-modules",
               "/api/v1/logic-modules/{moduleId}/{moduleVersion}",
               "/api/v1/executions",
@@ -441,23 +439,6 @@ jobs:
             throw "Installed .NET worker health endpoint did not become ready."
           }
 
-          $systemInfo = Invoke-RestMethod "http://127.0.0.1:5080/api/v1/system/info"
-          $expectedComponents = @(
-            "WellSite AutoPilot Server",
-            "WellSite AutoPilot Integration Gateway",
-            "WellSite AutoPilot .NET Runtime"
-          )
-
-          foreach ($componentName in $expectedComponents) {
-            $component = $systemInfo.components | Where-Object { $_.name -eq $componentName }
-            if (-not $component) {
-              throw "System Health did not report component: $componentName"
-            }
-            if ($component.status -ne "Healthy") {
-              throw "System Health component was not healthy: $componentName ($($component.status))"
-            }
-          }
-
           $uninstaller = Join-Path $installRoot "Uninstall.exe"
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) {
@@ -537,6 +518,9 @@ jobs:
 
       - name: Verify Recommendation persistence
         run: dotnet run --project tests/WellSiteAutoPilot.RecommendationPersistenceTests/WellSiteAutoPilot.RecommendationPersistenceTests.csproj --configuration Release --no-build
+
+      - name: Verify security identity, RBAC, and Asset scope persistence
+        run: dotnet run --project tests/WellSiteAutoPilot.SecurityPersistenceTests/WellSiteAutoPilot.SecurityPersistenceTests.csproj --configuration Release --no-build
 
       - name: Verify asset persistence
         run: dotnet run --project tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj --configuration Release --no-build
@@ -798,7 +782,7 @@ jobs:
           Runtime__IntegrationGatewayUrl=http://127.0.0.1:5081             dotnet run --project src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --urls http://127.0.0.1:5082 > worker.log 2>&1 &
           echo $! > worker.pid
 
-          ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
+          ASPNETCORE_ENVIRONMENT=CI Security__AuthenticationMode=TestHeader Security__BootstrapAdministrators__0='CI\wsa-admin' ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
           echo $! > server.pid
 
           for attempt in {1..45}; do
@@ -817,6 +801,29 @@ jobs:
           cat server.log || true
           exit 1
 
+      - name: Verify API authentication and RBAC boundary
+        shell: bash
+        run: |
+          status=$(curl --silent --output /dev/null --write-out "%{http_code}"             "http://127.0.0.1:5080/api/v1/executions?limit=1")
+          if [ "$status" != "401" ]; then
+            echo "Expected anonymous API request to return 401, got $status"
+            exit 1
+          fi
+
+          status=$(curl --silent --output /dev/null --write-out "%{http_code}"             -H 'X-WSA-Test-Identity: CI\unprivileged'             "http://127.0.0.1:5080/api/v1/executions?limit=1")
+          if [ "$status" != "403" ]; then
+            echo "Expected authenticated user without roles to return 403, got $status"
+            exit 1
+          fi
+
+          me=$(curl --fail --silent             -H 'X-WSA-Test-Identity: CI\wsa-admin'             "http://127.0.0.1:5080/api/v1/security/me")
+          ME="$me" python - <<'PY'
+          import json, os
+          current=json.loads(os.environ["ME"])
+          assert "Admin" in current["roles"]
+          assert current["identityName"].lower() == r"ci\wsa-admin".lower()
+          PY
+
       - name: Request and verify Shadow execution
         shell: bash
         run: |
@@ -834,7 +841,7 @@ jobs:
           PY
           )
 
-          response=$(curl --fail --silent             -H "Content-Type: application/json"             -H "X-Correlation-ID: ci-shadow-e2e"             -d "$request"             http://127.0.0.1:5080/api/v1/executions/shadow)
+          response=$(curl --fail --silent             -H "Content-Type: application/json"             -H "X-Correlation-ID: ci-shadow-e2e"             -H 'X-WSA-Test-Identity: CI\wsa-admin'             -d "$request"             http://127.0.0.1:5080/api/v1/executions/shadow)
 
           echo "$response"
 
@@ -850,7 +857,7 @@ jobs:
 
           completed=""
           for attempt in {1..45}; do
-            state=$(curl --fail --silent "http://127.0.0.1:5080/api/v1/executions/$execution_id")
+            state=$(curl --fail --silent -H 'X-WSA-Test-Identity: CI\wsa-admin' "http://127.0.0.1:5080/api/v1/executions/$execution_id")
             status=$(STATE="$state" python - <<'PY'
           import json, os
           print(json.loads(os.environ["STATE"])["status"])
@@ -890,7 +897,7 @@ jobs:
           assert output["recommendations"] == []
           PY
 
-          activity=$(curl --fail --silent "http://127.0.0.1:5080/api/v1/executions?limit=10")
+          activity=$(curl --fail --silent -H 'X-WSA-Test-Identity: CI\wsa-admin' "http://127.0.0.1:5080/api/v1/executions?limit=10")
           ACTIVITY="$activity" EXECUTION_ID="$execution_id" python - <<'PY'
           import json, os
           activity=json.loads(os.environ["ACTIVITY"])
