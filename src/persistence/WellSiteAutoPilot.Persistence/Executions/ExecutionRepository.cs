@@ -132,6 +132,34 @@ public sealed class ExecutionRepository(
         return entity is null ? null : ToDomain(entity);
     }
 
+    public async Task<ExecutionRecord?> GetInScopeAsync(
+        Guid executionId,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (allowedAssetIds.Count == 0)
+        {
+            return null;
+        }
+
+        var ids = allowedAssetIds.Distinct().ToArray();
+        var entity = await dbContext.Executions
+            .AsNoTracking()
+            .Where(item => item.Id == executionId)
+            .Where(execution =>
+                dbContext.ExecutionAssetScopes.Any(
+                    scope => scope.ExecutionId == execution.Id) &&
+                !dbContext.ExecutionAssetScopes.Any(
+                    scope =>
+                        scope.ExecutionId == execution.Id &&
+                        !ids.Contains(scope.AssetId)))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return entity is null ? null : ToDomain(entity);
+    }
+
     public async Task<IReadOnlyCollection<ExecutionRecord>> ListAsync(
         ExecutionStatus? status,
         int limit,
