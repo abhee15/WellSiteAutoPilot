@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Persistence.Assets;
+using WellSiteAutoPilot.Persistence.Audit;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Messaging;
@@ -12,6 +13,7 @@ namespace WellSiteAutoPilot.Persistence;
 public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilotDbContext> options)
     : DbContext(options)
 {
+    public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
@@ -31,6 +33,21 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
+
+        var auditEvent = modelBuilder.Entity<AuditEventEntity>();
+        auditEvent.ToTable("audit_events", "audit");
+        auditEvent.HasKey(x => x.Id);
+        auditEvent.Property(x => x.OccurredAtUtc).IsRequired();
+        auditEvent.Property(x => x.ActorIdentity).HasMaxLength(256).IsRequired();
+        auditEvent.Property(x => x.Action).HasMaxLength(128).IsRequired();
+        auditEvent.Property(x => x.TargetType).HasMaxLength(128).IsRequired();
+        auditEvent.Property(x => x.TargetId).HasMaxLength(256);
+        auditEvent.Property(x => x.CorrelationId).HasMaxLength(128);
+        auditEvent.Property(x => x.DetailsJson).IsRequired();
+        auditEvent.HasIndex(x => x.OccurredAtUtc);
+        auditEvent.HasIndex(x => x.ActorUserId);
+        auditEvent.HasIndex(x => x.Action);
+        auditEvent.HasIndex(x => x.AssetId);
 
         var assetType = modelBuilder.Entity<AssetTypeEntity>();
         assetType.ToTable("asset_types", "assets");
