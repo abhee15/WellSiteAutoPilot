@@ -87,6 +87,23 @@ public sealed class ExecutionService(
             "The requested execution was not found.");
     }
 
+    public async Task<ExecutionRecord> GetRequiredInScopeAsync(
+        Guid executionId,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        return await repository.GetInScopeAsync(
+                   executionId,
+                   allowedAssetIds,
+                   cancellationToken) ??
+               throw new WellSiteAutoPilotException(
+                   "EXECUTION_NOT_FOUND",
+                   FailureKind.NotFound,
+                   "The requested execution was not found.");
+    }
+
     public Task<IReadOnlyCollection<ExecutionRecord>> ListAsync(
         string? status,
         int limit,
