@@ -15,23 +15,6 @@ public sealed class UserAccessRepository(
         TimeSpan.FromMinutes(5);
     private static readonly JsonSerializerOptions AuditJsonOptions =
         new(JsonSerializerDefaults.Web);
-    public async Task<UserAccessProfile?> GetByIdentityAsync(
-        string normalizedIdentityName,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(normalizedIdentityName);
-
-        var user = await dbContext.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.NormalizedIdentityName == normalizedIdentityName,
-                cancellationToken);
-
-        return user is null
-            ? null
-            : await LoadProfileAsync(user, cancellationToken);
-    }
-
     public async Task<UserAccessProfile?> GetAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
@@ -83,12 +66,14 @@ public sealed class UserAccessRepository(
     }
 
     public async Task<UserAccessProfile> UpsertAuthenticatedUserAsync(
+        string identityKey,
         string identityName,
         string normalizedIdentityName,
         string? displayName,
         DateTimeOffset seenAtUtc,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identityKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(identityName);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalizedIdentityName);
 
@@ -96,7 +81,7 @@ public sealed class UserAccessRepository(
 
         var user = await dbContext.Users
             .SingleOrDefaultAsync(
-                item => item.NormalizedIdentityName == normalizedIdentityName,
+                item => item.IdentityKey == identityKey,
                 cancellationToken);
 
         if (user is null)
@@ -104,6 +89,7 @@ public sealed class UserAccessRepository(
             var candidate = new UserEntity
             {
                 Id = Guid.NewGuid(),
+                IdentityKey = identityKey,
                 IdentityName = identityName,
                 NormalizedIdentityName = normalizedIdentityName,
                 DisplayName = displayName,
@@ -125,6 +111,7 @@ public sealed class UserAccessRepository(
                 null,
                 new
                 {
+                    candidate.IdentityKey,
                     candidate.NormalizedIdentityName
                 });
             dbContext.AuditEvents.Add(provisioningAudit);
@@ -142,8 +129,8 @@ public sealed class UserAccessRepository(
                 user = await dbContext.Users
                     .SingleOrDefaultAsync(
                         item =>
-                            item.NormalizedIdentityName ==
-                            normalizedIdentityName,
+                            item.IdentityKey ==
+                            identityKey,
                         cancellationToken);
 
                 if (user is null)
@@ -493,6 +480,7 @@ public sealed class UserAccessRepository(
         IEnumerable<UserAssetScopeEntity> scopes) =>
         new(
             user.Id,
+            user.IdentityKey,
             user.IdentityName,
             user.NormalizedIdentityName,
             user.DisplayName,
