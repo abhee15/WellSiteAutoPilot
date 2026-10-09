@@ -4,10 +4,6 @@ namespace WellSiteAutoPilot.Application.Security;
 
 public interface IUserAccessRepository
 {
-    Task<UserAccessProfile?> GetByIdentityAsync(
-        string normalizedIdentityName,
-        CancellationToken cancellationToken = default);
-
     Task<UserAccessProfile?> GetAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
@@ -17,6 +13,7 @@ public interface IUserAccessRepository
         CancellationToken cancellationToken = default);
 
     Task<UserAccessProfile> UpsertAuthenticatedUserAsync(
+        string identityKey,
         string identityName,
         string normalizedIdentityName,
         string? displayName,
