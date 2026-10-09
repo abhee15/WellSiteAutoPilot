@@ -29,6 +29,8 @@ public sealed class UserAccessService(
             await repository.EnsureRoleAsync(
                 profile.Id,
                 ApplicationRole.Admin,
+                SecurityActorContext.Bootstrap,
+                nowUtc,
                 cancellationToken);
 
             profile = await repository.GetAsync(profile.Id, cancellationToken) ??
@@ -67,10 +69,12 @@ public sealed class UserAccessService(
         Guid userId,
         IReadOnlyCollection<ApplicationRole> roles,
         IReadOnlyCollection<Guid> assetScopeIds,
+        SecurityActorContext actor,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(roles);
         ArgumentNullException.ThrowIfNull(assetScopeIds);
+        ArgumentNullException.ThrowIfNull(actor);
 
         var existing = await GetRequiredAsync(userId, cancellationToken);
         var normalizedRoles = roles.Distinct().OrderBy(item => item).ToArray();
@@ -91,6 +95,8 @@ public sealed class UserAccessService(
                 normalizedRoles,
                 normalizedAssets,
                 preserveLastAdministrator,
+                actor,
+                timeProvider.GetUtcNow(),
                 cancellationToken);
         }
         catch (LastAdministratorRequiredException exception)
