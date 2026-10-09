@@ -252,7 +252,11 @@ if (operatorUser.Roles.Count != 0)
 operatorUser = await service.ReplaceAccessAsync(
     operatorUser.Id,
     [ApplicationRole.Operator],
-    [asset.Id]);
+    [asset.Id],
+    new SecurityActorContext(
+        administrator.Id,
+        administrator.IdentityName,
+        "security-test-operator-access"));
 
 if (!operatorUser.Roles.SequenceEqual([ApplicationRole.Operator]) ||
     !operatorUser.AssetScopeIds.SequenceEqual([asset.Id]) ||
@@ -273,7 +277,11 @@ try
     await service.ReplaceAccessAsync(
         operatorUser.Id,
         [ApplicationRole.Operator],
-        [Guid.NewGuid()]);
+        [Guid.NewGuid()],
+        new SecurityActorContext(
+            administrator.Id,
+            administrator.IdentityName,
+            "security-test-invalid-scope"));
 
     throw new InvalidOperationException(
         "Invalid Asset scope assignment was accepted.");
@@ -290,7 +298,11 @@ try
     await service.ReplaceAccessAsync(
         administrator.Id,
         [ApplicationRole.Engineer],
-        []);
+        [],
+        new SecurityActorContext(
+            administrator.Id,
+            administrator.IdentityName,
+            "security-test-last-admin"));
 
     throw new InvalidOperationException(
         "The final Admin role was removed.");
@@ -310,7 +322,11 @@ var secondAdministrator = await service.ResolveAuthenticatedAsync(
 await service.ReplaceAccessAsync(
     administrator.Id,
     [ApplicationRole.Engineer],
-    [asset.Id]);
+    [asset.Id],
+    new SecurityActorContext(
+        secondAdministrator.Id,
+        secondAdministrator.IdentityName,
+        "security-test-admin-replacement"));
 
 var updatedAdministrator = await service.GetRequiredAsync(
     administrator.Id);
@@ -324,6 +340,33 @@ if (updatedAdministrator.Roles.Contains(ApplicationRole.Admin) ||
         "Admin replacement invariant did not preserve at least one active administrator.");
 }
 
+var auditEvents = await dbContext.AuditEvents
+    .AsNoTracking()
+    .OrderBy(item => item.OccurredAtUtc)
+    .ToArrayAsync();
+
+if (!auditEvents.Any(
+        item => item.Action == "security.user.provisioned" &&
+                item.TargetId == administrator.Id.ToString()) ||
+    !auditEvents.Any(
+        item => item.Action == "security.bootstrap-admin.assigned" &&
+                item.TargetId == administrator.Id.ToString() &&
+                item.ActorIdentity == "system:bootstrap") ||
+    !auditEvents.Any(
+        item => item.Action == "security.user.access-replaced" &&
+                item.TargetId == operatorUser.Id.ToString() &&
+                item.ActorUserId == administrator.Id &&
+                item.CorrelationId == "security-test-operator-access") ||
+    !auditEvents.Any(
+        item => item.Action == "security.user.access-replaced" &&
+                item.TargetId == administrator.Id.ToString() &&
+                item.ActorUserId == secondAdministrator.Id &&
+                item.CorrelationId == "security-test-admin-replacement"))
+{
+    throw new InvalidOperationException(
+        "Security audit trail did not preserve provisioning, bootstrap, and access-change events.");
+}
+
 var users = await service.ListAsync(100);
 if (users.Count < 3 ||
     users.Select(item => item.NormalizedIdentityName).Distinct().Count() !=
@@ -334,7 +377,7 @@ if (users.Count < 3 ||
 }
 
 Console.WriteLine(
-    "Security identity, bootstrap Admin, RBAC, exact Asset scope isolation, and last-Admin invariants passed.");
+    "Security identity, bootstrap Admin, RBAC, exact Asset scope isolation, durable audit, and last-Admin invariants passed.");
 return 0;
 
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
