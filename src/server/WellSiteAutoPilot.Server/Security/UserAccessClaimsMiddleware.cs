@@ -15,6 +15,14 @@ public sealed class UserAccessClaimsMiddleware(RequestDelegate next)
         if (context.User.Identity?.IsAuthenticated == true)
         {
             var identityName = context.User.Identity.Name;
+            var normalizedIdentityName =
+                UserAccessService.NormalizeIdentity(
+                    identityName ?? string.Empty);
+            var primarySid =
+                context.User.FindFirst(ClaimTypes.PrimarySid)?.Value;
+            var identityKey = string.IsNullOrWhiteSpace(primarySid)
+                ? $"NAME:{normalizedIdentityName}"
+                : $"SID:{primarySid.Trim()}";
             var displayName = context.User.FindFirst("name")?.Value ??
                               context.User.FindFirst("wsa:test-display-name")?.Value;
 
@@ -24,6 +32,7 @@ public sealed class UserAccessClaimsMiddleware(RequestDelegate next)
                 .ToHashSet(StringComparer.Ordinal);
 
             var profile = await userAccessService.ResolveAuthenticatedAsync(
+                identityKey,
                 identityName ?? string.Empty,
                 displayName,
                 bootstrapAdmins,
