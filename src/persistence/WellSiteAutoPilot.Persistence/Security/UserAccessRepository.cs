@@ -1,4 +1,6 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Security;
 
@@ -170,13 +172,49 @@ public sealed class UserAccessRepository(
         Guid userId,
         IReadOnlyCollection<ApplicationRole> roles,
         IReadOnlyCollection<Guid> assetScopeIds,
+        bool preserveLastAdministrator,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(roles);
         ArgumentNullException.ThrowIfNull(assetScopeIds);
 
+        const int maximumAttempts = 3;
+
+        for (var attempt = 1; attempt <= maximumAttempts; attempt++)
+        {
+            try
+            {
+                await ReplaceAccessAttemptAsync(
+                    userId,
+                    roles,
+                    assetScopeIds,
+                    preserveLastAdministrator,
+                    cancellationToken);
+                return;
+            }
+            catch (PostgresException exception)
+                when (exception.SqlState == PostgresErrorCodes.SerializationFailure &&
+                      attempt < maximumAttempts)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Security access update exhausted serialization retry attempts.");
+    }
+
+    private async Task ReplaceAccessAttemptAsync(
+        Guid userId,
+        IReadOnlyCollection<ApplicationRole> roles,
+        IReadOnlyCollection<Guid> assetScopeIds,
+        bool preserveLastAdministrator,
+        CancellationToken cancellationToken)
+    {
         await using var transaction =
-            await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            await dbContext.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
+                cancellationToken);
 
         var exists = await dbContext.Users.AnyAsync(
             item => item.Id == userId && item.IsActive,
@@ -184,7 +222,26 @@ public sealed class UserAccessRepository(
 
         if (!exists)
         {
-            throw new KeyNotFoundException($"User {userId} does not exist or is inactive.");
+            throw new KeyNotFoundException(
+                $"User {userId} does not exist or is inactive.");
+        }
+
+        if (preserveLastAdministrator)
+        {
+            var adminRole = ApplicationRole.Admin.ToString();
+            var activeAdministratorCount = await dbContext.UserRoles
+                .Where(item => item.Role == adminRole)
+                .Join(
+                    dbContext.Users.Where(item => item.IsActive),
+                    roleAssignment => roleAssignment.UserId,
+                    user => user.Id,
+                    (_, _) => 1)
+                .CountAsync(cancellationToken);
+
+            if (activeAdministratorCount <= 1)
+            {
+                throw new LastAdministratorRequiredException();
+            }
         }
 
         var scopeIds = assetScopeIds.Distinct().ToArray();
@@ -268,22 +325,6 @@ public sealed class UserAccessRepository(
                 throw;
             }
         }
-    }
-
-    public Task<int> CountActiveUsersInRoleAsync(
-        ApplicationRole role,
-        CancellationToken cancellationToken = default)
-    {
-        var roleName = role.ToString();
-
-        return dbContext.UserRoles
-            .Where(item => item.Role == roleName)
-            .Join(
-                dbContext.Users.Where(item => item.IsActive),
-                roleAssignment => roleAssignment.UserId,
-                user => user.Id,
-                (_, _) => 1)
-            .CountAsync(cancellationToken);
     }
 
     private async Task<UserAccessProfile> LoadProfileAsync(
