@@ -350,6 +350,22 @@ public sealed class UserAccessRepository(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public Task<bool> HasActiveUserInRoleAsync(
+        ApplicationRole role,
+        CancellationToken cancellationToken = default)
+    {
+        var roleName = role.ToString();
+
+        return dbContext.UserRoles
+            .Where(item => item.Role == roleName)
+            .Join(
+                dbContext.Users.Where(item => item.IsActive),
+                roleAssignment => roleAssignment.UserId,
+                user => user.Id,
+                (_, _) => 1)
+            .AnyAsync(cancellationToken);
+    }
+
     public async Task EnsureRoleAsync(
         Guid userId,
         ApplicationRole role,
