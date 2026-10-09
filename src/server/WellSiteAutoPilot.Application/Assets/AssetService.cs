@@ -129,6 +129,31 @@ public sealed class AssetService(
         return repository.ListAssetsAsync(assetTypeId, parentAssetId, limit, cancellationToken);
     }
 
+    public Task<IReadOnlyCollection<Asset>> ListAssetsInScopeAsync(
+        Guid? assetTypeId,
+        Guid? parentAssetId,
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (limit is < 1 or > 500)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Asset list limit must be between 1 and 500.");
+        }
+
+        return repository.ListAssetsInScopeAsync(
+            assetTypeId,
+            parentAssetId,
+            limit,
+            allowedAssetIds,
+            cancellationToken);
+    }
+
     private static string RequireText(string value, string message)
     {
         if (string.IsNullOrWhiteSpace(value))
