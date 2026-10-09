@@ -5,6 +5,7 @@ using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Messaging;
 using WellSiteAutoPilot.Persistence.Logic;
 using WellSiteAutoPilot.Persistence.Recommendations;
+using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence;
 
@@ -23,6 +24,9 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
+    public DbSet<UserEntity> Users => Set<UserEntity>();
+    public DbSet<UserRoleEntity> UserRoles => Set<UserRoleEntity>();
+    public DbSet<UserAssetScopeEntity> UserAssetScopes => Set<UserAssetScopeEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -203,6 +207,40 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         recommendation.HasOne<ConfiguredLogicRevisionEntity>()
             .WithMany()
             .HasForeignKey(x => x.ConfigurationRevisionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        var user = modelBuilder.Entity<UserEntity>();
+        user.ToTable("users", "security");
+        user.HasKey(x => x.Id);
+        user.Property(x => x.IdentityName).HasMaxLength(256).IsRequired();
+        user.Property(x => x.NormalizedIdentityName).HasMaxLength(256).IsRequired();
+        user.Property(x => x.DisplayName).HasMaxLength(256);
+        user.Property(x => x.IsActive).IsRequired();
+        user.Property(x => x.CreatedAtUtc).IsRequired();
+        user.Property(x => x.LastSeenAtUtc).IsRequired();
+        user.HasIndex(x => x.NormalizedIdentityName).IsUnique();
+
+        var userRole = modelBuilder.Entity<UserRoleEntity>();
+        userRole.ToTable("user_roles", "security");
+        userRole.HasKey(x => new { x.UserId, x.Role });
+        userRole.Property(x => x.Role).HasMaxLength(32).IsRequired();
+        userRole.HasIndex(x => x.Role);
+        userRole.HasOne<UserEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var userAssetScope = modelBuilder.Entity<UserAssetScopeEntity>();
+        userAssetScope.ToTable("user_asset_scopes", "security");
+        userAssetScope.HasKey(x => new { x.UserId, x.AssetId });
+        userAssetScope.HasIndex(x => x.AssetId);
+        userAssetScope.HasOne<UserEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        userAssetScope.HasOne<AssetEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
 
         var outbox = modelBuilder.Entity<OutboxMessageEntity>();
