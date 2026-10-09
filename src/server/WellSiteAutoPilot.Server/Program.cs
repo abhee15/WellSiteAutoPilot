@@ -517,8 +517,25 @@ v1.MapPost(
         Guid configuredLogicId,
         CreateConfiguredLogicRevisionRequest request,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        if (allowedAssetIds is not null)
+        {
+            _ = await service.GetRequiredInScopeAsync(
+                configuredLogicId,
+                allowedAssetIds,
+                cancellationToken);
+
+            assetScopeAuthorizer.RequireAssets(
+                httpContext.User,
+                request.AssetBindings.Select(binding => binding.AssetId));
+        }
+
         var revision = await service.CreateRevisionAsync(
             configuredLogicId,
             new CreateConfiguredLogicRevisionCommand(
@@ -563,12 +580,27 @@ v1.MapPost(
         Guid configuredLogicId,
         Guid revisionId,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToConfiguredLogicRevisionResponse(
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        if (allowedAssetIds is not null)
+        {
+            _ = await service.GetRequiredInScopeAsync(
+                configuredLogicId,
+                allowedAssetIds,
+                cancellationToken);
+        }
+
+        return ToConfiguredLogicRevisionResponse(
             await service.ValidateRevisionAsync(
                 configuredLogicId,
                 revisionId,
-                cancellationToken)))
+                cancellationToken));
+    })
     .WithName("ValidateConfiguredLogicRevision")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
@@ -582,12 +614,27 @@ v1.MapPost(
         Guid configuredLogicId,
         Guid revisionId,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToConfiguredLogicRevisionResponse(
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        if (allowedAssetIds is not null)
+        {
+            _ = await service.GetRequiredInScopeAsync(
+                configuredLogicId,
+                allowedAssetIds,
+                cancellationToken);
+        }
+
+        return ToConfiguredLogicRevisionResponse(
             await service.ActivateRevisionAsync(
                 configuredLogicId,
                 revisionId,
-                cancellationToken)))
+                cancellationToken));
+    })
     .WithName("ActivateConfiguredLogicRevision")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
@@ -600,13 +647,26 @@ v1.MapGet(
         string? status,
         int? limit,
         ExecutionService executionService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        (await executionService.ListAsync(
-            status,
-            limit ?? 50,
-            cancellationToken))
-        .Select(ToResponse)
-        .ToArray())
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var executions = allowedAssetIds is null
+            ? await executionService.ListAsync(
+                status,
+                limit ?? 50,
+                cancellationToken)
+            : await executionService.ListInScopeAsync(
+                status,
+                limit ?? 50,
+                allowedAssetIds,
+                cancellationToken);
+
+        return executions.Select(ToResponse).ToArray();
+    })
     .WithName("ListExecutions")
     .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse[]>(StatusCodes.Status200OK)
@@ -619,9 +679,14 @@ v1.MapPost(
     async (
         RequestShadowExecutionRequest request,
         ExecutionService executionService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        assetScopeAuthorizer.RequireAsset(
+            httpContext.User,
+            request.AssetId);
+
         var execution = await executionService.RequestShadowAsync(
             new ShadowExecutionCommand(
                 request.LogicInstanceId,
@@ -653,8 +718,24 @@ v1.MapGet(
     async (
         Guid executionId,
         ExecutionService executionService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToResponse(await executionService.GetRequiredAsync(executionId, cancellationToken)))
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var execution = allowedAssetIds is null
+            ? await executionService.GetRequiredAsync(
+                executionId,
+                cancellationToken)
+            : await executionService.GetRequiredInScopeAsync(
+                executionId,
+                allowedAssetIds,
+                cancellationToken);
+
+        return ToResponse(execution);
+    })
     .WithName("GetExecution")
     .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse>(StatusCodes.Status200OK)
