@@ -235,6 +235,44 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.UserEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("DisplayName").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("IdentityName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<bool>("IsActive").HasColumnType("boolean");
+                entity.Property<DateTimeOffset>("LastSeenAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("NormalizedIdentityName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.HasKey("Id");
+                entity.HasIndex("NormalizedIdentityName").IsUnique();
+                entity.ToTable("users", "security");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.UserRoleEntity",
+            entity =>
+            {
+                entity.Property<Guid>("UserId").HasColumnType("uuid");
+                entity.Property<string>("Role").HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.HasKey("UserId", "Role");
+                entity.HasIndex("Role");
+                entity.ToTable("user_roles", "security");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.UserAssetScopeEntity",
+            entity =>
+            {
+                entity.Property<Guid>("UserId").HasColumnType("uuid");
+                entity.Property<Guid>("AssetId").HasColumnType("uuid");
+                entity.HasKey("UserId", "AssetId");
+                entity.HasIndex("AssetId");
+                entity.ToTable("user_asset_scopes", "security");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Logic.LogicModuleCatalogEntity",
             entity =>
             {
@@ -337,6 +375,34 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity", null)
                     .WithMany()
                     .HasForeignKey("RevisionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.UserRoleEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Security.UserEntity", null)
+                    .WithMany()
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.UserAssetScopeEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                    .WithMany()
+                    .HasForeignKey("AssetId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.Security.UserEntity", null)
+                    .WithMany()
+                    .HasForeignKey("UserId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
             });
