@@ -219,10 +219,23 @@ var sameAdministrator = await service.ResolveAuthenticatedAsync(
     bootstrap);
 
 if (sameAdministrator.Id != administrator.Id ||
-    sameAdministrator.LastSeenAtUtc <= administrator.LastSeenAtUtc)
+    sameAdministrator.LastSeenAtUtc != administrator.LastSeenAtUtc)
 {
     throw new InvalidOperationException(
-        "Windows identity normalization created a duplicate user or did not update last-seen state.");
+        "Windows identity normalization created a duplicate user or last-seen throttling wrote too early.");
+}
+
+clock.Advance(TimeSpan.FromMinutes(5));
+
+sameAdministrator = await service.ResolveAuthenticatedAsync(
+    @"FIELD\wsa-admin",
+    "WSA Administrator",
+    bootstrap);
+
+if (sameAdministrator.LastSeenAtUtc <= administrator.LastSeenAtUtc)
+{
+    throw new InvalidOperationException(
+        "Windows identity last-seen state was not refreshed after the write interval.");
 }
 
 var operatorUser = await service.ResolveAuthenticatedAsync(
