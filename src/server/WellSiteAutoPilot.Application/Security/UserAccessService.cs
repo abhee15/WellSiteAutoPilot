@@ -107,7 +107,7 @@ public sealed class UserAccessService(
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_IDENTITY_REQUIRED",
-                FailureKind.Unauthorized,
+                FailureKind.Authorization,
                 "An authenticated Windows identity is required.");
         }
 
