@@ -839,6 +839,95 @@ jobs:
           assert current["identityName"].lower() == r"ci\wsa-admin".lower()
           PY
 
+          asset_type_request=$(python - <<'PY'
+          import json
+          print(json.dumps({
+              "key": "ci-security-well",
+              "displayName": "CI Security Well",
+              "attributeSchemaJson": '{"type":"object"}'
+          }))
+          PY
+          )
+
+          asset_type=$(curl --fail --silent             -H "Content-Type: application/json"             -H 'X-WSA-Test-Identity: CI\wsa-admin'             -d "$asset_type_request"             http://127.0.0.1:5080/api/v1/asset-types)
+
+          asset_type_id=$(RESPONSE="$asset_type" python - <<'PY'
+          import json, os
+          print(json.loads(os.environ["RESPONSE"])["assetTypeId"])
+          PY
+          )
+
+          create_asset() {
+            local name="$1"
+            request=$(ASSET_TYPE_ID="$asset_type_id" ASSET_NAME="$name" python - <<'PY'
+          import json, os
+          print(json.dumps({
+              "assetTypeId": os.environ["ASSET_TYPE_ID"],
+              "name": os.environ["ASSET_NAME"],
+              "parentAssetId": None,
+              "attributeValuesJson": "{}"
+          }))
+          PY
+            )
+            curl --fail --silent               -H "Content-Type: application/json"               -H 'X-WSA-Test-Identity: CI\wsa-admin'               -d "$request"               http://127.0.0.1:5080/api/v1/assets
+          }
+
+          asset_one=$(create_asset "Security Well 101")
+          asset_two=$(create_asset "Security Well 202")
+
+          asset_one_id=$(RESPONSE="$asset_one" python - <<'PY'
+          import json, os
+          print(json.loads(os.environ["RESPONSE"])["assetId"])
+          PY
+          )
+          asset_two_id=$(RESPONSE="$asset_two" python - <<'PY'
+          import json, os
+          print(json.loads(os.environ["RESPONSE"])["assetId"])
+          PY
+          )
+
+          operator_me=$(curl --fail --silent             -H 'X-WSA-Test-Identity: CI\operator-one'             http://127.0.0.1:5080/api/v1/security/me)
+
+          operator_id=$(RESPONSE="$operator_me" python - <<'PY'
+          import json, os
+          current=json.loads(os.environ["RESPONSE"])
+          assert current["roles"] == []
+          print(current["userId"])
+          PY
+          )
+
+          access_request=$(ASSET_ID="$asset_one_id" python - <<'PY'
+          import json, os
+          print(json.dumps({
+              "roles": ["Operator"],
+              "assetScopeIds": [os.environ["ASSET_ID"]]
+          }))
+          PY
+          )
+
+          curl --fail --silent             -X PUT             -H "Content-Type: application/json"             -H "X-Correlation-ID: ci-security-operator-access"             -H 'X-WSA-Test-Identity: CI\wsa-admin'             -d "$access_request"             "http://127.0.0.1:5080/api/v1/security/users/$operator_id/access"             >/dev/null
+
+          scoped_assets=$(curl --fail --silent             -H 'X-WSA-Test-Identity: CI\operator-one'             http://127.0.0.1:5080/api/v1/assets)
+
+          SCOPED_ASSETS="$scoped_assets" ASSET_ONE_ID="$asset_one_id" python - <<'PY'
+          import json, os
+          assets=json.loads(os.environ["SCOPED_ASSETS"])
+          assert len(assets) == 1
+          assert assets[0]["assetId"] == os.environ["ASSET_ONE_ID"]
+          PY
+
+          status=$(curl --silent --output /dev/null --write-out "%{http_code}"             -H 'X-WSA-Test-Identity: CI\operator-one'             "http://127.0.0.1:5080/api/v1/assets/$asset_two_id")
+          if [ "$status" != "403" ]; then
+            echo "Expected out-of-scope Asset request to return 403, got $status"
+            exit 1
+          fi
+
+          status=$(curl --silent --output /dev/null --write-out "%{http_code}"             -H "Content-Type: application/json"             -H 'X-WSA-Test-Identity: CI\operator-one'             -d '{}'             http://127.0.0.1:5080/api/v1/assets)
+          if [ "$status" != "403" ]; then
+            echo "Expected Operator Asset mutation to return 403, got $status"
+            exit 1
+          fi
+
       - name: Request and verify Shadow execution
         shell: bash
         run: |
