@@ -9,6 +9,11 @@ internal static class Bootstrapper
     private const string ServerServiceName = "Weatherford.WellSiteAutoPilot.Server";
     private const string GatewayServiceName = "Weatherford.WellSiteAutoPilot.IntegrationGateway";
     private const string WorkerServiceName = "Weatherford.WellSiteAutoPilot.Worker.DotNet";
+    private static readonly JsonSerializerOptions SettingsJsonOptions =
+        new()
+        {
+            WriteIndented = true
+        };
 
     public static int Run(string[] args)
     {
@@ -200,10 +205,7 @@ internal static class Bootstrapper
                     }
                 }
             },
-            new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            SettingsJsonOptions);
 
         var temporaryPath =
             settingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -214,7 +216,7 @@ internal static class Bootstrapper
         GrantLocalServiceReadAccess(settingsPath);
     }
 
-    private static IReadOnlyCollection<string> ReadBootstrapAdministrators(
+    private static string[] ReadBootstrapAdministrators(
         string settingsPath)
     {
         if (!File.Exists(settingsPath))
