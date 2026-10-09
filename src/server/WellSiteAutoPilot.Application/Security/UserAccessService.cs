@@ -8,15 +8,18 @@ public sealed class UserAccessService(
     TimeProvider timeProvider)
 {
     public async Task<UserAccessProfile> ResolveAuthenticatedAsync(
+        string identityKey,
         string identityName,
         string? displayName,
         IReadOnlySet<string> bootstrapAdministratorIdentities,
         CancellationToken cancellationToken = default)
     {
+        var normalizedIdentityKey = NormalizeIdentityKey(identityKey);
         var normalizedIdentity = NormalizeIdentity(identityName);
         var nowUtc = timeProvider.GetUtcNow();
 
         var profile = await repository.UpsertAuthenticatedUserAsync(
+            normalizedIdentityKey,
             identityName.Trim(),
             normalizedIdentity,
             string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
@@ -114,6 +117,29 @@ public sealed class UserAccessService(
         return await GetRequiredAsync(userId, cancellationToken);
     }
 
+    public static string NormalizeIdentityKey(string identityKey)
+    {
+        if (string.IsNullOrWhiteSpace(identityKey))
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_IDENTITY_KEY_REQUIRED",
+                FailureKind.Authorization,
+                "A stable authenticated Windows identity key is required.");
+        }
+
+        var value = identityKey.Trim();
+
+        if (value.Length > 256 || value.Any(char.IsControl))
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_IDENTITY_KEY_INVALID",
+                FailureKind.Authorization,
+                "The authenticated Windows identity key is invalid.");
+        }
+
+        return value.ToUpperInvariant();
+    }
+
     public static string NormalizeIdentity(string identityName)
     {
         if (string.IsNullOrWhiteSpace(identityName))
@@ -124,6 +150,16 @@ public sealed class UserAccessService(
                 "An authenticated Windows identity is required.");
         }
 
-        return identityName.Trim().ToUpperInvariant();
+        var value = identityName.Trim();
+
+        if (value.Length > 256 || value.Any(char.IsControl))
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_IDENTITY_INVALID",
+                FailureKind.Authorization,
+                "The authenticated Windows identity name is invalid.");
+        }
+
+        return value.ToUpperInvariant();
     }
 }
