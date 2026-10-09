@@ -236,6 +236,7 @@ v1.MapPut(
         Guid userId,
         ReplaceUserAccessRequest request,
         UserAccessService userAccessService,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
         var roles = ParseApplicationRoles(request.Roles);
@@ -243,6 +244,10 @@ v1.MapPut(
             userId,
             roles,
             request.AssetScopeIds ?? [],
+            new SecurityActorContext(
+                GetCurrentUserId(httpContext.User),
+                httpContext.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(httpContext)),
             cancellationToken);
 
         return ToSecurityUserResponse(updated);
