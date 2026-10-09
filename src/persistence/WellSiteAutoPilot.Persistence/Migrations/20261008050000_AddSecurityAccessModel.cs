@@ -14,6 +14,51 @@ public partial class AddSecurityAccessModel : Migration
         ArgumentNullException.ThrowIfNull(migrationBuilder);
 
         migrationBuilder.EnsureSchema(name: "security");
+        migrationBuilder.EnsureSchema(name: "audit");
+
+        migrationBuilder.CreateTable(
+            name: "audit_events",
+            schema: "audit",
+            columns: table => new
+            {
+                Id = table.Column<Guid>(type: "uuid", nullable: false),
+                OccurredAtUtc = table.Column<DateTimeOffset>(
+                    type: "timestamp with time zone",
+                    nullable: false),
+                ActorUserId = table.Column<Guid>(
+                    type: "uuid",
+                    nullable: true),
+                ActorIdentity = table.Column<string>(
+                    type: "character varying(256)",
+                    maxLength: 256,
+                    nullable: false),
+                Action = table.Column<string>(
+                    type: "character varying(128)",
+                    maxLength: 128,
+                    nullable: false),
+                TargetType = table.Column<string>(
+                    type: "character varying(128)",
+                    maxLength: 128,
+                    nullable: false),
+                TargetId = table.Column<string>(
+                    type: "character varying(256)",
+                    maxLength: 256,
+                    nullable: true),
+                AssetId = table.Column<Guid>(
+                    type: "uuid",
+                    nullable: true),
+                CorrelationId = table.Column<string>(
+                    type: "character varying(128)",
+                    maxLength: 128,
+                    nullable: true),
+                DetailsJson = table.Column<string>(
+                    type: "text",
+                    nullable: false)
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_audit_events", x => x.Id);
+            });
 
         migrationBuilder.CreateTable(
             name: "users",
@@ -101,6 +146,30 @@ public partial class AddSecurityAccessModel : Migration
             });
 
         migrationBuilder.CreateIndex(
+            name: "IX_audit_events_Action",
+            schema: "audit",
+            table: "audit_events",
+            column: "Action");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_audit_events_ActorUserId",
+            schema: "audit",
+            table: "audit_events",
+            column: "ActorUserId");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_audit_events_AssetId",
+            schema: "audit",
+            table: "audit_events",
+            column: "AssetId");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_audit_events_OccurredAtUtc",
+            schema: "audit",
+            table: "audit_events",
+            column: "OccurredAtUtc");
+
+        migrationBuilder.CreateIndex(
             name: "IX_users_NormalizedIdentityName",
             schema: "security",
             table: "users",
@@ -133,5 +202,8 @@ public partial class AddSecurityAccessModel : Migration
         migrationBuilder.DropTable(
             name: "users",
             schema: "security");
+        migrationBuilder.DropTable(
+            name: "audit_events",
+            schema: "audit");
     }
 }
