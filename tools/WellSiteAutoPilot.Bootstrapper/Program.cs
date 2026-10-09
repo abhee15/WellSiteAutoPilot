@@ -273,13 +273,16 @@ internal static class Bootstrapper
         var result = RunProcessAllowFailure(
             "icacls.exe",
             path,
+            "/inheritance:r",
             "/grant:r",
-            @"NT AUTHORITY\LOCAL SERVICE:R");
+            "*S-1-5-18:F",
+            "*S-1-5-32-544:F",
+            "*S-1-5-19:R");
 
         if (result.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"Failed to grant LocalService read access to {path}: " +
+                $"Failed to secure bootstrap settings at {path}: " +
                 $"{result.StandardOutput} {result.StandardError}".Trim());
         }
     }
