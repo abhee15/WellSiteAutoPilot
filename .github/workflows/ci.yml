@@ -338,9 +338,24 @@ jobs:
             Remove-Item -Recurse -Force $installRoot
           }
 
-          $install = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installRoot") -Wait -PassThru
+          $install = Start-Process -FilePath $installer -ArgumentList @(
+            "/S",
+            "/BOOTSTRAPADMIN=CI\wsa-admin",
+            "/D=$installRoot"
+          ) -Wait -PassThru
           if ($install.ExitCode -ne 0) {
             throw "Installer smoke test failed with exit code $($install.ExitCode)."
+          }
+
+          $securitySettingsPath = Join-Path $env:ProgramData "Weatherford\WellSite AutoPilot\server.settings.json"
+          if (-not (Test-Path $securitySettingsPath)) {
+            throw "Installer did not create ProgramData security settings."
+          }
+
+          $securitySettings = Get-Content $securitySettingsPath -Raw | ConvertFrom-Json
+          $bootstrapAdmins = @($securitySettings.Security.BootstrapAdministrators)
+          if ($bootstrapAdmins.Count -ne 1 -or $bootstrapAdmins[0] -ne "CI\wsa-admin") {
+            throw "Installer did not preserve the explicit bootstrap administrator identity."
           }
 
           $required = @(
