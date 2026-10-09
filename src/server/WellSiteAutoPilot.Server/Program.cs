@@ -924,7 +924,7 @@ static Guid GetCurrentUserId(System.Security.Claims.ClaimsPrincipal user)
     {
         throw new WellSiteAutoPilotException(
             "SECURITY_USER_CONTEXT_REQUIRED",
-            FailureKind.Unauthorized,
+            FailureKind.Authorization,
             "The authenticated WellSite AutoPilot user context is unavailable.");
     }
 
