@@ -258,8 +258,8 @@ internal static class Bootstrapper
                 "Bootstrap administrator identity is invalid.");
         }
 
-        if (!value.Contains('\\', StringComparison.Ordinal) &&
-            !value.Contains('@', StringComparison.Ordinal))
+        if (!value.Contains('\\') &&
+            !value.Contains('@'))
         {
             throw new InvalidOperationException(
                 "Bootstrap administrator must be a Windows DOMAIN\\user, MACHINE\\user, or UPN identity.");
