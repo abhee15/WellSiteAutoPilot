@@ -191,6 +191,16 @@ if (!scopedExecutions.Any(item => item.Id == inScopeExecution.Id) ||
         "Execution query did not isolate the authorized Asset scope.");
 }
 
+var administratorIdentityKey =
+    UserAccessService.NormalizeIdentityKey(
+        "SID:S-1-5-21-1000-1000-1000-1001");
+var operatorIdentityKey =
+    UserAccessService.NormalizeIdentityKey(
+        "SID:S-1-5-21-1000-1000-1000-1002");
+var secondAdministratorIdentityKey =
+    UserAccessService.NormalizeIdentityKey(
+        "SID:S-1-5-21-1000-1000-1000-1003");
+
 var bootstrapIdentity =
     UserAccessService.NormalizeIdentity(@"FIELD\wsa-admin");
 var bootstrap = new HashSet<string>(
@@ -198,6 +208,7 @@ var bootstrap = new HashSet<string>(
     StringComparer.Ordinal);
 
 var administrator = await service.ResolveAuthenticatedAsync(
+    administratorIdentityKey,
     @"FIELD\wsa-admin",
     "WSA Administrator",
     bootstrap);
@@ -214,31 +225,40 @@ if (!administrator.Roles.Contains(ApplicationRole.Admin) ||
 clock.Advance(TimeSpan.FromMinutes(1));
 
 var sameAdministrator = await service.ResolveAuthenticatedAsync(
-    @"field\WSA-ADMIN",
-    "WSA Administrator",
+    administratorIdentityKey,
+    @"FIELD\wsa-admin-renamed",
+    "WSA Administrator Renamed",
     bootstrap);
 
 if (sameAdministrator.Id != administrator.Id ||
+    sameAdministrator.IdentityKey != administrator.IdentityKey ||
+    sameAdministrator.IdentityName != @"FIELD\wsa-admin-renamed" ||
     sameAdministrator.LastSeenAtUtc != administrator.LastSeenAtUtc)
 {
     throw new InvalidOperationException(
-        "Windows identity normalization created a duplicate user or last-seen throttling wrote too early.");
+        "Stable Windows identity did not survive account rename or last-seen throttling wrote too early.");
 }
 
 clock.Advance(TimeSpan.FromMinutes(5));
 
 sameAdministrator = await service.ResolveAuthenticatedAsync(
-    @"FIELD\wsa-admin",
-    "WSA Administrator",
+    administratorIdentityKey,
+    @"FIELD\wsa-admin-renamed",
+    "WSA Administrator Renamed",
     bootstrap);
 
-if (sameAdministrator.LastSeenAtUtc <= administrator.LastSeenAtUtc)
+if (sameAdministrator.LastSeenAtUtc <= administrator.LastSeenAtUtc ||
+    sameAdministrator.Roles.Count != 1 ||
+    !sameAdministrator.Roles.Contains(ApplicationRole.Admin))
 {
     throw new InvalidOperationException(
-        "Windows identity last-seen state was not refreshed after the write interval.");
+        "Stable Windows identity lost authorization or last-seen state was not refreshed after the write interval.");
 }
 
+administrator = sameAdministrator;
+
 var operatorUser = await service.ResolveAuthenticatedAsync(
+    operatorIdentityKey,
     @"FIELD\operator-one",
     "Operator One",
     bootstrap);
@@ -313,6 +333,7 @@ catch (WellSiteAutoPilotException exception)
 }
 
 var secondAdministrator = await service.ResolveAuthenticatedAsync(
+    secondAdministratorIdentityKey,
     @"FIELD\wsa-admin-two",
     "WSA Administrator Two",
     new HashSet<string>(
@@ -347,7 +368,8 @@ var updatedAdministrator = await service.GetRequiredAsync(
     administrator.Id);
 
 updatedAdministrator = await service.ResolveAuthenticatedAsync(
-    administrator.IdentityName,
+    administratorIdentityKey,
+    @"FIELD\wsa-admin",
     administrator.DisplayName,
     bootstrap);
 
@@ -389,15 +411,15 @@ if (!auditEvents.Any(
 
 var users = await service.ListAsync(100);
 if (users.Count < 3 ||
-    users.Select(item => item.NormalizedIdentityName).Distinct().Count() !=
+    users.Select(item => item.IdentityKey).Distinct().Count() !=
     users.Count)
 {
     throw new InvalidOperationException(
-        "Security user persistence returned duplicate normalized identities.");
+        "Security user persistence returned duplicate stable identity keys.");
 }
 
 Console.WriteLine(
-    "Security identity, bootstrap Admin, RBAC, exact Asset scope isolation, durable audit, and last-Admin invariants passed.");
+    "Stable Windows identity, one-time bootstrap Admin, RBAC, exact Asset scope isolation, durable audit, and last-Admin invariants passed.");
 return 0;
 
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
