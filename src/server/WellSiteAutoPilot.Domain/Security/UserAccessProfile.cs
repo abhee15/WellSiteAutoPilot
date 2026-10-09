@@ -2,6 +2,7 @@ namespace WellSiteAutoPilot.Domain.Security;
 
 public sealed record UserAccessProfile(
     Guid Id,
+    string IdentityKey,
     string IdentityName,
     string NormalizedIdentityName,
     string? DisplayName,
