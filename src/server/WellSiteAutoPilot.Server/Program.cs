@@ -1,10 +1,14 @@
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Negotiate;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.Assets;
 using WellSiteAutoPilot.Api.Contracts.Executions;
 using WellSiteAutoPilot.Api.Contracts.Logic;
 using WellSiteAutoPilot.Api.Contracts.ConfiguredLogic;
 using WellSiteAutoPilot.Api.Contracts.System;
+using WellSiteAutoPilot.Api.Contracts.Security;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
@@ -12,14 +16,17 @@ using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Application.Recommendations;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
+using WellSiteAutoPilot.Domain.Security;
 using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Server.Scheduling;
+using WellSiteAutoPilot.Server.Security;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -33,6 +40,48 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Server";
 });
 builder.Services.AddHealthChecks();
+builder.Services.Configure<SecurityOptions>(
+    builder.Configuration.GetSection(SecurityOptions.SectionName));
+
+var authenticationMode =
+    builder.Configuration[$"{SecurityOptions.SectionName}:AuthenticationMode"] ??
+    SecurityOptions.NegotiateAuthenticationMode;
+
+if (string.Equals(
+        authenticationMode,
+        SecurityOptions.TestHeaderAuthenticationMode,
+        StringComparison.OrdinalIgnoreCase))
+{
+    if (!builder.Environment.IsDevelopment() &&
+        !builder.Environment.IsEnvironment("CI"))
+    {
+        throw new InvalidOperationException(
+            "TestHeader authentication is permitted only in Development or CI.");
+    }
+
+    builder.Services
+        .AddAuthentication(TestHeaderAuthenticationHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, TestHeaderAuthenticationHandler>(
+            TestHeaderAuthenticationHandler.SchemeName,
+            _ => { });
+}
+else if (string.Equals(
+             authenticationMode,
+             SecurityOptions.NegotiateAuthenticationMode,
+             StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services
+        .AddAuthentication(NegotiateDefaults.AuthenticationScheme)
+        .AddNegotiate();
+}
+else
+{
+    throw new InvalidOperationException(
+        $"Unsupported Security:AuthenticationMode '{authenticationMode}'.");
+}
+
+builder.Services.AddAuthorization(WellSitePolicies.AddPolicies);
+
 builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services
@@ -76,6 +125,7 @@ builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
+builder.Services.AddScoped<UserAccessService>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
 builder.Services.AddScoped<OutboxPublisher>();
@@ -108,11 +158,15 @@ if (swaggerEnabled)
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseMiddleware<UserAccessClaimsMiddleware>();
+app.UseAuthorization();
 
 var productApi = app.NewVersionedApi("WellSite AutoPilot API");
 var v1 = productApi
     .MapGroup("/api/v{version:apiVersion}")
-    .HasApiVersion(1.0);
+    .HasApiVersion(1.0)
+    .RequireAuthorization();
 
 v1.MapGet(
     "/system/info",
@@ -154,6 +208,7 @@ v1.MapPost(
             ToAssetTypeResponse(assetType));
     })
     .WithName("CreateAssetType")
+    .RequireAuthorization(WellSitePolicies.AssetsManage)
     .Produces<AssetTypeResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
@@ -165,6 +220,7 @@ v1.MapGet(
             .Select(ToAssetTypeResponse)
             .ToArray())
     .WithName("ListAssetTypes")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetTypeResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
@@ -176,6 +232,7 @@ v1.MapGet(
         ToAssetTypeResponse(
             await assetService.GetRequiredAssetTypeAsync(assetTypeId, cancellationToken)))
     .WithName("GetAssetType")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetTypeResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
@@ -199,6 +256,7 @@ v1.MapPost(
             ToAssetResponse(asset));
     })
     .WithName("CreateAsset")
+    .RequireAuthorization(WellSitePolicies.AssetsManage)
     .Produces<AssetResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -219,6 +277,7 @@ v1.MapGet(
         .Select(ToAssetResponse)
         .ToArray())
     .WithName("ListAssets")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
@@ -229,6 +288,7 @@ v1.MapGet(
         CancellationToken cancellationToken) =>
         ToAssetResponse(await assetService.GetRequiredAssetAsync(assetId, cancellationToken)))
     .WithName("GetAsset")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
@@ -272,6 +332,7 @@ v1.MapPost(
             ToConfiguredLogicResponse(created));
     })
     .WithName("CreateConfiguredLogic")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -286,6 +347,7 @@ v1.MapGet(
             .Select(ToConfiguredLogicResponse)
             .ToArray())
     .WithName("ListConfiguredLogic")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
     .Produces<ConfiguredLogicResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
@@ -298,6 +360,7 @@ v1.MapGet(
         ToConfiguredLogicResponse(
             await service.GetRequiredAsync(configuredLogicId, cancellationToken)))
     .WithName("GetConfiguredLogic")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
     .Produces<ConfiguredLogicResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
@@ -342,6 +405,7 @@ v1.MapPost(
             ToConfiguredLogicRevisionResponse(revision));
     })
     .WithName("CreateConfiguredLogicRevision")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -359,6 +423,7 @@ v1.MapPost(
                 revisionId,
                 cancellationToken)))
     .WithName("ValidateConfiguredLogicRevision")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
@@ -377,6 +442,7 @@ v1.MapPost(
                 revisionId,
                 cancellationToken)))
     .WithName("ActivateConfiguredLogicRevision")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
@@ -395,6 +461,7 @@ v1.MapGet(
         .Select(ToResponse)
         .ToArray())
     .WithName("ListExecutions")
+    .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status400BadRequest,
@@ -425,6 +492,7 @@ v1.MapPost(
             ToResponse(execution));
     })
     .WithName("RequestShadowExecution")
+    .RequireAuthorization(WellSitePolicies.ExecutionsRequest)
     .Produces<ExecutionResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status400BadRequest,
@@ -441,6 +509,7 @@ v1.MapGet(
         CancellationToken cancellationToken) =>
         ToResponse(await executionService.GetRequiredAsync(executionId, cancellationToken)))
     .WithName("GetExecution")
+    .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status404NotFound,
@@ -468,6 +537,7 @@ v1.MapPost(
             ToLogicModuleResponse(module));
     })
     .WithName("RegisterLogicModule")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
     .Produces<LogicModuleResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
@@ -483,6 +553,7 @@ v1.MapGet(
             .Select(ToLogicModuleResponse)
             .ToArray())
     .WithName("ListLogicModules")
+    .RequireAuthorization(WellSitePolicies.LogicRead)
     .Produces<LogicModuleResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
@@ -495,15 +566,16 @@ v1.MapGet(
         ToLogicModuleResponse(
             await catalog.GetRequiredAsync(moduleId, moduleVersion, cancellationToken)))
     .WithName("GetLogicModule")
+    .RequireAuthorization(WellSitePolicies.LogicRead)
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
-});
+}).AllowAnonymous();
 
-app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health/ready").AllowAnonymous();
 
 app.Run();
 
