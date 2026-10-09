@@ -80,23 +80,27 @@ public sealed class UserAccessService(
             .OrderBy(item => item)
             .ToArray();
 
-        if (existing.Roles.Contains(ApplicationRole.Admin) &&
-            !normalizedRoles.Contains(ApplicationRole.Admin) &&
-            await repository.CountActiveUsersInRoleAsync(
-                ApplicationRole.Admin,
-                cancellationToken) <= 1)
+        var preserveLastAdministrator =
+            existing.Roles.Contains(ApplicationRole.Admin) &&
+            !normalizedRoles.Contains(ApplicationRole.Admin);
+
+        try
+        {
+            await repository.ReplaceAccessAsync(
+                userId,
+                normalizedRoles,
+                normalizedAssets,
+                preserveLastAdministrator,
+                cancellationToken);
+        }
+        catch (LastAdministratorRequiredException exception)
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_LAST_ADMIN_REQUIRED",
                 FailureKind.Conflict,
-                "The last active administrator cannot lose the Admin role.");
+                "The last active administrator cannot lose the Admin role.",
+                innerException: exception);
         }
-
-        await repository.ReplaceAccessAsync(
-            userId,
-            normalizedRoles,
-            normalizedAssets,
-            cancellationToken);
 
         return await GetRequiredAsync(userId, cancellationToken);
     }
