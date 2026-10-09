@@ -127,6 +127,7 @@ builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<UserAccessService>();
+builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
 builder.Services.AddScoped<OutboxPublisher>();
@@ -312,8 +313,21 @@ v1.MapPost(
     async (
         CreateAssetRequest request,
         AssetService assetService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        if (request.ParentAssetId is Guid parentAssetId)
+        {
+            assetScopeAuthorizer.RequireAsset(
+                httpContext.User,
+                parentAssetId);
+        }
+        else
+        {
+            assetScopeAuthorizer.RequireAdministrator(httpContext.User);
+        }
+
         var asset = await assetService.CreateAssetAsync(
             new CreateAssetCommand(
                 request.AssetTypeId,
@@ -339,14 +353,28 @@ v1.MapGet(
         Guid? parentAssetId,
         int? limit,
         AssetService assetService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        (await assetService.ListAssetsAsync(
-            assetTypeId,
-            parentAssetId,
-            limit ?? 100,
-            cancellationToken))
-        .Select(ToAssetResponse)
-        .ToArray())
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var assets = allowedAssetIds is null
+            ? await assetService.ListAssetsAsync(
+                assetTypeId,
+                parentAssetId,
+                limit ?? 100,
+                cancellationToken)
+            : await assetService.ListAssetsInScopeAsync(
+                assetTypeId,
+                parentAssetId,
+                limit ?? 100,
+                allowedAssetIds,
+                cancellationToken);
+
+        return assets.Select(ToAssetResponse).ToArray();
+    })
     .WithName("ListAssets")
     .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetResponse[]>(StatusCodes.Status200OK);
@@ -356,8 +384,19 @@ v1.MapGet(
     async (
         Guid assetId,
         AssetService assetService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToAssetResponse(await assetService.GetRequiredAssetAsync(assetId, cancellationToken)))
+    {
+        assetScopeAuthorizer.RequireAsset(
+            httpContext.User,
+            assetId);
+
+        return ToAssetResponse(
+            await assetService.GetRequiredAssetAsync(
+                assetId,
+                cancellationToken));
+    })
     .WithName("GetAsset")
     .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetResponse>(StatusCodes.Status200OK)
@@ -368,8 +407,14 @@ v1.MapPost(
     async (
         CreateConfiguredLogicRequest request,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        assetScopeAuthorizer.RequireAssets(
+            httpContext.User,
+            request.AssetBindings.Select(binding => binding.AssetId));
+
         var created = await service.CreateAsync(
             new CreateConfiguredLogicCommand(
                 request.Name,
@@ -413,10 +458,26 @@ v1.MapGet(
     async (
         int? limit,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        (await service.ListAsync(limit ?? 100, cancellationToken))
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var configuredLogic = allowedAssetIds is null
+            ? await service.ListAsync(
+                limit ?? 100,
+                cancellationToken)
+            : await service.ListInScopeAsync(
+                limit ?? 100,
+                allowedAssetIds,
+                cancellationToken);
+
+        return configuredLogic
             .Select(ToConfiguredLogicResponse)
-            .ToArray())
+            .ToArray();
+    })
     .WithName("ListConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
     .Produces<ConfiguredLogicResponse[]>(StatusCodes.Status200OK)
@@ -427,9 +488,24 @@ v1.MapGet(
     async (
         Guid configuredLogicId,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToConfiguredLogicResponse(
-            await service.GetRequiredAsync(configuredLogicId, cancellationToken)))
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var configuredLogic = allowedAssetIds is null
+            ? await service.GetRequiredAsync(
+                configuredLogicId,
+                cancellationToken)
+            : await service.GetRequiredInScopeAsync(
+                configuredLogicId,
+                allowedAssetIds,
+                cancellationToken);
+
+        return ToConfiguredLogicResponse(configuredLogic);
+    })
     .WithName("GetConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
     .Produces<ConfiguredLogicResponse>(StatusCodes.Status200OK)
