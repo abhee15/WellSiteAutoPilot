@@ -21,6 +21,7 @@ using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Security;
 using WellSiteAutoPilot.Http;
+using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
@@ -188,6 +189,76 @@ v1.MapGet(
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status500InternalServerError,
         "application/problem+json");
+
+v1.MapGet(
+    "/security/me",
+    async (
+        HttpContext httpContext,
+        UserAccessService userAccessService,
+        CancellationToken cancellationToken) =>
+    {
+        var user = await userAccessService.GetRequiredAsync(
+            GetCurrentUserId(httpContext.User),
+            cancellationToken);
+
+        return new CurrentUserResponse(
+            user.Id,
+            user.IdentityName,
+            user.DisplayName,
+            user.IsActive,
+            user.Roles.Select(item => item.ToString()).ToArray(),
+            user.AssetScopeIds.ToArray());
+    })
+    .WithName("GetCurrentUser")
+    .Produces<CurrentUserResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status401Unauthorized);
+
+v1.MapGet(
+    "/security/users",
+    async (
+        int? limit,
+        UserAccessService userAccessService,
+        CancellationToken cancellationToken) =>
+        (await userAccessService.ListAsync(
+            limit ?? 100,
+            cancellationToken))
+        .Select(ToSecurityUserResponse)
+        .ToArray())
+    .WithName("ListSecurityUsers")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<SecurityUserResponse[]>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapPut(
+    "/security/users/{userId:guid}/access",
+    async (
+        Guid userId,
+        ReplaceUserAccessRequest request,
+        UserAccessService userAccessService,
+        CancellationToken cancellationToken) =>
+    {
+        var roles = ParseApplicationRoles(request.Roles);
+        var updated = await userAccessService.ReplaceAccessAsync(
+            userId,
+            roles,
+            request.AssetScopeIds ?? [],
+            cancellationToken);
+
+        return ToSecurityUserResponse(updated);
+    })
+    .WithName("ReplaceSecurityUserAccess")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<SecurityUserResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest,
+        "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status404NotFound,
+        "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict,
+        "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapPost(
     "/asset-types",
@@ -676,5 +747,63 @@ static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.ResultCode,
     execution.FailureCode,
     execution.OutputJson);
+
+static SecurityUserResponse ToSecurityUserResponse(
+    WellSiteAutoPilot.Domain.Security.UserAccessProfile user) => new(
+    user.Id,
+    user.IdentityName,
+    user.DisplayName,
+    user.IsActive,
+    user.CreatedAtUtc,
+    user.LastSeenAtUtc,
+    user.Roles.Select(item => item.ToString()).ToArray(),
+    user.AssetScopeIds.ToArray());
+
+static Guid GetCurrentUserId(System.Security.Claims.ClaimsPrincipal user)
+{
+    var value = user.FindFirst(SecurityClaimTypes.UserId)?.Value;
+
+    if (!Guid.TryParse(value, out var userId))
+    {
+        throw new WellSiteAutoPilotException(
+            "SECURITY_USER_CONTEXT_REQUIRED",
+            FailureKind.Unauthorized,
+            "The authenticated WellSite AutoPilot user context is unavailable.");
+    }
+
+    return userId;
+}
+
+static IReadOnlyCollection<ApplicationRole> ParseApplicationRoles(
+    IReadOnlyCollection<string>? roleNames)
+{
+    if (roleNames is null)
+    {
+        throw new WellSiteAutoPilotException(
+            FailureCodes.ValidationFailed,
+            FailureKind.Validation,
+            "Roles are required.");
+    }
+
+    var roles = new List<ApplicationRole>();
+
+    foreach (var roleName in roleNames)
+    {
+        if (!Enum.TryParse<ApplicationRole>(
+                roleName,
+                ignoreCase: true,
+                out var role))
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                $"Unknown application role '{roleName}'.");
+        }
+
+        roles.Add(role);
+    }
+
+    return roles.Distinct().OrderBy(item => item).ToArray();
+}
 
 public partial class Program;
