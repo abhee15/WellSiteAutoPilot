@@ -1,8 +1,10 @@
 using System.Data;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Security;
+using WellSiteAutoPilot.Persistence.Audit;
 
 namespace WellSiteAutoPilot.Persistence.Security;
 
@@ -11,6 +13,8 @@ public sealed class UserAccessRepository(
 {
     private static readonly TimeSpan LastSeenWriteInterval =
         TimeSpan.FromMinutes(5);
+    private static readonly JsonSerializerOptions AuditJsonOptions =
+        new(JsonSerializerDefaults.Web);
     public async Task<UserAccessProfile?> GetByIdentityAsync(
         string normalizedIdentityName,
         CancellationToken cancellationToken = default)
@@ -110,6 +114,21 @@ public sealed class UserAccessRepository(
 
             dbContext.Users.Add(candidate);
 
+            var provisioningAudit = CreateAuditEvent(
+                candidate.Id,
+                identityName,
+                "security.user.provisioned",
+                "security-user",
+                candidate.Id.ToString(),
+                null,
+                seenAtUtc,
+                null,
+                new
+                {
+                    candidate.NormalizedIdentityName
+                });
+            dbContext.AuditEvents.Add(provisioningAudit);
+
             try
             {
                 await dbContext.SaveChangesAsync(cancellationToken);
@@ -118,6 +137,7 @@ public sealed class UserAccessRepository(
             catch (DbUpdateException)
             {
                 dbContext.Entry(candidate).State = EntityState.Detached;
+                dbContext.Entry(provisioningAudit).State = EntityState.Detached;
 
                 user = await dbContext.Users
                     .SingleOrDefaultAsync(
@@ -173,10 +193,13 @@ public sealed class UserAccessRepository(
         IReadOnlyCollection<ApplicationRole> roles,
         IReadOnlyCollection<Guid> assetScopeIds,
         bool preserveLastAdministrator,
+        SecurityActorContext actor,
+        DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(roles);
         ArgumentNullException.ThrowIfNull(assetScopeIds);
+        ArgumentNullException.ThrowIfNull(actor);
 
         const int maximumAttempts = 3;
 
@@ -189,6 +212,8 @@ public sealed class UserAccessRepository(
                     roles,
                     assetScopeIds,
                     preserveLastAdministrator,
+                    actor,
+                    occurredAtUtc,
                     cancellationToken);
                 return;
             }
@@ -209,6 +234,8 @@ public sealed class UserAccessRepository(
         IReadOnlyCollection<ApplicationRole> roles,
         IReadOnlyCollection<Guid> assetScopeIds,
         bool preserveLastAdministrator,
+        SecurityActorContext actor,
+        DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
         await using var transaction =
@@ -225,6 +252,20 @@ public sealed class UserAccessRepository(
             throw new KeyNotFoundException(
                 $"User {userId} does not exist or is inactive.");
         }
+
+        var previousRoles = await dbContext.UserRoles
+            .AsNoTracking()
+            .Where(item => item.UserId == userId)
+            .OrderBy(item => item.Role)
+            .Select(item => item.Role)
+            .ToArrayAsync(cancellationToken);
+
+        var previousAssetScopeIds = await dbContext.UserAssetScopes
+            .AsNoTracking()
+            .Where(item => item.UserId == userId)
+            .OrderBy(item => item.AssetId)
+            .Select(item => item.AssetId)
+            .ToArrayAsync(cancellationToken);
 
         if (preserveLastAdministrator)
         {
@@ -283,6 +324,28 @@ public sealed class UserAccessRepository(
             });
         }
 
+        dbContext.AuditEvents.Add(
+            CreateAuditEvent(
+                actor.UserId,
+                actor.IdentityName,
+                "security.user.access-replaced",
+                "security-user",
+                userId.ToString(),
+                null,
+                occurredAtUtc,
+                actor.CorrelationId,
+                new
+                {
+                    previousRoles,
+                    roles = roles
+                        .Distinct()
+                        .Select(item => item.ToString())
+                        .OrderBy(item => item)
+                        .ToArray(),
+                    previousAssetScopeIds,
+                    assetScopeIds = scopeIds.OrderBy(item => item).ToArray()
+                }));
+
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -290,8 +353,12 @@ public sealed class UserAccessRepository(
     public async Task EnsureRoleAsync(
         Guid userId,
         ApplicationRole role,
+        SecurityActorContext actor,
+        DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(actor);
+
         var roleName = role.ToString();
 
         if (await dbContext.UserRoles.AnyAsync(
@@ -308,6 +375,24 @@ public sealed class UserAccessRepository(
         };
         dbContext.UserRoles.Add(assignment);
 
+        var roleAudit = CreateAuditEvent(
+            actor.UserId,
+            actor.IdentityName,
+            actor.IdentityName == "system:bootstrap" &&
+            role == ApplicationRole.Admin
+                ? "security.bootstrap-admin.assigned"
+                : "security.role.assigned",
+            "security-user",
+            userId.ToString(),
+            null,
+            occurredAtUtc,
+            actor.CorrelationId,
+            new
+            {
+                Role = roleName
+            });
+        dbContext.AuditEvents.Add(roleAudit);
+
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -315,6 +400,7 @@ public sealed class UserAccessRepository(
         catch (DbUpdateException)
         {
             dbContext.Entry(assignment).State = EntityState.Detached;
+            dbContext.Entry(roleAudit).State = EntityState.Detached;
 
             if (!await dbContext.UserRoles.AnyAsync(
                     item =>
@@ -326,6 +412,32 @@ public sealed class UserAccessRepository(
             }
         }
     }
+
+    private static AuditEventEntity CreateAuditEvent(
+        Guid? actorUserId,
+        string actorIdentity,
+        string action,
+        string targetType,
+        string? targetId,
+        Guid? assetId,
+        DateTimeOffset occurredAtUtc,
+        string? correlationId,
+        object details) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            OccurredAtUtc = occurredAtUtc.ToUniversalTime(),
+            ActorUserId = actorUserId,
+            ActorIdentity = actorIdentity,
+            Action = action,
+            TargetType = targetType,
+            TargetId = targetId,
+            AssetId = assetId,
+            CorrelationId = correlationId,
+            DetailsJson = JsonSerializer.Serialize(
+                details,
+                AuditJsonOptions)
+        };
 
     private async Task<UserAccessProfile> LoadProfileAsync(
         UserEntity user,
