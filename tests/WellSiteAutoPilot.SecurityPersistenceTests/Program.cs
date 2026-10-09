@@ -319,6 +319,21 @@ var secondAdministrator = await service.ResolveAuthenticatedAsync(
         [UserAccessService.NormalizeIdentity(@"FIELD\wsa-admin-two")],
         StringComparer.Ordinal));
 
+if (secondAdministrator.Roles.Count != 0)
+{
+    throw new InvalidOperationException(
+        "Bootstrap configuration elevated a second user while an active Admin already existed.");
+}
+
+secondAdministrator = await service.ReplaceAccessAsync(
+    secondAdministrator.Id,
+    [ApplicationRole.Admin],
+    [],
+    new SecurityActorContext(
+        administrator.Id,
+        administrator.IdentityName,
+        "security-test-second-admin"));
+
 await service.ReplaceAccessAsync(
     administrator.Id,
     [ApplicationRole.Engineer],
@@ -331,13 +346,18 @@ await service.ReplaceAccessAsync(
 var updatedAdministrator = await service.GetRequiredAsync(
     administrator.Id);
 
+updatedAdministrator = await service.ResolveAuthenticatedAsync(
+    administrator.IdentityName,
+    administrator.DisplayName,
+    bootstrap);
+
 if (updatedAdministrator.Roles.Contains(ApplicationRole.Admin) ||
     !updatedAdministrator.Roles.Contains(ApplicationRole.Engineer) ||
     secondAdministrator.Roles.Count != 1 ||
     !secondAdministrator.Roles.Contains(ApplicationRole.Admin))
 {
     throw new InvalidOperationException(
-        "Admin replacement invariant did not preserve at least one active administrator.");
+        "One-time bootstrap or Admin replacement invariant behaved incorrectly.");
 }
 
 var auditEvents = await dbContext.AuditEvents
