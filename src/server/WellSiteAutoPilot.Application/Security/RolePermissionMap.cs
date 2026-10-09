@@ -4,7 +4,7 @@ namespace WellSiteAutoPilot.Application.Security;
 
 public static class RolePermissionMap
 {
-    private static readonly IReadOnlyDictionary<ApplicationRole, IReadOnlySet<string>>
+    private static readonly Dictionary<ApplicationRole, IReadOnlySet<string>>
         PermissionsByRole =
             new Dictionary<ApplicationRole, IReadOnlySet<string>>
             {
