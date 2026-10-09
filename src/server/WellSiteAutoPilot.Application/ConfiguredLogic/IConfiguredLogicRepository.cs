@@ -20,6 +20,11 @@ public interface IConfiguredLogicRepository
         int limit,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListInScopeAsync(
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListActiveScheduledAsync(
         int limit,
         CancellationToken cancellationToken = default);
