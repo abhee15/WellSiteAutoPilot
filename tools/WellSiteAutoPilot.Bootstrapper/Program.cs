@@ -163,7 +163,7 @@ internal static class Bootstrapper
 
         var existingIdentities = ReadBootstrapAdministrators(settingsPath);
 
-        if (existingIdentities.Count > 0)
+        if (existingIdentities.Length > 0)
         {
             if (!string.IsNullOrWhiteSpace(requestedIdentity))
             {
