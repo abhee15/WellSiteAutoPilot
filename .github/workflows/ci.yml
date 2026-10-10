@@ -913,7 +913,7 @@ jobs:
           import json, os
           assets=json.loads(os.environ["SCOPED_ASSETS"])
           assert len(assets) == 1
-          assert assets[0]["assetId"] == os.environ["ASSET_ONE_ID"]
+          assert assets[0]["id"] == os.environ["ASSET_ONE_ID"]
           PY
 
           status=$(curl --silent --output /dev/null --write-out "%{http_code}"             -H 'X-WSA-Test-Identity: CI\operator-one'             "http://127.0.0.1:5080/api/v1/assets/$asset_two_id")
