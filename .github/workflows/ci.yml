@@ -853,7 +853,7 @@ jobs:
 
           asset_type_id=$(RESPONSE="$asset_type" python - <<'PY'
           import json, os
-          print(json.loads(os.environ["RESPONSE"])["assetTypeId"])
+          print(json.loads(os.environ["RESPONSE"])["id"])
           PY
           )
 
@@ -877,12 +877,12 @@ jobs:
 
           asset_one_id=$(RESPONSE="$asset_one" python - <<'PY'
           import json, os
-          print(json.loads(os.environ["RESPONSE"])["assetId"])
+          print(json.loads(os.environ["RESPONSE"])["id"])
           PY
           )
           asset_two_id=$(RESPONSE="$asset_two" python - <<'PY'
           import json, os
-          print(json.loads(os.environ["RESPONSE"])["assetId"])
+          print(json.loads(os.environ["RESPONSE"])["id"])
           PY
           )
 
