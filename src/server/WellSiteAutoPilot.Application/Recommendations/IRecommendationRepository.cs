@@ -8,6 +8,16 @@ public interface IRecommendationRepository
         IReadOnlyCollection<RecommendationRecord> recommendations,
         CancellationToken cancellationToken = default);
 
+    // Atomically transition only an undecided, unexpired recommendation.
+    // Returns false when another actor already decided or the item is stale.
+    Task<bool> TryDecideAsync(
+        Guid recommendationId,
+        RecommendationStatus decision,
+        string decidedBy,
+        string? reason,
+        DateTimeOffset decidedAtUtc,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<RecommendationRecord>> ListByExecutionAsync(
         Guid executionId,
         CancellationToken cancellationToken = default);
