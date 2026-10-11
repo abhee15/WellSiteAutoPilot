@@ -839,6 +839,22 @@ jobs:
           assert current["identityName"].lower() == r"ci\wsa-admin".lower()
           PY
 
+          admin_id=$(ME="$me" python - <<'PY'
+          import json, os
+          print(json.loads(os.environ["ME"])["userId"])
+          PY
+          )
+          status=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+            -X PUT \
+            -H "Content-Type: application/json" \
+            -H 'X-WSA-Test-Identity: CI\\wsa-admin' \
+            -d '{"roles":["Admin"],"assetScopeIds":[]}' \
+            "http://127.0.0.1:5080/api/v1/security/users/$admin_id/access")
+          if [ "$status" != "403" ]; then
+            echo "Expected administrator self-access mutation to return 403, got $status"
+            exit 1
+          fi
+
           asset_type_request=$(python - <<'PY'
           import json
           print(json.dumps({
