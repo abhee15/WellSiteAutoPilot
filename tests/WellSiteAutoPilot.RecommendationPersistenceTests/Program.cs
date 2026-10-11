@@ -297,6 +297,20 @@ try
 {
     await decisionService.DecideAsync(
         recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        new string('x', 1025));
+    throw new InvalidOperationException("Oversized decision reason was accepted.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_DECISION_METADATA_INVALID")
+{
+}
+
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
         RecommendationStatus.Rejected,
         "second-reviewer",
         "Attempt to overwrite an approval");
