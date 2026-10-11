@@ -291,6 +291,10 @@ await dbContext.Assets
     .ExecuteUpdateAsync(setters => setters
         .SetProperty(item => item.IsActive, true));
 
+await dbContext.Recommendations
+    .Where(item => item.Id == rejectable.Id)
+    .ExecuteDeleteAsync();
+
 // A recommendation must not be approved after its source revision is superseded.
 await dbContext.ConfiguredLogicDefinitions
     .Where(item => item.Id == configuredLogic.Id)
