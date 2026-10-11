@@ -293,6 +293,20 @@ if (approved.Status != RecommendationStatus.Approved ||
         "Recommendation approval was not persisted or incorrectly created a control action.");
 }
 
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Rejected,
+        "second-reviewer",
+        "Attempt to overwrite an approval");
+    throw new InvalidOperationException("Application service accepted a second decision.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_NOT_DECIDABLE")
+{
+}
+
 // Expiration and invalid transitions are rejected without changing approved state.
 if (await recommendationRepository.TryDecideAsync(
         recommendation.Id,
