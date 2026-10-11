@@ -68,6 +68,39 @@ public sealed class RecommendationRepository(
         .Select(ToDomain)
         .ToArray();
 
+    public async Task<bool> TryDecideAsync(
+        Guid recommendationId,
+        RecommendationStatus decision,
+        string decidedBy,
+        string? reason,
+        DateTimeOffset decidedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (decision is not (RecommendationStatus.Approved or RecommendationStatus.Rejected))
+        {
+            throw new ArgumentOutOfRangeException(nameof(decision));
+        }
+
+        if (string.IsNullOrWhiteSpace(decidedBy))
+        {
+            throw new ArgumentException("A decision actor is required.", nameof(decidedBy));
+        }
+
+        var affected = await dbContext.Recommendations
+            .Where(item => item.Id == recommendationId &&
+                (item.Status == nameof(RecommendationStatus.Created) ||
+                 item.Status == nameof(RecommendationStatus.Pending)) &&
+                (item.ExpiresAtUtc == null || item.ExpiresAtUtc > decidedAtUtc))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Status, decision.ToString())
+                .SetProperty(item => item.DecisionBy, decidedBy.Trim())
+                .SetProperty(item => item.DecisionAtUtc, decidedAtUtc)
+                .SetProperty(item => item.DecisionReason, reason),
+                cancellationToken);
+
+        return affected == 1;
+    }
+
     private static RecommendationEntity ToEntity(
         RecommendationRecord recommendation) => new()
         {
