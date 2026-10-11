@@ -100,7 +100,12 @@ public sealed class RecommendationRepository(
             .Where(item => item.Id == recommendationId &&
                 (item.Status == nameof(RecommendationStatus.Created) ||
                  item.Status == nameof(RecommendationStatus.Pending)) &&
-                (item.ExpiresAtUtc == null || item.ExpiresAtUtc > decidedAtUtc))
+                (item.ExpiresAtUtc == null || item.ExpiresAtUtc > decidedAtUtc) &&
+                dbContext.ConfiguredLogicDefinitions.Any(logic =>
+                    logic.Id == item.ConfiguredLogicId &&
+                    logic.ActiveRevisionId == item.ConfigurationRevisionId) &&
+                dbContext.Assets.Any(asset =>
+                    asset.Id == item.AssetId && asset.IsActive))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(item => item.Status, decision.ToString())
                 .SetProperty(item => item.DecisionBy, decidedBy.Trim())
