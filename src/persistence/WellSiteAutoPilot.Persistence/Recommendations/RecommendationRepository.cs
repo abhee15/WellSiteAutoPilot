@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Domain.Recommendations;
+using WellSiteAutoPilot.Domain.Executions;
 
 namespace WellSiteAutoPilot.Persistence.Recommendations;
 
@@ -105,7 +106,11 @@ public sealed class RecommendationRepository(
                     logic.Id == item.ConfiguredLogicId &&
                     logic.ActiveRevisionId == item.ConfigurationRevisionId) &&
                 dbContext.Assets.Any(asset =>
-                    asset.Id == item.AssetId && asset.IsActive))
+                    asset.Id == item.AssetId && asset.IsActive) &&
+                dbContext.Executions.Any(execution =>
+                    execution.Id == item.ExecutionId &&
+                    execution.Mode == nameof(ExecutionMode.Recommendation) &&
+                    execution.Status == nameof(ExecutionStatus.Completed)))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(item => item.Status, decision.ToString())
                 .SetProperty(item => item.DecisionBy, decidedBy.Trim())
