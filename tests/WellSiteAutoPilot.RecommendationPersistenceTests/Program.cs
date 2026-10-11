@@ -293,6 +293,31 @@ if (approved.Status != RecommendationStatus.Approved ||
         "Recommendation approval was not persisted or incorrectly created a control action.");
 }
 
+// Expiration and invalid transitions are rejected without changing approved state.
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Rejected,
+        "late-reviewer",
+        "Late attempt",
+        clock.GetUtcNow().AddDays(1)))
+{
+    throw new InvalidOperationException("A decided recommendation accepted a late rejection.");
+}
+
+try
+{
+    await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Executed,
+        "reviewer",
+        null,
+        clock.GetUtcNow());
+    throw new InvalidOperationException("Unsupported decision state was accepted.");
+}
+catch (ArgumentOutOfRangeException)
+{
+}
+
 var shadowExecution = recommendationExecution with
 {
     Id = Guid.NewGuid(),
