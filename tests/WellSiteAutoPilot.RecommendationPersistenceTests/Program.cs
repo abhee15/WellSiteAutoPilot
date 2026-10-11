@@ -264,6 +264,33 @@ if (duplicateCreated != 0 ||
         "Recommendation materialization was not idempotent.");
 }
 
+// Operators must still be able to reject stale or inactive suggestions.
+var rejectable = recommendation with
+{
+    Id = Guid.NewGuid(),
+    IntentIndex = recommendation.IntentIndex + 1
+};
+await recommendationRepository.AddMissingAsync([rejectable]);
+await dbContext.Assets
+    .Where(item => item.Id == well.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.IsActive, false));
+
+if (!await recommendationRepository.TryDecideAsync(
+        rejectable.Id,
+        RecommendationStatus.Rejected,
+        "reviewer",
+        "Asset deactivated",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Inactive asset prevented safe rejection.");
+}
+
+await dbContext.Assets
+    .Where(item => item.Id == well.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.IsActive, true));
+
 // A recommendation must not be approved after its source revision is superseded.
 await dbContext.ConfiguredLogicDefinitions
     .Where(item => item.Id == configuredLogic.Id)
