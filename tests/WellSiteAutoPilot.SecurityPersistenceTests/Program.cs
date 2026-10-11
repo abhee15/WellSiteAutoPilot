@@ -328,7 +328,7 @@ try
         "The final Admin role was removed.");
 }
 catch (WellSiteAutoPilotException exception)
-    when (exception.Code == "SECURITY_LAST_ADMIN_REQUIRED")
+    when (exception.Code == "SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN")
 {
 }
 
