@@ -82,6 +82,14 @@ public sealed class UserAccessService(
         ArgumentNullException.ThrowIfNull(assetScopeIds);
         ArgumentNullException.ThrowIfNull(actor);
 
+        if (actor.UserId == userId)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN",
+                FailureKind.Authorization,
+                "Administrators cannot change their own roles or asset scope.");
+        }
+
         var existing = await GetRequiredAsync(userId, cancellationToken);
         var normalizedRoles = roles.Distinct().OrderBy(item => item).ToArray();
         var normalizedAssets = assetScopeIds
