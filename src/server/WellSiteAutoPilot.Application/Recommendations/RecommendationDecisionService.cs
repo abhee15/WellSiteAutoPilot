@@ -28,6 +28,15 @@ public sealed class RecommendationDecisionService(
                 "Recommendation ID, supported decision, and authenticated actor are required.");
         }
 
+        if (actorIdentity.Length > 256 || actorIdentity.Any(char.IsControl) ||
+            (reason is not null && (reason.Length > 1024 || reason.Any(char.IsControl))))
+        {
+            throw new WellSiteAutoPilotException(
+                "RECOMMENDATION_DECISION_METADATA_INVALID",
+                FailureKind.Validation,
+                "Decision actor or reason contains invalid characters or exceeds storage limits.");
+        }
+
         var snapshot = await repository.GetAsync(recommendationId, cancellationToken)
             ?? throw new WellSiteAutoPilotException(
                 "RECOMMENDATION_NOT_FOUND",
