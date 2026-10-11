@@ -43,6 +43,7 @@ var configuredLogicService = new ConfiguredLogicService(
     assetRepository,
     moduleRepository,
     clock);
+var decisionService = new RecommendationDecisionService(recommendationRepository, clock);
 var materializer = new RecommendationMaterializer(
     executionRepository,
     recommendationRepository,
@@ -265,15 +266,11 @@ if (duplicateCreated != 0 ||
 
 // Approval is a compare-and-set transition; repeated or competing decisions must fail.
 var decidedAt = clock.GetUtcNow().AddMinutes(2);
-if (!await recommendationRepository.TryDecideAsync(
-        recommendation.Id,
-        RecommendationStatus.Approved,
-        "FIELD\\reviewer",
-        "Validated against operational conditions",
-        decidedAt))
-{
-    throw new InvalidOperationException("Initial recommendation approval failed.");
-}
+var approvedDecision = await decisionService.DecideAsync(
+    recommendation.Id,
+    RecommendationStatus.Approved,
+    "FIELD\\reviewer",
+    "Validated against operational conditions");
 
 if (await recommendationRepository.TryDecideAsync(
         recommendation.Id,
@@ -289,7 +286,7 @@ var approved = (await recommendationRepository.ListByExecutionAsync(
     recommendationExecution.Id)).Single();
 if (approved.Status != RecommendationStatus.Approved ||
     approved.DecisionBy != "FIELD\\reviewer" ||
-    approved.DecisionAtUtc != decidedAt ||
+    approved.DecisionAtUtc != clock.GetUtcNow() ||
     approved.ControlActionId is not null)
 {
     throw new InvalidOperationException(
@@ -334,7 +331,7 @@ var persistedEntity = await dbContext.Recommendations
     .SingleAsync(item => item.Id == recommendation.Id);
 
 if (string.IsNullOrWhiteSpace(persistedEntity.IntentJson) ||
-    persistedEntity.DecisionAtUtc != decidedAt ||
+    persistedEntity.DecisionAtUtc != clock.GetUtcNow() ||
     persistedEntity.DecisionBy != "FIELD\\reviewer" ||
     persistedEntity.ControlActionId is not null)
 {
