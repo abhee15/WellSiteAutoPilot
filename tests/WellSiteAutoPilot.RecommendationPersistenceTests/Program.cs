@@ -263,6 +263,39 @@ if (duplicateCreated != 0 ||
         "Recommendation materialization was not idempotent.");
 }
 
+// Approval is a compare-and-set transition; repeated or competing decisions must fail.
+var decidedAt = clock.GetUtcNow().AddMinutes(2);
+if (!await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "FIELD\\reviewer",
+        "Validated against operational conditions",
+        decidedAt))
+{
+    throw new InvalidOperationException("Initial recommendation approval failed.");
+}
+
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Rejected,
+        "FIELD\\other-reviewer",
+        "Conflicting decision",
+        decidedAt.AddSeconds(1)))
+{
+    throw new InvalidOperationException("A second decision overwrote approval.");
+}
+
+var approved = (await recommendationRepository.ListByExecutionAsync(
+    recommendationExecution.Id)).Single();
+if (approved.Status != RecommendationStatus.Approved ||
+    approved.DecisionBy != "FIELD\\reviewer" ||
+    approved.DecisionAtUtc != decidedAt ||
+    approved.ControlActionId is not null)
+{
+    throw new InvalidOperationException(
+        "Recommendation approval was not persisted or incorrectly created a control action.");
+}
+
 var shadowExecution = recommendationExecution with
 {
     Id = Guid.NewGuid(),
@@ -301,8 +334,8 @@ var persistedEntity = await dbContext.Recommendations
     .SingleAsync(item => item.Id == recommendation.Id);
 
 if (string.IsNullOrWhiteSpace(persistedEntity.IntentJson) ||
-    persistedEntity.DecisionAtUtc is not null ||
-    persistedEntity.DecisionBy is not null ||
+    persistedEntity.DecisionAtUtc != decidedAt ||
+    persistedEntity.DecisionBy != "FIELD\\reviewer" ||
     persistedEntity.ControlActionId is not null)
 {
     throw new InvalidOperationException(
