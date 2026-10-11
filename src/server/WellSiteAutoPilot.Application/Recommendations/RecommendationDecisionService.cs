@@ -16,8 +16,11 @@ public sealed class RecommendationDecisionService(
         RecommendationStatus decision,
         string actorIdentity,
         string? reason,
+        IReadOnlyCollection<Guid> authorizedAssetIds,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(authorizedAssetIds);
+
         if (recommendationId == Guid.Empty ||
             decision is not (RecommendationStatus.Approved or RecommendationStatus.Rejected) ||
             string.IsNullOrWhiteSpace(actorIdentity))
@@ -42,6 +45,14 @@ public sealed class RecommendationDecisionService(
                 "RECOMMENDATION_NOT_FOUND",
                 FailureKind.NotFound,
                 "Recommendation was not found.");
+
+        if (!authorizedAssetIds.Contains(snapshot.AssetId))
+        {
+            throw new WellSiteAutoPilotException(
+                "RECOMMENDATION_ASSET_SCOPE_FORBIDDEN",
+                FailureKind.Authorization,
+                "The authenticated actor is not authorized for the recommendation asset.");
+        }
 
         var now = timeProvider.GetUtcNow();
         if (snapshot.Status is not (RecommendationStatus.Created or RecommendationStatus.Pending) ||
