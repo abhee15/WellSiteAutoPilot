@@ -68,6 +68,16 @@ public sealed class RecommendationRepository(
         .Select(ToDomain)
         .ToArray();
 
+    public async Task<RecommendationRecord?> GetAsync(
+        Guid recommendationId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await dbContext.Recommendations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == recommendationId, cancellationToken);
+        return entity is null ? null : ToDomain(entity);
+    }
+
     public async Task<bool> TryDecideAsync(
         Guid recommendationId,
         RecommendationStatus decision,
