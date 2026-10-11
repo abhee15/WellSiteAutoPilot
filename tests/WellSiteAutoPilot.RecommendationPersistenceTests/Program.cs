@@ -306,6 +306,27 @@ await dbContext.Assets
     .ExecuteUpdateAsync(setters => setters
         .SetProperty(item => item.IsActive, true));
 
+// Decisions must be based on a completed Recommendation-mode execution.
+await dbContext.Executions
+    .Where(item => item.Id == recommendationExecution.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.Status, nameof(ExecutionStatus.Failed)));
+
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        "Failed execution",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Failed execution allowed recommendation approval.");
+}
+
+await dbContext.Executions
+    .Where(item => item.Id == recommendationExecution.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.Status, nameof(ExecutionStatus.Completed)));
+
 // A decision must be blocked when the caller's authorized asset set excludes the target.
 try
 {
