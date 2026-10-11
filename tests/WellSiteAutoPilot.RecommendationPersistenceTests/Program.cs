@@ -306,13 +306,30 @@ await dbContext.Assets
     .ExecuteUpdateAsync(setters => setters
         .SetProperty(item => item.IsActive, true));
 
+// A decision must be blocked when the caller's authorized asset set excludes the target.
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "out-of-scope-reviewer",
+        "Should not be authorized",
+        [Guid.NewGuid()]);
+    throw new InvalidOperationException("Out-of-scope recommendation was approved.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_ASSET_SCOPE_FORBIDDEN")
+{
+}
+
 // Approval is a compare-and-set transition; repeated or competing decisions must fail.
 var decidedAt = clock.GetUtcNow().AddMinutes(2);
 var approvedDecision = await decisionService.DecideAsync(
     recommendation.Id,
     RecommendationStatus.Approved,
     "FIELD\\reviewer",
-    "Validated against operational conditions");
+    "Validated against operational conditions",
+    [well.Id]);
 
 if (await recommendationRepository.TryDecideAsync(
         recommendation.Id,
@@ -341,7 +358,8 @@ try
         recommendation.Id,
         RecommendationStatus.Approved,
         "reviewer",
-        new string('x', 1025));
+        new string('x', 1025),
+        [well.Id]);
     throw new InvalidOperationException("Oversized decision reason was accepted.");
 }
 catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
@@ -355,7 +373,8 @@ try
         recommendation.Id,
         RecommendationStatus.Rejected,
         "second-reviewer",
-        "Attempt to overwrite an approval");
+        "Attempt to overwrite an approval",
+        [well.Id]);
     throw new InvalidOperationException("Application service accepted a second decision.");
 }
 catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
