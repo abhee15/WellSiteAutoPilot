@@ -102,7 +102,8 @@ public sealed class RecommendationRepository(
                 (item.Status == nameof(RecommendationStatus.Created) ||
                  item.Status == nameof(RecommendationStatus.Pending)) &&
                 (item.ExpiresAtUtc == null || item.ExpiresAtUtc > decidedAtUtc) &&
-                dbContext.ConfiguredLogicDefinitions.Any(logic =>
+                (decision == RecommendationStatus.Rejected ||
+                 (dbContext.ConfiguredLogicDefinitions.Any(logic =>
                     logic.Id == item.ConfiguredLogicId &&
                     logic.ActiveRevisionId == item.ConfigurationRevisionId) &&
                 dbContext.Assets.Any(asset =>
@@ -110,7 +111,7 @@ public sealed class RecommendationRepository(
                 dbContext.Executions.Any(execution =>
                     execution.Id == item.ExecutionId &&
                     execution.Mode == nameof(ExecutionMode.Recommendation) &&
-                    execution.Status == nameof(ExecutionStatus.Completed)))
+                    execution.Status == nameof(ExecutionStatus.Completed)))))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(item => item.Status, decision.ToString())
                 .SetProperty(item => item.DecisionBy, decidedBy.Trim())
