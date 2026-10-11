@@ -264,6 +264,48 @@ if (duplicateCreated != 0 ||
         "Recommendation materialization was not idempotent.");
 }
 
+// A recommendation must not be approved after its source revision is superseded.
+await dbContext.ConfiguredLogicDefinitions
+    .Where(item => item.Id == configuredLogic.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.ActiveRevisionId, (Guid?)null));
+
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        "Stale revision",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Superseded revision allowed approval.");
+}
+
+await dbContext.ConfiguredLogicDefinitions
+    .Where(item => item.Id == configuredLogic.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.ActiveRevisionId, revision.Id));
+
+// An inactive asset must not receive a new approval.
+await dbContext.Assets
+    .Where(item => item.Id == well.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.IsActive, false));
+
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        "Inactive asset",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Inactive asset allowed approval.");
+}
+
+await dbContext.Assets
+    .Where(item => item.Id == well.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.IsActive, true));
+
 // Approval is a compare-and-set transition; repeated or competing decisions must fail.
 var decidedAt = clock.GetUtcNow().AddMinutes(2);
 var approvedDecision = await decisionService.DecideAsync(
