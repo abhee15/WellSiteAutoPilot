@@ -339,7 +339,7 @@ if (string.IsNullOrWhiteSpace(persistedEntity.IntentJson) ||
     persistedEntity.ControlActionId is not null)
 {
     throw new InvalidOperationException(
-        "New Recommendation incorrectly contained approval/control decision state.");
+        "Approved recommendation lost its source snapshot, decision metadata, or control-action isolation.");
 }
 
 Console.WriteLine(
