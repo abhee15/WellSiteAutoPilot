@@ -55,8 +55,10 @@ public static class SecurityOptionsLoader
 
         options.BootstrapAdministrators = administratorsElement
             .EnumerateArray()
-            .Where(item => item.ValueKind == JsonValueKind.String)
-            .Select(item => item.GetString())
+            .Select(item => item.ValueKind == JsonValueKind.String
+                ? item.GetString()
+                : throw new InvalidOperationException(
+                    "Security:BootstrapAdministrators must contain only strings."))
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .Select(item => item!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
