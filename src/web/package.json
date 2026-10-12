@@ -7,7 +7,10 @@
     "dev": "vite",
     "generate-api": "openapi-ts -i ../../artifacts/openapi/v1/server.json -o src/api/generated/v1",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{ts,json}\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,json}\""
   },
   "dependencies": {
     "react": "19.3.0",
@@ -19,6 +22,11 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "typescript": "6.0.3",
-    "vite": "8.3.3"
+    "vite": "8.3.3",
+    "eslint": "^9.39.0",
+    "@eslint/js": "^9.39.0",
+    "typescript-eslint": "^8.56.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prettier": "^3.7.0"
   }
 }
