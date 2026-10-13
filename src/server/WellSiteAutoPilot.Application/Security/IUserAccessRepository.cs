@@ -29,6 +29,11 @@ public interface IUserAccessRepository
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken = default);
 
+    Task<bool> TryBootstrapAdministratorAsync(
+        Guid userId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default);
+
     Task<bool> HasActiveUserInRoleAsync(
         ApplicationRole role,
         CancellationToken cancellationToken = default);
