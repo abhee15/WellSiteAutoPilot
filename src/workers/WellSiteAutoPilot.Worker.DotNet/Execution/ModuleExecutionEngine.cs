@@ -54,6 +54,10 @@ public sealed class ModuleExecutionEngine(
             cancellationToken);
     }
 
+    // A per-execution limit protects the gateway and provider from unbounded
+    // fan-out while preserving the input order expected by logic modules.
+    private const int MaximumConcurrentInputReads = 8;
+
     public async Task<LogicModuleExecutionResult> ExecuteAsync(
         ExecutionRequestedV2 request,
         string correlationId,
@@ -73,11 +77,23 @@ public sealed class ModuleExecutionEngine(
             request.ModuleId,
             request.ModuleVersion);
 
+        using var readLimiter = new SemaphoreSlim(MaximumConcurrentInputReads);
         var inputTasks = request.Inputs
-            .Select(binding => ReadInputAsync(
-                binding,
-                evaluationTimeUtc,
-                cancellationToken))
+            .Select(async binding =>
+            {
+                await readLimiter.WaitAsync(cancellationToken);
+                try
+                {
+                    return await ReadInputAsync(
+                        binding,
+                        evaluationTimeUtc,
+                        cancellationToken);
+                }
+                finally
+                {
+                    readLimiter.Release();
+                }
+            })
             .ToArray();
 
         var inputs = await Task.WhenAll(inputTasks);
