@@ -117,6 +117,15 @@ public sealed class ModuleExecutionEngine(
             binding.Quantity,
             cancellationToken);
 
+        // The provider response must match the requested engineering quantity and
+        // unit; silently accepting a different measurement can mislead control logic.
+        if (!string.Equals(value.Quantity, binding.Quantity, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(value.Unit, binding.Unit, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Execution input '{binding.RequirementId}' returned a mismatched quantity or unit.");
+        }
+
         if (string.Equals(value.Quality, "Bad", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(value.Quality, "Unknown", StringComparison.OrdinalIgnoreCase) ||
             (!binding.AllowUncertainQuality &&
