@@ -379,7 +379,7 @@ var decidedAt = clock.GetUtcNow().AddMinutes(2);
 var approvedDecision = await decisionService.DecideAsync(
     recommendation.Id,
     RecommendationStatus.Approved,
-    "FIELD\\reviewer",
+    "  FIELD\\reviewer  ",
     "Validated against operational conditions",
     [well.Id]);
 
