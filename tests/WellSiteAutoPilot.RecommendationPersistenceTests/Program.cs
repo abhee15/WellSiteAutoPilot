@@ -344,6 +344,13 @@ if (await recommendationRepository.TryDecideAsync(
     throw new InvalidOperationException("Inactive asset allowed approval.");
 }
 
+if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
+    await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString()) != 0)
+{
+    throw new InvalidOperationException("Inactive asset approval attempt changed state or audit.");
+}
+
 await dbContext.Assets
     .Where(item => item.Id == well.Id)
     .ExecuteUpdateAsync(setters => setters
