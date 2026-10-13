@@ -48,5 +48,58 @@ if (compatible.State != ProviderCompatibilityState.Compatible)
     throw new InvalidOperationException("Provider compatibility contract failed.");
 }
 
+// Provider identity must be honored rather than silently reading from the
+// simulator when the requested adapter is missing or differently named.
+var simulatorAdapter = new StubCurrentDataProvider("simulator");
+var secondaryAdapter = new StubCurrentDataProvider("secondary");
+var router = new CurrentDataProviderRouter(
+    [
+        new KeyValuePair<string, ICurrentDataProvider>("simulator", simulatorAdapter),
+        new KeyValuePair<string, ICurrentDataProvider>("secondary", secondaryAdapter)
+    ],
+    "simulator");
+
+var selected = await router.GetCurrentAsync("secondary", "WELL-101", "Pressure");
+if (selected.Source != "secondary" || secondaryAdapter.CallCount != 1 ||
+    simulatorAdapter.CallCount != 0)
+{
+    throw new InvalidOperationException("Explicit provider routing was ignored.");
+}
+
+var defaultRead = await router.GetCurrentAsync(null, "WELL-101", "Pressure");
+if (defaultRead.Source != "simulator" || simulatorAdapter.CallCount != 1)
+{
+    throw new InvalidOperationException("Legacy default provider routing failed.");
+}
+
+try
+{
+    await router.GetCurrentAsync("unregistered", "WELL-101", "Pressure");
+    throw new InvalidOperationException("Unknown provider silently fell back.");
+}
+catch (ArgumentException exception) when (exception.ParamName == "providerId")
+{
+}
+
+if (simulatorAdapter.CallCount != 1 || secondaryAdapter.CallCount != 1)
+{
+    throw new InvalidOperationException("Unknown provider triggered an adapter read.");
+}
+
 Console.WriteLine("Provider-neutral adapter contract checks passed.");
 return 0;
+
+file sealed class StubCurrentDataProvider(string id) : ICurrentDataProvider
+{
+    public int CallCount { get; private set; }
+
+    public ValueTask<EngineeringValue> GetCurrentAsync(
+        string assetExternalId,
+        string quantity,
+        CancellationToken cancellationToken = default)
+    {
+        CallCount++;
+        return ValueTask.FromResult(new EngineeringValue(
+            quantity, 42m, "psi", DateTimeOffset.UtcNow, "Good", id));
+    }
+}
