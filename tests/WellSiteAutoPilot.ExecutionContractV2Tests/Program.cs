@@ -77,6 +77,27 @@ if (result.OutcomeCode != "MULTI_INPUT_COMPLETED" ||
         "Execution V2 did not construct the expected multi-input SDK context.");
 }
 
+// Provider clock skew must not let future telemetry reach the module.
+using (var futureClient = new HttpClient(
+    new EngineeringValueHandler(now.AddMinutes(5)))
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var futureEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(futureClient),
+        new TestModuleResolver());
+    try
+    {
+        await futureEngine.ExecuteAsync(request, "future-data-test", now);
+        throw new InvalidOperationException("Future-dated telemetry was accepted.");
+    }
+    catch (InvalidOperationException exception)
+        when (exception.Message.Contains("future-dated", StringComparison.Ordinal))
+    {
+    }
+}
+
 var serialized = JsonSerializer.Serialize(
     request,
     new JsonSerializerOptions(JsonSerializerDefaults.Web));
