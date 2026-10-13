@@ -386,6 +386,16 @@ catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
 {
 }
 
+// Invalid scope must not modify the recommendation or emit an audit event.
+var beforeUnauthorizedAuditCount = await dbContext.AuditEvents
+    .CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString());
+if (beforeUnauthorizedAuditCount != 0 ||
+    (await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created)
+{
+    throw new InvalidOperationException("Unauthorized decision modified state or wrote audit.");
+}
+
 // Approval is a compare-and-set transition; repeated or competing decisions must fail.
 var decidedAt = clock.GetUtcNow().AddMinutes(2);
 var approvedDecision = await decisionService.DecideAsync(
