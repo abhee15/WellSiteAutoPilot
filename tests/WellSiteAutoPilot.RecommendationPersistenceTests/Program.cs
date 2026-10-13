@@ -560,6 +560,29 @@ catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
 {
 }
 
+// Replaying the original execution output after an operator decision must be
+// idempotent and must never reset the decision or duplicate its audit event.
+var replayedAfterApproval = await materializer.MaterializeAsync(
+    recommendationExecution.Id,
+    outputJson);
+var replayedRecommendation = await recommendationRepository.GetAsync(recommendation.Id);
+var replayedAuditCount = await dbContext.AuditEvents.AsNoTracking()
+    .CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString());
+if (replayedAfterApproval != 0 ||
+    replayedRecommendation is null ||
+    replayedRecommendation.Status != RecommendationStatus.Approved ||
+    replayedRecommendation.DecisionBy != "FIELD\\\\reviewer" ||
+    replayedRecommendation.DecisionReason != "Validated against operational conditions" ||
+    replayedRecommendation.DecisionAtUtc != clock.GetUtcNow() ||
+    replayedRecommendation.ControlActionId is not null ||
+    replayedAuditCount != 1 ||
+    (await recommendationRepository.ListByExecutionAsync(recommendationExecution.Id)).Count != 1)
+{
+    throw new InvalidOperationException(
+        "Replaying materialization changed an approved decision or duplicated its audit.");
+}
+
 // Expiration and invalid transitions are rejected without changing approved state.
 if (await recommendationRepository.TryDecideAsync(
         recommendation.Id,
