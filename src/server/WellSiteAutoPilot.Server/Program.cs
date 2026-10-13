@@ -29,6 +29,7 @@ using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Server.Scheduling;
 using WellSiteAutoPilot.Server.Security;
+using WellSiteAutoPilot.Server.Contracts;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -1018,5 +1019,8 @@ static IReadOnlyCollection<ApplicationRole> ParseApplicationRoles(
 
 public partial class Program;
 
-public sealed record RecommendationDecisionRequest(string Decision, string? Reason);
-public sealed record RecommendationDecisionResponse(Guid Id, string Status, string? DecisionBy, DateTimeOffset? DecisionAtUtc, string? DecisionReason);
+namespace WellSiteAutoPilot.Server.Contracts
+{
+    public sealed record RecommendationDecisionRequest(string Decision, string? Reason);
+    public sealed record RecommendationDecisionResponse(Guid Id, string Status, string? DecisionBy, DateTimeOffset? DecisionAtUtc, string? DecisionReason);
+}
