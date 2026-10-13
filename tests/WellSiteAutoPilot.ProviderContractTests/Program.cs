@@ -86,6 +86,43 @@ if (simulatorAdapter.CallCount != 1 || secondaryAdapter.CallCount != 1)
     throw new InvalidOperationException("Unknown provider triggered an adapter read.");
 }
 
+// Open circuits fail closed without invoking an unhealthy adapter.
+var failing = new RecoveringCurrentDataProvider();
+var clock = new ManualProviderClock(DateTimeOffset.UtcNow);
+var breaker = new CircuitBreakingCurrentDataProvider(
+    failing, clock, 2, TimeSpan.FromMinutes(1));
+for (var attempt = 0; attempt < 2; attempt++)
+{
+    try
+    {
+        await breaker.GetCurrentAsync("WELL-101", "Pressure");
+        throw new InvalidOperationException("Expected provider failure.");
+    }
+    catch (HttpRequestException)
+    {
+    }
+}
+try
+{
+    await breaker.GetCurrentAsync("WELL-101", "Pressure");
+    throw new InvalidOperationException("Open circuit allowed a read.");
+}
+catch (InvalidOperationException exception)
+    when (exception.Message.Contains("circuit is open", StringComparison.Ordinal))
+{
+}
+if (failing.CallCount != 2)
+    throw new InvalidOperationException("Open circuit contacted provider.");
+
+clock.Advance(TimeSpan.FromMinutes(1));
+failing.Fail = false;
+var recovered = await breaker.GetCurrentAsync("WELL-101", "Pressure");
+if (recovered.Source != "recovered" || failing.CallCount != 3)
+    throw new InvalidOperationException("Half-open recovery probe failed.");
+await breaker.GetCurrentAsync("WELL-101", "Pressure");
+if (failing.CallCount != 4)
+    throw new InvalidOperationException("Successful recovery did not close circuit.");
+
 Console.WriteLine("Provider-neutral adapter contract checks passed.");
 return 0;
 
@@ -101,5 +138,27 @@ file sealed class StubCurrentDataProvider(string id) : ICurrentDataProvider
         CallCount++;
         return ValueTask.FromResult(new EngineeringValue(
             quantity, 42m, "psi", DateTimeOffset.UtcNow, "Good", id));
+    }
+}
+
+file sealed class ManualProviderClock(DateTimeOffset initial) : TimeProvider
+{
+    private DateTimeOffset _now = initial;
+    public override DateTimeOffset GetUtcNow() => _now;
+    public void Advance(TimeSpan duration) => _now += duration;
+}
+
+file sealed class RecoveringCurrentDataProvider : ICurrentDataProvider
+{
+    public bool Fail { get; set; } = true;
+    public int CallCount { get; private set; }
+    public ValueTask<EngineeringValue> GetCurrentAsync(
+        string assetExternalId, string quantity,
+        CancellationToken cancellationToken = default)
+    {
+        CallCount++;
+        if (Fail) throw new HttpRequestException("Provider unavailable.");
+        return ValueTask.FromResult(new EngineeringValue(
+            quantity, 42m, "psi", DateTimeOffset.UtcNow, "Good", "recovered"));
     }
 }
