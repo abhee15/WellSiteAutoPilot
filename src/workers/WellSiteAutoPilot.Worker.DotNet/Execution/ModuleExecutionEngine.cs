@@ -130,7 +130,8 @@ public sealed class ModuleExecutionEngine(
             cancellationToken);
 
         if (!string.Equals(value.Quantity, binding.Quantity, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(value.Unit, binding.Unit, StringComparison.OrdinalIgnoreCase))
+            (binding.CanonicalUnit is not null &&
+             !string.Equals(value.Unit, binding.CanonicalUnit, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException(
                 $"Execution input '{binding.RequirementId}' returned a mismatched quantity or unit.");
