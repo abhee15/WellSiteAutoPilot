@@ -8,7 +8,8 @@ public enum ScheduledShadowDispatchOutcome
     OverlapBlocked = 3,
     ModuleUnavailable = 4,
     ModuleDisabled = 5,
-    InvalidConfiguration = 6
+    InvalidConfiguration = 6,
+    DispatchFailed = 7
 }
 
 public sealed record ScheduledShadowDispatchDecision(
