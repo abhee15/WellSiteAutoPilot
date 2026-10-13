@@ -31,7 +31,8 @@ public sealed class RecommendationDecisionService(
                 "Recommendation ID, supported decision, and authenticated actor are required.");
         }
 
-        if (actorIdentity.Length > 256 || actorIdentity.Any(char.IsControl) ||
+        var normalizedActorIdentity = actorIdentity.Trim();
+        if (normalizedActorIdentity.Length > 256 || normalizedActorIdentity.Any(char.IsControl) ||
             (reason is not null && (reason.Length > 1024 || reason.Any(char.IsControl))))
         {
             throw new WellSiteAutoPilotException(
@@ -65,7 +66,7 @@ public sealed class RecommendationDecisionService(
         }
 
         if (!await repository.TryDecideAsync(
-                recommendationId, decision, actorIdentity, reason, now, cancellationToken))
+                recommendationId, decision, normalizedActorIdentity, reason, now, cancellationToken))
         {
             throw new WellSiteAutoPilotException(
                 "RECOMMENDATION_DECISION_CONFLICT",
