@@ -397,7 +397,7 @@ if (beforeUnauthorizedAuditCount != 0 ||
 }
 
 // Invalid decision metadata must be rejected before any persistence transition.
-foreach (var invalidActor in new[] { " ", new string('a', 257), "reviewer\\nother" })
+foreach (var invalidActor in new[] { " ", new string('a', 257), "reviewer\nother" })
 {
     try
     {
