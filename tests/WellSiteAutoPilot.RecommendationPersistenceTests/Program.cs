@@ -423,6 +423,32 @@ if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != Reco
     throw new InvalidOperationException("Invalid decision actor changed state or emitted an audit event.");
 }
 
+// Invalid decision reasons must not persist a decision or an audit event.
+foreach (var invalidReason in new[] { new string('x', 1025), "reason\nwith newline" })
+{
+    try
+    {
+        await decisionService.DecideAsync(
+            recommendation.Id,
+            RecommendationStatus.Approved,
+            "reviewer",
+            invalidReason,
+            [well.Id]);
+        throw new InvalidOperationException("Invalid decision reason was accepted.");
+    }
+    catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+        when (exception.Code == "RECOMMENDATION_DECISION_METADATA_INVALID")
+    {
+    }
+
+    if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
+        await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
+            item.TargetId == recommendation.Id.ToString()) != 0)
+    {
+        throw new InvalidOperationException("Invalid reason modified state or audit.");
+    }
+}
+
 // Rejected metadata must leave the recommendation undecided and must not write audit events.
 try
 {
