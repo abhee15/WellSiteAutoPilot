@@ -286,6 +286,18 @@ if (!await recommendationRepository.TryDecideAsync(
     throw new InvalidOperationException("Inactive asset prevented safe rejection.");
 }
 
+var rejectionAudit = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetType == "recommendation" &&
+        item.TargetId == rejectable.Id.ToString() &&
+        item.Action == "recommendation.rejected")
+    .ToArrayAsync();
+if (rejectionAudit.Length != 1 ||
+    rejectionAudit[0].AssetId != well.Id ||
+    rejectionAudit[0].ActorIdentity != "reviewer")
+{
+    throw new InvalidOperationException("Recommendation rejection audit was not persisted exactly once.");
+}
+
 await dbContext.Assets
     .Where(item => item.Id == well.Id)
     .ExecuteUpdateAsync(setters => setters
@@ -400,7 +412,7 @@ var approvalAudit = await dbContext.AuditEvents.AsNoTracking()
     .ToArrayAsync();
 if (approvalAudit.Length != 1 ||
     approvalAudit[0].AssetId != well.Id ||
-    approvalAudit[0].ActorIdentity != "FIELD\\\\reviewer")
+    approvalAudit[0].ActorIdentity != "FIELD\\reviewer")
 {
     throw new InvalidOperationException("Recommendation approval audit was not persisted exactly once.");
 }
