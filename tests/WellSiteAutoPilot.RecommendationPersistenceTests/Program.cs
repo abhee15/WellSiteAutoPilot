@@ -605,6 +605,28 @@ catch (ArgumentOutOfRangeException)
 {
 }
 
+// Failed follow-up decisions must preserve the original approval audit and all
+// decision metadata, including after attempts with unsupported target states.
+var stableApproval = await recommendationRepository.GetAsync(recommendation.Id);
+var stableApprovalAudits = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString())
+    .ToArrayAsync();
+if (stableApproval is null ||
+    stableApproval.Status != RecommendationStatus.Approved ||
+    stableApproval.DecisionBy != "FIELD\\reviewer" ||
+    stableApproval.DecisionReason != "Validated against operational conditions" ||
+    stableApproval.DecisionAtUtc != clock.GetUtcNow() ||
+    stableApproval.ControlActionId is not null ||
+    stableApprovalAudits.Length != 1 ||
+    stableApprovalAudits[0].Action != "recommendation.approved" ||
+    stableApprovalAudits[0].ActorIdentity != "FIELD\\reviewer" ||
+    stableApprovalAudits[0].AssetId != well.Id)
+{
+    throw new InvalidOperationException(
+        "Failed follow-up decision changed the original approval or audit.");
+}
+
 // Competing decisions from separate database contexts must produce exactly one winner
 // and exactly one durable audit event, regardless of which request wins.
 var contested = recommendation with
