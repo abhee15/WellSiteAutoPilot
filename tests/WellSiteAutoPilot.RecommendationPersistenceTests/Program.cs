@@ -585,6 +585,65 @@ catch (ArgumentOutOfRangeException)
 {
 }
 
+// Competing decisions from separate database contexts must produce exactly one winner
+// and exactly one durable audit event, regardless of which request wins.
+var contested = recommendation with
+{
+    Id = Guid.NewGuid(),
+    IntentIndex = recommendation.IntentIndex + 2,
+    Status = RecommendationStatus.Created,
+    DecisionBy = null,
+    DecisionAtUtc = null,
+    DecisionReason = null
+};
+await recommendationRepository.AddMissingAsync([contested]);
+
+async Task<bool> CompeteAsync(RecommendationStatus status, string actor)
+{
+    await using var competingContext = new WellSiteAutoPilotDbContext(options);
+    var competingRepository = new RecommendationRepository(competingContext);
+    return await competingRepository.TryDecideAsync(
+        contested.Id,
+        status,
+        actor,
+        "Concurrent decision regression",
+        clock.GetUtcNow());
+}
+
+var competingResults = await Task.WhenAll(
+    CompeteAsync(RecommendationStatus.Approved, "concurrent-approver"),
+    CompeteAsync(RecommendationStatus.Rejected, "concurrent-rejector"));
+
+if (competingResults.Count(won => won) != 1)
+{
+    throw new InvalidOperationException(
+        "Concurrent recommendation decisions did not produce exactly one winner.");
+}
+
+var contestedState = await recommendationRepository.GetAsync(contested.Id);
+var contestedAudit = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetType == "recommendation" &&
+        item.TargetId == contested.Id.ToString())
+    .ToArrayAsync();
+
+if (contestedState is null ||
+    contestedAudit.Length != 1 ||
+    contestedState.Status != (competingResults[0]
+        ? RecommendationStatus.Approved
+        : RecommendationStatus.Rejected) ||
+    contestedState.DecisionBy != (competingResults[0]
+        ? "concurrent-approver"
+        : "concurrent-rejector") ||
+    contestedAudit[0].ActorIdentity != contestedState.DecisionBy ||
+    contestedAudit[0].Action != (competingResults[0]
+        ? "recommendation.approved"
+        : "recommendation.rejected") ||
+    contestedState.ControlActionId is not null)
+{
+    throw new InvalidOperationException(
+        "Concurrent decision state, audit, or control-action isolation diverged.");
+}
+
 var shadowExecution = recommendationExecution with
 {
     Id = Guid.NewGuid(),
