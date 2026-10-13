@@ -113,6 +113,7 @@ public sealed class ModuleExecutionEngine(
         }
 
         var value = await gatewayDataClient.GetCurrentAsync(
+            binding.ProviderId,
             binding.ProviderAssetExternalId,
             binding.Quantity,
             cancellationToken);
