@@ -415,6 +415,14 @@ foreach (var invalidActor in new[] { " ", new string('a', 257), "reviewer\nother
     }
 }
 
+// Every invalid actor must be rejected without changing state or emitting an audit event.
+if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
+    await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString()) != 0)
+{
+    throw new InvalidOperationException("Invalid decision actor changed state or emitted an audit event.");
+}
+
 // Rejected metadata must leave the recommendation undecided and must not write audit events.
 try
 {
