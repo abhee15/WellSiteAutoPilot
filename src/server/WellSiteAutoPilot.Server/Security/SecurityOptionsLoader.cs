@@ -64,6 +64,12 @@ public static class SecurityOptionsLoader
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        if (options.BootstrapAdministrators.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"WellSite AutoPilot security settings file '{settingsPath}' must specify at least one bootstrap administrator.");
+        }
+
         return options;
     }
 
