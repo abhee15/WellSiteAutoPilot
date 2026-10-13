@@ -126,6 +126,14 @@ public sealed class ModuleExecutionEngine(
                 $"Execution input '{binding.RequirementId}' does not satisfy the required data quality.");
         }
 
+        // Reject readings dated beyond a small clock-skew allowance. Otherwise a
+        // provider with a bad clock can bypass the maximum-age safety gate.
+        if (value.TimestampUtc > evaluationTimeUtc.AddSeconds(30))
+        {
+            throw new InvalidOperationException(
+                $"Execution input '{binding.RequirementId}' is future-dated.");
+        }
+
         if (binding.MaximumAgeSeconds is > 0 &&
             evaluationTimeUtc - value.TimestampUtc >
             TimeSpan.FromSeconds(binding.MaximumAgeSeconds.Value))
