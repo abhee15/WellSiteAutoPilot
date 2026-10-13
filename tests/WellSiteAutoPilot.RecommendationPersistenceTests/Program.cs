@@ -379,6 +379,13 @@ if (await recommendationRepository.TryDecideAsync(
     throw new InvalidOperationException("Failed execution allowed recommendation approval.");
 }
 
+if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
+    await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString()) != 0)
+{
+    throw new InvalidOperationException("Failed execution approval attempt changed state or audit.");
+}
+
 await dbContext.Executions
     .Where(item => item.Id == recommendationExecution.Id)
     .ExecuteUpdateAsync(setters => setters
