@@ -27,15 +27,11 @@ public sealed class UserAccessService(
             cancellationToken);
 
         if (bootstrapAdministratorIdentities.Contains(normalizedIdentity) &&
-            !profile.Roles.Contains(ApplicationRole.Admin) &&
-            !await repository.HasActiveUserInRoleAsync(
-                ApplicationRole.Admin,
-                cancellationToken))
+            profile.IsActive &&
+            !profile.Roles.Contains(ApplicationRole.Admin))
         {
-            await repository.EnsureRoleAsync(
+            await repository.TryBootstrapAdministratorAsync(
                 profile.Id,
-                ApplicationRole.Admin,
-                SecurityActorContext.Bootstrap,
                 nowUtc,
                 cancellationToken);
 
