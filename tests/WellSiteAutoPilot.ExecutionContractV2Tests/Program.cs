@@ -77,6 +77,27 @@ if (result.OutcomeCode != "MULTI_INPUT_COMPLETED" ||
         "Execution V2 did not construct the expected multi-input SDK context.");
 }
 
+// A provider returning a different engineering unit must not feed the module.
+using (var wrongUnitClient = new HttpClient(
+    new EngineeringValueHandler(now, wrongUnit: true))
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var wrongUnitEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(wrongUnitClient),
+        new TestModuleResolver());
+    try
+    {
+        await wrongUnitEngine.ExecuteAsync(request, "wrong-unit-test", now);
+        throw new InvalidOperationException("Mismatched engineering unit was accepted.");
+    }
+    catch (InvalidOperationException exception)
+        when (exception.Message.Contains("mismatched quantity or unit", StringComparison.Ordinal))
+    {
+    }
+}
+
 var serialized = JsonSerializer.Serialize(
     request,
     new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -149,7 +170,7 @@ file sealed class MultiInputModule : ILogicModuleV1
     }
 }
 
-file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc)
+file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc, bool wrongUnit = false)
     : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(
@@ -168,7 +189,7 @@ file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc)
             {
                 quantity = isFillage ? "PumpFillage" : "PumpingSpeed",
                 value = isFillage ? 82m : 12m,
-                unit = isFillage ? "%" : "spm",
+                unit = wrongUnit ? "invalid-unit" : isFillage ? "%" : "spm",
                 timestampUtc,
                 quality = "Good",
                 source = "simulator:WELL-101"
