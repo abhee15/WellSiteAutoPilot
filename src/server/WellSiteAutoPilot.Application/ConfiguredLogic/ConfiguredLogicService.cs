@@ -230,6 +230,23 @@ public sealed class ConfiguredLogicService(
             FailureKind.NotFound,
             "The requested Configured Logic was not found.");
 
+    public async Task<ConfiguredLogicDefinition> GetRequiredInScopeAsync(
+        Guid configuredLogicId,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        return await repository.GetInScopeAsync(
+                   configuredLogicId,
+                   allowedAssetIds,
+                   cancellationToken) ??
+               throw new WellSiteAutoPilotException(
+                   "CONFIGURED_LOGIC_NOT_FOUND",
+                   FailureKind.NotFound,
+                   "The requested Configured Logic was not found.");
+    }
+
     public Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListAsync(
         int limit,
         CancellationToken cancellationToken = default)
@@ -243,6 +260,27 @@ public sealed class ConfiguredLogicService(
         }
 
         return repository.ListAsync(limit, cancellationToken);
+    }
+
+    public Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListInScopeAsync(
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (limit is < 1 or > 500)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Configured Logic list limit must be between 1 and 500.");
+        }
+
+        return repository.ListInScopeAsync(
+            limit,
+            allowedAssetIds,
+            cancellationToken);
     }
 
     private async Task<IReadOnlyCollection<ConfiguredLogicAssetBinding>> ValidateAssetBindingsAsync(

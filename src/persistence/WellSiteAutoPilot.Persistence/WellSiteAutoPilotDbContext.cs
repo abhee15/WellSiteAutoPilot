@@ -1,16 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Persistence.Assets;
+using WellSiteAutoPilot.Persistence.Audit;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Messaging;
 using WellSiteAutoPilot.Persistence.Logic;
 using WellSiteAutoPilot.Persistence.Recommendations;
+using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence;
 
 public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilotDbContext> options)
     : DbContext(options)
 {
+    public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
@@ -23,10 +26,28 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
+    public DbSet<UserEntity> Users => Set<UserEntity>();
+    public DbSet<UserRoleEntity> UserRoles => Set<UserRoleEntity>();
+    public DbSet<UserAssetScopeEntity> UserAssetScopes => Set<UserAssetScopeEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
+
+        var auditEvent = modelBuilder.Entity<AuditEventEntity>();
+        auditEvent.ToTable("audit_events", "audit");
+        auditEvent.HasKey(x => x.Id);
+        auditEvent.Property(x => x.OccurredAtUtc).IsRequired();
+        auditEvent.Property(x => x.ActorIdentity).HasMaxLength(256).IsRequired();
+        auditEvent.Property(x => x.Action).HasMaxLength(128).IsRequired();
+        auditEvent.Property(x => x.TargetType).HasMaxLength(128).IsRequired();
+        auditEvent.Property(x => x.TargetId).HasMaxLength(256);
+        auditEvent.Property(x => x.CorrelationId).HasMaxLength(128);
+        auditEvent.Property(x => x.DetailsJson).IsRequired();
+        auditEvent.HasIndex(x => x.OccurredAtUtc);
+        auditEvent.HasIndex(x => x.ActorUserId);
+        auditEvent.HasIndex(x => x.Action);
+        auditEvent.HasIndex(x => x.AssetId);
 
         var assetType = modelBuilder.Entity<AssetTypeEntity>();
         assetType.ToTable("asset_types", "assets");
@@ -203,6 +224,42 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         recommendation.HasOne<ConfiguredLogicRevisionEntity>()
             .WithMany()
             .HasForeignKey(x => x.ConfigurationRevisionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        var user = modelBuilder.Entity<UserEntity>();
+        user.ToTable("users", "security");
+        user.HasKey(x => x.Id);
+        user.Property(x => x.IdentityKey).HasMaxLength(256).IsRequired();
+        user.Property(x => x.IdentityName).HasMaxLength(256).IsRequired();
+        user.Property(x => x.NormalizedIdentityName).HasMaxLength(256).IsRequired();
+        user.Property(x => x.DisplayName).HasMaxLength(256);
+        user.Property(x => x.IsActive).IsRequired();
+        user.Property(x => x.CreatedAtUtc).IsRequired();
+        user.Property(x => x.LastSeenAtUtc).IsRequired();
+        user.HasIndex(x => x.IdentityKey).IsUnique();
+        user.HasIndex(x => x.NormalizedIdentityName);
+
+        var userRole = modelBuilder.Entity<UserRoleEntity>();
+        userRole.ToTable("user_roles", "security");
+        userRole.HasKey(x => new { x.UserId, x.Role });
+        userRole.Property(x => x.Role).HasMaxLength(32).IsRequired();
+        userRole.HasIndex(x => x.Role);
+        userRole.HasOne<UserEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var userAssetScope = modelBuilder.Entity<UserAssetScopeEntity>();
+        userAssetScope.ToTable("user_asset_scopes", "security");
+        userAssetScope.HasKey(x => new { x.UserId, x.AssetId });
+        userAssetScope.HasIndex(x => x.AssetId);
+        userAssetScope.HasOne<UserEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        userAssetScope.HasOne<AssetEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
 
         var outbox = modelBuilder.Entity<OutboxMessageEntity>();

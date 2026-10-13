@@ -1,10 +1,14 @@
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Negotiate;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.Assets;
 using WellSiteAutoPilot.Api.Contracts.Executions;
 using WellSiteAutoPilot.Api.Contracts.Logic;
 using WellSiteAutoPilot.Api.Contracts.ConfiguredLogic;
 using WellSiteAutoPilot.Api.Contracts.System;
+using WellSiteAutoPilot.Api.Contracts.Security;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
@@ -12,14 +16,18 @@ using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Application.Recommendations;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
+using WellSiteAutoPilot.Domain.Security;
 using WellSiteAutoPilot.Http;
+using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Server.Scheduling;
+using WellSiteAutoPilot.Server.Security;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -33,6 +41,53 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Server";
 });
 builder.Services.AddHealthChecks();
+var securityOptions = SecurityOptionsLoader.Load(
+    builder.Configuration);
+builder.Services.Configure<SecurityOptions>(
+    options =>
+    {
+        options.AuthenticationMode = securityOptions.AuthenticationMode;
+        options.BootstrapAdministrators =
+            securityOptions.BootstrapAdministrators;
+    });
+
+var authenticationMode = securityOptions.AuthenticationMode;
+
+if (string.Equals(
+        authenticationMode,
+        SecurityOptions.TestHeaderAuthenticationMode,
+        StringComparison.OrdinalIgnoreCase))
+{
+    if (!builder.Environment.IsDevelopment() &&
+        !builder.Environment.IsEnvironment("CI"))
+    {
+        throw new InvalidOperationException(
+            "TestHeader authentication is permitted only in Development or CI.");
+    }
+
+    builder.Services
+        .AddAuthentication(TestHeaderAuthenticationHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, TestHeaderAuthenticationHandler>(
+            TestHeaderAuthenticationHandler.SchemeName,
+            _ => { });
+}
+else if (string.Equals(
+             authenticationMode,
+             SecurityOptions.NegotiateAuthenticationMode,
+             StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services
+        .AddAuthentication(NegotiateDefaults.AuthenticationScheme)
+        .AddNegotiate();
+}
+else
+{
+    throw new InvalidOperationException(
+        $"Unsupported Security:AuthenticationMode '{authenticationMode}'.");
+}
+
+builder.Services.AddAuthorization(WellSitePolicies.AddPolicies);
+
 builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services
@@ -76,6 +131,8 @@ builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
+builder.Services.AddScoped<UserAccessService>();
+builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
 builder.Services.AddScoped<OutboxPublisher>();
@@ -108,11 +165,15 @@ if (swaggerEnabled)
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseMiddleware<UserAccessClaimsMiddleware>();
+app.UseAuthorization();
 
 var productApi = app.NewVersionedApi("WellSite AutoPilot API");
 var v1 = productApi
     .MapGroup("/api/v{version:apiVersion}")
-    .HasApiVersion(1.0);
+    .HasApiVersion(1.0)
+    .RequireAuthorization();
 
 v1.MapGet(
     "/system/info",
@@ -135,6 +196,81 @@ v1.MapGet(
         StatusCodes.Status500InternalServerError,
         "application/problem+json");
 
+v1.MapGet(
+    "/security/me",
+    async (
+        HttpContext httpContext,
+        UserAccessService userAccessService,
+        CancellationToken cancellationToken) =>
+    {
+        var user = await userAccessService.GetRequiredAsync(
+            GetCurrentUserId(httpContext.User),
+            cancellationToken);
+
+        return new CurrentUserResponse(
+            user.Id,
+            user.IdentityName,
+            user.DisplayName,
+            user.IsActive,
+            user.Roles.Select(item => item.ToString()).ToArray(),
+            user.AssetScopeIds.ToArray());
+    })
+    .WithName("GetCurrentUser")
+    .Produces<CurrentUserResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status401Unauthorized);
+
+v1.MapGet(
+    "/security/users",
+    async (
+        int? limit,
+        UserAccessService userAccessService,
+        CancellationToken cancellationToken) =>
+        (await userAccessService.ListAsync(
+            limit ?? 100,
+            cancellationToken))
+        .Select(ToSecurityUserResponse)
+        .ToArray())
+    .WithName("ListSecurityUsers")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<SecurityUserResponse[]>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapPut(
+    "/security/users/{userId:guid}/access",
+    async (
+        Guid userId,
+        ReplaceUserAccessRequest request,
+        UserAccessService userAccessService,
+        HttpContext httpContext,
+        CancellationToken cancellationToken) =>
+    {
+        var roles = ParseApplicationRoles(request.Roles);
+        var updated = await userAccessService.ReplaceAccessAsync(
+            userId,
+            roles,
+            request.AssetScopeIds ?? [],
+            new SecurityActorContext(
+                GetCurrentUserId(httpContext.User),
+                httpContext.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(httpContext)),
+            cancellationToken);
+
+        return ToSecurityUserResponse(updated);
+    })
+    .WithName("ReplaceSecurityUserAccess")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<SecurityUserResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest,
+        "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status404NotFound,
+        "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict,
+        "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 v1.MapPost(
     "/asset-types",
     async (
@@ -154,6 +290,7 @@ v1.MapPost(
             ToAssetTypeResponse(assetType));
     })
     .WithName("CreateAssetType")
+    .RequireAuthorization(WellSitePolicies.AssetsManage)
     .Produces<AssetTypeResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
@@ -165,6 +302,7 @@ v1.MapGet(
             .Select(ToAssetTypeResponse)
             .ToArray())
     .WithName("ListAssetTypes")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetTypeResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
@@ -176,6 +314,7 @@ v1.MapGet(
         ToAssetTypeResponse(
             await assetService.GetRequiredAssetTypeAsync(assetTypeId, cancellationToken)))
     .WithName("GetAssetType")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetTypeResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
@@ -184,8 +323,21 @@ v1.MapPost(
     async (
         CreateAssetRequest request,
         AssetService assetService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        if (request.ParentAssetId is Guid parentAssetId)
+        {
+            assetScopeAuthorizer.RequireAsset(
+                httpContext.User,
+                parentAssetId);
+        }
+        else
+        {
+            assetScopeAuthorizer.RequireAdministrator(httpContext.User);
+        }
+
         var asset = await assetService.CreateAssetAsync(
             new CreateAssetCommand(
                 request.AssetTypeId,
@@ -199,6 +351,7 @@ v1.MapPost(
             ToAssetResponse(asset));
     })
     .WithName("CreateAsset")
+    .RequireAuthorization(WellSitePolicies.AssetsManage)
     .Produces<AssetResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -210,15 +363,30 @@ v1.MapGet(
         Guid? parentAssetId,
         int? limit,
         AssetService assetService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        (await assetService.ListAssetsAsync(
-            assetTypeId,
-            parentAssetId,
-            limit ?? 100,
-            cancellationToken))
-        .Select(ToAssetResponse)
-        .ToArray())
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var assets = allowedAssetIds is null
+            ? await assetService.ListAssetsAsync(
+                assetTypeId,
+                parentAssetId,
+                limit ?? 100,
+                cancellationToken)
+            : await assetService.ListAssetsInScopeAsync(
+                assetTypeId,
+                parentAssetId,
+                limit ?? 100,
+                allowedAssetIds,
+                cancellationToken);
+
+        return assets.Select(ToAssetResponse).ToArray();
+    })
     .WithName("ListAssets")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
@@ -226,9 +394,21 @@ v1.MapGet(
     async (
         Guid assetId,
         AssetService assetService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToAssetResponse(await assetService.GetRequiredAssetAsync(assetId, cancellationToken)))
+    {
+        assetScopeAuthorizer.RequireAsset(
+            httpContext.User,
+            assetId);
+
+        return ToAssetResponse(
+            await assetService.GetRequiredAssetAsync(
+                assetId,
+                cancellationToken));
+    })
     .WithName("GetAsset")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
@@ -237,8 +417,14 @@ v1.MapPost(
     async (
         CreateConfiguredLogicRequest request,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        assetScopeAuthorizer.RequireAssets(
+            httpContext.User,
+            request.AssetBindings.Select(binding => binding.AssetId));
+
         var created = await service.CreateAsync(
             new CreateConfiguredLogicCommand(
                 request.Name,
@@ -272,6 +458,7 @@ v1.MapPost(
             ToConfiguredLogicResponse(created));
     })
     .WithName("CreateConfiguredLogic")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -281,11 +468,28 @@ v1.MapGet(
     async (
         int? limit,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        (await service.ListAsync(limit ?? 100, cancellationToken))
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var configuredLogic = allowedAssetIds is null
+            ? await service.ListAsync(
+                limit ?? 100,
+                cancellationToken)
+            : await service.ListInScopeAsync(
+                limit ?? 100,
+                allowedAssetIds,
+                cancellationToken);
+
+        return configuredLogic
             .Select(ToConfiguredLogicResponse)
-            .ToArray())
+            .ToArray();
+    })
     .WithName("ListConfiguredLogic")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
     .Produces<ConfiguredLogicResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
@@ -294,10 +498,26 @@ v1.MapGet(
     async (
         Guid configuredLogicId,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToConfiguredLogicResponse(
-            await service.GetRequiredAsync(configuredLogicId, cancellationToken)))
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var configuredLogic = allowedAssetIds is null
+            ? await service.GetRequiredAsync(
+                configuredLogicId,
+                cancellationToken)
+            : await service.GetRequiredInScopeAsync(
+                configuredLogicId,
+                allowedAssetIds,
+                cancellationToken);
+
+        return ToConfiguredLogicResponse(configuredLogic);
+    })
     .WithName("GetConfiguredLogic")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
     .Produces<ConfiguredLogicResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
@@ -307,8 +527,25 @@ v1.MapPost(
         Guid configuredLogicId,
         CreateConfiguredLogicRevisionRequest request,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        if (allowedAssetIds is not null)
+        {
+            _ = await service.GetRequiredInScopeAsync(
+                configuredLogicId,
+                allowedAssetIds,
+                cancellationToken);
+
+            assetScopeAuthorizer.RequireAssets(
+                httpContext.User,
+                request.AssetBindings.Select(binding => binding.AssetId));
+        }
+
         var revision = await service.CreateRevisionAsync(
             configuredLogicId,
             new CreateConfiguredLogicRevisionCommand(
@@ -342,6 +579,7 @@ v1.MapPost(
             ToConfiguredLogicRevisionResponse(revision));
     })
     .WithName("CreateConfiguredLogicRevision")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -352,13 +590,29 @@ v1.MapPost(
         Guid configuredLogicId,
         Guid revisionId,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToConfiguredLogicRevisionResponse(
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        if (allowedAssetIds is not null)
+        {
+            _ = await service.GetRequiredInScopeAsync(
+                configuredLogicId,
+                allowedAssetIds,
+                cancellationToken);
+        }
+
+        return ToConfiguredLogicRevisionResponse(
             await service.ValidateRevisionAsync(
                 configuredLogicId,
                 revisionId,
-                cancellationToken)))
+                cancellationToken));
+    })
     .WithName("ValidateConfiguredLogicRevision")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
@@ -370,13 +624,29 @@ v1.MapPost(
         Guid configuredLogicId,
         Guid revisionId,
         ConfiguredLogicService service,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToConfiguredLogicRevisionResponse(
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        if (allowedAssetIds is not null)
+        {
+            _ = await service.GetRequiredInScopeAsync(
+                configuredLogicId,
+                allowedAssetIds,
+                cancellationToken);
+        }
+
+        return ToConfiguredLogicRevisionResponse(
             await service.ActivateRevisionAsync(
                 configuredLogicId,
                 revisionId,
-                cancellationToken)))
+                cancellationToken));
+    })
     .WithName("ActivateConfiguredLogicRevision")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
@@ -387,14 +657,28 @@ v1.MapGet(
         string? status,
         int? limit,
         ExecutionService executionService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        (await executionService.ListAsync(
-            status,
-            limit ?? 50,
-            cancellationToken))
-        .Select(ToResponse)
-        .ToArray())
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var executions = allowedAssetIds is null
+            ? await executionService.ListAsync(
+                status,
+                limit ?? 50,
+                cancellationToken)
+            : await executionService.ListInScopeAsync(
+                status,
+                limit ?? 50,
+                allowedAssetIds,
+                cancellationToken);
+
+        return executions.Select(ToResponse).ToArray();
+    })
     .WithName("ListExecutions")
+    .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status400BadRequest,
@@ -405,9 +689,14 @@ v1.MapPost(
     async (
         RequestShadowExecutionRequest request,
         ExecutionService executionService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        assetScopeAuthorizer.RequireAsset(
+            httpContext.User,
+            request.AssetId);
+
         var execution = await executionService.RequestShadowAsync(
             new ShadowExecutionCommand(
                 request.LogicInstanceId,
@@ -425,6 +714,7 @@ v1.MapPost(
             ToResponse(execution));
     })
     .WithName("RequestShadowExecution")
+    .RequireAuthorization(WellSitePolicies.ExecutionsRequest)
     .Produces<ExecutionResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status400BadRequest,
@@ -438,9 +728,26 @@ v1.MapGet(
     async (
         Guid executionId,
         ExecutionService executionService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
         CancellationToken cancellationToken) =>
-        ToResponse(await executionService.GetRequiredAsync(executionId, cancellationToken)))
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var execution = allowedAssetIds is null
+            ? await executionService.GetRequiredAsync(
+                executionId,
+                cancellationToken)
+            : await executionService.GetRequiredInScopeAsync(
+                executionId,
+                allowedAssetIds,
+                cancellationToken);
+
+        return ToResponse(execution);
+    })
     .WithName("GetExecution")
+    .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status404NotFound,
@@ -468,6 +775,7 @@ v1.MapPost(
             ToLogicModuleResponse(module));
     })
     .WithName("RegisterLogicModule")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
     .Produces<LogicModuleResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
@@ -483,6 +791,7 @@ v1.MapGet(
             .Select(ToLogicModuleResponse)
             .ToArray())
     .WithName("ListLogicModules")
+    .RequireAuthorization(WellSitePolicies.LogicRead)
     .Produces<LogicModuleResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
@@ -495,15 +804,16 @@ v1.MapGet(
         ToLogicModuleResponse(
             await catalog.GetRequiredAsync(moduleId, moduleVersion, cancellationToken)))
     .WithName("GetLogicModule")
+    .RequireAuthorization(WellSitePolicies.LogicRead)
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
-});
+}).AllowAnonymous();
 
-app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health/ready").AllowAnonymous();
 
 app.Run();
 
@@ -604,5 +914,63 @@ static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.ResultCode,
     execution.FailureCode,
     execution.OutputJson);
+
+static SecurityUserResponse ToSecurityUserResponse(
+    WellSiteAutoPilot.Domain.Security.UserAccessProfile user) => new(
+    user.Id,
+    user.IdentityName,
+    user.DisplayName,
+    user.IsActive,
+    user.CreatedAtUtc,
+    user.LastSeenAtUtc,
+    user.Roles.Select(item => item.ToString()).ToArray(),
+    user.AssetScopeIds.ToArray());
+
+static Guid GetCurrentUserId(System.Security.Claims.ClaimsPrincipal user)
+{
+    var value = user.FindFirst(SecurityClaimTypes.UserId)?.Value;
+
+    if (!Guid.TryParse(value, out var userId))
+    {
+        throw new WellSiteAutoPilotException(
+            "SECURITY_USER_CONTEXT_REQUIRED",
+            FailureKind.Authorization,
+            "The authenticated WellSite AutoPilot user context is unavailable.");
+    }
+
+    return userId;
+}
+
+static IReadOnlyCollection<ApplicationRole> ParseApplicationRoles(
+    IReadOnlyCollection<string>? roleNames)
+{
+    if (roleNames is null)
+    {
+        throw new WellSiteAutoPilotException(
+            FailureCodes.ValidationFailed,
+            FailureKind.Validation,
+            "Roles are required.");
+    }
+
+    var roles = new List<ApplicationRole>();
+
+    foreach (var roleName in roleNames)
+    {
+        if (!Enum.TryParse<ApplicationRole>(
+                roleName,
+                ignoreCase: true,
+                out var role))
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                $"Unknown application role '{roleName}'.");
+        }
+
+        roles.Add(role);
+    }
+
+    return roles.Distinct().OrderBy(item => item).ToArray();
+}
 
 public partial class Program;

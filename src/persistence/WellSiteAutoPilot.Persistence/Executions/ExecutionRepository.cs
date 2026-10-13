@@ -132,12 +132,78 @@ public sealed class ExecutionRepository(
         return entity is null ? null : ToDomain(entity);
     }
 
+    public async Task<ExecutionRecord?> GetInScopeAsync(
+        Guid executionId,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (allowedAssetIds.Count == 0)
+        {
+            return null;
+        }
+
+        var ids = allowedAssetIds.Distinct().ToArray();
+        var entity = await dbContext.Executions
+            .AsNoTracking()
+            .Where(item => item.Id == executionId)
+            .Where(execution =>
+                dbContext.ExecutionAssetScopes.Any(
+                    scope => scope.ExecutionId == execution.Id) &&
+                !dbContext.ExecutionAssetScopes.Any(
+                    scope =>
+                        scope.ExecutionId == execution.Id &&
+                        !ids.Contains(scope.AssetId)))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return entity is null ? null : ToDomain(entity);
+    }
+
     public async Task<IReadOnlyCollection<ExecutionRecord>> ListAsync(
         ExecutionStatus? status,
         int limit,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.Executions.AsNoTracking();
+
+        if (status is not null)
+        {
+            var statusName = status.Value.ToString();
+            query = query.Where(item => item.Status == statusName);
+        }
+
+        return (await query
+            .OrderByDescending(item => item.RequestedAtUtc)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken))
+            .Select(ToDomain)
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<ExecutionRecord>> ListInScopeAsync(
+        ExecutionStatus? status,
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (allowedAssetIds.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = allowedAssetIds.Distinct().ToArray();
+        var query = dbContext.Executions
+            .AsNoTracking()
+            .Where(execution =>
+                dbContext.ExecutionAssetScopes.Any(
+                    scope => scope.ExecutionId == execution.Id) &&
+                !dbContext.ExecutionAssetScopes.Any(
+                    scope =>
+                        scope.ExecutionId == execution.Id &&
+                        !ids.Contains(scope.AssetId)));
 
         if (status is not null)
         {

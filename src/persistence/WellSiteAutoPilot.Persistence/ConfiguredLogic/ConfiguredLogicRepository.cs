@@ -56,6 +56,50 @@ public sealed class ConfiguredLogicRepository(
         return ToDomain(definition, revisions);
     }
 
+    public async Task<ConfiguredLogicDefinition?> GetInScopeAsync(
+        Guid configuredLogicId,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (allowedAssetIds.Count == 0)
+        {
+            return null;
+        }
+
+        var ids = allowedAssetIds.Distinct().ToArray();
+        var definition = await dbContext.ConfiguredLogicDefinitions
+            .AsNoTracking()
+            .Where(item => item.Id == configuredLogicId)
+            .Where(item =>
+                dbContext.ConfiguredLogicRevisions.Any(
+                    revision =>
+                        revision.ConfiguredLogicId == item.Id &&
+                        dbContext.ConfiguredLogicAssetBindings.Any(
+                            binding =>
+                                binding.RevisionId == revision.Id)) &&
+                !dbContext.ConfiguredLogicRevisions.Any(
+                    revision =>
+                        revision.ConfiguredLogicId == item.Id &&
+                        dbContext.ConfiguredLogicAssetBindings.Any(
+                            binding =>
+                                binding.RevisionId == revision.Id &&
+                                !ids.Contains(binding.AssetId))))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (definition is null)
+        {
+            return null;
+        }
+
+        var revisions = await LoadRevisionsAsync(
+            configuredLogicId,
+            cancellationToken);
+
+        return ToDomain(definition, revisions);
+    }
+
     public async Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListAsync(
         int limit,
         CancellationToken cancellationToken = default)
@@ -71,6 +115,53 @@ public sealed class ConfiguredLogicRepository(
         foreach (var definition in definitions)
         {
             var revisions = await LoadRevisionsAsync(definition.Id, cancellationToken);
+            results.Add(ToDomain(definition, revisions));
+        }
+
+        return results;
+    }
+
+    public async Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListInScopeAsync(
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(allowedAssetIds);
+
+        if (allowedAssetIds.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = allowedAssetIds.Distinct().ToArray();
+
+        var definitions = await dbContext.ConfiguredLogicDefinitions
+            .AsNoTracking()
+            .Where(definition =>
+                dbContext.ConfiguredLogicRevisions.Any(
+                    revision =>
+                        revision.ConfiguredLogicId == definition.Id &&
+                        dbContext.ConfiguredLogicAssetBindings.Any(
+                            binding =>
+                                binding.RevisionId == revision.Id)) &&
+                !dbContext.ConfiguredLogicRevisions.Any(
+                    revision =>
+                        revision.ConfiguredLogicId == definition.Id &&
+                        dbContext.ConfiguredLogicAssetBindings.Any(
+                            binding =>
+                                binding.RevisionId == revision.Id &&
+                                !ids.Contains(binding.AssetId))))
+            .OrderBy(item => item.Name)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken);
+
+        var results = new List<ConfiguredLogicDefinition>(definitions.Length);
+
+        foreach (var definition in definitions)
+        {
+            var revisions = await LoadRevisionsAsync(
+                definition.Id,
+                cancellationToken);
             results.Add(ToDomain(definition, revisions));
         }
 

@@ -2,6 +2,8 @@ Unicode true
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "FileFunc.nsh"
+!include "nsDialogs.nsh"
 
 !ifndef VERSION
   !define VERSION "0.1.0-dev"
@@ -28,6 +30,9 @@ RequestExecutionLevel admin
 ShowInstDetails show
 ShowUninstDetails show
 
+Var BootstrapAdmin
+Var BootstrapAdminInput
+
 VIProductVersion "0.1.0.0"
 VIAddVersionKey /LANG=1033 "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey /LANG=1033 "CompanyName" "${COMPANY_NAME}"
@@ -37,6 +42,7 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
 !define MUI_ABORTWARNING
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
+Page custom BootstrapAdminPageCreate BootstrapAdminPageLeave
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -44,6 +50,41 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+Function .onInit
+  ${GetParameters} $R0
+  ${GetOptions} $R0 "/BOOTSTRAPADMIN=" $BootstrapAdmin
+FunctionEnd
+
+Function BootstrapAdminPageCreate
+  IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" 0 +2
+    Abort
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  !insertmacro MUI_HEADER_TEXT "Bootstrap Administrator" "Choose the initial WellSite AutoPilot administrator."
+
+  ${NSD_CreateLabel} 0 0 100% 28u "Enter an explicit Windows identity (DOMAIN\user, MACHINE\user, or user@domain). This identity is used only while the system has no active WellSite AutoPilot Admin."
+  Pop $0
+
+  ${NSD_CreateText} 0 34u 100% 13u "$BootstrapAdmin"
+  Pop $BootstrapAdminInput
+
+  nsDialogs::Show
+FunctionEnd
+
+Function BootstrapAdminPageLeave
+  ${NSD_GetText} $BootstrapAdminInput $BootstrapAdmin
+
+  ${If} $BootstrapAdmin == ""
+    MessageBox MB_ICONSTOP "A bootstrap Windows administrator identity is required for a fresh installation."
+    Abort
+  ${EndIf}
+FunctionEnd
 
 Section "WellSite AutoPilot" SEC_CORE
   SetShellVarContext all
@@ -96,7 +137,19 @@ Section "WellSite AutoPilot" SEC_CORE
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
 
+  IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSecuritySettings FreshSecuritySettings
+
+FreshSecuritySettings:
+  ${If} $BootstrapAdmin == ""
+    Abort "Fresh WellSite AutoPilot installation requires /BOOTSTRAPADMIN=<WindowsIdentity> in silent mode."
+  ${EndIf}
+  ExecWait '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR" --bootstrap-admin "$BootstrapAdmin"' $0
+  Goto ServicesInstalled
+
+ExistingSecuritySettings:
   ExecWait '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR"' $0
+
+ServicesInstalled:
   ${If} $0 != 0
     Abort "WellSite AutoPilot service registration failed with exit code $0."
   ${EndIf}
