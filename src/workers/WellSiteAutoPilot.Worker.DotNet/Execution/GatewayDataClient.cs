@@ -8,6 +8,13 @@ public sealed class GatewayDataClient(HttpClient httpClient)
     public async Task<EngineeringValue> GetCurrentAsync(
         string assetExternalId,
         string quantity,
+        CancellationToken cancellationToken = default) =>
+        await GetCurrentAsync(null, assetExternalId, quantity, cancellationToken);
+
+    public async Task<EngineeringValue> GetCurrentAsync(
+        string? providerId,
+        string assetExternalId,
+        string quantity,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetExternalId);
@@ -16,6 +23,11 @@ public sealed class GatewayDataClient(HttpClient httpClient)
         var url =
             $"/api/internal/v1/data/current?assetExternalId={Uri.EscapeDataString(assetExternalId)}" +
             $"&quantity={Uri.EscapeDataString(quantity)}";
+
+        if (!string.IsNullOrWhiteSpace(providerId))
+        {
+            url += $"&providerId={Uri.EscapeDataString(providerId)}";
+        }
 
         using var response = await httpClient.GetAsync(url, cancellationToken);
         response.EnsureSuccessStatusCode();
