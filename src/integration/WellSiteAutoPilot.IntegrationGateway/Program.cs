@@ -41,9 +41,11 @@ builder.Services.AddHttpClient<SimulatorCurrentDataProvider>(client =>
         "http://127.0.0.1:5091");
     client.Timeout = TimeSpan.FromSeconds(5);
 });
-builder.Services.AddTransient<ICurrentDataProvider>(
-    serviceProvider =>
-        serviceProvider.GetRequiredService<SimulatorCurrentDataProvider>());
+builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
+    new CurrentDataProviderRouter(
+        [new KeyValuePair<string, ICurrentDataProvider>(
+            "simulator", services.GetRequiredService<SimulatorCurrentDataProvider>())],
+        "simulator"));
 builder.Services.AddTransient<IProviderHealthProvider>(
     serviceProvider =>
         serviceProvider.GetRequiredService<SimulatorCurrentDataProvider>());
@@ -97,10 +99,12 @@ v1.MapGet(
     async (
         string assetExternalId,
         string quantity,
-        ICurrentDataProvider provider,
+        string? providerId,
+        CurrentDataProviderRouter provider,
         CancellationToken cancellationToken) =>
         Results.Ok(
             await provider.GetCurrentAsync(
+                providerId,
                 assetExternalId,
                 quantity,
                 cancellationToken)))
