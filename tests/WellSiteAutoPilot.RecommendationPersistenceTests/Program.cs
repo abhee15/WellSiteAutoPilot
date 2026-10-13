@@ -572,7 +572,7 @@ var replayedAuditCount = await dbContext.AuditEvents.AsNoTracking()
 if (replayedAfterApproval != 0 ||
     replayedRecommendation is null ||
     replayedRecommendation.Status != RecommendationStatus.Approved ||
-    replayedRecommendation.DecisionBy != "FIELD\\\\reviewer" ||
+    replayedRecommendation.DecisionBy != "FIELD\\reviewer" ||
     replayedRecommendation.DecisionReason != "Validated against operational conditions" ||
     replayedRecommendation.DecisionAtUtc != clock.GetUtcNow() ||
     replayedRecommendation.ControlActionId is not null ||
