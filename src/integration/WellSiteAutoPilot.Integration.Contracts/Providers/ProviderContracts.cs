@@ -181,7 +181,7 @@ public interface IVerificationProvider
 /// falling back to a different data source when an identifier is unknown.</summary>
 public sealed class CurrentDataProviderRouter
 {
-    private readonly IReadOnlyDictionary<string, ICurrentDataProvider> _providers;
+    private readonly Dictionary<string, ICurrentDataProvider> _providers;
     private readonly string _defaultProviderId;
 
     public CurrentDataProviderRouter(
