@@ -393,6 +393,18 @@ if (await recommendationRepository.TryDecideAsync(
     throw new InvalidOperationException("A second decision overwrote approval.");
 }
 
+var approvalAudit = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString() &&
+        item.Action == "recommendation.approved")
+    .ToArrayAsync();
+if (approvalAudit.Length != 1 ||
+    approvalAudit[0].AssetId != well.Id ||
+    approvalAudit[0].ActorIdentity != "FIELD\\\\reviewer")
+{
+    throw new InvalidOperationException("Recommendation approval audit was not persisted exactly once.");
+}
+
 var approved = (await recommendationRepository.ListByExecutionAsync(
     recommendationExecution.Id)).Single();
 if (approved.Status != RecommendationStatus.Approved ||
