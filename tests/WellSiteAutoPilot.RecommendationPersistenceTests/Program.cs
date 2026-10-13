@@ -415,6 +415,29 @@ foreach (var invalidActor in new[] { " ", new string('a', 257), "reviewer\nother
     }
 }
 
+// Rejected metadata must leave the recommendation undecided and must not write audit events.
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        new string('x', 1025),
+        [well.Id]);
+    throw new InvalidOperationException("Oversized decision reason was accepted.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_DECISION_METADATA_INVALID")
+{
+}
+
+if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
+    await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString()) != 0)
+{
+    throw new InvalidOperationException("Invalid decision metadata changed state or emitted an audit event.");
+}
+
 // Approval is a compare-and-set transition; repeated or competing decisions must fail.
 var decidedAt = clock.GetUtcNow().AddMinutes(2);
 var approvedDecision = await decisionService.DecideAsync(
@@ -463,21 +486,6 @@ if (approved.Status != RecommendationStatus.Approved ||
 {
     throw new InvalidOperationException(
         "Recommendation approval was not persisted or incorrectly created a control action.");
-}
-
-try
-{
-    await decisionService.DecideAsync(
-        recommendation.Id,
-        RecommendationStatus.Approved,
-        "reviewer",
-        new string('x', 1025),
-        [well.Id]);
-    throw new InvalidOperationException("Oversized decision reason was accepted.");
-}
-catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
-    when (exception.Code == "RECOMMENDATION_DECISION_METADATA_INVALID")
-{
 }
 
 try
