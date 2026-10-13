@@ -41,10 +41,16 @@ builder.Services.AddHttpClient<SimulatorCurrentDataProvider>(client =>
         "http://127.0.0.1:5091");
     client.Timeout = TimeSpan.FromSeconds(5);
 });
+// The circuit breaker is shared across requests so failures are counted across
+// executions, rather than resetting for each incoming HTTP request.
+builder.Services.AddSingleton<CircuitBreakingCurrentDataProvider>(services =>
+    new CircuitBreakingCurrentDataProvider(
+        services.GetRequiredService<SimulatorCurrentDataProvider>(),
+        TimeProvider.System));
 builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
     new CurrentDataProviderRouter(
         [new KeyValuePair<string, ICurrentDataProvider>(
-            "simulator", services.GetRequiredService<SimulatorCurrentDataProvider>())],
+            "simulator", services.GetRequiredService<CircuitBreakingCurrentDataProvider>())],
         "simulator"));
 builder.Services.AddTransient<IProviderHealthProvider>(
     serviceProvider =>
