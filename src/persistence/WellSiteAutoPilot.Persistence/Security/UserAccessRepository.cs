@@ -337,6 +337,34 @@ public sealed class UserAccessRepository(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task<bool> TryBootstrapAdministratorAsync(
+        Guid userId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        // Serialize bootstrap attempts across application instances and keep the
+        // administrator-existence check, role grant, and audit in one transaction.
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "SELECT pg_advisory_xact_lock(2147483000, 1)", cancellationToken);
+
+        var userIsActive = await dbContext.Users.AnyAsync(
+            item => item.Id == userId && item.IsActive, cancellationToken);
+        if (!userIsActive ||
+            await HasActiveUserInRoleAsync(ApplicationRole.Admin, cancellationToken))
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return false;
+        }
+
+        await EnsureRoleAsync(
+            userId, ApplicationRole.Admin, SecurityActorContext.Bootstrap,
+            occurredAtUtc, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
     public Task<bool> HasActiveUserInRoleAsync(
         ApplicationRole role,
         CancellationToken cancellationToken = default)
