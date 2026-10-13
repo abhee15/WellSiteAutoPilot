@@ -86,6 +86,36 @@ if (simulatorAdapter.CallCount != 1 || secondaryAdapter.CallCount != 1)
     throw new InvalidOperationException("Unknown provider triggered an adapter read.");
 }
 
+// Repeated provider failures open a circuit rather than flooding an unhealthy
+// SCADA adapter. Failed reads must never fall back to simulator data.
+var broken = new FailingCurrentDataProvider();
+var guarded = new CircuitBreakingCurrentDataProvider(
+    broken, TimeProvider.System, 2, TimeSpan.FromMinutes(1));
+for (var attempt = 0; attempt < 2; attempt++)
+{
+    try
+    {
+        await guarded.GetCurrentAsync("WELL-101", "Pressure");
+        throw new InvalidOperationException("Expected adapter failure.");
+    }
+    catch (HttpRequestException)
+    {
+    }
+}
+try
+{
+    await guarded.GetCurrentAsync("WELL-101", "Pressure");
+    throw new InvalidOperationException("Open circuit allowed a provider read.");
+}
+catch (InvalidOperationException exception)
+    when (exception.Message.Contains("circuit is open", StringComparison.Ordinal))
+{
+}
+if (broken.CallCount != 2)
+{
+    throw new InvalidOperationException("Circuit breaker did not suppress failed reads.");
+}
+
 Console.WriteLine("Provider-neutral adapter contract checks passed.");
 return 0;
 
@@ -101,5 +131,19 @@ file sealed class StubCurrentDataProvider(string id) : ICurrentDataProvider
         CallCount++;
         return ValueTask.FromResult(new EngineeringValue(
             quantity, 42m, "psi", DateTimeOffset.UtcNow, "Good", id));
+    }
+}
+
+file sealed class FailingCurrentDataProvider : ICurrentDataProvider
+{
+    public int CallCount { get; private set; }
+
+    public ValueTask<EngineeringValue> GetCurrentAsync(
+        string assetExternalId,
+        string quantity,
+        CancellationToken cancellationToken = default)
+    {
+        CallCount++;
+        throw new HttpRequestException("Provider unavailable.");
     }
 }
