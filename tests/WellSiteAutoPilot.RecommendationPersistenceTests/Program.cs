@@ -396,6 +396,25 @@ if (beforeUnauthorizedAuditCount != 0 ||
     throw new InvalidOperationException("Unauthorized decision modified state or wrote audit.");
 }
 
+// Invalid decision metadata must be rejected before any persistence transition.
+foreach (var invalidActor in new[] { " ", new string('a', 257), "reviewer\nother" })
+{
+    try
+    {
+        await decisionService.DecideAsync(
+            recommendation.Id,
+            RecommendationStatus.Approved,
+            invalidActor,
+            null,
+            [well.Id]);
+        throw new InvalidOperationException("Invalid decision actor was accepted.");
+    }
+    catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+        when (exception.Code is "RECOMMENDATION_DECISION_INVALID" or "RECOMMENDATION_DECISION_METADATA_INVALID")
+    {
+    }
+}
+
 // Approval is a compare-and-set transition; repeated or competing decisions must fail.
 var decidedAt = clock.GetUtcNow().AddMinutes(2);
 var approvedDecision = await decisionService.DecideAsync(
