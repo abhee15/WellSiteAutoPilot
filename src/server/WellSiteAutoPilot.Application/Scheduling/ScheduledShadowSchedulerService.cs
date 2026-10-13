@@ -37,11 +37,32 @@ public sealed class ScheduledShadowSchedulerService(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var decision = await DispatchCandidateAsync(
-                configuredLogic,
-                nowUtc,
-                cancellationToken);
-            decisions.Add(decision);
+            try
+            {
+                var decision = await DispatchCandidateAsync(
+                    configuredLogic,
+                    nowUtc,
+                    cancellationToken);
+                decisions.Add(decision);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                // Keep processing independent configured logic. No occurrence
+                // is marked as dispatched on this path; durable occurrence
+                // deduplication handles retries after ambiguous write failures.
+                decisions.Add(Decision(
+                    configuredLogic,
+                    configuredLogic.ActiveRevisionId is Guid activeRevisionId
+                        ? configuredLogic.Revisions.SingleOrDefault(item => item.Id == activeRevisionId)
+                        : null,
+                    null,
+                    ScheduledShadowDispatchOutcome.DispatchFailed,
+                    "SCHEDULER_DISPATCH_FAILED"));
+            }
         }
 
         return new ScheduledShadowSweepResult(
