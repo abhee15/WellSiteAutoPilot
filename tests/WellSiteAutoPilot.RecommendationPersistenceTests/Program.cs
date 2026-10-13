@@ -427,6 +427,14 @@ if (approvalAudit.Length != 1 ||
     throw new InvalidOperationException("Recommendation approval audit was not persisted exactly once.");
 }
 
+var decisionAuditCount = await dbContext.AuditEvents.AsNoTracking()
+    .CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString());
+if (decisionAuditCount != 1)
+{
+    throw new InvalidOperationException("Competing decision created duplicate audit events.");
+}
+
 var approved = (await recommendationRepository.ListByExecutionAsync(
     recommendationExecution.Id)).Single();
 if (approved.Status != RecommendationStatus.Approved ||
