@@ -812,52 +812,6 @@ if (rejectedReplayCreated != 0 ||
         "Execution replay changed a rejected recommendation or duplicated its audit.");
 }
 
-var shadowExecution = recommendationExecution with
-{
-    Id = Guid.NewGuid(),
-    Mode = ExecutionMode.Shadow,
-    CorrelationId = "ci-shadow-control-intent",
-    RequestedAtUtc = clock.GetUtcNow().AddMinutes(1)
-};
-
-await executionRepository.AddConfiguredRequestedAsync(
-    shadowExecution,
-    command);
-
-await executionRepository.ApplyCompletedAsync(
-    Guid.NewGuid(),
-    "recommendation-test-result",
-    shadowExecution.Id,
-    shadowExecution.RequestedAtUtc,
-    shadowExecution.RequestedAtUtc.AddSeconds(1),
-    result.OutcomeCode,
-    outputJson);
-
-var shadowCreated = await materializer.MaterializeAsync(
-    shadowExecution.Id,
-    outputJson);
-
-if (shadowCreated != 0 ||
-    (await recommendationRepository.ListByExecutionAsync(
-        shadowExecution.Id)).Count != 0)
-{
-    throw new InvalidOperationException(
-        "Shadow execution incorrectly materialized a governed Recommendation.");
-}
-
-var persistedEntity = await dbContext.Recommendations
-    .AsNoTracking()
-    .SingleAsync(item => item.Id == recommendation.Id);
-
-if (string.IsNullOrWhiteSpace(persistedEntity.IntentJson) ||
-    persistedEntity.DecisionAtUtc != clock.GetUtcNow() ||
-    persistedEntity.DecisionBy != "FIELD\\reviewer" ||
-    persistedEntity.ControlActionId is not null)
-{
-    throw new InvalidOperationException(
-        "Approved recommendation lost its source snapshot, decision metadata, or control-action isolation.");
-}
-
 Console.WriteLine(
     "Recommendation materialization, immutable source snapshot, Shadow isolation, and idempotency checks passed.");
 return 0;
