@@ -591,13 +591,13 @@ var stableApprovalAudits = await dbContext.AuditEvents.AsNoTracking()
     .ToArrayAsync();
 if (stableApproval is null ||
     stableApproval.Status != RecommendationStatus.Approved ||
-    stableApproval.DecisionBy != "FIELD\\\\reviewer" ||
+    stableApproval.DecisionBy != "FIELD\\reviewer" ||
     stableApproval.DecisionReason != "Validated against operational conditions" ||
     stableApproval.DecisionAtUtc != clock.GetUtcNow() ||
     stableApproval.ControlActionId is not null ||
     stableApprovalAudits.Length != 1 ||
     stableApprovalAudits[0].Action != "recommendation.approved" ||
-    stableApprovalAudits[0].ActorIdentity != "FIELD\\\\reviewer" ||
+    stableApprovalAudits[0].ActorIdentity != "FIELD\\reviewer" ||
     stableApprovalAudits[0].AssetId != well.Id)
 {
     throw new InvalidOperationException(
