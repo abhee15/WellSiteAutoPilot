@@ -16,11 +16,9 @@ public sealed class RecommendationDecisionService(
         RecommendationStatus decision,
         string actorIdentity,
         string? reason,
-        IReadOnlyCollection<Guid> authorizedAssetIds,
+        IReadOnlyCollection<Guid>? authorizedAssetIds,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(authorizedAssetIds);
-
         if (recommendationId == Guid.Empty ||
             decision is not (RecommendationStatus.Approved or RecommendationStatus.Rejected) ||
             string.IsNullOrWhiteSpace(actorIdentity))
@@ -47,7 +45,7 @@ public sealed class RecommendationDecisionService(
                 FailureKind.NotFound,
                 "Recommendation was not found.");
 
-        if (!authorizedAssetIds.Contains(snapshot.AssetId))
+        if (authorizedAssetIds is not null && !authorizedAssetIds.Contains(snapshot.AssetId))
         {
             throw new WellSiteAutoPilotException(
                 "RECOMMENDATION_ASSET_SCOPE_FORBIDDEN",
