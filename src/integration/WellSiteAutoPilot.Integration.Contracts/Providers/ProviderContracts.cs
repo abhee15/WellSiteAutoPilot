@@ -176,3 +176,52 @@ public interface IVerificationProvider
         ProviderVerificationRequest request,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Routes engineering reads to the explicitly selected provider without
+/// falling back to a different data source when an identifier is unknown.</summary>
+public sealed class CurrentDataProviderRouter
+{
+    private readonly IReadOnlyDictionary<string, ICurrentDataProvider> _providers;
+    private readonly string _defaultProviderId;
+
+    public CurrentDataProviderRouter(
+        IEnumerable<KeyValuePair<string, ICurrentDataProvider>> providers,
+        string defaultProviderId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(defaultProviderId);
+        var entries = providers.ToArray();
+        if (entries.Any(entry => string.IsNullOrWhiteSpace(entry.Key) || entry.Value is null))
+        {
+            throw new ArgumentException("Provider registrations require an identifier and adapter.", nameof(providers));
+        }
+
+        _providers = entries.ToDictionary(
+            entry => entry.Key,
+            entry => entry.Value,
+            StringComparer.OrdinalIgnoreCase);
+        if (!_providers.ContainsKey(defaultProviderId))
+        {
+            throw new ArgumentException("The default provider must be registered.", nameof(defaultProviderId));
+        }
+
+        _defaultProviderId = defaultProviderId;
+    }
+
+    public ValueTask<EngineeringValue> GetCurrentAsync(
+        string? providerId,
+        string assetExternalId,
+        string quantity,
+        CancellationToken cancellationToken = default)
+    {
+        var selectedId = string.IsNullOrWhiteSpace(providerId)
+            ? _defaultProviderId
+            : providerId;
+        if (!_providers.TryGetValue(selectedId, out var provider))
+        {
+            throw new ArgumentException(
+                $"Unknown current-data provider '{selectedId}'.", nameof(providerId));
+        }
+
+        return provider.GetCurrentAsync(assetExternalId, quantity, cancellationToken);
+    }
+}
