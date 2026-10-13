@@ -29,6 +29,13 @@ public interface IAssetRepository
         int limit,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<Asset>> ListAssetsInScopeAsync(
+        Guid? assetTypeId,
+        Guid? parentAssetId,
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default);
+
     Task AddAssetAsync(
         Asset asset,
         CancellationToken cancellationToken = default);

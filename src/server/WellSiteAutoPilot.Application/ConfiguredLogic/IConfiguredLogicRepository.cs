@@ -16,8 +16,18 @@ public interface IConfiguredLogicRepository
         Guid configuredLogicId,
         CancellationToken cancellationToken = default);
 
+    Task<ConfiguredLogicDefinition?> GetInScopeAsync(
+        Guid configuredLogicId,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListAsync(
         int limit,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListInScopeAsync(
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListActiveScheduledAsync(

@@ -5,11 +5,13 @@ using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Recommendations;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Logic;
 using WellSiteAutoPilot.Persistence.Recommendations;
+using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence;
 
@@ -29,6 +31,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IConfiguredLogicRepository, ConfiguredLogicRepository>();
         services.AddScoped<ILogicModuleCatalogRepository, LogicModuleCatalogRepository>();
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
+        services.AddScoped<IUserAccessRepository, UserAccessRepository>();
 
         return services;
     }

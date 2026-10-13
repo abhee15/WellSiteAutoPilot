@@ -17,9 +17,20 @@ public interface IExecutionRepository
         Guid executionId,
         CancellationToken cancellationToken = default);
 
+    Task<ExecutionRecord?> GetInScopeAsync(
+        Guid executionId,
+        IReadOnlyCollection<Guid> allowedAssetIds,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<ExecutionRecord>> ListAsync(
         ExecutionStatus? status,
         int limit,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<ExecutionRecord>> ListInScopeAsync(
+        ExecutionStatus? status,
+        int limit,
+        IReadOnlyCollection<Guid> allowedAssetIds,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<Guid>> GetAssetScopeAsync(
