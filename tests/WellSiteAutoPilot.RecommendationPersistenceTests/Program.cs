@@ -413,14 +413,13 @@ foreach (var invalidActor in new[] { " ", new string('a', 257), "reviewer\nother
         when (exception.Code is "RECOMMENDATION_DECISION_INVALID" or "RECOMMENDATION_DECISION_METADATA_INVALID")
     {
     }
-}
 
-// Every invalid actor must be rejected without changing state or emitting an audit event.
-if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
-    await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
-        item.TargetId == recommendation.Id.ToString()) != 0)
-{
-    throw new InvalidOperationException("Invalid decision actor changed state or emitted an audit event.");
+    if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
+        await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
+            item.TargetId == recommendation.Id.ToString()) != 0)
+    {
+        throw new InvalidOperationException("Invalid decision actor changed state or emitted an audit event.");
+    }
 }
 
 // Invalid decision reasons must not persist a decision or an audit event.
@@ -447,29 +446,6 @@ foreach (var invalidReason in new[] { new string('x', 1025), "reason\nwith newli
     {
         throw new InvalidOperationException("Invalid reason modified state or audit.");
     }
-}
-
-// Rejected metadata must leave the recommendation undecided and must not write audit events.
-try
-{
-    await decisionService.DecideAsync(
-        recommendation.Id,
-        RecommendationStatus.Approved,
-        "reviewer",
-        new string('x', 1025),
-        [well.Id]);
-    throw new InvalidOperationException("Oversized decision reason was accepted.");
-}
-catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
-    when (exception.Code == "RECOMMENDATION_DECISION_METADATA_INVALID")
-{
-}
-
-if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
-    await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
-        item.TargetId == recommendation.Id.ToString()) != 0)
-{
-    throw new InvalidOperationException("Invalid decision metadata changed state or emitted an audit event.");
 }
 
 // An explicitly empty authorized asset set must not grant access to the recommendation.
