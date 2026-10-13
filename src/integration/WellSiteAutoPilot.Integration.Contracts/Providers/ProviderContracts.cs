@@ -225,3 +225,76 @@ public sealed class CurrentDataProviderRouter
         return provider.GetCurrentAsync(assetExternalId, quantity, cancellationToken);
     }
 }
+
+    
+/// <summary>
+/// Rejects repeated calls to a failing provider for a bounded interval.
+/// An open circuit never redirects reads to a different provider.
+/// </summary>
+public sealed class CircuitBreakingCurrentDataProvider(
+    ICurrentDataProvider inner,
+    TimeProvider clock,
+    int failureThreshold = 3,
+    TimeSpan? recoveryDelay = null) : ICurrentDataProvider
+{
+    private readonly object _gate = new();
+    private readonly TimeSpan _recoveryDelay = recoveryDelay ?? TimeSpan.FromSeconds(30);
+    private int _consecutiveFailures;
+    private DateTimeOffset? _openUntil;
+    private bool _probeInProgress;
+
+    public async ValueTask<EngineeringValue> GetCurrentAsync(
+        string assetExternalId,
+        string quantity,
+        CancellationToken cancellationToken = default)
+    {
+        if (failureThreshold < 1 || _recoveryDelay <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(failureThreshold));
+        }
+
+        lock (_gate)
+        {
+            if (_openUntil is { } until)
+            {
+                if (clock.GetUtcNow() < until || _probeInProgress)
+                {
+                    throw new InvalidOperationException("Current-data provider circuit is open.");
+                }
+
+                _probeInProgress = true;
+            }
+        }
+
+        try
+        {
+            var value = await inner.GetCurrentAsync(
+                assetExternalId, quantity, cancellationToken);
+            lock (_gate)
+            {
+                _consecutiveFailures = 0;
+                _openUntil = null;
+                _probeInProgress = false;
+            }
+            return value;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            lock (_gate) { _probeInProgress = false; }
+            throw;
+        }
+        catch
+        {
+            lock (_gate)
+            {
+                _consecutiveFailures++;
+                if (_consecutiveFailures >= failureThreshold)
+                {
+                    _openUntil = clock.GetUtcNow() + _recoveryDelay;
+                }
+                _probeInProgress = false;
+            }
+            throw;
+        }
+    }
+}
