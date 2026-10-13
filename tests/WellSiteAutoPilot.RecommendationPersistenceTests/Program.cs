@@ -446,6 +446,29 @@ if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != Reco
     throw new InvalidOperationException("Invalid decision metadata changed state or emitted an audit event.");
 }
 
+// An explicitly empty authorized asset set must not grant access to the recommendation.
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "unscoped-reviewer",
+        "No authorized assets",
+        []);
+    throw new InvalidOperationException("Empty authorized asset scope allowed approval.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_ASSET_SCOPE_FORBIDDEN")
+{
+}
+
+if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
+    await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString()) != 0)
+{
+    throw new InvalidOperationException("Empty asset scope changed recommendation state or emitted an audit event.");
+}
+
 // Approval is a compare-and-set transition; repeated or competing decisions must fail.
 var decidedAt = clock.GetUtcNow().AddMinutes(2);
 var approvedDecision = await decisionService.DecideAsync(
