@@ -641,6 +641,63 @@ if (contestedState is null ||
         "Concurrent decision state, audit, or control-action isolation diverged.");
 }
 
+// A rejected recommendation is terminal: subsequent approvals or rejections must not
+// overwrite its decision metadata or produce additional audit events.
+var terminalRejection = recommendation with
+{
+    Id = Guid.NewGuid(),
+    IntentIndex = recommendation.IntentIndex + 3,
+    Status = RecommendationStatus.Created,
+    DecisionBy = null,
+    DecisionAtUtc = null,
+    DecisionReason = null
+};
+await recommendationRepository.AddMissingAsync([terminalRejection]);
+
+if (!await recommendationRepository.TryDecideAsync(
+        terminalRejection.Id,
+        RecommendationStatus.Rejected,
+        "first-rejector",
+        "Rejected after review",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Initial recommendation rejection failed.");
+}
+
+if (await recommendationRepository.TryDecideAsync(
+        terminalRejection.Id,
+        RecommendationStatus.Approved,
+        "late-approver",
+        "Attempt to override rejection",
+        clock.GetUtcNow().AddMinutes(1)) ||
+    await recommendationRepository.TryDecideAsync(
+        terminalRejection.Id,
+        RecommendationStatus.Rejected,
+        "second-rejector",
+        "Attempt to replace rejection",
+        clock.GetUtcNow().AddMinutes(2)))
+{
+    throw new InvalidOperationException("Rejected recommendation accepted a subsequent decision.");
+}
+
+var rejectedState = await recommendationRepository.GetAsync(terminalRejection.Id);
+var rejectedAudits = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetType == "recommendation" &&
+        item.TargetId == terminalRejection.Id.ToString())
+    .ToArrayAsync();
+if (rejectedState is null ||
+    rejectedState.Status != RecommendationStatus.Rejected ||
+    rejectedState.DecisionBy != "first-rejector" ||
+    rejectedState.DecisionReason != "Rejected after review" ||
+    rejectedState.DecisionAtUtc != clock.GetUtcNow() ||
+    rejectedState.ControlActionId is not null ||
+    rejectedAudits.Length != 1 ||
+    rejectedAudits[0].Action != "recommendation.rejected" ||
+    rejectedAudits[0].ActorIdentity != "first-rejector")
+{
+    throw new InvalidOperationException("Rejected recommendation state or audit was overwritten.");
+}
+
 var shadowExecution = recommendationExecution with
 {
     Id = Guid.NewGuid(),
