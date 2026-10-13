@@ -767,6 +767,51 @@ if (string.IsNullOrWhiteSpace(persistedEntity.IntentJson) ||
         "Approved recommendation lost its source snapshot, decision metadata, or control-action isolation.");
 }
 
+// A replay of the original execution after a rejection must preserve the terminal
+// decision and its single audit event, without resurrecting a pending suggestion.
+var rejectedReplay = recommendation with
+{
+    Id = Guid.NewGuid(),
+    IntentIndex = recommendation.IntentIndex + 4,
+    Status = RecommendationStatus.Created,
+    DecisionBy = null,
+    DecisionAtUtc = null,
+    DecisionReason = null
+};
+await recommendationRepository.AddMissingAsync([rejectedReplay]);
+if (!await recommendationRepository.TryDecideAsync(
+        rejectedReplay.Id,
+        RecommendationStatus.Rejected,
+        "replay-rejector",
+        "Unsafe operating conditions",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Could not establish rejected replay fixture.");
+}
+
+var rejectedReplayCreated = await materializer.MaterializeAsync(
+    recommendationExecution.Id,
+    outputJson);
+var rejectedReplayState = await recommendationRepository.GetAsync(rejectedReplay.Id);
+var rejectedReplayAudits = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetType == "recommendation" &&
+        item.TargetId == rejectedReplay.Id.ToString())
+    .ToArrayAsync();
+if (rejectedReplayCreated != 0 ||
+    rejectedReplayState is null ||
+    rejectedReplayState.Status != RecommendationStatus.Rejected ||
+    rejectedReplayState.DecisionBy != "replay-rejector" ||
+    rejectedReplayState.DecisionReason != "Unsafe operating conditions" ||
+    rejectedReplayState.DecisionAtUtc != clock.GetUtcNow() ||
+    rejectedReplayState.ControlActionId is not null ||
+    rejectedReplayAudits.Length != 1 ||
+    rejectedReplayAudits[0].Action != "recommendation.rejected" ||
+    rejectedReplayAudits[0].ActorIdentity != "replay-rejector")
+{
+    throw new InvalidOperationException(
+        "Execution replay changed a rejected recommendation or duplicated its audit.");
+}
+
 Console.WriteLine(
     "Recommendation materialization, immutable source snapshot, Shadow isolation, and idempotency checks passed.");
 return 0;
