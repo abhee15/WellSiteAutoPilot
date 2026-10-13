@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using WellSiteAutoPilot.Persistence.Audit;
 using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Domain.Recommendations;
+using WellSiteAutoPilot.Domain.Executions;
 
 namespace WellSiteAutoPilot.Persistence.Recommendations;
 
@@ -67,6 +70,91 @@ public sealed class RecommendationRepository(
             .ToArrayAsync(cancellationToken))
         .Select(ToDomain)
         .ToArray();
+
+    public async Task<RecommendationRecord?> GetAsync(
+        Guid recommendationId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await dbContext.Recommendations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == recommendationId, cancellationToken);
+        return entity is null ? null : ToDomain(entity);
+    }
+
+    public async Task<bool> TryDecideAsync(
+        Guid recommendationId,
+        RecommendationStatus decision,
+        string decidedBy,
+        string? reason,
+        DateTimeOffset decidedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (decision is not (RecommendationStatus.Approved or RecommendationStatus.Rejected))
+        {
+            throw new ArgumentOutOfRangeException(nameof(decision));
+        }
+
+        if (string.IsNullOrWhiteSpace(decidedBy))
+        {
+            throw new ArgumentException("A decision actor is required.", nameof(decidedBy));
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var affected = await dbContext.Recommendations
+            .Where(item => item.Id == recommendationId &&
+                (item.Status == nameof(RecommendationStatus.Created) ||
+                 item.Status == nameof(RecommendationStatus.Pending)) &&
+                (item.ExpiresAtUtc == null || item.ExpiresAtUtc > decidedAtUtc) &&
+                (decision == RecommendationStatus.Rejected ||
+                 (dbContext.ConfiguredLogicDefinitions.Any(logic =>
+                    logic.Id == item.ConfiguredLogicId &&
+                    logic.ActiveRevisionId == item.ConfigurationRevisionId) &&
+                dbContext.Assets.Any(asset =>
+                    asset.Id == item.AssetId && asset.IsActive) &&
+                dbContext.Executions.Any(execution =>
+                    execution.Id == item.ExecutionId &&
+                    execution.Mode == nameof(ExecutionMode.Recommendation) &&
+                    execution.Status == nameof(ExecutionStatus.Completed)))))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Status, decision.ToString())
+                .SetProperty(item => item.DecisionBy, decidedBy.Trim())
+                .SetProperty(item => item.DecisionAtUtc, decidedAtUtc)
+                .SetProperty(item => item.DecisionReason, reason),
+                cancellationToken);
+
+        if (affected != 1)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return false;
+        }
+
+        var assetId = await dbContext.Recommendations
+            .AsNoTracking()
+            .Where(item => item.Id == recommendationId)
+            .Select(item => item.AssetId)
+            .SingleAsync(cancellationToken);
+
+        dbContext.AuditEvents.Add(new AuditEventEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAtUtc = decidedAtUtc.ToUniversalTime(),
+            ActorIdentity = decidedBy.Trim(),
+            Action = decision == RecommendationStatus.Approved
+                ? "recommendation.approved" : "recommendation.rejected",
+            TargetType = "recommendation",
+            TargetId = recommendationId.ToString(),
+            AssetId = assetId,
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                Decision = decision.ToString(),
+                Reason = reason
+            })
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
 
     private static RecommendationEntity ToEntity(
         RecommendationRecord recommendation) => new()

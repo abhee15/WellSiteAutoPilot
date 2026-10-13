@@ -18,6 +18,7 @@ using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Executions;
+using WellSiteAutoPilot.Domain.Recommendations;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Security;
 using WellSiteAutoPilot.Http;
@@ -28,6 +29,7 @@ using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Server.Scheduling;
 using WellSiteAutoPilot.Server.Security;
+using WellSiteAutoPilot.Server.Contracts;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -131,6 +133,7 @@ builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
+builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<UserAccessService>();
 builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
@@ -808,6 +811,47 @@ v1.MapGet(
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+v1.MapPost(
+    "/recommendations/{recommendationId:guid}/decision",
+    async (
+        Guid recommendationId,
+        RecommendationDecisionRequest request,
+        RecommendationDecisionService decisionService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
+        CancellationToken cancellationToken) =>
+    {
+        if (!Enum.TryParse<RecommendationStatus>(request.Decision, true, out var decision) ||
+            decision is not (RecommendationStatus.Approved or RecommendationStatus.Rejected))
+        {
+            throw new WellSiteAutoPilotException(
+                "RECOMMENDATION_DECISION_INVALID", FailureKind.Validation,
+                "Decision must be Approved or Rejected.");
+        }
+
+        var recommendation = await decisionService.DecideAsync(
+            recommendationId,
+            decision,
+            httpContext.User.Identity?.Name ?? string.Empty,
+            request.Reason,
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User),
+            cancellationToken);
+
+        return new RecommendationDecisionResponse(
+            recommendation.Id,
+            recommendation.Status.ToString(),
+            recommendation.DecisionBy,
+            recommendation.DecisionAtUtc,
+            recommendation.DecisionReason);
+    })
+    .WithName("DecideRecommendation")
+    .RequireAuthorization(WellSitePolicies.RecommendationsDecide)
+    .Produces<RecommendationDecisionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
@@ -974,3 +1018,4 @@ static IReadOnlyCollection<ApplicationRole> ParseApplicationRoles(
 }
 
 public partial class Program;
+

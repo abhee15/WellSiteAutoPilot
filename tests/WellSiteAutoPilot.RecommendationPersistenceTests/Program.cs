@@ -43,6 +43,7 @@ var configuredLogicService = new ConfiguredLogicService(
     assetRepository,
     moduleRepository,
     clock);
+var decisionService = new RecommendationDecisionService(recommendationRepository, clock);
 var materializer = new RecommendationMaterializer(
     executionRepository,
     recommendationRepository,
@@ -263,6 +264,235 @@ if (duplicateCreated != 0 ||
         "Recommendation materialization was not idempotent.");
 }
 
+// Operators must still be able to reject stale or inactive suggestions.
+var rejectable = recommendation with
+{
+    Id = Guid.NewGuid(),
+    IntentIndex = recommendation.IntentIndex + 1
+};
+await recommendationRepository.AddMissingAsync([rejectable]);
+await dbContext.Assets
+    .Where(item => item.Id == well.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.IsActive, false));
+
+if (!await recommendationRepository.TryDecideAsync(
+        rejectable.Id,
+        RecommendationStatus.Rejected,
+        "reviewer",
+        "Asset deactivated",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Inactive asset prevented safe rejection.");
+}
+
+var rejectionAudit = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetType == "recommendation" &&
+        item.TargetId == rejectable.Id.ToString() &&
+        item.Action == "recommendation.rejected")
+    .ToArrayAsync();
+if (rejectionAudit.Length != 1 ||
+    rejectionAudit[0].AssetId != well.Id ||
+    rejectionAudit[0].ActorIdentity != "reviewer")
+{
+    throw new InvalidOperationException("Recommendation rejection audit was not persisted exactly once.");
+}
+
+await dbContext.Assets
+    .Where(item => item.Id == well.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.IsActive, true));
+
+await dbContext.Recommendations
+    .Where(item => item.Id == rejectable.Id)
+    .ExecuteDeleteAsync();
+
+// A recommendation must not be approved after its source revision is superseded.
+await dbContext.ConfiguredLogicDefinitions
+    .Where(item => item.Id == configuredLogic.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.ActiveRevisionId, (Guid?)null));
+
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        "Stale revision",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Superseded revision allowed approval.");
+}
+
+await dbContext.ConfiguredLogicDefinitions
+    .Where(item => item.Id == configuredLogic.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.ActiveRevisionId, revision.Id));
+
+// An inactive asset must not receive a new approval.
+await dbContext.Assets
+    .Where(item => item.Id == well.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.IsActive, false));
+
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        "Inactive asset",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Inactive asset allowed approval.");
+}
+
+await dbContext.Assets
+    .Where(item => item.Id == well.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.IsActive, true));
+
+// Decisions must be based on a completed Recommendation-mode execution.
+await dbContext.Executions
+    .Where(item => item.Id == recommendationExecution.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.Status, nameof(ExecutionStatus.Failed)));
+
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        "Failed execution",
+        clock.GetUtcNow()))
+{
+    throw new InvalidOperationException("Failed execution allowed recommendation approval.");
+}
+
+await dbContext.Executions
+    .Where(item => item.Id == recommendationExecution.Id)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.Status, nameof(ExecutionStatus.Completed)));
+
+// A decision must be blocked when the caller's authorized asset set excludes the target.
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "out-of-scope-reviewer",
+        "Should not be authorized",
+        [Guid.NewGuid()]);
+    throw new InvalidOperationException("Out-of-scope recommendation was approved.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_ASSET_SCOPE_FORBIDDEN")
+{
+}
+
+// Invalid scope must not modify the recommendation or emit an audit event.
+var beforeUnauthorizedAuditCount = await dbContext.AuditEvents
+    .CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString());
+if (beforeUnauthorizedAuditCount != 0 ||
+    (await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created)
+{
+    throw new InvalidOperationException("Unauthorized decision modified state or wrote audit.");
+}
+
+// Approval is a compare-and-set transition; repeated or competing decisions must fail.
+var decidedAt = clock.GetUtcNow().AddMinutes(2);
+var approvedDecision = await decisionService.DecideAsync(
+    recommendation.Id,
+    RecommendationStatus.Approved,
+    "  FIELD\\reviewer  ",
+    "Validated against operational conditions",
+    [well.Id]);
+
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Rejected,
+        "FIELD\\other-reviewer",
+        "Conflicting decision",
+        decidedAt.AddSeconds(1)))
+{
+    throw new InvalidOperationException("A second decision overwrote approval.");
+}
+
+var approvalAudit = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString() &&
+        item.Action == "recommendation.approved")
+    .ToArrayAsync();
+if (approvalAudit.Length != 1 ||
+    approvalAudit[0].AssetId != well.Id ||
+    approvalAudit[0].ActorIdentity != "FIELD\\reviewer")
+{
+    throw new InvalidOperationException("Recommendation approval audit was not persisted exactly once.");
+}
+
+var approved = (await recommendationRepository.ListByExecutionAsync(
+    recommendationExecution.Id)).Single();
+if (approved.Status != RecommendationStatus.Approved ||
+    approved.DecisionBy != "FIELD\\reviewer" ||
+    approved.DecisionAtUtc != clock.GetUtcNow() ||
+    approved.ControlActionId is not null)
+{
+    throw new InvalidOperationException(
+        "Recommendation approval was not persisted or incorrectly created a control action.");
+}
+
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Approved,
+        "reviewer",
+        new string('x', 1025),
+        [well.Id]);
+    throw new InvalidOperationException("Oversized decision reason was accepted.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_DECISION_METADATA_INVALID")
+{
+}
+
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Rejected,
+        "second-reviewer",
+        "Attempt to overwrite an approval",
+        [well.Id]);
+    throw new InvalidOperationException("Application service accepted a second decision.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_NOT_DECIDABLE")
+{
+}
+
+// Expiration and invalid transitions are rejected without changing approved state.
+if (await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Rejected,
+        "late-reviewer",
+        "Late attempt",
+        clock.GetUtcNow().AddDays(1)))
+{
+    throw new InvalidOperationException("A decided recommendation accepted a late rejection.");
+}
+
+try
+{
+    await recommendationRepository.TryDecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Executed,
+        "reviewer",
+        null,
+        clock.GetUtcNow());
+    throw new InvalidOperationException("Unsupported decision state was accepted.");
+}
+catch (ArgumentOutOfRangeException)
+{
+}
+
 var shadowExecution = recommendationExecution with
 {
     Id = Guid.NewGuid(),
@@ -301,12 +531,12 @@ var persistedEntity = await dbContext.Recommendations
     .SingleAsync(item => item.Id == recommendation.Id);
 
 if (string.IsNullOrWhiteSpace(persistedEntity.IntentJson) ||
-    persistedEntity.DecisionAtUtc is not null ||
-    persistedEntity.DecisionBy is not null ||
+    persistedEntity.DecisionAtUtc != clock.GetUtcNow() ||
+    persistedEntity.DecisionBy != "FIELD\\reviewer" ||
     persistedEntity.ControlActionId is not null)
 {
     throw new InvalidOperationException(
-        "New Recommendation incorrectly contained approval/control decision state.");
+        "Approved recommendation lost its source snapshot, decision metadata, or control-action isolation.");
 }
 
 Console.WriteLine(
