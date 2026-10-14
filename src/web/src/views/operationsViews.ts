@@ -47,7 +47,7 @@ export function filterOperations(
     const leftTime = Date.parse(left.requestedAtUtc ?? '') || 0;
     const rightTime = Date.parse(right.requestedAtUtc ?? '') || 0;
     const delta = criteria.sort === 'oldest' ? leftTime - rightTime : rightTime - leftTime;
-    return delta || left.executionId.localeCompare(right.executionId);
+    return delta || (left.executionId ?? '').localeCompare(right.executionId ?? '');
   });
 }
 

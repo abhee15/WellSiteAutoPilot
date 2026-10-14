@@ -99,6 +99,18 @@ test('newest and oldest sorts are deterministic, without mutating input', () => 
   assert.equal(rows[0].executionId, 'exe-2');
 });
 
+test('missing execution identifiers and timestamps still sort safely', () => {
+  const incomplete = [
+    { status: 'Running', requestedAtUtc: null, executionId: undefined },
+    { status: 'Running', requestedAtUtc: null, executionId: 'exe-known' },
+  ];
+  assert.deepEqual(
+    views.filterOperations(incomplete, { search: '', status: 'all', sort: 'newest' })
+      .map(row => row.executionId),
+    [undefined, 'exe-known'],
+  );
+});
+
 test('saved views persist only preferences and are isolated by current user', () => {
   const memory = storage();
   const saved = [{
