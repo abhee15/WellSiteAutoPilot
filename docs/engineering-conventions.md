@@ -24,3 +24,10 @@ This document records the initial, deliberately small set of conventions for Wel
 2. Identify the actual frontend workspace and add tool configurations alongside its package manifest and lockfile.
 3. Baseline existing formatting and lint findings; then turn on CI verification in a focused follow-up change.
 4. Tighten analyzer severity gradually; avoid introducing widespread unrelated code churn into feature PRs.
+
+## CI branches and pull requests
+
+- Open a draft PR targeting `develop` when a feature branch is ready for CI. Draft PRs receive the full validation suite after each push, including PostgreSQL, JetStream, gateway, API/client, and installer checks.
+- The CI workflow validates `main` and `develop` on push for post-merge confidence. Feature, fix, chore, and validation branches do not separately run the duplicate push suite; the PR event is the single source of pre-merge verification.
+- Keep a PR draft while implementing; mark ready and merge only after its current head commit passes all required jobs and the feature's relevant regression tests.
+- The workflow's per-PR concurrency cancels outdated runs when additional commits arrive, while preserving the latest verification.
