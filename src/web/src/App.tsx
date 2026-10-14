@@ -175,6 +175,7 @@ export function App() {
           <RecommendationsPage
             key={currentUser?.userId ?? 'no-user'}
             userId={currentUser?.userId}
+            roles={currentUser?.roles}
           />
         )}
         {section === 'assets' && (

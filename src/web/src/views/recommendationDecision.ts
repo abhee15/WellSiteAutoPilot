@@ -37,7 +37,7 @@ export async function submitRecommendationDecision(
       normalizedReason.length < 2 || normalizedReason.length > 1024 ||
       [...normalizedReason].some(character => {
         const code = character.charCodeAt(0);
-        return code < 32 || code === 127;
+        return code < 32 || (code >= 127 && code <= 159);
       })) {
     throw new RecommendationDecisionError('invalid');
   }

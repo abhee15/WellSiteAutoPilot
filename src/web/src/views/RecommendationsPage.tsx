@@ -3,6 +3,7 @@ import type { RecommendationSummaryResponse } from '../api/generated/v1/types.ge
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { RecommendationInboxControls } from './RecommendationInboxControls';
+import { RecommendationDecisionReviewPanel } from './RecommendationDecisionReviewPanel';
 import {
   DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
   fetchRecommendationInbox,
@@ -23,9 +24,11 @@ function formatSuggestedValue(value?: number | null, unit?: string | null): stri
 export function RecommendationInboxTable({
   items,
   nowUtc,
+  onReview,
 }: {
   items: readonly RecommendationSummaryResponse[];
   nowUtc: number;
+  onReview?: (recommendationId: string) => void;
 }) {
   return (
     <div className="table-wrap">
@@ -39,6 +42,7 @@ export function RecommendationInboxTable({
             <th scope="col">{t('inbox.reason')}</th>
             <th scope="col">{t('inbox.timing')}</th>
             <th scope="col">{t('inbox.review')}</th>
+            {onReview && <th scope="col">{t('decision.action')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -69,11 +73,23 @@ export function RecommendationInboxTable({
                 <strong>{item.decisionBy ?? '—'}</strong>
                 <small>{formatDetailTimestamp(item.decisionAtUtc)}</small>
               </td>
+              {onReview && (
+                <td>
+                  {item.id && recommendationIsAwaiting(item, nowUtc) ? (
+                    <button type="button" className="execution-inspect-button"
+                      onClick={() => onReview(item.id!)}>
+                      {t('decision.open')}
+                    </button>
+                  ) : '—'}
+                </td>
+              )}
             </tr>
           ))}
           {items.length === 0 && (
             <tr>
-              <td className="empty-state" colSpan={7}>{t('inbox.noMatches')}</td>
+              <td className="empty-state" colSpan={onReview ? 8 : 7}>
+                {t('inbox.noMatches')}
+              </td>
             </tr>
           )}
         </tbody>
@@ -82,7 +98,12 @@ export function RecommendationInboxTable({
   );
 }
 
-export function RecommendationsPage({ userId }: { userId: string | null | undefined }) {
+export function RecommendationsPage({
+  userId, roles,
+}: {
+  userId: string | null | undefined;
+  roles?: readonly string[] | null;
+}) {
   const [items, setItems] = useState<RecommendationSummaryResponse[]>([]);
   const [criteria, setCriteria] = useState<RecommendationInboxCriteria>(
     DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
@@ -90,6 +111,10 @@ export function RecommendationsPage({ userId }: { userId: string | null | undefi
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<InboxError | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+  const canDecide = Boolean(userId && roles?.some(role =>
+    role === 'Admin' || role === 'Engineer' || role === 'Operator'));
   const activeRefresh = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
@@ -141,6 +166,14 @@ export function RecommendationsPage({ userId }: { userId: string | null | undefi
   }, [userId, refresh]);
 
   const nowUtc = Date.now();
+  const selectedRecommendation = items.find(item => item.id === selectedReviewId);
+  useEffect(() => {
+    if (selectedReviewId && (!selectedRecommendation ||
+      !recommendationIsAwaiting(selectedRecommendation, Date.now()))) {
+      setSelectedReviewId(null);
+      setReviewNotice(t('decision.outdated'));
+    }
+  }, [selectedReviewId, selectedRecommendation]);
   const counts = inboxCounts(items, nowUtc);
   const visible = useMemo(
     () => filterRecommendationInbox(items, criteria, nowUtc),
@@ -189,18 +222,47 @@ export function RecommendationsPage({ userId }: { userId: string | null | undefi
             </button>
           </div>
         </div>
-        <p className="recommendation-readonly-note">{t('inbox.readOnly')}</p>
+        <p className="recommendation-readonly-note">
+          {canDecide ? t('decision.governanceNotice') : t('inbox.readOnly')}
+        </p>
         <RecommendationInboxControls
           criteria={criteria}
           onChange={setCriteria}
           matchingCount={visible.length}
           loadedCount={items.length}
         />
+        {reviewNotice && <p role="status" className="recommendation-readonly-note">
+          {reviewNotice}
+        </p>}
         {isLoading && <p role="status" className="status-loading">{t('inbox.loading')}</p>}
         {error && <p role="alert" className="execution-detail-error inbox-error">
           {errorMessages[error]}
         </p>}
-        {!isLoading && !error && <RecommendationInboxTable items={visible} nowUtc={nowUtc} />}
+        {!isLoading && !error && (
+          <RecommendationInboxTable items={visible} nowUtc={nowUtc}
+            onReview={canDecide ? recommendationId => {
+              setSelectedReviewId(recommendationId);
+              setReviewNotice(null);
+            } : undefined} />
+        )}
+        {canDecide && selectedRecommendation &&
+          recommendationIsAwaiting(selectedRecommendation, nowUtc) && (
+            <RecommendationDecisionReviewPanel
+              key={selectedRecommendation.id}
+              item={selectedRecommendation}
+              onCancel={() => setSelectedReviewId(null)}
+              onSaved={() => {
+                setSelectedReviewId(null);
+                setReviewNotice(t('decision.saved'));
+                void refresh();
+              }}
+              onConflict={() => {
+                setSelectedReviewId(null);
+                setReviewNotice(t('decision.conflict'));
+                void refresh();
+              }}
+            />
+          )}
       </section>
     </>
   );
