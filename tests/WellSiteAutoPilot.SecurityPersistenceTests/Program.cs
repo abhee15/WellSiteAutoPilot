@@ -429,7 +429,11 @@ var builtin = predefined.Where(item => item.IsSystem).ToArray();
 
 if (builtin.Length != 3 ||
     !builtin.Select(item => item.Name).OrderBy(item => item)
-        .SequenceEqual(new[] { "Admin", "Engineer", "Operator" }.OrderBy(item => item)) ||
+        .ToHashSet(StringComparer.Ordinal)
+        .SetEquals(new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Admin", "Engineer", "Operator"
+        }) ||
     ProductPermissionCatalog.Definitions.Count != WellSitePermissions.All.Count ||
     ProductPermissionCatalog.Definitions.Select(item => item.Key)
         .ToHashSet(StringComparer.Ordinal)
