@@ -9,6 +9,9 @@ import type {
   SystemInfoResponse,
 } from './api/generated/v1/types.gen';
 import { t } from './localization';
+import { OperationsViewControls } from './views/OperationsViewControls';
+import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './views/operationsViews';
+import type { OperationsViewCriteria } from './views/operationsViews';
 
 const REFRESH_INTERVAL_MS = 10_000;
 type Section = 'operations' | 'assets' | 'logic';
@@ -148,7 +151,12 @@ export function App() {
         )}
 
         {section === 'operations' && (
-          <OperationsPage systemInfo={systemInfo} executions={executions} />
+          <OperationsPage
+            key={currentUser?.userId ?? 'no-user'}
+            systemInfo={systemInfo}
+            executions={executions}
+            userId={currentUser?.userId}
+          />
         )}
         {section === 'assets' && (
           <AssetsPage assetTypes={assetTypes} assets={assets} />
@@ -284,10 +292,17 @@ function PageHeader({
 function OperationsPage({
   systemInfo,
   executions,
+  userId,
 }: {
   systemInfo: SystemInfoResponse | null;
   executions: ExecutionResponse[];
+  userId: string | null | undefined;
 }) {
+  const [viewCriteria, setViewCriteria] = useState<OperationsViewCriteria>(DEFAULT_OPERATIONS_VIEW);
+  const visibleExecutions = useMemo(
+    () => filterOperations(executions, viewCriteria),
+    [executions, viewCriteria],
+  );
   const components = systemInfo?.components ?? [];
   const unhealthyComponents = components.filter(
     component => component.status !== 'Healthy',
@@ -338,7 +353,14 @@ function OperationsPage({
       </section>
 
       <section className="panel">
-        <PanelHeader eyebrow="Activity" title="Recent executions" count={executions.length} />
+        <PanelHeader eyebrow="Activity" title="Recent executions" count={visibleExecutions.length} />
+        <OperationsViewControls
+          userId={userId}
+          criteria={viewCriteria}
+          onChange={setViewCriteria}
+          matchingCount={visibleExecutions.length}
+          recentCount={executions.length}
+        />
         <div className="table-wrap">
           <table className="activity-table">
             <thead>
@@ -352,7 +374,7 @@ function OperationsPage({
               </tr>
             </thead>
             <tbody>
-              {executions.map(execution => (
+              {visibleExecutions.map(execution => (
                 <tr key={execution.executionId}>
                   <td>
                     <StatusPill value={execution.status} />
@@ -376,8 +398,10 @@ function OperationsPage({
                   </td>
                 </tr>
               ))}
-              {executions.length === 0 && (
-                <EmptyRow columns={6}>No execution activity has been recorded.</EmptyRow>
+              {visibleExecutions.length === 0 && (
+                <EmptyRow columns={6}>{executions.length === 0
+                  ? t('views.noActivity')
+                  : t('views.noMatches')}</EmptyRow>
               )}
             </tbody>
           </table>
