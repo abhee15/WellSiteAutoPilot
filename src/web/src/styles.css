@@ -539,6 +539,16 @@ button:disabled {
   font-size: 0.875rem;
 }
 
+.configured-revisions-summary {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+  color: #b5c0ca;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
 .execution-detail-output {
   border-top: 1px solid #29343e;
   padding-top: 14px;

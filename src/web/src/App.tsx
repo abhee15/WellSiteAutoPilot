@@ -13,6 +13,10 @@ import { OperationsViewControls } from './views/OperationsViewControls';
 import { ExecutionDetailPanel } from './views/ExecutionDetailPanel';
 import { AssetInventoryControls } from './views/AssetInventoryControls';
 import { LogicCatalogControls } from './views/LogicCatalogControls';
+import { ConfiguredLogicControls } from './views/ConfiguredLogicControls';
+import { ConfiguredLogicRevisionOverview } from './views/ConfiguredLogicRevisionOverview';
+import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, latestRevision } from './views/configuredLogicViews';
+import type { ConfiguredLogicCriteria } from './views/configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './views/logicCatalog';
 import type { LogicCatalogCriteria } from './views/logicCatalog';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './views/assetInventory';
@@ -166,10 +170,18 @@ export function App() {
           />
         )}
         {section === 'assets' && (
-          <AssetsPage assetTypes={assetTypes} assets={assets} />
+          <AssetsPage
+            key={currentUser?.userId ?? 'no-user'}
+            assetTypes={assetTypes}
+            assets={assets}
+          />
         )}
         {section === 'logic' && (
-          <LogicPage modules={logicModules} configuredLogic={configuredLogic} />
+          <LogicPage
+            key={currentUser?.userId ?? 'no-user'}
+            modules={logicModules}
+            configuredLogic={configuredLogic}
+          />
         )}
       </main>
     </div>
@@ -582,6 +594,18 @@ function LogicPage({
   const [catalogCriteria, setCatalogCriteria] = useState<LogicCatalogCriteria>(
     DEFAULT_LOGIC_CATALOG_CRITERIA,
   );
+  const [configuredCriteria, setConfiguredCriteria] = useState<ConfiguredLogicCriteria>(
+    DEFAULT_CONFIGURED_LOGIC_CRITERIA,
+  );
+  const [selectedConfiguredId, setSelectedConfiguredId] = useState<string | null>(null);
+  const selectedConfiguration = configuredLogic.find(item => item.id === selectedConfiguredId);
+  useEffect(() => {
+    if (selectedConfiguredId && !selectedConfiguration) setSelectedConfiguredId(null);
+  }, [selectedConfiguredId, selectedConfiguration]);
+  const visibleConfigurations = useMemo(
+    () => filterConfiguredLogic(configuredLogic, configuredCriteria),
+    [configuredLogic, configuredCriteria],
+  );
   const visibleModules = useMemo(
     () => filterLogicCatalog(modules, catalogCriteria),
     [modules, catalogCriteria],
@@ -644,7 +668,14 @@ function LogicPage({
       </section>
 
       <section className="panel">
-        <PanelHeader eyebrow="Configuration" title="Configured Logic" count={configuredLogic.length} />
+        <PanelHeader eyebrow="Configuration" title="Configured Logic"
+          count={visibleConfigurations.length} />
+        <ConfiguredLogicControls
+          criteria={configuredCriteria}
+          onChange={setConfiguredCriteria}
+          matchingCount={visibleConfigurations.length}
+          totalCount={configuredLogic.length}
+        />
         <div className="table-wrap">
           <table className="activity-table">
             <thead>
@@ -654,12 +685,12 @@ function LogicPage({
                 <th>Revisions</th>
                 <th>Latest status</th>
                 <th>Created</th>
+                <th>{t('configured.revisionsHeading')}</th>
               </tr>
             </thead>
             <tbody>
-              {configuredLogic.map(item => {
-                const latest = [...(item.revisions ?? [])]
-                  .sort((left, right) => (right.revisionNumber ?? 0) - (left.revisionNumber ?? 0))[0];
+              {visibleConfigurations.map(item => {
+                const latest = latestRevision(item);
 
                 return (
                   <tr key={item.id}>
@@ -668,13 +699,39 @@ function LogicPage({
                     <td>{item.revisions?.length ?? 0}</td>
                     <td><StatusPill value={latest?.status ?? 'Draft'} /></td>
                     <td>{formatTimestamp(item.createdAtUtc)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="execution-inspect-button"
+                        disabled={!item.id}
+                        aria-expanded={selectedConfiguredId === item.id}
+                        aria-controls={selectedConfiguredId === item.id
+                          ? 'configured-revisions' : undefined}
+                        aria-label={t('configured.inspectFor', { name: item.name ?? '—' })}
+                        onClick={() => setSelectedConfiguredId(current =>
+                          current === item.id ? null : item.id ?? null)}
+                      >
+                        {t('configured.inspect')}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
-              {configuredLogic.length === 0 && <EmptyRow columns={5}>No Logic has been configured.</EmptyRow>}
+              {visibleConfigurations.length === 0 && (
+                <EmptyRow columns={6}>
+                  {configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
+                </EmptyRow>
+              )}
             </tbody>
           </table>
         </div>
+        {selectedConfiguration && (
+          <ConfiguredLogicRevisionOverview
+            key={selectedConfiguration.id}
+            logic={selectedConfiguration}
+            onClose={() => setSelectedConfiguredId(null)}
+          />
+        )}
       </section>
     </>
   );
