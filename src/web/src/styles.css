@@ -465,6 +465,120 @@ button:disabled {
   text-align: center !important;
 }
 
+
+.execution-inspect-button,
+.execution-detail-actions button {
+  border: 1px solid #53616e;
+  border-radius: 6px;
+  background: #1b232b;
+  color: #e7edf3;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+
+.execution-inspect-button:hover:not(:disabled),
+.execution-detail-actions button:hover:not(:disabled) {
+  background: #2b3b47;
+}
+
+.execution-inspect-button:focus-visible,
+.execution-detail-actions button:focus-visible {
+  outline: 2px solid #9bb8d0;
+  outline-offset: 2px;
+}
+
+.execution-detail {
+  border-top: 1px solid #53616e;
+  background: #111a23;
+  padding: 18px;
+}
+
+.execution-detail-header,
+.execution-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.execution-detail-header {
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.execution-detail-header h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.execution-detail-header p {
+  margin: 0;
+  color: #b5c0ca;
+  font-size: 0.82rem;
+}
+
+.execution-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 20px 0;
+}
+
+.execution-detail-grid > div {
+  min-width: 0;
+}
+
+.execution-detail-grid dt {
+  color: #aebdc9;
+  font-size: 0.78rem;
+}
+
+.execution-detail-grid dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
+.execution-detail-output {
+  border-top: 1px solid #29343e;
+  padding-top: 14px;
+}
+
+.execution-detail-output summary {
+  cursor: pointer;
+}
+
+.execution-detail-output pre {
+  max-height: 320px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  padding: 14px;
+  background: #0b1218;
+  border: 1px solid #29343e;
+  border-radius: 6px;
+}
+
+.execution-detail-output p,
+.execution-detail-error {
+  color: #e5cf91;
+}
+
+@media (max-width: 1100px) {
+  .execution-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .execution-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .execution-detail-actions {
+    flex-wrap: wrap;
+  }
+}
+
 .compact-panel {
   max-width: 760px;
 }
