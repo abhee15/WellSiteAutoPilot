@@ -607,6 +607,110 @@ await using (var second = new WellSiteAutoPilotDbContext(options))
     }
 }
 
+// The new grant evaluator must never combine the roles from one assignment
+// with the Asset scope from another. This invariant is security-critical.
+var grantUserId = Guid.NewGuid();
+var wellA = Guid.NewGuid();
+var wellB = Guid.NewGuid();
+var engineerRole = new RoleDefinition(
+    Guid.NewGuid(), "test-engineer", "Test Engineer", "", false, true, 1,
+    clock.GetUtcNow(), clock.GetUtcNow(),
+    [WellSitePermissions.AssetsRead, WellSitePermissions.AssetsManage]);
+var operatorRole = new RoleDefinition(
+    Guid.NewGuid(), "test-operator", "Test Operator", "", false, true, 1,
+    clock.GetUtcNow(), clock.GetUtcNow(),
+    [WellSitePermissions.AssetsRead]);
+var engineerGrant = new AccessGrant(
+    Guid.NewGuid(), AccessGrantSubjectKind.User, grantUserId, null,
+    engineerRole.Id, AccessGrantScopeKind.ExactAssets, [wellA], true, 1);
+var operatorGrant = new AccessGrant(
+    Guid.NewGuid(), AccessGrantSubjectKind.User, grantUserId, null,
+    operatorRole.Id, AccessGrantScopeKind.ExactAssets, [wellB], true, 1);
+
+var applicableRoles = new[] { engineerRole, operatorRole };
+var grants = new[] { engineerGrant, operatorGrant };
+IReadOnlySet<Guid> activeWellIds = new HashSet<Guid> { wellA, wellB };
+
+var engineerOnA = ScopedGrantEvaluator.Authorize(
+    grantUserId, true, WellSitePermissions.AssetsManage, wellA,
+    activeWellIds, grants, applicableRoles);
+var engineerOnB = ScopedGrantEvaluator.Authorize(
+    grantUserId, true, WellSitePermissions.AssetsManage, wellB,
+    activeWellIds, grants, applicableRoles);
+var readOnB = ScopedGrantEvaluator.Authorize(
+    grantUserId, true, WellSitePermissions.AssetsRead, wellB,
+    activeWellIds, grants, applicableRoles);
+
+if (!engineerOnA.Allowed || engineerOnA.GrantedByAssignmentId != engineerGrant.Id ||
+    engineerOnB.Allowed || !readOnB.Allowed ||
+    readOnB.GrantedByAssignmentId != operatorGrant.Id)
+{
+    throw new InvalidOperationException("Role and Asset scopes leaked between distinct grants.");
+}
+
+foreach (var access in new[]
+{
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, false, WellSitePermissions.AssetsRead, wellA,
+        activeWellIds, grants, applicableRoles),
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, wellB,
+        new HashSet<Guid> { wellA }, grants, applicableRoles),
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, "unsupported.fake.permission", wellA,
+        activeWellIds, grants, applicableRoles),
+    ScopedGrantEvaluator.Authorize(
+        Guid.NewGuid(), true, WellSitePermissions.AssetsRead, wellA,
+        activeWellIds, grants, applicableRoles),
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.SecurityManage, null,
+        activeWellIds, grants, applicableRoles),
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, null,
+        activeWellIds, grants, applicableRoles),
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, wellA,
+        activeWellIds, [engineerGrant with { IsActive = false }], applicableRoles),
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, wellA,
+        activeWellIds, [engineerGrant], [engineerRole with { IsActive = false }]),
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, wellA,
+        activeWellIds, [engineerGrant with { ScopeKind = AccessGrantScopeKind.ExactAssets,
+            AssetIds = [Guid.Empty, wellA] }], applicableRoles),
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, wellA,
+        activeWellIds, [engineerGrant with { SubjectKind = AccessGrantSubjectKind.WindowsGroup,
+            UserId = null, GroupSid = "S-1-5-21-1234" }], applicableRoles)
+})
+{
+    if (access.Allowed)
+    {
+        throw new InvalidOperationException("Invalid or unverified security grant authorized access.");
+    }
+}
+
+var globalRole = new RoleDefinition(
+    Guid.NewGuid(), "test-security-role", "Test Security", "", false, true, 1,
+    clock.GetUtcNow(), clock.GetUtcNow(), [WellSitePermissions.SecurityManage]);
+var globalGrant = new AccessGrant(
+    Guid.NewGuid(), AccessGrantSubjectKind.User, grantUserId, null,
+    globalRole.Id, AccessGrantScopeKind.DeploymentWide, [], true, 1);
+
+if (!ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.SecurityManage, null,
+        activeWellIds, [globalGrant], [globalRole]).Allowed ||
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.SecurityManage, null,
+        activeWellIds, [globalGrant with { ScopeKind = AccessGrantScopeKind.ExactAssets,
+            AssetIds = [wellA] }], [globalRole]).Allowed ||
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.SecurityManage, null,
+        activeWellIds, [globalGrant with { AssetIds = [wellA] }], [globalRole]).Allowed)
+{
+    throw new InvalidOperationException("Deployment-wide permission scope validation failed.");
+}
+
 Console.WriteLine(
     "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;
