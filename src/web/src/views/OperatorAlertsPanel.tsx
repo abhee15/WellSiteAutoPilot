@@ -21,7 +21,7 @@ export function OperatorAlertsPanel({ alerts, onClose }: Props) {
   }, [onClose]);
 
   return (
-    <aside className="operator-alerts-panel"
+    <aside id="operator-alerts-panel" className="operator-alerts-panel"
       role="complementary" aria-label={t('alerts.heading')}>
       <header className="operator-alerts-header">
         <div>

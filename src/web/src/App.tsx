@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import type {
   AssetResponse,
   AssetTypeResponse,
@@ -296,7 +297,7 @@ function PageHeader({
   lastUpdated: Date | null;
   onRefresh?: () => void;
   alertCount: number;
-  alertTriggerRef: React.RefObject<HTMLButtonElement | null>;
+  alertTriggerRef: RefObject<HTMLButtonElement | null>;
   onAlertsClick: () => void;
   alertsOpen: boolean;
 }) {
@@ -336,6 +337,7 @@ function PageHeader({
           ref={alertTriggerRef}
           className="secondary-button"
           aria-expanded={alertsOpen}
+          aria-controls={alertsOpen ? 'operator-alerts-panel' : undefined}
           aria-label={t('alerts.toggle', { count: alertCount })}
           onClick={onAlertsClick}
         >
