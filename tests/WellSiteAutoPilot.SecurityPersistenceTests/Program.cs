@@ -421,7 +421,8 @@ if (users.Count < 3 ||
 
 // Administrator-defined roles have their own schema and never implicitly
 // modify today's per-user RBAC until the paired-grant migration is verified.
-var roleCatalog = new RoleCatalogService(new RoleCatalogRepository(dbContext), clock);
+var roleCatalog = new RoleCatalogService(
+    new RoleCatalogRepository(dbContext), new UserAccessRepository(dbContext), clock);
 var actor = new SecurityActorContext(
     secondAdministrator.Id, secondAdministrator.IdentityName, "security-role-tests");
 var predefined = await roleCatalog.ListAsync(100);
@@ -497,6 +498,19 @@ catch (WellSiteAutoPilotException exception)
 {
 }
 
+try
+{
+    await roleCatalog.CreateAsync(
+        new RoleMutationCommand("Unauthorized Operator Role", "", [], true),
+        new SecurityActorContext(operatorUser.Id, operatorUser.IdentityName,
+            "unauthorized-role-author"));
+    throw new InvalidOperationException("Non-admin author was allowed to create roles.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ROLE_MANAGE_FORBIDDEN")
+{
+}
+
 var draftedRole = await roleCatalog.CreateAsync(
     new RoleMutationCommand("Field Supervisor", "Operations lead",
         [WellSitePermissions.AssetsRead, WellSitePermissions.ExecutionsRead], true),
@@ -516,7 +530,7 @@ if (draftedRole.IsSystem || !draftedRole.IsActive ||
 await using (var duplicate = new WellSiteAutoPilotDbContext(options))
 {
     var duplicateCatalog = new RoleCatalogService(
-        new RoleCatalogRepository(duplicate), clock);
+        new RoleCatalogRepository(duplicate), new UserAccessRepository(duplicate), clock);
     try
     {
         await duplicateCatalog.CreateAsync(
@@ -576,8 +590,10 @@ var competingRole = await roleCatalog.CreateAsync(
 await using (var first = new WellSiteAutoPilotDbContext(options))
 await using (var second = new WellSiteAutoPilotDbContext(options))
 {
-    var writerA = new RoleCatalogService(new RoleCatalogRepository(first), clock);
-    var writerB = new RoleCatalogService(new RoleCatalogRepository(second), clock);
+    var writerA = new RoleCatalogService(
+        new RoleCatalogRepository(first), new UserAccessRepository(first), clock);
+    var writerB = new RoleCatalogService(
+        new RoleCatalogRepository(second), new UserAccessRepository(second), clock);
     var attempts = await Task.WhenAll(
         TryRoleWriteAsync(writerA, competingRole.Id, competingRole.Revision,
             new RoleMutationCommand("Shift Leader A", "", [], true), actor),

@@ -47,7 +47,10 @@ public static class ProductPermissionCatalog
 /// Admin-only role authoring. Assigning effective user/AD group grants requires
 /// the later scoped-entitlement evaluator and is deliberately not exposed here.
 /// </summary>
-public sealed class RoleCatalogService(IRoleCatalogRepository repository, TimeProvider timeProvider)
+public sealed class RoleCatalogService(
+    IRoleCatalogRepository repository,
+    IUserAccessRepository userAccessRepository,
+    TimeProvider timeProvider)
 {
     public Task<IReadOnlyCollection<RoleDefinition>> ListAsync(
         int limit,
@@ -71,15 +74,15 @@ public sealed class RoleCatalogService(IRoleCatalogRepository repository, TimePr
             "SECURITY_ROLE_NOT_FOUND", FailureKind.NotFound,
             "The role was not found.");
 
-    public Task<RoleDefinition> CreateAsync(
+    public async Task<RoleDefinition> CreateAsync(
         RoleMutationCommand command,
         SecurityActorContext actor,
         CancellationToken cancellationToken = default)
     {
-        RequireActor(actor);
+        await RequireAdministratorAsync(actor, cancellationToken);
         var normalized = NormalizeCommand(command);
         var now = timeProvider.GetUtcNow();
-        return repository.CreateAsync(
+        return await repository.CreateAsync(
             new RoleDefinition(
                 Guid.NewGuid(),
                 $"custom-{Guid.NewGuid():N}",
@@ -101,7 +104,7 @@ public sealed class RoleCatalogService(IRoleCatalogRepository repository, TimePr
         SecurityActorContext actor,
         CancellationToken cancellationToken = default)
     {
-        RequireActor(actor);
+        await RequireAdministratorAsync(actor, cancellationToken);
         if (expectedRevision < 1)
         {
             throw new WellSiteAutoPilotException(
@@ -115,14 +118,28 @@ public sealed class RoleCatalogService(IRoleCatalogRepository repository, TimePr
             timeProvider.GetUtcNow(), cancellationToken);
     }
 
-    private static void RequireActor(SecurityActorContext actor)
+    private async Task RequireAdministratorAsync(
+        SecurityActorContext actor, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        if (actor.UserId is null || string.IsNullOrWhiteSpace(actor.IdentityName))
+        if (actor.UserId is not { } actorId ||
+            string.IsNullOrWhiteSpace(actor.IdentityName))
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_ACTOR_REQUIRED", FailureKind.Authorization,
                 "An authenticated security administrator is required.");
+        }
+
+        // HTTP policy enforcement is authoritative at the boundary; repeat
+        // this invariant in the application service to protect other callers.
+        // Future delegated role managers will use the scoped-grant evaluator.
+        var user = await userAccessRepository.GetAsync(actorId, cancellationToken);
+        if (user is null || !user.IsActive ||
+            !user.Roles.Contains(ApplicationRole.Admin))
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_ROLE_MANAGE_FORBIDDEN", FailureKind.Authorization,
+                "The current user may not manage role definitions.");
         }
     }
 
