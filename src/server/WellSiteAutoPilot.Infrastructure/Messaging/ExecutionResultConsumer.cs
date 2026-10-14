@@ -74,7 +74,7 @@ public sealed partial class ExecutionResultConsumer(
                     SerializerOptions) ?? throw new InvalidOperationException(
                     "Execution completed envelope could not be deserialized.");
 
-                await repository.ApplyCompletedAsync(
+                var disposition = await repository.ApplyCompletedAsync(
                     envelope.MessageId,
                     ConsumerName,
                     envelope.Payload.ExecutionId,
@@ -83,6 +83,8 @@ public sealed partial class ExecutionResultConsumer(
                     envelope.Payload.ResultCode,
                     envelope.Payload.OutputJson,
                     cancellationToken);
+                ObserveResult(disposition, envelope.Payload.ExecutionId,
+                    envelope.MessageId, "Completed");
             }
             else if (string.Equals(message.Subject, Subjects.ExecutionFailedV1, StringComparison.Ordinal))
             {
@@ -91,7 +93,7 @@ public sealed partial class ExecutionResultConsumer(
                     SerializerOptions) ?? throw new InvalidOperationException(
                     "Execution failed envelope could not be deserialized.");
 
-                await repository.ApplyFailedAsync(
+                var disposition = await repository.ApplyFailedAsync(
                     envelope.MessageId,
                     ConsumerName,
                     envelope.Payload.ExecutionId,
@@ -99,6 +101,8 @@ public sealed partial class ExecutionResultConsumer(
                     envelope.Payload.FailedAtUtc,
                     envelope.Payload.FailureCode,
                     cancellationToken);
+                ObserveResult(disposition, envelope.Payload.ExecutionId,
+                    envelope.MessageId, "Failed");
             }
             else
             {
@@ -108,6 +112,23 @@ public sealed partial class ExecutionResultConsumer(
             await message.AckAsync(cancellationToken: cancellationToken);
         }
     }
+
+    private void ObserveResult(ExecutionResultDisposition disposition,
+        Guid executionId, Guid messageId, string incomingStatus)
+    {
+        ExecutionResultDiagnostics.Record(disposition, "v1", incomingStatus);
+        if (disposition == ExecutionResultDisposition.ConflictingTerminalResult)
+        {
+            LogTerminalConflict(logger, executionId, messageId, incomingStatus);
+        }
+    }
+
+    [LoggerMessage(
+        EventId = 2201,
+        Level = LogLevel.Warning,
+        Message = "Conflicting V1 terminal result observed for Execution {ExecutionId}, Message {MessageId}, incoming status {IncomingStatus}. The original terminal state remains authoritative; inspect audit event execution.result.conflict.")]
+    private static partial void LogTerminalConflict(
+        ILogger logger, Guid executionId, Guid messageId, string incomingStatus);
 
     [LoggerMessage(
         EventId = 2200,

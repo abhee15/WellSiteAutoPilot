@@ -88,7 +88,7 @@ public sealed partial class ExecutionResultV2Consumer(
                     SerializerOptions) ?? throw new InvalidOperationException(
                     "Execution V2 completed envelope could not be deserialized.");
 
-                await repository.ApplyCompletedAsync(
+                var disposition = await repository.ApplyCompletedAsync(
                     envelope.MessageId,
                     ConsumerName,
                     envelope.Payload.ExecutionId,
@@ -97,14 +97,35 @@ public sealed partial class ExecutionResultV2Consumer(
                     envelope.Payload.ResultCode,
                     envelope.Payload.OutputJson,
                     cancellationToken);
+                ObserveResult(disposition, envelope.Payload.ExecutionId,
+                    envelope.MessageId, "Completed");
 
-                var materializer = scope.ServiceProvider
-                    .GetRequiredService<RecommendationMaterializer>();
+                // Only the canonical Completed outcome may emit recommendations.
+                // A retry of the same message must be able to recover a
+                // materialization interrupted after the terminal commit.
+                var shouldMaterialize = disposition == ExecutionResultDisposition.Applied;
+                if (disposition == ExecutionResultDisposition.AlreadyProcessed)
+                {
+                    var canonical = await repository.GetAsync(
+                        envelope.Payload.ExecutionId, cancellationToken);
+                    shouldMaterialize = canonical is
+                    {
+                        Status: WellSiteAutoPilot.Domain.Executions.ExecutionStatus.Completed
+                    } && string.Equals(canonical.ResultCode,
+                        envelope.Payload.ResultCode, StringComparison.Ordinal) &&
+                        string.Equals(canonical.OutputJson,
+                            envelope.Payload.OutputJson, StringComparison.Ordinal);
+                }
 
-                await materializer.MaterializeAsync(
-                    envelope.Payload.ExecutionId,
-                    envelope.Payload.OutputJson,
-                    cancellationToken);
+                if (shouldMaterialize)
+                {
+                    var materializer = scope.ServiceProvider
+                        .GetRequiredService<RecommendationMaterializer>();
+                    await materializer.MaterializeAsync(
+                        envelope.Payload.ExecutionId,
+                        envelope.Payload.OutputJson,
+                        cancellationToken);
+                }
             }
             else if (string.Equals(
                          message.Subject,
@@ -117,7 +138,7 @@ public sealed partial class ExecutionResultV2Consumer(
                     SerializerOptions) ?? throw new InvalidOperationException(
                     "Execution V2 failed envelope could not be deserialized.");
 
-                await repository.ApplyFailedAsync(
+                var disposition = await repository.ApplyFailedAsync(
                     envelope.MessageId,
                     ConsumerName,
                     envelope.Payload.ExecutionId,
@@ -125,6 +146,8 @@ public sealed partial class ExecutionResultV2Consumer(
                     envelope.Payload.FailedAtUtc,
                     envelope.Payload.FailureCode,
                     cancellationToken);
+                ObserveResult(disposition, envelope.Payload.ExecutionId,
+                    envelope.MessageId, "Failed");
             }
             else
             {
@@ -135,6 +158,23 @@ public sealed partial class ExecutionResultV2Consumer(
             await message.AckAsync(cancellationToken: cancellationToken);
         }
     }
+
+    private void ObserveResult(ExecutionResultDisposition disposition,
+        Guid executionId, Guid messageId, string incomingStatus)
+    {
+        ExecutionResultDiagnostics.Record(disposition, "v2", incomingStatus);
+        if (disposition == ExecutionResultDisposition.ConflictingTerminalResult)
+        {
+            LogTerminalConflict(logger, executionId, messageId, incomingStatus);
+        }
+    }
+
+    [LoggerMessage(
+        EventId = 2211,
+        Level = LogLevel.Warning,
+        Message = "Conflicting V2 terminal result observed for Execution {ExecutionId}, Message {MessageId}, incoming status {IncomingStatus}. The original terminal state remains authoritative; inspect audit event execution.result.conflict.")]
+    private static partial void LogTerminalConflict(
+        ILogger logger, Guid executionId, Guid messageId, string incomingStatus);
 
     [LoggerMessage(
         EventId = 2210,
