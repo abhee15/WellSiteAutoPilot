@@ -34,17 +34,32 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Internal integration gateway contract."
     });
 });
-builder.Services.AddHttpClient<SimulatorCurrentDataProvider>(client =>
+builder.Services.AddHttpClient("simulator-current-data", client =>
 {
     client.BaseAddress = new Uri(
         builder.Configuration["Providers:Simulator:BaseUrl"] ??
         "http://127.0.0.1:5091");
     client.Timeout = TimeSpan.FromSeconds(5);
 });
+// Share breaker state without holding a factory-created HttpClient indefinitely.
+builder.Services.AddTransient<SimulatorCurrentDataProvider>(services =>
+    new SimulatorCurrentDataProvider(
+        services.GetRequiredService<IHttpClientFactory>()
+            .CreateClient("simulator-current-data")));
+builder.Services.AddSingleton<CircuitBreakingCurrentDataProvider>(services =>
+    new CircuitBreakingCurrentDataProvider(
+        new FactoryCurrentDataProvider(() =>
+            new SimulatorCurrentDataProvider(
+                services.GetRequiredService<IHttpClientFactory>()
+                    .CreateClient("simulator-current-data"))),
+        services.GetRequiredService<TimeProvider>(),
+        builder.Configuration.GetValue("Providers:CircuitBreaker:FailureThreshold", 3),
+        TimeSpan.FromSeconds(builder.Configuration.GetValue("Providers:CircuitBreaker:RecoverySeconds", 30))));
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
     new CurrentDataProviderRouter(
         [new KeyValuePair<string, ICurrentDataProvider>(
-            "simulator", services.GetRequiredService<SimulatorCurrentDataProvider>())],
+            "simulator", services.GetRequiredService<CircuitBreakingCurrentDataProvider>())],
         "simulator"));
 builder.Services.AddTransient<IProviderHealthProvider>(
     serviceProvider =>
