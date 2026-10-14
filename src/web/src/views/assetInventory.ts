@@ -14,7 +14,7 @@ export const DEFAULT_ASSET_INVENTORY_CRITERIA: AssetInventoryCriteria = {
 // Authorization and scope are enforced by the API, never by these filters.
 export function filterAssetInventory(
   authorizedAssets: readonly AssetResponse[],
-  typeNames: ReadonlyMap<string, string>,
+  typeNames: ReadonlyMap<string | undefined, string | null | undefined>,
   criteria: AssetInventoryCriteria,
 ): AssetResponse[] {
   const search = criteria.search.trim().toLocaleLowerCase();
