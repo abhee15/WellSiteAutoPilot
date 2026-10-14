@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import { createServer } from 'vite';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
-let vite, alerts;
+let vite, alerts, panel;
 before(async () => {
   vite = await createServer({ server: { middlewareMode: true },
     appType: 'custom', logLevel: 'silent' });
   alerts = await vite.ssrLoadModule('/src/views/operatorAlerts.ts');
+  panel = await vite.ssrLoadModule('/src/views/OperatorAlertsPanel.tsx');
 });
 after(async () => { await vite?.close(); });
 
@@ -66,4 +69,25 @@ test('only the first twenty recent authorized alerts enter the panel', () => {
   assert.equal(items.length, 20);
   assert.equal(items[0].id, 'execution:44');
   assert.equal(items[19].id, 'execution:25');
+});
+
+test('alert panel renders escaped authorized values and explicit SCADA disclaimer', () => {
+  const values = alerts.collectOperatorAlerts({ components: [
+    { name: '<img src=x onerror=alert(1)>', status: 'Unavailable' },
+  ] }, executions);
+  const html = renderToStaticMarkup(createElement(panel.OperatorAlertsPanel, {
+    alerts: values, onClose: () => {},
+  }));
+  assert.match(html, /Operational alerts/);
+  assert.match(html, /not a replacement for SCADA alarms/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /role="complementary"/);
+});
+test('alert panel has empty state and accessible close button', () => {
+  const html = renderToStaticMarkup(createElement(panel.OperatorAlertsPanel, {
+    alerts: [], onClose: () => {},
+  }));
+  assert.match(html, /No recent issues in the loaded records/);
+  assert.match(html, /aria-label="Close alerts"/);
 });
