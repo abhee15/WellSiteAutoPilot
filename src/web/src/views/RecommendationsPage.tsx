@@ -9,6 +9,7 @@ import {
   fetchRecommendationInbox,
   filterRecommendationInbox,
   inboxCounts,
+  recommendationIsAwaiting,
   recommendationIsExpired,
 } from './recommendationInbox';
 import type { RecommendationInboxCriteria } from './recommendationInbox';

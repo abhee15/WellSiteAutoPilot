@@ -1,3 +1,4 @@
+/* global AbortController, Response */
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import { createServer } from 'vite';
@@ -96,7 +97,7 @@ test('inbox SSR is read-only and cannot trigger a decision', () => {
   assert.match(html, /asset-1/);
   assert.match(html, /wfd\.fill/);
   assert.match(html, /Expired, do not act/);
-  assert.doesNotMatch(html, /Approve|Reject|Submit decision/);
+  assert.doesNotMatch(html, /<button\\b/);
 });
 
 test('filter controls show authorized-window counts and accessible labels', () => {

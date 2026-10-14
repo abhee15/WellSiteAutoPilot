@@ -94,7 +94,8 @@ test('revision history is newest-first, read-only, and excludes raw configuratio
   assert.match(html, /America\/Chicago/);
   assert.match(html, /Every 60 seconds/);
   assert.match(html, /1 assets/);
-  assert.ok(html.indexOf('rev2') < html.indexOf('rev1'));
+  const revisionRows = html.slice(html.indexOf('<tbody>'));
+  assert.ok(revisionRows.indexOf('rev2') < revisionRows.indexOf('rev1'));
   assert.doesNotMatch(html, /SECRET_SHOULD_NOT_RENDER/);
   assert.doesNotMatch(html, /<textarea/);
 });
