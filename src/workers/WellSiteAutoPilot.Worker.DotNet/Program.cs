@@ -15,7 +15,11 @@ builder.Services.AddWindowsService(options =>
 builder.Services.AddHealthChecks();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddSingleton<ILogicModuleResolver, BuiltInLogicModuleResolver>();
-builder.Services.AddTransient<ModuleExecutionEngine>();
+builder.Services.AddTransient<ModuleExecutionEngine>(services =>
+    new ModuleExecutionEngine(
+        services.GetRequiredService<GatewayDataClient>(),
+        services.GetRequiredService<ILogicModuleResolver>(),
+        builder.Configuration.GetValue("Execution:MaximumConcurrentInputReads", 8)));
 builder.Services.AddHttpClient<GatewayDataClient>(client =>
 {
     client.BaseAddress = new Uri(

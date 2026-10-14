@@ -5,9 +5,13 @@ namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 
 public sealed class ModuleExecutionEngine(
     GatewayDataClient gatewayDataClient,
-    ILogicModuleResolver moduleResolver)
+    ILogicModuleResolver moduleResolver,
+    int maximumConcurrentInputReads = 8)
 {
-    private const int MaximumConcurrentInputReads = 8;
+    private readonly int _maximumConcurrentInputReads = maximumConcurrentInputReads is >= 1 and <= 64
+        ? maximumConcurrentInputReads
+        : throw new ArgumentOutOfRangeException(nameof(maximumConcurrentInputReads),
+            "Concurrent input reads must be between 1 and 64.");
 
     public async Task<LogicModuleExecutionResult> ExecuteAsync(
         ExecutionRequestedV1 request,
@@ -75,7 +79,7 @@ public sealed class ModuleExecutionEngine(
             request.ModuleId,
             request.ModuleVersion);
 
-        using var readLimiter = new SemaphoreSlim(MaximumConcurrentInputReads);
+        using var readLimiter = new SemaphoreSlim(_maximumConcurrentInputReads);
         var inputTasks = request.Inputs
             .Select(async binding =>
             {
@@ -130,7 +134,8 @@ public sealed class ModuleExecutionEngine(
             cancellationToken);
 
         if (!string.Equals(value.Quantity, binding.Quantity, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(value.Unit, binding.Unit, StringComparison.OrdinalIgnoreCase))
+            (binding.CanonicalUnit is not null &&
+             !string.Equals(value.Unit, binding.CanonicalUnit, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException(
                 $"Execution input '{binding.RequirementId}' returned a mismatched quantity or unit.");
