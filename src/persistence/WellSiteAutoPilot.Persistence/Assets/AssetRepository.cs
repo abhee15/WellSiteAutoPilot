@@ -65,33 +65,21 @@ public sealed class AssetRepository(
         return entity is null ? null : ToDomain(entity);
     }
 
-    public async Task<IReadOnlyCollection<Asset>> ListAssetsAsync(
+    // These public entry points intentionally expose distinct authorization
+    // semantics. Shared mechanics below guarantee filter/order/page parity.
+    public Task<IReadOnlyCollection<Asset>> ListAssetsAsync(
         Guid? assetTypeId,
         Guid? parentAssetId,
         int limit,
-        CancellationToken cancellationToken = default)
-    {
-        var query = dbContext.Assets.AsNoTracking();
+        CancellationToken cancellationToken = default) =>
+        ListCoreAsync(
+            dbContext.Assets.AsNoTracking(),
+            assetTypeId,
+            parentAssetId,
+            limit,
+            cancellationToken);
 
-        if (assetTypeId is not null)
-        {
-            query = query.Where(item => item.AssetTypeId == assetTypeId.Value);
-        }
-
-        if (parentAssetId is not null)
-        {
-            query = query.Where(item => item.ParentAssetId == parentAssetId.Value);
-        }
-
-        return (await query
-            .OrderBy(item => item.Name)
-            .Take(limit)
-            .ToArrayAsync(cancellationToken))
-            .Select(ToDomain)
-            .ToArray();
-    }
-
-    public async Task<IReadOnlyCollection<Asset>> ListAssetsInScopeAsync(
+    public Task<IReadOnlyCollection<Asset>> ListAssetsInScopeAsync(
         Guid? assetTypeId,
         Guid? parentAssetId,
         int limit,
@@ -102,25 +90,39 @@ public sealed class AssetRepository(
 
         if (allowedAssetIds.Count == 0)
         {
-            return [];
+            // Empty scope means no authorization, never an unrestricted query.
+            return Task.FromResult<IReadOnlyCollection<Asset>>([]);
         }
 
         var ids = allowedAssetIds.Distinct().ToArray();
-        var query = dbContext.Assets
-            .AsNoTracking()
-            .Where(item => ids.Contains(item.Id));
+        return ListCoreAsync(
+            dbContext.Assets.AsNoTracking().Where(item => ids.Contains(item.Id)),
+            assetTypeId,
+            parentAssetId,
+            limit,
+            cancellationToken);
+    }
 
-        if (assetTypeId is not null)
+    private static async Task<IReadOnlyCollection<Asset>> ListCoreAsync(
+        IQueryable<AssetEntity> baseQuery,
+        Guid? assetTypeId,
+        Guid? parentAssetId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        // The scoped query starts with its mandatory SQL predicate before
+        // any type/parent filtering or Take(limit).
+        if (assetTypeId is { } typeId)
         {
-            query = query.Where(item => item.AssetTypeId == assetTypeId.Value);
+            baseQuery = baseQuery.Where(item => item.AssetTypeId == typeId);
         }
 
-        if (parentAssetId is not null)
+        if (parentAssetId is { } parentId)
         {
-            query = query.Where(item => item.ParentAssetId == parentAssetId.Value);
+            baseQuery = baseQuery.Where(item => item.ParentAssetId == parentId);
         }
 
-        return (await query
+        return (await baseQuery
             .OrderBy(item => item.Name)
             .Take(limit)
             .ToArrayAsync(cancellationToken))
