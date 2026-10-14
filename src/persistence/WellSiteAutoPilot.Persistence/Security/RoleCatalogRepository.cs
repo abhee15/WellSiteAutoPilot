@@ -160,6 +160,15 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
                 .Where(item => item.RoleId == roleId)
                 .ExecuteDeleteAsync(cancellationToken);
 
+            // ExecuteDelete bypasses EF's state manager. Prior creation in
+            // this scoped DbContext may still track keys that are about to be
+            // re-inserted; detach only those rows to avoid false collisions.
+            foreach (var tracked in dbContext.RolePermissions.Local
+                .Where(item => item.RoleId == roleId).ToArray())
+            {
+                dbContext.Entry(tracked).State = EntityState.Detached;
+            }
+
             foreach (var permission in mutation.Permissions)
             {
                 dbContext.RolePermissions.Add(new RolePermissionEntity
