@@ -134,7 +134,7 @@ using (var boundedClient = new HttpClient(boundedHandler)
         boundedHandler.MaximumInFlight < 2 ||
         boundedHandler.TotalRequests != largeInputs.Length ||
         boundedResult.EngineeringResults.Count != largeInputs.Length ||
-        !boundedResult.EngineeringResults.Select(item => item.RequirementId)
+        !boundedResult.EngineeringResults.Select(item => item.Id)
             .SequenceEqual(largeInputs.Select(item => item.RequirementId)))
     {
         throw new InvalidOperationException(
