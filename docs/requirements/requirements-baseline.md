@@ -16,6 +16,15 @@ This document is an index for the detailed WellSite AutoPilot requirements. Deta
 10. Deployment, installer, Runtime Node, and upgrades
 11. Persistence, audit, observability, and nonfunctional requirements
 
+## Enterprise access design (planned)
+
+- Windows/AD authentication and group membership must feed the same configurable role/permission/Asset-scope authorization model; see [ADR-006](../adr/ADR-006-enterprise-entitlements.md).
+- Customers can create and clone roles from protected built-in Admin, Engineer and Operator templates. Product-defined permission identifiers remain stable and enforceable; arbitrary user-defined permission strings are not executable rights.
+- Roles, user/group assignment and exact Asset scope belong to one entitlement; do not combine separate roles and Asset lists across unrelated assignments.
+- Only authorized security administrators may modify roles, permission grants and directory-group mappings; no self-escalation and no removal of the last directly granted administrative recovery principal.
+- Directory group security identifiers, revocation/freshness, offline behavior, provenance audits, and affected-access previews are part of enterprise readiness.
+- Existing fixed-role implementation remains authoritative only until a tested staged migration is complete; this section does not itself authorize new runtime behavior.
+
 ## Locked cross-cutting decisions
 
 - Product name: WellSite AutoPilot.
