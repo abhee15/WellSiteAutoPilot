@@ -16,6 +16,7 @@ public sealed partial class ExecutionRequestConsumer(
     INatsConnection connection,
     ModuleExecutionEngine moduleExecutionEngine,
     TimeProvider timeProvider,
+    JetStreamConsumerSettings consumerSettings,
     ILogger<ExecutionRequestConsumer> logger) : BackgroundService
 {
     private static readonly JsonSerializerOptions SerializerOptions =
@@ -54,8 +55,8 @@ public sealed partial class ExecutionRequestConsumer(
             {
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
                 FilterSubject = Subjects.ExecutionRequestedV1,
-                AckWait = TimeSpan.FromSeconds(30),
-                MaxDeliver = 5
+                AckWait = consumerSettings.RequestAckWait,
+                MaxDeliver = consumerSettings.MaxDeliver
             },
             cancellationToken);
 
@@ -78,9 +79,10 @@ public sealed partial class ExecutionRequestConsumer(
                     "Execution request envelope could not be deserialized.");
             }
 
-            await ProcessAsync(
-                envelope,
-                jetStream,
+            await JetStreamProgressLease.RunAsync(
+                token => ProcessAsync(envelope, jetStream, token),
+                token => message.AckProgressAsync(cancellationToken: token),
+                consumerSettings.RequestProgressInterval,
                 cancellationToken);
 
             await message.AckAsync(cancellationToken: cancellationToken);

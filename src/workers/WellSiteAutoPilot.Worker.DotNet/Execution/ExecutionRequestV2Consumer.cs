@@ -16,6 +16,7 @@ public sealed partial class ExecutionRequestV2Consumer(
     INatsConnection connection,
     ModuleExecutionEngine moduleExecutionEngine,
     TimeProvider timeProvider,
+    JetStreamConsumerSettings consumerSettings,
     ILogger<ExecutionRequestV2Consumer> logger) : BackgroundService
 {
     public const string ConsumerName = "wsa-dotnet-worker-v2";
@@ -56,8 +57,8 @@ public sealed partial class ExecutionRequestV2Consumer(
             {
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
                 FilterSubject = Subjects.ExecutionRequestedV2,
-                AckWait = TimeSpan.FromSeconds(30),
-                MaxDeliver = 5
+                AckWait = consumerSettings.RequestAckWait,
+                MaxDeliver = consumerSettings.MaxDeliver
             },
             cancellationToken);
 
@@ -75,7 +76,11 @@ public sealed partial class ExecutionRequestV2Consumer(
                 SerializerOptions) ?? throw new InvalidOperationException(
                 "Execution V2 request envelope could not be deserialized.");
 
-            await ProcessAsync(envelope, jetStream, cancellationToken);
+            await JetStreamProgressLease.RunAsync(
+                token => ProcessAsync(envelope, jetStream, token),
+                token => message.AckProgressAsync(cancellationToken: token),
+                consumerSettings.RequestProgressInterval,
+                cancellationToken);
             await message.AckAsync(cancellationToken: cancellationToken);
         }
     }

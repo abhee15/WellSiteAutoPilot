@@ -29,6 +29,11 @@ builder.Services.AddHttpClient<GatewayDataClient>(client =>
 });
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
+builder.Services.AddSingleton(new JetStreamConsumerSettings(
+    builder.Configuration.GetValue("Messaging:JetStream:RequestAckWaitSeconds", 120),
+    builder.Configuration.GetValue("Messaging:JetStream:ResultAckWaitSeconds", 30),
+    builder.Configuration.GetValue("Messaging:JetStream:RequestProgressSeconds", 20),
+    builder.Configuration.GetValue("Messaging:JetStream:MaxDeliver", 5)).Validate());
 builder.Services.AddHostedService<ExecutionRequestConsumer>();
 builder.Services.AddHostedService<ExecutionRequestV2Consumer>();
 

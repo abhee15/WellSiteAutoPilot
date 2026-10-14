@@ -16,6 +16,7 @@ namespace WellSiteAutoPilot.Infrastructure.Messaging;
 public sealed partial class ExecutionResultV2Consumer(
     IServiceScopeFactory scopeFactory,
     INatsConnection connection,
+    JetStreamConsumerSettings consumerSettings,
     ILogger<ExecutionResultV2Consumer> logger) : BackgroundService
 {
     public const string ConsumerName = "wsa-server-execution-results-v2";
@@ -60,8 +61,8 @@ public sealed partial class ExecutionResultV2Consumer(
                     Subjects.ExecutionCompletedV2,
                     Subjects.ExecutionFailedV2
                 ],
-                AckWait = TimeSpan.FromSeconds(30),
-                MaxDeliver = 5
+                AckWait = consumerSettings.ResultAckWait,
+                MaxDeliver = consumerSettings.MaxDeliver
             },
             cancellationToken);
 

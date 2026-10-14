@@ -142,6 +142,11 @@ builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
 builder.Services.AddScoped<OutboxPublisher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
+builder.Services.AddSingleton(new JetStreamConsumerSettings(
+    builder.Configuration.GetValue("Messaging:JetStream:RequestAckWaitSeconds", 120),
+    builder.Configuration.GetValue("Messaging:JetStream:ResultAckWaitSeconds", 30),
+    builder.Configuration.GetValue("Messaging:JetStream:RequestProgressSeconds", 20),
+    builder.Configuration.GetValue("Messaging:JetStream:MaxDeliver", 5)).Validate());
 builder.Services.AddHostedService<ExecutionResultConsumer>();
 builder.Services.AddHostedService<ExecutionResultV2Consumer>();
 builder.Services.AddHostedService<ScheduledShadowSchedulerHostedService>();
