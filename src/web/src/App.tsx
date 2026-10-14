@@ -11,6 +11,7 @@ import type {
 import { t } from './localization';
 import { OperationsViewControls } from './views/OperationsViewControls';
 import { ExecutionDetailPanel } from './views/ExecutionDetailPanel';
+import { RecommendationsPage } from './views/RecommendationsPage';
 import { AssetInventoryControls } from './views/AssetInventoryControls';
 import { LogicCatalogControls } from './views/LogicCatalogControls';
 import { ConfiguredLogicControls } from './views/ConfiguredLogicControls';
@@ -25,7 +26,7 @@ import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './views/operationsVie
 import type { OperationsViewCriteria } from './views/operationsViews';
 
 const REFRESH_INTERVAL_MS = 10_000;
-type Section = 'operations' | 'assets' | 'logic';
+type Section = 'operations' | 'recommendations' | 'assets' | 'logic';
 
 export function App() {
   const [section, setSection] = useState<Section>(() => sectionFromHash());
@@ -141,6 +142,7 @@ export function App() {
         </div>
         <nav aria-label="Primary">
           <NavigationLink section="operations" current={section}>{t('nav.operations')}</NavigationLink>
+          <NavigationLink section="recommendations" current={section}>{t('nav.recommendations')}</NavigationLink>
           <NavigationLink section="assets" current={section}>{t('nav.assets')}</NavigationLink>
           <NavigationLink section="logic" current={section}>{t('nav.logic')}</NavigationLink>
         </nav>
@@ -150,9 +152,9 @@ export function App() {
       <main className="content">
         <PageHeader
           section={section}
-          isRefreshing={isRefreshing}
-          lastUpdated={lastUpdated}
-          onRefresh={() => void refresh()}
+          isRefreshing={section === 'recommendations' ? false : isRefreshing}
+          lastUpdated={section === 'recommendations' ? null : lastUpdated}
+          onRefresh={section === 'recommendations' ? undefined : () => void refresh()}
         />
 
         {error && (
@@ -166,6 +168,12 @@ export function App() {
             key={currentUser?.userId ?? 'no-user'}
             systemInfo={systemInfo}
             executions={executions}
+            userId={currentUser?.userId}
+          />
+        )}
+        {section === 'recommendations' && (
+          <RecommendationsPage
+            key={currentUser?.userId ?? 'no-user'}
             userId={currentUser?.userId}
           />
         )}
@@ -238,7 +246,7 @@ export function NavigationLink({
   current: Section;
   children: string;
 }) {
-  const shortLabel = { operations: 'OP', assets: 'AS', logic: 'LG' }[section];
+  const shortLabel = { operations: 'OP', recommendations: 'RC', assets: 'AS', logic: 'LG' }[section];
 
   return (
     <a
@@ -262,13 +270,18 @@ function PageHeader({
   section: Section;
   isRefreshing: boolean;
   lastUpdated: Date | null;
-  onRefresh: () => void;
+  onRefresh?: () => void;
 }) {
   const copy = {
     operations: {
       eyebrow: 'Operations',
       title: 'Runtime activity',
       description: 'Recent Logic execution and runtime readiness on this Runtime Node.',
+    },
+    recommendations: {
+      eyebrow: t('nav.recommendations'),
+      title: t('inbox.pageTitle'),
+      description: t('inbox.pageDescription'),
     },
     assets: {
       eyebrow: 'Assets',
@@ -295,14 +308,16 @@ function PageHeader({
             Updated {lastUpdated.toLocaleTimeString()}
           </span>
         )}
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={isRefreshing}
-          onClick={onRefresh}
-        >
-          {isRefreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
+        {onRefresh && (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={isRefreshing}
+            onClick={onRefresh}
+          >
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+        )}
       </div>
     </header>
   );
@@ -799,7 +814,8 @@ function EmptyRow({
 
 function sectionFromHash(): Section {
   const value = window.location.hash.replace('#', '').toLowerCase();
-  return value === 'assets' || value === 'logic' ? value : 'operations';
+  return value === 'assets' || value === 'logic' || value === 'recommendations'
+    ? value : 'operations';
 }
 
 function formatTimestamp(value?: string | null) {
