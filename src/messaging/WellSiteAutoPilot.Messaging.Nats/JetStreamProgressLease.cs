@@ -15,10 +15,7 @@ public static class JetStreamProgressLease
     {
         ArgumentNullException.ThrowIfNull(processAsync);
         ArgumentNullException.ThrowIfNull(acknowledgeProgressAsync);
-        if (interval <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(interval));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
 
         cancellationToken.ThrowIfCancellationRequested();
 
