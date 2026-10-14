@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 
 let vite;
 let components;
+let localization;
 
 before(async () => {
   vite = await createServer({
@@ -14,6 +15,7 @@ before(async () => {
     logLevel: 'silent',
   });
   components = await vite.ssrLoadModule('/src/App.tsx');
+  localization = await vite.ssrLoadModule('/src/localization.ts');
 });
 
 after(async () => {
@@ -76,4 +78,14 @@ test('responsive links retain accessible full labels and active-page semantics',
   assert.match(other, /aria-label="Assets"/);
   assert.match(other, /aria-hidden="true">AS</);
   assert.doesNotMatch(other, /aria-current="page"/);
+});
+
+
+test('English message catalog provides typed operator copy and interpolation', () => {
+  assert.equal(localization.t('session.heading'), 'Operator session');
+  assert.equal(localization.t('session.assigned', { count: 2 }), '2 assigned');
+  assert.equal(
+    localization.t('refresh.runtimeFailed', { status: 503 }),
+    'Runtime data request failed (503). Previous data may be stale.',
+  );
 });

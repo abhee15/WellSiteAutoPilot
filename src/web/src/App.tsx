@@ -8,6 +8,7 @@ import type {
   LogicModuleResponse,
   SystemInfoResponse,
 } from './api/generated/v1/types.gen';
+import { t } from './localization';
 
 const REFRESH_INTERVAL_MS = 10_000;
 type Section = 'operations' | 'assets' | 'logic';
@@ -66,8 +67,8 @@ export function App() {
         }
         throw new Error(
           failed.status === 401 || failed.status === 403
-            ? 'Session access is unavailable. Sign in with an authorized account.'
-            : 'Runtime data request failed (' + failed.status + '). Previous data may be stale.',
+            ? t('refresh.sessionUnavailable')
+            : t('refresh.runtimeFailed', { status: failed.status }),
         );
       }
 
@@ -98,7 +99,7 @@ export function App() {
 
       setError(reason instanceof Error
         ? reason.message
-        : 'WellSite AutoPilot information is unavailable.');
+        : t('refresh.unavailable'));
     } finally {
       if (activeRefresh.current === controller) {
         activeRefresh.current = null;
@@ -125,9 +126,9 @@ export function App() {
           <strong>WellSite AutoPilot</strong>
         </div>
         <nav aria-label="Primary">
-          <NavigationLink section="operations" current={section}>Operations</NavigationLink>
-          <NavigationLink section="assets" current={section}>Assets</NavigationLink>
-          <NavigationLink section="logic" current={section}>Logic</NavigationLink>
+          <NavigationLink section="operations" current={section}>{t('nav.operations')}</NavigationLink>
+          <NavigationLink section="assets" current={section}>{t('nav.assets')}</NavigationLink>
+          <NavigationLink section="logic" current={section}>{t('nav.logic')}</NavigationLink>
         </nav>
         <UserMenu user={currentUser} isLoading={isRefreshing} />
       </aside>
@@ -168,11 +169,11 @@ export function UserMenu({
   isLoading: boolean;
 }) {
   const displayName = user?.displayName?.trim() || user?.identityName ||
-    (isLoading ? 'Loading user…' : 'Session unavailable');
+    (isLoading ? t('session.loading') : t('session.unavailable'));
 
   return (
     <details className="user-menu">
-      <summary aria-label={'Current user: ' + displayName}>
+      <summary aria-label={t('session.label', { name: displayName })}>
         <span className="user-avatar" aria-hidden="true">
           {displayName.charAt(0).toUpperCase()}
         </span>
@@ -180,22 +181,22 @@ export function UserMenu({
         <span className="user-menu-chevron" aria-hidden="true">⌃</span>
       </summary>
       <div className="user-panel">
-        <strong>Operator session</strong>
+        <strong>{t('session.heading')}</strong>
         {!user ? (
-          <p role="status">User details are unavailable.</p>
+          <p role="status">{t('session.noDetails')}</p>
         ) : (
           <dl>
-            <dt>Identity</dt>
+            <dt>{t('session.identity')}</dt>
             <dd>{user.identityName}</dd>
-            <dt>Account</dt>
-            <dd>{user.isActive ? 'Active' : 'Inactive'}</dd>
-            <dt>Assigned roles</dt>
-            <dd>{user.roles?.length ? user.roles.join(', ') : 'None assigned'}</dd>
-            <dt>Scoped assets</dt>
-            <dd>{user.assetScopeIds?.length ?? 0} assigned</dd>
+            <dt>{t('session.account')}</dt>
+            <dd>{user.isActive ? t('session.active') : t('session.inactive')}</dd>
+            <dt>{t('session.roles')}</dt>
+            <dd>{user.roles?.length ? user.roles.join(', ') : t('session.noRoles')}</dd>
+            <dt>{t('session.scope')}</dt>
+            <dd>{t('session.assigned', { count: user.assetScopeIds?.length ?? 0 })}</dd>
           </dl>
         )}
-        <p className="user-panel-note">Server-side access rules remain authoritative.</p>
+        <p className="user-panel-note">{t('session.authNotice')}</p>
       </div>
     </details>
   );
