@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using WellSiteAutoPilot.Application.Executions;
 
