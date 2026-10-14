@@ -54,7 +54,8 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
                     ScheduledShadowDispatchOutcome.OverlapBlocked or
                     ScheduledShadowDispatchOutcome.ModuleUnavailable or
                     ScheduledShadowDispatchOutcome.ModuleDisabled or
-                    ScheduledShadowDispatchOutcome.InvalidConfiguration);
+                    ScheduledShadowDispatchOutcome.InvalidConfiguration or
+                    ScheduledShadowDispatchOutcome.DispatchFailed);
 
             if (dispatched > 0 || blocked > 0)
             {

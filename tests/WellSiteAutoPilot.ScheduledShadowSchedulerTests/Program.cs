@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Scheduling;
+using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Persistence;
@@ -299,8 +300,182 @@ if (occurrenceTimes[0] != expectedFirstOccurrence ||
         "Scheduler persisted an unexpected occurrence sequence.");
 }
 
+// Use real persistence and independent asset scopes to prove that a transient
+// failure in one candidate cannot starve another due candidate.
+var faultedModuleId = $"weatherford.scheduler-fault-{Guid.NewGuid():N}";
+var faultedManifest = manifest.Replace(
+    "weatherford.scheduler-shadow-test",
+    faultedModuleId,
+    StringComparison.Ordinal);
+
+await moduleCatalog.RegisterAsync(
+    new RegisterLogicModuleCommand(
+        faultedManifest,
+        new string('b', 64),
+        LogicModuleTrustStatus.TrustedPublisher));
+
+var isolatedDefinitions = new List<ConfiguredLogicDefinition>();
+var isolationManifests = new[] { faultedManifest, manifest };
+var isolationNames = new[]
+{
+    "AA Scheduler Injected Failure",
+    "AB Scheduler Healthy Candidate"
+};
+
+for (var index = 0; index < isolationNames.Length; index++)
+{
+    var isolationAsset = await assetService.CreateAssetAsync(
+        new CreateAssetCommand(
+            wellType.Id,
+            $"Scheduler Isolation Well {index + 1}",
+            null,
+            """{"field":"scheduler-isolation"}"""));
+
+    var definition = await configuredLogicService.CreateAsync(
+        new CreateConfiguredLogicCommand(
+            isolationNames[index],
+            isolationManifests[index],
+            """{"targetFillage":75}""",
+            [
+                new ConfiguredLogicAssetBindingCommand(
+                    "well",
+                    isolationAsset.Id,
+                    "{}")
+            ],
+            [
+                new ConfiguredLogicDataBindingCommand(
+                    "pump-fillage",
+                    isolationAsset.Id,
+                    "simulator",
+                    $"ISOLATION-WELL-{index + 1}",
+                    "{}")
+            ],
+            new ConfiguredLogicScheduleCommand(
+                true,
+                60,
+                scheduleStart,
+                "UTC")));
+
+    var revision = definition.Revisions.Single();
+    await configuredLogicService.ValidateRevisionAsync(
+        definition.Id,
+        revision.Id);
+    await configuredLogicService.ActivateRevisionAsync(
+        definition.Id,
+        revision.Id);
+    isolatedDefinitions.Add(definition);
+}
+
+var failedDefinition = isolatedDefinitions[0];
+var healthyDefinition = isolatedDefinitions[1];
+var failedRevisionId = failedDefinition.Revisions.Single().Id;
+var healthyRevisionId = healthyDefinition.Revisions.Single().Id;
+
+var faultInjectingCatalog = new FaultInjectingModuleCatalogRepository(
+    moduleRepository,
+    faultedModuleId);
+var isolatedScheduler = new ScheduledShadowSchedulerService(
+    configuredLogicRepository,
+    faultInjectingCatalog,
+    executionRepository,
+    executionService,
+    clock);
+
+var failureSweep = await isolatedScheduler.DispatchDueAsync(100);
+var failureDecisions = failureSweep.Decisions.ToArray();
+var failedDecision = failureDecisions.Single(
+    item => item.ConfiguredLogicId == failedDefinition.Id);
+var healthyDecision = failureDecisions.Single(
+    item => item.ConfiguredLogicId == healthyDefinition.Id);
+
+if (failedDecision.Outcome != ScheduledShadowDispatchOutcome.DispatchFailed ||
+    failedDecision.ReasonCode != "SCHEDULER_DISPATCH_FAILED" ||
+    failedDecision.ExecutionId is not null ||
+    failedDecision.ScheduledForUtc != expectedResumedOccurrence ||
+    healthyDecision.Outcome != ScheduledShadowDispatchOutcome.Dispatched ||
+    healthyDecision.ExecutionId is null ||
+    Array.FindIndex(
+        failureDecisions,
+        item => item.ConfiguredLogicId == failedDefinition.Id) >=
+    Array.FindIndex(
+        failureDecisions,
+        item => item.ConfiguredLogicId == healthyDefinition.Id))
+{
+    throw new InvalidOperationException(
+        "Scheduler did not isolate a failed candidate while dispatching the next due candidate.");
+}
+
+var isolationOccurrence = expectedResumedOccurrence;
+if (await executionRepository.ScheduledOccurrenceExistsAsync(
+        failedRevisionId,
+        isolationOccurrence) ||
+    !await executionRepository.ScheduledOccurrenceExistsAsync(
+        healthyRevisionId,
+        isolationOccurrence))
+{
+    throw new InvalidOperationException(
+        "Failed dispatch wrote an occurrence, or the healthy candidate was not persisted.");
+}
+
+// Retry the same clock interval. Only the previously failed occurrence may
+// dispatch; the successful candidate must stay deduplicated.
+faultInjectingCatalog.FailTargetGet = false;
+var recoveredSweep = await isolatedScheduler.DispatchDueAsync(100);
+var recoveredFailure = recoveredSweep.Decisions.Single(
+    item => item.ConfiguredLogicId == failedDefinition.Id);
+var recoveredHealthy = recoveredSweep.Decisions.Single(
+    item => item.ConfiguredLogicId == healthyDefinition.Id);
+
+if (recoveredFailure.Outcome != ScheduledShadowDispatchOutcome.Dispatched ||
+    recoveredFailure.ExecutionId is null ||
+    recoveredHealthy.Outcome != ScheduledShadowDispatchOutcome.AlreadyDispatched ||
+    !await executionRepository.ScheduledOccurrenceExistsAsync(
+        failedRevisionId,
+        isolationOccurrence))
+{
+    throw new InvalidOperationException(
+        "Scheduler retry did not recover the failed occurrence without duplicate dispatch.");
+}
+
+// Caller cancellation is not a per-candidate failure. The sweep must stop
+// immediately and must not enqueue either next-interval occurrence.
+clock.Advance(TimeSpan.FromMinutes(1));
+var cancelledOccurrence = new DateTimeOffset(
+    2026, 10, 8, 12, 17, 0, TimeSpan.Zero);
+
+using (var cancellation = new CancellationTokenSource())
+{
+    faultInjectingCatalog.CancelTargetGet = cancellation;
+
+    try
+    {
+        await isolatedScheduler.DispatchDueAsync(100, cancellation.Token);
+        throw new InvalidOperationException(
+            "Scheduler swallowed cancellation and continued the sweep.");
+    }
+    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+    {
+        // Expected: cancellation must propagate to the hosting scheduler.
+    }
+    finally
+    {
+        faultInjectingCatalog.CancelTargetGet = null;
+    }
+}
+
+if (await executionRepository.ScheduledOccurrenceExistsAsync(
+        failedRevisionId,
+        cancelledOccurrence) ||
+    await executionRepository.ScheduledOccurrenceExistsAsync(
+        healthyRevisionId,
+        cancelledOccurrence))
+{
+    throw new InvalidOperationException(
+        "Cancelled sweep persisted a scheduled occurrence.");
+}
+
 Console.WriteLine(
-    "Scheduled Shadow due calculation, durable dispatch, idempotency, overlap blocking, and no-burst replay checks passed.");
+    "Scheduled Shadow due calculation, durable dispatch, idempotency, overlap blocking, and no-burst replay, candidate failure isolation, recovery, and cancellation checks passed.");
 return 0;
 
 file sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
@@ -313,4 +488,48 @@ file sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         _utcNow = _utcNow.Add(amount);
     }
+}
+
+
+file sealed class FaultInjectingModuleCatalogRepository(
+    ILogicModuleCatalogRepository inner,
+    string faultedModuleId) : ILogicModuleCatalogRepository
+{
+    public bool FailTargetGet { get; set; } = true;
+
+    public CancellationTokenSource? CancelTargetGet { get; set; }
+
+    public Task<InstalledLogicModule?> GetAsync(
+        string moduleId,
+        string version,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.Equals(moduleId, faultedModuleId, StringComparison.Ordinal))
+        {
+            if (CancelTargetGet is { } cancellationSource)
+            {
+                cancellationSource.Cancel();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            if (FailTargetGet)
+            {
+                throw new InvalidOperationException(
+                    "Injected catalog failure for scheduler isolation regression.");
+            }
+        }
+
+        return inner.GetAsync(moduleId, version, cancellationToken);
+    }
+
+    public Task<IReadOnlyCollection<InstalledLogicModule>> ListAsync(
+        string? moduleId,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        inner.ListAsync(moduleId, limit, cancellationToken);
+
+    public Task AddAsync(
+        InstalledLogicModule module,
+        CancellationToken cancellationToken = default) =>
+        inner.AddAsync(module, cancellationToken);
 }
