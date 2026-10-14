@@ -272,38 +272,42 @@ button:disabled {
   font-size: 0.8rem;
 }
 
-.operations-view-controls {
+.data-view-controls {
   padding: 14px 18px;
   border-bottom: 1px solid #29343e;
 }
 
-.operations-view-fields,
-.operations-saved-view-fields {
+.data-view-fields,
+.data-saved-view-fields {
   display: grid;
   grid-template-columns: minmax(180px, 2fr) minmax(130px, 1fr) minmax(130px, 1fr);
   gap: 12px;
   align-items: end;
 }
 
-.operations-saved-view-fields {
+.data-saved-view-fields {
   grid-template-columns: minmax(150px, 1.2fr) minmax(150px, 1.2fr) repeat(3, auto);
   margin-top: 12px;
 }
 
-.operations-view-controls label {
+.asset-view-fields {
+  grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(125px, 1fr));
+}
+
+.data-view-controls label {
   display: grid;
   gap: 5px;
   min-width: 0;
 }
 
-.operations-view-controls label span {
+.data-view-controls label span {
   color: #b5c0ca;
   font-size: 0.78rem;
 }
 
-.operations-view-controls input,
-.operations-view-controls select,
-.operations-view-controls button {
+.data-view-controls input,
+.data-view-controls select,
+.data-view-controls button {
   width: 100%;
   min-width: 0;
   min-height: 36px;
@@ -316,41 +320,48 @@ button:disabled {
   font-size: 0.875rem;
 }
 
-.operations-view-controls button {
+.data-view-controls button {
   cursor: pointer;
 }
 
-.operations-view-controls button:hover:not(:disabled) {
+.data-view-controls button:hover:not(:disabled) {
   background: #2b3b47;
 }
 
-.operations-view-controls button:disabled,
-.operations-view-controls select:disabled,
-.operations-view-controls input:disabled {
+.data-view-controls button:disabled,
+.data-view-controls select:disabled,
+.data-view-controls input:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
-.operations-view-note,
-.operations-view-notice {
+.data-view-note,
+.data-view-notice {
   margin: 10px 0 0;
   color: #b5c0ca;
   font-size: 0.78rem;
 }
 
-.operations-view-notice {
+.data-view-notice {
   color: #e5cf91;
 }
 
 @media (max-width: 1100px) {
-  .operations-saved-view-fields {
+  .data-saved-view-fields {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
+@media (max-width: 900px) {
+  .asset-view-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 650px) {
-  .operations-view-fields,
-  .operations-saved-view-fields {
+  .data-view-fields,
+  .data-saved-view-fields,
+  .asset-view-fields {
     grid-template-columns: 1fr;
   }
 }

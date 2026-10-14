@@ -177,4 +177,5 @@ test('view controls keep filtering available without claiming session storage', 
   assert.match(markup, /Save view/);
   assert.match(markup, /disabled=""/);
   assert.match(markup, /Execution view controls/);
+  assert.match(markup, /role="group"/);
 });

@@ -104,8 +104,8 @@ export function OperationsViewControls({
   };
 
   return (
-    <div className="operations-view-controls" aria-label={t('views.controls')}>
-      <div className="operations-view-fields">
+    <div className="data-view-controls" role="group" aria-label={t('views.controls')}>
+      <div className="data-view-fields">
         <label>
           <span>{t('views.search')}</span>
           <input
@@ -148,7 +148,7 @@ export function OperationsViewControls({
           </select>
         </label>
       </div>
-      <div className="operations-saved-view-fields">
+      <div className="data-saved-view-fields">
         <label>
           <span>{t('views.savedViews')}</span>
           <select
@@ -187,11 +187,11 @@ export function OperationsViewControls({
           {t('views.reset')}
         </button>
       </div>
-      <p className="operations-view-note">
+      <p className="data-view-note">
         {t('views.count', { shown: matchingCount, total: recentCount })}{' '}
         {t('views.deviceNote')}
       </p>
-      {notice && <p className="operations-view-notice" role="status">{notice}</p>}
+      {notice && <p className="data-view-notice" role="status">{notice}</p>}
     </div>
   );
 }
