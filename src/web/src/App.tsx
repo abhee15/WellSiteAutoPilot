@@ -12,6 +12,7 @@ import { t } from './localization';
 import { OperationsViewControls } from './views/OperationsViewControls';
 import { ExecutionDetailPanel } from './views/ExecutionDetailPanel';
 import { RecommendationsPage } from './views/RecommendationsPage';
+import { AccessManagementPage } from './views/AccessManagementPage';
 import { AssetInventoryControls } from './views/AssetInventoryControls';
 import { LogicCatalogControls } from './views/LogicCatalogControls';
 import { ConfiguredLogicControls } from './views/ConfiguredLogicControls';
@@ -26,7 +27,7 @@ import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './views/operationsVie
 import type { OperationsViewCriteria } from './views/operationsViews';
 
 const REFRESH_INTERVAL_MS = 10_000;
-type Section = 'operations' | 'recommendations' | 'assets' | 'logic';
+type Section = 'operations' | 'recommendations' | 'assets' | 'logic' | 'access';
 
 export function App() {
   const [section, setSection] = useState<Section>(() => sectionFromHash());
@@ -152,9 +153,9 @@ export function App() {
       <main className="content">
         <PageHeader
           section={section}
-          isRefreshing={section === 'recommendations' ? false : isRefreshing}
-          lastUpdated={section === 'recommendations' ? null : lastUpdated}
-          onRefresh={section === 'recommendations' ? undefined : () => void refresh()}
+          isRefreshing={section === 'recommendations' || section === 'access' ? false : isRefreshing}
+          lastUpdated={section === 'recommendations' || section === 'access' ? null : lastUpdated}
+          onRefresh={section === 'recommendations' || section === 'access' ? undefined : () => void refresh()}
         />
 
         {error && (
@@ -177,6 +178,11 @@ export function App() {
             userId={currentUser?.userId}
             roles={currentUser?.roles}
           />
+        )}
+        {section === 'access' && (
+          currentUser?.userId && currentUser.roles?.includes('Admin')
+            ? <AccessManagementPage key={currentUser.userId} currentUserId={currentUser.userId} />
+            : <div className="status-error" role="alert">{t('access.denied')}</div>
         )}
         {section === 'assets' && (
           <AssetsPage
@@ -234,6 +240,9 @@ export function UserMenu({
           </dl>
         )}
         <p className="user-panel-note">{t('session.authNotice')}</p>
+        {user?.isActive && user.roles?.includes('Admin') && (
+          <a className="user-panel-link" href="#access">{t('access.menu')}</a>
+        )}
       </div>
     </details>
   );
@@ -248,7 +257,7 @@ export function NavigationLink({
   current: Section;
   children: string;
 }) {
-  const shortLabel = { operations: 'OP', recommendations: 'RC', assets: 'AS', logic: 'LG' }[section];
+  const shortLabel = { operations: 'OP', recommendations: 'RC', assets: 'AS', logic: 'LG', access: 'AC' }[section];
 
   return (
     <a
@@ -294,6 +303,11 @@ function PageHeader({
       eyebrow: 'Logic',
       title: 'Logic workspace',
       description: 'Installed Logic Modules and customer-specific configured Logic revisions.',
+    },
+    access: {
+      eyebrow: t('access.eyebrow'),
+      title: t('access.pageTitle'),
+      description: t('access.pageDescription'),
     },
   }[section];
 
@@ -819,7 +833,7 @@ function EmptyRow({
 
 function sectionFromHash(): Section {
   const value = window.location.hash.replace('#', '').toLowerCase();
-  return value === 'assets' || value === 'logic' || value === 'recommendations'
+  return value === 'assets' || value === 'logic' || value === 'recommendations' || value === 'access'
     ? value : 'operations';
 }
 
