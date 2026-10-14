@@ -1,14 +1,12 @@
 name: CI
 
 on:
+  # Draft and ready PRs run full validation. Do not also run the same
+  # six-job suite on every feature-branch push when a PR exists.
   push:
     branches:
       - main
       - develop
-      - 'feature/**'
-      - 'fix/**'
-      - 'chore/**'
-      - 'validation/**'
   pull_request:
     branches:
       - main
