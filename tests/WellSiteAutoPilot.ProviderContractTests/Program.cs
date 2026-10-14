@@ -159,6 +159,52 @@ catch (InvalidOperationException exception)
 if (retryProvider.CallCount != 2)
     throw new InvalidOperationException("Reopened circuit contacted provider.");
 
+// Exactly one half-open probe may run while competing requests are in flight.
+var concurrentProvider = new BlockingRecoveryCurrentDataProvider();
+var concurrentClock = new ManualProviderClock(DateTimeOffset.UtcNow);
+var concurrentBreaker = new CircuitBreakingCurrentDataProvider(
+    concurrentProvider, concurrentClock, 1, TimeSpan.FromSeconds(10));
+try
+{
+    await concurrentBreaker.GetCurrentAsync("WELL-101", "Pressure");
+    throw new InvalidOperationException("Expected initial provider failure.");
+}
+catch (HttpRequestException)
+{
+}
+concurrentClock.Advance(TimeSpan.FromSeconds(10));
+var pendingProbe = concurrentBreaker.GetCurrentAsync("WELL-101", "Pressure").AsTask();
+if (pendingProbe.IsCompleted || concurrentProvider.CallCount != 2)
+    throw new InvalidOperationException("Recovery probe did not remain in flight.");
+try
+{
+    var competingRequests = Enumerable.Range(0, 8).Select(async _ =>
+    {
+        try
+        {
+            await concurrentBreaker.GetCurrentAsync("WELL-101", "Pressure");
+            return false;
+        }
+        catch (InvalidOperationException exception)
+            when (exception.Message.Contains("circuit is open", StringComparison.Ordinal))
+        {
+            return true;
+        }
+    }).ToArray();
+    if ((await Task.WhenAll(competingRequests)).Any(rejected => !rejected) ||
+        concurrentProvider.CallCount != 2)
+        throw new InvalidOperationException("Competing request bypassed the half-open probe.");
+}
+finally
+{
+    concurrentProvider.ReleaseProbe();
+}
+if ((await pendingProbe).Source != "recovered")
+    throw new InvalidOperationException("Recovery probe did not complete successfully.");
+await concurrentBreaker.GetCurrentAsync("WELL-101", "Pressure");
+if (concurrentProvider.CallCount != 3)
+    throw new InvalidOperationException("Successful recovery did not restore normal reads.");
+
 // Cancellation is not a provider failure and must not trip the breaker.
 var canceledProvider = new RecoveringCurrentDataProvider();
 var cancellationBreaker = new CircuitBreakingCurrentDataProvider(
@@ -218,5 +264,27 @@ file sealed class RecoveringCurrentDataProvider : ICurrentDataProvider
         if (Fail) throw new HttpRequestException("Provider unavailable.");
         return ValueTask.FromResult(new EngineeringValue(
             quantity, 42m, "psi", DateTimeOffset.UtcNow, "Good", "recovered"));
+    }
+}
+
+file sealed class BlockingRecoveryCurrentDataProvider : ICurrentDataProvider
+{
+    private readonly TaskCompletionSource<bool> _releaseProbe =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public int CallCount { get; private set; }
+    public void ReleaseProbe() => _releaseProbe.TrySetResult(true);
+
+    public async ValueTask<EngineeringValue> GetCurrentAsync(
+        string assetExternalId, string quantity,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        CallCount++;
+        if (CallCount == 1)
+            throw new HttpRequestException("Provider unavailable.");
+        if (CallCount == 2)
+            await _releaseProbe.Task.WaitAsync(cancellationToken);
+        return new EngineeringValue(
+            quantity, 42m, "psi", DateTimeOffset.UtcNow, "Good", "recovered");
     }
 }
