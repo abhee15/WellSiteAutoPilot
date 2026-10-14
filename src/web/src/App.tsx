@@ -10,6 +10,7 @@ import type {
 } from './api/generated/v1/types.gen';
 import { t } from './localization';
 import { OperationsViewControls } from './views/OperationsViewControls';
+import { ExecutionDetailPanel } from './views/ExecutionDetailPanel';
 import { AssetInventoryControls } from './views/AssetInventoryControls';
 import { LogicCatalogControls } from './views/LogicCatalogControls';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './views/logicCatalog';
@@ -305,6 +306,15 @@ function OperationsPage({
   userId: string | null | undefined;
 }) {
   const [viewCriteria, setViewCriteria] = useState<OperationsViewCriteria>(DEFAULT_OPERATIONS_VIEW);
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const selectedIdStillAuthorized = selectedExecutionId !== null &&
+    executions.some(execution => execution.executionId === selectedExecutionId);
+  // Forget a selection as soon as it disappears from the authorized list.
+  useEffect(() => {
+    if (selectedExecutionId && !selectedIdStillAuthorized) {
+      setSelectedExecutionId(null);
+    }
+  }, [selectedExecutionId, selectedIdStillAuthorized]);
   const visibleExecutions = useMemo(
     () => filterOperations(executions, viewCriteria),
     [executions, viewCriteria],
@@ -377,6 +387,7 @@ function OperationsPage({
                 <th>Mode</th>
                 <th>Requested</th>
                 <th>Outcome</th>
+                <th>{t('execution.detailsColumn')}</th>
               </tr>
             </thead>
             <tbody>
@@ -402,16 +413,43 @@ function OperationsPage({
                         ? 'Queued for runtime'
                         : 'In progress')}
                   </td>
+                  <td>
+                    <button
+                      className="execution-inspect-button"
+                      type="button"
+                      disabled={!execution.executionId}
+                      aria-controls={selectedIdStillAuthorized &&
+                        selectedExecutionId === execution.executionId
+                          ? 'execution-details'
+                          : undefined}
+                      aria-expanded={selectedIdStillAuthorized &&
+                        selectedExecutionId === execution.executionId}
+                      aria-label={t('execution.inspectFor', {
+                        id: shortId(execution.executionId),
+                      })}
+                      onClick={() => setSelectedExecutionId(current =>
+                        current === execution.executionId ? null : execution.executionId ?? null)}
+                    >
+                      {t('execution.inspect')}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {visibleExecutions.length === 0 && (
-                <EmptyRow columns={6}>{executions.length === 0
+                <EmptyRow columns={7}>{executions.length === 0
                   ? t('views.noActivity')
                   : t('views.noMatches')}</EmptyRow>
               )}
             </tbody>
           </table>
         </div>
+        {selectedIdStillAuthorized && selectedExecutionId && (
+          <ExecutionDetailPanel
+            key={selectedExecutionId}
+            executionId={selectedExecutionId}
+            onClose={() => setSelectedExecutionId(null)}
+          />
+        )}
       </section>
 
       <section className="panel compact-panel">
