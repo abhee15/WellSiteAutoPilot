@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AssetResponse,
   AssetTypeResponse,
   ConfiguredLogicResponse,
+  CurrentUserResponse,
   ExecutionResponse,
   LogicModuleResponse,
   SystemInfoResponse,
@@ -14,6 +15,8 @@ type Section = 'operations' | 'assets' | 'logic';
 export function App() {
   const [section, setSection] = useState<Section>(() => sectionFromHash());
   const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
+  const activeRefresh = useRef<AbortController | null>(null);
   const [executions, setExecutions] = useState<ExecutionResponse[]>([]);
   const [assetTypes, setAssetTypes] = useState<AssetTypeResponse[]>([]);
   const [assets, setAssets] = useState<AssetResponse[]>([]);
@@ -29,39 +32,56 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  const refresh = useCallback(async () => {
+    // Only the latest refresh may update the view.
+    activeRefresh.current?.abort();
+    const controller = new AbortController();
+    activeRefresh.current = controller;
     setIsRefreshing(true);
 
     try {
       const responses = await Promise.all([
-        fetch('/api/v1/system/info', { signal }),
-        fetch('/api/v1/executions?limit=50', { signal }),
-        fetch('/api/v1/asset-types', { signal }),
-        fetch('/api/v1/assets?limit=100', { signal }),
-        fetch('/api/v1/logic-modules?limit=100', { signal }),
-        fetch('/api/v1/configured-logic?limit=100', { signal }),
+        fetch('/api/v1/system/info', { signal: controller.signal }),
+        fetch('/api/v1/executions?limit=50', { signal: controller.signal }),
+        fetch('/api/v1/asset-types', { signal: controller.signal }),
+        fetch('/api/v1/assets?limit=100', { signal: controller.signal }),
+        fetch('/api/v1/logic-modules?limit=100', { signal: controller.signal }),
+        fetch('/api/v1/configured-logic?limit=100', { signal: controller.signal }),
+        fetch('/api/v1/security/me', { signal: controller.signal }),
       ]);
 
+      if (controller.signal.aborted) return;
       const failed = responses.find(response => !response.ok);
       if (failed) {
-        throw new Error(`Runtime data request failed (${failed.status}).`);
+        if (failed.status === 401 || failed.status === 403) {
+          // Remove previously authorized information when the session loses access.
+          setCurrentUser(null);
+          setSystemInfo(null);
+          setExecutions([]);
+          setAssetTypes([]);
+          setAssets([]);
+          setLogicModules([]);
+          setConfiguredLogic([]);
+          setLastUpdated(null);
+        }
+        throw new Error(
+          failed.status === 401 || failed.status === 403
+            ? 'Session access is unavailable. Sign in with an authorized account.'
+            : 'Runtime data request failed (' + failed.status + '). Previous data may be stale.',
+        );
       }
 
-      const [
-        system,
-        recentExecutions,
-        availableAssetTypes,
-        availableAssets,
-        availableModules,
-        configurations,
-      ] = await Promise.all([
+      const [system, recentExecutions, availableAssetTypes, availableAssets,
+        availableModules, configurations, user] = await Promise.all([
         responses[0].json() as Promise<SystemInfoResponse>,
         responses[1].json() as Promise<ExecutionResponse[]>,
         responses[2].json() as Promise<AssetTypeResponse[]>,
         responses[3].json() as Promise<AssetResponse[]>,
         responses[4].json() as Promise<LogicModuleResponse[]>,
         responses[5].json() as Promise<ConfiguredLogicResponse[]>,
+        responses[6].json() as Promise<CurrentUserResponse>,
       ]);
+      if (controller.signal.aborted) return;
 
       setSystemInfo(system);
       setExecutions(recentExecutions);
@@ -69,34 +89,31 @@ export function App() {
       setAssets(availableAssets);
       setLogicModules(availableModules);
       setConfiguredLogic(configurations);
+      setCurrentUser(user);
       setError(null);
       setLastUpdated(new Date());
     } catch (reason) {
-      if (reason instanceof DOMException && reason.name === 'AbortError') {
-        return;
-      }
+      if (controller.signal.aborted ||
+          (reason instanceof DOMException && reason.name === 'AbortError')) return;
 
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : 'WellSite AutoPilot information is unavailable.',
-      );
+      setError(reason instanceof Error
+        ? reason.message
+        : 'WellSite AutoPilot information is unavailable.');
     } finally {
-      setIsRefreshing(false);
+      if (activeRefresh.current === controller) {
+        activeRefresh.current = null;
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void refresh(controller.signal);
-
-    const interval = window.setInterval(() => {
-      void refresh();
-    }, REFRESH_INTERVAL_MS);
-
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
     return () => {
-      controller.abort();
       window.clearInterval(interval);
+      activeRefresh.current?.abort();
+      activeRefresh.current = null;
     };
   }, [refresh]);
 
@@ -112,7 +129,7 @@ export function App() {
           <NavigationLink section="assets" current={section}>Assets</NavigationLink>
           <NavigationLink section="logic" current={section}>Logic</NavigationLink>
         </nav>
-        <button className="user-menu" type="button">User</button>
+        <UserMenu user={currentUser} isLoading={isRefreshing} />
       </aside>
 
       <main className="content">
@@ -143,6 +160,47 @@ export function App() {
   );
 }
 
+function UserMenu({
+  user,
+  isLoading,
+}: {
+  user: CurrentUserResponse | null;
+  isLoading: boolean;
+}) {
+  const displayName = user?.displayName?.trim() || user?.identityName ||
+    (isLoading ? 'Loading user…' : 'Session unavailable');
+
+  return (
+    <details className="user-menu">
+      <summary aria-label={'Current user: ' + displayName}>
+        <span className="user-avatar" aria-hidden="true">
+          {displayName.charAt(0).toUpperCase()}
+        </span>
+        <span className="user-label">{displayName}</span>
+        <span className="user-menu-chevron" aria-hidden="true">⌃</span>
+      </summary>
+      <div className="user-panel">
+        <strong>Operator session</strong>
+        {!user ? (
+          <p role="status">User details are unavailable.</p>
+        ) : (
+          <dl>
+            <dt>Identity</dt>
+            <dd>{user.identityName}</dd>
+            <dt>Account</dt>
+            <dd>{user.isActive ? 'Active' : 'Inactive'}</dd>
+            <dt>Assigned roles</dt>
+            <dd>{user.roles?.length ? user.roles.join(', ') : 'None assigned'}</dd>
+            <dt>Scoped assets</dt>
+            <dd>{user.assetScopeIds?.length ?? 0} assigned</dd>
+          </dl>
+        )}
+        <p className="user-panel-note">Server-side access rules remain authoritative.</p>
+      </div>
+    </details>
+  );
+}
+
 function NavigationLink({
   section,
   current,
@@ -152,9 +210,17 @@ function NavigationLink({
   current: Section;
   children: string;
 }) {
+  const shortLabel = { operations: 'OP', assets: 'AS', logic: 'LG' }[section];
+
   return (
-    <a className={section === current ? 'active' : undefined} href={`#${section}`}>
-      {children}
+    <a
+      aria-current={current === section ? 'page' : undefined}
+      aria-label={children}
+      className={section === current ? 'active' : undefined}
+      href={'#' + section}
+    >
+      <span className="nav-label">{children}</span>
+      <span className="nav-short" aria-hidden="true">{shortLabel}</span>
     </a>
   );
 }
