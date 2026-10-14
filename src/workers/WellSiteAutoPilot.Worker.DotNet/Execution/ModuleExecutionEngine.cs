@@ -5,8 +5,14 @@ namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 
 public sealed class ModuleExecutionEngine(
     GatewayDataClient gatewayDataClient,
-    ILogicModuleResolver moduleResolver)
+    ILogicModuleResolver moduleResolver,
+    int maximumConcurrentInputReads = 8)
 {
+    private readonly int _maximumConcurrentInputReads = maximumConcurrentInputReads is >= 1 and <= 64
+        ? maximumConcurrentInputReads
+        : throw new ArgumentOutOfRangeException(nameof(maximumConcurrentInputReads),
+            "Concurrent input reads must be between 1 and 64.");
+
     public async Task<LogicModuleExecutionResult> ExecuteAsync(
         ExecutionRequestedV1 request,
         string correlationId,
@@ -73,11 +79,20 @@ public sealed class ModuleExecutionEngine(
             request.ModuleId,
             request.ModuleVersion);
 
+        using var readLimiter = new SemaphoreSlim(_maximumConcurrentInputReads);
         var inputTasks = request.Inputs
-            .Select(binding => ReadInputAsync(
-                binding,
-                evaluationTimeUtc,
-                cancellationToken))
+            .Select(async binding =>
+            {
+                await readLimiter.WaitAsync(cancellationToken);
+                try
+                {
+                    return await ReadInputAsync(binding, evaluationTimeUtc, cancellationToken);
+                }
+                finally
+                {
+                    readLimiter.Release();
+                }
+            })
             .ToArray();
 
         var inputs = await Task.WhenAll(inputTasks);
@@ -113,9 +128,18 @@ public sealed class ModuleExecutionEngine(
         }
 
         var value = await gatewayDataClient.GetCurrentAsync(
+            binding.ProviderId,
             binding.ProviderAssetExternalId,
             binding.Quantity,
             cancellationToken);
+
+        if (!string.Equals(value.Quantity, binding.Quantity, StringComparison.OrdinalIgnoreCase) ||
+            (binding.CanonicalUnit is not null &&
+             !string.Equals(value.Unit, binding.CanonicalUnit, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(
+                $"Execution input '{binding.RequirementId}' returned a mismatched quantity or unit.");
+        }
 
         if (string.Equals(value.Quality, "Bad", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(value.Quality, "Unknown", StringComparison.OrdinalIgnoreCase) ||
@@ -124,6 +148,12 @@ public sealed class ModuleExecutionEngine(
         {
             throw new InvalidOperationException(
                 $"Execution input '{binding.RequirementId}' does not satisfy the required data quality.");
+        }
+
+        if (value.TimestampUtc > evaluationTimeUtc.AddSeconds(30))
+        {
+            throw new InvalidOperationException(
+                $"Execution input '{binding.RequirementId}' is future-dated.");
         }
 
         if (binding.MaximumAgeSeconds is > 0 &&
