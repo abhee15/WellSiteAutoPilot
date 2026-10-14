@@ -97,7 +97,7 @@ test('inbox SSR is read-only and cannot trigger a decision', () => {
   assert.match(html, /asset-1/);
   assert.match(html, /wfd\.fill/);
   assert.match(html, /Expired, do not act/);
-  assert.doesNotMatch(html, /<button\\b/);
+  assert.equal(html.includes('<button'), false);
 });
 
 test('filter controls show authorized-window counts and accessible labels', () => {
