@@ -7,6 +7,7 @@ using WellSiteAutoPilot.Api.Contracts.Assets;
 using WellSiteAutoPilot.Api.Contracts.Executions;
 using WellSiteAutoPilot.Api.Contracts.Logic;
 using WellSiteAutoPilot.Api.Contracts.ConfiguredLogic;
+using WellSiteAutoPilot.Api.Contracts.Recommendations;
 using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Api.Contracts.Security;
 using WellSiteAutoPilot.Application.Assets;
@@ -134,6 +135,7 @@ builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
+builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddScoped<UserAccessService>();
 builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
@@ -811,6 +813,58 @@ v1.MapGet(
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+v1.MapGet(
+    "/recommendations",
+    async (
+        string? status,
+        int? limit,
+        RecommendationQueryService queryService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
+        CancellationToken cancellationToken) =>
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var recommendations = await queryService.ListAsync(
+            status,
+            limit ?? 50,
+            allowedAssetIds,
+            cancellationToken);
+
+        return recommendations.Select(ToRecommendationSummaryResponse).ToArray();
+    })
+    .WithName("ListRecommendations")
+    .RequireAuthorization(WellSitePolicies.RecommendationsRead)
+    .Produces<RecommendationSummaryResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapGet(
+    "/recommendations/{recommendationId:guid}",
+    async (
+        Guid recommendationId,
+        RecommendationQueryService queryService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext httpContext,
+        CancellationToken cancellationToken) =>
+    {
+        var allowedAssetIds =
+            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
+
+        var recommendation = await queryService.GetRequiredAsync(
+            recommendationId,
+            allowedAssetIds,
+            cancellationToken);
+
+        return ToRecommendationSummaryResponse(recommendation);
+    })
+    .WithName("GetRecommendation")
+    .RequireAuthorization(WellSitePolicies.RecommendationsRead)
+    .Produces<RecommendationSummaryResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status404NotFound, "application/problem+json");
+
 v1.MapPost(
     "/recommendations/{recommendationId:guid}/decision",
     async (
@@ -936,6 +990,30 @@ static LogicModuleResponse ToLogicModuleResponse(
     module.TrustStatus.ToString(),
     module.IsEnabled,
     module.InstalledAtUtc);
+
+static RecommendationSummaryResponse ToRecommendationSummaryResponse(
+    RecommendationRecord recommendation) => new(
+    recommendation.Id,
+    recommendation.ExecutionId,
+    recommendation.IntentIndex,
+    recommendation.ConfiguredLogicId,
+    recommendation.ConfigurationRevisionId,
+    recommendation.ModuleId,
+    recommendation.ModuleVersion,
+    recommendation.AssetId,
+    recommendation.Code,
+    recommendation.Command,
+    recommendation.Quantity,
+    recommendation.SuggestedValue,
+    recommendation.Unit,
+    recommendation.ReasonCode,
+    recommendation.Status.ToString(),
+    recommendation.CreatedAtUtc,
+    recommendation.ExpiresAtUtc,
+    recommendation.DecisionBy,
+    recommendation.DecisionAtUtc,
+    recommendation.DecisionReason,
+    recommendation.ControlActionId);
 
 static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.Id,

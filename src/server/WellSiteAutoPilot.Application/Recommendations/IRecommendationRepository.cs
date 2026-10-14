@@ -8,6 +8,16 @@ public interface IRecommendationRepository
         IReadOnlyCollection<RecommendationRecord> recommendations,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Query in authorized asset scope before ordering and limiting results.
+    /// Null scope is reserved for authenticated unrestricted administrators.
+    /// </summary>
+    Task<IReadOnlyCollection<RecommendationRecord>> ListAsync(
+        RecommendationStatus? status,
+        int limit,
+        IReadOnlyCollection<Guid>? authorizedAssetIds,
+        CancellationToken cancellationToken = default);
+
     Task<RecommendationRecord?> GetAsync(
         Guid recommendationId,
         CancellationToken cancellationToken = default);
