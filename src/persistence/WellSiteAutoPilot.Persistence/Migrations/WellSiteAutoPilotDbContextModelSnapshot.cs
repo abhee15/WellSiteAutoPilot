@@ -257,6 +257,36 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.RoleDefinitionEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("Description").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)");
+                entity.Property<bool>("IsActive").HasColumnType("boolean");
+                entity.Property<bool>("IsSystem").HasColumnType("boolean");
+                entity.Property<string>("Key").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<string>("Name").IsRequired().HasMaxLength(80).HasColumnType("character varying(80)");
+                entity.Property<string>("NormalizedName").IsRequired().HasMaxLength(80).HasColumnType("character varying(80)");
+                entity.Property<long>("Revision").HasColumnType("bigint");
+                entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.HasKey("Id");
+                entity.HasIndex("Key").IsUnique();
+                entity.HasIndex("NormalizedName").IsUnique();
+                entity.ToTable("role_definitions", "security");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.RolePermissionEntity",
+            entity =>
+            {
+                entity.Property<Guid>("RoleId").HasColumnType("uuid");
+                entity.Property<string>("Permission").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.HasKey("RoleId", "Permission");
+                entity.ToTable("role_permissions", "security");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Security.UserEntity",
             entity =>
             {
@@ -399,6 +429,17 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity", null)
                     .WithMany()
                     .HasForeignKey("RevisionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.RolePermissionEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Security.RoleDefinitionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("RoleId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
             });
