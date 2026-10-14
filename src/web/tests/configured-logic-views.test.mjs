@@ -4,12 +4,13 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 
-let vite, views, controls;
+let vite, views, controls, history;
 before(async () => {
   vite = await createServer({ server: { middlewareMode: true },
     appType: 'custom', logLevel: 'silent' });
   views = await vite.ssrLoadModule('/src/views/configuredLogicViews.ts');
   controls = await vite.ssrLoadModule('/src/views/ConfiguredLogicControls.tsx');
+  history = await vite.ssrLoadModule('/src/views/ConfiguredLogicRevisionOverview.tsx');
 });
 after(async () => { await vite?.close(); });
 
@@ -74,4 +75,30 @@ test('responsive filter controls provide labels and scoped result counts', () =>
   assert.match(html, /role="group"/);
   assert.match(html, /Latest revision status/);
   assert.match(html, /Showing 2 of 3 loaded configurations/);
+});
+
+test('revision history is newest-first, read-only, and excludes raw configuration secrets', () => {
+  const html = renderToStaticMarkup(createElement(
+    history.ConfiguredLogicRevisionOverview, {
+      logic: rows[0],
+      onClose: () => {},
+    },
+  ));
+  assert.match(html, /role="region"/);
+  assert.match(html, /Revision history/);
+  assert.match(html, /wfd\.fillage/);
+  assert.match(html, /Current active revision/);
+  assert.ok(html.indexOf('rev2') < html.indexOf('rev1'));
+  assert.doesNotMatch(html, /SECRET_SHOULD_NOT_RENDER/);
+  assert.doesNotMatch(html, /<textarea/);
+});
+
+test('empty revision histories render a stable informative placeholder', () => {
+  const html = renderToStaticMarkup(createElement(
+    history.ConfiguredLogicRevisionOverview, {
+      logic: rows[2], onClose: () => {},
+    },
+  ));
+  assert.match(html, /No revisions available/);
+  assert.match(html, /colSpan="6"/);
 });
