@@ -1,5 +1,13 @@
 import type { SecurityUserResponse } from '../api/generated/v1/types.gen';
 
+export type VerifiedSecurityUser = SecurityUserResponse & {
+  userId: string;
+  identityName: string;
+  isActive: boolean;
+  roles: string[];
+  assetScopeIds: string[];
+};
+
 export const ACCESS_ROLES = ['Admin', 'Engineer', 'Operator'] as const;
 export type AccessRole = typeof ACCESS_ROLES[number];
 export type AccessErrorKind =
@@ -15,7 +23,7 @@ export class AccessError extends Error {
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const allowed = new Set<string>(ACCESS_ROLES);
 
-function isUser(value: unknown): value is SecurityUserResponse {
+function isUser(value: unknown): value is VerifiedSecurityUser {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const user = value as Partial<SecurityUserResponse>;
   return typeof user.userId === 'string' && uuid.test(user.userId) &&
@@ -38,7 +46,7 @@ function classifyResponse(status: number): AccessError {
 /** The endpoint is restricted server-side to security.manage (Admin). */
 export async function loadSecurityUsers(
   signal: AbortSignal, fetcher: typeof fetch = fetch,
-): Promise<SecurityUserResponse[]> {
+): Promise<VerifiedSecurityUser[]> {
   let response: Response;
   try {
     response = await fetcher('/api/v1/security/users?limit=100', {
@@ -91,7 +99,7 @@ export async function replaceUserAccess(
   confirmed: boolean,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
-): Promise<SecurityUserResponse> {
+): Promise<VerifiedSecurityUser> {
   if (!confirmed || !isUser(user) || !uuid.test(currentUserId) ||
     user.userId.toLowerCase() === currentUserId.toLowerCase() ||
     roles.some(role => !allowed.has(role)) ||
@@ -118,7 +126,7 @@ export async function replaceUserAccess(
   try { body = await response.json(); }
   catch { throw new AccessError('invalidResponse'); }
   if (!isUser(body) || body.userId.toLowerCase() !== user.userId.toLowerCase() ||
-    !(!accessChanged(body, roles, assetScopeIds))) {
+    accessChanged(body, roles, assetScopeIds)) {
     throw new AccessError('invalidResponse');
   }
   return body;
