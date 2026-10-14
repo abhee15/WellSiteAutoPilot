@@ -123,6 +123,63 @@ await breaker.GetCurrentAsync("WELL-101", "Pressure");
 if (failing.CallCount != 4)
     throw new InvalidOperationException("Successful recovery did not close circuit.");
 
+// A failed recovery probe must reopen the circuit for another full delay.
+var retryProvider = new RecoveringCurrentDataProvider();
+var retryClock = new ManualProviderClock(DateTimeOffset.UtcNow);
+var retryBreaker = new CircuitBreakingCurrentDataProvider(
+    retryProvider, retryClock, 1, TimeSpan.FromSeconds(10));
+try
+{
+    await retryBreaker.GetCurrentAsync("WELL-101", "Pressure");
+    throw new InvalidOperationException("Initial failure unexpectedly succeeded.");
+}
+catch (HttpRequestException)
+{
+}
+retryClock.Advance(TimeSpan.FromSeconds(10));
+try
+{
+    await retryBreaker.GetCurrentAsync("WELL-101", "Pressure");
+    throw new InvalidOperationException("Failed recovery probe unexpectedly succeeded.");
+}
+catch (HttpRequestException)
+{
+}
+if (retryProvider.CallCount != 2)
+    throw new InvalidOperationException("Recovery probe was not attempted.");
+try
+{
+    await retryBreaker.GetCurrentAsync("WELL-101", "Pressure");
+    throw new InvalidOperationException("Failed probe did not reopen circuit.");
+}
+catch (InvalidOperationException exception)
+    when (exception.Message.Contains("circuit is open", StringComparison.Ordinal))
+{
+}
+if (retryProvider.CallCount != 2)
+    throw new InvalidOperationException("Reopened circuit contacted provider.");
+
+// Cancellation is not a provider failure and must not trip the breaker.
+var canceledProvider = new RecoveringCurrentDataProvider();
+var cancellationBreaker = new CircuitBreakingCurrentDataProvider(
+    canceledProvider, TimeProvider.System, 1);
+using (var cancellation = new CancellationTokenSource())
+{
+    cancellation.Cancel();
+    try
+    {
+        await cancellationBreaker.GetCurrentAsync("WELL-101", "Pressure", cancellation.Token);
+        throw new InvalidOperationException("Canceled provider call succeeded.");
+    }
+    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+    {
+    }
+}
+canceledProvider.Fail = false;
+await cancellationBreaker.GetCurrentAsync("WELL-101", "Pressure");
+if (canceledProvider.CallCount != 1)
+    throw new InvalidOperationException("Cancellation incorrectly opened the circuit.");
+
 Console.WriteLine("Provider-neutral adapter contract checks passed.");
 return 0;
 
@@ -156,6 +213,7 @@ file sealed class RecoveringCurrentDataProvider : ICurrentDataProvider
         string assetExternalId, string quantity,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         CallCount++;
         if (Fail) throw new HttpRequestException("Provider unavailable.");
         return ValueTask.FromResult(new EngineeringValue(
