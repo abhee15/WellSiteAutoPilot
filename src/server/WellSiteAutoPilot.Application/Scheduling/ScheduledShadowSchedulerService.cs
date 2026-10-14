@@ -57,7 +57,7 @@ public sealed class ScheduledShadowSchedulerService(
                 decisions.Add(Decision(
                     configuredLogic,
                     configuredLogic.ActiveRevisionId is Guid activeRevisionId
-                        ? configuredLogic.Revisions.SingleOrDefault(item => item.Id == activeRevisionId)
+                        ? configuredLogic.Revisions.FirstOrDefault(item => item.Id == activeRevisionId)
                         : null,
                     null,
                     ScheduledShadowDispatchOutcome.DispatchFailed,
