@@ -12,6 +12,8 @@ import { t } from './localization';
 import { OperationsViewControls } from './views/OperationsViewControls';
 import { ExecutionDetailPanel } from './views/ExecutionDetailPanel';
 import { RecommendationsPage } from './views/RecommendationsPage';
+import { OperatorAlertsPanel } from './views/OperatorAlertsPanel';
+import { collectOperatorAlerts } from './views/operatorAlerts';
 import { AssetInventoryControls } from './views/AssetInventoryControls';
 import { LogicCatalogControls } from './views/LogicCatalogControls';
 import { ConfiguredLogicControls } from './views/ConfiguredLogicControls';
@@ -41,6 +43,16 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const alertsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const alerts = useMemo(
+    () => collectOperatorAlerts(systemInfo, executions),
+    [systemInfo, executions],
+  );
+  const dismissAlerts = useCallback(() => {
+    setAlertsOpen(false);
+    alertsTriggerRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const onHashChange = () => setSection(sectionFromHash());
@@ -155,12 +167,19 @@ export function App() {
           isRefreshing={section === 'recommendations' ? false : isRefreshing}
           lastUpdated={section === 'recommendations' ? null : lastUpdated}
           onRefresh={section === 'recommendations' ? undefined : () => void refresh()}
+          alertCount={alerts.length}
+          alertTriggerRef={alertsTriggerRef}
+          onAlertsClick={() => setAlertsOpen(open => !open)}
+          alertsOpen={alertsOpen}
         />
 
         {error && (
           <div className="status-error" role="alert">
             {error}
           </div>
+        )}
+        {alertsOpen && (
+          <OperatorAlertsPanel alerts={alerts} onClose={dismissAlerts} />
         )}
 
         {section === 'operations' && (
@@ -267,11 +286,19 @@ function PageHeader({
   isRefreshing,
   lastUpdated,
   onRefresh,
+  alertCount,
+  alertTriggerRef,
+  onAlertsClick,
+  alertsOpen,
 }: {
   section: Section;
   isRefreshing: boolean;
   lastUpdated: Date | null;
   onRefresh?: () => void;
+  alertCount: number;
+  alertTriggerRef: React.RefObject<HTMLButtonElement | null>;
+  onAlertsClick: () => void;
+  alertsOpen: boolean;
 }) {
   const copy = {
     operations: {
@@ -304,6 +331,16 @@ function PageHeader({
         <p className="page-description">{copy.description}</p>
       </div>
       <div className="header-actions">
+        <button
+          type="button"
+          ref={alertTriggerRef}
+          className="secondary-button"
+          aria-expanded={alertsOpen}
+          aria-label={t('alerts.toggle', { count: alertCount })}
+          onClick={onAlertsClick}
+        >
+          {t('alerts.button', { count: alertCount })}
+        </button>
         {lastUpdated && (
           <span className="last-updated">
             Updated {lastUpdated.toLocaleTimeString()}
