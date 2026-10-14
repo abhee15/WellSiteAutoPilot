@@ -309,6 +309,12 @@ function OperationsPage({
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const selectedIdStillAuthorized = selectedExecutionId !== null &&
     executions.some(execution => execution.executionId === selectedExecutionId);
+  // Forget a selection as soon as it disappears from the authorized list.
+  useEffect(() => {
+    if (selectedExecutionId && !selectedIdStillAuthorized) {
+      setSelectedExecutionId(null);
+    }
+  }, [selectedExecutionId, selectedIdStillAuthorized]);
   const visibleExecutions = useMemo(
     () => filterOperations(executions, viewCriteria),
     [executions, viewCriteria],
@@ -412,7 +418,10 @@ function OperationsPage({
                       className="execution-inspect-button"
                       type="button"
                       disabled={!execution.executionId}
-                      aria-controls={selectedIdStillAuthorized ? 'execution-details' : undefined}
+                      aria-controls={selectedIdStillAuthorized &&
+                        selectedExecutionId === execution.executionId
+                          ? 'execution-details'
+                          : undefined}
                       aria-expanded={selectedIdStillAuthorized &&
                         selectedExecutionId === execution.executionId}
                       aria-label={t('execution.inspectFor', {

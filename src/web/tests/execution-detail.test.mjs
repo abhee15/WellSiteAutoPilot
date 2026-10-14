@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { createServer } from 'vite';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 let vite;
 let detail;
+let panel;
 
 before(async () => {
   vite = await createServer({
@@ -12,6 +15,7 @@ before(async () => {
     logLevel: 'silent',
   });
   detail = await vite.ssrLoadModule('/src/views/executionDetail.ts');
+  panel = await vite.ssrLoadModule('/src/views/ExecutionDetailPanel.tsx');
 });
 
 after(async () => {
@@ -106,4 +110,38 @@ test('output preview is bounded, plain text, and does not modify payloads', () =
   assert.equal(longOutput.length, detail.MAX_EXECUTION_OUTPUT_PREVIEW + 100);
   assert.equal(detail.formatDetailTimestamp('invalid'), '—');
   assert.match(detail.formatDetailTimestamp('2026-10-14T12:00:00Z'), /2026/);
+});
+
+test('panel initially displays a safe loading state, never stale detail', () => {
+  const html = renderToStaticMarkup(createElement(panel.ExecutionDetailPanel, {
+    executionId: id,
+    onClose: () => {},
+  }));
+  assert.match(html, /role="region"/);
+  assert.match(html, /Loading execution details/);
+  assert.match(html, /Close/);
+  assert.doesNotMatch(html, /SUCCESS/);
+});
+
+test('detail renderer escapes untrusted output and displays bounded operational metadata', () => {
+  const html = renderToStaticMarkup(createElement(panel.ExecutionDetailContent, {
+    detail: {
+      ...response,
+      correlationId: 'corr-123',
+      trigger: 'Scheduled',
+      mode: 'Shadow',
+      requestContractVersion: 2,
+      outputJson: '<img src=x onerror=alert(1)>',
+    },
+  }));
+  assert.match(html, /corr-123/);
+  assert.match(html, /Scheduled/);
+  assert.match(html, /Shadow/);
+  assert.match(html, /weatherford\.fillage/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(html, /<img src=x/);
+  const oversized = renderToStaticMarkup(createElement(panel.ExecutionDetailContent, {
+    detail: { ...response, outputJson: 'a'.repeat(detail.MAX_EXECUTION_OUTPUT_PREVIEW + 200) },
+  }));
+  assert.match(oversized, /Preview limited to the first 4,096 characters/);
 });

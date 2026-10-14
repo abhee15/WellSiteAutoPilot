@@ -57,27 +57,6 @@ export function ExecutionDetailPanel({ executionId, onClose }: Props) {
     invalidResponse: t('execution.invalidResponse'),
   };
 
-  const fields = detail ? [
-    [t('execution.status'), detail.status],
-    [t('execution.mode'), detail.mode],
-    [t('execution.trigger'), detail.trigger],
-    [t('execution.module'), [detail.moduleId, detail.moduleVersion]
-      .filter(Boolean).join(' · ')],
-    [t('execution.logicInstance'), detail.logicInstanceId],
-    [t('execution.revision'), detail.configurationRevisionId],
-    [t('execution.asset'), detail.assetExternalId ?? detail.assetId],
-    [t('execution.quantity'), detail.quantity],
-    [t('execution.contract'), String(detail.requestContractVersion ?? '—')],
-    [t('execution.requested'), formatDetailTimestamp(detail.requestedAtUtc)],
-    [t('execution.started'), formatDetailTimestamp(detail.startedAtUtc)],
-    [t('execution.completed'), formatDetailTimestamp(detail.completedAtUtc)],
-    [t('execution.scheduled'), formatDetailTimestamp(detail.scheduledForUtc)],
-    [t('execution.result'), detail.resultCode],
-    [t('execution.failure'), detail.failureCode],
-    [t('execution.correlation'), detail.correlationId],
-    [t('execution.id'), detail.executionId],
-  ] : [];
-  const output = previewExecutionOutput(detail?.outputJson);
 
   return (
     <section id="execution-details" className="execution-detail" role="region"
@@ -97,25 +76,52 @@ export function ExecutionDetailPanel({ executionId, onClose }: Props) {
       </div>
       {isLoading && <p role="status">{t('execution.loading')}</p>}
       {error && <p role="alert" className="execution-detail-error">{errorMessages[error]}</p>}
-      {detail && (
-        <>
-          <dl className="execution-detail-grid">
-            {fields.map(([label, value]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{value || '—'}</dd>
-              </div>
-            ))}
-          </dl>
-          {output.text && (
-            <details className="execution-detail-output">
-              <summary>{t('execution.output')}</summary>
-              <pre>{output.text}</pre>
-              {output.truncated && <p>{t('execution.truncated')}</p>}
-            </details>
-          )}
-        </>
-      )}
+      {detail && <ExecutionDetailContent detail={detail} />}
     </section>
+  );
+}
+
+/** Pure view to keep response rendering testable independently of network effects. */
+export function ExecutionDetailContent({ detail }: { detail: ExecutionResponse }) {
+  const fields: Array<[string, string | null | undefined]> = [
+    [t('execution.status'), detail.status],
+    [t('execution.mode'), detail.mode],
+    [t('execution.trigger'), detail.trigger],
+    [t('execution.module'), [detail.moduleId, detail.moduleVersion]
+      .filter(Boolean).join(' · ')],
+    [t('execution.logicInstance'), detail.logicInstanceId],
+    [t('execution.revision'), detail.configurationRevisionId],
+    [t('execution.asset'), detail.assetExternalId ?? detail.assetId],
+    [t('execution.quantity'), detail.quantity],
+    [t('execution.contract'), String(detail.requestContractVersion ?? '—')],
+    [t('execution.requested'), formatDetailTimestamp(detail.requestedAtUtc)],
+    [t('execution.started'), formatDetailTimestamp(detail.startedAtUtc)],
+    [t('execution.completed'), formatDetailTimestamp(detail.completedAtUtc)],
+    [t('execution.scheduled'), formatDetailTimestamp(detail.scheduledForUtc)],
+    [t('execution.result'), detail.resultCode],
+    [t('execution.failure'), detail.failureCode],
+    [t('execution.correlation'), detail.correlationId],
+    [t('execution.id'), detail.executionId],
+  ];
+  const output = previewExecutionOutput(detail.outputJson);
+
+  return (
+    <>
+      <dl className="execution-detail-grid">
+        {fields.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value || '—'}</dd>
+          </div>
+        ))}
+      </dl>
+      {output.text && (
+        <details className="execution-detail-output">
+          <summary>{t('execution.output')}</summary>
+          <pre>{output.text}</pre>
+          {output.truncated && <p>{t('execution.truncated')}</p>}
+        </details>
+      )}
+    </>
   );
 }
