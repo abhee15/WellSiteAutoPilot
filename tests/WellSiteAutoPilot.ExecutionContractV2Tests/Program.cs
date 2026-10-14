@@ -77,6 +77,145 @@ if (result.OutcomeCode != "MULTI_INPUT_COMPLETED" ||
         "Execution V2 did not construct the expected multi-input SDK context.");
 }
 
+// Reject unsafe future-dated telemetry before invoking logic.
+using (var futureClient = new HttpClient(new EngineeringValueHandler(now.AddMinutes(5)))
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var futureEngine = new ModuleExecutionEngine(new GatewayDataClient(futureClient), new TestModuleResolver());
+    try
+    {
+        await futureEngine.ExecuteAsync(request, "future-data-test", now);
+        throw new InvalidOperationException("Future-dated telemetry was accepted.");
+    }
+    catch (InvalidOperationException exception) when (exception.Message.Contains("future-dated", StringComparison.Ordinal))
+    {
+    }
+}
+
+// Reject provider measurements that violate the requested unit.
+using (var wrongUnitClient = new HttpClient(new EngineeringValueHandler(now, wrongUnit: true))
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var wrongUnitEngine = new ModuleExecutionEngine(new GatewayDataClient(wrongUnitClient), new TestModuleResolver());
+    try
+    {
+        await wrongUnitEngine.ExecuteAsync(request, "wrong-unit-test", now);
+        throw new InvalidOperationException("Mismatched engineering unit was accepted.");
+    }
+    catch (InvalidOperationException exception) when (exception.Message.Contains("mismatched quantity or unit", StringComparison.Ordinal))
+    {
+    }
+}
+
+// A configured module may request many inputs. Reads must remain ordered,
+// but the worker must not overload the gateway with unbounded concurrency.
+var largeInputs = Enumerable.Range(0, 24)
+    .Select(index => new ExecutionInputBindingV2(
+        $"input-{index}", assetId, "simulator", "WELL-101",
+        "PumpFillage", "Current", "%", 60, false, "{}"))
+    .ToArray();
+var largeRequest = request with { Inputs = largeInputs };
+var boundedHandler = new ConcurrentReadHandler(now);
+using (var boundedClient = new HttpClient(boundedHandler)
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var boundedEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(boundedClient),
+        new TestModuleResolver());
+    var boundedResult = await boundedEngine.ExecuteAsync(
+        largeRequest, "bounded-input-test", now);
+    if (boundedHandler.MaximumInFlight > 8 ||
+        boundedHandler.MaximumInFlight < 2 ||
+        boundedHandler.TotalRequests != largeInputs.Length ||
+        boundedResult.EngineeringResults.Count != largeInputs.Length ||
+        !boundedResult.EngineeringResults.Select(item => item.Id)
+            .SequenceEqual(largeInputs.Select(item => item.RequirementId)))
+    {
+        throw new InvalidOperationException(
+            "Multi-input execution exceeded the gateway concurrency budget or lost input ordering.");
+    }
+}
+
+// A lower configured budget must be enforced without changing result order.
+var configuredHandler = new ConcurrentReadHandler(now);
+using (var configuredClient = new HttpClient(configuredHandler)
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var configuredEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(configuredClient), new TestModuleResolver(), 2);
+    var configuredResult = await configuredEngine.ExecuteAsync(
+        largeRequest, "configured-concurrency-test", now);
+    if (configuredHandler.MaximumInFlight > 2 ||
+        configuredHandler.TotalRequests != largeInputs.Length ||
+        !configuredResult.EngineeringResults.Select(item => item.Id)
+            .SequenceEqual(largeInputs.Select(item => item.RequirementId)))
+    {
+        throw new InvalidOperationException("Configured concurrency limit was not honored.");
+    }
+}
+
+// Invalid limits fail at construction rather than disabling the safety budget.
+try
+{
+    _ = new ModuleExecutionEngine(new GatewayDataClient(httpClient), new TestModuleResolver(), 0);
+    throw new InvalidOperationException("Invalid concurrency budget was accepted.");
+}
+catch (ArgumentOutOfRangeException exception) when (exception.ParamName == "maximumConcurrentInputReads")
+{
+}
+
+// Cancellation must prevent dispatching inputs and invoking module logic.
+using (var canceled = new CancellationTokenSource())
+{
+    canceled.Cancel();
+    var canceledHandler = new ConcurrentReadHandler(now);
+    using var canceledClient = new HttpClient(canceledHandler)
+    {
+        BaseAddress = new Uri("http://127.0.0.1:5081")
+    };
+    var canceledEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(canceledClient), new TestModuleResolver(), 2);
+    try
+    {
+        await canceledEngine.ExecuteAsync(
+            largeRequest, "cancellation-test", now, canceled.Token);
+        throw new InvalidOperationException("Canceled execution unexpectedly succeeded.");
+    }
+    catch (OperationCanceledException) when (canceled.IsCancellationRequested)
+    {
+    }
+    if (canceledHandler.TotalRequests != 0)
+    {
+        throw new InvalidOperationException("Canceled execution dispatched provider requests.");
+    }
+}
+
+// Provider transport failures must fail the entire execution, not return partial inputs.
+using (var failingClient = new HttpClient(new FailingReadHandler())
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var failingEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(failingClient), new TestModuleResolver(), 2);
+    try
+    {
+        await failingEngine.ExecuteAsync(request, "provider-failure-test", now);
+        throw new InvalidOperationException("Failed provider request was accepted.");
+    }
+    catch (HttpRequestException)
+    {
+    }
+}
+
 var serialized = JsonSerializer.Serialize(
     request,
     new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -125,7 +264,7 @@ file sealed class MultiInputModule : ILogicModuleV1
         cancellationToken.ThrowIfCancellationRequested();
 
         if (context.Assets.Single().Role != "well" ||
-            context.Inputs.Count != 2 ||
+            context.Inputs.Count == 0 ||
             context.ParametersJson != """{"target":75}""")
         {
             throw new InvalidOperationException(
@@ -149,7 +288,7 @@ file sealed class MultiInputModule : ILogicModuleV1
     }
 }
 
-file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc)
+file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc, bool wrongUnit = false)
     : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(
@@ -168,7 +307,7 @@ file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc)
             {
                 quantity = isFillage ? "PumpFillage" : "PumpingSpeed",
                 value = isFillage ? 82m : 12m,
-                unit = isFillage ? "%" : "spm",
+                unit = wrongUnit ? "invalid-unit" : isFillage ? "%" : "spm",
                 timestampUtc,
                 quality = "Good",
                 source = "simulator:WELL-101"
@@ -183,4 +322,63 @@ file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc)
                     "application/json")
             });
     }
+}
+
+file sealed class ConcurrentReadHandler(DateTimeOffset timestampUtc) : HttpMessageHandler
+{
+    private int _inFlight;
+    private int _maximumInFlight;
+    private int _totalRequests;
+
+    public int MaximumInFlight => Volatile.Read(ref _maximumInFlight);
+    public int TotalRequests => Volatile.Read(ref _totalRequests);
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        var active = Interlocked.Increment(ref _inFlight);
+        Interlocked.Increment(ref _totalRequests);
+        try
+        {
+            var observed = Volatile.Read(ref _maximumInFlight);
+            while (active > observed)
+            {
+                var previous = Interlocked.CompareExchange(
+                    ref _maximumInFlight, active, observed);
+                if (previous == observed)
+                {
+                    break;
+                }
+                observed = previous;
+            }
+
+            await Task.Delay(25, cancellationToken);
+            var payload = JsonSerializer.Serialize(new
+            {
+                quantity = "PumpFillage",
+                value = 82m,
+                unit = "%",
+                timestampUtc,
+                quality = "Good",
+                source = "simulator:WELL-101"
+            });
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _inFlight);
+        }
+    }
+}
+
+file sealed class FailingReadHandler : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken) =>
+        throw new HttpRequestException("Simulated provider transport failure.");
 }
