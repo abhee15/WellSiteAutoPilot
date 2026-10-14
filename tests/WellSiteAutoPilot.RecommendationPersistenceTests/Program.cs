@@ -875,6 +875,114 @@ if (rejectedReplayCreated != 0 ||
         "Execution replay changed a rejected recommendation or duplicated its audit.");
 }
 
+// Recommendation inbox reads must be asset-scoped before pagination, so
+// a recent recommendation on a forbidden asset cannot crowd out visible work.
+var otherWell = await assetService.CreateAssetAsync(
+    new CreateAssetCommand(
+        wellType.Id,
+        "Different Scope Well",
+        null,
+        """{"field":"inbox-test"}"""));
+
+var foreignInboxRecommendation = recommendation with
+{
+    Id = Guid.NewGuid(),
+    IntentIndex = recommendation.IntentIndex + 9000,
+    AssetId = otherWell.Id,
+    Status = RecommendationStatus.Created,
+    CreatedAtUtc = clock.GetUtcNow().AddDays(7),
+    DecisionBy = null,
+    DecisionAtUtc = null,
+    DecisionReason = null,
+    ControlActionId = null
+};
+await recommendationRepository.AddMissingAsync([foreignInboxRecommendation]);
+
+var recommendationQuery = new RecommendationQueryService(recommendationRepository);
+
+var globalLatest = await recommendationQuery.ListAsync(null, 1, null);
+if (globalLatest.Single().Id != foreignInboxRecommendation.Id)
+{
+    throw new InvalidOperationException(
+        "Unrestricted inbox did not return the newest recommendation first.");
+}
+
+var scopedLatest = await recommendationQuery.ListAsync(null, 1, [well.Id]);
+if (scopedLatest.Count != 1 || scopedLatest.Single().AssetId != well.Id ||
+    scopedLatest.Single().Id == foreignInboxRecommendation.Id)
+{
+    throw new InvalidOperationException(
+        "Inbox did not enforce SQL-level asset scope before result limits.");
+}
+
+if ((await recommendationQuery.ListAsync(null, 100, [])).Count != 0)
+{
+    throw new InvalidOperationException("Empty authorized scope leaked recommendations.");
+}
+
+var scopedRejected = await recommendationQuery.ListAsync(
+    nameof(RecommendationStatus.Rejected), 100, [well.Id]);
+if (scopedRejected.Count == 0 ||
+    scopedRejected.Any(item => item.AssetId != well.Id ||
+        item.Status != RecommendationStatus.Rejected))
+{
+    throw new InvalidOperationException(
+        "Recommendation inbox status filtering or asset scope was incorrect.");
+}
+
+var beforeInboxAuditCount = await dbContext.AuditEvents.AsNoTracking().CountAsync();
+var authorizedDetail = await recommendationQuery.GetRequiredAsync(
+    recommendation.Id, [well.Id]);
+if (authorizedDetail.Id != recommendation.Id)
+{
+    throw new InvalidOperationException("In-scope recommendation detail was not found.");
+}
+
+try
+{
+    await recommendationQuery.GetRequiredAsync(
+        foreignInboxRecommendation.Id, [well.Id]);
+    throw new InvalidOperationException("Out-of-scope inbox detail was exposed.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_NOT_FOUND")
+{
+}
+
+foreach (var invalidStatus in new[] { "not-a-status", "999", " " })
+{
+    try
+    {
+        await recommendationQuery.ListAsync(invalidStatus, 50, [well.Id]);
+        throw new InvalidOperationException("Invalid recommendation filter was accepted.");
+    }
+    catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+        when (exception.Code == "RECOMMENDATION_STATUS_INVALID")
+    {
+    }
+}
+
+foreach (var invalidLimit in new[] { -1, 0, 101 })
+{
+    try
+    {
+        await recommendationQuery.ListAsync(null, invalidLimit, [well.Id]);
+        throw new InvalidOperationException("Invalid inbox page limit was accepted.");
+    }
+    catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+        when (exception.Code == "RECOMMENDATION_LIST_LIMIT_INVALID")
+    {
+    }
+}
+
+if (await dbContext.AuditEvents.AsNoTracking().CountAsync() != beforeInboxAuditCount ||
+    (await recommendationRepository.GetAsync(foreignInboxRecommendation.Id))?.Status !=
+        RecommendationStatus.Created)
+{
+    throw new InvalidOperationException(
+        "Read-only recommendation inbox modified state or generated audit events.");
+}
+
 Console.WriteLine(
     "Recommendation materialization, immutable source snapshot, Shadow isolation, and idempotency checks passed.");
 return 0;

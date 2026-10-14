@@ -60,6 +60,43 @@ public sealed class RecommendationRepository(
         return added;
     }
 
+    public async Task<IReadOnlyCollection<RecommendationRecord>> ListAsync(
+        RecommendationStatus? status,
+        int limit,
+        IReadOnlyCollection<Guid>? authorizedAssetIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (authorizedAssetIds is { Count: 0 })
+        {
+            return [];
+        }
+
+        IQueryable<RecommendationEntity> query = dbContext.Recommendations
+            .AsNoTracking();
+
+        // Apply asset scope in SQL before Take(limit). Filtering an unscoped
+        // page in memory can leak counts and hide legitimate scoped results.
+        if (authorizedAssetIds is not null)
+        {
+            var ids = authorizedAssetIds.Distinct().ToArray();
+            query = query.Where(item => ids.Contains(item.AssetId));
+        }
+
+        if (status is { } value)
+        {
+            var statusName = value.ToString();
+            query = query.Where(item => item.Status == statusName);
+        }
+
+        return (await query
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken))
+            .Select(ToDomain)
+            .ToArray();
+    }
+
     public async Task<IReadOnlyCollection<RecommendationRecord>> ListByExecutionAsync(
         Guid executionId,
         CancellationToken cancellationToken = default) =>

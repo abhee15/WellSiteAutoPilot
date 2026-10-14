@@ -1,0 +1,207 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
+import { t } from '../localization';
+import { formatDetailTimestamp } from './executionDetail';
+import { RecommendationInboxControls } from './RecommendationInboxControls';
+import {
+  DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
+  fetchRecommendationInbox,
+  filterRecommendationInbox,
+  inboxCounts,
+  recommendationIsExpired,
+} from './recommendationInbox';
+import type { RecommendationInboxCriteria } from './recommendationInbox';
+
+const INBOX_REFRESH_INTERVAL_MS = 10_000;
+type InboxError = 'accessDenied' | 'invalidResponse' | 'unavailable';
+
+function formatSuggestedValue(value?: number | null, unit?: string | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  return new Intl.NumberFormat().format(value) + (unit ? ' ' + unit : '');
+}
+
+export function RecommendationInboxTable({
+  items,
+  nowUtc,
+}: {
+  items: readonly RecommendationSummaryResponse[];
+  nowUtc: number;
+}) {
+  return (
+    <div className="table-wrap">
+      <table className="activity-table">
+        <thead>
+          <tr>
+            <th scope="col">{t('inbox.status')}</th>
+            <th scope="col">{t('inbox.asset')}</th>
+            <th scope="col">{t('inbox.module')}</th>
+            <th scope="col">{t('inbox.proposal')}</th>
+            <th scope="col">{t('inbox.reason')}</th>
+            <th scope="col">{t('inbox.timing')}</th>
+            <th scope="col">{t('inbox.review')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(item => (
+            <tr key={item.id}>
+              <td>
+                <strong>{item.status ?? '—'}</strong>
+                {recommendationIsExpired(item, nowUtc) && (
+                  <small>{t('inbox.expiredNote')}</small>
+                )}
+              </td>
+              <td>{item.assetId ?? '—'}</td>
+              <td>
+                <strong>{item.moduleId ?? '—'}</strong>
+                <small>{item.moduleVersion ?? '—'}</small>
+              </td>
+              <td>
+                <strong>{item.command ?? item.code ?? '—'}</strong>
+                <small>{formatSuggestedValue(item.suggestedValue, item.unit)}</small>
+                <small>{item.quantity ?? '—'}</small>
+              </td>
+              <td>{item.reasonCode ?? '—'}</td>
+              <td>
+                <strong>{formatDetailTimestamp(item.createdAtUtc)}</strong>
+                <small>{t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>
+              </td>
+              <td>
+                <strong>{item.decisionBy ?? '—'}</strong>
+                <small>{formatDetailTimestamp(item.decisionAtUtc)}</small>
+              </td>
+            </tr>
+          ))}
+          {items.length === 0 && (
+            <tr>
+              <td className="empty-state" colSpan={7}>{t('inbox.noMatches')}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function RecommendationsPage({ userId }: { userId: string | null | undefined }) {
+  const [items, setItems] = useState<RecommendationSummaryResponse[]>([]);
+  const [criteria, setCriteria] = useState<RecommendationInboxCriteria>(
+    DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<InboxError | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const activeRefresh = useRef<AbortController | null>(null);
+
+  const refresh = useCallback(async () => {
+    activeRefresh.current?.abort();
+    const controller = new AbortController();
+    activeRefresh.current = controller;
+    setIsLoading(true);
+
+    try {
+      const data = await fetchRecommendationInbox(controller.signal);
+      if (controller.signal.aborted) return;
+      setItems(data);
+      setLastUpdated(new Date());
+      setError(null);
+    } catch (reason) {
+      if (controller.signal.aborted) return;
+      // Never retain a previously authorized inbox after errors or revocation.
+      setItems([]);
+      setLastUpdated(null);
+      setError(reason instanceof Error &&
+        reason.message === 'RECOMMENDATION_INBOX_ACCESS_DENIED' ? 'accessDenied'
+        : reason instanceof Error &&
+          reason.message === 'RECOMMENDATION_INBOX_INVALID_RESPONSE'
+          ? 'invalidResponse' : 'unavailable');
+    } finally {
+      if (activeRefresh.current === controller) {
+        activeRefresh.current = null;
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setItems([]);
+      setLastUpdated(null);
+      setError('accessDenied');
+      setIsLoading(false);
+      return;
+    }
+
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), INBOX_REFRESH_INTERVAL_MS);
+    return () => {
+      window.clearInterval(interval);
+      activeRefresh.current?.abort();
+      activeRefresh.current = null;
+    };
+  }, [userId, refresh]);
+
+  const nowUtc = Date.now();
+  const counts = inboxCounts(items, nowUtc);
+  const visible = useMemo(
+    () => filterRecommendationInbox(items, criteria, nowUtc),
+    [items, criteria, nowUtc],
+  );
+  const errorMessages: Record<InboxError, string> = {
+    accessDenied: t('inbox.accessDenied'),
+    invalidResponse: t('inbox.invalidResponse'),
+    unavailable: t('inbox.unavailable'),
+  };
+
+  return (
+    <>
+      <section className="summary-grid" aria-label={t('inbox.summary')}>
+        <article className="summary-card">
+          <span>{t('inbox.awaiting')}</span>
+          <strong>{counts.awaiting}</strong>
+          <small>{t('inbox.authorizedWindow')}</small>
+        </article>
+        <article className="summary-card">
+          <span>{t('inbox.expired')}</span>
+          <strong>{counts.expired}</strong>
+          <small>{t('inbox.expiryDescription')}</small>
+        </article>
+        <article className="summary-card">
+          <span>{t('inbox.decided')}</span>
+          <strong>{counts.decided}</strong>
+          <small>{t('inbox.authorizedWindow')}</small>
+        </article>
+      </section>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">{t('inbox.eyebrow')}</p>
+            <h2>{t('inbox.heading')}</h2>
+          </div>
+          <div className="execution-detail-actions">
+            {lastUpdated && (
+              <span className="last-updated">{t('inbox.updated')} {formatDetailTimestamp(
+                lastUpdated.toISOString(),
+              )}</span>
+            )}
+            <button className="secondary-button" type="button"
+              disabled={isLoading || !userId} onClick={() => void refresh()}>
+              {t('inbox.reload')}
+            </button>
+          </div>
+        </div>
+        <p className="recommendation-readonly-note">{t('inbox.readOnly')}</p>
+        <RecommendationInboxControls
+          criteria={criteria}
+          onChange={setCriteria}
+          matchingCount={visible.length}
+          loadedCount={items.length}
+        />
+        {isLoading && <p role="status" className="status-loading">{t('inbox.loading')}</p>}
+        {error && <p role="alert" className="execution-detail-error inbox-error">
+          {errorMessages[error]}
+        </p>}
+        {!isLoading && !error && <RecommendationInboxTable items={visible} nowUtc={nowUtc} />}
+      </section>
+    </>
+  );
+}
