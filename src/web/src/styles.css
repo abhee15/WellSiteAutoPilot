@@ -60,7 +60,7 @@ button:disabled {
 }
 
 .navigation a,
-.user-menu {
+.user-menu > summary {
   color: #d5dee6;
   text-decoration: none;
   border: 0;
@@ -72,13 +72,90 @@ button:disabled {
 
 .navigation a:hover,
 .navigation a.active,
-.user-menu:hover {
+.user-menu > summary:hover,
+.user-menu[open] > summary {
   background: #202a33;
+}
+
+.nav-short {
+  display: none;
 }
 
 .user-menu {
   margin-top: auto;
+  position: relative;
+  min-width: 0;
+}
+
+.user-menu > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
+  list-style: none;
+}
+
+.user-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.user-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #344452;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.user-label {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-chevron {
+  color: #9facb8;
+}
+
+.user-panel {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: min(300px, calc(100vw - 90px));
+  padding: 16px;
+  border: 1px solid #53616e;
+  border-radius: 8px;
+  background: #202a33;
+  box-shadow: 0 12px 28px #0008;
+}
+
+.user-panel dl {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.user-panel dt,
+.user-panel-note {
+  color: #b4c1cc;
+  font-size: 0.8rem;
+}
+
+.user-panel dd {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+.user-panel-note {
+  margin-bottom: 0;
 }
 
 .content {
@@ -350,17 +427,33 @@ button:disabled {
 
   .product-mark strong,
   .product-kicker,
+  .nav-label,
+  .user-label,
+  .user-menu-chevron {
+    display: none;
+  }
+
+  .nav-short {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
   .navigation a {
-    font-size: 0;
+    display: flex;
+    justify-content: center;
+    padding: 10px 4px;
   }
 
-  .navigation a::first-letter {
-    font-size: 1rem;
+  .user-menu > summary {
+    justify-content: center;
+    padding: 10px 4px;
   }
 
-  .user-menu {
-    overflow: hidden;
-    white-space: nowrap;
+  .user-panel {
+    position: fixed;
+    bottom: 12px;
+    left: 72px;
   }
 
   .content {
