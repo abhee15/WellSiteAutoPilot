@@ -418,9 +418,198 @@ if (users.Count < 3 ||
         "Security user persistence returned duplicate stable identity keys.");
 }
 
+
+// Administrator-defined roles have their own schema and never implicitly
+// modify today's per-user RBAC until the paired-grant migration is verified.
+var roleCatalog = new RoleCatalogService(new RoleCatalogRepository(dbContext), clock);
+var actor = new SecurityActorContext(
+    secondAdministrator.Id, secondAdministrator.IdentityName, "security-role-tests");
+var predefined = await roleCatalog.ListAsync(100);
+var builtin = predefined.Where(item => item.IsSystem).ToArray();
+
+if (builtin.Length != 3 ||
+    !builtin.Select(item => item.Name).OrderBy(item => item)
+        .SequenceEqual(new[] { "Admin", "Engineer", "Operator" }.OrderBy(item => item)) ||
+    ProductPermissionCatalog.Definitions.Count != WellSitePermissions.All.Count ||
+    ProductPermissionCatalog.Definitions.Select(item => item.Key)
+        .ToHashSet(StringComparer.Ordinal)
+        .SetEquals(WellSitePermissions.All) == false)
+{
+    throw new InvalidOperationException("Default role or product permission catalog mismatch.");
+}
+
+foreach (var systemRole in builtin)
+{
+    var defaultKind = Enum.Parse<ApplicationRole>(systemRole.Name);
+    foreach (var permission in WellSitePermissions.All)
+    {
+        if (RolePermissionMap.HasPermission([defaultKind], permission) !=
+            systemRole.Permissions.Contains(permission, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("System role seed drifted from the current permission map.");
+        }
+    }
+
+    try
+    {
+        await roleCatalog.UpdateAsync(
+            systemRole.Id, systemRole.Revision,
+            new RoleMutationCommand("Altered", "", [], true), actor);
+        throw new InvalidOperationException("Protected system role was editable.");
+    }
+    catch (WellSiteAutoPilotException exception)
+        when (exception.Code == "SECURITY_SYSTEM_ROLE_IMMUTABLE")
+    {
+    }
+}
+
+foreach (var bad in new[]
+{
+    new RoleMutationCommand("Admin", "", [], true),
+    new RoleMutationCommand("A", "", [], true),
+    new RoleMutationCommand("Field Lead", "", ["random.unenforced.permission"], true)
+})
+{
+    try
+    {
+        await roleCatalog.CreateAsync(bad, actor);
+        throw new InvalidOperationException("Invalid customer role definition was allowed.");
+    }
+    catch (WellSiteAutoPilotException exception)
+        when (exception.Kind == FailureKind.Validation)
+    {
+    }
+}
+
+try
+{
+    await roleCatalog.CreateAsync(
+        new RoleMutationCommand("Role Test", "", [], true),
+        SecurityActorContext.Bootstrap);
+    throw new InvalidOperationException("Unauthenticated security actor authored a role.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ACTOR_REQUIRED")
+{
+}
+
+var draftedRole = await roleCatalog.CreateAsync(
+    new RoleMutationCommand("Field Supervisor", "Operations lead",
+        [WellSitePermissions.AssetsRead, WellSitePermissions.ExecutionsRead], true),
+    actor);
+
+if (draftedRole.IsSystem || !draftedRole.IsActive ||
+    draftedRole.Revision != 1 ||
+    draftedRole.Permissions.Count != 2 ||
+    !draftedRole.Permissions.Contains(WellSitePermissions.ExecutionsRead) ||
+    (await service.GetRequiredAsync(operatorUser.Id)).Roles.Count != 1 ||
+    !RolePermissionMap.HasPermission(
+        [ApplicationRole.Admin], WellSitePermissions.SecurityManage))
+{
+    throw new InvalidOperationException("Role creation changed effective legacy access.");
+}
+
+await using (var duplicate = new WellSiteAutoPilotDbContext(options))
+{
+    var duplicateCatalog = new RoleCatalogService(
+        new RoleCatalogRepository(duplicate), clock);
+    try
+    {
+        await duplicateCatalog.CreateAsync(
+            new RoleMutationCommand("field supervisor", "Different case", [], true), actor);
+        throw new InvalidOperationException("Case-insensitive role name uniqueness was bypassed.");
+    }
+    catch (WellSiteAutoPilotException exception)
+        when (exception.Code == "SECURITY_ROLE_CONFLICT")
+    {
+    }
+}
+
+var updatedRole = await roleCatalog.UpdateAsync(
+    draftedRole.Id, draftedRole.Revision,
+    new RoleMutationCommand("Field Supervisor", "Revised",
+        [WellSitePermissions.AssetsRead], false),
+    actor);
+
+if (updatedRole.IsActive || updatedRole.Revision != 2 ||
+    updatedRole.Permissions.Count != 1 ||
+    updatedRole.Description != "Revised")
+{
+    throw new InvalidOperationException("Versioned role permission replacement failed.");
+}
+
+try
+{
+    await roleCatalog.UpdateAsync(
+        draftedRole.Id, draftedRole.Revision,
+        new RoleMutationCommand("Field Supervisor", "Stale", [], true), actor);
+    throw new InvalidOperationException("Stale role update was accepted.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ROLE_CONFLICT")
+{
+}
+
+var roleAudit = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.TargetId == draftedRole.Id.ToString("D") &&
+        item.TargetType == "security-role")
+    .OrderBy(item => item.OccurredAtUtc)
+    .ToArrayAsync();
+
+if (roleAudit.Length != 2 ||
+    roleAudit.Any(item => item.ActorUserId != actor.UserId ||
+        item.CorrelationId != actor.CorrelationId) ||
+    !roleAudit.Any(item => item.Action == "security.role.created") ||
+    !roleAudit.Any(item => item.Action == "security.role.updated"))
+{
+    throw new InvalidOperationException("Role authoring audit did not round-trip.");
+}
+
+// Concurrent revisions can have only one winning write.
+var competingRole = await roleCatalog.CreateAsync(
+    new RoleMutationCommand("Shift Leader", "", [WellSitePermissions.AssetsRead], true),
+    actor);
+await using (var first = new WellSiteAutoPilotDbContext(options))
+await using (var second = new WellSiteAutoPilotDbContext(options))
+{
+    var writerA = new RoleCatalogService(new RoleCatalogRepository(first), clock);
+    var writerB = new RoleCatalogService(new RoleCatalogRepository(second), clock);
+    var attempts = await Task.WhenAll(
+        TryRoleWriteAsync(writerA, competingRole.Id, competingRole.Revision,
+            new RoleMutationCommand("Shift Leader A", "", [], true), actor),
+        TryRoleWriteAsync(writerB, competingRole.Id, competingRole.Revision,
+            new RoleMutationCommand("Shift Leader B", "", [], true), actor));
+
+    if (attempts.Count(item => item) != 1 ||
+        (await roleCatalog.GetRequiredAsync(competingRole.Id)).Revision != 2)
+    {
+        throw new InvalidOperationException("Competing role updates did not have one canonical winner.");
+    }
+}
+
 Console.WriteLine(
-    "Stable Windows identity, one-time bootstrap Admin, RBAC, exact Asset scope isolation, durable audit, and last-Admin invariants passed.");
+    "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;
+
+
+static async Task<bool> TryRoleWriteAsync(
+    RoleCatalogService service,
+    Guid roleId,
+    long revision,
+    RoleMutationCommand command,
+    SecurityActorContext actor)
+{
+    try
+    {
+        await service.UpdateAsync(roleId, revision, command, actor);
+        return true;
+    }
+    catch (WellSiteAutoPilotException exception)
+        when (exception.Code == "SECURITY_ROLE_CONFLICT")
+    {
+        return false;
+    }
+}
 
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
 {
