@@ -20,6 +20,27 @@ permissions:
   contents: read
 
 jobs:
+  engineering-conventions:
+    name: Engineering conventions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Empty on a push; pull_request runs compare against its exact base SHA.
+      WSA_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - name: Checkout history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test convention guards
+        run: python -m unittest discover -s tests/ci -p 'test_*.py'
+      - name: Verify architectural boundaries and generated client
+        run: python tools/ci/check_conventions.py
+
   foundation-build:
     name: Foundation build and installer
     runs-on: windows-latest

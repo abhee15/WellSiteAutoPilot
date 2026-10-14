@@ -31,3 +31,31 @@ This document records the initial, deliberately small set of conventions for Wel
 - The CI workflow validates `main` and `develop` on push for post-merge confidence. Feature, fix, chore, and validation branches do not separately run the duplicate push suite; the PR event is the single source of pre-merge verification.
 - Keep a PR draft while implementing; mark ready and merge only after its current head commit passes all required jobs and the feature's relevant regression tests.
 - The workflow's per-PR concurrency cancels outdated runs when additional commits arrive, while preserving the latest verification.
+
+## CI enforcement: guard definite violations, review semantic duplication
+
+The lightweight **Engineering conventions** CI job runs for every pull request and for
+pushes to `develop`/`main`. It has no third-party dependencies and:
+
+- Checks production `.csproj` dependency boundaries using XML parsing. Domain, contracts
+  and application layers must not reference persistence, server, gateway, worker, or
+  simulator implementations; the .NET worker must not reference persistence or the
+  integration gateway implementation. Missing and out-of-repository project references
+  also fail.
+- Rejects direct changes to generated TypeScript API clients in PR diffs. The generator
+  must remain the source of truth; `src/web/src/api/generated/README.md` is exempt.
+- Executes self-tests for the guard, including negative regression cases.
+
+**Not blocking:** duplicate-line percentages, speculative generic abstractions,
+or broad pattern matching over source files. These create false positives and cannot
+distinguish an intentionally explicit authorization method from drift. Code reviewers
+must use `.github/PULL_REQUEST_TEMPLATE.md` to check reuse of repository queries,
+validation, saved-view storage, and message lifecycle helpers. When modifying a scoped
+query, assert SQL scope filtering precedes `Take` and cover scoped/unscoped parity in
+tests. Never replace an explicit security boundary with a nullable authorization sentinel.
+
+Continue using the existing blocking TypeScript strict checks, ESLint, frontend tests,
+warnings-as-errors .NET build, PostgreSQL/JetStream tests, and installer validation.
+Only turn on blocking `dotnet format` or `npm run format:check` after existing
+formatting drift has been baselined in a separate, focused change. Add positive and
+negative tests for every new convention rule; exceptions must be narrowly documented.

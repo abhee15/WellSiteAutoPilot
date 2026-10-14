@@ -27,3 +27,12 @@ Each PR should include:
 - architecture impact when a boundary or contract changes;
 - migration notes when persistence changes;
 - installer/deployment notes when runtime topology changes.
+
+## Engineering conventions review
+
+The PR template includes an explicit check for reuse of existing query, validation,
+transport and UI components. Keep scoped and unrestricted APIs distinct; factor
+identical mechanics privately only when their behavior is truly the same. Add parity
+tests whenever a filter, ordering rule, scope check, or paging behavior changes.
+The CI conventions guard enforces stable project boundaries and generated-client
+protection; it cannot judge whether domain algorithms should be shared.
