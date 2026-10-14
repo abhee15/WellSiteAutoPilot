@@ -11,6 +11,9 @@ import type {
 import { t } from './localization';
 import { OperationsViewControls } from './views/OperationsViewControls';
 import { AssetInventoryControls } from './views/AssetInventoryControls';
+import { LogicCatalogControls } from './views/LogicCatalogControls';
+import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './views/logicCatalog';
+import type { LogicCatalogCriteria } from './views/logicCatalog';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './views/assetInventory';
 import type { AssetInventoryCriteria } from './views/assetInventory';
 import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './views/operationsViews';
@@ -538,6 +541,14 @@ function LogicPage({
   modules: LogicModuleResponse[];
   configuredLogic: ConfiguredLogicResponse[];
 }) {
+  const [catalogCriteria, setCatalogCriteria] = useState<LogicCatalogCriteria>(
+    DEFAULT_LOGIC_CATALOG_CRITERIA,
+  );
+  const visibleModules = useMemo(
+    () => filterLogicCatalog(modules, catalogCriteria),
+    [modules, catalogCriteria],
+  );
+  const runtimes = useMemo(() => availableLogicRuntimes(modules), [modules]);
   const trusted = modules.filter(module => module.isEnabled).length;
   const activeConfigurations = configuredLogic.filter(item => item.activeRevisionId).length;
 
@@ -550,7 +561,14 @@ function LogicPage({
       </section>
 
       <section className="panel">
-        <PanelHeader eyebrow="Catalog" title="Logic Modules" count={modules.length} />
+        <PanelHeader eyebrow="Catalog" title="Logic Modules" count={visibleModules.length} />
+        <LogicCatalogControls
+          criteria={catalogCriteria}
+          onChange={setCatalogCriteria}
+          runtimes={runtimes}
+          matchingCount={visibleModules.length}
+          totalCount={modules.length}
+        />
         <div className="table-wrap">
           <table className="activity-table">
             <thead>
@@ -564,7 +582,7 @@ function LogicPage({
               </tr>
             </thead>
             <tbody>
-              {modules.map(module => (
+              {visibleModules.map(module => (
                 <tr key={module.id}>
                   <td>
                     <strong>{module.displayName}</strong>
@@ -577,7 +595,11 @@ function LogicPage({
                   <td>{formatTimestamp(module.installedAtUtc)}</td>
                 </tr>
               ))}
-              {modules.length === 0 && <EmptyRow columns={6}>No Logic Modules are installed.</EmptyRow>}
+              {visibleModules.length === 0 && (
+                <EmptyRow columns={6}>
+                  {modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}
+                </EmptyRow>
+              )}
             </tbody>
           </table>
         </div>
