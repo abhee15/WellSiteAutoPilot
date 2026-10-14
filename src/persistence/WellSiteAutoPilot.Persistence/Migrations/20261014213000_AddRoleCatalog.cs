@@ -81,6 +81,9 @@ public partial class AddRoleCatalog : Migration
             table: "role_definitions",
             columns: ["Id", "Key", "Name", "NormalizedName", "Description",
                 "IsSystem", "IsActive", "Revision", "CreatedAtUtc", "UpdatedAtUtc"],
+            columnTypes: ["uuid", "character varying(128)", "character varying(80)",
+                "character varying(80)", "character varying(500)", "boolean", "boolean",
+                "bigint", "timestamp with time zone", "timestamp with time zone"],
             values: new object[,]
             {
                 { admin, "admin", "Admin", "ADMIN", "Protected system administrator", true, true, 1L, seededAtUtc, seededAtUtc },
@@ -116,6 +119,7 @@ public partial class AddRoleCatalog : Migration
                     schema: "security",
                     table: "role_permissions",
                     columns: ["RoleId", "Permission"],
+                    columnTypes: ["uuid", "character varying(128)"],
                     values: [roleId, permission]);
             }
         }
