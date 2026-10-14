@@ -747,3 +747,97 @@ button:disabled {
     display: none;
   }
 }
+
+/* Administration is accessible through the bottom user menu, not main navigation. */
+.user-panel-link {
+  display: block;
+  padding: 10px 0 0;
+  color: #b6d7f0;
+  text-decoration: underline;
+}
+
+.access-intro {
+  margin: 12px 18px;
+}
+
+.access-note {
+  color: #b5c0ca;
+  font-size: 0.875rem;
+}
+
+.access-editor {
+  margin-top: 18px;
+}
+
+.access-role-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 0;
+  margin: 0;
+  border: 0;
+}
+
+.access-role-options legend {
+  font-weight: 600;
+  padding: 0;
+}
+
+.access-role-options label,
+.access-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.access-scope-field {
+  display: grid;
+  gap: 8px;
+  max-width: 740px;
+}
+
+.access-scope-field textarea {
+  width: 100%;
+  min-height: 130px;
+  border: 1px solid #53616e;
+  border-radius: 6px;
+  padding: 10px;
+  background: #1b232b;
+  color: #e7edf3;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.access-warning {
+  padding: 12px;
+  border: 1px solid #6d6240;
+  border-radius: 6px;
+  background: #2a2619;
+  color: #ebd9a4;
+}
+
+.access-review {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid #465663;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.access-review p {
+  margin: 0;
+}
+
+.access-confirm {
+  margin: 14px 0;
+  align-items: flex-start;
+}
+
+@media (max-width: 650px) {
+  .access-role-options {
+    display: grid;
+    gap: 12px;
+  }
+}
