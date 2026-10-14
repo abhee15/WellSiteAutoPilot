@@ -227,6 +227,15 @@ public sealed class CurrentDataProviderRouter
 }
 
 
+public sealed class FactoryCurrentDataProvider(Func<ICurrentDataProvider> createProvider) : ICurrentDataProvider
+{
+    public ValueTask<EngineeringValue> GetCurrentAsync(
+        string assetExternalId,
+        string quantity,
+        CancellationToken cancellationToken = default) =>
+        createProvider().GetCurrentAsync(assetExternalId, quantity, cancellationToken);
+}
+
 public sealed class CircuitBreakingCurrentDataProvider : ICurrentDataProvider
 {
     private readonly ICurrentDataProvider _inner;
@@ -258,6 +267,7 @@ public sealed class CircuitBreakingCurrentDataProvider : ICurrentDataProvider
         string quantity,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         bool isProbe = false;
         lock (_gate)
         {
@@ -290,7 +300,11 @@ public sealed class CircuitBreakingCurrentDataProvider : ICurrentDataProvider
         {
             lock (_gate)
             {
-                if (isProbe) _probeInProgress = false;
+                if (isProbe)
+                {
+                    _openUntil = _clock.GetUtcNow() + _recoveryDelay;
+                    _probeInProgress = false;
+                }
             }
             throw;
         }
