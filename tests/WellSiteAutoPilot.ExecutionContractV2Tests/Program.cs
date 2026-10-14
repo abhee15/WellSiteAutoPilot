@@ -3,12 +3,104 @@ using System.Text;
 using System.Text.Json;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
+using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.ModuleSdk;
 using WellSiteAutoPilot.Worker.DotNet.Execution;
 
 if (Subjects.ExecutionRequestedV1 == Subjects.ExecutionRequestedV2)
 {
     throw new InvalidOperationException("Execution V2 must coexist with V1 on a distinct subject.");
+}
+
+// JetStream timing is validated before consumers start (for V1 and V2).
+var leaseSettings = new JetStreamConsumerSettings().Validate();
+if (leaseSettings.RequestAckWait != TimeSpan.FromSeconds(120) ||
+    leaseSettings.ResultAckWait != TimeSpan.FromSeconds(30) ||
+    leaseSettings.RequestProgressInterval != TimeSpan.FromSeconds(20) ||
+    leaseSettings.MaxDeliver != 5)
+{
+    throw new InvalidOperationException("Default JetStream delivery policy drifted.");
+}
+
+foreach (var invalid in new[]
+{
+    new JetStreamConsumerSettings(RequestAckWaitSeconds: 9),
+    new JetStreamConsumerSettings(RequestAckWaitSeconds: 901),
+    new JetStreamConsumerSettings(ResultAckWaitSeconds: 0),
+    new JetStreamConsumerSettings(RequestAckWaitSeconds: 30, RequestProgressSeconds: 11),
+    new JetStreamConsumerSettings(RequestProgressSeconds: 0),
+    new JetStreamConsumerSettings(MaxDeliver: 0),
+    new JetStreamConsumerSettings(MaxDeliver: 21)
+})
+{
+    try
+    {
+        invalid.Validate();
+        throw new InvalidOperationException("Invalid JetStream configuration was accepted.");
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+    }
+}
+
+// Simulate slow provider/module execution: progress ACKs continue while work
+// is running, but stop once processing is finished.
+var heartbeatCount = 0;
+var processingObserved = false;
+await JetStreamProgressLease.RunAsync(
+    async cancellation =>
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(180), cancellation);
+        processingObserved = true;
+    },
+    cancellation =>
+    {
+        cancellation.ThrowIfCancellationRequested();
+        Interlocked.Increment(ref heartbeatCount);
+        return ValueTask.CompletedTask;
+    },
+    TimeSpan.FromMilliseconds(20));
+
+if (!processingObserved || Volatile.Read(ref heartbeatCount) < 3)
+{
+    throw new InvalidOperationException("Long-running module did not renew its delivery lease.");
+}
+var completedHeartbeatCount = Volatile.Read(ref heartbeatCount);
+await Task.Delay(TimeSpan.FromMilliseconds(70));
+if (Volatile.Read(ref heartbeatCount) != completedHeartbeatCount)
+{
+    throw new InvalidOperationException("Progress ACK continued after request completion.");
+}
+
+// A failed heartbeat must cancel the in-flight operation and prevent a
+// successful request ACK. The caller handles redelivery and investigation.
+var leaseFailureCanceledWork = false;
+try
+{
+    await JetStreamProgressLease.RunAsync(
+        async cancellation =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellation);
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                leaseFailureCanceledWork = true;
+                throw;
+            }
+        },
+        _ => throw new IOException("simulated JetStream progress connection failure"),
+        TimeSpan.FromMilliseconds(20));
+    throw new InvalidOperationException("Lost JetStream lease was treated as successful.");
+}
+catch (IOException exception) when (exception.Message.Contains("simulated JetStream", StringComparison.Ordinal))
+{
+}
+
+if (!leaseFailureCanceledWork)
+{
+    throw new InvalidOperationException("Heartbeat failure did not cancel executing module work.");
 }
 
 var assetId = Guid.NewGuid();
