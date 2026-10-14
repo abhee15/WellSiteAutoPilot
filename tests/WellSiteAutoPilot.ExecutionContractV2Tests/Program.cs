@@ -142,6 +142,80 @@ using (var boundedClient = new HttpClient(boundedHandler)
     }
 }
 
+// A lower configured budget must be enforced without changing result order.
+var configuredHandler = new ConcurrentReadHandler(now);
+using (var configuredClient = new HttpClient(configuredHandler)
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var configuredEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(configuredClient), new TestModuleResolver(), 2);
+    var configuredResult = await configuredEngine.ExecuteAsync(
+        largeRequest, "configured-concurrency-test", now);
+    if (configuredHandler.MaximumInFlight > 2 ||
+        configuredHandler.TotalRequests != largeInputs.Length ||
+        !configuredResult.EngineeringResults.Select(item => item.Id)
+            .SequenceEqual(largeInputs.Select(item => item.RequirementId)))
+    {
+        throw new InvalidOperationException("Configured concurrency limit was not honored.");
+    }
+}
+
+// Invalid limits fail at construction rather than disabling the safety budget.
+try
+{
+    _ = new ModuleExecutionEngine(new GatewayDataClient(httpClient), new TestModuleResolver(), 0);
+    throw new InvalidOperationException("Invalid concurrency budget was accepted.");
+}
+catch (ArgumentOutOfRangeException exception) when (exception.ParamName == "maximumConcurrentInputReads")
+{
+}
+
+// Cancellation must prevent dispatching inputs and invoking module logic.
+using (var canceled = new CancellationTokenSource())
+{
+    canceled.Cancel();
+    var canceledHandler = new ConcurrentReadHandler(now);
+    using var canceledClient = new HttpClient(canceledHandler)
+    {
+        BaseAddress = new Uri("http://127.0.0.1:5081")
+    };
+    var canceledEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(canceledClient), new TestModuleResolver(), 2);
+    try
+    {
+        await canceledEngine.ExecuteAsync(
+            largeRequest, "cancellation-test", now, canceled.Token);
+        throw new InvalidOperationException("Canceled execution unexpectedly succeeded.");
+    }
+    catch (OperationCanceledException) when (canceled.IsCancellationRequested)
+    {
+    }
+    if (canceledHandler.TotalRequests != 0)
+    {
+        throw new InvalidOperationException("Canceled execution dispatched provider requests.");
+    }
+}
+
+// Provider transport failures must fail the entire execution, not return partial inputs.
+using (var failingClient = new HttpClient(new FailingReadHandler())
+{
+    BaseAddress = new Uri("http://127.0.0.1:5081")
+})
+{
+    var failingEngine = new ModuleExecutionEngine(
+        new GatewayDataClient(failingClient), new TestModuleResolver(), 2);
+    try
+    {
+        await failingEngine.ExecuteAsync(request, "provider-failure-test", now);
+        throw new InvalidOperationException("Failed provider request was accepted.");
+    }
+    catch (HttpRequestException)
+    {
+    }
+}
+
 var serialized = JsonSerializer.Serialize(
     request,
     new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -299,4 +373,12 @@ file sealed class ConcurrentReadHandler(DateTimeOffset timestampUtc) : HttpMessa
             Interlocked.Decrement(ref _inFlight);
         }
     }
+}
+
+file sealed class FailingReadHandler : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken) =>
+        throw new HttpRequestException("Simulated provider transport failure.");
 }
