@@ -51,10 +51,12 @@ test('name ties and chronological ordering are deterministic and non-mutating', 
 });
 test('responsive control markup exposes accessible labels and counts', () => {
   const markup = renderToStaticMarkup(createElement(controls.AssetInventoryControls, {
-    criteria, onChange: () => {}, matchingCount: 2, totalCount: 3,
+    userId: null, criteria, onChange: () => {}, matchingCount: 2, totalCount: 3,
   }));
   assert.match(markup, /Asset inventory controls/);
   assert.match(markup, /Root assets/);
   assert.match(markup, /role="group"/);
   assert.match(markup, /Showing 2 of 3 loaded assets/);
+  assert.match(markup, /Saved Asset views/);
+  assert.match(markup, /disabled=""/);
 });

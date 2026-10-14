@@ -182,6 +182,7 @@ export function App() {
             key={currentUser?.userId ?? 'no-user'}
             assetTypes={assetTypes}
             assets={assets}
+            userId={currentUser?.userId}
           />
         )}
         {section === 'logic' && (
@@ -505,9 +506,11 @@ function OperationsPage({
 function AssetsPage({
   assetTypes,
   assets,
+  userId,
 }: {
   assetTypes: AssetTypeResponse[];
   assets: AssetResponse[];
+  userId: string | null | undefined;
 }) {
   const typeNames = useMemo(
     () => new Map(assetTypes.map(type => [type.id, type.displayName])),
@@ -533,6 +536,7 @@ function AssetsPage({
       <section className="panel">
         <PanelHeader eyebrow="Inventory" title="Assets" count={visibleAssets.length} />
         <AssetInventoryControls
+          userId={userId}
           criteria={inventoryCriteria}
           onChange={setInventoryCriteria}
           matchingCount={visibleAssets.length}
