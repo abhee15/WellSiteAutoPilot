@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Scheduling;
+using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Persistence;
@@ -390,6 +391,7 @@ var healthyDecision = failureDecisions.Single(
 if (failedDecision.Outcome != ScheduledShadowDispatchOutcome.DispatchFailed ||
     failedDecision.ReasonCode != "SCHEDULER_DISPATCH_FAILED" ||
     failedDecision.ExecutionId is not null ||
+    failedDecision.ScheduledForUtc != expectedResumedOccurrence ||
     healthyDecision.Outcome != ScheduledShadowDispatchOutcome.Dispatched ||
     healthyDecision.ExecutionId is null ||
     Array.FindIndex(

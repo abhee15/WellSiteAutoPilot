@@ -54,12 +54,15 @@ public sealed class ScheduledShadowSchedulerService(
                 // Keep processing independent configured logic. No occurrence
                 // is marked as dispatched on this path; durable occurrence
                 // deduplication handles retries after ambiguous write failures.
+                var activeRevision = configuredLogic.ActiveRevisionId is Guid activeRevisionId
+                    ? configuredLogic.Revisions.FirstOrDefault(item => item.Id == activeRevisionId)
+                    : null;
                 decisions.Add(Decision(
                     configuredLogic,
-                    configuredLogic.ActiveRevisionId is Guid activeRevisionId
-                        ? configuredLogic.Revisions.FirstOrDefault(item => item.Id == activeRevisionId)
+                    activeRevision,
+                    activeRevision?.Schedule is { } schedule
+                        ? GetLatestDueOccurrence(schedule, nowUtc)
                         : null,
-                    null,
                     ScheduledShadowDispatchOutcome.DispatchFailed,
                     "SCHEDULER_DISPATCH_FAILED"));
             }
