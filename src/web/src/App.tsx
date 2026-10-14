@@ -10,6 +10,9 @@ import type {
 } from './api/generated/v1/types.gen';
 import { t } from './localization';
 import { OperationsViewControls } from './views/OperationsViewControls';
+import { AssetInventoryControls } from './views/AssetInventoryControls';
+import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './views/assetInventory';
+import type { AssetInventoryCriteria } from './views/assetInventory';
 import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './views/operationsViews';
 import type { OperationsViewCriteria } from './views/operationsViews';
 
@@ -442,6 +445,13 @@ function AssetsPage({
     () => new Map(assetTypes.map(type => [type.id, type.displayName])),
     [assetTypes],
   );
+  const [inventoryCriteria, setInventoryCriteria] = useState<AssetInventoryCriteria>(
+    DEFAULT_ASSET_INVENTORY_CRITERIA,
+  );
+  const visibleAssets = useMemo(
+    () => filterAssetInventory(assets, typeNames, inventoryCriteria),
+    [assets, typeNames, inventoryCriteria],
+  );
   const rootAssets = assets.filter(asset => !asset.parentAssetId).length;
 
   return (
@@ -453,7 +463,13 @@ function AssetsPage({
       </section>
 
       <section className="panel">
-        <PanelHeader eyebrow="Inventory" title="Assets" count={assets.length} />
+        <PanelHeader eyebrow="Inventory" title="Assets" count={visibleAssets.length} />
+        <AssetInventoryControls
+          criteria={inventoryCriteria}
+          onChange={setInventoryCriteria}
+          matchingCount={visibleAssets.length}
+          totalCount={assets.length}
+        />
         <div className="table-wrap">
           <table className="activity-table">
             <thead>
@@ -466,7 +482,7 @@ function AssetsPage({
               </tr>
             </thead>
             <tbody>
-              {assets.map(asset => (
+              {visibleAssets.map(asset => (
                 <tr key={asset.id}>
                   <td><strong>{asset.name}</strong></td>
                   <td>{typeNames.get(asset.assetTypeId) ?? asset.assetTypeId}</td>
@@ -475,7 +491,11 @@ function AssetsPage({
                   <td>{formatTimestamp(asset.createdAtUtc)}</td>
                 </tr>
               ))}
-              {assets.length === 0 && <EmptyRow columns={5}>No Assets are configured.</EmptyRow>}
+              {visibleAssets.length === 0 && (
+                <EmptyRow columns={5}>
+                  {assets.length === 0 ? t('assets.none') : t('assets.noMatches')}
+                </EmptyRow>
+              )}
             </tbody>
           </table>
         </div>
