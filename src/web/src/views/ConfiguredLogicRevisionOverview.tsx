@@ -69,9 +69,9 @@ export function ConfiguredLogicRevisionOverview({ logic, onClose }: Props) {
                       <strong>{revision.schedule.enabled
                         ? t('configured.enabled') : t('configured.disabled')}</strong>
                       <small>{t('configured.cadence', {
-                        seconds: revision.schedule.cadenceSeconds ?? 0,
+                        seconds: revision.schedule.cadenceSeconds ?? '—',
                       })}</small>
-                      <small>{revision.schedule.timeZoneId ?? 'UTC'}</small>
+                      <small>{revision.schedule.timeZoneId ?? '—'}</small>
                       <small>{formatDetailTimestamp(revision.schedule.startAtUtc)}</small>
                     </>
                   ) : '—'}

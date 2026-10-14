@@ -16,7 +16,10 @@ after(async () => { await vite?.close(); });
 
 const revisions = [
   { id: 'rev2', revisionNumber: 2, status: 'Draft', moduleId: 'wfd.fillage',
-    moduleVersion: '1.1', parametersJson: 'SECRET_SHOULD_NOT_RENDER' },
+    moduleVersion: '1.1', parametersJson: 'SECRET_SHOULD_NOT_RENDER',
+    schedule: { enabled: true, cadenceSeconds: 60,
+      startAtUtc: '2026-10-14T08:00:00Z', timeZoneId: 'America/Chicago' },
+    assetBindings: [{ assetId: 'asset-one' }], dataBindings: [] },
   { id: 'rev1', revisionNumber: 1, status: 'Active', moduleId: 'wfd.fillage',
     moduleVersion: '1.0' },
 ];
@@ -88,6 +91,9 @@ test('revision history is newest-first, read-only, and excludes raw configuratio
   assert.match(html, /Revision history/);
   assert.match(html, /wfd\.fillage/);
   assert.match(html, /Current active revision/);
+  assert.match(html, /America\/Chicago/);
+  assert.match(html, /Every 60 seconds/);
+  assert.match(html, /1 assets/);
   assert.ok(html.indexOf('rev2') < html.indexOf('rev1'));
   assert.doesNotMatch(html, /SECRET_SHOULD_NOT_RENDER/);
   assert.doesNotMatch(html, /<textarea/);
