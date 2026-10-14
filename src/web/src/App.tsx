@@ -160,7 +160,7 @@ export function App() {
   );
 }
 
-function UserMenu({
+export function UserMenu({
   user,
   isLoading,
 }: {
@@ -201,7 +201,7 @@ function UserMenu({
   );
 }
 
-function NavigationLink({
+export function NavigationLink({
   section,
   current,
   children,

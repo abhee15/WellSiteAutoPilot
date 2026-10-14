@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{ts,json}\"",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,json}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,json}\"",
+    "test:ui": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "react": "19.3.0",
