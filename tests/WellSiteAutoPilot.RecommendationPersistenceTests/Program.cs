@@ -417,6 +417,47 @@ if (beforeUnauthorizedAuditCount != 0 ||
     throw new InvalidOperationException("Unauthorized decision modified state or wrote audit.");
 }
 
+// Asset-scope restrictions apply equally to rejection: a caller cannot bypass
+// authorization by choosing the safer-looking decision type.
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Rejected,
+        "out-of-scope-reviewer",
+        "Unauthorized rejection",
+        [Guid.NewGuid()]);
+    throw new InvalidOperationException("Out-of-scope recommendation was rejected.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_ASSET_SCOPE_FORBIDDEN")
+{
+}
+
+// An unsupported transition must fail validation before touching persistence.
+try
+{
+    await decisionService.DecideAsync(
+        recommendation.Id,
+        RecommendationStatus.Pending,
+        "reviewer",
+        "Unsupported decision",
+        [well.Id]);
+    throw new InvalidOperationException("Unsupported decision was accepted.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == "RECOMMENDATION_DECISION_INVALID")
+{
+}
+
+if ((await recommendationRepository.GetAsync(recommendation.Id))?.Status != RecommendationStatus.Created ||
+    await dbContext.AuditEvents.CountAsync(item => item.TargetType == "recommendation" &&
+        item.TargetId == recommendation.Id.ToString()) != 0)
+{
+    throw new InvalidOperationException(
+        "Unauthorized rejection or invalid decision changed state or emitted audit.");
+}
+
 // Invalid decision metadata must be rejected before any persistence transition.
 foreach (var invalidActor in new[] { " ", new string('a', 257), "reviewer\nother" })
 {
