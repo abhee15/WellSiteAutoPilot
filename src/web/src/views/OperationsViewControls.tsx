@@ -104,7 +104,7 @@ export function OperationsViewControls({
   };
 
   return (
-    <div className="data-view-controls" aria-label={t('views.controls')}>
+    <div className="data-view-controls" role="group" aria-label={t('views.controls')}>
       <div className="data-view-fields">
         <label>
           <span>{t('views.search')}</span>

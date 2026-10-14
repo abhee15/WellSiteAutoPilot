@@ -12,7 +12,7 @@ export function AssetInventoryControls({
   criteria, onChange, matchingCount, totalCount,
 }: Props) {
   return (
-    <div className="data-view-controls" aria-label={t('assets.controls')}>
+    <div className="data-view-controls" role="group" aria-label={t('assets.controls')}>
       <div className="data-view-fields asset-view-fields">
         <label>
           <span>{t('assets.search')}</span>

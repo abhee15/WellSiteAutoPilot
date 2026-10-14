@@ -46,7 +46,7 @@ export const englishMessages = {
   'assets.name': 'Name',
   'assets.newest': 'Newest first',
   'assets.oldest': 'Oldest first',
-  'assets.count': 'Showing {shown} of {total} authorized assets.',
+  'assets.count': 'Showing {shown} of {total} loaded assets (up to 100 per refresh).',
   'assets.none': 'No Assets are configured.',
   'assets.noMatches': 'No authorized assets match these filters.',
   'nav.operations': 'Operations',

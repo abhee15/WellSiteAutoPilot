@@ -55,5 +55,6 @@ test('responsive control markup exposes accessible labels and counts', () => {
   }));
   assert.match(markup, /Asset inventory controls/);
   assert.match(markup, /Root assets/);
-  assert.match(markup, /Showing 2 of 3 authorized assets/);
+  assert.match(markup, /role="group"/);
+  assert.match(markup, /Showing 2 of 3 loaded assets/);
 });
