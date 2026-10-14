@@ -26,6 +26,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
+    public DbSet<RoleDefinitionEntity> RoleDefinitions => Set<RoleDefinitionEntity>();
+    public DbSet<RolePermissionEntity> RolePermissions => Set<RolePermissionEntity>();
     public DbSet<UserEntity> Users => Set<UserEntity>();
     public DbSet<UserRoleEntity> UserRoles => Set<UserRoleEntity>();
     public DbSet<UserAssetScopeEntity> UserAssetScopes => Set<UserAssetScopeEntity>();
@@ -225,6 +227,30 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .WithMany()
             .HasForeignKey(x => x.ConfigurationRevisionId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        var roleDefinition = modelBuilder.Entity<RoleDefinitionEntity>();
+        roleDefinition.ToTable("role_definitions", "security");
+        roleDefinition.HasKey(item => item.Id);
+        roleDefinition.Property(item => item.Key).HasMaxLength(128).IsRequired();
+        roleDefinition.Property(item => item.Name).HasMaxLength(80).IsRequired();
+        roleDefinition.Property(item => item.NormalizedName).HasMaxLength(80).IsRequired();
+        roleDefinition.Property(item => item.Description).HasMaxLength(500).IsRequired();
+        roleDefinition.Property(item => item.IsSystem).IsRequired();
+        roleDefinition.Property(item => item.IsActive).IsRequired();
+        roleDefinition.Property(item => item.Revision).IsRequired();
+        roleDefinition.Property(item => item.CreatedAtUtc).IsRequired();
+        roleDefinition.Property(item => item.UpdatedAtUtc).IsRequired();
+        roleDefinition.HasIndex(item => item.Key).IsUnique();
+        roleDefinition.HasIndex(item => item.NormalizedName).IsUnique();
+
+        var rolePermission = modelBuilder.Entity<RolePermissionEntity>();
+        rolePermission.ToTable("role_permissions", "security");
+        rolePermission.HasKey(item => new { item.RoleId, item.Permission });
+        rolePermission.Property(item => item.Permission).HasMaxLength(128).IsRequired();
+        rolePermission.HasOne<RoleDefinitionEntity>()
+            .WithMany()
+            .HasForeignKey(item => item.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var user = modelBuilder.Entity<UserEntity>();
         user.ToTable("users", "security");

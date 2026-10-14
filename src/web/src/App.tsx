@@ -12,7 +12,7 @@ import { t } from './localization';
 import { OperationsViewControls } from './views/OperationsViewControls';
 import { ExecutionDetailPanel } from './views/ExecutionDetailPanel';
 import { RecommendationsPage } from './views/RecommendationsPage';
-import { AccessManagementPage } from './views/AccessManagementPage';
+import { AdministrationWorkspace } from './views/AdministrationWorkspace';
 import { AssetInventoryControls } from './views/AssetInventoryControls';
 import { LogicCatalogControls } from './views/LogicCatalogControls';
 import { ConfiguredLogicControls } from './views/ConfiguredLogicControls';
@@ -181,7 +181,7 @@ export function App() {
         )}
         {section === 'access' && (
           currentUser?.userId && currentUser.roles?.includes('Admin')
-            ? <AccessManagementPage key={currentUser.userId} currentUserId={currentUser.userId} />
+            ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId} />
             : <div className="status-error" role="alert">{t('access.denied')}</div>
         )}
         {section === 'assets' && (

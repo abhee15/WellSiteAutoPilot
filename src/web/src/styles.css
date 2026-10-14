@@ -841,3 +841,84 @@ button:disabled {
     gap: 12px;
   }
 }
+
+/* Role authoring reuses the same accessible Administration layout. */
+.administration-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.administration-tabs button[aria-selected="true"] {
+  border-color: #74b8ec;
+  color: #eaf6ff;
+}
+.role-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.role-search {
+  display: grid;
+  gap: 8px;
+  max-width: 380px;
+  margin: 12px 18px 20px;
+}
+.role-fields {
+  display: grid;
+  gap: 16px;
+  padding: 12px 18px;
+  max-width: 720px;
+}
+.role-fields > label:not(.access-confirm) {
+  display: grid;
+  gap: 6px;
+}
+.role-fields input:not([type="checkbox"]),
+.role-fields textarea,
+.role-search input {
+  color: #e7edf3;
+  background: #1b232b;
+  padding: 9px;
+  border-radius: 6px;
+  border: 1px solid #53616e;
+  font: inherit;
+  width: 100%;
+}
+.role-permissions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 275px), 1fr));
+  gap: 12px;
+  margin: 18px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.role-permissions legend {
+  font-weight: 650;
+  padding-bottom: 12px;
+}
+.role-permission-group {
+  padding: 12px;
+  background: #182129;
+  border: 1px solid #33404b;
+  border-radius: 6px;
+}
+.role-permission-group h4 { margin: 0 0 12px; }
+.role-permission-group label {
+  padding: 6px 0;
+  align-items: flex-start;
+}
+.role-permission-group small {
+  display: block;
+  margin-top: 3px;
+  color: #afbfca;
+  overflow-wrap: anywhere;
+}
+.role-editor > .access-review,
+.role-editor > .access-confirm { margin-inline: 18px; }
+.role-editor > .primary-button { margin: 0 18px 20px; }
+@media (max-width: 650px) {
+  .administration-tabs button,
+  .role-actions button { flex: 1; }
+}
