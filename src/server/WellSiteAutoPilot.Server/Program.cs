@@ -137,6 +137,7 @@ builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddScoped<UserAccessService>();
+builder.Services.AddScoped<RoleCatalogService>();
 builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
@@ -279,6 +280,95 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status409Conflict,
         "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+// Role authoring is Admin-only until scoped authorization and constrained
+// security delegation are implemented. New custom roles have no live access
+// effect until a reviewed assignment is created in the entitlement model.
+v1.MapGet(
+    "/security/role-permissions",
+    () => ProductPermissionCatalog.Definitions
+        .Select(item => new RolePermissionDefinitionResponse(
+            item.Key, item.Category, item.ScopeKind, item.IsPrivileged))
+        .ToArray())
+    .WithName("ListProductPermissions")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<RolePermissionDefinitionResponse[]>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapGet(
+    "/security/roles",
+    async (int? limit, RoleCatalogService catalog, CancellationToken cancellationToken) =>
+        (await catalog.ListAsync(limit ?? 100, cancellationToken))
+        .Select(ToRoleResponse).ToArray())
+    .WithName("ListSecurityRoles")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<RoleDefinitionResponse[]>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapGet(
+    "/security/roles/{roleId:guid}",
+    async (Guid roleId, RoleCatalogService catalog, CancellationToken cancellationToken) =>
+        ToRoleResponse(await catalog.GetRequiredAsync(roleId, cancellationToken)))
+    .WithName("GetSecurityRole")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<RoleDefinitionResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound);
+
+v1.MapPost(
+    "/security/roles",
+    async (
+        CreateSecurityRoleRequest request,
+        RoleCatalogService catalog,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var role = await catalog.CreateAsync(
+            new RoleMutationCommand(request.Name, request.Description,
+                request.Permissions, true),
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/security/roles/{role.Id}",
+            ToRoleResponse(role));
+    })
+    .WithName("CreateSecurityRole")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<RoleDefinitionResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapPut(
+    "/security/roles/{roleId:guid}",
+    async (
+        Guid roleId,
+        UpdateSecurityRoleRequest request,
+        RoleCatalogService catalog,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var role = await catalog.UpdateAsync(
+            roleId,
+            request.ExpectedRevision,
+            new RoleMutationCommand(request.Name, request.Description,
+                request.Permissions, request.IsActive),
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return ToRoleResponse(role);
+    })
+    .WithName("UpdateSecurityRole")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<RoleDefinitionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapPost(
@@ -1041,6 +1131,19 @@ static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.ResultCode,
     execution.FailureCode,
     execution.OutputJson);
+
+static RoleDefinitionResponse ToRoleResponse(
+    WellSiteAutoPilot.Domain.Security.RoleDefinition role) => new(
+    role.Id,
+    role.Key,
+    role.Name,
+    role.Description,
+    role.IsSystem,
+    role.IsActive,
+    role.Revision,
+    role.CreatedAtUtc,
+    role.UpdatedAtUtc,
+    role.Permissions.ToArray());
 
 static SecurityUserResponse ToSecurityUserResponse(
     WellSiteAutoPilot.Domain.Security.UserAccessProfile user) => new(
