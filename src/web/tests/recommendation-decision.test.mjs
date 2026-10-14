@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import { createServer } from 'vite';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
-let vite, client;
+let vite, client, panel;
 before(async () => {
   vite = await createServer({ server: { middlewareMode: true },
     appType: 'custom', logLevel: 'silent' });
   client = await vite.ssrLoadModule('/src/views/recommendationDecision.ts');
+  panel = await vite.ssrLoadModule('/src/views/RecommendationDecisionReviewPanel.tsx');
 });
 after(async () => { await vite?.close(); });
 
@@ -93,4 +96,23 @@ test('cancellation propagates to the decision request without automatic retry', 
     },
   ), { name: 'AbortError' });
   assert.equal(attempts, 1);
+});
+
+test('review panel requires deliberate selection, reason and acknowledgement', () => {
+  const html = renderToStaticMarkup(createElement(
+    panel.RecommendationDecisionReviewPanel, {
+      item: { id, status: 'Pending', assetId: 'well-1', command: 'SetSpeed',
+        suggestedValue: 9.5, unit: 'spm', createdAtUtc: '2026-10-14T10:00:00Z',
+        expiresAtUtc: '2026-10-15T10:00:00Z' },
+      onCancel: () => {}, onSaved: () => {}, onConflict: () => {},
+    },
+  ));
+  assert.match(html, /Recommendation decision review/);
+  assert.match(html, /explicit confirmation/);
+  assert.match(html, /SetSpeed/);
+  assert.match(html, /type="radio"/);
+  assert.match(html, /type="checkbox"/);
+  assert.match(html, /maxLength="1024"/);
+  assert.match(html, /Submit decision/);
+  assert.match(html, /disabled=""/);
 });
