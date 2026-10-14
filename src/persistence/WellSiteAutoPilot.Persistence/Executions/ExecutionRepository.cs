@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WellSiteAutoPilot.Persistence.Audit;
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Domain.Executions;
@@ -21,6 +22,15 @@ public sealed class ExecutionRepository(
         nameof(ExecutionStatus.Starting),
         nameof(ExecutionStatus.Running),
         nameof(ExecutionStatus.Waiting)
+    ];
+
+    private static readonly string[] TerminalExecutionStatuses =
+    [
+        nameof(ExecutionStatus.Completed),
+        nameof(ExecutionStatus.Failed),
+        nameof(ExecutionStatus.Cancelled),
+        nameof(ExecutionStatus.Suspended),
+        nameof(ExecutionStatus.TimedOut)
     ];
 
     public async Task AddRequestedAsync(
@@ -268,7 +278,7 @@ public sealed class ExecutionRepository(
             .AnyAsync(cancellationToken);
     }
 
-    public Task<bool> ApplyCompletedAsync(
+    public Task<ExecutionResultDisposition> ApplyCompletedAsync(
         Guid messageId,
         string consumer,
         Guid executionId,
@@ -289,7 +299,7 @@ public sealed class ExecutionRepository(
             outputJson,
             cancellationToken);
 
-    public Task<bool> ApplyFailedAsync(
+    public Task<ExecutionResultDisposition> ApplyFailedAsync(
         Guid messageId,
         string consumer,
         Guid executionId,
@@ -350,7 +360,7 @@ public sealed class ExecutionRepository(
         });
     }
 
-    private async Task<bool> ApplyResultAsync(
+    private async Task<ExecutionResultDisposition> ApplyResultAsync(
         Guid messageId,
         string consumer,
         Guid executionId,
@@ -364,47 +374,99 @@ public sealed class ExecutionRepository(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(consumer);
 
-        var alreadyProcessed = await dbContext.InboxMessages.AnyAsync(
-            message => message.MessageId == messageId && message.Consumer == consumer,
+        // A conditional UPDATE serializes competing terminal outcomes at the
+        // database row, not at the worker or EF change-tracking layer. The
+        // Inbox and conflict audit must commit in the same transaction.
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
             cancellationToken);
 
-        if (alreadyProcessed)
+        if (await dbContext.InboxMessages.AnyAsync(
+                message => message.MessageId == messageId &&
+                           message.Consumer == consumer,
+                cancellationToken))
         {
-            return false;
+            return ExecutionResultDisposition.AlreadyProcessed;
         }
 
-        var execution = await dbContext.Executions.SingleOrDefaultAsync(
-            item => item.Id == executionId,
-            cancellationToken);
+        var incomingStatus = status.ToString();
+        var changed = await dbContext.Executions
+            .Where(item => item.Id == executionId &&
+                           !TerminalExecutionStatuses.Contains(item.Status))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Status, incomingStatus)
+                .SetProperty(item => item.StartedAtUtc, startedAtUtc)
+                .SetProperty(item => item.CompletedAtUtc, completedAtUtc)
+                .SetProperty(item => item.ResultCode, resultCode)
+                .SetProperty(item => item.FailureCode, failureCode)
+                .SetProperty(item => item.OutputJson, outputJson),
+                cancellationToken);
 
-        if (execution is null)
+        ExecutionResultDisposition disposition;
+
+        if (changed == 1)
         {
-            throw new KeyNotFoundException($"Execution {executionId} does not exist.");
+            disposition = ExecutionResultDisposition.Applied;
         }
-
-        if (execution.Status is not nameof(ExecutionStatus.Completed) and
-            not nameof(ExecutionStatus.Failed) and
-            not nameof(ExecutionStatus.Cancelled) and
-            not nameof(ExecutionStatus.Suspended) and
-            not nameof(ExecutionStatus.TimedOut))
+        else
         {
-            execution.Status = status.ToString();
-            execution.StartedAtUtc = startedAtUtc;
-            execution.CompletedAtUtc = completedAtUtc;
-            execution.ResultCode = resultCode;
-            execution.FailureCode = failureCode;
-            execution.OutputJson = outputJson;
+            // This read occurs after the conditional update. PostgreSQL
+            // serializes concurrent updates to the same execution row, so we
+            // see the canonical winner of a competing terminal transition.
+            var existing = await dbContext.Executions
+                .AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Id == executionId, cancellationToken) ??
+                throw new KeyNotFoundException($"Execution {executionId} does not exist.");
+
+            var matches = string.Equals(existing.Status, incomingStatus, StringComparison.Ordinal) &&
+                          string.Equals(existing.ResultCode, resultCode, StringComparison.Ordinal) &&
+                          string.Equals(existing.FailureCode, failureCode, StringComparison.Ordinal) &&
+                          string.Equals(existing.OutputJson, outputJson, StringComparison.Ordinal);
+
+            disposition = matches
+                ? ExecutionResultDisposition.MatchingTerminalResult
+                : ExecutionResultDisposition.ConflictingTerminalResult;
+
+            if (!matches)
+            {
+                // Exclude module output and potentially sensitive values.
+                // Persist the conflicting observation even though it may not
+                // alter the canonical execution result.
+                dbContext.AuditEvents.Add(new AuditEventEntity
+                {
+                    Id = Guid.NewGuid(),
+                    OccurredAtUtc = DateTimeOffset.UtcNow,
+                    ActorIdentity = "system:execution-result-consumer",
+                    Action = "execution.result.conflict",
+                    TargetType = "Execution",
+                    TargetId = executionId.ToString("D"),
+                    CorrelationId = existing.CorrelationId,
+                    DetailsJson = JsonSerializer.Serialize(new
+                    {
+                        messageId,
+                        consumer,
+                        existingStatus = existing.Status,
+                        incomingStatus,
+                        existingResultCode = existing.ResultCode,
+                        incomingResultCode = resultCode,
+                        existingFailureCode = existing.FailureCode,
+                        incomingFailureCode = failureCode,
+                        startedAtUtc,
+                        terminalAtUtc = completedAtUtc
+                    }, SerializerOptions)
+                });
+            }
         }
 
         dbContext.InboxMessages.Add(new InboxMessageEntity
         {
             MessageId = messageId,
             Consumer = consumer,
-            ProcessedAtUtc = completedAtUtc
+            ProcessedAtUtc = DateTimeOffset.UtcNow
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return true;
+        await transaction.CommitAsync(cancellationToken);
+        return disposition;
     }
 
     private static ExecutionEntity ToEntity(ExecutionRecord execution) => new()

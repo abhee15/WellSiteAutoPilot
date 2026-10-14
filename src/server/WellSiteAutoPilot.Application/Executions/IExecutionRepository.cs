@@ -47,7 +47,7 @@ public interface IExecutionRepository
         IReadOnlyCollection<Guid> assetIds,
         CancellationToken cancellationToken = default);
 
-    Task<bool> ApplyCompletedAsync(
+    Task<ExecutionResultDisposition> ApplyCompletedAsync(
         Guid messageId,
         string consumer,
         Guid executionId,
@@ -57,7 +57,7 @@ public interface IExecutionRepository
         string? outputJson,
         CancellationToken cancellationToken = default);
 
-    Task<bool> ApplyFailedAsync(
+    Task<ExecutionResultDisposition> ApplyFailedAsync(
         Guid messageId,
         string consumer,
         Guid executionId,
