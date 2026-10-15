@@ -773,6 +773,85 @@ var accessGrantService = new AccessGrantAdministrationService(
 var assignmentActor = new SecurityActorContext(
     secondAdministrator.Id, secondAdministrator.IdentityName, "grant-test");
 
+// Explicit migration is all-or-nothing and audit-only. Exercise the
+// successful path BEFORE constructing intentionally divergent draft grants;
+// remove only the test's migrated records afterward so later negative tests
+// can evaluate a fresh pre-migration state.
+var legacyMigration = new LegacyGrantMigrationService(
+    accessGrantService,
+    new LegacyGrantMigrationRepository(dbContext),
+    clock);
+var preMigrationOperator = await service.GetRequiredAsync(operatorUser.Id);
+var migrationGrantCountBefore = await dbContext.AccessGrants.CountAsync();
+var migrationAuditCountBefore = await dbContext.AuditEvents.CountAsync(
+    item => item.Action == "security.grant.legacy-migrated");
+if (migrationGrantCountBefore != 0)
+{
+    throw new InvalidOperationException(
+        "The isolated security migration test expected no preexisting grants.");
+}
+try
+{
+    await legacyMigration.MigrateAsync(false, assignmentActor);
+    throw new InvalidOperationException(
+        "Unconfirmed legacy grant materialization was accepted.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_MIGRATION_CONFIRMATION_REQUIRED")
+{
+}
+try
+{
+    await legacyMigration.MigrateAsync(true,
+        new SecurityActorContext(
+            administrator.Id, administrator.IdentityName, "demoted-migration"));
+    throw new InvalidOperationException("Demoted admin started migration.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+
+var firstMigration = await legacyMigration.MigrateAsync(true, assignmentActor);
+var migrationIds = await dbContext.AccessGrants.AsNoTracking()
+    .Where(item => item.IsActive)
+    .Select(item => item.Id).ToArrayAsync();
+var migratedAudits = await dbContext.AuditEvents.CountAsync(
+    item => item.Action == "security.grant.legacy-migrated");
+var operatorAfterMigration = await service.GetRequiredAsync(operatorUser.Id);
+if (!firstMigration.RecordedGrantsMatchLegacy ||
+    !firstMigration.LiveAuthorizationUnchanged ||
+    firstMigration.GrantsCreated < 4 ||
+    firstMigration.ActiveUsersInspected < 3 ||
+    migratedAudits != migrationAuditCountBefore + firstMigration.GrantsCreated ||
+    !operatorAfterMigration.Roles.SequenceEqual(preMigrationOperator.Roles) ||
+    !operatorAfterMigration.AssetScopeIds.SequenceEqual(
+        preMigrationOperator.AssetScopeIds))
+{
+    throw new InvalidOperationException(
+        "Atomic migration failed to preserve legacy access and audit every grant.");
+}
+var secondMigration = await legacyMigration.MigrateAsync(true, assignmentActor);
+if (secondMigration.GrantsCreated != 0 ||
+    !secondMigration.RecordedGrantsMatchLegacy ||
+    await dbContext.AccessGrants.CountAsync() != migrationIds.Length ||
+    await dbContext.AuditEvents.CountAsync(
+        item => item.Action == "security.grant.legacy-migrated") != migratedAudits)
+{
+    throw new InvalidOperationException(
+        "Retrying a completed migration changed grants or duplicated audits.");
+}
+
+// Test fixture cleanup: remove only grants created by this isolated,
+// successful audit-only migration. Do not alter legacy roles or Asset scopes.
+await dbContext.AccessGrantAssets
+    .Where(item => migrationIds.Contains(item.GrantId))
+    .ExecuteDeleteAsync();
+await dbContext.AccessGrants
+    .Where(item => migrationIds.Contains(item.Id))
+    .ExecuteDeleteAsync();
+dbContext.ChangeTracker.Clear();
+
 var draftAccessBefore = await service.GetRequiredAsync(operatorUser.Id);
 var persisted = await accessGrantService.CreateForUserAsync(
     operatorUser.Id,
