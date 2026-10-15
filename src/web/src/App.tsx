@@ -9,6 +9,12 @@ import type {
   SystemInfoResponse,
 } from './api/generated/v1/types.gen';
 import { t } from './localization';
+import { UserMenu } from './components/UserMenu';
+import { NavigationLink } from './components/NavigationLink';
+import type { Section } from './components/NavigationLink';
+
+// Compatibility with existing consumers; new components live in their own files.
+export { UserMenu, NavigationLink };
 import { OperationsViewControls } from './views/OperationsViewControls';
 import { ExecutionDetailPanel } from './views/ExecutionDetailPanel';
 import { RecommendationsPage } from './views/RecommendationsPage';
@@ -27,7 +33,7 @@ import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './views/operationsVie
 import type { OperationsViewCriteria } from './views/operationsViews';
 
 const REFRESH_INTERVAL_MS = 10_000;
-type Section = 'operations' | 'recommendations' | 'assets' | 'logic' | 'access';
+
 
 export function App() {
   const [section, setSection] = useState<Section>(() => sectionFromHash());
@@ -201,74 +207,6 @@ export function App() {
         )}
       </main>
     </div>
-  );
-}
-
-export function UserMenu({
-  user,
-  isLoading,
-}: {
-  user: CurrentUserResponse | null;
-  isLoading: boolean;
-}) {
-  const displayName = user?.displayName?.trim() || user?.identityName ||
-    (isLoading ? t('session.loading') : t('session.unavailable'));
-
-  return (
-    <details className="user-menu">
-      <summary aria-label={t('session.label', { name: displayName })}>
-        <span className="user-avatar" aria-hidden="true">
-          {displayName.charAt(0).toUpperCase()}
-        </span>
-        <span className="user-label">{displayName}</span>
-        <span className="user-menu-chevron" aria-hidden="true">⌃</span>
-      </summary>
-      <div className="user-panel">
-        <strong>{t('session.heading')}</strong>
-        {!user ? (
-          <p role="status">{t('session.noDetails')}</p>
-        ) : (
-          <dl>
-            <dt>{t('session.identity')}</dt>
-            <dd>{user.identityName}</dd>
-            <dt>{t('session.account')}</dt>
-            <dd>{user.isActive ? t('session.active') : t('session.inactive')}</dd>
-            <dt>{t('session.roles')}</dt>
-            <dd>{user.roles?.length ? user.roles.join(', ') : t('session.noRoles')}</dd>
-            <dt>{t('session.scope')}</dt>
-            <dd>{t('session.assigned', { count: user.assetScopeIds?.length ?? 0 })}</dd>
-          </dl>
-        )}
-        <p className="user-panel-note">{t('session.authNotice')}</p>
-        {user?.isActive && user.roles?.includes('Admin') && (
-          <a className="user-panel-link" href="#access">{t('access.menu')}</a>
-        )}
-      </div>
-    </details>
-  );
-}
-
-export function NavigationLink({
-  section,
-  current,
-  children,
-}: {
-  section: Section;
-  current: Section;
-  children: string;
-}) {
-  const shortLabel = { operations: 'OP', recommendations: 'RC', assets: 'AS', logic: 'LG', access: 'AC' }[section];
-
-  return (
-    <a
-      aria-current={current === section ? 'page' : undefined}
-      aria-label={children}
-      className={section === current ? 'active' : undefined}
-      href={'#' + section}
-    >
-      <span className="nav-label">{children}</span>
-      <span className="nav-short" aria-hidden="true">{shortLabel}</span>
-    </a>
   );
 }
 
