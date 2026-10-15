@@ -101,3 +101,43 @@ export async function createGrant(draft: GrantDraft, confirmed: boolean,
   }
   return saved;
 }
+
+/**
+ * Retire an existing audit-only grant with optimistic concurrency. Never
+ * retry a write after an ambiguous network outcome. A confirmed response
+ * must identify the same grant and its next inactive revision.
+ */
+export async function deactivateGrant(grant: PersistedGrant, confirmed: boolean,
+  signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<PersistedGrant> {
+  if (!confirmed || !parse(grant) || !grant.isActive ||
+    grant.revision >= Number.MAX_SAFE_INTEGER) {
+    throw new GrantApiError('invalid');
+  }
+  let response: Response;
+  try {
+    response = await fetcher('/api/v1/security/users/' +
+      encodeURIComponent(grant.userId) + '/grants/' +
+      encodeURIComponent(grant.grantId) + '/deactivate', {
+      method: 'PUT', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expectedRevision: grant.revision }),
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    throw new GrantApiError('unavailable');
+  }
+  if (!response.ok) throw failed(response.status);
+  const saved = await payload(response);
+  if (response.status !== 200 || !parse(saved) || saved.isActive ||
+    saved.grantId.toLowerCase() !== grant.grantId.toLowerCase() ||
+    saved.userId.toLowerCase() !== grant.userId.toLowerCase() ||
+    saved.roleId.toLowerCase() !== grant.roleId.toLowerCase() ||
+    saved.scopeKind !== grant.scopeKind ||
+    saved.revision !== grant.revision + 1 ||
+    saved.assetIds.map(x => x.toLowerCase()).sort().join('|') !==
+      grant.assetIds.map(x => x.toLowerCase()).sort().join('|')) {
+    throw new GrantApiError('invalidResponse');
+  }
+  return saved;
+}
