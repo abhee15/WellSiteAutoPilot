@@ -16,13 +16,18 @@ type Props = {
   onRefresh: () => Promise<void> | void;
 };
 
-function isVerifiedAsset(value: unknown, typeId: string, name: string):
-  value is AssetResponse {
+function isVerifiedAsset(
+  value: unknown, typeId: string, name: string,
+  expectedParentId: string | null, expectedId?: string
+): value is AssetResponse {
   if (value === null || typeof value !== 'object') return false;
   const asset = value as Partial<AssetResponse>;
   return typeof asset.id === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(asset.id) &&
-    asset.assetTypeId === typeId && asset.name === name && asset.isActive === true;
+    asset.assetTypeId === typeId && asset.name === name &&
+    asset.parentAssetId === expectedParentId &&
+    (expectedId === undefined || asset.id === expectedId) &&
+    asset.isActive === true;
 }
 
 export function AssetCreationPanel({
@@ -105,8 +110,9 @@ export function AssetCreationPanel({
         if (active.current) setError(t('assets.createUncertain'));
         return;
       }
+      const expectedParentId = parentId === '__root__' ? null : parentId;
       const created: unknown = await response.json();
-      if (!isVerifiedAsset(created, selectedType.id, trimmed)) {
+      if (!isVerifiedAsset(created, selectedType.id, trimmed, expectedParentId)) {
         if (active.current) setError(t('assets.createUncertain'));
         return;
       }
@@ -128,7 +134,9 @@ export function AssetCreationPanel({
         return;
       }
       const verified: unknown = await verifiedResponse.json();
-      if (!isVerifiedAsset(verified, selectedType.id, trimmed)) {
+      if (!isVerifiedAsset(
+        verified, selectedType.id, trimmed, expectedParentId, created.id
+      )) {
         if (active.current) setError(t('assets.createReadbackFailed'));
         return;
       }
