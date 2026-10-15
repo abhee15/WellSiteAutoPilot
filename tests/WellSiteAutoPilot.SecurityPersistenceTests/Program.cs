@@ -1262,7 +1262,7 @@ if (!await proposedResourceRepository.IsAssetAuthorizedAsync(
     await proposedResourceRepository.IsAssetAuthorizedAsync(
         operatorUser.Id, WellSitePermissions.AssetsRead, otherAsset.Id) ||
     await proposedResourceRepository.IsAssetAuthorizedAsync(
-        parityProbeUser.Id, WellSitePermissions.AssetsRead, asset.Id) ||
+        Guid.NewGuid(), WellSitePermissions.AssetsRead, asset.Id) ||
     await proposedResourceRepository.IsAssetAuthorizedAsync(
         operatorUser.Id, WellSitePermissions.AssetsManage, asset.Id) ||
     await proposedResourceRepository.IsAssetAuthorizedAsync(
