@@ -1,4 +1,5 @@
 import './grantAdministration.css';
+import { EffectiveAccessInspector } from './EffectiveAccessInspector';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import { loadSecurityUsers } from './accessManagement';
@@ -216,6 +217,8 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
           </div>
         )}
       </section>
+      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+        <EffectiveAccessInspector key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
       {selectedUser && retiring && !error && (
         <section className="panel grant-final-review" role="region"
           aria-label={t('grants.retireReview')}>

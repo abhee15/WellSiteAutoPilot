@@ -75,6 +75,16 @@ assert request("GET", path) == [grant]
 assert request("GET", f"/security/users/{other['userId']}/grants") == []
 request("POST", path, body=command, expected=409)
 
+# Inspection is server-computed, privileged and diagnostic-only.
+inspection_path = f"/security/users/{operator['userId']}/effective-access?assetId={outside['id']}"
+request("GET", inspection_path, None, expected=401)
+request("GET", inspection_path, OPERATOR, expected=403)
+inspection = request("GET", inspection_path)
+assert inspection["isDiagnosticOnly"] is True and inspection["wideningCount"] > 0
+assert inspection["userId"] == operator["userId"] and inspection["assetId"] == outside["id"]
+request("GET", f"/security/users/{uuid.uuid4()}/effective-access", expected=404)
+request("GET", f"/security/users/{operator['userId']}/effective-access?assetId={uuid.uuid4()}", expected=404)
+
 # A recorded future entitlement must not expand live legacy authorization.
 assert request("GET", "/assets", OPERATOR) == before_assets
 request("GET", f"/assets/{outside['id']}", OPERATOR, expected=403)

@@ -36,6 +36,10 @@ public interface IAssetRepository
         IReadOnlyCollection<Guid> allowedAssetIds,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlySet<Guid>> GetActiveAssetIdsAsync(
+        IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Stable administrator directory paging; never reuse the resource-scoped
     /// listing for grant assignment across the full deployment.
