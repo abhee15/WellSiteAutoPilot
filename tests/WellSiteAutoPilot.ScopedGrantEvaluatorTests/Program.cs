@@ -251,5 +251,7 @@ foreach (var permission in ProductPermissionCatalog.Definitions)
     }
 }
 
+LegacyGrantMigrationPlannerChecks.Run();
+
 Console.WriteLine("Pure scoped-grant isolation and fail-closed checks passed.");
 return 0;
