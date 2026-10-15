@@ -97,3 +97,14 @@ public sealed record MaterializeLegacyGrantsResponse(
     int UsersAlreadyMatching,
     bool RecordedGrantsMatchLegacy,
     bool LiveAuthorizationUnchanged);
+
+public sealed record RollbackLegacyGrantsRequest(bool Confirmed);
+
+/// <summary>
+/// Deactivation receipt for migration-origin entitlements only. Existing
+/// production RBAC, historical audit events and customer grants are retained.
+/// </summary>
+public sealed record RollbackLegacyGrantsResponse(
+    int MigratedGrantsInspected,
+    int GrantsDeactivated,
+    bool LiveAuthorizationUnchanged);
