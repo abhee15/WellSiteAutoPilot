@@ -203,14 +203,27 @@ jobs:
             }
           }
 
-      - name: Generate TypeScript API client and build React
+      # Each command must be independently blocking: PowerShell can otherwise
+      # report success from the last npm command after an earlier failure.
+      - name: Install frontend dependencies
         working-directory: src/web
-        run: |
-          npm install
-          npm run generate-api
-          npm run lint
-          npm run test:ui
-          npm run build
+        run: npm install
+
+      - name: Generate TypeScript API client
+        working-directory: src/web
+        run: npm run generate-api
+
+      - name: Lint frontend
+        working-directory: src/web
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: src/web
+        run: npm run test:ui
+
+      - name: Build frontend
+        working-directory: src/web
+        run: npm run build
 
       - name: Validate Python worker
         run: python -m compileall -q src/workers/python/src
