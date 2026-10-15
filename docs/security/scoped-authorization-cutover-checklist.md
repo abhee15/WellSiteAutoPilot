@@ -129,6 +129,67 @@ cutover implementation is tested and enabled.
 **Non-goal:** this checklist does not authorize adding a configuration flag
 that immediately enables the new evaluator in production.
 
+
+## Observed HTTP route inventory (2026-10-15)
+
+The following inventory was extracted from the current `Program.cs` route
+registrations. All routes are under the authenticated `/api/v1` group.
+The **policy** column describes *current legacy policy metadata*, not proof
+of proposed scoped authorization. This is a review baseline, not an automated
+runtime enforcement mechanism.
+
+| Method | Route | Current policy |
+| --- | --- | --- |
+| GET | /system/info | Authenticated |
+| GET | /security/me | Authenticated |
+| GET | /security/users | SecurityManage |
+| PUT | /security/users/{userId}/access | SecurityManage |
+| GET | /security/role-permissions | SecurityManage |
+| GET | /security/roles | SecurityManage |
+| GET | /security/roles/{roleId} | SecurityManage |
+| POST | /security/roles | SecurityManage |
+| PUT | /security/roles/{roleId} | SecurityManage |
+| POST | /security/rollback-legacy-grants | SecurityManage |
+| POST | /security/materialize-legacy-grants | SecurityManage |
+| GET | /security/migration-preflight | SecurityManage |
+| GET | /security/users/{userId}/migration-preflight | SecurityManage |
+| GET | /security/users/{userId}/proposed-assets | SecurityManage |
+| GET | /security/users/{userId}/effective-access | SecurityManage |
+| GET | /security/users/{userId}/grants | SecurityManage |
+| POST | /security/users/{userId}/grants | SecurityManage |
+| PUT | /security/users/{userId}/grants/{grantId}/deactivate | SecurityManage |
+| POST | /asset-types | AssetsManage |
+| GET | /asset-types | AssetsRead |
+| GET | /asset-types/{assetTypeId} | AssetsRead |
+| POST | /assets | AssetsManage |
+| GET | /security/assets/directory | SecurityManage |
+| GET | /assets | AssetsRead |
+| GET | /assets/{assetId} | AssetsRead |
+| POST | /configured-logic | ConfiguredLogicManage |
+| GET | /configured-logic | ConfiguredLogicRead |
+| GET | /configured-logic/{configuredLogicId} | ConfiguredLogicRead |
+| POST | /configured-logic/{configuredLogicId}/revisions | ConfiguredLogicManage |
+| POST | /configured-logic/{configuredLogicId}/revisions/{revisionId}/validate | ConfiguredLogicManage |
+| POST | /configured-logic/{configuredLogicId}/revisions/{revisionId}/activate | ConfiguredLogicManage |
+| GET | /executions | ExecutionsRead |
+| POST | /executions/shadow | ExecutionsRequest |
+| GET | /executions/{executionId} | ExecutionsRead |
+| POST | /logic-modules | LogicManage |
+| GET | /logic-modules | LogicRead |
+| GET | /logic-modules/{moduleId}/{moduleVersion} | LogicRead |
+| GET | /recommendations | RecommendationsRead |
+| GET | /recommendations/{recommendationId} | RecommendationsRead |
+| POST | /recommendations/{recommendationId}/decision | RecommendationsDecide |
+
+**Coverage:** 40 registered endpoints: 2 authenticated-only and 38 with
+explicit legacy named policies. The authenticated-only routes are intentionally
+not interpreted as `security.manage` endpoints. The Asset-type catalog
+currently uses resource-style legacy permissions despite lacking a target
+Asset; keep the planned administrator-only bridge until its deployment-wide
+permission model is resolved. A future endpoint-inventory test must detect
+additions and changes automatically, rather than treating this snapshot as
+permanent proof of coverage.
+
 ## Current work separation
 
 - PR #79 builds the new permission model while keeping production auth legacy.
