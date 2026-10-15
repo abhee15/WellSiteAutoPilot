@@ -811,6 +811,93 @@ if (!draftAccessAfter.Roles.SequenceEqual(draftAccessBefore.Roles) ||
     throw new InvalidOperationException("New grant unexpectedly changed effective legacy access.");
 }
 
+// Compare actual persisted direct-user grants against current production
+// roles for one explicitly selected active Asset. This is diagnostic only;
+// it cannot certify whole-deployment authorization equivalence.
+var inspector = new ScopedAccessInspectionService(
+    accessGrantService, repository, new AccessGrantRepository(dbContext),
+    new RoleCatalogRepository(dbContext), new AssetRepository(dbContext));
+var matchingAsset = await inspector.InspectAsync(
+    operatorUser.Id, asset.Id, assignmentActor);
+var otherAssetInspection = await inspector.InspectAsync(
+    operatorUser.Id, otherAsset.Id, assignmentActor);
+var assetRead = matchingAsset.Permissions.Single(item =>
+    item.Permission == WellSitePermissions.AssetsRead);
+var legacyRecommendation = matchingAsset.Permissions.Single(item =>
+    item.Permission == WellSitePermissions.RecommendationsRead);
+var otherAssetRead = otherAssetInspection.Permissions.Single(item =>
+    item.Permission == WellSitePermissions.AssetsRead);
+if (!matchingAsset.IsDiagnosticOnly || !assetRead.LegacyAllowed ||
+    !assetRead.ProposedAllowed || assetRead.ProposedGrantId != persisted.Id ||
+    !legacyRecommendation.LegacyAllowed || legacyRecommendation.ProposedAllowed ||
+    otherAssetRead.LegacyAllowed || otherAssetRead.ProposedAllowed ||
+    matchingAsset.ReductionCount == 0 || matchingAsset.WideningCount != 0)
+{
+    throw new InvalidOperationException(
+        "Persisted access-inspector comparison failed or widened cross-Asset access.");
+}
+
+var globalInspection = await inspector.InspectAsync(
+    operatorUser.Id, null, assignmentActor);
+if (globalInspection.AssetId is not null ||
+    globalInspection.Permissions.Any(item => item.ScopeKind != "DeploymentWide") ||
+    globalInspection.WideningCount != 0)
+{
+    throw new InvalidOperationException(
+        "Global-only inspection incorrectly compared resource permissions.");
+}
+try
+{
+    await inspector.InspectAsync(operatorUser.Id, asset.Id,
+        new SecurityActorContext(
+            administrator.Id, administrator.IdentityName, "demoted-inspector"));
+    throw new InvalidOperationException("Demoted admin inspected scoped access.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+try
+{
+    await inspector.InspectAsync(operatorUser.Id, Guid.NewGuid(), assignmentActor);
+    throw new InvalidOperationException("Nonexistent Asset was inspected.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_INSPECTION_ASSET_INACTIVE")
+{
+}
+
+var syntheticGrantWidening = ScopedAccessComparisonEvaluator.Compare(
+    operatorUser with { Roles = [], AssetScopeIds = [] },
+    wellA, "Synthetic Well A", activeWellIds, [engineerGrant], [engineerRole]);
+if (syntheticGrantWidening.WideningCount == 0 ||
+    syntheticGrantWidening.Permissions
+        .Single(item => item.Permission == WellSitePermissions.AssetsManage)
+        .ProposedGrantId != engineerGrant.Id)
+{
+    // The grant above belongs to grantUserId, not this Operator. It must be
+    // denied even though its role and Asset target match.
+    if (syntheticGrantWidening.WideningCount != 0)
+        throw new InvalidOperationException("Cross-user grant leaked through inspector.");
+}
+var syntheticUser = operatorUser with
+{
+    Id = grantUserId,
+    Roles = [],
+    AssetScopeIds = []
+};
+var widening = ScopedAccessComparisonEvaluator.Compare(
+    syntheticUser, wellA, "Synthetic Well A",
+    activeWellIds, [engineerGrant], [engineerRole]);
+if (widening.WideningCount == 0 ||
+    widening.Permissions.Single(item =>
+        item.Permission == WellSitePermissions.AssetsManage).ProposedGrantId !=
+        engineerGrant.Id)
+{
+    throw new InvalidOperationException(
+        "Inspector failed to detect a proposed privilege expansion.");
+}
+
 foreach (var invalidGrant in new[]
 {
     new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, []),
