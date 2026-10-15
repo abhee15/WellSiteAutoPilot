@@ -36,6 +36,14 @@ public interface IAssetRepository
         IReadOnlyCollection<Guid> allowedAssetIds,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Stable administrator directory paging; never reuse the resource-scoped
+    /// listing for grant assignment across the full deployment.
+    /// </summary>
+    Task<IReadOnlyCollection<Asset>> ListAssetDirectoryPageAsync(
+        int offset, int limit,
+        CancellationToken cancellationToken = default);
+
     Task AddAssetAsync(
         Asset asset,
         CancellationToken cancellationToken = default);

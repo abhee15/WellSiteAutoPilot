@@ -84,6 +84,13 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 "Grant assignment requires an active user, role, and distinct administrator.");
         }
 
+        if (command.ExpectedRoleRevision < 1 || role.Revision != command.ExpectedRoleRevision)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_GRANT_ROLE_CONFLICT", FailureKind.Conflict,
+                "Role changed since review. Reload and review its permissions again.");
+        }
+
         var scopeIds = command.AssetIds.Distinct().ToArray();
         if (scopeIds.Length != command.AssetIds.Count ||
             (command.ScopeKind == AccessGrantScopeKind.ExactAssets &&
@@ -179,7 +186,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             CorrelationId = actor.CorrelationId,
             DetailsJson = JsonSerializer.Serialize(new
             {
-                userId, roleId = role.Id,
+                userId, roleId = role.Id, roleRevision = role.Revision,
                 scopeKind = command.ScopeKind.ToString(),
                 assetIds = scopeIds,
                 liveAuthorizationUnchanged = true

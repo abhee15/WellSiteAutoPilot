@@ -47,7 +47,7 @@ role = request("POST", "/security/roles", body={
     "permissions": ["assets.read", "assets.manage"],
 }, expected=201)
 path = f"/security/users/{operator['userId']}/grants"
-command = {"roleId": role["roleId"], "scopeKind": "ExactAssets", "assetIds": [outside["id"]]}
+command = {"roleId": role["roleId"], "scopeKind": "ExactAssets", "assetIds": [outside["id"]], "expectedRoleRevision": role["revision"]}
 fake_retirement = path + f"/{uuid.uuid4()}/deactivate"
 
 # Every route enforces authentication and administrator authorization.
@@ -59,6 +59,15 @@ for identity, status in [(None, 401), (OPERATOR, 403)]:
 request("POST", f"/security/users/{admin['userId']}/grants", body=command, expected=403)
 request("POST", path, body={**command, "assetIds": []}, expected=400)
 request("POST", path, body={**command, "scopeKind": "Unknown"}, expected=400)
+request("POST", path, body={**command, "expectedRoleRevision": 0}, expected=400)
+role = request("PUT", f"/security/roles/{role['roleId']}", body={
+    "expectedRevision": role["revision"], "name": role["name"],
+    "description": "Changed after review", "isActive": True,
+    "permissions": role["permissions"],
+})
+request("POST", path, body=command, expected=409)
+assert request("GET", path) == []
+command["expectedRoleRevision"] = role["revision"]
 grant = request("POST", path, body=command, expected=201)
 assert grant["userId"] == operator["userId"] and grant["assetIds"] == [outside["id"]]
 assert grant["isActive"] and grant["revision"] == 1
@@ -88,3 +97,14 @@ assert request("GET", path) == [retired]
 request("PUT", f"/security/roles/{role['roleId']}", body=role_update)
 assert request("GET", "/assets", OPERATOR) == before_assets
 print("Grant HTTP authentication, scope isolation, retirement, and legacy authorization checks passed.")
+
+# Full directory access is administrator-only and page inputs are bounded.
+request("GET", "/security/assets/directory", None, expected=401)
+request("GET", "/security/assets/directory", OPERATOR, expected=403)
+request("GET", "/security/assets/directory?offset=-1", expected=400)
+request("GET", "/security/assets/directory?limit=501", expected=400)
+page_one = request("GET", "/security/assets/directory?offset=0&limit=1")
+page_two = request("GET", "/security/assets/directory?offset=1&limit=1")
+assert len(page_one) == 1 and len(page_two) == 1
+assert page_one[0]["id"] != page_two[0]["id"]
+assert set(page_one[0]) == {"id", "name", "isActive"}

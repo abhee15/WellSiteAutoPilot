@@ -8,7 +8,8 @@ namespace WellSiteAutoPilot.Application.Security;
 public sealed record CreateAccessGrantCommand(
     Guid RoleId,
     AccessGrantScopeKind ScopeKind,
-    IReadOnlyCollection<Guid> AssetIds);
+    IReadOnlyCollection<Guid> AssetIds,
+    long ExpectedRoleRevision);
 
 public interface IAccessGrantRepository
 {
@@ -58,6 +59,13 @@ public sealed class AccessGrantAdministrationService(
         }
 
         _ = await RequireActiveUserAsync(userId, cancellationToken);
+        if (command.ExpectedRoleRevision < 1)
+        {
+            throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException(
+                "SECURITY_GRANT_ROLE_REVISION_REQUIRED",
+                WellSiteAutoPilot.Failures.FailureKind.Validation,
+                "The reviewed role revision is required.");
+        }
         var role = await roles.GetAsync(command.RoleId, cancellationToken);
         if (role is null || !role.IsActive)
         {
@@ -65,6 +73,14 @@ public sealed class AccessGrantAdministrationService(
                 "SECURITY_ROLE_INVALID",
                 WellSiteAutoPilot.Failures.FailureKind.Validation,
                 "An active role definition is required.");
+        }
+
+        if (role.Revision != command.ExpectedRoleRevision)
+        {
+            throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException(
+                "SECURITY_GRANT_ROLE_CONFLICT",
+                WellSiteAutoPilot.Failures.FailureKind.Conflict,
+                "Role changed since review. Reload and review its permissions again.");
         }
 
         if (command.AssetIds.Count > ScopedGrantEvaluator.MaximumExactAssetsPerGrant ||
