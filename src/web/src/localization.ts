@@ -282,6 +282,8 @@ export const englishMessages = {
   'grants.manage': 'Manage scoped role grants',
   'grants.draftOnly': 'New grants are recorded and audited for migration validation. Current live permissions remain governed by the existing user access model.',
   'grants.loadingFailed': 'Could not verify security assignments. Reload before making changes.',
+  'grants.assetDirectoryTooLarge': 'The Asset directory exceeds the supported verification limit. Grant editing is blocked rather than showing an incomplete Asset list.',
+  'grants.refineSearch': '{count} Assets match. Refine the search to choose from the first 100 displayed.',
   'grants.saveUncertain': 'The result of this change could not be verified. Reload the user before trying again.',
   'grants.chooseUser': 'User to administer',
   'grants.selectUser': 'Select an active user',
