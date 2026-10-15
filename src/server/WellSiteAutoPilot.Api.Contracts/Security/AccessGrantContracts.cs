@@ -65,3 +65,21 @@ public sealed record LegacyMigrationPreflightResponse(
     IReadOnlyCollection<LegacyMigrationDifferenceResponse> DifferenceSamples,
     bool RecordedGrantsMatchLegacy,
     bool IsDiagnosticOnly);
+
+public sealed record DeploymentMigrationUserResponse(
+    Guid UserId,
+    int ExpectedLegacyGrantCount,
+    int RecordedGrantCount,
+    int ExpansionCount,
+    int ReductionCount,
+    bool RecordedGrantsMatchLegacy);
+
+public sealed record DeploymentMigrationPreflightResponse(
+    int ActiveUserCount,
+    int ActiveAssetCount,
+    int MatchingUserCount,
+    int ExpansionCount,
+    int ReductionCount,
+    IReadOnlyCollection<DeploymentMigrationUserResponse> Users,
+    bool AllActiveUsersMatchRecordedGrants,
+    bool IsDiagnosticOnly);
