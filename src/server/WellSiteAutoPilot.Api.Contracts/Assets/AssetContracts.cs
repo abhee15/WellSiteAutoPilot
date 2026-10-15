@@ -28,3 +28,8 @@ public sealed record AssetResponse(
     string AttributeValuesJson,
     bool IsActive,
     DateTimeOffset CreatedAtUtc);
+
+/// <summary>Presentation hint only; POST /assets remains authoritative.</summary>
+public sealed record AssetCreationCapabilitiesResponse(
+    bool CanCreateRoot,
+    bool CanCreateUnderAuthorizedParents);

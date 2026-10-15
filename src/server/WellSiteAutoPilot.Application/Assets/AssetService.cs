@@ -1,4 +1,3 @@
-using System.Text.Json;
 using WellSiteAutoPilot.Domain.Assets;
 using WellSiteAutoPilot.Failures;
 
@@ -16,7 +15,8 @@ public sealed class AssetService(
 
         var key = RequireText(command.Key, "Asset type key is required.");
         var displayName = RequireText(command.DisplayName, "Asset type display name is required.");
-        ValidateJson(command.AttributeSchemaJson, "Asset type attribute schema must be valid JSON.");
+        await AssetAttributeSchemaValidator.ValidateDefinitionAsync(
+            command.AttributeSchemaJson, cancellationToken);
 
         if (await repository.AssetTypeKeyExistsAsync(key, cancellationToken))
         {
@@ -54,7 +54,7 @@ public sealed class AssetService(
         }
 
         var name = RequireText(command.Name, "Asset name is required.");
-        ValidateJson(command.AttributeValuesJson, "Asset attributes must be valid JSON.");
+        
 
         var assetType = await repository.GetAssetTypeAsync(command.AssetTypeId, cancellationToken);
         if (assetType is null || !assetType.IsActive)
@@ -64,6 +64,9 @@ public sealed class AssetService(
                 FailureKind.NotFound,
                 "The selected asset type was not found.");
         }
+
+        await AssetAttributeSchemaValidator.ValidateValuesAsync(
+            assetType.AttributeSchemaJson, command.AttributeValuesJson, cancellationToken);
 
         if (command.ParentAssetId is not null)
         {
@@ -165,29 +168,5 @@ public sealed class AssetService(
         }
 
         return value.Trim();
-    }
-
-    private static void ValidateJson(string json, string message)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            throw new WellSiteAutoPilotException(
-                FailureCodes.ValidationFailed,
-                FailureKind.Validation,
-                message);
-        }
-
-        try
-        {
-            using var _ = JsonDocument.Parse(json);
-        }
-        catch (JsonException exception)
-        {
-            throw new WellSiteAutoPilotException(
-                FailureCodes.ValidationFailed,
-                FailureKind.Validation,
-                message,
-                innerException: exception);
-        }
     }
 }

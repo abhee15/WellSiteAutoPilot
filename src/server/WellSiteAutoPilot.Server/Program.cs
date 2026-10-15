@@ -418,6 +418,23 @@ v1.MapGet(
     .Produces<AssetTypeResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+v1.MapGet(
+    "/assets/capabilities",
+    (HttpContext context, AssetScopeAuthorizer assetScopeAuthorizer) =>
+    {
+        var principal = context.User;
+        var canManage = principal.HasClaim(
+            SecurityClaimTypes.Permission, WellSitePermissions.AssetsManage);
+        var scope = assetScopeAuthorizer.GetAllowedAssetIds(principal);
+        var rootAllowed = canManage && principal.HasClaim(
+            SecurityClaimTypes.Role, "Admin");
+        return new AssetCreationCapabilitiesResponse(
+            rootAllowed, canManage && (scope is null || scope.Count > 0));
+    })
+    .WithName("GetAssetCreationCapabilities")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .Produces<AssetCreationCapabilitiesResponse>(StatusCodes.Status200OK);
+
 v1.MapPost(
     "/assets",
     async (
