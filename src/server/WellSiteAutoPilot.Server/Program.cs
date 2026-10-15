@@ -554,10 +554,19 @@ v1.MapGet(
         int? limit,
         AssetService assetService,
         AssetScopeAuthorizer assetScopeAuthorizer,
+        AccessGrantAdministrationService grants,
         HttpContext context,
         CancellationToken cancellationToken) =>
     {
         assetScopeAuthorizer.RequireAdministrator(context.User);
+        // Recheck current persisted administrator status on every full-directory
+        // read; a stale identity claim must not survive role revocation.
+        await grants.RequireAdministratorAsync(
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
         var assets = await assetService.ListAssetDirectoryPageAsync(
             offset ?? 0, limit ?? 200, cancellationToken);
         return assets.Select(asset => new AssetDirectoryEntryResponse(
