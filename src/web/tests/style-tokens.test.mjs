@@ -49,7 +49,9 @@ function frontendCss(dir) {
 }
 
 test('token values reproduce reviewed existing visual CSS without declaration changes', () => {
-  assert.equal(signature(expand(css)), originalStyleSignature);
+  // Git on Windows may check out CSS with CRLF. Normalize only line endings;
+  // declarations, selector order, whitespace and token values must still match.
+  assert.equal(signature(expand(css).replace(/\r\n/g, '\n')), originalStyleSignature);
 });
 
 test('semantic references only resolve through declared palette or foundational tokens', () => {
