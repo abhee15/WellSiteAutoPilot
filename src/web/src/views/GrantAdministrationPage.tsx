@@ -1,3 +1,5 @@
+import { LegacyMigrationPreflightPanel } from './LegacyMigrationPreflightPanel';
+import { DeploymentMigrationPreflightPanel } from './DeploymentMigrationPreflightPanel';
 import './grantAdministration.css';
 import { EffectiveAccessInspector } from './EffectiveAccessInspector';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -217,6 +219,10 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
           </div>
         )}
       </section>
+      {!pending && !retiring && !error && !isLoading && !grantsLoading &&
+        <DeploymentMigrationPreflightPanel users={users} />}
+      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+        <LegacyMigrationPreflightPanel key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
       {selectedUser && !pending && !retiring && !error && !grantsLoading &&
         <EffectiveAccessInspector key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
       {selectedUser && retiring && !error && (
