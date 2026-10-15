@@ -4,7 +4,7 @@ import { loadSecurityUsers } from './accessManagement';
 import type { VerifiedSecurityUser } from './accessManagement';
 import { loadRoleCatalog } from './roleCatalog';
 import type { PermissionDefinition, RoleRecord } from './roleCatalog';
-import { createGrant, GrantApiError, loadGrants } from './grantAdministration';
+import { createGrant, deactivateGrant, GrantApiError, loadGrants } from './grantAdministration';
 import type { PersistedGrant } from './grantAdministration';
 import { previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
@@ -18,6 +18,8 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
   const [selectedUserId, setSelectedUserId] = useState('');
   const [grants, setGrants] = useState<PersistedGrant[]>([]);
   const [pending, setPending] = useState<GrantDraft | null>(null);
+  const [retiring, setRetiring] = useState<PersistedGrant | null>(null);
+  const [retireConfirmed, setRetireConfirmed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -41,6 +43,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
     setError(null);
     setUsers([]); setRoles([]); setPermissions([]); setAssets([]);
     setSelectedUserId(''); setGrants([]); setPending(null);
+    setRetiring(null); setRetireConfirmed(false);
     try {
       const [directory, catalog, response] = await Promise.all([
         loadSecurityUsers(abort.signal),
@@ -85,6 +88,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
     const abort = new AbortController();
     requestRef.current = abort;
     setSelectedUserId(userId); setPending(null);
+    setRetiring(null); setRetireConfirmed(false);
     setGrants([]); setError(null); setNotice(null);
     if (!userId) return;
     try {
@@ -98,7 +102,8 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
   };
 
   const save = async () => {
-    if (!pending || !preview || saving || mutationRef.current) return;
+    if (!pending || !preview || saving || mutationRef.current || retiring ||
+      pending.userId !== selectedUserId) return;
     const abort = new AbortController();
     mutationRef.current = abort;
     setSaving(true); setNotice(null);
@@ -115,6 +120,37 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
       if (!abort.signal.aborted) {
         // An uncertain write must be reconciled with the server, not retried.
         setPending(null); setGrants([]);
+        setError(t('grants.saveUncertain'));
+      }
+    } finally {
+      if (mutationRef.current === abort) {
+        mutationRef.current = null; setSaving(false);
+      }
+    }
+  };
+
+  const deactivate = async () => {
+    if (!retiring || !retireConfirmed || !retiring.isActive || saving ||
+      mutationRef.current || retiring.userId !== selectedUserId) return;
+    const abort = new AbortController();
+    mutationRef.current = abort;
+    setSaving(true); setNotice(null); setError(null);
+    try {
+      const saved = await deactivateGrant(retiring, true, abort.signal);
+      if (abort.signal.aborted) return;
+      const records = await loadGrants(retiring.userId, abort.signal);
+      if (abort.signal.aborted) return;
+      const verified = records.find(item => item.grantId === saved.grantId);
+      if (!verified || verified.isActive || verified.revision !== saved.revision) {
+        throw new GrantApiError('invalidResponse');
+      }
+      setGrants(records); setRetiring(null); setRetireConfirmed(false);
+      setNotice(t('grants.retired'));
+    } catch {
+      if (!abort.signal.aborted) {
+        // Whether the server committed is unknown. Require a fresh read;
+        // never silently retry a security mutation.
+        setRetiring(null); setRetireConfirmed(false); setGrants([]);
         setError(t('grants.saveUncertain'));
       }
     } finally {
@@ -164,9 +200,16 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
                   {grant.assetIds.length > 0 &&
                     ' (' + grant.assetIds.map(id =>
                       assets.find(asset => asset.id === id)?.name ?? id).join(', ') + ')'}
+                  {' — '}{grant.isActive ? t('grants.active') : t('grants.inactive')}
+                  {grant.isActive && !retiring && (
+                    <button type="button" className="secondary-button"
+                      disabled={saving} onClick={() => {
+                        setRetiring(grant); setRetireConfirmed(false); setNotice(null);
+                      }}>{t('grants.retireAction')}</button>
+                  )}
                 </li>;
               })}</ul>}
-            <button type="button" disabled={saving}
+            <button type="button" disabled={saving || Boolean(retiring)}
               onClick={() => setPending({
                 subjectKind: 'User', userId: selectedUser.userId,
                 roleId: '', scopeKind: 'ExactAssets', assetIds: [],
@@ -174,6 +217,33 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
           </div>
         )}
       </section>
+      {selectedUser && retiring && !error && (
+        <section className="panel grant-final-review" role="region"
+          aria-label={t('grants.retireReview')}>
+          <div className="panel-header"><h3>{t('grants.retireReview')}</h3></div>
+          <p>{selectedUser.identityName}: {
+            roles.find(role => role.roleId === retiring.roleId)?.name ?? retiring.roleId
+          } / {retiring.scopeKind}</p>
+          {retiring.assetIds.length > 0 && <p>{retiring.assetIds.map(id =>
+            assets.find(asset => asset.id === id)?.name ?? id).join(', ')}</p>}
+          <p className="access-warning">{t('grants.retireWarning')}</p>
+          <label className="access-confirm grant-confirm">
+            <input type="checkbox" checked={retireConfirmed} disabled={saving}
+              onChange={event => setRetireConfirmed(event.target.checked)} />
+            {t('grants.retireConfirm')}
+          </label>
+          <div className="execution-detail-actions">
+            <button type="button" className="secondary-button" disabled={saving}
+              onClick={() => { setRetiring(null); setRetireConfirmed(false); }}>
+              {t('access.cancel')}
+            </button>
+            <button type="button" disabled={saving || !retireConfirmed}
+              onClick={() => void deactivate()}>
+              {saving ? t('access.saving') : t('grants.retireAction')}
+            </button>
+          </div>
+        </section>
+      )}
       {selectedUser && pending && !pending.roleId && (
         <ScopedGrantEditor
           key={selectedUser.userId} user={selectedUser}
