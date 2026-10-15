@@ -9,6 +9,7 @@ import type { PersistedGrant } from './grantAdministration';
 import { previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
 import { ScopedGrantEditor } from './ScopedGrantEditor';
+import { GrantAssetDirectoryError, loadGrantAssetDirectory } from './grantAssetDirectory';
 
 export function GrantAdministrationPage({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
@@ -21,6 +22,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
   const [retiring, setRetiring] = useState<PersistedGrant | null>(null);
   const [retireConfirmed, setRetireConfirmed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [grantsLoading, setGrantsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,30 +45,21 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
     setError(null);
     setUsers([]); setRoles([]); setPermissions([]); setAssets([]);
     setSelectedUserId(''); setGrants([]); setPending(null);
-    setRetiring(null); setRetireConfirmed(false);
+    setRetiring(null); setRetireConfirmed(false); setGrantsLoading(false);
     try {
-      const [directory, catalog, response] = await Promise.all([
+      const [directory, catalog, assetDirectory] = await Promise.all([
         loadSecurityUsers(abort.signal),
         loadRoleCatalog(abort.signal),
-        fetch('/api/v1/assets?limit=100', {
-          credentials: 'same-origin', cache: 'no-store', signal: abort.signal,
-        }),
+        loadGrantAssetDirectory(abort.signal),
       ]);
       if (abort.signal.aborted) return;
-      if (!response.ok) throw new Error('Assets unavailable');
-      const raw: unknown = await response.json();
-      if (!Array.isArray(raw) || raw.length > 100 || !raw.every((item: unknown) => {
-        if (!item || typeof item !== 'object') return false;
-        const row = item as Record<string, unknown>;
-        return typeof row.id === 'string' && typeof row.name === 'string' &&
-          typeof row.isActive === 'boolean';
-      })) throw new Error('Invalid Asset directory');
       setUsers(directory); setRoles(catalog.roles);
       setPermissions(catalog.permissions);
-      setAssets(raw as AssetChoice[]);
-    } catch {
+      setAssets(assetDirectory);
+    } catch (cause) {
       if (!abort.signal.aborted) {
-        setError(t('grants.loadingFailed'));
+        setError(cause instanceof GrantAssetDirectoryError && cause.kind === 'tooLarge'
+          ? t('grants.assetDirectoryTooLarge') : t('grants.loadingFailed'));
       }
     } finally {
       if (requestRef.current === abort) {
@@ -90,19 +83,22 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
     setSelectedUserId(userId); setPending(null);
     setRetiring(null); setRetireConfirmed(false);
     setGrants([]); setError(null); setNotice(null);
-    if (!userId) return;
+    setGrantsLoading(Boolean(userId));
+    if (!userId) { requestRef.current = null; return; }
     try {
       const data = await loadGrants(userId, abort.signal);
       if (!abort.signal.aborted) setGrants(data);
     } catch {
       if (!abort.signal.aborted) setError(t('grants.loadingFailed'));
     } finally {
-      if (requestRef.current === abort) requestRef.current = null;
+      if (requestRef.current === abort) {
+        requestRef.current = null; setGrantsLoading(false);
+      }
     }
   };
 
   const save = async () => {
-    if (!pending || !preview || saving || mutationRef.current || retiring ||
+    if (!pending || !preview || saving || grantsLoading || mutationRef.current || retiring ||
       pending.userId !== selectedUserId) return;
     const abort = new AbortController();
     mutationRef.current = abort;
@@ -130,7 +126,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
   };
 
   const deactivate = async () => {
-    if (!retiring || !retireConfirmed || !retiring.isActive || saving ||
+    if (!retiring || !retireConfirmed || !retiring.isActive || saving || grantsLoading ||
       mutationRef.current || retiring.userId !== selectedUserId) return;
     const abort = new AbortController();
     mutationRef.current = abort;
@@ -191,7 +187,9 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         {selectedUser && !pending && !error && (
           <div className="grant-current-list">
             <h3>{t('grants.existing')}</h3>
-            {grants.length === 0
+            {grantsLoading
+              ? <p role="status">{t('access.loading')}</p>
+              : grants.length === 0
               ? <p>{t('grants.noExisting')}</p>
               : <ul>{grants.map(grant => {
                 const role = roles.find(item => item.roleId === grant.roleId);
@@ -209,7 +207,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
                   )}
                 </li>;
               })}</ul>}
-            <button type="button" disabled={saving || Boolean(retiring)}
+            <button type="button" disabled={saving || grantsLoading || Boolean(retiring)}
               onClick={() => setPending({
                 subjectKind: 'User', userId: selectedUser.userId,
                 roleId: '', scopeKind: 'ExactAssets', assetIds: [],
