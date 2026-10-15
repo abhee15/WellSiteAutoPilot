@@ -13,6 +13,7 @@ type Props = {
   assets: AssetResponse[];
   capabilities: AssetCreationCapabilitiesResponse | null;
   onCreated: (asset: AssetResponse) => Promise<void> | void;
+  onRefresh: () => Promise<void> | void;
 };
 
 function isVerifiedAsset(value: unknown, typeId: string, name: string):
@@ -25,7 +26,7 @@ function isVerifiedAsset(value: unknown, typeId: string, name: string):
 }
 
 export function AssetCreationPanel({
-  userId, assetTypes, assets, capabilities, onCreated,
+  userId, assetTypes, assets, capabilities, onCreated, onRefresh,
 }: Props) {
   const [typeId, setTypeId] = useState('');
   const [parentId, setParentId] = useState('');
@@ -113,7 +114,17 @@ export function AssetCreationPanel({
       // insert an optimistic row into the cached first 100 results.
       const verifiedResponse = await fetch('/api/v1/assets/' + created.id);
       if (!verifiedResponse.ok) {
-        if (active.current) setError(t('assets.createReadbackFailed'));
+        if (active.current && verifiedResponse.status === 403) {
+          // The write is committed, but explicit Asset scopes do not
+          // automatically include newly created descendants (see #65).
+          // Don't imply the operator can read/select the child.
+          setNotice(t('assets.createPendingAccess', { name: trimmed }));
+          setName('');
+          setAttributes('{}');
+          await onRefresh();
+        } else if (active.current) {
+          setError(t('assets.createReadbackFailed'));
+        }
         return;
       }
       const verified: unknown = await verifiedResponse.json();
