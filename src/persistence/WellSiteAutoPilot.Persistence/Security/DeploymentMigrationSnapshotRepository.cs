@@ -27,6 +27,24 @@ public sealed class DeploymentMigrationSnapshotRepository(
 
         await using var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.RepeatableRead, cancellationToken);
+        var result = await CaptureInExistingTransactionAsync(
+            administratorId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    /// <summary>
+    /// Shared bounded snapshot implementation. Write-side migration must own
+    /// the outer SERIALIZABLE transaction and must not run nested transactions.
+    /// </summary>
+    public async Task<DeploymentMigrationSnapshot> CaptureInExistingTransactionAsync(
+        Guid administratorId, CancellationToken cancellationToken = default)
+    {
+        if (db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException(
+                "Deployment entitlement snapshot requires an active transaction.");
+        }
 
         var authorized = await db.Users.AsNoTracking().AnyAsync(
             user => user.Id == administratorId && user.IsActive,
@@ -86,7 +104,6 @@ public sealed class DeploymentMigrationSnapshotRepository(
                 user, roles, assets, assigned));
         }
 
-        await transaction.CommitAsync(cancellationToken);
         return new DeploymentMigrationSnapshot(assets.Count, snapshots);
     }
 
