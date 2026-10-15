@@ -12,6 +12,7 @@ type Props = { userId: string; assets: readonly AssetChoice[] };
  */
 export function EffectiveAccessInspector({ userId, assets }: Props) {
   const [assetId, setAssetId] = useState('');
+  const [query, setQuery] = useState('');
   const [result, setResult] = useState<EffectiveAccessInspection | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -19,7 +20,7 @@ export function EffectiveAccessInspector({ userId, assets }: Props) {
 
   useEffect(() => {
     request.current?.abort();
-    setAssetId(''); setResult(null); setLoading(false); setError(false);
+    setAssetId(''); setQuery(''); setResult(null); setLoading(false); setError(false);
     return () => { request.current?.abort(); };
   }, [userId]);
 
@@ -41,14 +42,24 @@ export function EffectiveAccessInspector({ userId, assets }: Props) {
     }
   };
 
-  const active = assets.filter(asset => asset.isActive).sort(
-    (a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  const active = assets.filter(asset => asset.isActive &&
+    asset.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  const visible = active.slice(0, 100);
+  const selected = assets.find(asset => asset.id === assetId);
+  if (selected && !visible.some(asset => asset.id === selected.id)) {
+    visible.unshift(selected);
+  }
 
   return (
     <section className="panel access-inspector" aria-label={t('grants.inspectorHeading')}>
       <div className="panel-header"><h3>{t('grants.inspectorHeading')}</h3></div>
       <p className="access-note">{t('grants.inspectorExplain')}</p>
       <div className="grant-fields">
+        <label>{t('grants.inspectorSearch')}
+          <input type="search" maxLength={120} value={query}
+            onChange={event => setQuery(event.target.value)} />
+        </label>
         <label>{t('grants.inspectorAsset')}
           <select value={assetId} disabled={loading}
             onChange={event => {
@@ -56,7 +67,7 @@ export function EffectiveAccessInspector({ userId, assets }: Props) {
               setAssetId(event.target.value); setResult(null); setError(false);
             }}>
             <option value="">{t('grants.inspectorGlobal')}</option>
-            {active.map(asset =>
+            {visible.map(asset =>
               <option key={asset.id} value={asset.id}>{asset.name}</option>)}
           </select>
         </label>
@@ -64,6 +75,9 @@ export function EffectiveAccessInspector({ userId, assets }: Props) {
           {loading ? t('access.loading') : t('grants.inspect')}
         </button>
       </div>
+      {active.length > 100 && <p className="access-note">
+        {t('grants.refineSearch', { count: active.length })}
+      </p>}
       {error && <p role="alert" className="execution-detail-error">
         {t('grants.inspectorFailed')}
       </p>}
