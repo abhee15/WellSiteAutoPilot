@@ -690,6 +690,40 @@ foreach (var access in new[]
     }
 }
 
+// The pure evaluator and SQL projection must agree on the maximum number
+// of exact Asset bindings. A malformed imported/migrated grant with 501
+// active Assets must never authorize a target that happens to be in scope.
+var maximumScopeAssetIds = Enumerable.Range(
+        0, ScopedGrantEvaluator.MaximumExactAssetsPerGrant - 1)
+    .Select(_ => Guid.NewGuid())
+    .Append(wellA)
+    .ToArray();
+var extraScopeAssetId = Guid.NewGuid();
+var oversizedScopeAssetIds = maximumScopeAssetIds
+    .Append(extraScopeAssetId).ToArray();
+IReadOnlySet<Guid> allBoundedActiveAssetIds =
+    oversizedScopeAssetIds.ToHashSet();
+
+if (!ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, wellA,
+        allBoundedActiveAssetIds,
+        [engineerGrant with { AssetIds = maximumScopeAssetIds }],
+        [engineerRole]).Allowed ||
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, wellA,
+        allBoundedActiveAssetIds,
+        [engineerGrant with { AssetIds = oversizedScopeAssetIds }],
+        [engineerRole]).Allowed ||
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsRead, wellA,
+        activeWellIds,
+        [engineerGrant with { AssetIds = [wellA, wellA] }],
+        [engineerRole]).Allowed)
+{
+    throw new InvalidOperationException(
+        "Pure grant evaluator failed exact-Asset cardinality/duplicate validation.");
+}
+
 var globalRole = new RoleDefinition(
     Guid.NewGuid(), "test-security-role", "Test Security", "", false, true, 1,
     clock.GetUtcNow(), clock.GetUtcNow(), [WellSitePermissions.SecurityManage]);
