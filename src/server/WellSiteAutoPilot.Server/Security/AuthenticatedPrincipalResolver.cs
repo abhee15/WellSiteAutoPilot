@@ -44,13 +44,19 @@ public sealed class ConfiguredPrincipalResolver(string authenticationMode)
                 "An authenticated identity is required.");
         }
 
-        var provider = authenticationMode switch
-        {
-            SecurityOptions.NegotiateAuthenticationMode => "windows",
-            SecurityOptions.TestHeaderAuthenticationMode => "ci-test-header",
-            _ => throw Denied("SECURITY_IDENTITY_PROVIDER_UNSUPPORTED",
-                "The configured identity provider is unsupported.")
-        };
+        // Match the host's existing case-insensitive authentication-mode
+        // selection. A capitalization-only configuration change must not
+        // authenticate successfully but fail during internal user resolution.
+        var provider = string.Equals(authenticationMode,
+            SecurityOptions.NegotiateAuthenticationMode,
+            StringComparison.OrdinalIgnoreCase)
+            ? "windows"
+            : string.Equals(authenticationMode,
+                SecurityOptions.TestHeaderAuthenticationMode,
+                StringComparison.OrdinalIgnoreCase)
+                ? "ci-test-header"
+                : throw Denied("SECURITY_IDENTITY_PROVIDER_UNSUPPORTED",
+                    "The configured identity provider is unsupported.");
 
         // Read only the primary authenticated identity, not arbitrary
         // secondary identities that could carry misleading SID/name claims.
