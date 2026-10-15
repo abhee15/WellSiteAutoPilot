@@ -912,6 +912,61 @@ catch (WellSiteAutoPilotException exception)
 var inspector = new ScopedAccessInspectionService(
     accessGrantService, repository, new AccessGrantRepository(dbContext),
     new RoleCatalogRepository(dbContext), new AssetRepository(dbContext));
+// Capture the complete active Asset inventory, built-in/custom roles,
+ // recorded grants and user scope under ONE PostgreSQL repeatable-read
+ // transaction. This read-only preflight is not an authorization cutover.
+var migrationPreflight = new LegacyMigrationPreflightService(
+    accessGrantService, new LegacyMigrationSnapshotRepository(dbContext));
+var beforePreflightAudits = await dbContext.AuditEvents.CountAsync();
+var preflightReport = await migrationPreflight.InspectAsync(
+    operatorUser.Id, assignmentActor);
+var afterPreflightAudits = await dbContext.AuditEvents.CountAsync();
+if (!preflightReport.IsDiagnosticOnly ||
+    preflightReport.RecordedGrantsMatchLegacy ||
+    preflightReport.ExpectedLegacyGrantCount != 2 ||
+    preflightReport.RecordedGrantCount != 1 ||
+    preflightReport.ExpansionCount != 0 ||
+    preflightReport.ReductionCount < 2 ||
+    preflightReport.ActiveAssetCount < 2 ||
+    afterPreflightAudits != beforePreflightAudits)
+{
+    throw new InvalidOperationException(
+        "Migration preflight did not capture safe read-only legacy parity.");
+}
+var missingGlobal = preflightReport.DifferenceSamples
+    .Where(item => item.Permission == WellSitePermissions.LogicRead).ToArray();
+if (missingGlobal.Length != 1 ||
+    missingGlobal.Single().AssetId is not null ||
+    !missingGlobal.Single().LegacyAllowed ||
+    missingGlobal.Single().RecordedGrantAllowed)
+{
+    throw new InvalidOperationException(
+        "Deployment-wide parity discrepancy was repeated per Asset.");
+}
+try
+{
+    await migrationPreflight.InspectAsync(
+        operatorUser.Id,
+        new SecurityActorContext(
+            administrator.Id, administrator.IdentityName, "demoted-preflight"));
+    throw new InvalidOperationException(
+        "A demoted administrator requested migration evidence.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+try
+{
+    await migrationPreflight.InspectAsync(Guid.NewGuid(), assignmentActor);
+    throw new InvalidOperationException(
+        "An unknown user was accepted by the migration preflight.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_USER_NOT_ACTIVE")
+{
+}
+
 // A lexicographically earlier unauthorized resource catches regressions
 // that page all Assets first and only then check permissions.
 var unassignedEarlyAsset = await assetService.CreateAssetAsync(
