@@ -139,6 +139,25 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
                 throw Conflict("Role was modified; reload its latest revision.");
             }
 
+            // Active grants reference a role, not a frozen permission revision.
+            // Until revision-pinned grants exist, permission edits or role
+            // reactivation could silently expand those assignments. Force
+            // administrators to retire assignments before either change.
+            var permissionChanged = !current.Permissions.ToHashSet(StringComparer.Ordinal)
+                .SetEquals(mutation.Permissions);
+            if (permissionChanged || (!current.IsActive && mutation.IsActive))
+            {
+                var assigned = await dbContext.AccessGrants.AsNoTracking()
+                    .AnyAsync(item => item.RoleId == roleId && item.IsActive,
+                        cancellationToken);
+                if (assigned)
+                {
+                    throw new WellSiteAutoPilotException(
+                        "SECURITY_ROLE_ASSIGNED", FailureKind.Conflict,
+                        "Retire active grants before changing role permissions or reactivating the role.");
+                }
+            }
+
             var changed = await dbContext.RoleDefinitions
                 .Where(item => item.Id == roleId &&
                     !item.IsSystem && item.Revision == expectedRevision)
