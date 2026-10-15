@@ -138,6 +138,8 @@ foreach (var invalid in new[]
     """{"depth":-1}""",
     """{"depth":200,"extra":"not defined"}""",
     """{"depth":200,"name":"A"}""",
+    """{"depth":200,"depth":300}""",
+    """{"depth":200,"nested":{"code":"X","code":"Y"}}""",
     """["not an object"]""",
     "{this is not JSON}"
 })
@@ -155,6 +157,7 @@ foreach (var unsafeSchema in new[]
     """{"$ref":"https://example.com/evil.json"}""",
     """{"type":"object","properties":{"x":{"$ref":"file:///etc/passwd"}}}""",
     """{"type":"object","allOf":[{"type":"object"}]}""",
+    """{"type":"object","type":"object"}""",
     """{"type":"object","properties":{"x":{"type":"string","pattern":"(a+)+"}}}""",
     """{"type":"array"}""",
     """{"type":"object","properties":{"x":{"type":"mystery"}}}""",
@@ -181,6 +184,29 @@ await AssertFailureAsync(
         new CreateAssetCommand(depthType.Id, "Huge", parent.Id,
             new string(' ', 65537) + "{}")),
     "ASSET_ATTRIBUTE_VALUES_INVALID");
+
+// Active Asset Type and parent lifecycle checks are enforced independently
+// of client-side list filtering.
+var disabledType = await service.CreateAssetTypeAsync(
+    new CreateAssetTypeCommand("disabled-type", "Disabled Type", "{}"));
+var trackedDisabledType = await dbContext.AssetTypes.SingleAsync(
+    x => x.Id == disabledType.Id);
+trackedDisabledType.IsActive = false;
+await dbContext.SaveChangesAsync();
+await AssertFailureAsync(
+    () => service.CreateAssetAsync(
+        new CreateAssetCommand(disabledType.Id, "Blocked inactive type", parent.Id, "{}")),
+    "ASSET_TYPE_NOT_FOUND");
+
+var trackedParent = await dbContext.Assets.SingleAsync(x => x.Id == parent.Id);
+trackedParent.IsActive = false;
+await dbContext.SaveChangesAsync();
+await AssertFailureAsync(
+    () => service.CreateAssetAsync(
+        new CreateAssetCommand(wellType.Id, "Blocked inactive parent", parent.Id, "{}")),
+    "PARENT_ASSET_NOT_FOUND");
+trackedParent.IsActive = true;
+await dbContext.SaveChangesAsync();
 
 // The schema path must validate old rows as well as newly created types.
 var legacyType = await service.CreateAssetTypeAsync(
