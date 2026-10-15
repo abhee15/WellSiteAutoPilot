@@ -1113,6 +1113,24 @@ var inspector = new ScopedAccessInspectionService(
     accessGrantService, repository, new AccessGrantRepository(dbContext),
     new RoleCatalogRepository(dbContext), new AssetRepository(dbContext),
     new ProposedAssetAccessRepository(dbContext));
+// A dishonest or broken SQL projection must block a reassuring access
+// inspection even when the pure evaluator says the recorded grant allows it.
+var sqlDriftInspector = new ScopedAccessInspectionService(
+    accessGrantService, repository, new AccessGrantRepository(dbContext),
+    new RoleCatalogRepository(dbContext), new AssetRepository(dbContext),
+    new DenyingProposedAssetProjection());
+try
+{
+    await sqlDriftInspector.InspectAsync(
+        operatorUser.Id, asset.Id, assignmentActor);
+    throw new InvalidOperationException(
+        "Access inspection accepted a disagreeing SQL grant projection.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_INSPECTION_SQL_MISMATCH")
+{
+}
+
 // Capture the complete active Asset inventory, built-in/custom roles,
  // recorded grants and user scope under ONE PostgreSQL repeatable-read
  // transaction. This read-only preflight is not an authorization cutover.
@@ -1683,6 +1701,29 @@ static async Task<bool> TryRoleWriteAsync(
     {
         return false;
     }
+}
+
+file sealed class DenyingProposedAssetProjection : IProposedAssetAccessRepository
+{
+    public Task<IReadOnlyCollection<ProposedAuthorizedAsset>> ListAsync(
+        Guid userId, string permission, int offset, int limit,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyCollection<ProposedAuthorizedAsset>>([]);
+
+    public Task<bool> IsAssetAuthorizedAsync(
+        Guid userId, string permission, Guid assetId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
+    public Task<bool> AreAssetsAuthorizedAsync(
+        Guid userId, string permission, IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
+    public Task<bool> IsDeploymentPermissionGrantedAsync(
+        Guid userId, string permission,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
 }
 
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
