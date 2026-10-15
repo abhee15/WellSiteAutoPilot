@@ -985,6 +985,9 @@ jobs:
             exit 1
           fi
 
+      - name: Verify audit-only grant administration HTTP boundaries
+        run: python3 tools/ci/verify_grant_administration.py
+
       - name: Request and verify Shadow execution
         shell: bash
         run: |
