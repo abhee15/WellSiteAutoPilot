@@ -83,3 +83,17 @@ public sealed record DeploymentMigrationPreflightResponse(
     IReadOnlyCollection<DeploymentMigrationUserResponse> Users,
     bool AllActiveUsersMatchRecordedGrants,
     bool IsDiagnosticOnly);
+
+public sealed record MaterializeLegacyGrantsRequest(bool Confirmed);
+
+/// <summary>
+/// Successful audit-only grant materialization. Runtime authorization
+/// deliberately remains legacy until an independently verified cutover.
+/// </summary>
+public sealed record MaterializeLegacyGrantsResponse(
+    int ActiveUsersInspected,
+    int ActiveAssetsInspected,
+    int GrantsCreated,
+    int UsersAlreadyMatching,
+    bool RecordedGrantsMatchLegacy,
+    bool LiveAuthorizationUnchanged);
