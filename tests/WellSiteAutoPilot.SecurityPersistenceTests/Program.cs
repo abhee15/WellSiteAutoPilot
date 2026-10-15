@@ -858,6 +858,29 @@ if (adminMigration.Count != 2 ||
     throw new InvalidOperationException(
         "Legacy administrator migration lost AllAssets or deployment permissions.");
 }
+var combinedLegacy = draftAccessBefore with
+{
+    Roles = [ApplicationRole.Admin, ApplicationRole.Operator]
+};
+var combinedMigration = LegacyGrantMigrationPlanner.PreviewForKnownAssets(
+    combinedLegacy, builtin, knownMigrationAssets);
+var operatorSystemRole = builtin.Single(item => item.Name == "Operator");
+var adminSystemRole = builtin.Single(item => item.Name == "Admin");
+if (!combinedMigration.Any(item =>
+        item.RoleId == adminSystemRole.Id &&
+        item.ScopeKind == AccessGrantScopeKind.AllAssets) ||
+    !combinedMigration.Any(item =>
+        item.RoleId == operatorSystemRole.Id &&
+        item.ScopeKind == AccessGrantScopeKind.ExactAssets &&
+        item.AssetIds.SequenceEqual([asset.Id])) ||
+    combinedMigration.Any(item =>
+        item.RoleId == operatorSystemRole.Id &&
+        item.ScopeKind == AccessGrantScopeKind.AllAssets))
+{
+    throw new InvalidOperationException(
+        "Removing Admin could leave another role with undeserved AllAssets rights.");
+}
+
 try
 {
     _ = LegacyGrantMigrationPlanner.PreviewForKnownAssets(
