@@ -16,5 +16,6 @@ public sealed record DeactivateUserAccessGrantRequest(long ExpectedRevision);
 public sealed record CreateUserAccessGrantRequest(
     Guid RoleId,
     string ScopeKind,
-    IReadOnlyCollection<Guid>? AssetIds);
+    IReadOnlyCollection<Guid>? AssetIds,
+    long ExpectedRoleRevision);
 

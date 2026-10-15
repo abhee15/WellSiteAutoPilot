@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using WellSiteAutoPilot.Application.Security;
@@ -35,6 +36,46 @@ internal static class ScopedGrantAdministrationChecks
         var assignmentActor = new SecurityActorContext(
             secondAdministrator.Id, secondAdministrator.IdentityName, "grant-test");
 
+        // The administrator reviewed revision one; a separate role edit
+        // wins before creation begins. Reject both service and direct repository
+        // writes against that stale review without recording a grant or audit.
+        var reviewedRevision = grantCatalogRole.Revision;
+        grantCatalogRole = await roleCatalog.UpdateAsync(
+            grantCatalogRole.Id, reviewedRevision,
+            new RoleMutationCommand(grantCatalogRole.Name, "Changed after review",
+                [WellSitePermissions.AssetsRead, WellSitePermissions.AssetsManage], true), actor);
+        var staleCommand = new CreateAccessGrantCommand(grantCatalogRole.Id,
+            AccessGrantScopeKind.ExactAssets, [assetId], reviewedRevision);
+        var grantsBeforeStale = await dbContext.AccessGrants.CountAsync();
+        var auditsBeforeStale = await dbContext.AuditEvents.CountAsync();
+        try
+        {
+            await accessGrantService.CreateForUserAsync(operatorUser.Id, staleCommand, actor);
+            throw new InvalidOperationException("Stale role review was accepted by the service.");
+        }
+        catch (WellSiteAutoPilotException exception)
+            when (exception.Code == "SECURITY_GRANT_ROLE_CONFLICT")
+        {
+        }
+        await using (var staleWriter = new WellSiteAutoPilotDbContext(options))
+        {
+            try
+            {
+                await new AccessGrantRepository(staleWriter).CreateForUserAsync(
+                    operatorUser.Id, staleCommand, actor, clock.GetUtcNow());
+                throw new InvalidOperationException("Transactional role-revision fence was bypassed.");
+            }
+            catch (WellSiteAutoPilotException exception)
+                when (exception.Code == "SECURITY_GRANT_ROLE_CONFLICT")
+            {
+            }
+        }
+        if (await dbContext.AccessGrants.CountAsync() != grantsBeforeStale ||
+            await dbContext.AuditEvents.CountAsync() != auditsBeforeStale)
+        {
+            throw new InvalidOperationException("Stale role review left grant or audit writes.");
+        }
+
         // An audit insert failure must abort the grant and its scope rows.
         var grantsBefore = await dbContext.AccessGrants.CountAsync();
         var scopesBefore = await dbContext.AccessGrantAssets.CountAsync();
@@ -46,7 +87,7 @@ internal static class ScopedGrantAdministrationChecks
                 await new AccessGrantRepository(failing).CreateForUserAsync(
                     operatorUser.Id,
                     new CreateAccessGrantCommand(grantCatalogRole.Id,
-                        AccessGrantScopeKind.ExactAssets, [assetId]),
+                        AccessGrantScopeKind.ExactAssets, [assetId], grantCatalogRole.Revision),
                     new SecurityActorContext(secondAdministrator.Id,
                         new string('x', 257), "audit-failure"), clock.GetUtcNow());
                 throw new InvalidOperationException("Invalid audit identity was accepted.");
@@ -67,7 +108,7 @@ internal static class ScopedGrantAdministrationChecks
         var persisted = await accessGrantService.CreateForUserAsync(
             operatorUser.Id,
             new CreateAccessGrantCommand(
-                grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId]),
+                grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId], grantCatalogRole.Revision),
             assignmentActor);
 
         // A custom role already referenced by an active entitlement must not
@@ -78,10 +119,10 @@ internal static class ScopedGrantAdministrationChecks
                 grantCatalogRole.Id, grantCatalogRole.Revision,
                 new RoleMutationCommand(
                     grantCatalogRole.Name, grantCatalogRole.Description,
-                    [WellSitePermissions.AssetsRead, WellSitePermissions.AssetsManage], true),
+                    [WellSitePermissions.AssetsRead], true),
                 actor);
             throw new InvalidOperationException(
-                "Editing an assigned role silently expanded its effective permissions.");
+                "Editing an assigned role changed its effective permissions.");
         }
         catch (WellSiteAutoPilotException exception)
             when (exception.Code == "SECURITY_ROLE_ASSIGNED")
@@ -121,15 +162,15 @@ internal static class ScopedGrantAdministrationChecks
 
         foreach (var invalidGrant in new[]
         {
-            new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, []),
+            new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [], grantCatalogRole.Revision),
             new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets,
-                [otherAssetId, otherAssetId]),
+                [otherAssetId, otherAssetId], grantCatalogRole.Revision),
             new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.AllAssets,
-                [assetId]),
+                [assetId], grantCatalogRole.Revision),
             new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.DeploymentWide,
-                [assetId]),
+                [assetId], grantCatalogRole.Revision),
             new CreateAccessGrantCommand(Guid.NewGuid(), AccessGrantScopeKind.ExactAssets,
-                [assetId])
+                [assetId], 1)
         })
         {
             try
@@ -149,7 +190,7 @@ internal static class ScopedGrantAdministrationChecks
             await accessGrantService.CreateForUserAsync(
                 secondAdministrator.Id,
                 new CreateAccessGrantCommand(
-                    grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId]),
+                    grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId], grantCatalogRole.Revision),
                 assignmentActor);
             throw new InvalidOperationException("Administrator assigned their own grant.");
         }
@@ -165,7 +206,7 @@ internal static class ScopedGrantAdministrationChecks
             await accessGrantService.CreateForUserAsync(
                 operatorUser.Id,
                 new CreateAccessGrantCommand(
-                    grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId]),
+                    grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId], grantCatalogRole.Revision),
                 new SecurityActorContext(
                     administrator.Id, administrator.IdentityName, "demoted-admin"));
             throw new InvalidOperationException("Demoted administrator created security grant.");
@@ -180,7 +221,7 @@ internal static class ScopedGrantAdministrationChecks
             await accessGrantService.CreateForUserAsync(
                 operatorUser.Id,
                 new CreateAccessGrantCommand(
-                    grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId]),
+                    grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId], grantCatalogRole.Revision),
                 new SecurityActorContext(
                     operatorUser.Id, operatorUser.IdentityName, "not-admin"));
             throw new InvalidOperationException("Non-admin created security grant.");
@@ -195,7 +236,7 @@ internal static class ScopedGrantAdministrationChecks
             await accessGrantService.CreateForUserAsync(
                 operatorUser.Id,
                 new CreateAccessGrantCommand(
-                    grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId]),
+                    grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [assetId], grantCatalogRole.Revision),
                 assignmentActor);
             throw new InvalidOperationException("Duplicate active grant was accepted.");
         }
@@ -317,6 +358,12 @@ internal static class ScopedGrantAdministrationChecks
             throw new InvalidOperationException("New scoped grant missing audited actor/provenance.");
         }
 
+        using var grantDetails = JsonDocument.Parse(grantAudit.DetailsJson);
+        if (grantDetails.RootElement.GetProperty("roleRevision").GetInt64() != grantCatalogRole.Revision)
+        {
+            throw new InvalidOperationException("Grant audit lost the reviewed role revision.");
+        }
+
         var restoredRole = await roleCatalog.UpdateAsync(
             inactiveRole.Id, inactiveRole.Revision,
             new RoleMutationCommand(inactiveRole.Name, "Grants retired",
@@ -330,7 +377,7 @@ internal static class ScopedGrantAdministrationChecks
         // retirement and one audit may commit; the loser must see a conflict.
         var racingGrant = await accessGrantService.CreateForUserAsync(
             operatorUser.Id, new CreateAccessGrantCommand(restoredRole.Id,
-                AccessGrantScopeKind.ExactAssets, [assetId]), assignmentActor);
+                AccessGrantScopeKind.ExactAssets, [assetId], restoredRole.Revision), assignmentActor);
         await using var firstWriter = new WellSiteAutoPilotDbContext(options);
         await using var secondWriter = new WellSiteAutoPilotDbContext(options);
         var outcomes = await Task.WhenAll(RetireAsync(firstWriter), RetireAsync(secondWriter));

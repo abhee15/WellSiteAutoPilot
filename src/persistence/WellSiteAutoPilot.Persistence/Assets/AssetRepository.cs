@@ -130,6 +130,15 @@ public sealed class AssetRepository(
             .ToArray();
     }
 
+    public async Task<IReadOnlyCollection<Asset>> ListAssetDirectoryPageAsync(
+        int offset, int limit,
+        CancellationToken cancellationToken = default) =>
+        (await dbContext.Assets.AsNoTracking()
+            .OrderBy(item => item.Name).ThenBy(item => item.Id)
+            .Skip(offset).Take(limit)
+            .ToArrayAsync(cancellationToken))
+        .Select(ToDomain).ToArray();
+
     public async Task AddAssetAsync(
         Asset asset,
         CancellationToken cancellationToken = default)
