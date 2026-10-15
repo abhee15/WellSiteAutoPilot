@@ -4,6 +4,8 @@ import { loadDeploymentParity } from './deploymentMigrationPreflight';
 import type { DeploymentParity } from './deploymentMigrationPreflight';
 import { materializeLegacyGrants } from './materializeLegacyGrants';
 import type { GrantMigrationReceipt } from './materializeLegacyGrants';
+import { rollbackLegacyGrants } from './rollbackLegacyGrants';
+import type { GrantRollbackReceipt } from './rollbackLegacyGrants';
 import type { VerifiedSecurityUser } from './accessManagement';
 
 /** Deployment preview is read-only. Even a matching snapshot does not approve
@@ -19,6 +21,10 @@ export function DeploymentMigrationPreflightPanel({ users }: {
   const [writing, setWriting] = useState(false);
   const [writeFailed, setWriteFailed] = useState(false);
   const [receipt, setReceipt] = useState<GrantMigrationReceipt | null>(null);
+  const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
+  const [rollbackText, setRollbackText] = useState('');
+  const [rollbackFailed, setRollbackFailed] = useState(false);
+  const [rollbackReceipt, setRollbackReceipt] = useState<GrantRollbackReceipt | null>(null);
   const writeRequest = useRef<AbortController | null>(null);
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => {
@@ -33,6 +39,8 @@ export function DeploymentMigrationPreflightPanel({ users }: {
     request.current = controller;
     setLoading(true); setError(false); setReport(null);
     setConfirmed(false); setConfirmationText(''); setReceipt(null);
+    setRollbackConfirmed(false); setRollbackText('');
+    setRollbackReceipt(null); setRollbackFailed(false);
     try {
       const data = await loadDeploymentParity(controller.signal);
       if (!controller.signal.aborted) setReport(data);
@@ -71,6 +79,33 @@ export function DeploymentMigrationPreflightPanel({ users }: {
       }
     }
   };
+  const rollback = async () => {
+    if (!report || loading || writing || writeRequest.current ||
+      !report.users.some(user => user.recordedGrantCount > 0) ||
+      !rollbackConfirmed ||
+      rollbackText !== t('grants.rollbackPhrase')) return;
+    const abort = new AbortController();
+    writeRequest.current = abort;
+    setWriting(true); setRollbackFailed(false); setRollbackReceipt(null);
+    try {
+      const saved = await rollbackLegacyGrants(true, abort.signal);
+      if (!abort.signal.aborted) {
+        setRollbackReceipt(saved); setReport(null);
+        setRollbackConfirmed(false); setRollbackText('');
+      }
+    } catch {
+      if (!abort.signal.aborted) {
+        // The server could have committed before the connection was lost.
+        // Always re-inspect instead of retrying a potentially completed write.
+        setReport(null); setRollbackFailed(true);
+        setRollbackConfirmed(false); setRollbackText('');
+      }
+    } finally {
+      if (writeRequest.current === abort) {
+        writeRequest.current = null; setWriting(false);
+      }
+    }
+  };
   const userNames = new Map(users.map(user => [
     user.userId.toLowerCase(), user.displayName || user.identityName,
   ]));
@@ -85,6 +120,12 @@ export function DeploymentMigrationPreflightPanel({ users }: {
       {receipt && <p role="status">{t('grants.materializeSaved', {
         count: receipt.grantsCreated,
       })}</p>}
+      {rollbackReceipt && <p role="status">{t('grants.rollbackSaved', {
+        count: rollbackReceipt.grantsDeactivated,
+      })}</p>}
+      {rollbackFailed && <p role="alert" className="execution-detail-error">
+        {t('grants.rollbackUncertain')}
+      </p>}
       {writeFailed && <p role="alert" className="execution-detail-error">
         {t('grants.materializeUncertain')}
       </p>}
@@ -122,6 +163,27 @@ export function DeploymentMigrationPreflightPanel({ users }: {
                 confirmationText !== t('grants.materializePhrase')}
               onClick={() => void save()}>
               {writing ? t('access.saving') : t('grants.materializeAction')}
+            </button>
+          </div>}
+        {report.users.some(user => user.recordedGrantCount > 0) &&
+          <div className="access-review">
+            <strong>{t('grants.rollbackHeading')}</strong>
+            <p className="access-warning">{t('grants.rollbackWarning')}</p>
+            <label className="access-confirm">
+              <input type="checkbox" checked={rollbackConfirmed} disabled={writing}
+                onChange={event => setRollbackConfirmed(event.target.checked)} />
+              {t('grants.rollbackConfirm')}
+            </label>
+            <label>{t('grants.rollbackType')}
+              <input value={rollbackText} maxLength={80} disabled={writing}
+                onChange={event => setRollbackText(event.target.value)}
+                autoComplete="off" />
+            </label>
+            <button type="button" className="secondary-button"
+              disabled={writing || !rollbackConfirmed ||
+                rollbackText !== t('grants.rollbackPhrase')}
+              onClick={() => void rollback()}>
+              {writing ? t('access.saving') : t('grants.rollbackAction')}
             </button>
           </div>}
         {report.users.filter(user => !user.recordedGrantsMatchLegacy).length > 0 &&
