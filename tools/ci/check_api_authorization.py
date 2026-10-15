@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""CI guard: all product API endpoints must have reviewed legacy policy metadata.
+
+This static inventory is a *regression tripwire*, not proof of scoped-grant
+enforcement. Runtime integration tests and SQL-before-pagination tests remain
+mandatory before any authorization cutover.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import sys
+
+# Freeze the reviewed API surface. New operations and changed policy metadata
+# must be consciously reviewed and added here in the SAME PR.
+# The two authenticated-only endpoints inherit the authenticated route group.
+EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
+    ("GET", "/system/info"): ("GetSystemInformation", None),
+    ("GET", "/security/me"): ("GetCurrentUser", None),
+    ("GET", "/security/users"): ("ListSecurityUsers", "SecurityManage"),
+    ("PUT", "/security/users/{userId:guid}/access"): ("ReplaceSecurityUserAccess", "SecurityManage"),
+    ("GET", "/security/role-permissions"): ("ListProductPermissions", "SecurityManage"),
+    ("GET", "/security/roles"): ("ListSecurityRoles", "SecurityManage"),
+    ("GET", "/security/roles/{roleId:guid}"): ("GetSecurityRole", "SecurityManage"),
+    ("POST", "/security/roles"): ("CreateSecurityRole", "SecurityManage"),
+    ("PUT", "/security/roles/{roleId:guid}"): ("UpdateSecurityRole", "SecurityManage"),
+    ("POST", "/security/rollback-legacy-grants"): ("RollbackLegacyAccessGrants", "SecurityManage"),
+    ("POST", "/security/materialize-legacy-grants"): ("MaterializeLegacyAccessGrants", "SecurityManage"),
+    ("GET", "/security/migration-preflight"): ("InspectDeploymentLegacyMigration", "SecurityManage"),
+    ("GET", "/security/users/{userId:guid}/migration-preflight"): ("InspectLegacyGrantMigration", "SecurityManage"),
+    ("GET", "/security/users/{userId:guid}/proposed-assets"): ("ListProposedAuthorizedAssets", "SecurityManage"),
+    ("GET", "/security/users/{userId:guid}/effective-access"): ("InspectUserEffectiveAccess", "SecurityManage"),
+    ("GET", "/security/users/{userId:guid}/grants"): ("ListUserAccessGrants", "SecurityManage"),
+    ("POST", "/security/users/{userId:guid}/grants"): ("CreateUserAccessGrant", "SecurityManage"),
+    ("PUT", "/security/users/{userId:guid}/grants/{grantId:guid}/deactivate"): ("DeactivateUserAccessGrant", "SecurityManage"),
+    ("POST", "/asset-types"): ("CreateAssetType", "AssetsManage"),
+    ("GET", "/asset-types"): ("ListAssetTypes", "AssetsRead"),
+    ("GET", "/asset-types/{assetTypeId:guid}"): ("GetAssetType", "AssetsRead"),
+    ("POST", "/assets"): ("CreateAsset", "AssetsManage"),
+    ("GET", "/security/assets/directory"): ("ListSecurityAssetDirectory", "SecurityManage"),
+    ("GET", "/assets"): ("ListAssets", "AssetsRead"),
+    ("GET", "/assets/{assetId:guid}"): ("GetAsset", "AssetsRead"),
+    ("POST", "/configured-logic"): ("CreateConfiguredLogic", "ConfiguredLogicManage"),
+    ("GET", "/configured-logic"): ("ListConfiguredLogic", "ConfiguredLogicRead"),
+    ("GET", "/configured-logic/{configuredLogicId:guid}"): ("GetConfiguredLogic", "ConfiguredLogicRead"),
+    ("POST", "/configured-logic/{configuredLogicId:guid}/revisions"): ("CreateConfiguredLogicRevision", "ConfiguredLogicManage"),
+    ("POST", "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/validate"): ("ValidateConfiguredLogicRevision", "ConfiguredLogicManage"),
+    ("POST", "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/activate"): ("ActivateConfiguredLogicRevision", "ConfiguredLogicManage"),
+    ("GET", "/executions"): ("ListExecutions", "ExecutionsRead"),
+    ("POST", "/executions/shadow"): ("RequestShadowExecution", "ExecutionsRequest"),
+    ("GET", "/executions/{executionId:guid}"): ("GetExecution", "ExecutionsRead"),
+    ("POST", "/logic-modules"): ("RegisterLogicModule", "LogicManage"),
+    ("GET", "/logic-modules"): ("ListLogicModules", "LogicRead"),
+    ("GET", "/logic-modules/{moduleId}/{moduleVersion}"): ("GetLogicModule", "LogicRead"),
+    ("GET", "/recommendations"): ("ListRecommendations", "RecommendationsRead"),
+    ("GET", "/recommendations/{recommendationId:guid}"): ("GetRecommendation", "RecommendationsRead"),
+    ("POST", "/recommendations/{recommendationId:guid}/decision"): ("DecideRecommendation", "RecommendationsDecide"),
+}
+
+_ROUTE = re.compile(
+    r'\b(?P<receiver>[A-Za-z_]\w*)\.Map(?P<method>Get|Post|Put|Patch|Delete)'
+    r'\(\s*"(?P<route>/[^"]+)"',
+    re.MULTILINE,
+)
+_NAME = re.compile(r'\.WithName\(\s*"([^"]+)"\s*\)')
+_NAMED_POLICY = re.compile(
+    r'\.RequireAuthorization\(\s*WellSitePolicies\.(\w+)\s*\)'
+)
+_ANY_POLICY = re.compile(r'\.RequireAuthorization\(')
+
+
+def validate_routes(source: str) -> list[str]:
+    """Return failures; never infer an absent policy from the group silently."""
+    errors: list[str] = []
+    group = re.search(r'\bvar\s+v1\s*=\s*([^;]+);', source, re.DOTALL)
+    if (group is None
+            or '.MapGroup("/api/v{version:apiVersion}")' not in group.group(1)
+            or '.RequireAuthorization()' not in group.group(1)):
+        errors.append("Product v1 API group must require authentication.")
+
+    authentication = source.find("app.UseAuthentication();")
+    authorization = source.find("app.UseAuthorization();")
+    if authentication < 0 or authorization <= authentication:
+        errors.append("Authentication middleware must precede authorization middleware.")
+
+    matches = list(_ROUTE.finditer(source))
+    found: set[tuple[str, str]] = set()
+    used_names: set[str] = set()
+    for index, match in enumerate(matches):
+        receiver = match.group("receiver")
+        method = match.group("method").upper()
+        path = match.group("route")
+        key = (method, path)
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(source)
+        block = source[match.start():end]
+
+        if receiver != "v1":
+            errors.append(f"{receiver}.Map{method}({path}) is outside the reviewed v1 group.")
+            continue
+
+        if key in found:
+            errors.append(f"Duplicate API route: {method} {path}.")
+            continue
+        found.add(key)
+
+        expected = EXPECTED_ENDPOINTS.get(key)
+        if expected is None:
+            errors.append(f"Unreviewed API route: {method} {path}.")
+            continue
+
+        expected_name, expected_policy = expected
+        names = _NAME.findall(block)
+        if names != [expected_name]:
+            errors.append(f"{method} {path}: expected endpoint name {expected_name}, found {names}.")
+        if names and names[0] in used_names:
+            errors.append(f"Duplicate endpoint name: {names[0]}.")
+        used_names.update(names)
+
+        if ".AllowAnonymous(" in block:
+            errors.append(f"{method} {path}: protected API must not allow anonymous access.")
+
+        declared = _NAMED_POLICY.findall(block)
+        count = len(_ANY_POLICY.findall(block))
+        if expected_policy is None:
+            if count:
+                errors.append(f"{method} {path}: authenticated-only policy contract changed.")
+        elif declared != [expected_policy] or count != 1:
+            errors.append(
+                f"{method} {path}: expected exactly one "
+                f"WellSitePolicies.{expected_policy}, found {declared} "
+                f"({count} authorization declarations)."
+            )
+
+    for method, path in sorted(EXPECTED_ENDPOINTS.keys() - found):
+        errors.append(f"Reviewed API route missing: {method} {path}.")
+
+    return errors
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parents[2]
+    program = root / "src/server/WellSiteAutoPilot.Server/Program.cs"
+    try:
+        errors = validate_routes(program.read_text(encoding="utf-8"))
+    except OSError as error:
+        print(f"Cannot verify API policy inventory: {error}", file=sys.stderr)
+        return 2
+    for error in errors:
+        print(f"ERROR: {error}", file=sys.stderr)
+    if errors:
+        print(f"API policy inventory failed with {len(errors)} error(s).", file=sys.stderr)
+        return 1
+    print(f"API policy inventory verified: {len(EXPECTED_ENDPOINTS)} reviewed endpoints.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
