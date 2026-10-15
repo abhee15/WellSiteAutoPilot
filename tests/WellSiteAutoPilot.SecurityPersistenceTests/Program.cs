@@ -607,6 +607,10 @@ await using (var second = new WellSiteAutoPilotDbContext(options))
     }
 }
 
+await ScopedGrantFoundationChecks.RunAsync(
+    options, operatorUser.Id,
+    builtin.Single(item => item.Name == "Operator").Id, asset.Id);
+
 Console.WriteLine(
     "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;
