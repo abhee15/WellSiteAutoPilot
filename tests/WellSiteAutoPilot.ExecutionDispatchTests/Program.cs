@@ -44,16 +44,25 @@ var consumer = await jetStream.CreateOrUpdateConsumerAsync(
 var repository = new ExecutionRepository(dbContext);
 var service = new ExecutionService(repository, TimeProvider.System);
 
+// Deterministically reproduce the stale outbox ordering of the shared
+// TeamCity database. The earlier message is valid but is NOT our request.
+var shadowCommand = new ShadowExecutionCommand(
+    Guid.NewGuid(),
+    "sample.shadow.logic",
+    "1.0.0",
+    Guid.NewGuid(),
+    Guid.NewGuid(),
+    "WELL-101",
+    "PumpFillage");
+_ = await service.RequestShadowAsync(
+    shadowCommand with
+    {
+        LogicInstanceId = Guid.NewGuid(),
+        ConfigurationRevisionId = Guid.NewGuid()
+    },
+    "ci-unrelated-v1-dispatch");
 var execution = await service.RequestShadowAsync(
-    new ShadowExecutionCommand(
-        Guid.NewGuid(),
-        "sample.shadow.logic",
-        "1.0.0",
-        Guid.NewGuid(),
-        Guid.NewGuid(),
-        "WELL-101",
-        "PumpFillage"),
-    "ci-execution-dispatch");
+    shadowCommand, "ci-execution-dispatch");
 
 var publisher = new OutboxPublisher(
     dbContext,
@@ -67,40 +76,59 @@ if (dispatched < 1)
     throw new InvalidOperationException("No execution outbox message was dispatched.");
 }
 
+// Check the exact execution's row, not just any processed V1 outbox row.
+var ownV1OutboxProcessed = await dbContext.OutboxMessages
+    .AsNoTracking()
+    .AnyAsync(message =>
+        message.Type == Subjects.ExecutionRequestedV1 &&
+        message.Payload.Contains(execution.Id.ToString("D")) &&
+        message.ProcessedAtUtc != null);
+if (!ownV1OutboxProcessed)
+{
+    throw new InvalidOperationException(
+        "Dispatch did not process this test's V1 outbox record; " +
+        "older pending outbox records may have exhausted the batch.");
+}
+
+// MaxMsgs=1 is not a guarantee that the first delivered message is ours.
+// ConsumeAsync keeps pulling; continue beyond unrelated V1 messages.
 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 string? receivedPayload = null;
-
-await foreach (var message in consumer.ConsumeAsync<string>(
-    opts: new NatsJSConsumeOpts
+var skippedV1 = 0;
+try
+{
+    await foreach (var message in consumer.ConsumeAsync<string>(
+        opts: new NatsJSConsumeOpts { MaxMsgs = 1 },
+        cancellationToken: timeout.Token))
     {
-        MaxMsgs = 1
-    },
-    cancellationToken: timeout.Token))
+        await message.AckAsync(cancellationToken: timeout.Token);
+        if (message.Data?.Contains(
+                execution.Id.ToString("D"), StringComparison.OrdinalIgnoreCase) == true)
+        {
+            receivedPayload = message.Data;
+            break;
+        }
+
+        skippedV1++;
+    }
+}
+catch (OperationCanceledException) when (timeout.IsCancellationRequested)
 {
-    receivedPayload = message.Data;
-    await message.AckAsync(cancellationToken: timeout.Token);
-    break;
+    // Turn elapsed cancellation into an informative test assertion below.
 }
 
-if (string.IsNullOrWhiteSpace(receivedPayload) ||
-    !receivedPayload.Contains(execution.Id.ToString(), StringComparison.OrdinalIgnoreCase))
-{
-    throw new InvalidOperationException(
-        "The durable execution request was not observed on JetStream.");
-}
-
-var outboxProcessed = await dbContext.OutboxMessages
-    .AsNoTracking()
-    .AnyAsync(
-        message =>
-            message.Type == Subjects.ExecutionRequestedV1 &&
-            message.ProcessedAtUtc != null);
-
-if (!outboxProcessed)
+if (string.IsNullOrWhiteSpace(receivedPayload))
 {
     throw new InvalidOperationException(
-        "The dispatched outbox message was not marked processed.");
+        $"The durable V1 execution {execution.Id:D} was not observed on JetStream; " +
+        $"{skippedV1} unrelated messages arrived before the consumer stopped.");
 }
+if (skippedV1 < 1)
+{
+    throw new InvalidOperationException(
+        "The V1 stale-outbox regression fixture did not produce an earlier unrelated message.");
+}
+Console.WriteLine($"V1 matched after {skippedV1} unrelated messages.");
 
 var v2ConsumerName = $"execution-v2-dispatch-{Guid.NewGuid():N}";
 var v2Consumer = await jetStream.CreateOrUpdateConsumerAsync(
@@ -112,8 +140,7 @@ var v2Consumer = await jetStream.CreateOrUpdateConsumerAsync(
     });
 
 var configuredAssetId = Guid.NewGuid();
-var configuredExecution = await service.RequestConfiguredShadowAsync(
-    new ConfiguredShadowExecutionCommand(
+var configuredCommand = new ConfiguredShadowExecutionCommand(
         Guid.NewGuid(),
         Guid.NewGuid(),
         "weatherford.multi-input-test",
@@ -139,8 +166,20 @@ var configuredExecution = await service.RequestConfiguredShadowAsync(
                 "{}")
         ],
         ExecutionTriggerKind.Scheduled,
-        DateTimeOffset.UtcNow.AddMinutes(1)),
-    "ci-execution-v2-dispatch");
+        DateTimeOffset.UtcNow.AddMinutes(1));
+
+// A separate earlier V2 outbox row exercises the same shared-database
+// failure mode even when the native TeamCity stream starts empty.
+_ = await service.RequestConfiguredShadowAsync(
+    configuredCommand with
+    {
+        ConfiguredLogicId = Guid.NewGuid(),
+        ConfigurationRevisionId = Guid.NewGuid(),
+        ScheduledForUtc = DateTimeOffset.UtcNow.AddMinutes(2)
+    },
+    "ci-unrelated-v2-dispatch");
+var configuredExecution = await service.RequestConfiguredShadowAsync(
+    configuredCommand, "ci-execution-v2-dispatch");
 
 var v2Dispatched = await publisher.DispatchBatchAsync();
 if (v2Dispatched < 1)
@@ -149,42 +188,58 @@ if (v2Dispatched < 1)
         "No execution V2 outbox message was dispatched.");
 }
 
+// A successful batch count does not prove that the batch reached OUR row.
+var ownV2OutboxProcessed = await dbContext.OutboxMessages
+    .AsNoTracking()
+    .AnyAsync(message =>
+        message.Type == Subjects.ExecutionRequestedV2 &&
+        message.Payload.Contains(configuredExecution.Id.ToString("D")) &&
+        message.ProcessedAtUtc != null);
+if (!ownV2OutboxProcessed)
+{
+    throw new InvalidOperationException(
+        "Dispatch did not process this test's V2 outbox record; " +
+        "older pending outbox records may have exhausted the batch.");
+}
+
 using var v2Timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 string? v2ReceivedPayload = null;
-
-await foreach (var message in v2Consumer.ConsumeAsync<string>(
-    opts: new NatsJSConsumeOpts
+var skippedV2 = 0;
+try
+{
+    await foreach (var message in v2Consumer.ConsumeAsync<string>(
+        opts: new NatsJSConsumeOpts { MaxMsgs = 1 },
+        cancellationToken: v2Timeout.Token))
     {
-        MaxMsgs = 1
-    },
-    cancellationToken: v2Timeout.Token))
+        await message.AckAsync(cancellationToken: v2Timeout.Token);
+        if (message.Data?.Contains(
+                configuredExecution.Id.ToString("D"),
+                StringComparison.OrdinalIgnoreCase) == true)
+        {
+            v2ReceivedPayload = message.Data;
+            break;
+        }
+
+        skippedV2++;
+    }
+}
+catch (OperationCanceledException) when (v2Timeout.IsCancellationRequested)
 {
-    v2ReceivedPayload = message.Data;
-    await message.AckAsync(cancellationToken: v2Timeout.Token);
-    break;
+    // Keep the diagnostic count of unrelated messages below.
 }
 
-if (string.IsNullOrWhiteSpace(v2ReceivedPayload) ||
-    !v2ReceivedPayload.Contains(
-        configuredExecution.Id.ToString(),
-        StringComparison.OrdinalIgnoreCase))
-{
-    throw new InvalidOperationException(
-        "The durable execution V2 request was not observed on JetStream.");
-}
-
-var v2OutboxProcessed = await dbContext.OutboxMessages
-    .AsNoTracking()
-    .AnyAsync(
-        message =>
-            message.Type == Subjects.ExecutionRequestedV2 &&
-            message.ProcessedAtUtc != null);
-
-if (!v2OutboxProcessed)
+if (string.IsNullOrWhiteSpace(v2ReceivedPayload))
 {
     throw new InvalidOperationException(
-        "The dispatched V2 outbox message was not marked processed.");
+        $"The durable V2 execution {configuredExecution.Id:D} was not observed on JetStream; " +
+        $"{skippedV2} unrelated messages arrived before the consumer stopped.");
 }
+if (skippedV2 < 1)
+{
+    throw new InvalidOperationException(
+        "The V2 stale-outbox regression fixture did not produce an earlier unrelated message.");
+}
+Console.WriteLine($"V2 matched after {skippedV2} unrelated messages.");
 
 Console.WriteLine("Execution V1/V2 outbox to JetStream dispatch checks passed.");
 return 0;
