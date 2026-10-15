@@ -867,6 +867,40 @@ catch (WellSiteAutoPilotException exception)
     when (exception.Code == "SECURITY_ADMIN_REQUIRED")
 {
 }
+// A modified migration-origin row makes the entire rollback unsafe.
+// Detect this before touching any remaining migrated assignment, and leave
+// the original values intact if the transaction rejects the batch.
+var alteredMigrationId = migrationIds[0];
+await dbContext.AccessGrants
+    .Where(item => item.Id == alteredMigrationId)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.Revision, 3L));
+var rollbackAuditCountOnConflict = await dbContext.AuditEvents.CountAsync(
+    item => item.Action == "security.grant.legacy-rolled-back");
+try
+{
+    await legacyMigration.RollbackAsync(true, assignmentActor);
+    throw new InvalidOperationException(
+        "Migration rollback accepted a concurrently modified revision.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_MIGRATION_CONFLICT")
+{
+}
+if (await dbContext.AccessGrants.CountAsync(item =>
+        migrationIds.Contains(item.Id) && item.IsActive) != migrationIds.Length ||
+    await dbContext.AuditEvents.CountAsync(
+        item => item.Action == "security.grant.legacy-rolled-back") !=
+        rollbackAuditCountOnConflict)
+{
+    throw new InvalidOperationException(
+        "Conflicted rollback left partial changes or misleading audit events.");
+}
+await dbContext.AccessGrants
+    .Where(item => item.Id == alteredMigrationId)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(item => item.Revision, 1L));
+
 var rollbackAuditCountBefore = await dbContext.AuditEvents.CountAsync(
     item => item.Action == "security.grant.legacy-rolled-back");
 var migrationRollback = await legacyMigration.RollbackAsync(
