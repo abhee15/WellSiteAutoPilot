@@ -377,6 +377,37 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
+// Administrator-only rollback of grants created by a legacy migration.
+// Only server-audited migration-origin rows are affected, never customer
+// assignments, compiled legacy RBAC or production runtime permissions.
+v1.MapPost(
+    "/security/rollback-legacy-grants",
+    async (
+        RollbackLegacyGrantsRequest request,
+        LegacyGrantMigrationService migration,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await migration.RollbackAsync(
+            request.Confirmed,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new RollbackLegacyGrantsResponse(
+            result.MigratedGrantsInspected, result.GrantsDeactivated,
+            result.LiveAuthorizationUnchanged);
+    })
+    .WithName("RollbackLegacyAccessGrants")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<RollbackLegacyGrantsResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 // Explicit, audited grant materialization from the current legacy model.
 // Performs complete serializable transaction parity validation and declines
 // conflicting active grants. It NEVER changes LIVE authorization policies.
