@@ -115,5 +115,45 @@ if (noParentMatch.Count != 0)
     throw new InvalidOperationException("Parent filtering leaked Assets outside the authorized scope.");
 }
 
+// Administration must discover the full asset directory in deterministic
+// pages even when multiple Assets have exactly the same display name.
+var duplicateName = await service.CreateAssetAsync(
+    new CreateAssetCommand(wellType.Id, "Well 101", parent.Id, "{}"));
+var directoryExpected = new[] {
+    parent, child, sibling, otherField, otherWell, tank, duplicateName
+}.OrderBy(item => item.Name, StringComparer.Ordinal)
+ .ThenBy(item => item.Id).Select(item => item.Id).ToArray();
+var directoryIds = new List<Guid>();
+for (var offset = 0; ; offset += 2)
+{
+    var page = await service.ListAssetDirectoryPageAsync(offset, 2);
+    directoryIds.AddRange(page.Select(item => item.Id));
+    if (page.Count < 2) break;
+}
+if (!directoryIds.SequenceEqual(directoryExpected) ||
+    directoryIds.Distinct().Count() != directoryExpected.Length)
+{
+    throw new InvalidOperationException(
+        "Paged administrator Asset directory skipped, duplicated or reordered Assets.");
+}
+try
+{
+    await service.ListAssetDirectoryPageAsync(-1, 200);
+    throw new InvalidOperationException("Negative Asset directory offset was accepted.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == WellSiteAutoPilot.Failures.FailureCodes.ValidationFailed)
+{
+}
+try
+{
+    await service.ListAssetDirectoryPageAsync(0, 501);
+    throw new InvalidOperationException("Unbounded Asset directory page was accepted.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == WellSiteAutoPilot.Failures.FailureCodes.ValidationFailed)
+{
+}
+
 Console.WriteLine("Asset type and hierarchical asset persistence checks passed.");
 return 0;
