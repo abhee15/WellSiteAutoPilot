@@ -15,6 +15,12 @@ public sealed class AssetService(
 
         var key = RequireText(command.Key, "Asset type key is required.");
         var displayName = RequireText(command.DisplayName, "Asset type display name is required.");
+        if (key.Length > 128 || displayName.Length > 256)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Asset Type key/display name exceeds the allowed length.");
+        }
         await AssetAttributeSchemaValidator.ValidateDefinitionAsync(
             command.AttributeSchemaJson, cancellationToken);
 
@@ -54,6 +60,12 @@ public sealed class AssetService(
         }
 
         var name = RequireText(command.Name, "Asset name is required.");
+        if (name.Length > 256)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Asset name must not exceed 256 characters.");
+        }
         
 
         var assetType = await repository.GetAssetTypeAsync(command.AssetTypeId, cancellationToken);
