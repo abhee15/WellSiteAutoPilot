@@ -42,6 +42,7 @@
     <Project Path="tests/WellSiteAutoPilot.SecurityPersistenceTests/WellSiteAutoPilot.SecurityPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ExecutionDispatchTests/WellSiteAutoPilot.ExecutionDispatchTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj" />

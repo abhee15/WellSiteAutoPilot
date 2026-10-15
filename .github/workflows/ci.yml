@@ -578,6 +578,36 @@ jobs:
       - name: Verify asset persistence
         run: dotnet run --project tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj --configuration Release --no-build
 
+      - name: Verify Asset REST create, schema validation and scope using real PostgreSQL
+        shell: bash
+        env:
+          ASPNETCORE_ENVIRONMENT: CI
+          Security__AuthenticationMode: TestHeader
+          Security__BootstrapAdministrators__0: 'LOCAL\ci-asset-admin'
+          WSA_ASSET_API_URL: http://127.0.0.1:5085
+        run: |
+          set -euo pipefail
+          dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj             --configuration Release --no-build -- --urls http://127.0.0.1:5085             > /tmp/wsa-asset-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..45}; do
+            if curl --silent --fail http://127.0.0.1:5085/health/live >/dev/null; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat /tmp/wsa-asset-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/wsa-asset-server.log
+            exit 1
+          fi
+          dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj             --configuration Release --no-build
+
       - name: Verify Configured Logic persistence
         run: dotnet run --project tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj --configuration Release --no-build
 
