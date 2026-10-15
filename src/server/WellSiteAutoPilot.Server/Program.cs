@@ -374,6 +374,40 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
+// Proposed resource preview uses one database query that restricts Assets
+// by the same grant's active role and scope BEFORE Skip/Take. It never
+// authorizes live requests or changes existing user access.
+v1.MapGet(
+    "/security/users/{userId:guid}/proposed-assets",
+    async (
+        Guid userId,
+        string permission,
+        int? offset,
+        int? limit,
+        ProposedAssetAccessService preview,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preview.ListAsync(
+            userId, permission, offset ?? 0, limit ?? 100,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new ProposedAssetAccessResponse(
+            result.UserId, result.Permission, result.Offset, result.Limit,
+            result.Assets.Select(item =>
+                new ProposedAuthorizedAssetResponse(item.Id, item.Name)).ToArray(),
+            result.IsDiagnosticOnly);
+    })
+    .WithName("ListProposedAuthorizedAssets")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<ProposedAssetAccessResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 // Read-only diagnostic: evaluate every registered permission against
 // legacy live RBAC and the stored, inactive-for-runtime scoped-grant model.
 // A single Asset inspection never certifies whole-deployment migration parity.
