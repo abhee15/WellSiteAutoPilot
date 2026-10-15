@@ -560,11 +560,12 @@ v1.MapGet(
         assetScopeAuthorizer.RequireAdministrator(context.User);
         var assets = await assetService.ListAssetDirectoryPageAsync(
             offset ?? 0, limit ?? 200, cancellationToken);
-        return assets.Select(ToAssetResponse).ToArray();
+        return assets.Select(asset => new AssetDirectoryEntryResponse(
+            asset.Id, asset.Name, asset.IsActive)).ToArray();
     })
     .WithName("ListSecurityAssetDirectory")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<AssetResponse[]>(StatusCodes.Status200OK)
+    .Produces<AssetDirectoryEntryResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
