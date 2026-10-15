@@ -142,6 +142,7 @@ builder.Services.AddScoped<AccessGrantAdministrationService>();
 builder.Services.AddScoped<ScopedAccessInspectionService>();
 builder.Services.AddScoped<ProposedAssetAccessService>();
 builder.Services.AddScoped<LegacyMigrationPreflightService>();
+builder.Services.AddScoped<DeploymentMigrationPreflightService>();
 builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
