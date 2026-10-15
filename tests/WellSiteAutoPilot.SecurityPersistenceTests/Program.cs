@@ -780,6 +780,24 @@ var persisted = await accessGrantService.CreateForUserAsync(
         grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
     assignmentActor);
 
+// A custom role already referenced by an active entitlement must not
+// silently gain new permissions. Retire the assignment first.
+try
+{
+    await roleCatalog.UpdateAsync(
+        grantCatalogRole.Id, grantCatalogRole.Revision,
+        new RoleMutationCommand(
+            grantCatalogRole.Name, grantCatalogRole.Description,
+            [WellSitePermissions.AssetsRead, WellSitePermissions.AssetsManage], true),
+        actor);
+    throw new InvalidOperationException(
+        "Editing an assigned role silently expanded its effective permissions.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ROLE_ASSIGNED")
+{
+}
+
 if (!persisted.IsActive || persisted.Revision != 1 ||
     persisted.SubjectKind != AccessGrantSubjectKind.User ||
     persisted.UserId != operatorUser.Id ||
