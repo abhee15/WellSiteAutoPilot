@@ -14,8 +14,20 @@ public sealed record LegacyGrantMigrationResult(
     bool RecordedGrantsMatchLegacy,
     bool LiveAuthorizationUnchanged = true);
 
+public sealed record LegacyGrantRollbackResult(
+    int MigratedGrantsInspected,
+    int GrantsDeactivated,
+    bool LiveAuthorizationUnchanged = true);
+
 public interface ILegacyGrantMigrationRepository
 {
+    Task<LegacyGrantRollbackResult> RollbackAsync(
+        Guid administratorId,
+        string administratorIdentity,
+        string? correlationId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default);
+
     Task<LegacyGrantMigrationResult> MigrateAsync(
         Guid administratorId,
         string administratorIdentity,
@@ -57,6 +69,36 @@ public sealed class LegacyGrantMigrationService(
         }
 
         return await migration.MigrateAsync(
+            administratorId, actor.IdentityName, actor.CorrelationId,
+            timeProvider.GetUtcNow(), cancellationToken);
+    }
+
+    /// <summary>
+    /// Explicit rollback of migration-origin grants only. Legacy RBAC remains
+    /// authoritative during and after this operation.
+    /// </summary>
+    public async Task<LegacyGrantRollbackResult> RollbackAsync(
+        bool confirmed, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (!confirmed)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_MIGRATION_CONFIRMATION_REQUIRED",
+                FailureKind.Validation,
+                "Explicit rollback confirmation is required.");
+        }
+
+        await administration.RequireAdministratorAsync(actor, cancellationToken);
+        if (actor.UserId is not { } administratorId ||
+            string.IsNullOrWhiteSpace(actor.IdentityName))
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
+                "An active administrator is required for rollback.");
+        }
+
+        return await migration.RollbackAsync(
             administratorId, actor.IdentityName, actor.CorrelationId,
             timeProvider.GetUtcNow(), cancellationToken);
     }
