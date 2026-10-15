@@ -933,3 +933,12 @@ button:disabled {
 .grant-editor .access-review, .grant-editor .grant-confirm { margin-inline: 18px; }
 .grant-editor .access-review ul { overflow-wrap: anywhere; }
 .grant-actions { margin: 0 18px 20px; }
+
+/* Grant admin: clear separation between planning and audited persistence. */
+.grant-user-picker { display: grid; gap: 8px; margin: 12px 18px; max-width: 520px; }
+.grant-user-picker select { color: #e7edf3; background: #1b232b; border: 1px solid #53616e; border-radius: 6px; padding: 9px; font: inherit; width: 100%; }
+.grant-current-list { margin: 18px; }
+.grant-current-list li, .grant-final-review li { overflow-wrap: anywhere; }
+.grant-final-review { margin-top: 18px; }
+.grant-final-review > p, .grant-final-review > ul { margin-inline: 18px; }
+.grant-final-review > .execution-detail-actions { margin: 18px; }

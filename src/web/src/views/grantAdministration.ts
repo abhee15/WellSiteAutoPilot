@@ -1,0 +1,103 @@
+import type { GrantDraft } from './scopedAccessGrants';
+
+export type PersistedGrant = {
+  grantId: string;
+  subjectKind: 'User';
+  userId: string;
+  groupSid: null;
+  roleId: string;
+  scopeKind: GrantDraft['scopeKind'];
+  assetIds: string[];
+  isActive: boolean;
+  revision: number;
+};
+export class GrantApiError extends Error {
+  constructor(public readonly kind:
+    'denied' | 'notFound' | 'conflict' | 'invalid' | 'unavailable' | 'invalidResponse') {
+    super(kind);
+  }
+}
+const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function parse(response: unknown): response is PersistedGrant {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) return false;
+  const p = response as Partial<PersistedGrant>;
+  return typeof p.grantId === 'string' && guid.test(p.grantId) &&
+    p.subjectKind === 'User' && typeof p.userId === 'string' &&
+    guid.test(p.userId) && p.groupSid === null && typeof p.roleId === 'string' &&
+    guid.test(p.roleId) && (p.scopeKind === 'ExactAssets' ||
+      p.scopeKind === 'DeploymentWide' || p.scopeKind === 'AllAssets') &&
+    Array.isArray(p.assetIds) && p.assetIds.every(x =>
+      typeof x === 'string' && guid.test(x)) &&
+    new Set(p.assetIds.map(x => x.toLowerCase())).size === p.assetIds.length &&
+    typeof p.isActive === 'boolean' &&
+    Number.isSafeInteger(p.revision) && (p.revision as number) >= 1;
+}
+function failed(status: number): GrantApiError {
+  if (status === 401 || status === 403) return new GrantApiError('denied');
+  if (status === 404) return new GrantApiError('notFound');
+  if (status === 409) return new GrantApiError('conflict');
+  if (status === 400) return new GrantApiError('invalid');
+  return new GrantApiError('unavailable');
+}
+async function payload(response: Response): Promise<unknown> {
+  try { return await response.json(); }
+  catch { throw new GrantApiError('invalidResponse'); }
+}
+/** Read audited new assignments; these do not yet replace legacy access. */
+export async function loadGrants(userId: string, signal: AbortSignal,
+  fetcher: typeof fetch = fetch): Promise<PersistedGrant[]> {
+  if (!guid.test(userId)) throw new GrantApiError('invalid');
+  let response: Response;
+  try {
+    response = await fetcher('/api/v1/security/users/' + encodeURIComponent(userId) +
+      '/grants', { credentials: 'same-origin', cache: 'no-store', signal });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    throw new GrantApiError('unavailable');
+  }
+  if (!response.ok) throw failed(response.status);
+  const body = await payload(response);
+  if (!Array.isArray(body) || body.length > 500 || !body.every(parse) ||
+    body.some(row => row.userId.toLowerCase() !== userId.toLowerCase()) ||
+    new Set(body.map(row => row.grantId.toLowerCase())).size !== body.length) {
+    throw new GrantApiError('invalidResponse');
+  }
+  return body;
+}
+/**
+ * A single, confirmed POST, never automatically retried after uncertain
+ * outcomes. The API is authoritative; success requires matching returned data.
+ */
+export async function createGrant(draft: GrantDraft, confirmed: boolean,
+  signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<PersistedGrant> {
+  if (!confirmed || draft.subjectKind !== 'User' ||
+    !guid.test(draft.userId) || !guid.test(draft.roleId) ||
+    !(['ExactAssets', 'DeploymentWide', 'AllAssets'] as const).includes(draft.scopeKind)) {
+    throw new GrantApiError('invalid');
+  }
+  let response: Response;
+  try {
+    response = await fetcher('/api/v1/security/users/' +
+      encodeURIComponent(draft.userId) + '/grants', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleId: draft.roleId,
+        scopeKind: draft.scopeKind, assetIds: draft.assetIds }),
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    throw new GrantApiError('unavailable');
+  }
+  if (!response.ok) throw failed(response.status);
+  const saved = await payload(response);
+  if (response.status !== 201 || !parse(saved) ||
+    saved.userId.toLowerCase() !== draft.userId.toLowerCase() ||
+    saved.roleId.toLowerCase() !== draft.roleId.toLowerCase() ||
+    saved.scopeKind !== draft.scopeKind || !saved.isActive ||
+    saved.assetIds.map(x => x.toLowerCase()).sort().join('|') !==
+      draft.assetIds.map(x => x.toLowerCase()).sort().join('|')) {
+    throw new GrantApiError('invalidResponse');
+  }
+  return saved;
+}
