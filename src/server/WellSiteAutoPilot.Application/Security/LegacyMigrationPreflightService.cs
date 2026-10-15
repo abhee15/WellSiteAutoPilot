@@ -48,8 +48,6 @@ public sealed class LegacyMigrationPreflightService(
     AccessGrantAdministrationService administration,
     ILegacyMigrationSnapshotRepository snapshots)
 {
-    private const int MaximumDifferenceSamples = 20;
-
     public async Task<LegacyMigrationPreflightResult> InspectAsync(
         Guid userId, SecurityActorContext actor,
         CancellationToken cancellationToken = default)
@@ -65,6 +63,24 @@ public sealed class LegacyMigrationPreflightService(
         // Snapshot repository revalidates the actor inside its transaction.
         var snapshot = await snapshots.CaptureAsync(
             userId, administratorId, cancellationToken);
+
+        return LegacyMigrationPreflightEvaluator.Evaluate(snapshot);
+
+    }
+}
+
+public static class LegacyMigrationPreflightEvaluator
+{
+    private const int MaximumDifferenceSamples = 20;
+
+    public static LegacyMigrationPreflightResult Evaluate(
+        LegacyMigrationSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(snapshot.User);
+        ArgumentNullException.ThrowIfNull(snapshot.Roles);
+        ArgumentNullException.ThrowIfNull(snapshot.ActiveAssetIds);
+        ArgumentNullException.ThrowIfNull(snapshot.RecordedGrants);
 
         // The planner proves that a newly generated set of built-in grants
         // precisely matches the legacy role×Asset permission product for this
