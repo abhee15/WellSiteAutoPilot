@@ -14,8 +14,20 @@ public sealed class AssetScopeAuthorizer
             .Select(item => item.Value)
             .ToArray();
 
+        // In the legacy model only an active administrator receives a
+        // universal Asset claim. A mixed wildcard/explicit scope is not a
+        // valid principal and must never silently become unrestricted.
         if (scopeValues.Contains("*", StringComparer.Ordinal))
         {
+            if (scopeValues.Length != 1 ||
+                !principal.HasClaim(SecurityClaimTypes.Role, "Admin"))
+            {
+                throw new WellSiteAutoPilotException(
+                    "SECURITY_ASSET_SCOPE_INVALID",
+                    FailureKind.Authorization,
+                    "The authenticated Asset scope contains an invalid wildcard.");
+            }
+
             return null;
         }
 
@@ -23,7 +35,8 @@ public sealed class AssetScopeAuthorizer
 
         foreach (var value in scopeValues)
         {
-            if (!Guid.TryParse(value, out var assetId))
+            if (!Guid.TryParse(value, out var assetId) ||
+                assetId == Guid.Empty)
             {
                 throw new WellSiteAutoPilotException(
                     "SECURITY_ASSET_SCOPE_INVALID",
@@ -48,6 +61,19 @@ public sealed class AssetScopeAuthorizer
     {
         ArgumentNullException.ThrowIfNull(assetIds);
 
+        // Validate the ENTIRE requested set before considering an Admin
+        // wildcard. Filtering out Guid.Empty here could authorize a mutation
+        // whose input includes an invalid Asset alongside a valid one.
+        var requested = assetIds.ToArray();
+        if (requested.Length == 0 ||
+            requested.Any(item => item == Guid.Empty))
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_ASSET_SCOPE_FORBIDDEN",
+                FailureKind.Authorization,
+                "The current user is not authorized for one or more requested Assets.");
+        }
+
         var allowed = GetAllowedAssetIds(principal);
         if (allowed is null)
         {
@@ -55,13 +81,7 @@ public sealed class AssetScopeAuthorizer
         }
 
         var allowedSet = allowed.ToHashSet();
-        var requested = assetIds
-            .Where(item => item != Guid.Empty)
-            .Distinct()
-            .ToArray();
-
-        if (requested.Length == 0 ||
-            requested.Any(item => !allowedSet.Contains(item)))
+        if (requested.Any(item => !allowedSet.Contains(item)))
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_ASSET_SCOPE_FORBIDDEN",
