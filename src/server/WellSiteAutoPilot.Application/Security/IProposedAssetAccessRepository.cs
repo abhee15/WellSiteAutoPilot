@@ -25,6 +25,7 @@ public interface IProposedAssetAccessRepository
 
 public sealed class ProposedAssetAccessService(
     AccessGrantAdministrationService grants,
+    IUserAccessRepository users,
     IProposedAssetAccessRepository assets)
 {
     public async Task<ProposedAssetAccessView> ListAsync(
@@ -40,6 +41,14 @@ public sealed class ProposedAssetAccessService(
             throw new WellSiteAutoPilotException(
                 "SECURITY_PREVIEW_QUERY_INVALID", FailureKind.Validation,
                 "A valid user, resource permission and bounded page are required.");
+        }
+
+        var subject = await users.GetAsync(userId, cancellationToken);
+        if (subject is null || !subject.IsActive)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_USER_NOT_ACTIVE", FailureKind.NotFound,
+                "The user must be active for a scoped access preview.");
         }
 
         var result = await assets.ListAsync(
