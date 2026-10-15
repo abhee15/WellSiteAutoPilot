@@ -859,6 +859,33 @@ var persisted = await accessGrantService.CreateForUserAsync(
         grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
     assignmentActor);
 
+// Once a customer-authored draft grant differs from the legacy model,
+// a deployment-wide migration MUST refuse to overwrite or union it.
+var conflictingMigrationGrantsBefore =
+    await dbContext.AccessGrants.CountAsync();
+var conflictingMigrationAuditsBefore =
+    await dbContext.AuditEvents.CountAsync(
+        item => item.Action == "security.grant.legacy-migrated");
+try
+{
+    await legacyMigration.MigrateAsync(true, assignmentActor);
+    throw new InvalidOperationException(
+        "Migration silently merged a conflicting customer-authored grant.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_MIGRATION_CONFLICT")
+{
+}
+if (await dbContext.AccessGrants.CountAsync() !=
+        conflictingMigrationGrantsBefore ||
+    await dbContext.AuditEvents.CountAsync(
+        item => item.Action == "security.grant.legacy-migrated") !=
+        conflictingMigrationAuditsBefore)
+{
+    throw new InvalidOperationException(
+        "Conflicting deployment migration left partial grant or audit writes.");
+}
+
 // A custom role already referenced by an active entitlement must not
 // silently gain new permissions. Retire the assignment first.
 try
