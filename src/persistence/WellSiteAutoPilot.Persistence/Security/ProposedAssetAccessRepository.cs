@@ -39,9 +39,10 @@ public sealed class ProposedAssetAccessRepository(WellSiteAutoPilotDbContext db)
                     grant.SubjectKind == "User" &&
                     grant.UserId == userId &&
                     grant.GroupSid == null &&
+                    grant.Id != Guid.Empty && grant.RoleId != Guid.Empty &&
                     grant.IsActive && grant.Revision >= 1 &&
                     roleDefinitions.Any(role => role.Id == grant.RoleId &&
-                        role.IsActive && rolePermissions.Any(rolePermission =>
+                        role.Id != Guid.Empty && role.IsActive && rolePermissions.Any(rolePermission =>
                             rolePermission.RoleId == role.Id &&
                             rolePermission.Permission == permission)) &&
                     (
@@ -51,6 +52,8 @@ public sealed class ProposedAssetAccessRepository(WellSiteAutoPilotDbContext db)
                          bindings.Any(binding => binding.GrantId == grant.Id &&
                              binding.AssetId == asset.Id) &&
                          bindings.Count(binding => binding.GrantId == grant.Id) <= 500 &&
+                         !bindings.Any(binding => binding.GrantId == grant.Id &&
+                             binding.AssetId == Guid.Empty) &&
                          !bindings.Any(binding => binding.GrantId == grant.Id &&
                              !activeAssets.Any(other => other.Id == binding.AssetId)))
                     )))
