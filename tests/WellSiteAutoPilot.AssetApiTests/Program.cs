@@ -135,12 +135,10 @@ static async Task<JsonElement> BodyAsync(
 static async Task CheckAsync(
     HttpResponseMessage response, HttpStatusCode expected, string operation)
 {
-    using (response)
-    {
-        if (response.StatusCode == expected) return;
-        var payload = await response.Content.ReadAsStringAsync();
-        throw new InvalidOperationException(
-            $"{operation}: expected {(int)expected}, got {(int)response.StatusCode}. " +
-            payload[..Math.Min(payload.Length, 512)]);
-    }
+    // BodyAsync retains ownership until it has parsed the payload.
+    if (response.StatusCode == expected) return;
+    var payload = await response.Content.ReadAsStringAsync();
+    throw new InvalidOperationException(
+        $"{operation}: expected {(int)expected}, got {(int)response.StatusCode}. " +
+        payload[..Math.Min(payload.Length, 512)]);
 }
