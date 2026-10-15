@@ -117,6 +117,7 @@ export const englishMessages = {
   'assets.createUncertain': 'Creation could not be confirmed. Refresh and check the Asset list before retrying.',
   'assets.createReadbackFailed': 'A create response was received, but the new Asset could not be verified. Refresh before retrying.',
   'assets.createSuccess': 'Asset {name} created and verified.',
+  'assets.createPendingAccess': 'Asset {name} was created, but you do not currently have permission to view it. Ask an administrator to grant access. Do not recreate it.',
   'assets.createSubmit': 'Create Asset',
   'assets.creating': 'Creating…',
   'assets.selectNamed': 'Select Asset {name}',
