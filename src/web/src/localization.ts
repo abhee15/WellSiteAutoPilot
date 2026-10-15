@@ -305,6 +305,7 @@ export const englishMessages = {
   'grants.inspectorExplain': 'Compare current access with recorded future grants for one Asset or deployment-wide permissions. This is a read-only diagnostic, not migration approval.',
   'grants.inspectorAsset': 'Inspect permissions for',
   'grants.inspectorSearch': 'Search Assets by name',
+  'roles.assignedRoleWarning': 'For security, permissions cannot be changed and an inactive role cannot be reactivated while active scoped assignments reference it. Retire its assignments first, then edit the role.',
   'grants.inspectorGlobal': 'Deployment-wide permissions only',
   'grants.inspect': 'Compare access',
   'grants.inspectorFailed': 'Could not verify access. Check permissions and reload before relying on this comparison.',
