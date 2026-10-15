@@ -10,6 +10,7 @@ public sealed class UserAccessClaimsMiddleware(RequestDelegate next)
     public async Task InvokeAsync(
         HttpContext context,
         UserAccessService userAccessService,
+        IAuthenticatedPrincipalResolver principalResolver,
         IOptions<SecurityOptions> options)
     {
         if (context.User.Identity?.IsAuthenticated == true)
