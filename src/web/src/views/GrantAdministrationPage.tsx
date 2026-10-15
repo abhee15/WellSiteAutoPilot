@@ -13,6 +13,7 @@ import { GrantAssetDirectoryError, loadGrantAssetDirectory } from './grantAssetD
 import { EffectiveAccessInspector } from './EffectiveAccessInspector';
 import { ProposedAssetAccessPanel } from './ProposedAssetAccessPanel';
 import { LegacyMigrationPreflightPanel } from './LegacyMigrationPreflightPanel';
+import { DeploymentMigrationPreflightPanel } from './DeploymentMigrationPreflightPanel';
 
 export function GrantAdministrationPage({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
@@ -218,6 +219,8 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
           </div>
         )}
       </section>
+      {!isLoading && !error && !pending && !retiring &&
+        <DeploymentMigrationPreflightPanel users={users} />}
       {selectedUser && !pending && !retiring && !error && !grantsLoading &&
         <EffectiveAccessInspector
           key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
