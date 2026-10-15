@@ -1,3 +1,4 @@
+import { isSecurityId as validId } from '../security/identifiers';
 import type { AssetDirectoryEntryResponse, CreateUserAccessGrantRequest } from '../api/generated/v1/types.gen';
 import type { RoleRecord, PermissionDefinition } from './roleCatalog';
 
@@ -11,15 +12,14 @@ export type GrantPreview = {
   effective: string[]; excluded: string[]; assetNames: string[];
   privileged: boolean;
 };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export class GrantValidationError extends Error {}
 
 /** Pure preview, not an authorization decision. The server is authoritative. */
 export function previewGrant(draft: GrantDraft, role: RoleRecord | null,
   catalog: readonly PermissionDefinition[], assets: readonly AssetChoice[],
   allowAllAssets: boolean): GrantPreview {
-  if (draft.subjectKind !== 'User' || !uuid.test(draft.userId) ||
-    !uuid.test(draft.roleId) || !role?.isActive ||
+  if (draft.subjectKind !== 'User' || !validId(draft.userId) ||
+    !validId(draft.roleId) || !role?.isActive ||
     draft.roleId.toLowerCase() !== role.roleId.toLowerCase() ||
     !Number.isSafeInteger(draft.expectedRoleRevision) || draft.expectedRoleRevision < 1 ||
     draft.expectedRoleRevision !== role.revision ||
@@ -31,7 +31,7 @@ export function previewGrant(draft: GrantDraft, role: RoleRecord | null,
   if (role.permissions.some(key => !definitions.has(key))) {
     throw new GrantValidationError('Unknown permission');
   }
-  const available = new Map(assets.filter(a => a.isActive && uuid.test(a.id))
+  const available = new Map(assets.filter(a => a.isActive && validId(a.id))
     .map(asset => [asset.id.toLowerCase(), asset]));
   const selected = draft.assetIds.map(x => x.toLowerCase());
   if (draft.scopeKind === 'ExactAssets' ?

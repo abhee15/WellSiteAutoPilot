@@ -1,3 +1,4 @@
+import { isSecurityId as validId } from '../security/identifiers';
 import type { AccessGrantResponse } from '../api/generated/v1/types.gen';
 import type { GrantDraft } from './scopedAccessGrants';
 
@@ -18,8 +19,6 @@ export class GrantApiError extends Error {
     super(kind);
   }
 }
-const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const validId = (value: string) => guid.test(value) && value !== '00000000-0000-0000-0000-000000000000';
 function parse(response: unknown): response is PersistedGrant {
   if (!response || typeof response !== 'object' || Array.isArray(response)) return false;
   const p = response as Partial<PersistedGrant>;

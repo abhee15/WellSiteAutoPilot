@@ -1,8 +1,8 @@
+import { isSecurityId as validId } from '../security/identifiers';
 import type { AssetChoice } from './scopedAccessGrants';
 
 const PAGE_SIZE = 200;
 const MAX_DIRECTORY_ASSETS = 20_000;
-const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class GrantAssetDirectoryError extends Error {
   constructor(public readonly kind: 'unavailable' | 'invalid' | 'tooLarge') {
@@ -42,7 +42,7 @@ export async function loadGrantAssetDirectory(signal: AbortSignal,
         throw new GrantAssetDirectoryError('invalid');
       }
       const { id, name, isActive } = item as Record<string, unknown>;
-      if (typeof id !== 'string' || !guid.test(id) ||
+      if (typeof id !== 'string' || !validId(id) ||
         typeof name !== 'string' || !name.trim() ||
         typeof isActive !== 'boolean' || ids.has(id.toLowerCase())) {
         throw new GrantAssetDirectoryError('invalid');
