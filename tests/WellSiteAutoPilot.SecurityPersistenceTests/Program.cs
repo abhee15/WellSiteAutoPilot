@@ -916,7 +916,7 @@ var inspector = new ScopedAccessInspectionService(
 // Another visible Asset, or a permission held by another role, must never
 // fill the first page or leak into the grant's effective Resource scope.
 var proposedAccess = new ProposedAssetAccessService(
-    accessGrantService, new ProposedAssetAccessRepository(dbContext));
+    accessGrantService, repository, new ProposedAssetAccessRepository(dbContext));
 var filteredPage = await proposedAccess.ListAsync(
     operatorUser.Id, WellSitePermissions.AssetsRead, 0, 1, assignmentActor);
 var beyondPage = await proposedAccess.ListAsync(
@@ -955,6 +955,18 @@ try
 }
 catch (WellSiteAutoPilotException exception)
     when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+
+try
+{
+    await proposedAccess.ListAsync(
+        Guid.NewGuid(), WellSitePermissions.AssetsRead, 0, 100, assignmentActor);
+    throw new InvalidOperationException(
+        "An unknown user returned a valid scoped access preview.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_USER_NOT_ACTIVE")
 {
 }
 
