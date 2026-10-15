@@ -209,6 +209,17 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 "An active matching grant already exists. Reload before retrying.",
                 innerException: exception);
         }
+        catch (InvalidOperationException exception)
+            when (exception.InnerException is PostgresException postgres &&
+                postgres.SqlState is
+                    PostgresErrorCodes.SerializationFailure or
+                    PostgresErrorCodes.DeadlockDetected)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
+                "Concurrent grant creation interrupted the transaction. Reload before retrying.",
+                innerException: exception);
+        }
 
         return new AccessGrant(id, AccessGrantSubjectKind.User,
             userId, null, role.Id, command.ScopeKind, scopeIds, true, 1);
@@ -303,6 +314,17 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         catch (PostgresException exception)
             when (exception.SqlState is PostgresErrorCodes.SerializationFailure or
                 PostgresErrorCodes.DeadlockDetected)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
+                "Concurrent security change. Reload before retrying.",
+                innerException: exception);
+        }
+        catch (InvalidOperationException exception)
+            when (exception.InnerException is PostgresException postgres &&
+                postgres.SqlState is
+                    PostgresErrorCodes.SerializationFailure or
+                    PostgresErrorCodes.DeadlockDetected)
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
