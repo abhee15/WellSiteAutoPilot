@@ -912,6 +912,73 @@ catch (WellSiteAutoPilotException exception)
 var inspector = new ScopedAccessInspectionService(
     accessGrantService, repository, new AccessGrantRepository(dbContext),
     new RoleCatalogRepository(dbContext), new AssetRepository(dbContext));
+// Proposed Asset-resource previews must filter in SQL *before* paging.
+// Another visible Asset, or a permission held by another role, must never
+// fill the first page or leak into the grant's effective Resource scope.
+var proposedAccess = new ProposedAssetAccessService(
+    accessGrantService, new ProposedAssetAccessRepository(dbContext));
+var filteredPage = await proposedAccess.ListAsync(
+    operatorUser.Id, WellSitePermissions.AssetsRead, 0, 1, assignmentActor);
+var beyondPage = await proposedAccess.ListAsync(
+    operatorUser.Id, WellSitePermissions.AssetsRead, 1, 1, assignmentActor);
+var noManage = await proposedAccess.ListAsync(
+    operatorUser.Id, WellSitePermissions.AssetsManage, 0, 100, assignmentActor);
+if (!filteredPage.IsDiagnosticOnly ||
+    filteredPage.Assets.Count != 1 ||
+    filteredPage.Assets.Single().Id != asset.Id ||
+    beyondPage.Assets.Count != 0 ||
+    noManage.Assets.Count != 0)
+{
+    throw new InvalidOperationException(
+        "Proposed SQL resource filtering leaked scope or applied paging too early.");
+}
+
+try
+{
+    await proposedAccess.ListAsync(operatorUser.Id,
+        WellSitePermissions.SecurityManage, 0, 100, assignmentActor);
+    throw new InvalidOperationException(
+        "A deployment-wide permission was accepted as resource scope.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_PREVIEW_QUERY_INVALID")
+{
+}
+try
+{
+    await proposedAccess.ListAsync(operatorUser.Id,
+        WellSitePermissions.AssetsRead, 0, 100,
+        new SecurityActorContext(
+            administrator.Id, administrator.IdentityName, "demoted-preview"));
+    throw new InvalidOperationException(
+        "A demoted administrator read proposed Asset access.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+
+// An explicit AllAssets grant authorizes resources only for its own user
+// and only for the role's resource permissions.
+var allAssetsDraft = await accessGrantService.CreateForUserAsync(
+    administrator.Id,
+    new CreateAccessGrantCommand(
+        grantCatalogRole.Id, AccessGrantScopeKind.AllAssets, []),
+    assignmentActor);
+var allAssetsPreview = await proposedAccess.ListAsync(
+    administrator.Id, WellSitePermissions.AssetsRead, 0, 500, assignmentActor);
+var otherUserPreview = await proposedAccess.ListAsync(
+    operatorUser.Id, WellSitePermissions.AssetsRead, 0, 500, assignmentActor);
+if (!allAssetsDraft.IsActive ||
+    !allAssetsPreview.Assets.Any(item => item.Id == asset.Id) ||
+    !allAssetsPreview.Assets.Any(item => item.Id == otherAsset.Id) ||
+    otherUserPreview.Assets.Count != 1 ||
+    otherUserPreview.Assets.Single().Id != asset.Id)
+{
+    throw new InvalidOperationException(
+        "AllAssets scope was not explicit or leaked between users.");
+}
+
 var matchingAsset = await inspector.InspectAsync(
     operatorUser.Id, asset.Id, assignmentActor);
 var otherAssetInspection = await inspector.InspectAsync(
