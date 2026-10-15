@@ -842,6 +842,66 @@ if (secondMigration.GrantsCreated != 0 ||
         "Retrying a completed migration changed grants or duplicated audits.");
 }
 
+// The migration rollback has separate explicit approval and is an atomic,
+// provenance-restricted, idempotent reversal of ONLY migration-created rows.
+// Production legacy roles and Asset scopes must survive unchanged.
+try
+{
+    await legacyMigration.RollbackAsync(false, assignmentActor);
+    throw new InvalidOperationException(
+        "Unconfirmed migration rollback was accepted.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_MIGRATION_CONFIRMATION_REQUIRED")
+{
+}
+try
+{
+    await legacyMigration.RollbackAsync(true,
+        new SecurityActorContext(
+            administrator.Id, administrator.IdentityName, "demoted-rollback"));
+    throw new InvalidOperationException(
+        "A demoted administrator rolled back migrated grants.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+var rollbackAuditCountBefore = await dbContext.AuditEvents.CountAsync(
+    item => item.Action == "security.grant.legacy-rolled-back");
+var migrationRollback = await legacyMigration.RollbackAsync(
+    true, assignmentActor);
+var migratedRowsAfterRollback = await dbContext.AccessGrants.AsNoTracking()
+    .Where(item => migrationIds.Contains(item.Id))
+    .ToArrayAsync();
+var operatorAfterRollback = await service.GetRequiredAsync(operatorUser.Id);
+if (migrationRollback.GrantsDeactivated != migrationIds.Length ||
+    migrationRollback.MigratedGrantsInspected != migrationIds.Length ||
+    !migrationRollback.LiveAuthorizationUnchanged ||
+    migratedRowsAfterRollback.Length != migrationIds.Length ||
+    migratedRowsAfterRollback.Any(item => item.IsActive || item.Revision != 2) ||
+    !operatorAfterRollback.Roles.SequenceEqual(preMigrationOperator.Roles) ||
+    !operatorAfterRollback.AssetScopeIds.SequenceEqual(
+        preMigrationOperator.AssetScopeIds) ||
+    await dbContext.AuditEvents.CountAsync(
+        item => item.Action == "security.grant.legacy-rolled-back") !=
+        rollbackAuditCountBefore + migrationIds.Length)
+{
+    throw new InvalidOperationException(
+        "Legacy migration rollback changed current RBAC, lost audit or failed atomic deactivation.");
+}
+var duplicateRollback = await legacyMigration.RollbackAsync(
+    true, assignmentActor);
+if (duplicateRollback.GrantsDeactivated != 0 ||
+    duplicateRollback.MigratedGrantsInspected != migrationIds.Length ||
+    await dbContext.AuditEvents.CountAsync(
+        item => item.Action == "security.grant.legacy-rolled-back") !=
+        rollbackAuditCountBefore + migrationIds.Length)
+{
+    throw new InvalidOperationException(
+        "Retrying rollback modified migration grants or duplicated audits.");
+}
+
 // Test fixture cleanup: remove only grants created by this isolated,
 // successful audit-only migration. Do not alter legacy roles or Asset scopes.
 await dbContext.AccessGrantAssets
