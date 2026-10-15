@@ -58,8 +58,10 @@ describe('Asset saved-view interaction', () => {
 
     await user.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect((search as HTMLInputElement).value).toBe('');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Saved Asset views' }),
-      { label: 'Pump wells' });
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Saved Asset views' }),
+      screen.getByRole('option', { name: 'Pump wells' })
+    );
     expect((search as HTMLInputElement).value).toBe('pump');
   });
 
