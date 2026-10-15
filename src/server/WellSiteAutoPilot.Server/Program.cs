@@ -139,6 +139,7 @@ builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddScoped<UserAccessService>();
 builder.Services.AddScoped<RoleCatalogService>();
 builder.Services.AddScoped<AccessGrantAdministrationService>();
+builder.Services.AddScoped<ScopedAccessInspectionService>();
 builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
