@@ -15,7 +15,7 @@ PROGRAM = (ROOT / "src/server/WellSiteAutoPilot.Server/Program.cs").read_text(
 class ApiAuthorizationInventoryTests(unittest.TestCase):
     def test_current_api_matches_reviewed_inventory(self):
         self.assertEqual(api_authorization.validate_routes(PROGRAM), [])
-        self.assertEqual(len(api_authorization.EXPECTED_ENDPOINTS), 35)
+        self.assertEqual(len(api_authorization.EXPECTED_ENDPOINTS), 37)
 
     def test_new_unreviewed_endpoint_is_rejected(self):
         original = 'app.MapHealthChecks("/health/live"'

@@ -85,6 +85,25 @@ assert inspection["userId"] == operator["userId"] and inspection["assetId"] == o
 request("GET", f"/security/users/{uuid.uuid4()}/effective-access", expected=404)
 request("GET", f"/security/users/{operator['userId']}/effective-access?assetId={uuid.uuid4()}", expected=404)
 
+# Bounded complete migration snapshots remain privileged diagnostics.
+user_preflight = f"/security/users/{operator['userId']}/migration-preflight"
+for route in [user_preflight, "/security/migration-preflight"]:
+    request("GET", route, None, expected=401)
+    request("GET", route, OPERATOR, expected=403)
+preview = request("GET", user_preflight)
+assert preview["isDiagnosticOnly"] is True and preview["userId"] == operator["userId"]
+assert preview["expansionCount"] > 0 and preview["recordedGrantsMatchLegacy"] is False
+assert len(preview["differenceSamples"]) <= 20
+request("GET", f"/security/users/{uuid.uuid4()}/migration-preflight", expected=404)
+deployment_preview = request("GET", "/security/migration-preflight")
+assert deployment_preview["isDiagnosticOnly"] is True
+assert deployment_preview["activeUserCount"] == len(deployment_preview["users"])
+assert deployment_preview["activeAssetCount"] == preview["activeAssetCount"]
+assert deployment_preview["expansionCount"] == sum(u["expansionCount"] for u in deployment_preview["users"])
+assert deployment_preview["reductionCount"] == sum(u["reductionCount"] for u in deployment_preview["users"])
+assert next(u for u in deployment_preview["users"] if u["userId"] == operator["userId"])["expansionCount"] == preview["expansionCount"]
+assert request("GET", path) == [grant]
+
 # A recorded future entitlement must not expand live legacy authorization.
 assert request("GET", "/assets", OPERATOR) == before_assets
 request("GET", f"/assets/{outside['id']}", OPERATOR, expected=403)
