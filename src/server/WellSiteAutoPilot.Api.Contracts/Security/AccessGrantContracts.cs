@@ -11,6 +11,8 @@ public sealed record AccessGrantResponse(
     bool IsActive,
     long Revision);
 
+public sealed record DeactivateUserAccessGrantRequest(long ExpectedRevision);
+
 public sealed record CreateUserAccessGrantRequest(
     Guid RoleId,
     string ScopeKind,

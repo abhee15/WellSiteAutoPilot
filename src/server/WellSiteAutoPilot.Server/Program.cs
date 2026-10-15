@@ -435,6 +435,30 @@ v1.MapPost(
         StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
+v1.MapPut(
+    "/security/users/{userId:guid}/grants/{grantId:guid}/deactivate",
+    async (
+        Guid userId,
+        Guid grantId,
+        DeactivateUserAccessGrantRequest request,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+        ToAccessGrantResponse(await grants.DeactivateForUserAsync(
+            userId, grantId, request.ExpectedRevision,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken)))
+    .WithName("DeactivateUserAccessGrant")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 v1.MapPost(
     "/asset-types",
     async (

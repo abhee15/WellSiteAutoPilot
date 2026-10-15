@@ -896,6 +896,43 @@ catch (WellSiteAutoPilotException exception)
 {
 }
 
+// Deactivation is an explicit, revision-fenced, audited draft-only mutation.
+var deactivated = await accessGrantService.DeactivateForUserAsync(
+    operatorUser.Id, persisted.Id, persisted.Revision, assignmentActor);
+if (deactivated.IsActive || deactivated.Revision != 2 ||
+    deactivated.AssetIds.Single() != asset.Id)
+{
+    throw new InvalidOperationException("Versioned grant deactivation failed.");
+}
+try
+{
+    await accessGrantService.DeactivateForUserAsync(
+        operatorUser.Id, persisted.Id, persisted.Revision, assignmentActor);
+    throw new InvalidOperationException("Stale deactivation was accepted.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_GRANT_CONFLICT")
+{
+}
+await using (var verification = new WellSiteAutoPilotDbContext(options))
+{
+    var inactive = await new AccessGrantRepository(verification)
+        .ListForUserAsync(operatorUser.Id);
+    if (inactive.Count != 1 || inactive.Single().IsActive ||
+        inactive.Single().Revision != 2)
+    {
+        throw new InvalidOperationException("Inactive grant did not round-trip.");
+    }
+    var audit = await verification.AuditEvents.AsNoTracking()
+        .SingleOrDefaultAsync(item => item.Action == "security.grant.deactivated" &&
+            item.TargetId == persisted.Id.ToString("D"));
+    if (audit is null || audit.ActorUserId != secondAdministrator.Id ||
+        audit.CorrelationId != "grant-test")
+    {
+        throw new InvalidOperationException("Deactivation audit missing.");
+    }
+}
+
 var grantAudit = await dbContext.AuditEvents.AsNoTracking()
     .Where(item => item.Action == "security.grant.created" &&
         item.TargetId == persisted.Id.ToString("D"))

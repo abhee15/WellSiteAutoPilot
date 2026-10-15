@@ -205,6 +205,113 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             userId, null, role.Id, command.ScopeKind, scopeIds, true, 1);
     }
 
+    public async Task<AccessGrant> DeactivateForUserAsync(
+        Guid userId, Guid grantId, long expectedRevision,
+        SecurityActorContext actor, DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        nowUtc = nowUtc.ToUniversalTime();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        var authorized = actor.UserId is { } adminId && adminId != userId &&
+            await dbContext.Users.AsNoTracking().AnyAsync(
+                user => user.Id == adminId && user.IsActive, cancellationToken) &&
+            await dbContext.UserRoles.AsNoTracking().AnyAsync(
+                role => role.UserId == adminId && role.Role == "Admin",
+                cancellationToken);
+        if (!authorized)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
+                "An active, distinct administrator is required.");
+        }
+        if (!await dbContext.Users.AsNoTracking().AnyAsync(
+            user => user.Id == userId && user.IsActive, cancellationToken))
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_USER_NOT_ACTIVE", FailureKind.NotFound,
+                "The target user is not active.");
+        }
+        var current = await dbContext.AccessGrants.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == grantId &&
+                item.SubjectKind == "User" && item.UserId == userId,
+                cancellationToken);
+        if (current is null)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_GRANT_NOT_FOUND", FailureKind.NotFound,
+                "Assignment not found for the specified user.");
+        }
+        if (!current.IsActive || current.Revision != expectedRevision)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
+                "Assignment revision changed. Reload before editing.");
+        }
+
+        try
+        {
+            // Atomic compare-and-set prevents stale writers and double audit.
+            var changed = await dbContext.AccessGrants
+                .Where(item => item.Id == grantId &&
+                    item.SubjectKind == "User" && item.UserId == userId &&
+                    item.IsActive && item.Revision == expectedRevision)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.IsActive, false)
+                    .SetProperty(item => item.Revision, item => item.Revision + 1)
+                    .SetProperty(item => item.UpdatedAtUtc, nowUtc),
+                    cancellationToken);
+            if (changed != 1)
+            {
+                throw new WellSiteAutoPilotException(
+                    "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
+                    "Assignment revision changed. Reload before editing.");
+            }
+
+            dbContext.AuditEvents.Add(new AuditEventEntity
+            {
+                Id = Guid.NewGuid(),
+                OccurredAtUtc = nowUtc,
+                ActorUserId = actor.UserId,
+                ActorIdentity = actor.IdentityName,
+                Action = "security.grant.deactivated",
+                TargetType = "security-access-grant",
+                TargetId = grantId.ToString("D"),
+                CorrelationId = actor.CorrelationId,
+                DetailsJson = JsonSerializer.Serialize(new
+                {
+                    userId, roleId = current.RoleId,
+                    scopeKind = current.ScopeKind,
+                    previousRevision = expectedRevision,
+                    newRevision = expectedRevision + 1,
+                    liveAuthorizationUnchanged = true
+                }, AuditOptions)
+            });
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (PostgresException exception)
+            when (exception.SqlState is PostgresErrorCodes.SerializationFailure or
+                PostgresErrorCodes.DeadlockDetected)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
+                "Concurrent security change. Reload before retrying.",
+                innerException: exception);
+        }
+
+        var assets = await dbContext.AccessGrantAssets.AsNoTracking()
+            .Where(item => item.GrantId == grantId)
+            .OrderBy(item => item.AssetId)
+            .Select(item => item.AssetId)
+            .ToArrayAsync(cancellationToken);
+        return new AccessGrant(current.Id, AccessGrantSubjectKind.User,
+            current.UserId, null, current.RoleId,
+            Enum.Parse<AccessGrantScopeKind>(current.ScopeKind),
+            assets, false, expectedRevision + 1);
+    }
+
     private static AccessGrant ToDomain(AccessGrantEntity row,
         IEnumerable<Guid> assetIds)
     {

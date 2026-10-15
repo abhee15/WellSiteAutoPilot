@@ -15,6 +15,11 @@ public interface IAccessGrantRepository
     Task<IReadOnlyCollection<AccessGrant>> ListForUserAsync(
         Guid userId, CancellationToken cancellationToken = default);
 
+    Task<AccessGrant> DeactivateForUserAsync(
+        Guid userId, Guid grantId, long expectedRevision,
+        SecurityActorContext actor, DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default);
+
     Task<AccessGrant> CreateForUserAsync(
         Guid userId, CreateAccessGrantCommand command,
         SecurityActorContext actor, DateTimeOffset nowUtc,
@@ -98,6 +103,31 @@ public sealed class AccessGrantAdministrationService(
         // change legacy claims or production resource authorization yet.
         return await grants.CreateForUserAsync(
             userId, command, actor, clock.GetUtcNow(), cancellationToken);
+    }
+
+    public async Task<AccessGrant> DeactivateForUserAsync(
+        Guid userId, Guid grantId, long expectedRevision,
+        SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        await RequireAdministratorAsync(actor, cancellationToken);
+        if (actor.UserId == userId)
+        {
+            throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException(
+                "SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN",
+                WellSiteAutoPilot.Failures.FailureKind.Authorization,
+                "Administrators may not change their own assignments.");
+        }
+        _ = await RequireActiveUserAsync(userId, cancellationToken);
+        if (grantId == Guid.Empty || expectedRevision < 1)
+        {
+            throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException(
+                "SECURITY_GRANT_REVISION_INVALID",
+                WellSiteAutoPilot.Failures.FailureKind.Validation,
+                "A valid grant and positive revision are required.");
+        }
+        return await grants.DeactivateForUserAsync(
+            userId, grantId, expectedRevision, actor, clock.GetUtcNow(),
+            cancellationToken);
     }
 
     private async Task<UserAccessProfile> RequireActiveUserAsync(
