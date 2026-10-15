@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import type {
   AssetCreationCapabilitiesResponse,
   AssetResponse,
@@ -52,7 +53,7 @@ export function AssetCreationPanel({
     ? canCreateRoot
     : parents.some(asset => asset.id === parentId);
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (pending.current || !hasOptions || !selectedParentValid || !selectedType) return;
     setNotice(null);
