@@ -20,6 +20,150 @@ public sealed class LegacyGrantMigrationRepository(WellSiteAutoPilotDbContext db
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// Atomic rollback of ALL still-active grants originally created by a
+    /// successful legacy migration. Provenance comes from the server-written
+    /// migration audit event, not from a caller-provided list of grant IDs.
+    /// Never deletes audit history and never edits compiled legacy RBAC.
+    /// </summary>
+    public async Task<LegacyGrantRollbackResult> RollbackAsync(
+        Guid administratorId,
+        string administratorIdentity,
+        string? correlationId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(administratorIdentity);
+        if (administratorId == Guid.Empty)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
+                "An active administrator is required.");
+        }
+        occurredAtUtc = occurredAtUtc.ToUniversalTime();
+
+        try
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable, cancellationToken);
+            var authorized = await db.Users.AsNoTracking().AnyAsync(
+                user => user.Id == administratorId && user.IsActive,
+                cancellationToken) &&
+                await db.UserRoles.AsNoTracking().AnyAsync(
+                    role => role.UserId == administratorId && role.Role == "Admin",
+                    cancellationToken);
+            if (!authorized)
+            {
+                throw new WellSiteAutoPilotException(
+                    "SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
+                    "A currently active administrator is required for rollback.");
+            }
+
+            // Every migrated assignment has a server-written audit record
+            // in the same transaction that created the assignment. Refuse
+            // any incomplete/oversize set rather than partially rolling back.
+            var auditTargets = await db.AuditEvents.AsNoTracking()
+                .Where(item => item.Action == "security.grant.legacy-migrated" &&
+                    item.TargetType == "security-access-grant")
+                .Select(item => item.TargetId)
+                .Take(601)
+                .ToArrayAsync(cancellationToken);
+            if (auditTargets.Length > 600 ||
+                auditTargets.Any(value => !Guid.TryParse(value, out var id) ||
+                    id == Guid.Empty))
+            {
+                throw Conflict(
+                    "Migration provenance is incomplete or exceeds safe rollback limits.");
+            }
+
+            var migrationIds = auditTargets.Select(value => Guid.Parse(value!))
+                .Distinct().ToArray();
+            if (migrationIds.Length != auditTargets.Length)
+            {
+                throw Conflict("Duplicate migration provenance requires manual review.");
+            }
+
+            var migratedRows = await db.AccessGrants.AsNoTracking()
+                .Where(grant => migrationIds.Contains(grant.Id))
+                .OrderBy(grant => grant.Id)
+                .ToArrayAsync(cancellationToken);
+            if (migratedRows.Length != migrationIds.Length ||
+                migratedRows.Any(grant =>
+                    grant.SubjectKind != "User" || grant.UserId is null ||
+                    grant.GroupSid is not null ||
+                    grant.RoleId == Guid.Empty || grant.Revision < 1 ||
+                    (grant.IsActive && grant.Revision != 1)))
+            {
+                throw Conflict(
+                    "A migrated assignment is missing, modified or malformed. No rollback performed.");
+            }
+
+            var active = migratedRows.Where(grant => grant.IsActive).ToArray();
+            if (active.Length == 0)
+            {
+                await tx.CommitAsync(cancellationToken);
+                return new LegacyGrantRollbackResult(
+                    migrationIds.Length, 0);
+            }
+
+            var activeIds = active.Select(grant => grant.Id).ToArray();
+            var changed = await db.AccessGrants
+                .Where(grant => activeIds.Contains(grant.Id) &&
+                    grant.SubjectKind == "User" && grant.IsActive &&
+                    grant.Revision == 1)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(grant => grant.IsActive, false)
+                    .SetProperty(grant => grant.Revision, 2L)
+                    .SetProperty(grant => grant.UpdatedAtUtc, occurredAtUtc),
+                    cancellationToken);
+            if (changed != active.Length)
+            {
+                throw Conflict(
+                    "A concurrent change prevented all-or-nothing rollback.");
+            }
+
+            foreach (var grant in active)
+            {
+                db.AuditEvents.Add(Audit(
+                    administratorId, administratorIdentity,
+                    correlationId, occurredAtUtc,
+                    "security.grant.legacy-rolled-back",
+                    grant.Id.ToString("D"),
+                    new
+                    {
+                        grant.UserId, grant.RoleId, grant.ScopeKind,
+                        previousRevision = 1, newRevision = 2,
+                        liveAuthorizationUnchanged = true
+                    }));
+            }
+            db.AuditEvents.Add(Audit(
+                administratorId, administratorIdentity,
+                correlationId, occurredAtUtc,
+                "security.legacy-grants.rollback-recorded",
+                administratorId.ToString("D"),
+                new
+                {
+                    migratedGrantsInspected = migrationIds.Length,
+                    grantsDeactivated = active.Length,
+                    liveAuthorizationUnchanged = true
+                }));
+
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+            return new LegacyGrantRollbackResult(
+                migrationIds.Length, active.Length);
+        }
+        catch (PostgresException exception) when (
+            exception.SqlState is
+                PostgresErrorCodes.SerializationFailure or
+                PostgresErrorCodes.DeadlockDetected)
+        {
+            throw Conflict(
+                "Concurrent security changes interrupted rollback. Inspect the current grants before retrying.",
+                exception);
+        }
+    }
+
     public async Task<LegacyGrantMigrationResult> MigrateAsync(
         Guid administratorId,
         string administratorIdentity,
