@@ -958,6 +958,33 @@ catch (WellSiteAutoPilotException exception)
 {
 }
 
+// Inactive resources must never appear in the SQL projection, even
+// before the grant has been explicitly retired. Roll back the test change.
+await using (var inactiveAssetTransaction =
+    await dbContext.Database.BeginTransactionAsync())
+{
+    await dbContext.Assets
+        .Where(item => item.Id == asset.Id)
+        .ExecuteUpdateAsync(setters => setters
+            .SetProperty(item => item.IsActive, false));
+    var inactivePage = await proposedAccess.ListAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead, 0, 100, assignmentActor);
+    if (inactivePage.Assets.Count != 0)
+    {
+        throw new InvalidOperationException(
+            "Proposed SQL projection included an inactive Asset.");
+    }
+    await inactiveAssetTransaction.RollbackAsync();
+}
+var restoredPage = await proposedAccess.ListAsync(
+    operatorUser.Id, WellSitePermissions.AssetsRead, 0, 100, assignmentActor);
+if (restoredPage.Assets.Count != 1 ||
+    restoredPage.Assets.Single().Id != asset.Id)
+{
+    throw new InvalidOperationException(
+        "Rolled-back Asset state was not reflected in proposed authorization.");
+}
+
 // An explicit AllAssets grant authorizes resources only for its own user
 // and only for the role's resource permissions.
 var allAssetsDraft = await accessGrantService.CreateForUserAsync(
