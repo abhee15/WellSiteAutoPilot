@@ -377,6 +377,39 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
+// Explicit, audited grant materialization from the current legacy model.
+// Performs complete serializable transaction parity validation and declines
+// conflicting active grants. It NEVER changes LIVE authorization policies.
+v1.MapPost(
+    "/security/materialize-legacy-grants",
+    async (
+        MaterializeLegacyGrantsRequest request,
+        LegacyGrantMigrationService migration,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await migration.MigrateAsync(
+            request.Confirmed,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new MaterializeLegacyGrantsResponse(
+            result.ActiveUsersInspected, result.ActiveAssetsInspected,
+            result.GrantsCreated, result.UsersAlreadyMatching,
+            result.RecordedGrantsMatchLegacy,
+            result.LiveAuthorizationUnchanged);
+    })
+    .WithName("MaterializeLegacyAccessGrants")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<MaterializeLegacyGrantsResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 // Complete bounded deployment parity preview, using one consistent
 // database snapshot across ALL users, roles, grants and Assets. Admin-only,
 // read-only, and never authorization cutover approval.
