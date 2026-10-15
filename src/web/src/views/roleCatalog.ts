@@ -117,6 +117,10 @@ export function roleChanged(role: RoleRecord, next: RoleMutation): boolean {
     [...role.permissions].sort().join('|') !== [...next.permissions].sort().join('|');
 }
 
+function hasAsciiControls(value: string): boolean {
+  return [...value].some(character => character.charCodeAt(0) < 0x20);
+}
+
 export function validateRoleMutation(
   mutation: RoleMutation, allowedPermissions: readonly string[],
 ): RoleMutation {
@@ -124,9 +128,9 @@ export function validateRoleMutation(
   const description = mutation.description.trim();
   const permissions = [...new Set(mutation.permissions)].sort();
   const allowed = new Set(allowedPermissions);
-  if (name.length < 2 || name.length > 80 || /[\x00-\x1f]/.test(name) ||
+  if (name.length < 2 || name.length > 80 || hasAsciiControls(name) ||
     /^(admin|engineer|operator)$/i.test(name) ||
-    description.length > 500 || /[\x00-\x1f]/.test(description) ||
+    description.length > 500 || hasAsciiControls(description) ||
     permissions.length !== mutation.permissions.length ||
     permissions.some(p => !allowed.has(p))) throw new RoleCatalogError('invalid');
   return { name, description, permissions, isActive: mutation.isActive };
