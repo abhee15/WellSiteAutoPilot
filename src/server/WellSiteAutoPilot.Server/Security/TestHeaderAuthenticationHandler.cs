@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -20,6 +21,17 @@ public sealed class TestHeaderAuthenticationHandler(
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        // This mode has no cryptographic authentication: its caller can claim
+        // any development identity. Never accept it from another machine,
+        // even when ASPNETCORE_ENVIRONMENT is accidentally left at Development.
+        if (Context.Connection.RemoteIpAddress is not { } remoteAddress ||
+            !IPAddress.IsLoopback(remoteAddress))
+        {
+            return Task.FromResult(
+                AuthenticateResult.Fail(
+                    "TestHeader authentication accepts loopback requests only."));
+        }
+
         if (!Request.Headers.TryGetValue(
                 IdentityHeader,
                 out var identityValues) ||
