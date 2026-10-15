@@ -1005,6 +1005,44 @@ if (expandedPreflight.RecordedGrantsMatchLegacy ||
         "Migration preflight missed a persisted Asset permission expansion.");
 }
 
+// Whole-deployment read-only parity must share a single consistent
+// PostgreSQL snapshot for every user, role, grant, and active Asset.
+var deploymentPreflight = new DeploymentMigrationPreflightService(
+    accessGrantService, new DeploymentMigrationSnapshotRepository(dbContext));
+var deploymentAuditsBefore = await dbContext.AuditEvents.CountAsync();
+var deploymentReport = await deploymentPreflight.InspectAsync(assignmentActor);
+var deploymentAuditsAfter = await dbContext.AuditEvents.CountAsync();
+var operatorSummary = deploymentReport.Users.Single(item =>
+    item.UserId == operatorUser.Id);
+var probeSummary = deploymentReport.Users.Single(item =>
+    item.UserId == parityProbeUser.Id);
+if (!deploymentReport.IsDiagnosticOnly ||
+    deploymentReport.AllActiveUsersMatchRecordedGrants ||
+    deploymentReport.ActiveUserCount < 3 ||
+    deploymentReport.ActiveUserCount != deploymentReport.Users.Count ||
+    deploymentReport.MatchingUserCount >= deploymentReport.ActiveUserCount ||
+    deploymentReport.ActiveAssetCount != expandedPreflight.ActiveAssetCount ||
+    deploymentReport.ExpansionCount < probeSummary.ExpansionCount ||
+    deploymentReport.ReductionCount < operatorSummary.ReductionCount ||
+    probeSummary.ExpansionCount != 1 ||
+    operatorSummary.ReductionCount != preflightReport.ReductionCount ||
+    deploymentAuditsAfter != deploymentAuditsBefore)
+{
+    throw new InvalidOperationException(
+        "Deployment preflight did not detect cross-user parity drift read-only.");
+}
+try
+{
+    await deploymentPreflight.InspectAsync(new SecurityActorContext(
+        administrator.Id, administrator.IdentityName, "demoted-deployment"));
+    throw new InvalidOperationException(
+        "A demoted admin inspected the complete deployment.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+
 // A lexicographically earlier unauthorized resource catches regressions
 // that page all Assets first and only then check permissions.
 var unassignedEarlyAsset = await assetService.CreateAssetAsync(
