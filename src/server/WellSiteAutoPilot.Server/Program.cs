@@ -373,6 +373,46 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
+// Read-only diagnostic: evaluate every registered permission against
+// legacy live RBAC and the stored, inactive-for-runtime scoped-grant model.
+// A single Asset inspection never certifies whole-deployment migration parity.
+v1.MapGet(
+    "/security/users/{userId:guid}/effective-access",
+    async (
+        Guid userId,
+        Guid? assetId,
+        ScopedAccessInspectionService inspector,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var inspection = await inspector.InspectAsync(
+            userId, assetId,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new ScopedAccessInspectionResponse(
+            inspection.UserId,
+            inspection.AssetId,
+            inspection.AssetName,
+            inspection.Permissions.Select(item =>
+                new PermissionAccessComparisonResponse(
+                    item.Permission, item.ScopeKind,
+                    item.LegacyAllowed, item.ProposedAllowed,
+                    item.ProposedReasonCode, item.ProposedGrantId)).ToArray(),
+            inspection.WideningCount, inspection.ReductionCount,
+            inspection.IsDiagnosticOnly);
+    })
+    .WithName("InspectUserEffectiveAccess")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<ScopedAccessInspectionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 // Additive grants are recorded and audited but do not alter legacy
 // authorization until the parity-verified entitlement cutover is complete.
 v1.MapGet(
