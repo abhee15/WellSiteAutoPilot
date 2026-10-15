@@ -34,6 +34,15 @@ before(async () => {
       response.end(JSON.stringify({ identity: identity ?? null, displayName }));
       return;
     }
+    if (request.url === '/api/v1/authorization-probe') {
+      response.writeHead(200);
+      response.end(JSON.stringify({
+        identity: identity ?? null,
+        authorization: request.headers.authorization ?? null,
+        proxyAuthorization: request.headers['proxy-authorization'] ?? null
+      }));
+      return;
+    }
     if (request.url !== '/api/v1/security/me') {
       response.writeHead(404);
       response.end('{}');
@@ -105,6 +114,21 @@ test('browser-supplied identity and display assertions never override server ide
   assert.deepEqual(await response.json(), {
     identity: developmentIdentity,
     displayName: null
+  });
+});
+
+test('synthetic identity proxy strips browser bearer and proxy authorization', async () => {
+  const response = await fetch(frontendBase + '/api/v1/authorization-probe', {
+    headers: {
+      Authorization: 'Bearer browser-token-that-must-not-be-forwarded',
+      'Proxy-Authorization': 'Basic client-provided-credentials'
+    }
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    identity: developmentIdentity,
+    authorization: null,
+    proxyAuthorization: null
   });
 });
 
