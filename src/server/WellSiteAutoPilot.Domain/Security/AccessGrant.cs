@@ -9,7 +9,8 @@ public enum AccessGrantSubjectKind
 public enum AccessGrantScopeKind
 {
     ExactAssets = 0,
-    DeploymentWide = 1
+    DeploymentWide = 1,
+    AllAssets = 2
 }
 
 /// <summary>

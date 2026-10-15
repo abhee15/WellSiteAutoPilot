@@ -711,6 +711,54 @@ if (!ScopedGrantEvaluator.Authorize(
     throw new InvalidOperationException("Deployment-wide permission scope validation failed.");
 }
 
+// A mixed-purpose Engineer role must not have its Asset permissions leaked
+// by a separate deployment-wide grant for non-Asset catalog permissions.
+var mixedRole = new RoleDefinition(
+    Guid.NewGuid(), "test-mixed-role", "Mixed Role", "", false, true, 1,
+    clock.GetUtcNow(), clock.GetUtcNow(),
+    [WellSitePermissions.LogicRead, WellSitePermissions.AssetsManage]);
+var globalLogicGrant = engineerGrant with
+{
+    Id = Guid.NewGuid(),
+    RoleId = mixedRole.Id,
+    ScopeKind = AccessGrantScopeKind.DeploymentWide,
+    AssetIds = []
+};
+var exactMixedGrant = globalLogicGrant with
+{
+    Id = Guid.NewGuid(),
+    ScopeKind = AccessGrantScopeKind.ExactAssets,
+    AssetIds = [wellA]
+};
+var explicitAllAssets = globalLogicGrant with
+{
+    Id = Guid.NewGuid(),
+    ScopeKind = AccessGrantScopeKind.AllAssets
+};
+
+if (!ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.LogicRead, null, activeWellIds,
+        [globalLogicGrant], [mixedRole]).Allowed ||
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsManage, wellB, activeWellIds,
+        [globalLogicGrant, exactMixedGrant], [mixedRole]).Allowed ||
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.LogicRead, null, activeWellIds,
+        [exactMixedGrant], [mixedRole]).Allowed ||
+    !ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsManage, wellB, activeWellIds,
+        [explicitAllAssets], [mixedRole]).Allowed ||
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.LogicRead, null, activeWellIds,
+        [explicitAllAssets], [mixedRole]).Allowed ||
+    ScopedGrantEvaluator.Authorize(
+        grantUserId, true, WellSitePermissions.AssetsManage, wellB, activeWellIds,
+        [explicitAllAssets with { AssetIds = [wellA] }], [mixedRole]).Allowed)
+{
+    throw new InvalidOperationException(
+        "Deployment-wide and explicit all-Asset grants leaked permissions across scope classes.");
+}
+
 Console.WriteLine(
     "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;

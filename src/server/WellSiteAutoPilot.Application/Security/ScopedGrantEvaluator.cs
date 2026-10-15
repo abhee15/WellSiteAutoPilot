@@ -78,18 +78,33 @@ public static class ScopedGrantEvaluator
 
             if (grant.ScopeKind == AccessGrantScopeKind.DeploymentWide)
             {
-                if (grant.AssetIds.Count != 0)
+                // Deployment-wide (e.g. Logic Catalog) is not equivalent to
+                // All Assets. Never turn a global Logic permission into an
+                // Asset-management grant when the role contains both kinds.
+                if (!scoped && grant.AssetIds.Count == 0)
                 {
-                    // Ambiguous deployment-wide grants are not accepted.
-                    continue;
+                    return new(true, Allowed, grant.Id, grant.SubjectKind);
                 }
 
-                return new(true, Allowed, grant.Id, grant.SubjectKind);
+                continue;
+            }
+
+            if (grant.ScopeKind == AccessGrantScopeKind.AllAssets)
+            {
+                // This scope requires an explicitly privileged administrative
+                // assignment; it is never inferred from a parent Asset.
+                if (scoped && grant.AssetIds.Count == 0)
+                {
+                    return new(true, Allowed, grant.Id, grant.SubjectKind);
+                }
+
+                continue;
             }
 
             if (grant.ScopeKind != AccessGrantScopeKind.ExactAssets ||
                 grant.AssetIds.Count == 0 ||
                 grant.AssetIds.Any(id => id == Guid.Empty) ||
+                grant.AssetIds.Any(id => !activeAssetIds.Contains(id)) ||
                 !scoped)
             {
                 continue;
