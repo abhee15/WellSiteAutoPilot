@@ -811,6 +811,60 @@ if (!draftAccessAfter.Roles.SequenceEqual(draftAccessBefore.Roles) ||
     throw new InvalidOperationException("New grant unexpectedly changed effective legacy access.");
 }
 
+// A migration preview must reproduce the complete legacy role × Asset
+// cross-product, with separate DeploymentWide and resource grants. This is
+// deliberately read-only and not sufficient to approve production cutover.
+IReadOnlySet<Guid> knownMigrationAssets = new HashSet<Guid>
+{
+    asset.Id, otherAsset.Id
+};
+var operatorMigration = LegacyGrantMigrationPlanner.PreviewForKnownAssets(
+    draftAccessBefore, builtin, knownMigrationAssets);
+if (operatorMigration.Count != 2 ||
+    operatorMigration.Count(item =>
+        item.ScopeKind == AccessGrantScopeKind.DeploymentWide) != 1 ||
+    operatorMigration.Count(item =>
+        item.ScopeKind == AccessGrantScopeKind.ExactAssets &&
+        item.AssetIds.SequenceEqual([asset.Id])) != 1)
+{
+    throw new InvalidOperationException(
+        "Legacy Operator migration did not preserve mixed scope semantics.");
+}
+var adminMigration = LegacyGrantMigrationPlanner.PreviewForKnownAssets(
+    await service.GetRequiredAsync(secondAdministrator.Id),
+    builtin, knownMigrationAssets);
+if (adminMigration.Count != 2 ||
+    !adminMigration.Any(item => item.ScopeKind == AccessGrantScopeKind.AllAssets) ||
+    !adminMigration.Any(item => item.ScopeKind == AccessGrantScopeKind.DeploymentWide))
+{
+    throw new InvalidOperationException(
+        "Legacy administrator migration lost AllAssets or deployment permissions.");
+}
+try
+{
+    _ = LegacyGrantMigrationPlanner.PreviewForKnownAssets(
+        draftAccessBefore, builtin, new HashSet<Guid> { otherAsset.Id });
+    throw new InvalidOperationException("Migration silently dropped the user's Asset scope.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_LEGACY_MIGRATION_PARITY_FAILED")
+{
+}
+var alteredBuiltin = builtin.Select(role =>
+    role.Name == "Operator"
+        ? role with { Permissions = [WellSitePermissions.AssetsManage] }
+        : role).ToArray();
+try
+{
+    _ = LegacyGrantMigrationPlanner.PreviewForKnownAssets(
+        draftAccessBefore, alteredBuiltin, knownMigrationAssets);
+    throw new InvalidOperationException("Migration accepted system-role permission drift.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_LEGACY_MIGRATION_PARITY_FAILED")
+{
+}
+
 // Compare actual persisted direct-user grants against current production
 // roles for one explicitly selected active Asset. This is diagnostic only;
 // it cannot certify whole-deployment authorization equivalence.
