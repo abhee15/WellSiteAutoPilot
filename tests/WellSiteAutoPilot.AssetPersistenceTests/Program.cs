@@ -115,5 +115,98 @@ if (noParentMatch.Count != 0)
     throw new InvalidOperationException("Parent filtering leaked Assets outside the authorized scope.");
 }
 
+
+// Standard JSON Schema subset is enforced by the server *before* PostgreSQL
+// persistence. Reject missing/wrong/out-of-range/unknown attributes even if
+// they are syntactically valid JSON.
+var depthType = await service.CreateAssetTypeAsync(
+    new CreateAssetTypeCommand(
+        "well-depth", "Well with measured depth",
+        """{"type":"object","required":["depth"],"properties":{"depth":{"type":"number","minimum":0},"name":{"type":"string","minLength":2}},"additionalProperties":false}"""));
+var measuredWell = await service.CreateAssetAsync(
+    new CreateAssetCommand(depthType.Id, "Measured Well", parent.Id,
+        """{"depth":250.5,"name":"A1"}"""));
+if ((await service.GetRequiredAssetAsync(measuredWell.Id)).Name != "Measured Well")
+{
+    throw new InvalidOperationException("Schema-valid Asset was not persisted.");
+}
+
+foreach (var invalid in new[]
+{
+    "{}",
+    """{"depth":"250"}""",
+    """{"depth":-1}""",
+    """{"depth":200,"extra":"not defined"}""",
+    """{"depth":200,"name":"A"}""",
+    """["not an object"]""",
+    "{this is not JSON}"
+})
+{
+    await AssertFailureAsync(
+        () => service.CreateAssetAsync(
+            new CreateAssetCommand(depthType.Id, "Rejected", parent.Id, invalid)),
+        "ASSET_ATTRIBUTE_VALUES_INVALID");
+}
+
+// Reject schema keywords not included in the reviewed V1 offline profile;
+// especially prevent file/HTTP reference resolution.
+foreach (var unsafeSchema in new[]
+{
+    """{"$ref":"https://example.com/evil.json"}""",
+    """{"type":"object","properties":{"x":{"$ref":"file:///etc/passwd"}}}""",
+    """{"type":"object","allOf":[{"type":"object"}]}""",
+    """{"type":"object","properties":{"x":{"type":"string","pattern":"(a+)+"}}}""",
+    """{"type":"array"}""",
+    """{"type":"object","properties":{"x":{"type":"mystery"}}}""",
+    """{"type":"object","additionalProperties":{"type":"string"}}"""
+})
+{
+    await AssertFailureAsync(
+        () => service.CreateAssetTypeAsync(
+            new CreateAssetTypeCommand("unsafe-" + Guid.NewGuid(), "Unsafe", unsafeSchema)),
+        "ASSET_ATTRIBUTE_SCHEMA_UNSUPPORTED");
+}
+
+await AssertFailureAsync(
+    () => service.CreateAssetTypeAsync(
+        new CreateAssetTypeCommand("invalid-json", "Invalid", "{invalid")),
+    "ASSET_ATTRIBUTE_SCHEMA_INVALID");
+await AssertFailureAsync(
+    () => service.CreateAssetTypeAsync(
+        new CreateAssetTypeCommand("huge-json", "Huge",
+            new string(' ', 32769) + "{}")),
+    "ASSET_ATTRIBUTE_SCHEMA_INVALID");
+await AssertFailureAsync(
+    () => service.CreateAssetAsync(
+        new CreateAssetCommand(depthType.Id, "Huge", parent.Id,
+            new string(' ', 65537) + "{}")),
+    "ASSET_ATTRIBUTE_VALUES_INVALID");
+
+// The schema path must validate old rows as well as newly created types.
+var legacyType = await service.CreateAssetTypeAsync(
+    new CreateAssetTypeCommand("legacy-row", "Legacy Row", "{}"));
+var trackedType = await dbContext.AssetTypes.SingleAsync(x => x.Id == legacyType.Id);
+trackedType.AttributeSchemaJson = """{"$ref":"https://example.com/must-not-fetch"}""";
+await dbContext.SaveChangesAsync();
+await AssertFailureAsync(
+    () => service.CreateAssetAsync(
+        new CreateAssetCommand(legacyType.Id, "Blocked legacy row", parent.Id, "{}")),
+    "ASSET_ATTRIBUTE_SCHEMA_UNSUPPORTED");
+
+static async Task AssertFailureAsync(Func<Task> operation, string expectedCode)
+{
+    try
+    {
+        await operation();
+    }
+    catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException ex)
+    {
+        if (ex.Code == expectedCode) return;
+        throw new InvalidOperationException(
+            $"Expected failure {expectedCode}, observed {ex.Code}.", ex);
+    }
+    throw new InvalidOperationException($"Expected {expectedCode}, operation succeeded.");
+}
+
 Console.WriteLine("Asset type and hierarchical asset persistence checks passed.");
 return 0;
