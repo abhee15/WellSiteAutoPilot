@@ -9,6 +9,8 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
+import check_api_authorization
+
 GENERATED_PREFIX = "src/web/src/api/generated/"
 GENERATED_ALLOWED = {"src/web/src/api/generated/README.md"}
 
@@ -93,6 +95,13 @@ def main() -> int:
     root = args.repo.resolve()
     try:
         errors = validate_references(root)
+        # Fail the existing CI conventions job when a protected API changes its
+        # reviewed route name or legacy authorization metadata. This remains a
+        # static tripwire, not scoped-grant enforcement or cutover approval.
+        program = root / "src/server/WellSiteAutoPilot.Server/Program.cs"
+        errors += check_api_authorization.validate_routes(
+            program.read_text(encoding="utf-8")
+        )
         if args.base_sha:
             errors += validate_changed_paths(changed_paths(root, args.base_sha))
     except (OSError, ET.ParseError, subprocess.CalledProcessError) as error:
