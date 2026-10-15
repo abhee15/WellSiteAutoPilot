@@ -44,3 +44,24 @@ public sealed record ProposedAssetAccessResponse(
     int Limit,
     IReadOnlyCollection<ProposedAuthorizedAssetResponse> Assets,
     bool IsDiagnosticOnly);
+
+public sealed record LegacyMigrationDifferenceResponse(
+    Guid? AssetId,
+    string Permission,
+    bool LegacyAllowed,
+    bool RecordedGrantAllowed);
+
+/// <summary>
+/// Diagnostic snapshot of one user's legacy-versus-recorded grant parity.
+/// Never represents an approved, locked or persisted authorization cutover.
+/// </summary>
+public sealed record LegacyMigrationPreflightResponse(
+    Guid UserId,
+    int ActiveAssetCount,
+    int ExpectedLegacyGrantCount,
+    int RecordedGrantCount,
+    int ExpansionCount,
+    int ReductionCount,
+    IReadOnlyCollection<LegacyMigrationDifferenceResponse> DifferenceSamples,
+    bool RecordedGrantsMatchLegacy,
+    bool IsDiagnosticOnly);
