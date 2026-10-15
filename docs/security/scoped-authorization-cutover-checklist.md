@@ -29,10 +29,10 @@ an enforcement switch based solely on this document or passing migration CI.**
 | POST /assets with parent | assets.manage | Check parent Asset under the same resource permission before creating |
 | POST /assets at root | assets.manage + explicit admin rule | Do not infer universal rights from one scoped asset |
 | POST /asset-types; GET /asset-types | current assets.manage / assets.read | **Design decision required:** type catalog is deployment-wide without an Asset. Keep a strict admin-only bridge until a dedicated global catalog permission is introduced; never infer a universal scope |
-| GET /configured-logic and /configured-logic/{id} | configured_logic.read | Filter by **every bound Asset in every disclosed revision** before limit/response |
-| POST /configured-logic | configured_logic.manage | Verify all distinct Asset bindings and associated data-binding Assets; reject empty/unproven scopes |
-| POST configured-logic revision | configured_logic.manage | Authorize existing revision Assets AND requested new Assets; forbid changing from an authorized revision to an unauthorized one |
-| Validate/activate a revision | configured_logic.manage | Re-resolve all revision bindings from persistence at action time; no stale client-supplied Asset list |
+| GET /configured-logic and /configured-logic/{id} | configured-logic.read | Filter by **every bound Asset in every disclosed revision** before limit/response |
+| POST /configured-logic | configured-logic.manage | Verify all distinct Asset bindings and associated data-binding Assets; reject empty/unproven scopes |
+| POST configured-logic revision | configured-logic.manage | Authorize existing revision Assets AND requested new Assets; forbid changing from an authorized revision to an unauthorized one |
+| Validate/activate a revision | configured-logic.manage | Re-resolve all revision bindings from persistence at action time; no stale client-supplied Asset list |
 | GET /executions and /executions/{id} | executions.read | Filter before pagination; include all V1 Asset and V2 execution Asset scopes |
 | POST /executions/shadow | executions.request | Authorize the target Asset before writing an execution/outbox request; no cross-scope execution |
 | GET /recommendations and /recommendations/{id} | recommendations.read | Filter by persisted target Asset before paging or materializing a response |
