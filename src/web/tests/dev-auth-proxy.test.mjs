@@ -1,3 +1,4 @@
+/* global process, fetch */
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import http from 'node:http';
