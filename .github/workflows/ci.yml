@@ -221,6 +221,10 @@ jobs:
         working-directory: src/web
         run: npm run test:ui
 
+      - name: Test frontend interactions
+        working-directory: src/web
+        run: npm run test:interaction
+
       - name: Build frontend
         working-directory: src/web
         run: npm run build
