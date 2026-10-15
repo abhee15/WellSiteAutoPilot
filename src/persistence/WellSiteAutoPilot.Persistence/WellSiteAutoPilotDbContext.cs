@@ -255,7 +255,15 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .OnDelete(DeleteBehavior.Cascade);
 
         var grant = modelBuilder.Entity<AccessGrantEntity>();
-        grant.ToTable("access_grants", "security");
+        grant.ToTable("access_grants", "security", table =>
+        {
+            table.HasCheckConstraint("CK_access_grants_subject",
+                "\"SubjectKind\" = 'User' AND \"UserId\" IS NOT NULL AND \"GroupSid\" IS NULL OR " +
+                "\"SubjectKind\" = 'WindowsGroup' AND \"UserId\" IS NULL AND \"GroupSid\" IS NOT NULL");
+            table.HasCheckConstraint("CK_access_grants_scope_kind",
+                "\"ScopeKind\" IN ('ExactAssets', 'DeploymentWide', 'AllAssets')");
+            table.HasCheckConstraint("CK_access_grants_revision", "\"Revision\" >= 1");
+        });
         grant.HasKey(item => item.Id);
         grant.Property(item => item.SubjectKind).HasMaxLength(32).IsRequired();
         grant.Property(item => item.GroupSid).HasMaxLength(256);

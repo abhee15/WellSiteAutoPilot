@@ -277,7 +277,15 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.HasIndex("UserId", "RoleId", "ScopeKind")
                     .IsUnique()
                     .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'User'");
-                entity.ToTable("access_grants", "security");
+                entity.ToTable("access_grants", "security", table =>
+                {
+                    table.HasCheckConstraint("CK_access_grants_subject",
+                        "\"SubjectKind\" = 'User' AND \"UserId\" IS NOT NULL AND \"GroupSid\" IS NULL OR " +
+                        "\"SubjectKind\" = 'WindowsGroup' AND \"UserId\" IS NULL AND \"GroupSid\" IS NOT NULL");
+                    table.HasCheckConstraint("CK_access_grants_scope_kind",
+                        "\"ScopeKind\" IN ('ExactAssets', 'DeploymentWide', 'AllAssets')");
+                    table.HasCheckConstraint("CK_access_grants_revision", "\"Revision\" >= 1");
+                });
             });
 
         modelBuilder.Entity(
