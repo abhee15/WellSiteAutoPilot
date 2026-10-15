@@ -22,8 +22,17 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         var rows = await dbContext.AccessGrants.AsNoTracking()
             .Where(item => item.SubjectKind == "User" && item.UserId == userId)
             .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Id)
-            .Take(500)
+            .Take(501)
             .ToArrayAsync(cancellationToken);
+
+        // Never silently truncate entitlements: the inspector and UI must
+        // not claim a partial set represents the user's access.
+        if (rows.Length > 500)
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_GRANT_LIST_TOO_LARGE", FailureKind.Validation,
+                "The user has too many assignment records for a complete inspection.");
+        }
 
         if (rows.Length == 0)
         {
