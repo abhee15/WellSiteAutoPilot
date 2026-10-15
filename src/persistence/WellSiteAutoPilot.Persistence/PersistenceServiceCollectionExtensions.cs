@@ -37,6 +37,10 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IProposedAssetAccessRepository, ProposedAssetAccessRepository>();
         services.AddScoped<IScopedAccessInspectionAuditRepository, ScopedAccessInspectionAuditRepository>();
 
+        services.AddScoped<ILegacyMigrationSnapshotRepository, LegacyMigrationSnapshotRepository>();
+        services.AddScoped<IDeploymentMigrationSnapshotRepository, DeploymentMigrationSnapshotRepository>();
+        services.AddScoped<ILegacyMigrationPreflightAuditRepository, LegacyMigrationPreflightAuditRepository>();
+
         return services;
     }
 }

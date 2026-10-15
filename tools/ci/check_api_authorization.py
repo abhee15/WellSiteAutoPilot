@@ -24,6 +24,8 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/security/roles/{roleId:guid}"): ("GetSecurityRole", "SecurityManage"),
     ("POST", "/security/roles"): ("CreateSecurityRole", "SecurityManage"),
     ("PUT", "/security/roles/{roleId:guid}"): ("UpdateSecurityRole", "SecurityManage"),
+    ("GET", "/security/migration-preflight"): ("InspectDeploymentLegacyMigration", "SecurityManage"),
+    ("GET", "/security/users/{userId:guid}/migration-preflight"): ("InspectLegacyGrantMigration", "SecurityManage"),
     ("GET", "/security/users/{userId:guid}/effective-access"): ("InspectUserEffectiveAccess", "SecurityManage"),
     ("GET", "/security/users/{userId:guid}/grants"): ("ListUserAccessGrants", "SecurityManage"),
     ("POST", "/security/users/{userId:guid}/grants"): ("CreateUserAccessGrant", "SecurityManage"),
