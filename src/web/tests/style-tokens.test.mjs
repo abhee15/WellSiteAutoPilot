@@ -51,7 +51,10 @@ function frontendCss(dir) {
 test('token values reproduce reviewed existing visual CSS without declaration changes', () => {
   // Git on Windows may check out CSS with CRLF. Normalize only line endings;
   // declarations, selector order, whitespace and token values must still match.
-  assert.equal(signature(expand(css).replace(/\r\n/g, '\n')), originalStyleSignature);
+  const baseline = css.replace(/\r\n/g, '\n').split('\n/* Asset creation:')[0];
+  assert.notEqual(baseline, css.replace(/\r\n/g, '\n'),
+    'Missing feature stylesheet boundary');
+  assert.equal(signature(expand(baseline)), originalStyleSignature);
 });
 
 test('semantic references only resolve through declared palette or foundational tokens', () => {
