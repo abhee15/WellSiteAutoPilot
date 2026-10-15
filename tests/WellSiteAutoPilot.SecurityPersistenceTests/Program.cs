@@ -896,6 +896,30 @@ catch (WellSiteAutoPilotException exception)
 {
 }
 
+// A demoted historical administrator must not be able to retire grants.
+try
+{
+    await accessGrantService.DeactivateForUserAsync(
+        operatorUser.Id, persisted.Id, persisted.Revision,
+        new SecurityActorContext(
+            administrator.Id, administrator.IdentityName, "retire-demoted-admin"));
+    throw new InvalidOperationException("Demoted administrator retired a grant.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+try
+{
+    await accessGrantService.DeactivateForUserAsync(
+        secondAdministrator.Id, persisted.Id, persisted.Revision, assignmentActor);
+    throw new InvalidOperationException("Administrator retired their own grant.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN")
+{
+}
+
 // Deactivation is an explicit, revision-fenced, audited draft-only mutation.
 var deactivated = await accessGrantService.DeactivateForUserAsync(
     operatorUser.Id, persisted.Id, persisted.Revision, assignmentActor);
