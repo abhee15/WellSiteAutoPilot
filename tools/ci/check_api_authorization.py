@@ -92,6 +92,11 @@ def validate_routes(source: str) -> list[str]:
         path = match.group("route")
         key = (method, path)
         end = matches[index + 1].start() if index + 1 < len(matches) else len(source)
+        # Health endpoints are registered after the final product route.
+        # Their AllowAnonymous metadata must not be attributed to that route.
+        health_boundary = source.find("\napp.MapHealthChecks(", match.start())
+        if health_boundary >= 0:
+            end = min(end, health_boundary)
         block = source[match.start():end]
 
         if receiver != "v1":
