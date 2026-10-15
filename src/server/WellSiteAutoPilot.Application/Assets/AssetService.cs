@@ -154,6 +154,22 @@ public sealed class AssetService(
             cancellationToken);
     }
 
+    public Task<IReadOnlyCollection<Asset>> ListAssetDirectoryPageAsync(
+        int offset, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset is < 0 or > 1000000 || limit is < 1 or > 500)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Asset directory offset or page limit is invalid.");
+        }
+
+        return repository.ListAssetDirectoryPageAsync(
+            offset, limit, cancellationToken);
+    }
+
     private static string RequireText(string value, string message)
     {
         if (string.IsNullOrWhiteSpace(value))
