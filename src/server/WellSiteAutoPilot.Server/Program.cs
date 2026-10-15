@@ -376,6 +376,40 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
+// Complete bounded deployment parity preview, using one consistent
+// database snapshot across ALL users, roles, grants and Assets. Admin-only,
+// read-only, and never authorization cutover approval.
+v1.MapGet(
+    "/security/migration-preflight",
+    async (
+        DeploymentMigrationPreflightService preflight,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preflight.InspectAsync(
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new DeploymentMigrationPreflightResponse(
+            result.ActiveUserCount, result.ActiveAssetCount,
+            result.MatchingUserCount, result.ExpansionCount,
+            result.ReductionCount,
+            result.Users.Select(item => new DeploymentMigrationUserResponse(
+                item.UserId, item.ExpectedLegacyGrantCount,
+                item.RecordedGrantCount, item.ExpansionCount,
+                item.ReductionCount, item.RecordedGrantsMatchLegacy)).ToArray(),
+            result.AllActiveUsersMatchRecordedGrants,
+            result.IsDiagnosticOnly);
+    })
+    .WithName("InspectDeploymentLegacyMigration")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<DeploymentMigrationPreflightResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 // Migration preflight captures roles, direct grants, the user and the full
 // bounded active Asset inventory under a single PostgreSQL snapshot. It is
 // read-only, one user at a time, and NEVER enables authorization cutover.
