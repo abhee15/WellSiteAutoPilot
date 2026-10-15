@@ -510,6 +510,7 @@ function AssetsPage({
           setSelected(created);
           await onRefresh();
         }}
+        onRefresh={onRefresh}
       />
       <section className="panel">
         <PanelHeader eyebrow="Inventory" title="Assets" count={visibleAssets.length} />
