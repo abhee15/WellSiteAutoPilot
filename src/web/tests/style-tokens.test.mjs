@@ -77,6 +77,37 @@ test('frontend CSS never introduces a raw color outside tokens.css', () => {
   assert.doesNotMatch('.good { color: var(--color-text-primary); }', hardcodedColor);
 });
 
+function luminance(hex) {
+  assert.match(hex, /^#[0-9a-f]{6}$/i, 'Contrast colors must be opaque RGB hex');
+  const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255);
+  const [red, green, blue] = channels.map(channel => channel <= 0.04045
+    ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+}
+
+test('critical text states retain WCAG AA contrast in the current dark palette', () => {
+  // Compare actual resolved semantic tokens, not duplicated hard-coded RGB.
+  const pairs = [
+    ['text-primary', 'surface-canvas'],
+    ['text-muted', 'surface-panel'],
+    ['text-navigation', 'surface-panel'],
+    ['text-control', 'surface-input'],
+    ['text-warning', 'surface-status-warning'],
+    ['text-warning-strong', 'surface-status-warning'],
+    ['text-link', 'surface-panel'],
+    ['text-selected', 'surface-input'],
+    ['text-subtle', 'surface-panel']
+  ];
+  for (const [foreground, background] of pairs) {
+    const lighter = luminance(expand('var(--color-' + foreground + ')'));
+    const darker = luminance(expand('var(--color-' + background + ')'));
+    const ratio = (Math.max(lighter, darker) + 0.05) /
+      (Math.min(lighter, darker) + 0.05);
+    assert.ok(ratio >= 4.5,
+      foreground + '/' + background + ' is below WCAG AA text contrast: ' + ratio);
+  }
+});
+
 test('critical UI text and keyboard focus retain explicit semantic tokens', () => {
   assert.match(css, /color:\s*var\(--color-text-primary\)/);
   assert.match(css, /outline:\s*2px solid var\(--color-focus-ring\)/);
