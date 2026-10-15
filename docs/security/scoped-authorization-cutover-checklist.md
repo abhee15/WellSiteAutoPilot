@@ -82,6 +82,53 @@ scope-kind in tests. Reject unknown or unmapped protected route categories.
 - Genuine Windows auth/native TeamCity integration alongside GitHub Linux
   PostgreSQL/NATS tests and successful NSIS installer smoke tests.
 
+
+## Runtime cutover implementation gates (reviewed design)
+
+These gates are prerequisites, not an authorization switch. The default and
+unknown deployment state must remain `Legacy` until an explicitly reviewed
+cutover implementation is tested and enabled.
+
+1. **Inventory at startup:** enumerate every protected minimal-API endpoint,
+   including route group metadata and HTTP method; associate each with one
+   declared permission and resource resolver. Reject duplicate, missing, or
+   incompatible metadata in tests. Health/static assets are explicitly
+   classified outside this protected inventory; no silent fallthrough.
+2. **One decision boundary:** resolve authenticated Windows identity to an
+   active persisted user, then evaluate permission and authoritative resource
+   scope before the handler can read or mutate protected data. Do not combine
+   independently obtained role permissions and Asset scopes. An unverified
+   group SID cannot contribute a grant.
+3. **Collection queries:** push authorized resource predicates into the
+   repository SQL query *before* sorting, pagination, totals, or projection.
+   Check all bound Assets for multi-Asset resources; no post-page filtering.
+4. **Mutation concurrency:** resolve target resources from persistence and
+   fence authorization and mutation against concurrent revocation, scope
+   changes, and role revisions. A check performed only before a separate
+   transaction is not sufficient.
+5. **Observation:** evaluate legacy and proposed decisions without changing
+   the live result. Record permission code, route class, decision category,
+   and mismatch counters; never log identities, raw SIDs, grant contents, or
+   request bodies in low-cardinality metrics.
+6. **Cluster-consistent switch:** persist a monotonic authorization-policy
+   revision and state transition with administrator identity and audit.
+   Every server instance must prove it has the same effective revision before
+   serving `Enforce` requests. Stale/unreachable nodes must fail closed or
+   be removed from service; do not silently revert an individual node to
+   legacy while peers enforce proposed grants.
+7. **Rollback:** require a separately audited, revision-checked administrator
+   action to restore the last verified legacy policy. Preserve all grants and
+   audit history. An ambiguous or partially acknowledged transition must not
+   be reported as successful.
+8. **Release gate:** demonstrate complete-deployment parity (without the
+   diagnostic population limits), negative API integration tests for each
+   route category, real Windows authentication, migrations, and installer
+   smoke tests on the *exact* merge head. Passing GitHub Linux CI alone is
+   insufficient for the Windows-native gate.
+
+**Non-goal:** this checklist does not authorize adding a configuration flag
+that immediately enables the new evaluator in production.
+
 ## Current work separation
 
 - PR #79 builds the new permission model while keeping production auth legacy.
