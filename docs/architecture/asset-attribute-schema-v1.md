@@ -69,9 +69,26 @@ runtime policy; the dynamic role/grant authorization cutover (#79) is separate.
 
 After `201`, the SPA verifies the server response and uses scoped
 `GET /assets/{id}` before announcing selection. The list remains based on
-server-authoritative paging. When POST response is lost, the UI reports
-**uncertainty** rather than automatically replaying the write. Operators should
-refresh and inspect the Asset list before considering another create.
+server-authoritative paging. With the initial **explicit Asset scope** model,
+creating a child under an authorized parent does *not* automatically grant
+the creator read access to the new child (#65). If the readback returns
+`403`, the SPA reports **creation confirmed, but access pending administrator
+grant**, and does not silently elevate permissions or present an inaccessible
+Asset as selectable.
+
+When POST response is lost, the UI reports **uncertainty** rather than
+automatically replaying the write. Operators should refresh and inspect the
+Asset list before considering another create.
+
+## Integration validation
+
+The PostgreSQL CI job runs `WellSiteAutoPilot.AssetApiTests` with the
+real ASP.NET server in CI-only loopback TestHeader mode, using an ephemeral
+PostgreSQL instance. This exercises administrator root creation, scoped
+Engineer child creation, 401/403/400, schema-denied values, server-issued
+capabilities, and a live 201/readback from authorized/unauthorized principals.
+It does not claim to validate Windows Negotiate; that has its separate native
+release gate (#92).
 
 ## Library choice
 
