@@ -79,7 +79,8 @@ public sealed class ScopedAccessInspectionService(
     IUserAccessRepository users,
     IAccessGrantRepository grants,
     IRoleCatalogRepository roles,
-    IAssetRepository assets)
+    IAssetRepository assets,
+    IProposedAssetAccessRepository sqlProjections)
 {
     public async Task<ScopedAccessInspection> InspectAsync(
         Guid userId, Guid? assetId, SecurityActorContext actor,
@@ -143,7 +144,28 @@ public sealed class ScopedAccessInspectionService(
             }
         }
 
-        return ScopedAccessComparisonEvaluator.Compare(
+        var inspection = ScopedAccessComparisonEvaluator.Compare(
             user, assetId, name, active, assigned, assignedRoles);
+
+        // Compare the future runtime's SQL predicate with the pure evaluator
+        // for every inspected permission. An inspector that returns reassuring
+        // "parity" despite a disagreement in its two implementation paths
+        // could incorrectly authorize a later staged cutover. Fail closed.
+        foreach (var entry in inspection.Permissions)
+        {
+            var sqlAllowed = entry.ScopeKind == "DeploymentWide"
+                ? await sqlProjections.IsDeploymentPermissionGrantedAsync(
+                    userId, entry.Permission, cancellationToken)
+                : await sqlProjections.IsAssetAuthorizedAsync(
+                    userId, entry.Permission, assetId!.Value, cancellationToken);
+            if (sqlAllowed != entry.ProposedAllowed)
+            {
+                throw new WellSiteAutoPilotException(
+                    "SECURITY_INSPECTION_SQL_MISMATCH", FailureKind.Conflict,
+                    "The stored-grant SQL projection disagrees with the scoped evaluator. Authorization cutover is blocked.");
+            }
+        }
+
+        return inspection;
     }
 }
