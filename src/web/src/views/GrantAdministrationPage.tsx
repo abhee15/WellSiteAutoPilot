@@ -12,6 +12,7 @@ import { ScopedGrantEditor } from './ScopedGrantEditor';
 import { GrantAssetDirectoryError, loadGrantAssetDirectory } from './grantAssetDirectory';
 import { EffectiveAccessInspector } from './EffectiveAccessInspector';
 import { ProposedAssetAccessPanel } from './ProposedAssetAccessPanel';
+import { LegacyMigrationPreflightPanel } from './LegacyMigrationPreflightPanel';
 
 export function GrantAdministrationPage({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
@@ -224,6 +225,9 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         <ProposedAssetAccessPanel
           key={selectedUser.userId} userId={selectedUser.userId}
           permissions={permissions} />}
+      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+        <LegacyMigrationPreflightPanel key={selectedUser.userId}
+          userId={selectedUser.userId} assets={assets} />}
       {selectedUser && retiring && !error && (
         <section className="panel grant-final-review" role="region"
           aria-label={t('grants.retireReview')}>
