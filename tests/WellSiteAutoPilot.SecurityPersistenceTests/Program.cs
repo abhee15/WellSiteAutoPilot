@@ -912,6 +912,12 @@ catch (WellSiteAutoPilotException exception)
 var inspector = new ScopedAccessInspectionService(
     accessGrantService, repository, new AccessGrantRepository(dbContext),
     new RoleCatalogRepository(dbContext), new AssetRepository(dbContext));
+// A lexicographically earlier unauthorized resource catches regressions
+// that page all Assets first and only then check permissions.
+var unassignedEarlyAsset = await assetService.CreateAssetAsync(
+    new CreateAssetCommand(
+        assetType.Id, "AAA Unassigned Preview Asset", null, "{}"));
+
 // Proposed Asset-resource previews must filter in SQL *before* paging.
 // Another visible Asset, or a permission held by another role, must never
 // fill the first page or leak into the grant's effective Resource scope.
@@ -927,7 +933,8 @@ if (!filteredPage.IsDiagnosticOnly ||
     filteredPage.Assets.Count != 1 ||
     filteredPage.Assets.Single().Id != asset.Id ||
     beyondPage.Assets.Count != 0 ||
-    noManage.Assets.Count != 0)
+    noManage.Assets.Count != 0 ||
+    filteredPage.Assets.Any(item => item.Id == unassignedEarlyAsset.Id))
 {
     throw new InvalidOperationException(
         "Proposed SQL resource filtering leaked scope or applied paging too early.");
