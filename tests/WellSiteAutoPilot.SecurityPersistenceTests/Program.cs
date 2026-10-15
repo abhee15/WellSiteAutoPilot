@@ -870,15 +870,12 @@ catch (WellSiteAutoPilotException exception)
 var syntheticGrantWidening = ScopedAccessComparisonEvaluator.Compare(
     operatorUser with { Roles = [], AssetScopeIds = [] },
     wellA, "Synthetic Well A", activeWellIds, [engineerGrant], [engineerRole]);
-if (syntheticGrantWidening.WideningCount == 0 ||
-    syntheticGrantWidening.Permissions
-        .Single(item => item.Permission == WellSitePermissions.AssetsManage)
-        .ProposedGrantId != engineerGrant.Id)
+// The grant belongs to grantUserId, not this Operator. Role and Asset
+// coincidence must never authorize another user.
+if (syntheticGrantWidening.WideningCount != 0 ||
+    syntheticGrantWidening.Permissions.Any(item => item.ProposedAllowed))
 {
-    // The grant above belongs to grantUserId, not this Operator. It must be
-    // denied even though its role and Asset target match.
-    if (syntheticGrantWidening.WideningCount != 0)
-        throw new InvalidOperationException("Cross-user grant leaked through inspector.");
+    throw new InvalidOperationException("Cross-user grant leaked through inspector.");
 }
 var syntheticUser = operatorUser with
 {
