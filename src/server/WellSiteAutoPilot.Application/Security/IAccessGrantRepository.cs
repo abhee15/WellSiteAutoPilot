@@ -145,7 +145,7 @@ public sealed class AccessGrantAdministrationService(
         return user;
     }
 
-    private async Task RequireAdministratorAsync(
+    public async Task RequireAdministratorAsync(
         SecurityActorContext actor, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
