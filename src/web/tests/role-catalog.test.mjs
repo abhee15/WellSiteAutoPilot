@@ -66,6 +66,9 @@ test('validation rejects reserved names, fabricated permissions and duplicate va
     { name: 'A', description: '', permissions: [] },
     { name: 'Operator', description: '', permissions: [] },
     { name: 'Field Supervisor', description: '', permissions: ['unknown.permission'] },
+    { name: 'Field\nSupervisor', description: '', permissions: [] },
+    { name: 'Field\u0000Supervisor', description: '', permissions: [] },
+    { name: 'Field Supervisor', description: 'Invalid\u001fdescription', permissions: [] },
     { name: 'Field Supervisor', description: '', permissions: ['assets.read', 'assets.read'] },
   ]) {
     assert.throws(() => api.validateRoleMutation(
