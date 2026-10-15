@@ -162,6 +162,16 @@ public sealed class LegacyGrantMigrationRepository(WellSiteAutoPilotDbContext db
                 "Concurrent security changes interrupted rollback. Inspect the current grants before retrying.",
                 exception);
         }
+        catch (InvalidOperationException exception) when (
+            exception.InnerException is PostgresException postgres &&
+            postgres.SqlState is
+                PostgresErrorCodes.SerializationFailure or
+                PostgresErrorCodes.DeadlockDetected)
+        {
+            throw Conflict(
+                "Concurrent security changes interrupted rollback. Inspect the current grants before retrying.",
+                exception);
+        }
     }
 
     public async Task<LegacyGrantMigrationResult> MigrateAsync(
@@ -351,6 +361,16 @@ public sealed class LegacyGrantMigrationRepository(WellSiteAutoPilotDbContext db
         {
             throw Conflict(
                 "Concurrent grant writes prevented an atomic migration.",
+                exception);
+        }
+        catch (InvalidOperationException exception) when (
+            exception.InnerException is PostgresException postgres &&
+            postgres.SqlState is
+                PostgresErrorCodes.SerializationFailure or
+                PostgresErrorCodes.DeadlockDetected)
+        {
+            throw Conflict(
+                "Concurrent security changes prevented an atomic migration.",
                 exception);
         }
     }
