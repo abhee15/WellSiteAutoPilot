@@ -87,3 +87,59 @@ test('Admin Grant page initially shows only loading and no prior subject data', 
   assert.match(html, /Loading authorized users/);
   assert.doesNotMatch(html, /FIELD\\operator/);
 });
+
+test('deactivation needs explicit confirmation and matching next inactive revision', async () => {
+  let requests = 0;
+  const fetcher = async (url, init) => {
+    requests++;
+    assert.equal(url, '/api/v1/security/users/' + userId +
+      '/grants/' + grantId + '/deactivate');
+    assert.equal(init.method, 'PUT');
+    assert.equal(init.credentials, 'same-origin');
+    assert.equal(init.cache, 'no-store');
+    assert.deepEqual(JSON.parse(init.body), { expectedRevision: 1 });
+    return new Response(JSON.stringify({
+      ...row, isActive: false, revision: 2,
+    }), { status: 200 });
+  };
+  await assert.rejects(api.deactivateGrant(row, false, signal(), fetcher),
+    { kind: 'invalid' });
+  assert.equal(requests, 0);
+  assert.deepEqual(await api.deactivateGrant(row, true, signal(), fetcher),
+    { ...row, isActive: false, revision: 2 });
+  assert.equal(requests, 1);
+  await assert.rejects(api.deactivateGrant(
+    { ...row, isActive: false }, true, signal(), fetcher),
+  { kind: 'invalid' });
+  await assert.rejects(api.deactivateGrant(
+    { ...row, revision: 0 }, true, signal(), fetcher),
+  { kind: 'invalid' });
+  assert.equal(requests, 1);
+});
+
+test('deactivation rejects stale, altered and ambiguous server outcomes', async () => {
+  const invalid = [
+    { ...row, isActive: true, revision: 2 },
+    { ...row, isActive: false, revision: 1 },
+    { ...row, isActive: false, revision: 3 },
+    { ...row, isActive: false, revision: 2, grantId: roleId },
+    { ...row, isActive: false, revision: 2, userId: roleId },
+    { ...row, isActive: false, revision: 2, roleId: userId },
+    { ...row, isActive: false, revision: 2, assetIds: [] },
+  ];
+  for (const candidate of invalid) {
+    await assert.rejects(api.deactivateGrant(row, true, signal(),
+      async () => new Response(JSON.stringify(candidate), { status: 200 })),
+    { kind: 'invalidResponse' });
+  }
+  for (const [status, kind] of [
+    [400, 'invalid'], [403, 'denied'], [404, 'notFound'],
+    [409, 'conflict'], [500, 'unavailable'],
+  ]) {
+    await assert.rejects(api.deactivateGrant(row, true, signal(),
+      async () => new Response('{}', { status })), { kind });
+  }
+  await assert.rejects(api.deactivateGrant(row, true, signal(),
+    async () => { throw new TypeError('Connection lost after send'); }),
+  { kind: 'unavailable' });
+});
