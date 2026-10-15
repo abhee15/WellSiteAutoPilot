@@ -58,7 +58,7 @@ var engineerMe = await BodyAsync(
 var engineerId = engineerMe.GetProperty("userId").GetGuid();
 await CheckAsync(await admin.PutAsJsonAsync(
     "/api/v1/security/users/" + engineerId + "/access",
-    new { roles = new[] { "Engineer" }, assetScopeIds = new[] { fieldId } }),
+    new { roles = new List<string> { "Engineer" }, assetScopeIds = new List<Guid> { fieldId } }),
     HttpStatusCode.OK, "Grant scoped Engineer access");
 
 var engineerCaps = await BodyAsync(
