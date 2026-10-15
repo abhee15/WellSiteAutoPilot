@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import { loadDeploymentParity } from './deploymentMigrationPreflight';
 import type { DeploymentParity } from './deploymentMigrationPreflight';
+import { materializeLegacyGrants } from './materializeLegacyGrants';
+import type { GrantMigrationReceipt } from './materializeLegacyGrants';
 import type { VerifiedSecurityUser } from './accessManagement';
 
 /** Deployment preview is read-only. Even a matching snapshot does not approve
@@ -12,15 +14,25 @@ export function DeploymentMigrationPreflightPanel({ users }: {
   const [report, setReport] = useState<DeploymentParity | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [confirmationText, setConfirmationText] = useState('');
+  const [writing, setWriting] = useState(false);
+  const [writeFailed, setWriteFailed] = useState(false);
+  const [receipt, setReceipt] = useState<GrantMigrationReceipt | null>(null);
+  const writeRequest = useRef<AbortController | null>(null);
   const request = useRef<AbortController | null>(null);
-  useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => () => {
+    request.current?.abort();
+    writeRequest.current?.abort();
+  }, []);
 
   const inspect = async () => {
-    if (loading) return;
+    if (loading || writing) return;
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
     setLoading(true); setError(false); setReport(null);
+    setConfirmed(false); setConfirmationText(''); setReceipt(null);
     try {
       const data = await loadDeploymentParity(controller.signal);
       if (!controller.signal.aborted) setReport(data);
@@ -32,6 +44,33 @@ export function DeploymentMigrationPreflightPanel({ users }: {
       }
     }
   };
+  const save = async () => {
+    if (!report || writing || loading || writeRequest.current ||
+      report.allActiveUsersMatchRecordedGrants || report.expansionCount !== 0 ||
+      report.reductionCount === 0 || !confirmed ||
+      confirmationText !== t('grants.materializePhrase')) return;
+    const abort = new AbortController();
+    writeRequest.current = abort;
+    setWriting(true); setWriteFailed(false); setReceipt(null);
+    try {
+      const saved = await materializeLegacyGrants(true, abort.signal);
+      if (!abort.signal.aborted) {
+        setReceipt(saved); setReport(null);
+        setConfirmed(false); setConfirmationText('');
+      }
+    } catch {
+      if (!abort.signal.aborted) {
+        // An uncertain response may follow a committed transaction. Do not
+        // automatically send another POST. Force a fresh preflight instead.
+        setReport(null); setWriteFailed(true);
+        setConfirmed(false); setConfirmationText('');
+      }
+    } finally {
+      if (writeRequest.current === abort) {
+        writeRequest.current = null; setWriting(false);
+      }
+    }
+  };
   const userNames = new Map(users.map(user => [
     user.userId.toLowerCase(), user.displayName || user.identityName,
   ]));
@@ -40,9 +79,15 @@ export function DeploymentMigrationPreflightPanel({ users }: {
       <div className="panel-header"><h3>{t('grants.deploymentHeading')}</h3></div>
       <p className="access-note">{t('grants.deploymentExplain')}</p>
       <button type="button" className="secondary-button"
-        disabled={loading} onClick={() => void inspect()}>
+        disabled={loading || writing} onClick={() => void inspect()}>
         {loading ? t('access.loading') : t('grants.deploymentInspect')}
       </button>
+      {receipt && <p role="status">{t('grants.materializeSaved', {
+        count: receipt.grantsCreated,
+      })}</p>}
+      {writeFailed && <p role="alert" className="execution-detail-error">
+        {t('grants.materializeUncertain')}
+      </p>}
       {error && <p role="alert" className="execution-detail-error">
         {t('grants.deploymentFailed')}
       </p>}
@@ -57,6 +102,28 @@ export function DeploymentMigrationPreflightPanel({ users }: {
         })}</p>
         <p><strong>{report.allActiveUsersMatchRecordedGrants
           ? t('grants.deploymentMatches') : t('grants.deploymentNotMatching')}</strong></p>
+        {!report.allActiveUsersMatchRecordedGrants &&
+          report.expansionCount === 0 && report.reductionCount > 0 &&
+          <div className="access-review">
+            <strong>{t('grants.materializeHeading')}</strong>
+            <p className="access-warning">{t('grants.materializeWarning')}</p>
+            <label className="access-confirm">
+              <input type="checkbox" checked={confirmed} disabled={writing}
+                onChange={event => setConfirmed(event.target.checked)} />
+              {t('grants.materializeConfirm')}
+            </label>
+            <label>{t('grants.materializeType')}
+              <input value={confirmationText} maxLength={80} disabled={writing}
+                onChange={event => setConfirmationText(event.target.value)}
+                autoComplete="off" />
+            </label>
+            <button type="button" className="secondary-button"
+              disabled={writing || !confirmed ||
+                confirmationText !== t('grants.materializePhrase')}
+              onClick={() => void save()}>
+              {writing ? t('access.saving') : t('grants.materializeAction')}
+            </button>
+          </div>}
         {report.users.filter(user => !user.recordedGrantsMatchLegacy).length > 0 &&
           <div className="table-wrap">
             <table className="activity-table">
