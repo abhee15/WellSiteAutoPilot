@@ -41,6 +41,7 @@ function panel(options: {
   allowChildren?: boolean;
   authenticated?: boolean;
   onCreated?: (asset: AssetResponse) => Promise<void> | void;
+  onRefresh?: () => Promise<void> | void;
 } = {}) {
   return render(<AssetCreationPanel
     userId={options.authenticated === false ? null : 'operator-id'}
@@ -51,6 +52,7 @@ function panel(options: {
       canCreateUnderAuthorizedParents: options.allowChildren ?? true,
     }}
     onCreated={options.onCreated ?? (() => {})}
+    onRefresh={options.onRefresh ?? (() => {})}
   />);
 }
 
@@ -147,6 +149,26 @@ describe('Asset create workflow with real DOM events', () => {
       expect(await screen.findByRole('alert')).toHaveProperty('textContent', message);
       expect(http).toHaveBeenCalledTimes(1);
     });
+
+  it('reports an authorized write confirmed by 201 but not yet in readable Asset scope', async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const onRefresh = vi.fn();
+    const http = vi.fn(async (url: string) =>
+      url === '/api/v1/assets' ? success(created, 201) : success({}, 403));
+    vi.stubGlobal('fetch', http);
+    panel({ onCreated, onRefresh });
+    await prepareForm(user);
+    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+
+    expect(await screen.findByRole('status')).toHaveProperty(
+      'textContent',
+      'Asset Well 101 was created, but you do not currently have permission to view it. Ask an administrator to grant access. Do not recreate it.'
+    );
+    expect(http).toHaveBeenCalledTimes(2);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onCreated).not.toHaveBeenCalled();
+  });
 
   it('treats interrupted POST as uncertain and never retries the write', async () => {
     const user = userEvent.setup();
