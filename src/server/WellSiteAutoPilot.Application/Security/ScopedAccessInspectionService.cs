@@ -113,7 +113,7 @@ public sealed class ScopedAccessInspectionService(
 
         var ids = assigned.Where(item => item.IsActive)
             .SelectMany(item => item.AssetIds)
-            .Concat(assetId is { } selected ? [selected] : Array.Empty<Guid>())
+            .Concat(assetId is { } selected ? new[] { selected } : Array.Empty<Guid>())
             .Distinct().ToArray();
         if (ids.Length > 20000)
         {
