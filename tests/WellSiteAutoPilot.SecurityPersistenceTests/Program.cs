@@ -967,6 +967,44 @@ catch (WellSiteAutoPilotException exception)
 {
 }
 
+// Test both directions: a new user without legacy roles or grants is
+// an exact match, while a grant to that user is an explicit expansion.
+var parityProbeIdentity = Guid.NewGuid().ToString("N");
+var parityProbeUser = await service.ResolveAuthenticatedAsync(
+    UserAccessService.NormalizeIdentityKey(
+        "SID:WSA-PREFLIGHT-" + parityProbeIdentity),
+    @"FIELD\preflight-" + parityProbeIdentity,
+    "Preflight No Role", bootstrap);
+var matchingPreflight = await migrationPreflight.InspectAsync(
+    parityProbeUser.Id, assignmentActor);
+if (!matchingPreflight.RecordedGrantsMatchLegacy ||
+    matchingPreflight.ExpectedLegacyGrantCount != 0 ||
+    matchingPreflight.RecordedGrantCount != 0 ||
+    matchingPreflight.ExpansionCount != 0 ||
+    matchingPreflight.ReductionCount != 0)
+{
+    throw new InvalidOperationException(
+        "Empty legacy and proposed access did not report exact parity.");
+}
+await accessGrantService.CreateForUserAsync(
+    parityProbeUser.Id,
+    new CreateAccessGrantCommand(
+        grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+    assignmentActor);
+var expandedPreflight = await migrationPreflight.InspectAsync(
+    parityProbeUser.Id, assignmentActor);
+if (expandedPreflight.RecordedGrantsMatchLegacy ||
+    expandedPreflight.ExpansionCount != 1 ||
+    expandedPreflight.ReductionCount != 0 ||
+    !expandedPreflight.DifferenceSamples.Any(item =>
+        item.AssetId == asset.Id &&
+        item.Permission == WellSitePermissions.AssetsRead &&
+        !item.LegacyAllowed && item.RecordedGrantAllowed))
+{
+    throw new InvalidOperationException(
+        "Migration preflight missed a persisted Asset permission expansion.");
+}
+
 // A lexicographically earlier unauthorized resource catches regressions
 // that page all Assets first and only then check permissions.
 var unassignedEarlyAsset = await assetService.CreateAssetAsync(
