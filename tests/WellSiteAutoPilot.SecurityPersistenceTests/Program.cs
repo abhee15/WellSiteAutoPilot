@@ -1254,6 +1254,64 @@ var unassignedEarlyAsset = await assetService.CreateAssetAsync(
 // fill the first page or leak into the grant's effective Resource scope.
 var proposedAccess = new ProposedAssetAccessService(
     accessGrantService, repository, new ProposedAssetAccessRepository(dbContext));
+// The future runtime SQL decision uses the SAME indivisible grant predicate
+// as the paged Asset preview. Exercise each failure mode on real PostgreSQL.
+var proposedResourceRepository = new ProposedAssetAccessRepository(dbContext);
+if (!await proposedResourceRepository.IsAssetAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead, asset.Id) ||
+    await proposedResourceRepository.IsAssetAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead, otherAsset.Id) ||
+    await proposedResourceRepository.IsAssetAuthorizedAsync(
+        parityProbeUser.Id, WellSitePermissions.AssetsRead, asset.Id) ||
+    await proposedResourceRepository.IsAssetAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsManage, asset.Id) ||
+    await proposedResourceRepository.IsAssetAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.LogicRead, asset.Id) ||
+    await proposedResourceRepository.IsAssetAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead, Guid.Empty) ||
+    !await proposedResourceRepository.AreAssetsAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead, [asset.Id]) ||
+    await proposedResourceRepository.AreAssetsAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead,
+        [asset.Id, otherAsset.Id]) ||
+    await proposedResourceRepository.AreAssetsAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead,
+        [asset.Id, asset.Id]) ||
+    await proposedResourceRepository.AreAssetsAuthorizedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead, []) ||
+    await proposedResourceRepository.IsDeploymentPermissionGrantedAsync(
+        operatorUser.Id, WellSitePermissions.AssetsRead) ||
+    await proposedResourceRepository.IsDeploymentPermissionGrantedAsync(
+        operatorUser.Id, WellSitePermissions.LogicRead))
+{
+    throw new InvalidOperationException(
+        "SQL grant decisions leaked another Asset, another user, global permissions or duplicate inputs.");
+}
+
+// An independent global-only role may authorize its own catalog permission
+// without granting ANY Asset access. Test the positive global query as well.
+var globalReadRole = await roleCatalog.CreateAsync(
+    new RoleMutationCommand(
+        "Global Read Regression", "Non-Asset permission boundary",
+        [WellSitePermissions.LogicRead], true), actor);
+_ = await accessGrantService.CreateForUserAsync(
+    administrator.Id,
+    new CreateAccessGrantCommand(
+        globalReadRole.Id, AccessGrantScopeKind.DeploymentWide, []),
+    assignmentActor);
+if (!await proposedResourceRepository.IsDeploymentPermissionGrantedAsync(
+        administrator.Id, WellSitePermissions.LogicRead) ||
+    await proposedResourceRepository.IsDeploymentPermissionGrantedAsync(
+        administrator.Id, WellSitePermissions.AssetsRead) ||
+    await proposedResourceRepository.IsAssetAuthorizedAsync(
+        administrator.Id, WellSitePermissions.AssetsRead, asset.Id) ||
+    await proposedResourceRepository.IsDeploymentPermissionGrantedAsync(
+        operatorUser.Id, WellSitePermissions.LogicRead))
+{
+    throw new InvalidOperationException(
+        "SQL global grant decision leaked a deployment permission into an Asset scope.");
+}
+
 var filteredPage = await proposedAccess.ListAsync(
     operatorUser.Id, WellSitePermissions.AssetsRead, 0, 1, assignmentActor);
 var beyondPage = await proposedAccess.ListAsync(
