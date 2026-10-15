@@ -615,6 +615,9 @@ await ScopedGrantAdministrationChecks.RunAsync(
     options, operatorUser, administrator, secondAdministrator,
     asset.Id, otherAsset.Id, clock);
 
+await ScopedSqlProjectionChecks.RunAsync(
+    options, operatorUser.Id, secondAdministrator.Id, asset.Id, otherAsset.Id);
+
 Console.WriteLine(
     "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;
