@@ -771,7 +771,7 @@ var accessGrantService = new AccessGrantAdministrationService(
     new RoleCatalogRepository(dbContext),
     clock);
 var assignmentActor = new SecurityActorContext(
-    administrator.Id, administrator.IdentityName, "grant-test");
+    secondAdministrator.Id, secondAdministrator.IdentityName, "grant-test");
 
 var draftAccessBefore = await service.GetRequiredAsync(operatorUser.Id);
 var persisted = await accessGrantService.CreateForUserAsync(
@@ -839,7 +839,7 @@ foreach (var invalidGrant in new[]
 try
 {
     await accessGrantService.CreateForUserAsync(
-        administrator.Id,
+        secondAdministrator.Id,
         new CreateAccessGrantCommand(
             grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
         assignmentActor);
@@ -884,7 +884,7 @@ var grantAudit = await dbContext.AuditEvents.AsNoTracking()
         item.TargetId == persisted.Id.ToString("D"))
     .SingleOrDefaultAsync();
 if (grantAudit is null ||
-    grantAudit.ActorUserId != administrator.Id ||
+    grantAudit.ActorUserId != secondAdministrator.Id ||
     grantAudit.CorrelationId != "grant-test")
 {
     throw new InvalidOperationException("New scoped grant missing audited actor/provenance.");
