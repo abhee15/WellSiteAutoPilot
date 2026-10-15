@@ -67,7 +67,7 @@ public sealed class AccessGrantAdministrationService(
                 "An active role definition is required.");
         }
 
-        if (command.AssetIds.Count > 500 ||
+        if (command.AssetIds.Count > ScopedGrantEvaluator.MaximumExactAssetsPerGrant ||
             command.AssetIds.Any(id => id == Guid.Empty) ||
             command.AssetIds.Distinct().Count() != command.AssetIds.Count)
         {
