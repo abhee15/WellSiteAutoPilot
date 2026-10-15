@@ -84,6 +84,18 @@ For a real Windows test:
    Verify the network trace reaches a final authenticated response after the
    challenge. Confirm a real user without privileges receives `403`
    on a protected operation. Exercise session/role revocation if available.
+   Also run the real Windows-credential smoke script from the repo root:
+
+   ```powershell
+   ./tools/ci/verify-windows-negotiate.ps1 -BaseUrl http://127.0.0.1:5080
+   ```
+
+   That script checks the initial anonymous Negotiate challenge and a **final
+   200** using the machine's current integrated Windows credentials and a
+   resolved WSA user. It fails rather than reporting a partial 401 as success.
+   It must be run against the genuine Negotiate server, not TestHeader or Vite.
+   The native HTTP smoke does not substitute for the browser's integrated
+   authentication policy and user-visible UI check.
 4. Repeat against the supported field deployment topology before release.
    A development single-machine pass does not prove any future external
    reverse proxy supports Negotiate.
