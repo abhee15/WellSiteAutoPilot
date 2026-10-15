@@ -138,6 +138,7 @@ builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddScoped<UserAccessService>();
 builder.Services.AddScoped<RoleCatalogService>();
+builder.Services.AddScoped<AccessGrantAdministrationService>();
 builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
@@ -369,6 +370,69 @@ v1.MapPut(
     .Produces<RoleDefinitionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+// Additive grants are recorded and audited but do not alter legacy
+// authorization until the parity-verified entitlement cutover is complete.
+v1.MapGet(
+    "/security/users/{userId:guid}/grants",
+    async (
+        Guid userId,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+        (await grants.ListForUserAsync(
+            userId,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken))
+        .Select(ToAccessGrantResponse).ToArray())
+    .WithName("ListUserAccessGrants")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse[]>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapPost(
+    "/security/users/{userId:guid}/grants",
+    async (
+        Guid userId,
+        CreateUserAccessGrantRequest request,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        if (!Enum.TryParse<AccessGrantScopeKind>(
+                request.ScopeKind, ignoreCase: false, out var scope) ||
+            !Enum.IsDefined(scope))
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed, FailureKind.Validation,
+                "An explicit supported grant scope kind is required.");
+        }
+
+        var result = await grants.CreateForUserAsync(
+            userId,
+            new CreateAccessGrantCommand(
+                request.RoleId, scope, request.AssetIds ?? []),
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/security/users/{userId}/grants",
+            ToAccessGrantResponse(result));
+    })
+    .WithName("CreateUserAccessGrant")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapPost(
@@ -1144,6 +1208,11 @@ static RoleDefinitionResponse ToRoleResponse(
     role.CreatedAtUtc,
     role.UpdatedAtUtc,
     role.Permissions.ToArray());
+
+static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>
+    new(grant.Id, grant.SubjectKind.ToString(), grant.UserId,
+        grant.GroupSid, grant.RoleId, grant.ScopeKind.ToString(),
+        grant.AssetIds.ToArray(), grant.IsActive, grant.Revision);
 
 static SecurityUserResponse ToSecurityUserResponse(
     WellSiteAutoPilot.Domain.Security.UserAccessProfile user) => new(

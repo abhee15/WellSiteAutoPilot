@@ -759,6 +759,133 @@ if (!ScopedGrantEvaluator.Authorize(
         "Deployment-wide and explicit all-Asset grants leaked permissions across scope classes.");
 }
 
+// The first persisted grants are additive and audit-only. Existing user's
+// compiled roles and Asset scope remain unchanged until evaluator cutover.
+var accessGrantService = new AccessGrantAdministrationService(
+    new AccessGrantRepository(dbContext),
+    repository,
+    new RoleCatalogRepository(dbContext),
+    clock);
+var assignmentActor = new SecurityActorContext(
+    administrator.Id, administrator.IdentityName, "grant-test");
+
+var draftAccessBefore = await service.GetRequiredAsync(operatorUser.Id);
+var persisted = await accessGrantService.CreateForUserAsync(
+    operatorUser.Id,
+    new CreateAccessGrantCommand(
+        competingRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+    assignmentActor);
+
+if (!persisted.IsActive || persisted.Revision != 1 ||
+    persisted.SubjectKind != AccessGrantSubjectKind.User ||
+    persisted.UserId != operatorUser.Id ||
+    !persisted.AssetIds.SequenceEqual([asset.Id]))
+{
+    throw new InvalidOperationException("Persisted direct scoped grant did not round-trip.");
+}
+
+await using (var reloadedContext = new WellSiteAutoPilotDbContext(options))
+{
+    var reloadedService = new AccessGrantAdministrationService(
+        new AccessGrantRepository(reloadedContext),
+        new UserAccessRepository(reloadedContext),
+        new RoleCatalogRepository(reloadedContext),
+        clock);
+    var loaded = await reloadedService.ListForUserAsync(
+        operatorUser.Id, assignmentActor);
+    if (loaded.Count != 1 || loaded.Single().Id != persisted.Id ||
+        loaded.Single().AssetIds.Single() != asset.Id)
+    {
+        throw new InvalidOperationException("Durable scoped grant was not visible after reload.");
+    }
+}
+
+var draftAccessAfter = await service.GetRequiredAsync(operatorUser.Id);
+if (!draftAccessAfter.Roles.SequenceEqual(draftAccessBefore.Roles) ||
+    !draftAccessAfter.AssetScopeIds.SequenceEqual(draftAccessBefore.AssetScopeIds))
+{
+    throw new InvalidOperationException("New grant unexpectedly changed effective legacy access.");
+}
+
+foreach (var invalidGrant in new[]
+{
+    new CreateAccessGrantCommand(competingRole.Id, AccessGrantScopeKind.ExactAssets, []),
+    new CreateAccessGrantCommand(competingRole.Id, AccessGrantScopeKind.ExactAssets,
+        [otherAsset.Id, otherAsset.Id]),
+    new CreateAccessGrantCommand(competingRole.Id, AccessGrantScopeKind.AllAssets,
+        [asset.Id]),
+    new CreateAccessGrantCommand(competingRole.Id, AccessGrantScopeKind.DeploymentWide,
+        [asset.Id]),
+    new CreateAccessGrantCommand(Guid.NewGuid(), AccessGrantScopeKind.ExactAssets,
+        [asset.Id])
+})
+{
+    try
+    {
+        await accessGrantService.CreateForUserAsync(
+            operatorUser.Id, invalidGrant, assignmentActor);
+        throw new InvalidOperationException("Invalid scoped grant was accepted.");
+    }
+    catch (WellSiteAutoPilotException exception)
+        when (exception.Kind == FailureKind.Validation)
+    {
+    }
+}
+
+try
+{
+    await accessGrantService.CreateForUserAsync(
+        administrator.Id,
+        new CreateAccessGrantCommand(
+            competingRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+        assignmentActor);
+    throw new InvalidOperationException("Administrator assigned their own grant.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN")
+{
+}
+
+try
+{
+    await accessGrantService.CreateForUserAsync(
+        operatorUser.Id,
+        new CreateAccessGrantCommand(
+            competingRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+        new SecurityActorContext(
+            operatorUser.Id, operatorUser.IdentityName, "not-admin"));
+    throw new InvalidOperationException("Non-admin created security grant.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+
+try
+{
+    await accessGrantService.CreateForUserAsync(
+        operatorUser.Id,
+        new CreateAccessGrantCommand(
+            competingRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+        assignmentActor);
+    throw new InvalidOperationException("Duplicate active grant was accepted.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_GRANT_CONFLICT")
+{
+}
+
+var grantAudit = await dbContext.AuditEvents.AsNoTracking()
+    .Where(item => item.Action == "security.grant.created" &&
+        item.TargetId == persisted.Id.ToString("D"))
+    .SingleOrDefaultAsync();
+if (grantAudit is null ||
+    grantAudit.ActorUserId != administrator.Id ||
+    grantAudit.CorrelationId != "grant-test")
+{
+    throw new InvalidOperationException("New scoped grant missing audited actor/provenance.");
+}
+
 Console.WriteLine(
     "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;
