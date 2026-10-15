@@ -130,7 +130,8 @@ public sealed class ProposedAssetAccessRepository(WellSiteAutoPilotDbContext db)
                         (grant.ScopeKind == "ExactAssets" &&
                          bindings.Any(binding => binding.GrantId == grant.Id &&
                              binding.AssetId == asset.Id) &&
-                         bindings.Count(binding => binding.GrantId == grant.Id) <= 500 &&
+                         bindings.Count(binding => binding.GrantId == grant.Id) <=
+                             ScopedGrantEvaluator.MaximumExactAssetsPerGrant &&
                          !bindings.Any(binding => binding.GrantId == grant.Id &&
                              binding.AssetId == Guid.Empty) &&
                          !bindings.Any(binding => binding.GrantId == grant.Id &&
