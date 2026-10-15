@@ -257,6 +257,41 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.AccessGrantEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("GroupSid").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<bool>("IsActive").HasColumnType("boolean");
+                entity.Property<long>("Revision").HasColumnType("bigint");
+                entity.Property<Guid>("RoleId").HasColumnType("uuid");
+                entity.Property<string>("ScopeKind").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<string>("SubjectKind").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<Guid?>("UserId").HasColumnType("uuid");
+                entity.HasKey("Id");
+                entity.HasIndex("GroupSid");
+                entity.HasIndex("RoleId");
+                entity.HasIndex("UserId");
+                entity.HasIndex("UserId", "RoleId", "ScopeKind")
+                    .IsUnique()
+                    .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'User'");
+                entity.ToTable("access_grants", "security");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.AccessGrantAssetEntity",
+            entity =>
+            {
+                entity.Property<Guid>("GrantId").HasColumnType("uuid");
+                entity.Property<Guid>("AssetId").HasColumnType("uuid");
+                entity.HasKey("GrantId", "AssetId");
+                entity.HasIndex("AssetId");
+                entity.ToTable("assignment_asset_scopes", "security");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Security.RoleDefinitionEntity",
             entity =>
             {
@@ -430,6 +465,37 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                     .WithMany()
                     .HasForeignKey("RevisionId")
                     .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.AccessGrantEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Security.RoleDefinitionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("RoleId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+                entity.HasOne("WellSiteAutoPilot.Persistence.Security.UserEntity", null)
+                    .WithMany()
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Security.AccessGrantAssetEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Security.AccessGrantEntity", null)
+                    .WithMany()
+                    .HasForeignKey("GrantId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+                entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                    .WithMany()
+                    .HasForeignKey("AssetId")
+                    .OnDelete(DeleteBehavior.Restrict)
                     .IsRequired();
             });
 
