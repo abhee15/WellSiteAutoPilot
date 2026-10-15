@@ -119,10 +119,14 @@ if (noParentMatch.Count != 0)
 // pages even when multiple Assets have exactly the same display name.
 var duplicateName = await service.CreateAssetAsync(
     new CreateAssetCommand(wellType.Id, "Well 101", parent.Id, "{}"));
-var directoryExpected = new[] {
-    parent, child, sibling, otherField, otherWell, tank, duplicateName
-}.OrderBy(item => item.Name, StringComparer.Ordinal)
- .ThenBy(item => item.Id).Select(item => item.Id).ToArray();
+var directoryExpected = await dbContext.Assets.AsNoTracking()
+    .OrderBy(item => item.Name).ThenBy(item => item.Id)
+    .Select(item => item.Id).ToArrayAsync();
+if (!directoryExpected.Contains(duplicateName.Id) ||
+    !directoryExpected.Contains(child.Id))
+{
+    throw new InvalidOperationException("Created duplicate-name Assets are missing.");
+}
 var directoryIds = new List<Guid>();
 for (var offset = 0; ; offset += 2)
 {
