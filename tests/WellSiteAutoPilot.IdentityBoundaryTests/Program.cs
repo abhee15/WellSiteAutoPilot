@@ -22,6 +22,14 @@ if (windowsIdentity.ProviderId != "windows" ||
         "Windows SID and display name did not preserve existing persisted identity semantics.");
 }
 
+if (new ConfiguredPrincipalResolver("nEgOtIaTe")
+        .Resolve(windowsPrincipal).PersistedIdentityKey !=
+    windowsIdentity.PersistedIdentityKey)
+{
+    throw new InvalidOperationException(
+        "Authentication mode capitalization changed Windows account identity.");
+}
+
 var nameOnlyPrincipal = Principal("  corp\\Operator  ");
 var nameOnlyIdentity = windows.Resolve(nameOnlyPrincipal);
 var variantNameOnly = windows.Resolve(Principal("CORP\\operator"));
