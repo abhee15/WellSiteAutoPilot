@@ -29,9 +29,12 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
       return null;
     }
   }, [user.userId, roleId, scopeKind, assetIds, role, permissions, assets, allowAllAssets]);
-  const visible = assets.filter(asset => asset.isActive &&
+  const matching = assets.filter(asset => asset.isActive &&
     asset.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  // Avoid rendering thousands of field Assets in an industrial tablet panel.
+  // Selected Asset IDs remain stable when the search view is narrowed.
+  const visible = matching.slice(0, 100);
 
   return (
     <section className="panel grant-editor" role="region"
@@ -71,6 +74,9 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
             <input type="search" value={query} maxLength={120}
               onChange={event => setQuery(event.target.value)} />
           </label>
+          {matching.length > visible.length &&
+            <p className="access-note">{t('grants.refineSearch',
+              { count: matching.length })}</p>}
           <div className="grant-asset-list">
             {visible.map(asset => (
               <label className="access-confirm" key={asset.id}>
