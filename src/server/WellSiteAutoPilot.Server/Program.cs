@@ -375,6 +375,41 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
+// Migration preflight captures roles, direct grants, the user and the full
+// bounded active Asset inventory under a single PostgreSQL snapshot. It is
+// read-only, one user at a time, and NEVER enables authorization cutover.
+v1.MapGet(
+    "/security/users/{userId:guid}/migration-preflight",
+    async (
+        Guid userId,
+        LegacyMigrationPreflightService preflight,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preflight.InspectAsync(
+            userId,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new LegacyMigrationPreflightResponse(
+            result.UserId, result.ActiveAssetCount,
+            result.ExpectedLegacyGrantCount, result.RecordedGrantCount,
+            result.ExpansionCount, result.ReductionCount,
+            result.DifferenceSamples.Select(item =>
+                new LegacyMigrationDifferenceResponse(
+                    item.AssetId, item.Permission,
+                    item.LegacyAllowed, item.RecordedGrantAllowed)).ToArray(),
+            result.RecordedGrantsMatchLegacy, result.IsDiagnosticOnly);
+    })
+    .WithName("InspectLegacyGrantMigration")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<LegacyMigrationPreflightResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 // Proposed resource preview uses one database query that restricts Assets
 // by the same grant's active role and scope BEFORE Skip/Take. It never
 // authorizes live requests or changes existing user access.
