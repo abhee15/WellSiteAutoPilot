@@ -63,12 +63,16 @@ public static class LegacyGrantMigrationPlanner
             var resource = role.Permissions.Any(permission =>
                 ProductPermissionCatalog.Definitions.Any(item =>
                     item.Key == permission && item.ScopeKind == "ResourceScoped"));
-            var administrator = user.Roles.Contains(ApplicationRole.Admin);
+            // AllAssets belongs to the Admin grant itself, never to a
+            // different role simply because the same user is an Admin.
+            // Otherwise removing Admin later would leave Operator/Engineer
+            // with unexpectedly unrestricted historical Asset rights.
+            var administratorRole = role.Name == nameof(ApplicationRole.Admin);
             if (global)
             {
                 planned.Add(Grant(role, AccessGrantScopeKind.DeploymentWide, []));
             }
-            if (resource && administrator)
+            if (resource && administratorRole)
             {
                 planned.Add(Grant(role, AccessGrantScopeKind.AllAssets, []));
             }
