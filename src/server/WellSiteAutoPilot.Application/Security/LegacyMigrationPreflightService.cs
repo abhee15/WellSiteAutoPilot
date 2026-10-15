@@ -94,19 +94,33 @@ public sealed class LegacyMigrationPreflightService(
             var comparison = ScopedAccessComparisonEvaluator.Compare(
                 snapshot.User, assetId, null, snapshot.ActiveAssetIds,
                 snapshot.RecordedGrants, snapshot.Roles);
-            expansionCount = checked(expansionCount + comparison.WideningCount);
-            reductionCount = checked(reductionCount + comparison.ReductionCount);
             foreach (var item in comparison.Permissions)
             {
-                if (item.LegacyAllowed == item.ProposedAllowed ||
-                    samples.Count >= MaximumDifferenceSamples)
+                // Deployment-wide capabilities have exactly one decision per
+                // user, not one decision per Asset. Never inflate totals.
+                if (assetId is not null && item.ScopeKind == "DeploymentWide")
+                {
+                    continue;
+                }
+                if (item.LegacyAllowed == item.ProposedAllowed)
                 {
                     continue;
                 }
 
-                samples.Add(new LegacyMigrationDifference(
-                    item.ScopeKind == "ResourceScoped" ? assetId : null,
-                    item.Permission, item.LegacyAllowed, item.ProposedAllowed));
+                if (item.ProposedAllowed)
+                {
+                    expansionCount = checked(expansionCount + 1);
+                }
+                else
+                {
+                    reductionCount = checked(reductionCount + 1);
+                }
+                if (samples.Count < MaximumDifferenceSamples)
+                {
+                    samples.Add(new LegacyMigrationDifference(
+                        item.ScopeKind == "ResourceScoped" ? assetId : null,
+                        item.Permission, item.LegacyAllowed, item.ProposedAllowed));
+                }
             }
         }
     }
