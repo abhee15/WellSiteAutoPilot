@@ -759,6 +759,10 @@ if (!ScopedGrantEvaluator.Authorize(
         "Deployment-wide and explicit all-Asset grants leaked permissions across scope classes.");
 }
 
+var grantCatalogRole = await roleCatalog.CreateAsync(
+    new RoleMutationCommand("Scoped Assignment Role", "Grant regression role",
+        [WellSitePermissions.AssetsRead], true), actor);
+
 // The first persisted grants are additive and audit-only. Existing user's
 // compiled roles and Asset scope remain unchanged until evaluator cutover.
 var accessGrantService = new AccessGrantAdministrationService(
@@ -773,7 +777,7 @@ var draftAccessBefore = await service.GetRequiredAsync(operatorUser.Id);
 var persisted = await accessGrantService.CreateForUserAsync(
     operatorUser.Id,
     new CreateAccessGrantCommand(
-        competingRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+        grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
     assignmentActor);
 
 if (!persisted.IsActive || persisted.Revision != 1 ||
@@ -809,12 +813,12 @@ if (!draftAccessAfter.Roles.SequenceEqual(draftAccessBefore.Roles) ||
 
 foreach (var invalidGrant in new[]
 {
-    new CreateAccessGrantCommand(competingRole.Id, AccessGrantScopeKind.ExactAssets, []),
-    new CreateAccessGrantCommand(competingRole.Id, AccessGrantScopeKind.ExactAssets,
+    new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, []),
+    new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets,
         [otherAsset.Id, otherAsset.Id]),
-    new CreateAccessGrantCommand(competingRole.Id, AccessGrantScopeKind.AllAssets,
+    new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.AllAssets,
         [asset.Id]),
-    new CreateAccessGrantCommand(competingRole.Id, AccessGrantScopeKind.DeploymentWide,
+    new CreateAccessGrantCommand(grantCatalogRole.Id, AccessGrantScopeKind.DeploymentWide,
         [asset.Id]),
     new CreateAccessGrantCommand(Guid.NewGuid(), AccessGrantScopeKind.ExactAssets,
         [asset.Id])
@@ -837,7 +841,7 @@ try
     await accessGrantService.CreateForUserAsync(
         administrator.Id,
         new CreateAccessGrantCommand(
-            competingRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+            grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
         assignmentActor);
     throw new InvalidOperationException("Administrator assigned their own grant.");
 }
@@ -851,7 +855,7 @@ try
     await accessGrantService.CreateForUserAsync(
         operatorUser.Id,
         new CreateAccessGrantCommand(
-            competingRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+            grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
         new SecurityActorContext(
             operatorUser.Id, operatorUser.IdentityName, "not-admin"));
     throw new InvalidOperationException("Non-admin created security grant.");
@@ -866,7 +870,7 @@ try
     await accessGrantService.CreateForUserAsync(
         operatorUser.Id,
         new CreateAccessGrantCommand(
-            competingRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+            grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
         assignmentActor);
     throw new InvalidOperationException("Duplicate active grant was accepted.");
 }

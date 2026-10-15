@@ -183,11 +183,21 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             await transaction.CommitAsync(cancellationToken);
         }
         catch (PostgresException exception)
-            when (exception.SqlState == PostgresErrorCodes.SerializationFailure)
+            when (exception.SqlState is PostgresErrorCodes.SerializationFailure or
+                PostgresErrorCodes.UniqueViolation)
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
                 "A concurrent security change occurred. Reload before retrying.",
+                innerException: exception);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException
+                { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw new WellSiteAutoPilotException(
+                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
+                "An active matching grant already exists. Reload before retrying.",
                 innerException: exception);
         }
 
