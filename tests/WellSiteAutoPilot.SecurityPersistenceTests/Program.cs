@@ -1377,10 +1377,14 @@ await using (var inactiveAssetTransaction =
             .SetProperty(item => item.IsActive, false));
     var inactivePage = await proposedAccess.ListAsync(
         operatorUser.Id, WellSitePermissions.AssetsRead, 0, 100, assignmentActor);
-    if (inactivePage.Assets.Count != 0)
+    if (inactivePage.Assets.Count != 0 ||
+        await proposedResourceRepository.IsAssetAuthorizedAsync(
+            operatorUser.Id, WellSitePermissions.AssetsRead, asset.Id) ||
+        await proposedResourceRepository.AreAssetsAuthorizedAsync(
+            operatorUser.Id, WellSitePermissions.AssetsRead, [asset.Id]))
     {
         throw new InvalidOperationException(
-            "Proposed SQL projection included an inactive Asset.");
+            "Proposed SQL permission decisions included an inactive Asset.");
     }
     await inactiveAssetTransaction.RollbackAsync();
 }
@@ -1405,6 +1409,13 @@ var allAssetsPreview = await proposedAccess.ListAsync(
 var otherUserPreview = await proposedAccess.ListAsync(
     operatorUser.Id, WellSitePermissions.AssetsRead, 0, 500, assignmentActor);
 if (!allAssetsDraft.IsActive ||
+    !await proposedResourceRepository.IsAssetAuthorizedAsync(
+        administrator.Id, WellSitePermissions.AssetsRead, asset.Id) ||
+    !await proposedResourceRepository.AreAssetsAuthorizedAsync(
+        administrator.Id, WellSitePermissions.AssetsRead,
+        [asset.Id, otherAsset.Id]) ||
+    await proposedResourceRepository.IsDeploymentPermissionGrantedAsync(
+        administrator.Id, WellSitePermissions.AssetsRead) ||
     !allAssetsPreview.Assets.Any(item => item.Id == asset.Id) ||
     !allAssetsPreview.Assets.Any(item => item.Id == otherAsset.Id) ||
     otherUserPreview.Assets.Count != 1 ||
