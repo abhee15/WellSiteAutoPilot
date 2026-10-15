@@ -112,6 +112,8 @@ export function RoleDefinitionEditor({
           disabled={busy}>{t('roles.cancel')}</button>
       </div>
       <p className="access-note access-intro">{t('roles.inactiveUntilGrants')}</p>
+      {original && !original.isSystem &&
+        <p className="access-note access-intro">{t('roles.assignedRoleWarning')}</p>}
       <div className="role-fields">
         <label><span>{t('roles.name')}</span>
           <input value={name} maxLength={80} disabled={busy}
