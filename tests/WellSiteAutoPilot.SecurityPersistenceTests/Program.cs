@@ -850,6 +850,23 @@ catch (WellSiteAutoPilotException exception)
 {
 }
 
+// The original bootstrap admin was deliberately demoted earlier in this
+// suite. Historical administrator identity must not bypass current access.
+try
+{
+    await accessGrantService.CreateForUserAsync(
+        operatorUser.Id,
+        new CreateAccessGrantCommand(
+            grantCatalogRole.Id, AccessGrantScopeKind.ExactAssets, [asset.Id]),
+        new SecurityActorContext(
+            administrator.Id, administrator.IdentityName, "demoted-admin"));
+    throw new InvalidOperationException("Demoted administrator created security grant.");
+}
+catch (WellSiteAutoPilotException exception)
+    when (exception.Code == "SECURITY_ADMIN_REQUIRED")
+{
+}
+
 try
 {
     await accessGrantService.CreateForUserAsync(
