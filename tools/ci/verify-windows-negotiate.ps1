@@ -5,6 +5,7 @@ param(
     [string]$BaseUrl = "http://127.0.0.1:5080"
 )
 $ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Net.Http
 
 if ($env:OS -ne "Windows_NT") {
     throw "This smoke test requires Windows SSPI integrated credentials."
@@ -61,11 +62,11 @@ try {
                 "$([int]$response.StatusCode). Check Windows/browser policy, " +
                 "Kestrel configuration and active user state."
         }
-        $payload = $response.Content.ReadAsStringAsync().
-            GetAwaiter().GetResult() | ConvertFrom-Json
+        $json = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        $payload = $json | ConvertFrom-Json
         $parsedId = [Guid]::Empty
-        if (-not $payload.identityName -or
-            -not [Guid]::TryParse([string]$payload.userId, [ref]$parsedId) -or
+        $hasValidId = [Guid]::TryParse([string]$payload.userId, [ref]$parsedId)
+        if (-not $payload.identityName -or -not $hasValidId -or
             $parsedId -eq [Guid]::Empty) {
             throw "Negotiate endpoint returned invalid WSA user identity data."
         }
