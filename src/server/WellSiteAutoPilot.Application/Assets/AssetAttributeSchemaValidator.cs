@@ -54,6 +54,9 @@ public static class AssetAttributeSchemaValidator
         {
             throw InvalidValues();
         }
+        // Duplicate JSON property names are ambiguous across parsers and can
+        // defeat operator review. Reject them recursively before evaluation.
+        RejectDuplicateValues(values.RootElement);
         // Existing database schema rows are not automatically trusted either.
         await ValidateDefinitionAsync(schemaJson, cancellationToken);
         try
@@ -98,6 +101,24 @@ public static class AssetAttributeSchemaValidator
         }
     }
 
+    private static void RejectDuplicateValues(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+                RejectDuplicateValues(item);
+            return;
+        }
+        if (element.ValueKind != JsonValueKind.Object) return;
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in element.EnumerateObject())
+        {
+            if (!names.Add(property.Name))
+                throw InvalidValues();
+            RejectDuplicateValues(property.Value);
+        }
+    }
+
     private static void ValidateShape(JsonElement node, int depth, bool isRoot)
     {
         if (depth > 6 || node.ValueKind != JsonValueKind.Object)
@@ -105,8 +126,11 @@ public static class AssetAttributeSchemaValidator
             throw Unsupported();
         }
         string? type = null;
+        var seenKeywords = new HashSet<string>(StringComparer.Ordinal);
         foreach (var keyword in node.EnumerateObject())
         {
+            if (!seenKeywords.Add(keyword.Name))
+                throw Unsupported();
             if (!Keywords.Contains(keyword.Name))
             {
                 // $ref, $id, $schema, dynamic references, regex patterns, etc:
