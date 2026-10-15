@@ -10,6 +10,7 @@ namespace WellSiteAutoPilot.Application.Security;
 /// </summary>
 public static class ScopedGrantEvaluator
 {
+    public const int MaximumExactAssetsPerGrant = 500;
     public const string DeniedInactiveUser = "SECURITY_USER_INACTIVE";
     public const string DeniedUnknownPermission = "SECURITY_PERMISSION_UNKNOWN";
     public const string DeniedInvalidScope = "SECURITY_SCOPE_DENIED";
@@ -102,7 +103,8 @@ public static class ScopedGrantEvaluator
             }
 
             if (grant.ScopeKind != AccessGrantScopeKind.ExactAssets ||
-                grant.AssetIds.Count == 0 ||
+                grant.AssetIds.Count is < 1 or > MaximumExactAssetsPerGrant ||
+                grant.AssetIds.Distinct().Count() != grant.AssetIds.Count ||
                 grant.AssetIds.Any(id => id == Guid.Empty) ||
                 grant.AssetIds.Any(id => !activeAssetIds.Contains(id)) ||
                 !scoped)
