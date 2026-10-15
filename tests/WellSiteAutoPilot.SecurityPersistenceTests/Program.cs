@@ -624,6 +624,9 @@ await ScopedAccessInspectionChecks.RunAsync(
 await MigrationPreflightChecks.RunAsync(
     options, operatorUser, administrator, secondAdministrator, otherAsset.Id, clock);
 
+await LegacyGrantMigrationChecks.RunAsync(
+    options, operatorUser, administrator, secondAdministrator, otherAsset.Id, clock);
+
 Console.WriteLine(
     "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;

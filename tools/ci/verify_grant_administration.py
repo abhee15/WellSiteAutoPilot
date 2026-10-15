@@ -137,3 +137,22 @@ page_two = request("GET", "/security/assets/directory?offset=1&limit=1")
 assert len(page_one) == 1 and len(page_two) == 1
 assert page_one[0]["id"] != page_two[0]["id"]
 assert set(page_one[0]) == {"id", "name", "isActive"}
+
+# Explicit deployment writes remain audit-only and never change live access.
+for route in ["/security/materialize-legacy-grants", "/security/rollback-legacy-grants"]:
+    request("POST", route, None, {"confirmed": True}, expected=401)
+    request("POST", route, OPERATOR, {"confirmed": True}, expected=403)
+    request("POST", route, body={"confirmed": False}, expected=400)
+migration = request("POST", "/security/materialize-legacy-grants", body={"confirmed": True})
+assert migration["grantsCreated"] > 0
+assert migration["recordedGrantsMatchLegacy"] is True and migration["liveAuthorizationUnchanged"] is True
+assert request("GET", "/security/migration-preflight")["allActiveUsersMatchRecordedGrants"] is True
+assert request("POST", "/security/materialize-legacy-grants", body={"confirmed": True})["grantsCreated"] == 0
+assert request("GET", "/assets", OPERATOR) == before_assets
+request("GET", f"/assets/{outside['id']}", OPERATOR, expected=403)
+rollback = request("POST", "/security/rollback-legacy-grants", body={"confirmed": True})
+assert rollback["grantsDeactivated"] == migration["grantsCreated"] and rollback["liveAuthorizationUnchanged"] is True
+assert request("POST", "/security/rollback-legacy-grants", body={"confirmed": True})["grantsDeactivated"] == 0
+assert request("GET", "/assets", OPERATOR) == before_assets
+request("GET", f"/assets/{outside['id']}", OPERATOR, expected=403)
+print("Migration HTTP confirmation, parity, idempotency, rollback, and legacy authorization checks passed.")
