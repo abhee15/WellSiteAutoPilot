@@ -74,6 +74,10 @@ export function buildDevelopmentProxy(
       // forward an arbitrary display-name assertion alongside our identity.
       proxyRequest.removeHeader(identityHeader);
       proxyRequest.removeHeader(displayNameHeader);
+      // No browser-integrated credentials or arbitrary bearer tokens should
+      // be forwarded to a development-only synthetic-identity endpoint.
+      proxyRequest.removeHeader('Authorization');
+      proxyRequest.removeHeader('Proxy-Authorization');
       if (includeIdentity) {
         proxyRequest.setHeader(identityHeader, identity);
       }
