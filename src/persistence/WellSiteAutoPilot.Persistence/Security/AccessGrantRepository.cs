@@ -90,7 +90,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
              scopeIds.Length == 0) ||
             (command.ScopeKind != AccessGrantScopeKind.ExactAssets &&
              scopeIds.Length != 0) ||
-            scopeIds.Length > 500 ||
+            scopeIds.Length > ScopedGrantEvaluator.MaximumExactAssetsPerGrant ||
             scopeIds.Any(item => item == Guid.Empty))
         {
             throw new WellSiteAutoPilotException(
