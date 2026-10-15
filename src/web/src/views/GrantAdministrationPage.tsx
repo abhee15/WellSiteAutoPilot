@@ -10,6 +10,7 @@ import { previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
 import { ScopedGrantEditor } from './ScopedGrantEditor';
 import { GrantAssetDirectoryError, loadGrantAssetDirectory } from './grantAssetDirectory';
+import { EffectiveAccessInspector } from './EffectiveAccessInspector';
 
 export function GrantAdministrationPage({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
@@ -215,6 +216,9 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
           </div>
         )}
       </section>
+      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+        <EffectiveAccessInspector
+          key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
       {selectedUser && retiring && !error && (
         <section className="panel grant-final-review" role="region"
           aria-label={t('grants.retireReview')}>
