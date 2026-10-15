@@ -544,6 +544,30 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+// Administrative scope planning needs a complete, stable Asset directory.
+// Unlike ordinary Asset reads, this endpoint is restricted to administrators
+// and returns deterministic pages for large deployments.
+v1.MapGet(
+    "/security/assets/directory",
+    async (
+        int? offset,
+        int? limit,
+        AssetService assetService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        assetScopeAuthorizer.RequireAdministrator(context.User);
+        var assets = await assetService.ListAssetDirectoryPageAsync(
+            offset ?? 0, limit ?? 200, cancellationToken);
+        return assets.Select(ToAssetResponse).ToArray();
+    })
+    .WithName("ListSecurityAssetDirectory")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AssetResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 v1.MapGet(
     "/assets",
     async (
