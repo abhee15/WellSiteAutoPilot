@@ -1111,7 +1111,8 @@ catch (WellSiteAutoPilotException exception)
 // it cannot certify whole-deployment authorization equivalence.
 var inspector = new ScopedAccessInspectionService(
     accessGrantService, repository, new AccessGrantRepository(dbContext),
-    new RoleCatalogRepository(dbContext), new AssetRepository(dbContext));
+    new RoleCatalogRepository(dbContext), new AssetRepository(dbContext),
+    new ProposedAssetAccessRepository(dbContext));
 // Capture the complete active Asset inventory, built-in/custom roles,
  // recorded grants and user scope under ONE PostgreSQL repeatable-read
  // transaction. This read-only preflight is not an authorization cutover.
