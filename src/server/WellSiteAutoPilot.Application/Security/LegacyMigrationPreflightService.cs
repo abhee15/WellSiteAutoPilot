@@ -100,7 +100,7 @@ public static class LegacyMigrationPreflightEvaluator
         }
 
         return new LegacyMigrationPreflightResult(
-            userId, snapshot.ActiveAssetIds.Count, expected.Count,
+            snapshot.User.Id, snapshot.ActiveAssetIds.Count, expected.Count,
             snapshot.RecordedGrants.Count(item => item.IsActive),
             expansionCount, reductionCount, samples,
             expansionCount == 0 && reductionCount == 0);
