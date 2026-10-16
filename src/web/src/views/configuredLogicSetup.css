@@ -1,0 +1,26 @@
+/* Feature-owned forms follow the semantic token contract. */
+.setup-panel { padding: var(--space-16) var(--space-18); min-width: 0; }
+.setup-panel h3 { font-size: var(--font-size-body); }
+.setup-form fieldset { min-width: 0; display: grid; gap: var(--space-14);
+  padding: var(--space-14); border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-6); }
+.setup-form label { display: grid; gap: var(--space-6); min-width: 0; }
+.setup-form :is(input:not([type="checkbox"]),select,textarea) {
+  width: 100%; min-width: 0; padding: var(--space-10); font: inherit;
+  background: var(--color-surface-input); color: var(--color-text-primary);
+  border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6);
+}
+.setup-form select[multiple] { min-height: 8rem; }
+.setup-form p, .setup-revisions p { color: var(--color-text-subtle); overflow-wrap: anywhere; }
+.setup-panel [role="alert"] { color: var(--color-text-warning-strong); }
+.setup-panel [role="status"] { color: var(--color-text-selected); }
+.setup-panel :is(input,select,textarea,button,summary):focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset);
+}
+.setup-revisions { list-style: none; padding: 0; display: grid; gap: var(--space-14); }
+.setup-revisions li { padding: var(--space-12); border: var(--border-width-thin) solid var(--color-border-subtle); }
+.setup-actions { display: flex; flex-wrap: wrap; gap: var(--space-10); }
+@media (min-width: 760px) {
+  .setup-form > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setup-form > fieldset > :is(fieldset,details,p) { grid-column: 1 / -1; }
+}

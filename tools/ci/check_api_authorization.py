@@ -41,6 +41,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/security/assets/directory"): ("ListSecurityAssetDirectory", "SecurityManage"),
     ("GET", "/assets"): ("ListAssets", "AssetsRead"),
     ("GET", "/assets/{assetId:guid}"): ("GetAsset", "AssetsRead"),
+    ("GET", "/configured-logic/capabilities"): ("GetConfiguredLogicCapabilities", "ConfiguredLogicRead"),
     ("POST", "/configured-logic"): ("CreateConfiguredLogic", "ConfiguredLogicManage"),
     ("GET", "/configured-logic"): ("ListConfiguredLogic", "ConfiguredLogicRead"),
     ("GET", "/configured-logic/{configuredLogicId:guid}"): ("GetConfiguredLogic", "ConfiguredLogicRead"),

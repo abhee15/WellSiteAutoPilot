@@ -255,6 +255,100 @@ catch (WellSiteAutoPilotException exception) when (
 {
 }
 
+// Reproduce races with separate EF contexts, never shared tracked entities.
+var raceCommand = new CreateConfiguredLogicRevisionCommand(manifest, "{}",
+    [new ConfiguredLogicAssetBindingCommand("well", well.Id, "{}")],
+    [new ConfiguredLogicDataBindingCommand("pump-fillage", well.Id,
+        "provider-simulator", "well-cl-101", "{}")], null);
+var candidateA = await configuredLogicService.CreateRevisionAsync(created.Id, raceCommand);
+var candidateB = await configuredLogicService.CreateRevisionAsync(created.Id, raceCommand);
+await configuredLogicService.ValidateRevisionAsync(created.Id, candidateA.Id);
+await configuredLogicService.ValidateRevisionAsync(created.Id, candidateB.Id);
+var beforeRace = await configuredLogicService.GetRequiredAsync(created.Id);
+var startRace = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+async Task<bool> CompeteActivation(Guid revisionId)
+{
+    await using var context = new WellSiteAutoPilotDbContext(options);
+    await startRace.Task;
+    try
+    {
+        await new ConfiguredLogicRepository(context).ActivateRevisionAsync(created.Id,
+            revisionId, DateTimeOffset.UtcNow, beforeRace.ActiveRevisionId);
+        return true;
+    }
+    catch (WellSiteAutoPilotException e) when (e.Code == "CONFIGURED_LOGIC_REVISION_CONFLICT")
+    { return false; }
+}
+var competitors = new[] { CompeteActivation(candidateA.Id), CompeteActivation(candidateB.Id) };
+startRace.SetResult();
+var winners = await Task.WhenAll(competitors);
+if (winners.Count(x => x) != 1) throw new InvalidOperationException("Concurrent activation must have exactly one winner.");
+var afterRace = await configuredLogicService.GetRequiredAsync(created.Id);
+if (afterRace.Revisions.Count(r => r.Status == ConfiguredLogicRevisionStatus.Active) != 1 ||
+    afterRace.Revisions.Single(r => r.Status == ConfiguredLogicRevisionStatus.Active).Id != afterRace.ActiveRevisionId)
+    throw new InvalidOperationException("Activation must atomically supersede and update the pointer.");
+var activeRaceId = afterRace.ActiveRevisionId!.Value;
+try
+{
+    // Stale service validation must not turn a now Active row back to Validated.
+    await configuredLogicRepository.SetRevisionValidatedAsync(created.Id, activeRaceId, DateTimeOffset.UtcNow);
+    throw new InvalidOperationException("Stale validation overwrote activation.");
+}
+catch (WellSiteAutoPilotException e) when (e.Code == "CONFIGURED_LOGIC_REVISION_CONFLICT") { }
+var loser = candidateA.Id == activeRaceId ? candidateB : candidateA;
+try
+{
+    await configuredLogicService.ActivateRevisionAsync(created.Id, loser.Id,
+        expectedActivationToken: beforeRace.ActiveRevisionId?.ToString("D") ?? "none");
+    throw new InvalidOperationException("Stale operator activation was accepted.");
+}
+catch (WellSiteAutoPilotException e) when (e.Code == "CONFIGURED_LOGIC_REVISION_CONFLICT") { }
+
+// Both writers have the same stale next revision number; one commits and
+// the other gets a domain 409 instead of an unhandled PostgreSQL 23505.
+var nextNumber = afterRace.Revisions.Max(r => r.RevisionNumber) + 1;
+var simultaneous = candidateA with { Id = Guid.NewGuid(), RevisionNumber = nextNumber,
+    Status = ConfiguredLogicRevisionStatus.Draft, ValidatedAtUtc = null };
+var startCreate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+async Task<bool> CompeteCreate()
+{
+    await using var context = new WellSiteAutoPilotDbContext(options);
+    await startCreate.Task;
+    try { await new ConfiguredLogicRepository(context).AddRevisionAsync(simultaneous with { Id = Guid.NewGuid() }); return true; }
+    catch (WellSiteAutoPilotException e) when (e.Code == "CONFIGURED_LOGIC_REVISION_CONFLICT") { return false; }
+}
+var creators = new[] { CompeteCreate(), CompeteCreate() };
+startCreate.SetResult();
+if ((await Task.WhenAll(creators)).Count(x => x) != 1)
+    throw new InvalidOperationException("Concurrent stale revision numbers must conflict safely.");
+foreach (var invalidJson in new[] { "[]", "null", "1", "{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}" })
+{
+    try
+    {
+        await configuredLogicService.CreateRevisionAsync(created.Id, raceCommand with { ParametersJson = invalidJson });
+        throw new InvalidOperationException("Invalid parameter object accepted.");
+    }
+    catch (WellSiteAutoPilotException e) when (e.Kind == FailureKind.Validation) { }
+}
+var inactiveCandidate = await configuredLogicService.CreateRevisionAsync(created.Id, raceCommand);
+await configuredLogicService.ValidateRevisionAsync(created.Id, inactiveCandidate.Id);
+await dbContext.Assets.Where(a => a.Id == well.Id)
+    .ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, false));
+try
+{
+    await configuredLogicService.ActivateRevisionAsync(created.Id, inactiveCandidate.Id);
+    throw new InvalidOperationException("Activation accepted an Asset retired after validation.");
+}
+catch (WellSiteAutoPilotException e) when (e.Code == "CONFIGURED_LOGIC_ASSET_NOT_FOUND") { }
+await dbContext.Assets.Where(a => a.Id == well.Id)
+    .ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, true));
+if ((await configuredLogicService.GetRequiredAsync(created.Id)).ActiveRevisionId != activeRaceId)
+    throw new InvalidOperationException("Rejected activation changed the current revision.");
+var activationAudits = await dbContext.AuditEvents.AsNoTracking()
+    .Where(a => a.TargetId == created.Id.ToString() && a.Action == "CONFIGURED_LOGIC_REVISION_ACTIVATED")
+    .CountAsync();
+if (activationAudits != 3) throw new InvalidOperationException("Activation audit must commit once per successful transition only.");
+
 Console.WriteLine(
     "Configured Logic persistence, module readiness, trust gating, activation, and revision-history checks passed.");
 return 0;

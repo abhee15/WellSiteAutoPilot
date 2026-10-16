@@ -867,6 +867,14 @@ v1.MapGet(
     .Produces<AssetResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+v1.MapGet(
+    "/configured-logic/capabilities",
+    (HttpContext context) => new ConfiguredLogicCapabilitiesResponse(
+        context.User.HasClaim(SecurityClaimTypes.Permission, WellSitePermissions.ConfiguredLogicManage)))
+    .WithName("GetConfiguredLogicCapabilities")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
+    .Produces<ConfiguredLogicCapabilitiesResponse>(StatusCodes.Status200OK);
+
 v1.MapPost(
     "/configured-logic",
     async (
@@ -876,6 +884,11 @@ v1.MapPost(
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        if (request.AssetBindings is null || request.DataBindings is null ||
+            request.AssetBindings.Any(binding => binding is null) ||
+            request.DataBindings.Any(binding => binding is null))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Asset and data bindings are required.");
         assetScopeAuthorizer.RequireAssets(
             httpContext.User,
             request.AssetBindings.Select(binding => binding.AssetId));
@@ -906,7 +919,8 @@ v1.MapPost(
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
                         request.Schedule.TimeZoneId)),
-            cancellationToken);
+            new SecurityActorContext(GetCurrentUserId(httpContext.User),
+                httpContext.User.Identity?.Name ?? "", CorrelationContext.GetCorrelationId(httpContext)), cancellationToken);
 
         return Results.Created(
             $"/api/v1/configured-logic/{created.Id}",
@@ -986,6 +1000,11 @@ v1.MapPost(
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
+        if (request.AssetBindings is null || request.DataBindings is null ||
+            request.AssetBindings.Any(binding => binding is null) ||
+            request.DataBindings.Any(binding => binding is null))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Asset and data bindings are required.");
         var allowedAssetIds =
             assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
 
@@ -1027,13 +1046,15 @@ v1.MapPost(
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
                         request.Schedule.TimeZoneId)),
-            cancellationToken);
+            new SecurityActorContext(GetCurrentUserId(httpContext.User),
+                httpContext.User.Identity?.Name ?? "", CorrelationContext.GetCorrelationId(httpContext)), cancellationToken);
 
         return Results.Created(
             $"/api/v1/configured-logic/{configuredLogicId}/revisions/{revision.Id}",
             ToConfiguredLogicRevisionResponse(revision));
     })
     .WithName("CreateConfiguredLogicRevision")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -1064,7 +1085,8 @@ v1.MapPost(
             await service.ValidateRevisionAsync(
                 configuredLogicId,
                 revisionId,
-                cancellationToken));
+                new SecurityActorContext(GetCurrentUserId(httpContext.User),
+                    httpContext.User.Identity?.Name ?? "", CorrelationContext.GetCorrelationId(httpContext)), cancellationToken: cancellationToken));
     })
     .WithName("ValidateConfiguredLogicRevision")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
@@ -1078,6 +1100,7 @@ v1.MapPost(
     async (
         Guid configuredLogicId,
         Guid revisionId,
+        [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
         ConfiguredLogicService service,
         AssetScopeAuthorizer assetScopeAuthorizer,
         HttpContext httpContext,
@@ -1098,9 +1121,12 @@ v1.MapPost(
             await service.ActivateRevisionAsync(
                 configuredLogicId,
                 revisionId,
-                cancellationToken));
+                new SecurityActorContext(GetCurrentUserId(httpContext.User),
+                    httpContext.User.Identity?.Name ?? "", CorrelationContext.GetCorrelationId(httpContext)),
+                ifMatch?.Trim('"'), cancellationToken));
     })
     .WithName("ActivateConfiguredLogicRevision")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
