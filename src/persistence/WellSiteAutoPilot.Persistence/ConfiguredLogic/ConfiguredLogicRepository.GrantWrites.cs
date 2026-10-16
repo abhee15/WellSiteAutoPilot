@@ -1,0 +1,121 @@
+using System.Data;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.ConfiguredLogic;
+using WellSiteAutoPilot.Domain.Executions;
+using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Persistence.Security;
+
+namespace WellSiteAutoPilot.Persistence.ConfiguredLogic;
+
+public sealed partial class ConfiguredLogicRepository
+{
+    public Task AddAuthorizedAsync(ConfiguredLogicDefinition definition, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (definition.Id == Guid.Empty || definition.ActiveRevisionId is not null ||
+            string.IsNullOrWhiteSpace(definition.Name) || definition.Name.Length > 256 ||
+            definition.Name.Any(char.IsControl) || definition.Revisions.Count != 1)
+            throw InvalidDraft();
+        var revision = definition.Revisions.Single();
+        ValidateDraft(revision);
+        if (revision.ConfiguredLogicId != definition.Id || revision.RevisionNumber != 1) throw InvalidDraft();
+        return WriteDraftAuthorizedAsync(subject, actor, async () =>
+        {
+            await RequireDraftAssetsAsync(subject, DraftAssets(revision), cancellationToken);
+            dbContext.ConfiguredLogicDefinitions.Add(new ConfiguredLogicEntity
+            {
+                Id = definition.Id, Name = definition.Name, CreatedAtUtc = definition.CreatedAtUtc
+            });
+            AddRevision(revision);
+            Audit(revision, "CONFIGURED_LOGIC_CREATED", actor, (clock ?? TimeProvider.System).GetUtcNow());
+        }, cancellationToken);
+    }
+
+    public Task AddRevisionAuthorizedAsync(ConfiguredLogicRevision revision, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        ValidateDraft(revision);
+        return WriteDraftAuthorizedAsync(subject, actor, async () =>
+        {
+            // Resolve the full persisted configuration under the same lock used
+            // by lifecycle writes. The client cannot replace its old scope with
+            // an authorized incoming binding to acquire a foreign configuration.
+            var definitions = await dbContext.ConfiguredLogicDefinitions.FromSqlInterpolated($"""
+                SELECT c.* FROM logic.configured_logic AS c WHERE c."Id" = {revision.ConfiguredLogicId} FOR UPDATE OF c
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
+            if (definitions.Length != 1) throw DraftDenied();
+            var revisions = await dbContext.ConfiguredLogicRevisions.FromSqlInterpolated($"""
+                SELECT r.* FROM logic.configured_logic_revisions AS r
+                WHERE r."ConfiguredLogicId" = {revision.ConfiguredLogicId} ORDER BY r."Id" FOR UPDATE OF r
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
+            var ids = revisions.Select(item => item.Id).ToArray();
+            var assets = await dbContext.ConfiguredLogicAssetBindings.FromSqlInterpolated($"""
+                SELECT b.* FROM logic.configured_logic_asset_bindings AS b
+                WHERE b."RevisionId" = ANY({ids}) ORDER BY b."RevisionId", b."Role", b."AssetId" FOR SHARE OF b
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
+            var inputs = await dbContext.ConfiguredLogicDataBindings.FromSqlInterpolated($"""
+                SELECT b.* FROM logic.configured_logic_data_bindings AS b
+                WHERE b."RevisionId" = ANY({ids}) ORDER BY b."RevisionId", b."RequirementId", b."AssetId" FOR SHARE OF b
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
+            if (revisions.Length == 0 || revisions.Any(item => !assets.Any(binding => binding.RevisionId == item.Id)))
+                throw DraftDenied();
+            var targets = assets.Select(item => item.AssetId).Concat(inputs.Select(item => item.AssetId))
+                .Concat(DraftAssets(revision)).Distinct().Order().ToArray();
+            await RequireDraftAssetsAsync(subject, targets, cancellationToken);
+            if (revision.RevisionNumber != revisions.Max(item => item.RevisionNumber) + 1) throw Conflict();
+            AddRevision(revision);
+            Audit(revision, "CONFIGURED_LOGIC_REVISION_CREATED", actor, (clock ?? TimeProvider.System).GetUtcNow());
+        }, cancellationToken);
+    }
+
+    private async Task RequireDraftAssetsAsync(AccessSubject subject, Guid[] targets, CancellationToken cancellationToken)
+    {
+        var time = clock ?? TimeProvider.System;
+        await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ConfiguredLogicRead, targets, time, cancellationToken);
+        await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ConfiguredLogicManage, targets, time, cancellationToken);
+        // The second fence may block. Recheck read proof freshness after it.
+        await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ConfiguredLogicRead, targets, time, cancellationToken);
+    }
+
+    private async Task WriteDraftAuthorizedAsync(AccessSubject subject, SecurityActorContext actor, Func<Task> stage,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.UserId != subject.UserId || string.IsNullOrWhiteSpace(actor.IdentityName) ||
+            actor.IdentityName.Length > 256 || actor.IdentityName.Any(char.IsControl)) throw DraftDenied();
+        try
+        {
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            await stage();
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception.GetBaseException() is PostgresException postgres &&
+            postgres.SqlState is PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.UniqueViolation)
+        {
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_REVISION_CONFLICT", FailureKind.Conflict,
+                "Configuration or access changed concurrently. Reload before retrying.", innerException: exception);
+        }
+    }
+
+    private static Guid[] DraftAssets(ConfiguredLogicRevision revision) => revision.AssetBindings.Select(item => item.AssetId)
+        .Concat(revision.DataBindings.Select(item => item.AssetId)).Distinct().Order().ToArray();
+
+    private static void ValidateDraft(ConfiguredLogicRevision revision)
+    {
+        if (revision.Id == Guid.Empty || revision.ConfiguredLogicId == Guid.Empty || revision.RevisionNumber < 1 ||
+            revision.Mode != ExecutionMode.Shadow || revision.Status != ConfiguredLogicRevisionStatus.Draft ||
+            revision.ValidatedAtUtc is not null || revision.ActivatedAtUtc is not null ||
+            revision.AssetBindings.Count == 0 || DraftAssets(revision).Contains(Guid.Empty)) throw InvalidDraft();
+    }
+
+    private static WellSiteAutoPilotException InvalidDraft() => new(FailureCodes.ValidationFailed, FailureKind.Validation,
+        "An initial Shadow draft with explicit Asset bindings is required.");
+    private static WellSiteAutoPilotException DraftDenied() => new("SECURITY_SCOPE_DENIED", FailureKind.Authorization,
+        "The current user is not authorized to modify this configuration.");
+}

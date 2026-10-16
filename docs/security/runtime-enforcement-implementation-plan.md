@@ -168,6 +168,29 @@ Genuine browser Negotiate, domain/nested groups, cross-domain trusts and token
 renewal/revocation latency remain release gate #92. TestHeader and injected
 proof fixtures do not establish those properties. Keep execution in Shadow.
 
+Configuration draft persistence now has grant-authorized create/revision entry
+points. Revision authoring locks the existing definition, revisions and both
+target/input binding sets, then retains paired read/manage authority for every
+persisted and incoming Asset through the write/audit commit. Incoming bindings
+cannot replace a foreign configuration's existing scope. Initial creation
+requires a single explicit Shadow draft; empty targets never imply a wildcard.
+Application manifest/binding validation still precedes these persistence calls;
+these entry points do not replace it and are not wired to live routes yet.
+Validation/activation dependency fencing and application integration remain next.
+
+The added PostgreSQL cases cover direct and verified-group manage authority
+paired with separate direct read authority, cross-scope revisions/data inputs,
+foreign-configuration takeover attempts, stale revision numbers, actor mismatch,
+missing group proof, an injected post-save rollback, and an observed grant
+revocation lock wait followed by fresh denial. Local compilation, Npgsql query
+translation and 14 convention checks pass; actual PostgreSQL execution must be
+verified on the new head in CI before claiming this checkpoint validated.
+
+User-approved next Phase 1 priority after completing #127 remains #92: start
+with a separate manually triggered Windows browser diagnostic PR, then grow
+real local user/group coverage and relevant-change regression gating. Keep
+domain-connected AD/Kerberos validation distinct from local Windows coverage.
+
 Do not introduce a Legacy/Observe/Enforce state machine or a production
 migration campaign for this unreleased baseline. Do not enable a partial mixed
 legacy/grant runtime merely because an individual repository or UI test passes.
