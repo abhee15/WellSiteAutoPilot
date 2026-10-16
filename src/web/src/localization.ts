@@ -3,6 +3,22 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'grants.rollbackHeading': 'Rollback migrated grants',
+  'grants.rollbackWarning': 'This deactivates ALL still-active assignments previously created by the audited legacy migration, across the entire deployment, not only the selected user or this session. It does not affect manually authored grants or live legacy permissions. Modified migration assignments or uncertain provenance stop the entire rollback.',
+  'grants.rollbackConfirm': 'I understand that rollback affects all migrated grants across the deployment, but does not change live authorization.',
+  'grants.rollbackType': 'Type ROLLBACK MIGRATED GRANTS to confirm',
+  'grants.rollbackPhrase': 'ROLLBACK MIGRATED GRANTS',
+  'grants.rollbackAction': 'Rollback migrated grants',
+  'grants.rollbackSaved': '{count} migration-origin grants deactivated and audited. Legacy runtime access is unchanged. Run a new deployment preflight.',
+  'grants.rollbackUncertain': 'Rollback result could not be verified and may have committed. Do NOT retry automatically; run a fresh deployment preflight.',
+  'grants.materializeHeading': 'Record verified legacy grants',
+  'grants.materializeWarning': 'This writes auditable grant records for the entire deployment, not just the selected user. It does not change live access. Any conflicting recorded grant stops the transaction. A new authoritative snapshot is checked before writing.',
+  'grants.materializeConfirm': 'I understand that this records grants for all active users and does not enable the new authorization model.',
+  'grants.materializeType': 'Type RECORD LEGACY GRANTS to confirm',
+  'grants.materializePhrase': 'RECORD LEGACY GRANTS',
+  'grants.materializeAction': 'Record legacy grants',
+  'grants.materializeSaved': '{count} legacy grant records saved. Live authorization is unchanged. Run a new deployment preflight to verify the committed state.',
+  'grants.materializeUncertain': 'The migration result could not be verified. It may have committed. Do NOT retry automatically; run a new deployment preflight first.',
   'grants.deploymentHeading': 'Deployment migration preflight',
   'grants.deploymentExplain': 'Compare all active users and active Assets in one bounded database snapshot. Recorded grants must not expand existing permissions. This is a read-only diagnostic and never enables authorization.',
   'grants.deploymentInspect': 'Check deployment parity',
