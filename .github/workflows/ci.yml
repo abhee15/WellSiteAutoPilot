@@ -78,6 +78,8 @@ jobs:
       - name: Verify failure contracts
         run: dotnet run --project tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj --configuration Release --no-build
 
+      - name: Verify authenticated external identity boundary
+        run: dotnet run --project tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj --configuration Release --no-build
       - name: Verify pure scoped-grant authorization isolation
         run: dotnet run --project tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj --configuration Release --no-build
 
@@ -580,6 +582,9 @@ jobs:
 
       - name: Verify security identity, RBAC, and Asset scope persistence
         run: dotnet run --project tests/WellSiteAutoPilot.SecurityPersistenceTests/WellSiteAutoPilot.SecurityPersistenceTests.csproj --configuration Release --no-build
+
+      - name: Verify authenticated identity persistence and claims
+        run: dotnet run --project tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj --configuration Release --no-build -- --persistence
 
       - name: Verify asset persistence
         run: dotnet run --project tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj --configuration Release --no-build

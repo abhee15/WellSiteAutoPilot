@@ -89,6 +89,8 @@ else
         $"Unsupported Security:AuthenticationMode '{authenticationMode}'.");
 }
 
+builder.Services.AddSingleton<IAuthenticatedPrincipalResolver>(
+    new ConfiguredPrincipalResolver(authenticationMode));
 builder.Services.AddAuthorization(WellSitePolicies.AddPolicies);
 
 builder.Services.AddWellSiteHttpErrorHandling();
