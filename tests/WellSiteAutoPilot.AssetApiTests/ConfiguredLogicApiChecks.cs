@@ -29,6 +29,9 @@ internal static class ConfiguredLogicApiChecks
         """;
         await new LogicModuleCatalogService(new LogicModuleCatalogRepository(db), TimeProvider.System)
             .RegisterAsync(new RegisterLogicModuleCommand(manifest, new string('a', 64), LogicModuleTrustStatus.TrustedPublisher));
+        var reader = await Read(await unprivileged.GetAsync("/api/v1/security/me"), HttpStatusCode.OK);
+        await Expect(await admin.PutAsJsonAsync("/api/v1/security/users/" + reader.GetProperty("userId").GetGuid() + "/access",
+            new { roles = new List<string> { "Operator" }, assetScopeIds = Array.Empty<Guid>() }), HttpStatusCode.OK);
         var path = "/api/v1/configured-logic";
         await Expect(await anonymous.GetAsync(path + "/capabilities"), HttpStatusCode.Unauthorized);
         var caps = await Read(await engineer.GetAsync(path + "/capabilities"), HttpStatusCode.OK);
@@ -48,6 +51,11 @@ internal static class ConfiguredLogicApiChecks
         await Expect(await engineer.PostAsJsonAsync(path, Request(Guid.NewGuid())), HttpStatusCode.Forbidden);
         await Expect(await engineer.PostAsJsonAsync(path, Request(assetId, "{\"x\":1,\"x\":2}")), HttpStatusCode.BadRequest);
         await Expect(await engineer.PostAsJsonAsync(path, new { name = "bad", assetBindings = (object?)null, dataBindings = (object?)null }), HttpStatusCode.BadRequest);
+        await Expect(await engineer.PostAsJsonAsync(path, new
+        {
+            name = "bad", moduleManifestJson = manifest, parametersJson = "{}",
+            assetBindings = new object?[] { null }, dataBindings = Array.Empty<object>()
+        }), HttpStatusCode.BadRequest);
         engineer.DefaultRequestHeaders.Add("X-Correlation-ID", "ci-configured-setup");
         var created = await Read(await engineer.PostAsJsonAsync(path, Request(assetId)), HttpStatusCode.Created);
         var id = created.GetProperty("id").GetGuid();

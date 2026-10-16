@@ -1,8 +1,8 @@
-using WellSiteAutoPilot.Application.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Logic;
@@ -329,7 +329,7 @@ public sealed class ConfiguredLogicService(
 
         foreach (var command in commands)
         {
-            var role = RequireText(command.Role, "Configured Logic asset role is required.");
+            var role = RequireText(command.Role, "Configured Logic asset role is required (up to 128 characters).", 128);
 
             if (!requirements.TryGetValue(role, out var requirement))
             {
@@ -434,7 +434,7 @@ public sealed class ConfiguredLogicService(
         {
             var requirementId = RequireText(
                 command.RequirementId,
-                "Configured Logic data requirement ID is required.");
+                "Configured Logic data requirement ID is required (up to 128 characters).", 128);
 
             if (!requirements.TryGetValue(requirementId, out var requirement))
             {
@@ -472,7 +472,7 @@ public sealed class ConfiguredLogicService(
                 $"Provider ID for data requirement '{requirementId}' is required.");
             var providerAssetExternalId = RequireText(
                 command.ProviderAssetExternalId,
-                $"Provider Asset ID for data requirement '{requirementId}' is required.");
+                $"Provider Asset ID for data requirement '{requirementId}' is required (up to 512 characters).", 512);
 
             ValidateJson(
                 command.ProviderMappingJson,
@@ -657,9 +657,9 @@ public sealed class ConfiguredLogicService(
         return manifest;
     }
 
-    private static string RequireText(string value, string message)
+    private static string RequireText(string value, string message, int maximumLength = 256)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length > maximumLength)
         {
             throw new WellSiteAutoPilotException(
                 FailureCodes.ValidationFailed,
@@ -672,7 +672,8 @@ public sealed class ConfiguredLogicService(
 
     private static void ValidateJson(string json, string message)
     {
-        if (string.IsNullOrWhiteSpace(json))
+        if (string.IsNullOrWhiteSpace(json) || json.Length > 65536 ||
+            global::System.Text.Encoding.UTF8.GetByteCount(json) > 65536)
         {
             throw new WellSiteAutoPilotException(
                 FailureCodes.ValidationFailed,
@@ -683,8 +684,7 @@ public sealed class ConfiguredLogicService(
         try
         {
             using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 32 });
-            if (global::System.Text.Encoding.UTF8.GetByteCount(json) > 65536 ||
-                HasDuplicateProperties(document.RootElement))
+            if (HasDuplicateProperties(document.RootElement))
                 throw new JsonException("JSON is oversized or contains duplicate property names.");
         }
         catch (JsonException exception)

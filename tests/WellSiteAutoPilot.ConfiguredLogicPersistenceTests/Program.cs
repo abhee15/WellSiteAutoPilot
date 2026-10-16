@@ -330,6 +330,20 @@ foreach (var invalidJson in new[] { "[]", "null", "1", "{\"x\":1,\"x\":2}", "{\"
     }
     catch (WellSiteAutoPilotException e) when (e.Kind == FailureKind.Validation) { }
 }
+var inactiveCandidate = await configuredLogicService.CreateRevisionAsync(created.Id, raceCommand);
+await configuredLogicService.ValidateRevisionAsync(created.Id, inactiveCandidate.Id);
+await dbContext.Assets.Where(a => a.Id == well.Id)
+    .ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, false));
+try
+{
+    await configuredLogicService.ActivateRevisionAsync(created.Id, inactiveCandidate.Id);
+    throw new InvalidOperationException("Activation accepted an Asset retired after validation.");
+}
+catch (WellSiteAutoPilotException e) when (e.Code == "CONFIGURED_LOGIC_ASSET_NOT_FOUND") { }
+await dbContext.Assets.Where(a => a.Id == well.Id)
+    .ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, true));
+if ((await configuredLogicService.GetRequiredAsync(created.Id)).ActiveRevisionId != activeRaceId)
+    throw new InvalidOperationException("Rejected activation changed the current revision.");
 var activationAudits = await dbContext.AuditEvents.AsNoTracking()
     .Where(a => a.TargetId == created.Id.ToString() && a.Action == "CONFIGURED_LOGIC_REVISION_ACTIVATED")
     .CountAsync();

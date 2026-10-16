@@ -884,7 +884,9 @@ v1.MapPost(
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
-        if (request.AssetBindings is null || request.DataBindings is null)
+        if (request.AssetBindings is null || request.DataBindings is null ||
+            request.AssetBindings.Any(binding => binding is null) ||
+            request.DataBindings.Any(binding => binding is null))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
                 "Asset and data bindings are required.");
         assetScopeAuthorizer.RequireAssets(
@@ -998,7 +1000,9 @@ v1.MapPost(
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
-        if (request.AssetBindings is null || request.DataBindings is null)
+        if (request.AssetBindings is null || request.DataBindings is null ||
+            request.AssetBindings.Any(binding => binding is null) ||
+            request.DataBindings.Any(binding => binding is null))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
                 "Asset and data bindings are required.");
         var allowedAssetIds =
@@ -1050,6 +1054,7 @@ v1.MapPost(
             ToConfiguredLogicRevisionResponse(revision));
     })
     .WithName("CreateConfiguredLogicRevision")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -1121,6 +1126,7 @@ v1.MapPost(
                 ifMatch?.Trim('"'), cancellationToken));
     })
     .WithName("ActivateConfiguredLogicRevision")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")

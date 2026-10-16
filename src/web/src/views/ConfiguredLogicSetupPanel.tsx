@@ -143,7 +143,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
                 {field === 'providerMappingJson'
                   ? <textarea required rows={2} maxLength={65536} value={binding[field]}
                     onChange={e => setData({ ...data, [key]: { ...binding, [field]: e.target.value } })} />
-                  : <input required maxLength={256} value={binding[field]}
+                  : <input required maxLength={field === 'providerAssetExternalId' ? 512 : 256} value={binding[field]}
                     onChange={e => setData({ ...data, [key]: { ...binding, [field]: e.target.value } })} />}
               </label>)}
           </fieldset>;
