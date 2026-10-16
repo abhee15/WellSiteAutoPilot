@@ -8,8 +8,41 @@ The frontend uses **CSS custom properties**, not a new UI framework. Load
 The user identified this [Claude design reference](https://claude.ai/share/39615aa3-bd6c-4812-976c-edb0ec90a284)
 on 2026-10-16 as the agreed design. The shared conversation was inspected in
 the browser, including the later refinements through prototype version 10.
-Attachments and the running prototype are hidden in this shared snapshot;
-exact token values and rendered visual parity still need the prototype source.
+The shared snapshot hides attachments, but the user-supplied prototype source
+was subsequently recovered from the ACL project attachments:
+`wellsite-autopilot-src (1).zip`, uploaded 2026-10-02 19:50 UTC, SHA-256
+`28431dd6eb92a0da2d80007f607129eb9af8f5bfb485c50a2c409b202d1c06e6`.
+Its styles and shell source were inspected; rendered visual parity has not yet
+been established. The archive is a design/prototype reference, not production
+authorization, licensing or package-signature implementation.
+
+### Verified source values
+
+`acl/src/styles/app.css` defines the light base tokens below. Its optional
+system/manual dark variants do not justify a dark-only product baseline.
+`acl/tailwind.config.js` maps component colors to those CSS variables.
+
+| Role | Prototype token | Value |
+| --- | --- | --- |
+| Canvas | `--bg` | `#f3f5f7` |
+| Main surface | `--panel` | `#ffffff` |
+| Secondary surface | `--panel2` | `#f7f8fa` |
+| Recessed surface | `--sunk` | `#eef1f4` |
+| Subtle border | `--line` | `#e3e7eb` |
+| Control border | `--line2` | `#cfd5dc` |
+| Main text | `--fg` | `#0f172a` |
+| Muted text | `--muted` | `#5b6676` |
+| Primary accent | `--accent` | `#2557d6` |
+| Accent surface | `--accent-bg` | `#eaf0fd` |
+
+The source uses IBM Plex Sans for UI and IBM Plex Mono for numeric/technical
+text, with system fallbacks. `acl/src/layout/Shell.tsx` implements the inline
+account section; `acl/src/screens/Operations.tsx` and
+`acl/src/components/ActivityPanel.tsx` provide the work-surface and activity
+references. Use these concrete files when aligning the production UI, while
+preserving accessibility and current backend security boundaries.
+
+### Visual and interaction requirements
 
 The verified visual and layout direction is:
 
@@ -43,8 +76,8 @@ The verified visual and layout direction is:
 
 The current dark CSS is an implementation gap, **not the approved palette**.
 Its regression checks preserve existing declarations; they do not establish
-conformance to this design. Align styling in a focused change using the actual
-prototype/source for exact values, without blocking backend authorization.
+conformance to this design. Align styling in a focused change using the recovered
+prototype source and rendered comparison, without blocking backend authorization.
 
 ## The two token layers
 
