@@ -5,6 +5,12 @@ namespace WellSiteAutoPilot.Application.Assets;
 
 public interface IAssetRepository
 {
+    Task AddAssetTypeAuthorizedAsync(AssetTypeDefinition assetType, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default);
+
+    Task AddAssetAuthorizedAsync(Asset asset, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default);
+
     Task<Asset?> GetAuthorizedAsync(AccessSubject subject, Guid id,
         CancellationToken cancellationToken = default);
 

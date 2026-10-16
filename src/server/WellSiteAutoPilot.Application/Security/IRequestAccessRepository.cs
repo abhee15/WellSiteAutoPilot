@@ -14,6 +14,9 @@ public interface IRequestAccessRepository
     Task<bool> HasDeploymentPermissionAsync(AccessSubject subject, string permission,
         CancellationToken cancellationToken = default);
 
+    Task<bool> HasAllAssetPermissionAsync(AccessSubject subject, string permission,
+        CancellationToken cancellationToken = default);
+
     Task<bool> HasAssetPermissionAsync(AccessSubject subject, string permission,
         IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default);
 }

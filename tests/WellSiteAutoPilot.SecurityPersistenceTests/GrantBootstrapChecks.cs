@@ -49,7 +49,8 @@ internal static class GrantBootstrapChecks
             if (!hints.ToHashSet().SetEquals(WellSitePermissions.All) || await setup.Assets.AnyAsync())
                 throw new InvalidOperationException("Fresh-deployment bootstrap lost coarse capabilities before the first Asset.");
             var access = new RequestAccessRepository(setup, TimeProvider.System);
-            if (!await access.HasAdministratorAsync(new AccessSubject(winner)))
+            if (!await access.HasAdministratorAsync(new AccessSubject(winner)) ||
+                !await access.HasAllAssetPermissionAsync(new AccessSubject(winner), WellSitePermissions.AssetsManage))
                 throw new InvalidOperationException("Direct protected bootstrap administrator was not recognized.");
             await DemandAdministratorAsync(new AccessSubject(winner));
             await using (var empty = new WellSiteAutoPilotDbContext(options))
@@ -66,6 +67,8 @@ internal static class GrantBootstrapChecks
             var assetGrant = grants.Single(grant => grant.ScopeKind == "AllAssets").Id;
             await setup.AccessGrants.Where(grant => grant.Id == assetGrant)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(grant => grant.IsActive, false));
+            if (await access.HasAllAssetPermissionAsync(new AccessSubject(winner), WellSitePermissions.AssetsManage))
+                throw new InvalidOperationException("Capability query inferred AllAssets from a protected global administrator.");
             await DemandAdministratorAsync(new AccessSubject(winner));
             await using (var globalOnly = new WellSiteAutoPilotDbContext(options))
             {
@@ -125,6 +128,7 @@ internal static class GrantBootstrapChecks
             await setup.AccessGrants.Where(grant => grant.Id == customGrant || grant.Id == groupGrant).ExecuteDeleteAsync();
             await setup.RolePermissions.Where(item => item.RoleId == customRole).ExecuteDeleteAsync();
             await setup.RoleDefinitions.Where(role => role.Id == customRole).ExecuteDeleteAsync();
+            await AuthorizedAssetCreationChecks.RunAsync(options, winner);
             if (await InitializeAsync(first) || await InitializeAsync(second))
                 throw new InvalidOperationException("Bootstrap was repeated for an initialized deployment.");
             await setup.AccessGrants.ExecuteUpdateAsync(setters => setters.SetProperty(grant => grant.IsActive, false));

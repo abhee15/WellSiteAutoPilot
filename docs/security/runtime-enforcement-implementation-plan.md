@@ -146,6 +146,24 @@ administrator cannot acquire a resource wildcard. Root/type-catalog integration
 must retain the protected-administrator prerequisite **and** explicit AllAssets
 `assets.manage` authority; ordinary child creation checks its persisted parent.
 
+Asset creation preparation now extends through application and persistence:
+`CreateAssetTypeAuthorizedAsync` / `CreateAssetAuthorizedAsync` build validated
+records, and their repository writes hold the current type schema and
+parent/grant authority in one serializable transaction with the creation audit.
+The repository revalidates attributes against its locked schema. Duplicate
+type keys become explicit conflicts; serialization/deadlock conflicts fail
+closed without retry. Exact parent access does not automatically grant access
+to the new child. `HasAllAssetPermissionAsync` supplies the corresponding
+capability prerequisite without enumerating deployment Assets.
+
+New tests in the isolated bootstrap database cover first type/root creation,
+direct child-management plus group read scope, cross-scope/type/root denial,
+noninheritance, changed-schema validation, atomic audit failure, duplicate keys
+and an actual grant-revocation wait during child creation. These methods remain
+unwired from live routes and require current-head CI. Next complete Configured
+Logic lifecycle and manual Shadow request/replay transaction fences, global
+catalog/security write authority, then the unified request/API/frontend switch.
+
 Genuine browser Negotiate, domain/nested groups, cross-domain trusts and token
 renewal/revocation latency remain release gate #92. TestHeader and injected
 proof fixtures do not establish those properties. Keep execution in Shadow.

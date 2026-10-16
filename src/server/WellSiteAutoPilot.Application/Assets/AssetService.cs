@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Assets;
 using WellSiteAutoPilot.Failures;
 
@@ -8,8 +9,23 @@ public sealed class AssetService(
     TimeProvider timeProvider)
 {
     public async Task<AssetTypeDefinition> CreateAssetTypeAsync(
-        CreateAssetTypeCommand command,
-        CancellationToken cancellationToken = default)
+        CreateAssetTypeCommand command, CancellationToken cancellationToken = default)
+    {
+        var assetType = await BuildAssetTypeAsync(command, cancellationToken);
+        await repository.AddAssetTypeAsync(assetType, cancellationToken);
+        return assetType;
+    }
+
+    public async Task<AssetTypeDefinition> CreateAssetTypeAuthorizedAsync(CreateAssetTypeCommand command,
+        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        var assetType = await BuildAssetTypeAsync(command, cancellationToken);
+        await repository.AddAssetTypeAuthorizedAsync(assetType, subject, actor, cancellationToken);
+        return assetType;
+    }
+
+    private async Task<AssetTypeDefinition> BuildAssetTypeAsync(
+        CreateAssetTypeCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
@@ -41,13 +57,25 @@ public sealed class AssetService(
             true,
             timeProvider.GetUtcNow());
 
-        await repository.AddAssetTypeAsync(assetType, cancellationToken);
         return assetType;
     }
 
-    public async Task<Asset> CreateAssetAsync(
-        CreateAssetCommand command,
-        CancellationToken cancellationToken = default)
+    public async Task<Asset> CreateAssetAsync(CreateAssetCommand command, CancellationToken cancellationToken = default)
+    {
+        var asset = await BuildAssetAsync(command, cancellationToken);
+        await repository.AddAssetAsync(asset, cancellationToken);
+        return asset;
+    }
+
+    public async Task<Asset> CreateAssetAuthorizedAsync(CreateAssetCommand command, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        var asset = await BuildAssetAsync(command, cancellationToken);
+        await repository.AddAssetAuthorizedAsync(asset, subject, actor, cancellationToken);
+        return asset;
+    }
+
+    private async Task<Asset> BuildAssetAsync(CreateAssetCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
@@ -100,7 +128,6 @@ public sealed class AssetService(
             true,
             timeProvider.GetUtcNow());
 
-        await repository.AddAssetAsync(asset, cancellationToken);
         return asset;
     }
 

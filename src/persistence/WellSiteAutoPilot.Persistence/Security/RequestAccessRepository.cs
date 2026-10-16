@@ -31,6 +31,14 @@ public sealed class RequestAccessRepository(WellSiteAutoPilotDbContext db, TimeP
             subject.WindowsGroups, clock.GetUtcNow()).AnyAsync(cancellationToken);
     }
 
+    public Task<bool> HasAllAssetPermissionAsync(AccessSubject subject, string permission,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return ScopedAccessQueries.ResourceGrants(db, subject.UserId, permission, subject.WindowsGroups,
+            clock.GetUtcNow()).AnyAsync(grant => grant.ScopeKind == "AllAssets", cancellationToken);
+    }
+
     public async Task<bool> HasAssetPermissionAsync(AccessSubject subject, string permission,
         IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default)
     {

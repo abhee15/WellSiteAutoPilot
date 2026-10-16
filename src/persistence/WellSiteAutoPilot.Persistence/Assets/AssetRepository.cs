@@ -40,6 +40,13 @@ public sealed partial class AssetRepository(
     {
         ArgumentNullException.ThrowIfNull(assetType);
 
+        StageAssetType(assetType);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private void StageAssetType(AssetTypeDefinition assetType)
+    {
         dbContext.AssetTypes.Add(new AssetTypeEntity
         {
             Id = assetType.Id,
@@ -50,8 +57,6 @@ public sealed partial class AssetRepository(
             IsActive = assetType.IsActive,
             CreatedAtUtc = assetType.CreatedAtUtc
         });
-
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<Asset?> GetAssetAsync(
@@ -159,6 +164,13 @@ public sealed partial class AssetRepository(
     {
         ArgumentNullException.ThrowIfNull(asset);
 
+        StageAsset(asset);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private void StageAsset(Asset asset)
+    {
         dbContext.Assets.Add(new AssetEntity
         {
             Id = asset.Id,
@@ -169,8 +181,6 @@ public sealed partial class AssetRepository(
             IsActive = asset.IsActive,
             CreatedAtUtc = asset.CreatedAtUtc
         });
-
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static AssetTypeDefinition ToDomain(AssetTypeEntity entity) => new(
