@@ -38,6 +38,11 @@ def request(method, path, identity=ADMIN, body=None, expected=200):
 admin = request("GET", "/security/me")
 operator = request("GET", "/security/me", OPERATOR)
 other = request("GET", "/security/me", r"CI\grant-other")
+assert 'security.manage' in admin['permissions']
+assert 'assets.read' in operator['permissions'] and 'recommendations.decide' in operator['permissions']
+assert 'assets.manage' not in operator['permissions'] and 'security.manage' not in operator['permissions']
+assert len(set(operator['permissions'])) == len(operator['permissions'])
+
 before_assets = request("GET", "/assets", OPERATOR)
 assets = request("GET", "/assets")
 outside = next(asset for asset in assets if asset["id"] not in {a["id"] for a in before_assets})
@@ -232,3 +237,8 @@ assert problem['code'] == 'SECURITY_LAST_DIRECT_ADMIN_REQUIRED'
 request('PUT', group_path + f"/{recovery_group['grantId']}/deactivate", body={'expectedRevision': 1})
 assert request('GET', '/assets', OPERATOR) == before_assets
 print('Direct-administrator HTTP recovery refusal, readback, replacement and unchanged runtime authority passed.')
+
+# Proposed custom/group/Admin grants must not leak into the current runtime
+# permission hints before the complete grant-authority replacement.
+assert request('GET', '/security/me', OPERATOR)['permissions'] == operator['permissions']
+print('Server permission hints match current authority and proposed grants do not elevate the session.')

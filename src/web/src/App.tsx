@@ -1,3 +1,5 @@
+import { canOpenSection, loadSession, sessionAccessKey } from './security/sessionAccess';
+import { loadWorkspaceSnapshot } from './views/workspaceSnapshot';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AssetResponse,
@@ -43,6 +45,7 @@ export function App() {
   const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
   const activeRefresh = useRef<AbortController | null>(null);
+  const accessKey = useRef<string | null>(null);
   const [executions, setExecutions] = useState<ExecutionResponse[]>([]);
   const [assetTypes, setAssetTypes] = useState<AssetTypeResponse[]>([]);
   const [assets, setAssets] = useState<AssetResponse[]>([]);
@@ -66,70 +69,35 @@ export function App() {
     activeRefresh.current = controller;
     setIsRefreshing(true);
 
+    const clearWorkspace = () => {
+      setSystemInfo(null); setExecutions([]); setAssetTypes([]); setAssets([]);
+      setAssetCapabilities(null); setLogicModules([]); setConfiguredLogic([]); setLastUpdated(null);
+    };
     try {
-      const responses = await Promise.all([
-        fetch('/api/v1/system/info', { signal: controller.signal }),
-        fetch('/api/v1/executions?limit=50', { signal: controller.signal }),
-        fetch('/api/v1/asset-types', { signal: controller.signal }),
-        fetch('/api/v1/assets?limit=100', { signal: controller.signal }),
-        fetch('/api/v1/assets/capabilities', { signal: controller.signal }),
-        fetch('/api/v1/logic-modules?limit=100', { signal: controller.signal }),
-        fetch('/api/v1/configured-logic?limit=100', { signal: controller.signal }),
-        fetch('/api/v1/security/me', { signal: controller.signal }),
-      ]);
-
+      const user = await loadSession(controller.signal);
       if (controller.signal.aborted) return;
-      const failed = responses.find(response => !response.ok);
-      if (failed) {
-        if (failed.status === 401 || failed.status === 403) {
-          // Remove previously authorized information when the session loses access.
-          setCurrentUser(null);
-          setSystemInfo(null);
-          setExecutions([]);
-          setAssetTypes([]);
-          setAssets([]);
-          setAssetCapabilities(null);
-          setLogicModules([]);
-          setConfiguredLogic([]);
-          setLastUpdated(null);
-        }
-        throw new Error(
-          failed.status === 401 || failed.status === 403
-            ? t('refresh.sessionUnavailable')
-            : t('refresh.runtimeFailed', { status: failed.status }),
-        );
-      }
-
-      const [system, recentExecutions, availableAssetTypes, availableAssets,
-        capabilities, availableModules, configurations, user] = await Promise.all([
-        responses[0].json() as Promise<SystemInfoResponse>,
-        responses[1].json() as Promise<ExecutionResponse[]>,
-        responses[2].json() as Promise<AssetTypeResponse[]>,
-        responses[3].json() as Promise<AssetResponse[]>,
-        responses[4].json() as Promise<AssetCreationCapabilitiesResponse>,
-        responses[5].json() as Promise<LogicModuleResponse[]>,
-        responses[6].json() as Promise<ConfiguredLogicResponse[]>,
-        responses[7].json() as Promise<CurrentUserResponse>,
-      ]);
-      if (controller.signal.aborted) return;
-
-      setSystemInfo(system);
-      setExecutions(recentExecutions);
-      setAssetTypes(availableAssetTypes);
-      setAssets(availableAssets);
-      setAssetCapabilities(capabilities);
-      setLogicModules(availableModules);
-      setConfiguredLogic(configurations);
+      const nextKey = sessionAccessKey(user);
+      if (nextKey !== accessKey.current) clearWorkspace();
+      accessKey.current = nextKey;
       setCurrentUser(user);
-      setError(null);
+      const snapshot = await loadWorkspaceSnapshot(user, controller.signal);
+      if (controller.signal.aborted) return;
+      const effectiveUser = { ...user, permissions: user.permissions.filter(p => !snapshot.deniedPermissions.includes(p)) };
+      accessKey.current = sessionAccessKey(effectiveUser);
+      setCurrentUser(effectiveUser);
+      setSystemInfo(snapshot.system); setExecutions(snapshot.executions);
+      setAssetTypes(snapshot.assetTypes); setAssets(snapshot.assets);
+      setAssetCapabilities(snapshot.capabilities); setLogicModules(snapshot.modules);
+      setConfiguredLogic(snapshot.configurations);
+      setError(snapshot.deniedPermissions.length ? t('refresh.accessChanged')
+        : snapshot.incomplete ? t('refresh.partial') : null);
       setLastUpdated(new Date());
     } catch (reason) {
       if (controller.signal.aborted ||
           (reason instanceof DOMException && reason.name === 'AbortError')) return;
 
-      setError(reason instanceof Error
-        ? reason.message
-        : t('refresh.unavailable'));
+      clearWorkspace(); setCurrentUser(null); accessKey.current = null;
+      setError(t('refresh.sessionUnavailable'));
     } finally {
       if (activeRefresh.current === controller) {
         activeRefresh.current = null;
@@ -156,10 +124,10 @@ export function App() {
           <strong>WellSite AutoPilot</strong>
         </div>
         <nav aria-label="Primary">
-          <NavigationLink section="operations" current={section}>{t('nav.operations')}</NavigationLink>
-          <NavigationLink section="recommendations" current={section}>{t('nav.recommendations')}</NavigationLink>
-          <NavigationLink section="assets" current={section}>{t('nav.assets')}</NavigationLink>
-          <NavigationLink section="logic" current={section}>{t('nav.logic')}</NavigationLink>
+          {canOpenSection(currentUser, 'operations') && <NavigationLink section="operations" current={section}>{t('nav.operations')}</NavigationLink>}
+          {canOpenSection(currentUser, 'recommendations') && <NavigationLink section="recommendations" current={section}>{t('nav.recommendations')}</NavigationLink>}
+          {canOpenSection(currentUser, 'assets') && <NavigationLink section="assets" current={section}>{t('nav.assets')}</NavigationLink>}
+          {canOpenSection(currentUser, 'logic') && <NavigationLink section="logic" current={section}>{t('nav.logic')}</NavigationLink>}
         </nav>
         <UserMenu user={currentUser} isLoading={isRefreshing} />
       </aside>
@@ -178,29 +146,32 @@ export function App() {
           </div>
         )}
 
-        {section === 'operations' && (
+        {currentUser && section !== 'access' && !canOpenSection(currentUser, section) && (
+          <div className="status-error" role="alert">{t('session.sectionDenied')}</div>
+        )}
+        {section === 'operations' && canOpenSection(currentUser, section) && (
           <OperationsPage
-            key={currentUser?.userId ?? 'no-user'}
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions, currentUser?.assetScopeIds])}
             systemInfo={systemInfo}
             executions={executions}
             userId={currentUser?.userId}
           />
         )}
-        {section === 'recommendations' && (
+        {section === 'recommendations' && canOpenSection(currentUser, section) && (
           <RecommendationsPage
-            key={currentUser?.userId ?? 'no-user'}
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions, currentUser?.assetScopeIds])}
             userId={currentUser?.userId}
-            roles={currentUser?.roles}
+            permissions={currentUser?.permissions}
           />
         )}
         {section === 'access' && (
-          currentUser?.userId && currentUser.roles?.includes('Admin')
+          currentUser?.userId && canOpenSection(currentUser, 'access')
             ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId} />
             : <div className="status-error" role="alert">{t('access.denied')}</div>
         )}
-        {section === 'assets' && (
+        {section === 'assets' && canOpenSection(currentUser, section) && (
           <AssetsPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.roles, currentUser?.assetScopeIds])}
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions, currentUser?.assetScopeIds])}
             assetTypes={assetTypes}
             assets={assets}
             userId={currentUser?.userId}
@@ -208,15 +179,16 @@ export function App() {
             onRefresh={refresh}
           />
         )}
-        {section === 'logic' && (
+        {section === 'logic' && canOpenSection(currentUser, section) && (
           <LogicPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.roles, currentUser?.assetScopeIds])}
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions, currentUser?.assetScopeIds])}
             userId={currentUser?.userId}
             assets={assets}
             assetTypes={assetTypes}
             onRefresh={refresh}
             modules={logicModules}
             configuredLogic={configuredLogic}
+            permissions={currentUser?.permissions ?? []}
           />
         )}
       </main>
@@ -603,7 +575,7 @@ function AssetsPage({
 function LogicPage({
   modules,
   configuredLogic,
-  userId, assets, assetTypes, onRefresh,
+  userId, assets, assetTypes, onRefresh, permissions,
 }: {
   modules: LogicModuleResponse[];
   configuredLogic: ConfiguredLogicResponse[];
@@ -611,7 +583,12 @@ function LogicPage({
   assets: AssetResponse[];
   assetTypes: AssetTypeResponse[];
   onRefresh: () => Promise<void>;
+  permissions: readonly string[];
 }) {
+  const canReadCatalog = permissions.includes('logic.read');
+  const canReadConfigurations = permissions.includes('configured-logic.read');
+  const mayManage = permissions.includes('configured-logic.manage');
+  const mayRequestShadow = permissions.includes('executions.request');
   const [catalogCriteria, setCatalogCriteria] = useState<LogicCatalogCriteria>(
     DEFAULT_LOGIC_CATALOG_CRITERIA,
   );
@@ -625,15 +602,15 @@ function LogicPage({
   const [capabilityError, setCapabilityError] = useState(false);
   useEffect(() => {
     const c = new AbortController();
-    if (userId) void fetch('/api/v1/configured-logic/capabilities', {
+    if (userId && canReadConfigurations && (mayManage || mayRequestShadow)) void fetch('/api/v1/configured-logic/capabilities', {
       signal: c.signal, credentials: 'same-origin', cache: 'no-store',
     }).then(async response => {
       if (!response.ok) throw new Error();
       const value = await response.json() as ConfiguredLogicCapabilitiesResponse;
-      if (!c.signal.aborted) { setCanManage(value.canManage === true); setCanRequestShadow(value.canRequestShadow === true); setCapabilityError(false); }
+      if (!c.signal.aborted) { setCanManage(mayManage && value.canManage === true); setCanRequestShadow(mayRequestShadow && value.canRequestShadow === true); setCapabilityError(false); }
     }).catch(() => { if (!c.signal.aborted) { setCanManage(false); setCanRequestShadow(false); setCapabilityError(true); } });
     return () => c.abort();
-  }, [userId, configuredLogic]);
+  }, [userId, configuredLogic, canReadConfigurations, mayManage, mayRequestShadow]);
   const visibleConfigurations = useMemo(
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
@@ -649,12 +626,12 @@ function LogicPage({
   return (
     <>
       <section className="summary-grid" aria-label="Logic summary">
-        <SummaryCard label="Installed modules" value={String(modules.length)} detail="Immutable module versions" />
-        <SummaryCard label="Trusted and enabled" value={String(trusted)} detail="Eligible for configuration" />
-        <SummaryCard label="Active configurations" value={String(activeConfigurations)} detail="Configured Logic with active revision" />
+        {canReadCatalog && <SummaryCard label="Installed modules" value={String(modules.length)} detail="Immutable module versions" />}
+        {canReadCatalog && <SummaryCard label="Trusted and enabled" value={String(trusted)} detail="Eligible for configuration" />}
+        {canReadConfigurations && <SummaryCard label="Active configurations" value={String(activeConfigurations)} detail="Configured Logic with active revision" />}
       </section>
 
-      <section className="panel">
+      {canReadCatalog && <section className="panel">
         <PanelHeader eyebrow="Catalog" title="Logic Modules" count={visibleModules.length} />
         <LogicCatalogControls
           criteria={catalogCriteria}
@@ -697,9 +674,9 @@ function LogicPage({
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
 
-      <section className="panel">
+      {canReadConfigurations && <section className="panel">
         <PanelHeader eyebrow="Configuration" title="Configured Logic"
           count={visibleConfigurations.length} />
         {capabilityError && <p role="status">{t('setup.capabilitiesUnavailable')}</p>}
@@ -770,7 +747,7 @@ function LogicPage({
             onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
           />
         )}
-      </section>
+      </section>}
     </>
   );
 }

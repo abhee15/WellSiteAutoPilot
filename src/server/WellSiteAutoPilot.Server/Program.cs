@@ -236,7 +236,10 @@ v1.MapGet(
             user.DisplayName,
             user.IsActive,
             user.Roles.Select(item => item.ToString()).ToArray(),
-            user.AssetScopeIds.ToArray());
+            user.AssetScopeIds.ToArray(),
+            WellSitePermissions.All.Where(permission => user.IsActive &&
+                RolePermissionMap.HasPermission(user.Roles, permission))
+                .OrderBy(permission => permission, StringComparer.Ordinal).ToArray());
     })
     .WithName("GetCurrentUser")
     .Produces<CurrentUserResponse>(StatusCodes.Status200OK)

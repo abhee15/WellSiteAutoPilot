@@ -14,7 +14,7 @@ it('clears a selected Asset and draft when the same user loses its Asset scope',
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     const data = url.startsWith('/api/v1/security/me')
       ? { userId: '44444444-4444-4444-8444-444444444444', identityName: 'FIELD\\engineer',
-          roles: ['Engineer'], isActive: true, assetScopeIds: revoked ? [] : [assetId] }
+          roles: ['Engineer'], permissions: ['assets.read', 'assets.manage'], isActive: true, assetScopeIds: revoked ? [] : [assetId] }
       : url.startsWith('/api/v1/asset-types')
       ? [{ id: typeId, key: 'well', displayName: 'Well', attributeSchemaJson: '{}', isActive: true }]
       : url.startsWith('/api/v1/assets/capabilities')

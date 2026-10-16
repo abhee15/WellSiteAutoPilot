@@ -565,6 +565,9 @@ export const englishMessages = {
   'session.scope': 'Scoped assets',
   'session.assigned': '{count} assigned',
   'session.authNotice': 'Server-side access rules remain authoritative.',
+  'refresh.accessChanged': 'Access changed during refresh. Unavailable sections have been cleared; other permitted work remains available.',
+  'refresh.partial': 'Some sections could not be refreshed. Refresh to try again.',
+  'session.sectionDenied': 'Your current permissions do not allow this section.',
   'refresh.sessionUnavailable':
     'Session access is unavailable. Sign in with an authorized account.',
   'refresh.runtimeFailed':

@@ -40,7 +40,7 @@ test('shell user menu never exposes administration to ordinary or inactive users
   );
   const inactive = renderToStaticMarkup(
     createElement(menu.UserMenu, {
-      user: { ...operator, isActive: false, roles: ['Admin'] },
+      user: { ...operator, isActive: false, roles: ['Admin'], permissions: ['security.manage'] },
       isLoading: false
     })
   );
@@ -49,7 +49,7 @@ test('shell user menu never exposes administration to ordinary or inactive users
   assert.match(plain, /SITE\\operator/);
   const admin = renderToStaticMarkup(
     createElement(menu.UserMenu, {
-      user: { ...operator, isActive: true, roles: ['Admin'] },
+      user: { ...operator, isActive: true, roles: ['Admin'], permissions: ['security.manage'] },
       isLoading: false
     })
   );
@@ -65,4 +65,15 @@ test('navigation preserves responsive accessible and active semantics', () => {
   assert.match(html, /aria-current="page"/);
   assert.match(html, /aria-label="Assets"/);
   assert.match(html, /aria-hidden="true">AS</);
+});
+
+test('account administration visibility follows server permission rather than a role label', () => {
+  const custom = renderToStaticMarkup(createElement(menu.UserMenu, {
+    user: { ...operator, roles: ['Customer Security'], permissions: ['security.manage'] }, isLoading: false,
+  }));
+  const namedAdmin = renderToStaticMarkup(createElement(menu.UserMenu, {
+    user: { ...operator, roles: ['Admin'], permissions: [] }, isLoading: false,
+  }));
+  assert.match(custom, /href="#access"/);
+  assert.doesNotMatch(namedAdmin, /href="#access"/);
 });

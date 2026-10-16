@@ -208,7 +208,7 @@ describe('Configured Logic setup journey', () => {
     window.location.hash = '#logic'; let revoked = false;
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       const value = url === '/api/v1/security/me' ? {
-        userId: otherRevisionId, roles: ['Engineer'], assetScopeIds: revoked ? [] : [assetId],
+        userId: otherRevisionId, identityName: 'FIELD\\engineer', isActive: true, roles: ['Engineer'], permissions: ['assets.read', 'logic.read', 'configured-logic.read', 'configured-logic.manage'], assetScopeIds: revoked ? [] : [assetId],
       } : url === '/api/v1/configured-logic/capabilities' ? { canManage: !revoked }
         : url.startsWith('/api/v1/configured-logic?') ? revoked ? [] : [draft]
         : url.startsWith('/api/v1/logic-modules') ? [module]
@@ -232,7 +232,7 @@ describe('Configured Logic setup journey', () => {
     window.location.hash = '#logic'; let recover = false;
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/v1/configured-logic/capabilities') return response({ canManage: true }, recover ? 200 : 503);
-      return response(url === '/api/v1/security/me' ? { userId: otherRevisionId, roles: ['Engineer'], assetScopeIds: [assetId] }
+      return response(url === '/api/v1/security/me' ? { userId: otherRevisionId, identityName: 'FIELD\\engineer', isActive: true, roles: ['Engineer'], permissions: ['assets.read', 'logic.read', 'configured-logic.read', 'configured-logic.manage'], assetScopeIds: [assetId] }
         : url.startsWith('/api/v1/logic-modules') ? [module]
         : url.startsWith('/api/v1/asset-types') ? types
         : url.startsWith('/api/v1/assets?') ? assets

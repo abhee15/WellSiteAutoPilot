@@ -6,7 +6,8 @@ public sealed record CurrentUserResponse(
     string? DisplayName,
     bool IsActive,
     IReadOnlyCollection<string> Roles,
-    IReadOnlyCollection<Guid> AssetScopeIds);
+    IReadOnlyCollection<Guid> AssetScopeIds,
+    IReadOnlyCollection<string> Permissions);
 
 public sealed record SecurityUserResponse(
     Guid UserId,
