@@ -27,7 +27,7 @@ public sealed class WindowsTokenGroupResolver(string authenticationMode, TimePro
         ArgumentNullException.ThrowIfNull(externalIdentity);
         if (!string.Equals(authenticationMode, SecurityOptions.NegotiateAuthenticationMode,
                 StringComparison.OrdinalIgnoreCase) || externalIdentity.ProviderId != "windows" ||
-            !OperatingSystem.IsWindows() || principal.Identity is not WindowsIdentity identity ||
+            !OperatingSystem.IsWindows() || principal.Identities.FirstOrDefault() is not WindowsIdentity identity ||
             !identity.IsAuthenticated)
             return null;
 

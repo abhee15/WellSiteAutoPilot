@@ -42,8 +42,9 @@ internal static class WindowsGroupResolverChecks
                 throw new InvalidOperationException("Membership included disabled/deny-only groups or lost enabled token groups.");
             // An actual token appended as a secondary identity is not the caller.
             forged.AddIdentity(identity);
-            if (resolver.Resolve(forged, nativeExternal, user) is not null)
-                throw new InvalidOperationException("Secondary Windows identity supplied the caller's groups.");
+            if (resolver.Resolve(forged, nativeExternal, user) is not null ||
+                new ConfiguredPrincipalResolver("Negotiate").Resolve(forged).SubjectId != external.SubjectId)
+                throw new InvalidOperationException("Secondary Windows identity supplied the caller's identity/groups.");
             Console.WriteLine("Native Windows enabled-token group resolution passed (not a browser/AD handshake test).");
     }
 

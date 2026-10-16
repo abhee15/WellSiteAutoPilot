@@ -37,7 +37,7 @@ public sealed class ConfiguredPrincipalResolver(string authenticationMode)
     {
         ArgumentNullException.ThrowIfNull(authenticatedPrincipal);
 
-        if (authenticatedPrincipal.Identity is not ClaimsIdentity identity ||
+        if (authenticatedPrincipal.Identities.FirstOrDefault() is not { } identity ||
             !identity.IsAuthenticated)
         {
             throw Denied("SECURITY_IDENTITY_REQUIRED",
@@ -58,7 +58,7 @@ public sealed class ConfiguredPrincipalResolver(string authenticationMode)
                 : throw Denied("SECURITY_IDENTITY_PROVIDER_UNSUPPORTED",
                     "The configured identity provider is unsupported.");
 
-        // Read only the primary authenticated identity, not arbitrary
+        // Read only the first host-supplied authenticated identity, not arbitrary
         // secondary identities that could carry misleading SID/name claims.
         if (identity.FindAll(identity.NameClaimType).Skip(1).Any())
         {
