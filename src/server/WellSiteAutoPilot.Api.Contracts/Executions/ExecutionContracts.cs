@@ -32,3 +32,6 @@ public sealed record ExecutionResponse(
     string? OutputJson);
 
 public sealed record RequestConfiguredShadowRequest(Guid RequestId);
+
+public sealed record ConfiguredShadowReceiptResponse(Guid ExecutionId, Guid LogicInstanceId,
+    Guid ConfigurationRevisionId, int RequestContractVersion, string Mode, string Trigger);

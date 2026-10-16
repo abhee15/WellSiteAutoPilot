@@ -175,6 +175,18 @@ if (observed.InputObservations.Count != 2 || observed.InputObservations.Any(inpu
     input.Quality != "Good" || input.TimestampUtc != now || string.IsNullOrWhiteSpace(input.Source)))
     throw new InvalidOperationException("Execution input provenance was not preserved.");
 
+foreach (var quality in new[] { "Bad", "Unknown", "Unexpected", "Uncertain" })
+{
+    using var badClient = new HttpClient(new EngineeringValueHandler(now, quality: quality)) { BaseAddress = new Uri("http://127.0.0.1:5081") };
+    var badEngine = new ModuleExecutionEngine(new GatewayDataClient(badClient), new TestModuleResolver());
+    try
+    {
+        await badEngine.ExecuteAsync(request, "bad-quality-test", now);
+        throw new InvalidOperationException("Unsupported input quality was accepted.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Code == "EXECUTION_INPUT_QUALITY_REJECTED") { }
+}
+
 // Reject unsafe future-dated telemetry before invoking logic.
 using (var futureClient = new HttpClient(new EngineeringValueHandler(now.AddMinutes(5)))
 {
@@ -386,7 +398,7 @@ file sealed class MultiInputModule : ILogicModuleV1
     }
 }
 
-file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc, bool wrongUnit = false)
+file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc, bool wrongUnit = false, string quality = "Good")
     : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(
@@ -407,7 +419,7 @@ file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc, bool wron
                 value = isFillage ? 82m : 12m,
                 unit = wrongUnit ? "invalid-unit" : isFillage ? "%" : "spm",
                 timestampUtc,
-                quality = "Good",
+                quality,
                 source = "simulator:WELL-101"
             });
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ConfiguredLogicRevisionResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
+import type { ConfiguredLogicRevisionResponse, ExecutionResponse, ConfiguredShadowReceiptResponse } from '../api/generated/v1/types.gen';
 import { isSecurityId } from '../security/identifiers';
 import { t } from '../localization';
 import { fetchExecutionDetail, ExecutionDetailError } from './executionDetail';
@@ -14,6 +14,12 @@ type Props = {
 const terminal = new Set(['Completed', 'Failed', 'Cancelled', 'Suspended', 'TimedOut']);
 export function shadowRequestStorageKey(userId: string, configurationId: string, revisionId: string) {
   return `wsa.shadow-request.v1:${userId}:${configurationId}:${revisionId}`;
+}
+function requestReceipt(value: unknown, configurationId: string, revisionId: string): value is ConfiguredShadowReceiptResponse & { executionId: string } {
+  if (!value || typeof value !== 'object') return false;
+  const r = value as ConfiguredShadowReceiptResponse;
+  return isSecurityId(r.executionId) && r.logicInstanceId === configurationId &&
+    r.configurationRevisionId === revisionId && r.requestContractVersion === 2 && r.mode === 'Shadow' && r.trigger === 'Manual';
 }
 function receipt(value: unknown, configurationId: string, revisionId: string): value is ExecutionResponse & { executionId: string } {
   if (!value || typeof value !== 'object') return false;
@@ -66,7 +72,7 @@ export function ConfiguredShadowPanel({ userId, configurationId, revision, canRe
         '/revisions/' + revisionId + '/shadow', { method: 'POST', signal: c.signal,
         credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId: key }) }), 200, true);
-      if (!receipt(result, configurationId, revisionId)) throw new SetupApiError('uncertain');
+      if (!requestReceipt(result, configurationId, revisionId)) throw new SetupApiError('uncertain');
       const verified = await fetchExecutionDetail(result.executionId, c.signal);
       if (!receipt(verified, configurationId, revisionId) || verified.executionId !== result.executionId)
         throw new SetupApiError('uncertain');

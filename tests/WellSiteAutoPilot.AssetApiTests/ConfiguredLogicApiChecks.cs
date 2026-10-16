@@ -121,10 +121,26 @@ internal static class ConfiguredLogicApiChecks
         var executionRepository = new ExecutionRepository(db);
         await executionRepository.ApplyCompletedAsync(Guid.NewGuid(), "ci-completed", executionId,
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "CI_COMPLETED", "{}");
+        var beforeLate = await Read(await engineer.GetAsync("/api/v1/executions/" + executionId), HttpStatusCode.OK);
         await executionRepository.ApplyStartedAsync(Guid.NewGuid(), "ci-late-started", executionId, DateTimeOffset.UtcNow);
         var recovered = await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
-        if (recovered.GetProperty("status").GetString() != "Completed")
+        if (recovered.TryGetProperty("outputJson", out _) || recovered.TryGetProperty("failureCode", out _))
+            throw new InvalidOperationException("Request recovery leaked result data outside the read policy.");
+        var canonical = await Read(await engineer.GetAsync("/api/v1/executions/" + executionId), HttpStatusCode.OK);
+        if (canonical.GetProperty("status").GetString() != "Completed" ||
+            canonical.GetProperty("startedAtUtc").GetString() != beforeLate.GetProperty("startedAtUtc").GetString() ||
+            canonical.GetProperty("completedAtUtc").GetString() != beforeLate.GetProperty("completedAtUtc").GetString())
             throw new InvalidOperationException("Late started notification overwrote terminal status.");
+        await db.LogicModules.Where(m => m.ModuleId == "weatherford.setup-api-test")
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.IsEnabled, false));
+        await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.ServiceUnavailable);
+        await db.LogicModules.Where(m => m.ModuleId == "weatherford.setup-api-test")
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.IsEnabled, true));
+        await db.Assets.Where(a => a.Id == assetId).ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, false));
+        await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.NotFound);
+        await db.Assets.Where(a => a.Id == assetId).ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, true));
         // Revocation is checked again by the middleware on every request.
         var me = await Read(await engineer.GetAsync("/api/v1/security/me"), HttpStatusCode.OK);
         await Expect(await admin.PutAsJsonAsync("/api/v1/security/users/" + me.GetProperty("userId").GetGuid() + "/access",

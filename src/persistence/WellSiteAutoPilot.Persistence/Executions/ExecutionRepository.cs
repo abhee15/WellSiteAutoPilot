@@ -92,6 +92,10 @@ public sealed class ExecutionRepository(
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await LockRequestKeyAsync(ConfigurationDispatchLock, command.ConfiguredLogicId, cancellationToken);
+        if (command.Trigger == ExecutionTriggerKind.Scheduled && command.ScheduledForUtc is { } occurrence &&
+            await ScheduledOccurrenceExistsAsync(command.ConfigurationRevisionId, occurrence, cancellationToken))
+            throw new WellSiteAutoPilotException("EXECUTION_SCHEDULED_OCCURRENCE_EXISTS", FailureKind.Conflict,
+                "This scheduled occurrence has already been dispatched.");
         if (command.Trigger == ExecutionTriggerKind.Scheduled &&
             await HasActiveAssetOverlapAsync(command.ConfiguredLogicId,
                 command.Assets.Select(a => a.AssetId).ToArray(), cancellationToken))

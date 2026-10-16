@@ -204,13 +204,22 @@ public sealed class ScheduledShadowSchedulerService(
                 "SCHEDULER_CONFIGURATION_INVALID");
         }
 
-        var execution = await executionService.RequestConfiguredShadowAsync(
-            command,
-            BuildCorrelationId(
-                configuredLogic.Id,
-                revision.Id,
-                scheduledForUtc.Value),
-            cancellationToken);
+        ExecutionRecord execution;
+        try
+        {
+            execution = await executionService.RequestConfiguredShadowAsync(
+                command,
+                BuildCorrelationId(configuredLogic.Id, revision.Id, scheduledForUtc.Value),
+                cancellationToken);
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Code is
+            "EXECUTION_SCHEDULED_OCCURRENCE_EXISTS" or "EXECUTION_ASSET_OVERLAP")
+        {
+            return Decision(configuredLogic, revision, scheduledForUtc,
+                exception.Code == "EXECUTION_SCHEDULED_OCCURRENCE_EXISTS"
+                    ? ScheduledShadowDispatchOutcome.AlreadyDispatched : ScheduledShadowDispatchOutcome.OverlapBlocked,
+                exception.Code);
+        }
 
         return new ScheduledShadowDispatchDecision(
             configuredLogic.Id,

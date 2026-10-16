@@ -10,8 +10,8 @@ immutable persisted revision. There is no physical-control capability in this UI
 ## Request contract and authority
 
 `POST /api/v1/configured-logic/{id}/revisions/{revisionId}/shadow` accepts
-`{ "requestId": "<nonempty GUID>" }` and returns the canonical `ExecutionResponse`
-with HTTP 200 for both first submission and recovery. It requires the existing
+`{ "requestId": "<nonempty GUID>" }` and returns a minimal canonical `ConfiguredShadowReceiptResponse`
+with HTTP 200 for both first submission and recovery. Receipts contain identity/mode/contract metadata only, never output, result or failure details; those require the separate scoped execution-read policy. It requires the existing
 `executions.request` policy plus the existing exact Asset-scope check over the
 configuration. Execution readback independently requires `executions.read` and
 its persisted Asset-scope snapshot. Capability metadata adds `canRequestShadow`

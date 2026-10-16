@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WellSiteAutoPilot.Failures;
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Domain.Executions;
@@ -243,7 +244,7 @@ await using (var duplicateContext = new WellSiteAutoPilotDbContext(options))
         throw new InvalidOperationException(
             "Duplicate scheduled occurrence was not rejected.");
     }
-    catch (DbUpdateException)
+    catch (WellSiteAutoPilotException exception) when (exception.Code == "EXECUTION_SCHEDULED_OCCURRENCE_EXISTS")
     {
     }
 }

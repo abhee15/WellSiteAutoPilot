@@ -1138,6 +1138,7 @@ v1.MapPost(
     "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/shadow",
     async (Guid configuredLogicId, Guid revisionId, RequestConfiguredShadowRequest request,
         ConfiguredLogicService configuredLogic, ManualShadowRequestService requests,
+        IExecutionRepository executionRepository,
         AssetScopeAuthorizer scope, HttpContext context, CancellationToken cancellationToken) =>
     {
         var allowed = scope.GetAllowedAssetIds(context.User);
@@ -1146,11 +1147,18 @@ v1.MapPost(
         var execution = await requests.RequestAsync(configuredLogicId, revisionId, request.RequestId,
             new SecurityActorContext(GetCurrentUserId(context.User), context.User.Identity?.Name ?? "",
                 CorrelationContext.GetCorrelationId(context)), cancellationToken);
-        return Results.Ok(ToResponse(execution));
+        scope.RequireAssets(context.User,
+            await executionRepository.GetAssetScopeAsync(execution.Id, cancellationToken));
+        // A replay must not bypass the separate execution-read policy by
+        // returning a completed result through a request-only endpoint.
+        return Results.Ok(new ConfiguredShadowReceiptResponse(execution.Id,
+            execution.LogicInstanceId, execution.ConfigurationRevisionId,
+            execution.RequestContractVersion, execution.Mode.ToString(), execution.Trigger.ToString()));
     })
     .WithName("RequestConfiguredShadowExecution")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ExecutionsRequest)
-    .Produces<ExecutionResponse>(StatusCodes.Status200OK)
+    .Produces<ConfiguredShadowReceiptResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");

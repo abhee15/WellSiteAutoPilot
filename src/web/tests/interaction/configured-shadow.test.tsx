@@ -29,6 +29,8 @@ describe('configured Shadow execution', () => {
     const http = vi.fn(async (_url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         expect(JSON.parse(String(init.body)).requestId).toBe(sessionStorage.getItem(storageKey));
+        return response({ executionId, logicInstanceId: configurationId, configurationRevisionId: revisionId,
+          requestContractVersion: 2, mode: 'Shadow', trigger: 'Manual' });
       }
       return response(completed);
     });
