@@ -40,12 +40,12 @@ feature must preserve these receipts before deleting execution history.
 PostgreSQL transaction advisory locks use separate request/configuration/started-
 message namespaces. Hash collisions only serialize unrelated work. The request
 lock orders concurrent retries; the configuration lock orders manual and scheduled
-V2 overlap checks. The configuration row lock orders dispatch against activation.
+V2 overlap checks. The configuration row lock orders manual dispatch against activation.
 Execution, exact scope, V2 outbox and authenticated actor/correlation audit commit
 in one transaction. Audit excludes parameters and provider mappings. Pending/running
 overlap for the same Configured Logic and exact Assets returns
 `EXECUTION_ASSET_OVERLAP` (409); this is not a global cross-configuration lease.
-No persistence migration or installer/topology change is needed.
+Scheduled duplicate occurrences are classified as Already Dispatched under the same configuration lock, with the existing unique index retained as a backstop. No persistence migration or installer/topology change is needed.
 
 The browser saves a per-user/configuration/revision key in sessionStorage before
 POST. It blocks submission when storage or secure randomness is unavailable or a

@@ -8,6 +8,12 @@ using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Executions;
 
+// Freeze the persisted request-key mapping across versions and platforms.
+if (ManualShadowRequestService.DeriveExecutionId(
+        Guid.Parse("11111111-1111-4111-8111-111111111111"), Guid.Parse("55555555-5555-4555-8555-555555555555")) !=
+    Guid.Parse("0ed928c8-fb7a-757b-a831-6756e10fad87"))
+    throw new InvalidOperationException("Persisted Shadow request identity contract changed.");
+
 var connectionString = Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
