@@ -9,6 +9,12 @@ using WellSiteAutoPilot.Persistence.Security;
 
 internal static class ScopedResourceQueryChecks
 {
+    private sealed class AdjustableTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
     public static void VerifyTranslation()
     {
         var options = new DbContextOptionsBuilder<WellSiteAutoPilotDbContext>()
@@ -37,6 +43,14 @@ internal static class ScopedResourceQueryChecks
                 !sql.Contains("OFFSET", StringComparison.Ordinal))
                 throw new InvalidOperationException("Resource scope/paging did not translate to PostgreSQL.");
         }
+        foreach (var query in new IQueryable[]
+        {
+            ScopedAccessQueries.Permissions(db, user),
+            ScopedAccessQueries.ResourceGrants(db, user, WellSitePermissions.AssetsManage),
+            ScopedAccessQueries.DeploymentGrants(db, user, WellSitePermissions.SecurityManage)
+        })
+            if (!query.ToQueryString().Contains("EXISTS", StringComparison.Ordinal))
+                throw new InvalidOperationException("Grant authority did not translate to PostgreSQL.");
         Console.WriteLine("All four composed grant/resource queries translated with Npgsql.");
     }
 
@@ -129,6 +143,24 @@ internal static class ScopedResourceQueryChecks
         db.ChangeTracker.Clear();
 
         await AssertVisibleAsync();
+        var accessClock = new AdjustableTimeProvider(now);
+        var access = new RequestAccessRepository(db, accessClock);
+        var directSubject = new AccessSubject(userId);
+        var expectedHints = readPermissions.Concat(new[]
+        {
+            WellSitePermissions.LogicRead, WellSitePermissions.AssetsManage,
+            WellSitePermissions.ConfiguredLogicManage, WellSitePermissions.ExecutionsRequest,
+            WellSitePermissions.RecommendationsDecide
+        }).ToHashSet(StringComparer.Ordinal);
+        if (!(await access.GetPermissionHintsAsync(directSubject)).ToHashSet().SetEquals(expectedHints) ||
+            !await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.AssetsManage, [assetA]) ||
+            await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.AssetsManage, [assetA, assetB]) ||
+            await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.AssetsRead, []) ||
+            await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.AssetsRead, [assetA, Guid.Empty]) ||
+            await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.LogicRead, [assetA]) ||
+            await access.HasDeploymentPermissionAsync(directSubject, WellSitePermissions.AssetsRead) ||
+            !await access.HasDeploymentPermissionAsync(directSubject, WellSitePermissions.LogicRead))
+            throw new InvalidOperationException("Request permission hints/resource checks lost paired-grant semantics.");
         var groupUser = Guid.NewGuid();
         var groupIdentity = $"group-query-{groupUser:N}";
         db.Users.Add(new UserEntity
@@ -145,6 +177,16 @@ internal static class ScopedResourceQueryChecks
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         var membership = new VerifiedWindowsGroupMembership(groupUser, [groupA, groupB], now);
+        var groupSubject = new AccessSubject(groupUser, membership);
+        if (!(await access.GetPermissionHintsAsync(groupSubject)).ToHashSet().SetEquals(expectedHints))
+            throw new InvalidOperationException("Multiple verified groups did not compose permission hints.");
+        accessClock.Now = now.Add(VerifiedWindowsGroupMembership.MaximumAge).AddTicks(1);
+        if ((await access.GetPermissionHintsAsync(groupSubject)).Count != 0)
+            throw new InvalidOperationException("Request authority cached expired group permission hints.");
+        accessClock.Now = now.AddTicks(-1);
+        if ((await access.GetPermissionHintsAsync(groupSubject)).Count != 0)
+            throw new InvalidOperationException("Future group proof authorized coarse permissions.");
+        accessClock.Now = now;
         await AssertEmptyAsync(groupUser); // Stored group assignments alone prove nothing.
         await AssertVisibleAsync(groupUser, membership, now);
         if (!await ScopedAccessQueries.DeploymentGrants(db, groupUser, WellSitePermissions.LogicRead,
@@ -176,6 +218,12 @@ internal static class ScopedResourceQueryChecks
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         await AssertVisibleAsync(groupUser, oneGroup, now); // Direct B + group A.
+        accessClock.Now = now.AddMinutes(2);
+        if (!(await access.GetPermissionHintsAsync(groupSubject)).ToHashSet().SetEquals(readPermissions) ||
+            !await access.HasAssetPermissionAsync(groupSubject, WellSitePermissions.AssetsRead, [assetB]) ||
+            await access.HasAssetPermissionAsync(groupSubject, WellSitePermissions.AssetsManage, [assetA]))
+            throw new InvalidOperationException("Expired groups suppressed valid direct access or retained group authority.");
+        accessClock.Now = now;
         await db.Users.Where(user => user.Id == groupUser)
             .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsActive, false));
         await AssertEmptyAsync(groupUser, membership: membership, at: now);
@@ -228,6 +276,8 @@ internal static class ScopedResourceQueryChecks
             await db.RoleDefinitions.Where(role => role.Id == engineer || role.Id == reader)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(role => role.Revision, invalidRevision));
             await AssertEmptyAsync(userId);
+            if ((await access.GetPermissionHintsAsync(directSubject)).Count != 0)
+                throw new InvalidOperationException("Invalid role revision authorized coarse permissions.");
             if (await ScopedAccessQueries.DeploymentGrants(db, userId, WellSitePermissions.LogicRead).AnyAsync())
                 throw new InvalidOperationException("Invalid role revision authorized a deployment permission.");
         }
@@ -237,9 +287,28 @@ internal static class ScopedResourceQueryChecks
         await db.Users.Where(user => user.Id == userId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsActive, false));
         await AssertEmptyAsync(userId);
+        if ((await access.GetPermissionHintsAsync(directSubject)).Count != 0)
+            throw new InvalidOperationException("Inactive user retained coarse permission hints.");
         await db.Users.Where(user => user.Id == userId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsActive, true));
         await AssertVisibleAsync();
+        // An explicit AllAssets grant remains a usable coarse prerequisite
+        // before the first active Asset exists. It still cannot confer global
+        // capabilities, and a malformed binding must invalidate the grant.
+        var initialRole = Role([WellSitePermissions.AssetsManage, WellSitePermissions.SecurityManage, "future.unknown"]);
+        var initialGrant = Grant(initialRole, "AllAssets");
+        await db.SaveChangesAsync();
+        await db.Assets.ExecuteUpdateAsync(setters => setters.SetProperty(asset => asset.IsActive, false));
+        var emptyHints = await access.GetPermissionHintsAsync(directSubject);
+        if (!emptyHints.Contains(WellSitePermissions.AssetsManage) ||
+            emptyHints.Contains(WellSitePermissions.SecurityManage) || emptyHints.Contains("future.unknown") ||
+            await ScopedAccessQueries.Assets(db, userId, WellSitePermissions.AssetsManage).AnyAsync() ||
+            !await ScopedAccessQueries.ResourceGrants(db, userId, WellSitePermissions.AssetsManage).AnyAsync())
+            throw new InvalidOperationException("Empty deployment lost explicit AllAssets authority or implied global access.");
+        db.AccessGrantAssets.Add(new AccessGrantAssetEntity { GrantId = initialGrant, AssetId = assetA });
+        await db.SaveChangesAsync();
+        if ((await access.GetPermissionHintsAsync(directSubject)).Contains(WellSitePermissions.AssetsManage))
+            throw new InvalidOperationException("Malformed AllAssets binding retained coarse permission hints.");
         await transaction.RollbackAsync();
         Console.WriteLine("Grant-scoped resource SQL: paired permission, all revisions/inputs, V1/V2 scope, pagination and revocation passed.");
 

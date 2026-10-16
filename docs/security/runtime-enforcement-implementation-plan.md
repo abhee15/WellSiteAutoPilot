@@ -57,7 +57,33 @@ This is a work plan, not an authorization switch or a completion claim.
    permission/scope loss and all seven jobs on the final reviewed commit and
    unchanged target/merge tree before switching the live authority.
 
-## Review limits
+## Working branch checkpoint — 2026-10-16
+
+PR #126 merged as `3517bc812bca701bf057b1a023503c954a2b9cfb` after all seven
+jobs passed exact head `67588522488302ad7f723c81f62a5f1562d6aa4b` in run
+`38948432885`. The reviewed merge tree matched the feature tree.
+
+`feature/unified-grant-runtime` adds an immutable authenticated subject, fresh
+request permission queries and a paired-grant transaction fence. Coarse
+permissions use the same eligible grants and scope validation as resource SQL;
+explicit AllAssets authority remains discoverable with zero active Assets.
+DeploymentWide never implies resource access. There is no permission cache.
+
+The fence requires a caller-owned transaction and holds the selected grant,
+user, role, permission, bindings and participating Assets until commit. It
+rechecks only held assignments and proof freshness after acquiring locks.
+Callers must still resolve and lock persisted business targets in that same
+transaction, commit mutation/audit atomically, and translate commit conflicts.
+This is not wired into live routes yet and does not activate mixed authority.
+
+Validation includes a 20-case PostgreSQL direct/group resource/global matrix
+that observes real revocation lock waits for user, grant, role, permission,
+binding and Asset changes, then checks post-revocation refusals. These tests
+must pass in CI before making any validation claim. Next implement bootstrap,
+request-host binding and resource repository/route integration, then remove
+obsolete editing/migration surfaces as listed above before runtime activation.
+
+## Release limits
 
 Genuine browser Negotiate, domain/nested groups, cross-domain trusts and token
 renewal/revocation latency remain release gate #92. TestHeader and injected
