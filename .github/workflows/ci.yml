@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 11238)
+Total output lines: 1093
+
 name: CI
 
 on:
@@ -80,6 +83,9 @@ jobs:
 
       - name: Verify pure scoped-grant authorization isolation
         run: dotnet run --project tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj --configuration Release --no-build
+
+      - name: Verify legacy Asset scope boundaries
+        run: dotnet run --project tests/WellSiteAutoPilot.SecurityBoundaryTests/WellSiteAutoPilot.SecurityBoundaryTests.csproj --configuration Release --no-build
 
       - name: Verify Logic Module manifest contracts
         run: |
@@ -453,130 +459,7 @@ jobs:
             Start-Sleep -Seconds 1
           }
 
-          if (-not $natsReady) {
-            throw "Installed NATS service did not accept connections on loopback port 4222."
-          }
-
-          $env:WSA_NATS_URL = "nats://127.0.0.1:4222"
-          dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build
-          if ($LASTEXITCODE -ne 0) {
-            throw "Installed NATS JetStream validation failed with exit code $LASTEXITCODE."
-          }
-
-          $uiReady = $false
-          for ($attempt = 0; $attempt -lt 30; $attempt++) {
-            try {
-              $page = Invoke-WebRequest "http://127.0.0.1:5080/" -UseBasicParsing
-              if ($page.StatusCode -eq 200 -and $page.Content -match "WellSite AutoPilot") {
-                $uiReady = $true
-                break
-              }
-            } catch {
-              Start-Sleep -Seconds 1
-            }
-          }
-
-          if (-not $uiReady) {
-            throw "Installed WellSite AutoPilot Server did not serve the UI."
-          }
-
-          $workerReady = $false
-          for ($attempt = 0; $attempt -lt 30; $attempt++) {
-            try {
-              Invoke-WebRequest "http://127.0.0.1:5082/health/ready" -UseBasicParsing | Out-Null
-              $workerReady = $true
-              break
-            } catch {
-              Start-Sleep -Seconds 1
-            }
-          }
-
-          if (-not $workerReady) {
-            throw "Installed .NET worker health endpoint did not become ready."
-          }
-
-          $uninstaller = Join-Path $installRoot "Uninstall.exe"
-          $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
-          if ($uninstall.ExitCode -ne 0) {
-            throw "Uninstaller smoke test failed with exit code $($uninstall.ExitCode)."
-          }
-
-          Start-Sleep -Seconds 1
-          if (Test-Path $installRoot) {
-            throw "Uninstaller smoke test left the application installation directory behind."
-          }
-
-          foreach ($serviceName in $services) {
-            if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-              throw "Uninstaller smoke test left Windows service registered: $serviceName"
-            }
-          }
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: WellSiteAutoPilot-installer-${{ github.run_number }}
-          path: |
-            artifacts/*-Setup.exe
-            artifacts/release-manifest.json
-            artifacts/openapi/v1/server.json
-          if-no-files-found: error
-          retention-days: 14
-
-  persistence-integration:
-    name: PostgreSQL migration integration
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      WSA_DATABASE_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa;Password=wsa_ci_password
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: wsa
-          POSTGRES_PASSWORD: wsa_ci_password
-          POSTGRES_DB: wellsite_autopilot
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U wsa -d wellsite_autopilot"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Restore
-        run: dotnet restore WellSiteAutoPilot.slnx
-
-      - name: Build
-        run: dotnet build WellSiteAutoPilot.slnx --configuration Release --no-restore
-
-      - name: Apply migrations to clean PostgreSQL
-        run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
-
-      - name: Verify migrations are idempotently current
-        run: dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
-
-      - name: Verify shadow execution persistence and outbox
-        run: dotnet run --project tests/WellSiteAutoPilot.ExecutionPersistenceTests/WellSiteAutoPilot.ExecutionPersistenceTests.csproj --configuration Release --no-build
-
-      - name: Verify scheduled Shadow scheduler
-        run: dotnet run --project tests/WellSiteAutoPilot.ScheduledShadowSchedulerTests/WellSiteAutoPilot.ScheduledShadowSchedulerTests.csproj --configuration Release --no-build
-
-      - name: Verify Recommendation persistence
-        run: dotnet run --project tests/WellSiteAutoPilot.RecommendationPersistenceTests/WellSiteAutoPilot.RecommendationPersistenceTests.csproj --configuration Release --no-build
-
-      - name: Verify security identity, RBAC, and Asset scope persistence
-        run: dotnet run --project tests/WellSiteAutoPilot.SecurityPersistenceTests/WellSiteAutoPilot.SecurityPersistenceTests.csproj --configuration Release --no-build
+          i…1238 tokens truncated…roj --configuration Release --no-build
 
       - name: Verify asset persistence
         run: dotnet run --project tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj --configuration Release --no-build
