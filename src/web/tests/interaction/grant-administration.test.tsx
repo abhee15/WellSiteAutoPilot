@@ -179,3 +179,23 @@ it('records and retires a Windows group custom-role assignment through the share
   await screen.findByText('Grant deactivated and verified. Current live user access remains unchanged.');
   expect(deactivateGrant).toHaveBeenCalledExactlyOnceWith(groupRow, true, expect.any(AbortSignal));
 });
+
+it('explains last direct administrator refusal and requires a refresh without retrying', async () => {
+  const { GrantApiError } = await import('../../src/views/grantAdministration');
+  vi.mocked(loadGrants).mockResolvedValue([row]);
+  vi.mocked(deactivateGrant).mockRejectedValue(new GrantApiError('lastDirectAdmin'));
+  const user = userEvent.setup();
+  render(<GrantAdministrationPage currentUserId={adminId} />);
+  await user.selectOptions(await screen.findByRole('combobox', { name: 'User to administer' }), userId);
+  await user.click(await screen.findByRole('button', { name: 'Deactivate grant' }));
+  const review = screen.getByRole('region', { name: 'Review grant deactivation' });
+  await user.click(within(review).getByRole('checkbox'));
+  await user.click(within(review).getByRole('button', { name: 'Deactivate grant' }));
+  await screen.findByText(/This assignment was not deactivated/);
+  expect(screen.queryByRole('button', { name: 'Deactivate grant' })).toBeNull();
+  expect(deactivateGrant).toHaveBeenCalledTimes(1);
+  expect(loadGrants).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByRole('button', { name: 'Reload users' }));
+  await screen.findByRole('combobox', { name: 'User to administer' });
+  expect(deactivateGrant).toHaveBeenCalledTimes(1);
+});

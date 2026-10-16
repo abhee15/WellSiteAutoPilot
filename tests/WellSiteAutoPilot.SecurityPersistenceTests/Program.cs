@@ -610,6 +610,8 @@ await using (var second = new WellSiteAutoPilotDbContext(options))
     }
 }
 
+await DirectAdministratorRecoveryChecks.RunAsync(options, secondAdministrator, asset.Id, clock);
+
 await ScopedGrantFoundationChecks.RunAsync(
     options, operatorUser.Id,
     builtin.Single(item => item.Name == "Operator").Id, asset.Id);

@@ -152,6 +152,7 @@ export const englishMessages = {
   'grants.assetDirectoryTooLarge': 'The Asset directory exceeds the supported verification limit. Grant editing is blocked rather than showing an incomplete Asset list.',
   'grants.refineSearch': '{count} Assets match. Refine the search to choose from the first 100 displayed.',
   'grants.saveUncertain': 'The result of this change could not be verified. Reload the user before trying again.',
+  'grants.lastDirectAdmin': 'This assignment was not deactivated. Assign another active user the built-in Admin role with deployment-wide scope before retiring the last direct administrator. Refresh to review current assignments.',
   'grants.subjectKind': 'Assignment target',
   'grants.userSubject': 'Individual user',
   'grants.groupSubject': 'Windows group',

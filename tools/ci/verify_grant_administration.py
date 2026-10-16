@@ -208,3 +208,27 @@ assert request('GET', group_path) == [group_retired]
 request('PUT', retire_group_path, body={'expectedRevision': 1}, expected=409)
 assert request('GET', '/assets', OPERATOR) == before_assets
 print('Windows-group HTTP authentication, SID normalization, scope validation, subject isolation and retirement passed.')
+
+# Recovery requires an active direct deployment-wide built-in Admin grant.
+# Neither the caller's legacy Admin role nor a group grant is a substitute.
+admin_role = next(item for item in request('GET', '/security/roles')
+                  if item['key'] == 'admin' and item['isSystem'])
+recovery_command = {'roleId': admin_role['roleId'], 'scopeKind': 'DeploymentWide',
+                    'assetIds': [], 'expectedRoleRevision': admin_role['revision']}
+recovery_group = request('POST', group_path, body=recovery_command, expected=201)
+recovery_one = request('POST', path, body=recovery_command, expected=201)
+recovery_retire = path + f"/{recovery_one['grantId']}/deactivate"
+problem = request('PUT', recovery_retire, body={'expectedRevision': 1}, expected=409)
+assert problem['code'] == 'SECURITY_LAST_DIRECT_ADMIN_REQUIRED'
+assert next(item for item in request('GET', path)
+            if item['grantId'] == recovery_one['grantId']) == recovery_one
+other_path = f"/security/users/{other['userId']}/grants"
+recovery_two = request('POST', other_path, body=recovery_command, expected=201)
+retired = request('PUT', recovery_retire, body={'expectedRevision': 1})
+assert not retired['isActive'] and retired['revision'] == 2
+problem = request('PUT', other_path + f"/{recovery_two['grantId']}/deactivate",
+                  body={'expectedRevision': 1}, expected=409)
+assert problem['code'] == 'SECURITY_LAST_DIRECT_ADMIN_REQUIRED'
+request('PUT', group_path + f"/{recovery_group['grantId']}/deactivate", body={'expectedRevision': 1})
+assert request('GET', '/assets', OPERATOR) == before_assets
+print('Direct-administrator HTTP recovery refusal, readback, replacement and unchanged runtime authority passed.')
