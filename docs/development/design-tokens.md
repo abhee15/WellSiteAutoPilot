@@ -1,8 +1,83 @@
 # Frontend design tokens (V1)
 
 The frontend uses **CSS custom properties**, not a new UI framework. Load
-`src/tokens.css` before `src/styles.css`. Preserve our dark, responsive
-industrial application appearance as the baseline.
+`src/tokens.css` before `src/styles.css`.
+
+## Agreed design reference and implementation gap
+
+The user identified this [Claude design reference](https://claude.ai/share/39615aa3-bd6c-4812-976c-edb0ec90a284)
+on 2026-10-16 as the agreed design. The shared conversation was inspected in
+the browser, including the later refinements through prototype version 10.
+The shared snapshot hides attachments, but the user-supplied prototype source
+was subsequently recovered from the ACL project attachments:
+`wellsite-autopilot-src (1).zip`, uploaded 2026-10-02 19:50 UTC, SHA-256
+`28431dd6eb92a0da2d80007f607129eb9af8f5bfb485c50a2c409b202d1c06e6`.
+Its styles and shell source were inspected; rendered visual parity has not yet
+been established. The archive is a design/prototype reference, not production
+authorization, licensing or package-signature implementation.
+
+### Verified source values
+
+`acl/src/styles/app.css` defines the light base tokens below. Its optional
+system/manual dark variants do not justify a dark-only product baseline.
+`acl/tailwind.config.js` maps component colors to those CSS variables.
+
+| Role | Prototype token | Value |
+| --- | --- | --- |
+| Canvas | `--bg` | `#f3f5f7` |
+| Main surface | `--panel` | `#ffffff` |
+| Secondary surface | `--panel2` | `#f7f8fa` |
+| Recessed surface | `--sunk` | `#eef1f4` |
+| Subtle border | `--line` | `#e3e7eb` |
+| Control border | `--line2` | `#cfd5dc` |
+| Main text | `--fg` | `#0f172a` |
+| Muted text | `--muted` | `#5b6676` |
+| Primary accent | `--accent` | `#2557d6` |
+| Accent surface | `--accent-bg` | `#eaf0fd` |
+
+The source uses IBM Plex Sans for UI and IBM Plex Mono for numeric/technical
+text, with system fallbacks. `acl/src/layout/Shell.tsx` implements the inline
+account section; `acl/src/screens/Operations.tsx` and
+`acl/src/components/ActivityPanel.tsx` provide the work-surface and activity
+references. Use these concrete files when aligning the production UI, while
+preserving accessibility and current backend security boundaries.
+
+### Visual and interaction requirements
+
+The verified visual and layout direction is:
+
+- A modern engineering workstation: neutral/slate canvas, white/brighter
+  surfaces, subtle borders, clear typography and one restrained blue accent.
+  Reserve red/amber/green mainly for operational semantics. Show modes through
+  labels, icons, borders and subtle accents instead of saturated surfaces.
+- Organize disclosure into Operate, Understand and Diagnose/Configure. Favor
+  role/task defaults and engineering concepts; expose provider-specific
+  mappings and infrastructure diagnostics on drill-down.
+- Primary navigation: Operations, Assets, Logic and Recommendations, subject
+  to permission. Operations centers on Active logic with one contextual rail:
+  My attention until a row is selected, then its inspector. Avoid KPI/card walls.
+- Logic detail: Overview, Activity, Configuration and Engineering. Preserve
+  Asset, Logic Module, mode, execution, attention and control ownership context.
+  Show meaningful permitted actions without rows of disabled controls.
+- Keep the signed-in user at the bottom left. Click/keyboard activation expands
+  permitted account/support options **inline within the sidebar**, with quieter
+  type and indentation. Do not use a floating account menu or invent an editable
+  Profile page for enterprise-owned identity. Audit, System Health and
+  Administration belong in this secondary area when permitted.
+- Keep the essential desktop task within a typical 1440px workspace using
+  tabs, split panes, inspectors, sticky context/actions and focused internal
+  scrolling. Configure Logic remains a stepwise workflow. Adapt for smaller
+  panels; do not force a fixed desktop viewport or hide essential actions.
+- The Activity panel contains attention plus a contextual live feed and scrolls
+  independently. Routine sensor updates stay quiet; meaningful state changes
+  update visibly and actions requiring a person raise attention. Preserve
+  selection, sort, filters and scroll during live updates. Show quality,
+  freshness, timestamps and connection state wherever they affect a decision.
+
+The current dark CSS is an implementation gap, **not the approved palette**.
+Its regression checks preserve existing declarations; they do not establish
+conformance to this design. Align styling in a focused change using the recovered
+prototype source and rendered comparison, without blocking backend authorization.
 
 ## The two token layers
 
@@ -42,10 +117,32 @@ safety or operating state; keep readable labels and accessible focus/contrast.
    high-contrast variants can evolve later from the semantic layer, with
    accessibility and industrial operator review.
 
-## Scope and verification
+## Feature design review
 
-This PR changes **only CSS values via var() substitution**, token definitions,
+Follow the linked agreed design and verified project decisions for palette,
+application shell and navigation hierarchy. Administration stays in the
+privileged user-menu area;
+do not promote Audit or System Health into primary operator navigation.
+Use the existing semantic tokens and shared controls before adding new styles.
+
+Improve a design when a concrete workflow exposes a gap: record the problem,
+keep the adjustment local, and review the affected normal, loading, empty,
+error and permission-denied states. Check keyboard access and a narrow panel
+viewport as well as desktop. Retain explicit operating-state labels, localized
+text and locale/timezone formatting. Align the current implementation with
+the agreed prototype in a focused
+visual change; avoid inventing a replacement theme or rearranging the shell
+as an incidental feature change.
+
+Token checks establish color/declaration consistency, not visual proof of a
+new screen. Review rendered UI for changes to layout or interaction.
+
+## Initial tokenization scope and verification
+
+The initial tokenization changed **only CSS values via var() substitution**, token definitions,
 one CSS import, documentation and regression tests. No product UI behavior,
-authorization, JS business logic, backend, or media-query breakpoints change.
+authorization, JS business logic, backend, or media-query breakpoints changed
+in that tokenization. Its dark CSS parity checks describe implementation
+preservation, not conformance to the agreed light design.
 The migration parity test verifies unchanged CSS semantics; native screenshots
 and keyboard/contrast tests remain desirable for later UI-specific PRs.

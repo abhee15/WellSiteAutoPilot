@@ -23,7 +23,7 @@ This document is an index for the detailed WellSite AutoPilot requirements. Deta
 - Roles, user/group assignment and exact Asset scope belong to one entitlement; do not combine separate roles and Asset lists across unrelated assignments.
 - Only authorized security administrators may modify roles, permission grants and directory-group mappings; no self-escalation and no removal of the last directly granted administrative recovery principal.
 - Directory group security identifiers, revocation/freshness, offline behavior, provenance audits, and affected-access previews are part of enterprise readiness.
-- Existing fixed-role implementation remains authoritative only until a tested staged migration is complete; this section does not itself authorize new runtime behavior.
+- Existing fixed-role implementation remains authoritative only until the complete grant-based replacement is validated. For the unreleased MVP, use the replacement/reset approach in ADR-006 section 8 instead of a production migration rollout; this section does not itself change runtime behavior.
 
 ## Locked cross-cutting decisions
 

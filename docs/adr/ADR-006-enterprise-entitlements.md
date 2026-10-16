@@ -103,16 +103,38 @@ Indexes for principal/group lookup and role activity, foreign keys preventing or
 
 Audit grant/role creation, edits, mapping, retirement, directory configuration, bootstrap, privileged effective-access diagnostics, and denied security-changing attempts with stable codes and correlation IDs. Audit must not embed credentials, full directory contents or module outputs.
 
-### 8. Safe migration from fixed direct roles
+### 8. MVP replacement of fixed direct roles (revised 2026-10-16)
 
-1. Introduce new schema, stable product permission catalog, protected default-role rows and a **read-only** new entitlement evaluator, with differential tests; keep current production path intact.
-2. Convert each existing direct user's `user_roles` and `user_asset_scopes` to distinct role-scope grants preserving that user's currently effective **role × scope** semantics, including explicit deployment-wide protected Admin grants. Do not infer unexpected descendant Assets or introduce implicit group grants.
-3. Verify per-user/per-permission/per-Asset equivalence across fixtures and real upgrade snapshots, including direct users with multiple roles. Report unknown/invalid source roles rather than silently granting them.
-4. Stage the new policy evaluator behind an explicit safe rollout with telemetry (decisions/provenance, never secret payloads); update coarse route checks and all scoped queries to consume **paired** grants. A globally flattened Asset list remains unsuitable for resource-aware permissions.
-5. Migrate current admin users listing and `ReplaceAccessAsync` endpoint via backward-compatible new contracts. New APIs may be additive in REST V1; incompatible changes require new major API version per ADR-004. Generated TS is never manually edited.
-6. Switch to a single authoritative evaluator only after verified parity; remove legacy enum/map as authorization sources in a controlled follow-on migration. Preserve audit and rollback/upgrade safety.
+The product has no release branch or customer upgrade baseline. This revision
+supersedes the earlier staged production-migration plan for phase one.
 
-Do not layer Windows-group grants into the current global `RolePermissionMap`/Asset list as an intermediate live authorization implementation.
+1. Reuse the landed role/grant schema, pure evaluator and paired-grant SQL
+   predicates. Complete every resource family, global permission check,
+   administrator/bootstrap guard and frontend capability response against
+   the same authoritative model.
+2. Keep current enforcement intact while that implementation is incomplete.
+   Validate the completed replacement with positive, negative, cross-scope,
+   pagination, revocation, concurrency and audit tests. There is no need for
+   a persistent `Legacy`/`Observe`/`Enforce` state machine or a fleet rollout
+   protocol for the single-node MVP.
+3. Switch the completed runtime to grants in one coherent change; remove
+   legacy role/scope authority, legacy access editing and migration-only
+   screens/endpoints. Keep useful role authoring and effective-access tools.
+   Do not leave custom-role users behind a legacy coarse permission check.
+4. Update development seeds and document an explicit development database
+   reset where needed. No development data conversion, deployment-wide
+   migration parity campaign or migration rollback UI is required. Preserve
+   meaningful audit behavior in the new model. Database resets are never
+   automatic server-startup behavior.
+5. Coordinate unreleased API/client changes per ADR-004's pre-release
+   exception. Document the final supported schema and upgrade policy when
+   the release branch is cut; customer deployments then require tested
+   data preservation, compatibility and recovery.
+
+Directory groups remain a separate feature under #77. Unverified group
+identities cannot grant access. Real Windows authentication remains an
+independent release-readiness gate under #92; deterministic identity/API
+security tests and all seven CI jobs still validate each merge.
 
 ## Required acceptance tests
 
@@ -124,16 +146,16 @@ Do not layer Windows-group grants into the current global `RolePermissionMap`/As
 6. Simultaneous edits yield one accepted compare-and-swap change and a visible conflict. Every accepted change commits its audit event transactionally.
 7. Supported nested groups, renameable names/stable SID, directory outage, cross-domain/trust scenarios and Windows service host identities behave deterministically.
 8. Query/list/claim restrictions apply **before** pagination; direct/group provenance and per-Asset effective access are correct across backend API and frontend.
-9. Upgrade differential tests preserve legacy authorization and do not grant descendants implicitly.
+9. Built-in grant seeds preserve intended persona access; custom grants never cross-combine permission and Asset scope or grant descendants implicitly. Customer upgrade differential tests become required at the release baseline.
 10. Authorization of autonomous mode and physical control remains independently gated by readiness, interlocks, identity/grant freshness and operational ownership.
 
 ## Implementation slices and quality gates
 
 Deliver cohesive end-to-end PRs, each with backend/service/persistence/API/frontend/testing where relevant:
 - **Catalog and role authoring**: seeded system roles, product permission metadata, guarded CRUD/clone, persisted revisions/audits, Admin UI, contract and security tests.
-- **Scoped assignments + evaluator**: direct user assignment UI/API, resource-aware policy checks, strict equivalence rollout.
+- **Scoped assignments + evaluator**: direct user assignment UI/API, resource-aware policy checks, SQL-filtered collections and complete replacement of legacy authority.
 - **Windows group assignments**: token SID resolution, optional directory browser adapter, group mapping UI, freshness controls, outage tests.
-- **Cutover and hardening**: migrate legacy endpoints, verify nested membership and upgrade safety, audit/impact preview, enterprise CI tests.
+- **Replacement and hardening**: remove obsolete legacy paths, verify revocation, last-admin safety and audit; validate the complete runtime with CI. Group membership and customer upgrades have their own readiness gates.
 
 Every security API change receives negative permission tests (including non-Admin callers), cross-scope test fixtures, optimistic concurrency tests and audit checks; CI verifies PostgreSQL migration, Windows-host install, API/React and engineering conventions.
 

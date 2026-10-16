@@ -6,8 +6,7 @@ an enforcement switch based solely on this document or passing migration CI.**
 ## Baseline and constraints
 
 - Legacy Windows identity, persisted legacy roles, permission claims, and Asset
-  scopes remain the live authorization source until a separately reviewed,
-  transactionally fenced cutover.
+  scopes remain the live authorization source until the complete grant-based replacement is validated.
 - The new grant/role SQL queries are diagnostic and must agree with the pure
   scoped-grant evaluator. Any SQL/domain disagreement blocks cutover.
 - Every resource decision must use a **single active direct-user role grant**
@@ -43,24 +42,30 @@ an enforcement switch based solely on this document or passing migration CI.**
 Map every published API route (including future ones) to a permission and
 scope-kind in tests. Reject unknown or unmapped protected route categories.
 
-## Enforcement and deployment state
+## MVP implementation and replacement
 
-1. Complete authoritative identity/provider integration. Windows groups remain
-   unsupported until trusted SID validation.
-2. Implement authorization policy and resource resolution in one coherent
-   request pipeline, rather than layering an Asset check *after* a legacy
-   policy that already denied all custom-grant-only users.
-3. Implement read-only observation with low-cardinality disagreement metrics
-   and no sensitive request payloads. An observer must never grant access.
-4. Perform whole-deployment legacy/proposed parity verification, including
-   inactive-user reactivation semantics and cohorts larger than the current
-   diagnostic bounds (100 users, 200 roles, 2,000 Assets).
-5. Design a durable, revision-fenced state machine (`Legacy`, `Observe`,
-   `Enforce`) with explicit administrator confirmation and independent
-   rollback. A partially deployed cluster must not mix ungoverned decisions.
-6. Roll out only after the API-level and Windows-native negative suites are
-   passing; preserve a documented, tested rollback to the previously valid
-   policy without deleting audit events or user-authored grants.
+The 2026-10-16 revision of [ADR-006 section 8](../adr/ADR-006-enterprise-entitlements.md)
+supersedes the earlier production rollout plan. Complete one grant-based
+runtime, validate it, and remove obsolete legacy authority. No persistent
+`Legacy`/`Observe`/`Enforce` state machine, fleet policy-revision protocol,
+whole-deployment migration campaign or rollback administration UI is needed
+before the release baseline. An explicit development database reset and updated
+seeds are acceptable; never reset a database automatically.
+
+1. Resolve a verified authenticated identity to an active persisted user.
+2. Apply one paired-grant model to coarse policies, global operations,
+   authoritative resource checks, collection SQL and capability hints.
+3. Fence mutation authorization with revocation/role edits in the database;
+   request-start claims alone do not protect a later write.
+4. Complete bootstrap, own-grant and last-administrator protection against
+   the grant model, then remove legacy authority and migration-only UI/API.
+5. Run deterministic API/security coverage and all seven exact-head CI jobs.
+   Real Windows authentication remains release-readiness issue #92, not proof
+   supplied by TestHeader or installer smoke.
+
+Legacy remains authoritative in the current code. This document changes the
+implementation plan, not live permission decisions. Route families may be
+implemented in small PRs, but do not expose an incomplete mixed authority.
 
 ## Required negative tests before enforcement merge
 
@@ -77,128 +82,33 @@ scope-kind in tests. Reject unknown or unmapped protected route categories.
   equivalent concurrency boundary, including races with revocation.
 - Last-administrator and own-grant protections; actor identity is persisted
   and non-spoofable in audit; denied decisions do not mutate anything.
-- Confirmed migration and rollback are atomic and idempotent; unconfirmed,
-  concurrent, and uncertain network outcomes fail closed.
-- Genuine Windows authentication integration alongside GitHub Linux
-  PostgreSQL/NATS tests and successful NSIS installer smoke tests.
+- Grant/role mutations and bootstrap are atomic and auditable; concurrent
+  and uncertain network outcomes fail closed without blind write retries.
+- GitHub PostgreSQL/NATS tests and successful NSIS installer smoke tests
+  on the exact head; genuine Windows authentication integration remains
+  the separate release-readiness gate #92.
 
 
-## Runtime cutover implementation gates (reviewed design)
+## Route inventory
 
-These gates are prerequisites, not an authorization switch. New deployments
-start in `Legacy` until a reviewed cutover is tested and enabled. A future
-unknown or corrupt persisted policy state must fail closed rather than silently
-choosing a different policy.
+The reviewed route/method/policy inventory lives in
+[`tools/ci/check_api_authorization.py`](../../tools/ci/check_api_authorization.py).
+At this review it contains **43 endpoints: 2 authenticated-only and 41 named
+policy endpoints**, including Asset/Configured Logic capabilities and configured
+Shadow submission. Keep that executable inventory current in each API change
+rather than maintaining a second table here that can drift.
 
-1. **Inventory at startup:** enumerate every protected minimal-API endpoint,
-   including route group metadata and HTTP method; associate each with one
-   declared permission and resource resolver. Reject duplicate, missing, or
-   incompatible metadata in tests. Health/static assets are explicitly
-   classified outside this protected inventory; no silent fallthrough.
-2. **One decision boundary:** resolve authenticated Windows identity to an
-   active persisted user, then evaluate permission and authoritative resource
-   scope before the handler can read or mutate protected data. Do not combine
-   independently obtained role permissions and Asset scopes. An unverified
-   group SID cannot contribute a grant.
-3. **Collection queries:** push authorized resource predicates into the
-   repository SQL query *before* sorting, pagination, totals, or projection.
-   Check all bound Assets for multi-Asset resources; no post-page filtering.
-4. **Mutation concurrency:** resolve target resources from persistence and
-   fence authorization and mutation against concurrent revocation, scope
-   changes, and role revisions. A check performed only before a separate
-   transaction is not sufficient.
-5. **Observation:** evaluate legacy and proposed decisions without changing
-   the live result. Record permission code, route class, decision category,
-   and mismatch counters; never log identities, raw SIDs, grant contents, or
-   request bodies in low-cardinality metrics.
-6. **Cluster-consistent switch:** persist a monotonic authorization-policy
-   revision and state transition with administrator identity and audit.
-   Every server instance must prove it has the same effective revision before
-   serving `Enforce` requests. Stale/unreachable nodes must fail closed or
-   be removed from service; do not silently revert an individual node to
-   legacy while peers enforce proposed grants.
-7. **Rollback:** require a separately audited, revision-checked administrator
-   action to restore the last verified legacy policy. Preserve all grants and
-   audit history. An ambiguous or partially acknowledged transition must not
-   be reported as successful.
-8. **Release gate:** demonstrate complete-deployment parity (without the
-   diagnostic population limits), negative API integration tests for each
-   route category, real Windows authentication, migrations, and installer
-   smoke tests on the *exact* merge head. Passing GitHub Linux CI alone is
-   insufficient for the Windows-native gate.
-
-**Non-goal:** this checklist does not authorize adding a configuration flag
-that immediately enables the new evaluator in production.
-
-
-## Observed HTTP route inventory (2026-10-15)
-
-The following inventory was extracted from the current `Program.cs` route
-registrations. All routes are under the authenticated `/api/v1` group.
-The **policy** column describes *current legacy policy metadata*, not proof
-of proposed scoped authorization. This is a review baseline, not an automated
-runtime enforcement mechanism.
-
-| Method | Route | Current policy |
-| --- | --- | --- |
-| GET | /system/info | Authenticated |
-| GET | /security/me | Authenticated |
-| GET | /security/users | SecurityManage |
-| PUT | /security/users/{userId}/access | SecurityManage |
-| GET | /security/role-permissions | SecurityManage |
-| GET | /security/roles | SecurityManage |
-| GET | /security/roles/{roleId} | SecurityManage |
-| POST | /security/roles | SecurityManage |
-| PUT | /security/roles/{roleId} | SecurityManage |
-| POST | /security/rollback-legacy-grants | SecurityManage |
-| POST | /security/materialize-legacy-grants | SecurityManage |
-| GET | /security/migration-preflight | SecurityManage |
-| GET | /security/users/{userId}/migration-preflight | SecurityManage |
-| GET | /security/users/{userId}/proposed-assets | SecurityManage |
-| GET | /security/users/{userId}/effective-access | SecurityManage |
-| GET | /security/users/{userId}/grants | SecurityManage |
-| POST | /security/users/{userId}/grants | SecurityManage |
-| PUT | /security/users/{userId}/grants/{grantId}/deactivate | SecurityManage |
-| POST | /asset-types | AssetsManage |
-| GET | /asset-types | AssetsRead |
-| GET | /asset-types/{assetTypeId} | AssetsRead |
-| POST | /assets | AssetsManage |
-| GET | /security/assets/directory | SecurityManage |
-| GET | /assets | AssetsRead |
-| GET | /assets/{assetId} | AssetsRead |
-| POST | /configured-logic | ConfiguredLogicManage |
-| GET | /configured-logic | ConfiguredLogicRead |
-| GET | /configured-logic/{configuredLogicId} | ConfiguredLogicRead |
-| POST | /configured-logic/{configuredLogicId}/revisions | ConfiguredLogicManage |
-| POST | /configured-logic/{configuredLogicId}/revisions/{revisionId}/validate | ConfiguredLogicManage |
-| POST | /configured-logic/{configuredLogicId}/revisions/{revisionId}/activate | ConfiguredLogicManage |
-| GET | /executions | ExecutionsRead |
-| POST | /executions/shadow | ExecutionsRequest |
-| GET | /executions/{executionId} | ExecutionsRead |
-| POST | /logic-modules | LogicManage |
-| GET | /logic-modules | LogicRead |
-| GET | /logic-modules/{moduleId}/{moduleVersion} | LogicRead |
-| GET | /recommendations | RecommendationsRead |
-| GET | /recommendations/{recommendationId} | RecommendationsRead |
-| POST | /recommendations/{recommendationId}/decision | RecommendationsDecide |
-
-**Coverage:** 40 registered endpoints: 2 authenticated-only and 38 with
-explicit legacy named policies. The authenticated-only routes are intentionally
-not interpreted as `security.manage` endpoints. The Asset-type catalog
-currently uses resource-style legacy permissions despite lacking a target
-Asset; keep the planned administrator-only bridge until its deployment-wide
-permission model is resolved. The existing `tools/ci/check_api_authorization.py` guard detects route and
-legacy-policy metadata changes automatically. It does not prove resource
-authorization or replace the runtime enforcement tests above.
+The guard detects policy metadata changes; it does not prove resource
+scope, revocation safety or SQL filtering before pagination. Integration tests
+must establish those properties for every protected family.
 
 ## Extraction and enforcement remain separate
 
-PR #79 is retained as the original implementation reference. Its safe,
-diagnostic functionality is being extracted through independently reviewed PRs;
-see [the extraction ledger](scoped-access-extraction-ledger.md). Do not merge
-its stale branch over later fixes, generated-contract conventions, audit
-hardening, or frontend improvements already on `develop`.
+PR #79 was extracted through #102–#115 and closed unmerged, with its original
+branch preserved. See [the extraction ledger](scoped-access-extraction-ledger.md).
+Do not merge its stale branch over subsequent fixes.
 
-The runtime enforcement and fenced state transition described here remain
-future implementation under #76. Directory group verification remains #77.
-Issue #80 follows the agreed security priority for frontend operator workflows.
+Runtime enforcement remains open under #76. Frontend milestone #80 is complete;
+directory group verification remains #77. The migration diagnostics already
+landed are not prerequisites for the simplified MVP replacement and should be
+removed with the obsolete authority when the replacement is complete.
