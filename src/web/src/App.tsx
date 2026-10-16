@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AssetResponse,
+  AssetCreationCapabilitiesResponse,
   AssetTypeResponse,
   ConfiguredLogicResponse,
   CurrentUserResponse,
@@ -20,6 +21,7 @@ import { ExecutionDetailPanel } from './views/ExecutionDetailPanel';
 import { RecommendationsPage } from './views/RecommendationsPage';
 import { AdministrationWorkspace } from './views/AdministrationWorkspace';
 import { AssetInventoryControls } from './views/AssetInventoryControls';
+import { AssetCreationPanel } from './views/AssetCreationPanel';
 import { LogicCatalogControls } from './views/LogicCatalogControls';
 import { ConfiguredLogicControls } from './views/ConfiguredLogicControls';
 import { ConfiguredLogicRevisionOverview } from './views/ConfiguredLogicRevisionOverview';
@@ -43,6 +45,7 @@ export function App() {
   const [executions, setExecutions] = useState<ExecutionResponse[]>([]);
   const [assetTypes, setAssetTypes] = useState<AssetTypeResponse[]>([]);
   const [assets, setAssets] = useState<AssetResponse[]>([]);
+  const [assetCapabilities, setAssetCapabilities] = useState<AssetCreationCapabilitiesResponse | null>(null);
   const [logicModules, setLogicModules] = useState<LogicModuleResponse[]>([]);
   const [configuredLogic, setConfiguredLogic] = useState<ConfiguredLogicResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +71,7 @@ export function App() {
         fetch('/api/v1/executions?limit=50', { signal: controller.signal }),
         fetch('/api/v1/asset-types', { signal: controller.signal }),
         fetch('/api/v1/assets?limit=100', { signal: controller.signal }),
+        fetch('/api/v1/assets/capabilities', { signal: controller.signal }),
         fetch('/api/v1/logic-modules?limit=100', { signal: controller.signal }),
         fetch('/api/v1/configured-logic?limit=100', { signal: controller.signal }),
         fetch('/api/v1/security/me', { signal: controller.signal }),
@@ -83,6 +87,7 @@ export function App() {
           setExecutions([]);
           setAssetTypes([]);
           setAssets([]);
+          setAssetCapabilities(null);
           setLogicModules([]);
           setConfiguredLogic([]);
           setLastUpdated(null);
@@ -95,14 +100,15 @@ export function App() {
       }
 
       const [system, recentExecutions, availableAssetTypes, availableAssets,
-        availableModules, configurations, user] = await Promise.all([
+        capabilities, availableModules, configurations, user] = await Promise.all([
         responses[0].json() as Promise<SystemInfoResponse>,
         responses[1].json() as Promise<ExecutionResponse[]>,
         responses[2].json() as Promise<AssetTypeResponse[]>,
         responses[3].json() as Promise<AssetResponse[]>,
-        responses[4].json() as Promise<LogicModuleResponse[]>,
-        responses[5].json() as Promise<ConfiguredLogicResponse[]>,
-        responses[6].json() as Promise<CurrentUserResponse>,
+        responses[4].json() as Promise<AssetCreationCapabilitiesResponse>,
+        responses[5].json() as Promise<LogicModuleResponse[]>,
+        responses[6].json() as Promise<ConfiguredLogicResponse[]>,
+        responses[7].json() as Promise<CurrentUserResponse>,
       ]);
       if (controller.signal.aborted) return;
 
@@ -110,6 +116,7 @@ export function App() {
       setExecutions(recentExecutions);
       setAssetTypes(availableAssetTypes);
       setAssets(availableAssets);
+      setAssetCapabilities(capabilities);
       setLogicModules(availableModules);
       setConfiguredLogic(configurations);
       setCurrentUser(user);
@@ -192,10 +199,12 @@ export function App() {
         )}
         {section === 'assets' && (
           <AssetsPage
-            key={currentUser?.userId ?? 'no-user'}
+            key={JSON.stringify([currentUser?.userId, currentUser?.roles, currentUser?.assetScopeIds])}
             assetTypes={assetTypes}
             assets={assets}
             userId={currentUser?.userId}
+            capabilities={assetCapabilities}
+            onRefresh={refresh}
           />
         )}
         {section === 'logic' && (
@@ -460,11 +469,16 @@ function AssetsPage({
   assetTypes,
   assets,
   userId,
+  capabilities,
+  onRefresh,
 }: {
   assetTypes: AssetTypeResponse[];
   assets: AssetResponse[];
   userId: string | null | undefined;
+  capabilities: AssetCreationCapabilitiesResponse | null;
+  onRefresh: () => Promise<void>;
 }) {
+  const [selected, setSelected] = useState<AssetResponse | null>(null);
   const typeNames = useMemo(
     () => new Map(assetTypes.map(type => [type.id, type.displayName])),
     [assetTypes],
@@ -486,6 +500,18 @@ function AssetsPage({
         <SummaryCard label="Root Assets" value={String(rootAssets)} detail="Top-level hierarchy entries" />
       </section>
 
+      <AssetCreationPanel
+        key={userId ?? 'anonymous'}
+        userId={userId}
+        assetTypes={assetTypes}
+        assets={assets}
+        capabilities={capabilities}
+        onCreated={async created => {
+          setSelected(created);
+          await onRefresh();
+        }}
+        onRefresh={onRefresh}
+      />
       <section className="panel">
         <PanelHeader eyebrow="Inventory" title="Assets" count={visibleAssets.length} />
         <AssetInventoryControls
@@ -509,7 +535,11 @@ function AssetsPage({
             <tbody>
               {visibleAssets.map(asset => (
                 <tr key={asset.id}>
-                  <td><strong>{asset.name}</strong></td>
+                  <td><button type="button" className="asset-select"
+                    onClick={() => setSelected(asset)}
+                    aria-label={t('assets.selectNamed', { name: asset.name ?? t('assets.unnamed') })}>
+                    {asset.name}
+                  </button></td>
                   <td>{typeNames.get(asset.assetTypeId) ?? asset.assetTypeId}</td>
                   <td>{asset.parentAssetId ? 'Child asset' : 'Root asset'}</td>
                   <td><StatusPill value={asset.isActive ? 'Active' : 'Inactive'} /></td>
@@ -524,6 +554,15 @@ function AssetsPage({
             </tbody>
           </table>
         </div>
+        {selected && <div className="asset-selected" aria-live="polite">
+          <h3>{t('assets.selected')}</h3>
+          <strong>{selected.name}</strong>
+          <p>{t('assets.selectedType', { name:
+            typeNames.get(selected.assetTypeId) ?? selected.assetTypeId ?? t('assets.unknownType') })}</p>
+          <code>{selected.id}</code>
+          <button type="button" className="secondary-button"
+            onClick={() => setSelected(null)}>{t('assets.clearSelection')}</button>
+        </div>}
       </section>
 
       <section className="panel">

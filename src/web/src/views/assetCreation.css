@@ -1,0 +1,40 @@
+/* Asset creation: semantic design tokens, responsive and keyboard accessible. */
+.asset-create-heading { padding: var(--space-16) var(--space-18) 0; }
+.asset-create-heading h2 { margin: 0; font-size: var(--font-size-body); }
+.asset-create-heading p, .asset-create-hint { color: var(--color-text-subtle); }
+.asset-create-form { padding: var(--space-16) var(--space-18);
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-14); }
+.asset-create-form label { display: grid; gap: var(--space-6); min-width: 0; }
+.asset-create-form input, .asset-create-form select, .asset-create-form textarea {
+  width: 100%; min-width: 0; padding: var(--space-10);
+  border: var(--border-width-thin) solid var(--color-border-control);
+  border-radius: var(--radius-6); background: var(--color-surface-input);
+  color: var(--color-text-primary); font: inherit;
+}
+.asset-create-form :is(input,select,textarea,button):focus-visible,
+.asset-select:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
+.asset-create-attributes, .asset-create-schema, .asset-create-hint,
+.asset-create-error, .asset-create-success { grid-column: 1 / -1; }
+.asset-create-hint { margin: 0; padding: var(--space-8) 0; }
+.asset-create-form .asset-create-hint { padding: 0; }
+.asset-create-form button[type="submit"] { justify-self: start; }
+.asset-create-schema pre { overflow-x: auto; white-space: pre-wrap;
+  overflow-wrap: anywhere; padding: var(--space-12);
+  background: var(--color-surface-code); }
+.asset-create-error { color: var(--color-text-warning-strong); }
+.asset-create-success { color: var(--color-text-selected); }
+.asset-select { background: transparent; border: 0; text-align: left;
+  text-decoration: underline; color: var(--color-text-link);
+  font: inherit; cursor: pointer; padding: 0; }
+.asset-selected { padding: var(--space-16) var(--space-18);
+  border-top: var(--border-width-thin) solid var(--color-border-subtle);
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-12); }
+.asset-selected h3 { margin: 0; font-size: var(--font-size-body); }
+.asset-selected p { margin: 0; }
+.asset-selected code { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .asset-create-form { grid-template-columns: minmax(0, 1fr); }
+  .asset-create-attributes, .asset-create-schema, .asset-create-hint,
+  .asset-create-error, .asset-create-success { grid-column: auto; }
+}

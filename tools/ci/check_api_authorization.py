@@ -36,6 +36,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("POST", "/asset-types"): ("CreateAssetType", "AssetsManage"),
     ("GET", "/asset-types"): ("ListAssetTypes", "AssetsRead"),
     ("GET", "/asset-types/{assetTypeId:guid}"): ("GetAssetType", "AssetsRead"),
+    ("GET", "/assets/capabilities"): ("GetAssetCreationCapabilities", "AssetsRead"),
     ("POST", "/assets"): ("CreateAsset", "AssetsManage"),
     ("GET", "/security/assets/directory"): ("ListSecurityAssetDirectory", "SecurityManage"),
     ("GET", "/assets"): ("ListAssets", "AssetsRead"),
