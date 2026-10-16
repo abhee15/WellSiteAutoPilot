@@ -621,7 +621,7 @@ await ScopedGrantAdministrationChecks.RunAsync(
 await ScopedSqlProjectionChecks.RunAsync(
     options, operatorUser.Id, secondAdministrator.Id, asset.Id, otherAsset.Id);
 
-await ScopedResourceQueryChecks.RunAsync(options, asset.Id, otherAsset.Id);
+await ScopedResourceQueryChecks.RunAsync(options, assetType.Id);
 
 await ScopedAccessInspectionChecks.RunAsync(
     options, operatorUser, administrator, secondAdministrator, otherAsset.Id, clock);

@@ -41,7 +41,7 @@ internal static class ScopedResourceQueryChecks
     }
 
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options,
-        Guid assetA, Guid assetB)
+        Guid assetTypeId)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
         await using var transaction = await db.Database.BeginTransactionAsync();
@@ -54,14 +54,23 @@ internal static class ScopedResourceQueryChecks
             NormalizedIdentityName = identity.ToUpperInvariant(), IsActive = true,
             CreatedAtUtc = now, LastSeenAtUtc = now
         });
-        var assetType = await db.Assets.Where(asset => asset.Id == assetA)
-            .Select(asset => asset.AssetTypeId).SingleAsync();
+        // Existing suite Assets already have legitimate configurations and
+        // executions. Own these targets so full-query assertions measure only
+        // this fixture without masking results behind an ID filter.
+        var assetA = Guid.NewGuid();
+        var assetB = Guid.NewGuid();
         var assetC = Guid.NewGuid();
-        db.Assets.Add(new AssetEntity
+        foreach (var (id, name) in new[]
         {
-            Id = assetC, AssetTypeId = assetType, Name = "000 Denied grant-query Asset",
-            IsActive = true, CreatedAtUtc = now
-        });
+            (assetA, "100 Engineer grant-query Asset"),
+            (assetB, "200 Reader grant-query Asset"),
+            (assetC, "000 Denied grant-query Asset")
+        })
+            db.Assets.Add(new AssetEntity
+            {
+                Id = id, AssetTypeId = assetTypeId, Name = name,
+                IsActive = true, CreatedAtUtc = now
+            });
         var readPermissions = new[]
         {
             WellSitePermissions.AssetsRead, WellSitePermissions.ConfiguredLogicRead,
