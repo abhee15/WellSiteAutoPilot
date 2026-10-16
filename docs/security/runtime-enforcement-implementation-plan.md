@@ -104,6 +104,22 @@ that the following fresh read loses access. These entry points are not yet used
 by published routes. Route/application integration and mutation target fences
 remain required before activation.
 
+Recommendation decisions now have a grant-authorized repository entry point.
+It locks the persisted recommendation before resolving its target, retains
+paired authority through commit, checks group freshness after business-state
+locks, and commits the decision with its actor/correlation audit. Approval also
+holds/checks the current configuration, execution and target snapshot provenance.
+The new tests cover separate direct decision/group read scopes, expired or
+duplicate decisions, malformed source provenance, injected audit failure and
+actual concurrent grant-revocation waits. This entry point is not yet called
+by the live API; current-head PostgreSQL validation is required.
+
+Frontend integration must include resource-specific action capabilities, not
+just coarse menu permissions: e.g. a reader on Well B with decision authority
+only on Well A must not receive an enabled decision control for B. Calculate
+those hints from paired grants on the server, generate the changed client and
+test the denied/stale interaction. Backend transaction checks remain mandatory.
+
 Verified foundation CI checkpoint: head
 `2872da778555330abc4bf012809d49e00ee7c761`, run `38953414941`, passed the
 PostgreSQL job including all 20 revocation cases, fresh-database bootstrap and

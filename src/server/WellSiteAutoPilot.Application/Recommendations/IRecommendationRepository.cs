@@ -5,6 +5,10 @@ namespace WellSiteAutoPilot.Application.Recommendations;
 
 public interface IRecommendationRepository
 {
+    Task<RecommendationRecord> DecideAuthorizedAsync(AccessSubject subject, Guid recommendationId,
+        RecommendationStatus decision, SecurityActorContext actor, string? reason,
+        CancellationToken cancellationToken = default);
+
     Task<RecommendationRecord?> GetAuthorizedAsync(AccessSubject subject, Guid id,
         CancellationToken cancellationToken = default);
 
