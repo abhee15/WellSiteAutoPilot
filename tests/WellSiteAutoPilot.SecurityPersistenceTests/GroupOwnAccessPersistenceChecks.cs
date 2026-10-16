@@ -58,11 +58,19 @@ internal static class GroupOwnAccessPersistenceChecks
         var saved = await allowedRepository.CreateAsync(other, command, own, now);
         await allowedRepository.DeactivateAsync(other, saved.Id, saved.Revision, own, now);
 
-        var otherAdminId = await db.UserRoles.Where(x => x.Role == "Admin" && x.UserId != actor.UserId)
-            .Select(x => x.UserId).FirstAsync();
-        var otherAdmin = await new UserAccessRepository(db).GetAsync(otherAdminId) ?? throw new InvalidOperationException("Missing test administrator.");
-        var otherActor = new SecurityActorContext(otherAdmin.Id, otherAdmin.IdentityName, "direct-own-role");
-        var direct = await allowedRepository.CreateForUserAsync(actor.UserId.Value, command, otherActor, now);
+        // Seed an already assigned direct role as an isolated fixture. The
+        // shared test deployment deliberately has only one legacy Admin, so
+        // do not elevate a second caller merely to set up this refusal.
+        var directId = Guid.NewGuid();
+        db.AccessGrants.Add(new AccessGrantEntity
+        {
+            Id = directId, SubjectKind = "User", UserId = actor.UserId.Value,
+            RoleId = command.RoleId, ScopeKind = command.ScopeKind.ToString(), IsActive = true,
+            Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
+        });
+        db.AccessGrantAssets.AddRange(command.AssetIds.Select(assetId => new AccessGrantAssetEntity
+        { GrantId = directId, AssetId = assetId }));
+        await db.SaveChangesAsync();
         var directActor = own with { WindowsGroups = new VerifiedWindowsGroupMembership(actor.UserId.Value, [], now) };
         await CheckAsync(async (repository, service, roles) =>
         {
@@ -70,7 +78,8 @@ internal static class GroupOwnAccessPersistenceChecks
             await roles.UpdateAsync(role.Id, role.Revision,
                 new RoleMutationCommand(role.Name, role.Description, role.Permissions, false), directActor, now);
         }, "SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN");
-        await allowedRepository.DeactivateForUserAsync(actor.UserId.Value, direct.Id, direct.Revision, otherActor, now);
+        await db.AccessGrantAssets.Where(x => x.GrantId == directId).ExecuteDeleteAsync();
+        await db.AccessGrants.Where(x => x.Id == directId).ExecuteDeleteAsync();
         Console.WriteLine("Group-own assignment/service/transaction and role-deactivation protections reject stale/missing/wrong-user proof atomically.");
 
 
