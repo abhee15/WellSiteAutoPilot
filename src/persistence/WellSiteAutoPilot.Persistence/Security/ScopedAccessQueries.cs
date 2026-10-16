@@ -77,7 +77,7 @@ public static class ScopedAccessQueries
             ((grant.SubjectKind == "User" && grant.UserId == userId && grant.GroupSid == null) ||
              (grant.SubjectKind == "WindowsGroup" && grant.UserId == null && grant.GroupSid != null &&
               groupSids.Contains(grant.GroupSid))) &&
-            roles.Any(role => role.Id == grant.RoleId && role.IsActive &&
+            roles.Any(role => role.Id == grant.RoleId && role.IsActive && role.Revision >= 1 &&
                 permissions.Any(item => item.RoleId == role.Id && item.Permission == permission)));
     }
 

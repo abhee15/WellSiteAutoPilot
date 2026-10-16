@@ -56,7 +56,7 @@ public static class ScopedGrantEvaluator
         }
 
         var byId = roles
-            .Where(role => role.Id != Guid.Empty && role.IsActive)
+            .Where(role => role.Id != Guid.Empty && role.IsActive && role.Revision >= 1)
             .GroupBy(role => role.Id)
             .ToDictionary(group => group.Key, group => group.ToArray());
 

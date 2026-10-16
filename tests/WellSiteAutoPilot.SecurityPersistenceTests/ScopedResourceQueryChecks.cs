@@ -223,6 +223,17 @@ internal static class ScopedResourceQueryChecks
             throw new InvalidOperationException("Inactive role authorized execution access.");
         await db.RoleDefinitions.Where(role => role.Id == engineer)
             .ExecuteUpdateAsync(setters => setters.SetProperty(role => role.IsActive, true));
+        foreach (var invalidRevision in new long[] { 0, -1 })
+        {
+            await db.RoleDefinitions.Where(role => role.Id == engineer || role.Id == reader)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(role => role.Revision, invalidRevision));
+            await AssertEmptyAsync(userId);
+            if (await ScopedAccessQueries.DeploymentGrants(db, userId, WellSitePermissions.LogicRead).AnyAsync())
+                throw new InvalidOperationException("Invalid role revision authorized a deployment permission.");
+        }
+        await db.RoleDefinitions.Where(role => role.Id == engineer || role.Id == reader)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(role => role.Revision, 1L));
+        await AssertVisibleAsync();
         await db.Users.Where(user => user.Id == userId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsActive, false));
         await AssertEmptyAsync(userId);
