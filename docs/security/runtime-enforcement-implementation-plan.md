@@ -178,6 +178,19 @@ Application manifest/binding validation still precedes these persistence calls;
 these entry points do not replace it and are not wired to live routes yet.
 Validation/activation dependency fencing and application integration remain next.
 
+Authorized application create/revision methods now reuse the existing bounded
+manifest, parameter, binding and schedule validation. Revision preparation uses
+the grant-filtered full configuration read; the persistence transaction still
+rechecks the persisted scope and revision number. PostgreSQL coverage also
+exercises both application entry points and malformed parameter refusal. Live
+route integration remains deferred until the remaining lifecycle is complete.
+
+Draft persistence checkpoint `15459c2a494a85299ca01def91c5e9173a781969`
+passed PostgreSQL integration in run `38982639874`, including the new rollback
+and observed revocation wait. At this observation six jobs passed and the
+Windows installer job remained in progress. Application-method changes require
+their own new-head validation; earlier-head CI does not validate them.
+
 The added PostgreSQL cases cover direct and verified-group manage authority
 paired with separate direct read authority, cross-scope revisions/data inputs,
 foreign-configuration takeover attempts, stale revision numbers, actor mismatch,

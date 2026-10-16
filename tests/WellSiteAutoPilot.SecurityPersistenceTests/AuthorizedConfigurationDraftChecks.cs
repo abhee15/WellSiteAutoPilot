@@ -3,12 +3,16 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using System.Diagnostics;
 using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Application.ConfiguredLogic;
+using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
+using WellSiteAutoPilot.Persistence.Logic;
 using WellSiteAutoPilot.Persistence.Security;
 
 internal static class AuthorizedConfigurationDraftChecks
@@ -62,6 +66,22 @@ internal static class AuthorizedConfigurationDraftChecks
             await setup.SaveChangesAsync();
             var subject = new AccessSubject(user, group ? new(user, [sid], now) : null);
             var actor = new SecurityActorContext(user, name, "draft-probe");
+            var manifest = $$"""
+                {"manifestVersion":1,"moduleId":"{{name}}","version":"1.0.0","displayName":"Draft probe",
+                 "publisher":"Test","runtime":"DotNet","executionProfile":"ScheduledOneShot",
+                 "entryPoint":"Test.EntryPoint","minimumSdkVersion":"1.0.0",
+                 "assetRequirements":[{"role":"target","minimumCount":1,"maximumCount":1,"requiredTraits":[]}],
+                 "dataRequirements":[],"commandRequirements":[]}
+                """;
+            var catalog = new LogicModuleCatalogRepository(setup);
+            await new LogicModuleCatalogService(catalog, TimeProvider.System).RegisterAsync(
+                new(manifest, new string('1', 64), LogicModuleTrustStatus.TrustedPublisher));
+            var service = new ConfiguredLogicService(new ConfiguredLogicRepository(setup), new AssetRepository(setup), catalog, TimeProvider.System);
+            var draftCommand = new CreateConfiguredLogicCommand(name, manifest, "{}", [new("target", assetA, "{}")], [], null);
+            var applicationDraft = await service.CreateAuthorizedAsync(draftCommand, subject, actor);
+            await service.CreateRevisionAuthorizedAsync(applicationDraft.Id,
+                new(manifest, "{}", draftCommand.AssetBindings, [], null), subject, actor);
+            await ExpectAsync(() => service.CreateAuthorizedAsync(draftCommand with { ParametersJson = "[]" }, subject, actor), FailureKind.Validation);
             var config = Guid.NewGuid();
             var first = Draft(config, 1, assetA);
             await WriteAsync(repository => repository.AddAuthorizedAsync(Definition(first), subject, actor));
@@ -144,9 +164,10 @@ internal static class AuthorizedConfigurationDraftChecks
                 Draft(config, 4, assetA), subject, actor)), FailureKind.Authorization);
             if (await setup.ConfiguredLogicRevisions.CountAsync(item => item.ConfiguredLogicId == config) != 3 ||
                 await setup.ConfiguredLogicRevisions.CountAsync(item => item.ConfiguredLogicId == foreign.ConfiguredLogicId) != 1 ||
-                await setup.AuditEvents.CountAsync(item => item.CorrelationId == actor.CorrelationId && item.ActorUserId == user) != 3)
+                await setup.AuditEvents.CountAsync(item => item.CorrelationId == actor.CorrelationId && item.ActorUserId == user) != 5)
                 throw new InvalidOperationException("A denied draft write changed persisted configuration or audit state.");
-            await setup.ConfiguredLogicDefinitions.Where(item => item.Id == config || item.Id == foreign.ConfiguredLogicId).ExecuteDeleteAsync();
+            await setup.ConfiguredLogicDefinitions.Where(item => item.Id == config || item.Id == foreign.ConfiguredLogicId || item.Id == applicationDraft.Id).ExecuteDeleteAsync();
+            await setup.LogicModules.Where(item => item.ModuleId == name).ExecuteDeleteAsync();
             await setup.AuditEvents.Where(item => item.ActorUserId == user).ExecuteDeleteAsync();
             await setup.AccessGrants.Where(item => item.Id == grant || item.Id == readGrant).ExecuteDeleteAsync();
             await setup.RolePermissions.Where(item => item.RoleId == role || item.RoleId == readRole).ExecuteDeleteAsync();

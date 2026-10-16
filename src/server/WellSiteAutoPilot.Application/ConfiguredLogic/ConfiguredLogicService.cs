@@ -24,6 +24,23 @@ public sealed class ConfiguredLogicService(
         SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
+        var definition = await BuildDefinitionAsync(command, cancellationToken);
+        await repository.AddAsync(definition, actor, cancellationToken);
+        return definition;
+    }
+
+    public async Task<ConfiguredLogicDefinition> CreateAuthorizedAsync(
+        CreateConfiguredLogicCommand command, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        var definition = await BuildDefinitionAsync(command, cancellationToken);
+        await repository.AddAuthorizedAsync(definition, subject, actor, cancellationToken);
+        return definition;
+    }
+
+    private async Task<ConfiguredLogicDefinition> BuildDefinitionAsync(
+        CreateConfiguredLogicCommand command, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(command);
 
         var name = RequireText(command.Name, "Configured Logic name is required.");
@@ -75,7 +92,6 @@ public sealed class ConfiguredLogicService(
             now,
             [revision]);
 
-        await repository.AddAsync(configuredLogic, actor, cancellationToken);
         return configuredLogic;
     }
 
@@ -86,8 +102,31 @@ public sealed class ConfiguredLogicService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-
         var existing = await GetRequiredAsync(configuredLogicId, cancellationToken);
+        var revision = await BuildRevisionAsync(existing, command, cancellationToken);
+        await repository.AddRevisionAsync(revision, actor, cancellationToken);
+        return revision;
+    }
+
+    public async Task<ConfiguredLogicRevision> CreateRevisionAuthorizedAsync(
+        Guid configuredLogicId, CreateConfiguredLogicRevisionCommand command, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(actor);
+        var existing = await repository.GetAuthorizedAsync(subject, configuredLogicId, cancellationToken) ??
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_NOT_FOUND", FailureKind.NotFound,
+                "The requested Configured Logic was not found.");
+        var revision = await BuildRevisionAsync(existing, command, cancellationToken);
+        await repository.AddRevisionAuthorizedAsync(revision, subject, actor, cancellationToken);
+        return revision;
+    }
+
+    private async Task<ConfiguredLogicRevision> BuildRevisionAsync(ConfiguredLogicDefinition existing,
+        CreateConfiguredLogicRevisionCommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
         var requestedManifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
         var installedModule = await GetInstalledModuleAsync(
             requestedManifest.ModuleId,
@@ -109,7 +148,7 @@ public sealed class ConfiguredLogicService(
 
         var revision = new ConfiguredLogicRevision(
             Guid.NewGuid(),
-            configuredLogicId,
+            existing.Id,
             existing.Revisions.Count == 0
                 ? 1
                 : existing.Revisions.Max(item => item.RevisionNumber) + 1,
@@ -126,7 +165,6 @@ public sealed class ConfiguredLogicService(
             assetBindings,
             dataBindings);
 
-        await repository.AddRevisionAsync(revision, actor, cancellationToken);
         return revision;
     }
 
