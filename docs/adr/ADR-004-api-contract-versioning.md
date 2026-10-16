@@ -14,6 +14,17 @@ WellSite AutoPilot HTTP APIs use explicit major versions in their URL paths.
 
 ASP.NET API Versioning supplies version semantics and API Explorer metadata. URL-segment versioning is the authoritative version reader.
 
+## Pre-release development exception (2026-10-16)
+
+Until the first release branch is cut, unreleased V1 contracts may change
+incompatibly with a coordinated update to server, generated client, callers,
+tests and documentation in the same feature. Do not create a new API major or
+maintain an obsolete endpoint solely for an unreleased development snapshot.
+This exception does not permit mixed message producers/consumers or stale
+clients to be treated as compatible; deploy/reset development components
+together when required. At release, establish the supported contract baseline
+and apply the compatibility policy below.
+
 ## Compatibility policy
 
 Backward-compatible additions remain in the current major version. A new major version is required when a change would break an existing client or materially alter the established semantics of an existing contract.

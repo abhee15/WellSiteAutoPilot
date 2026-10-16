@@ -2,6 +2,45 @@
 
 This document records the initial, deliberately small set of conventions for WellSite AutoPilot. Prefer repository-native .NET and frontend tooling; do not introduce a custom framework to enforce style.
 
+## MVP development policy (2026-10-16)
+
+The product is in phase-one development; no release branch has been cut.
+Prefer the smallest complete implementation that satisfies the agreed design.
+
+- Development databases are disposable. When an intentional schema change
+  requires a reset, document the reset and update the development seeds and
+  installer/migrator path together. Do not build data-preservation, backfill,
+  or reversible migration workflows for unreleased development snapshots.
+  Never reset a database automatically or assume an arbitrary database is
+  disposable; resets are explicit development operations.
+- Remove obsolete code, tables, endpoints and UI when their replacement is
+  complete. Avoid parallel legacy/new runtime implementations and speculative
+  feature flags, rollout state machines or compatibility adapters.
+- Keep authentication, paired permission/Asset authorization, last-admin
+  protection, atomic writes, durable messaging and useful audits. MVP scope
+  reduces rollout machinery; security and data-integrity invariants remain.
+- Clean up code touched by a feature when it reduces duplication or makes a
+  boundary easier to understand. Defer repository-wide formatting, generic
+  frameworks and file splitting based only on line counts. Extract cohesive
+  API registrations or page components when the current change needs them.
+- Before cutting a release branch, establish the supported schema/API/message
+  baseline and customer upgrade, compatibility and recovery requirements.
+  After that baseline, preserve supported customer data and contracts.
+
+### Current cleanup priorities
+
+1. Complete scoped authorization under #76, then remove legacy role/scope
+   authority and migration-only administration screens/endpoints together.
+   Until that replacement is validated, legacy remains the current authority;
+   do not remove only half of an enforcement path.
+2. Reuse the existing paired-grant SQL predicate and pure evaluator. Collection
+   filtering must precede pagination for Assets, Configured Logic, Executions
+   and Recommendations; grant revocation and mutations need one consistent
+   database concurrency boundary.
+3. Split `Server/Program.cs` route registration and `src/web/src/App.tsx`
+   composition along actual feature boundaries as those areas change. Their
+   size warrants attention, not an unrelated rewrite ahead of enforcement.
+
 ## Backend (.NET 10)
 
 - Follow the root `.editorconfig`. Use `dotnet format WellSiteAutoPilot.slnx --verify-no-changes --no-restore` to inspect formatting drift; apply `dotnet format WellSiteAutoPilot.slnx` to fix it locally. Enable a blocking CI check only after the existing solution has been normalized, to avoid unrelated mass changes.

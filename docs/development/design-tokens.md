@@ -42,7 +42,24 @@ safety or operating state; keep readable labels and accessible focus/contrast.
    high-contrast variants can evolve later from the semantic layer, with
    accessibility and industrial operator review.
 
-## Scope and verification
+## Feature design review
+
+Keep the agreed dark industrial palette, existing application shell and
+navigation hierarchy. Administration stays in the privileged user-menu area;
+do not promote Audit or System Health into primary operator navigation.
+Use the existing semantic tokens and shared controls before adding new styles.
+
+Improve a design when a concrete workflow exposes a gap: record the problem,
+keep the adjustment local, and review the affected normal, loading, empty,
+error and permission-denied states. Check keyboard access and a narrow panel
+viewport as well as desktop. Retain explicit operating-state labels, localized
+text and locale/timezone formatting. Do not introduce a new theme or rearrange
+the application shell as an incidental feature change.
+
+Token checks establish color/declaration consistency, not visual proof of a
+new screen. Review rendered UI for changes to layout or interaction.
+
+## Initial tokenization scope and verification
 
 This PR changes **only CSS values via var() substitution**, token definitions,
 one CSS import, documentation and regression tests. No product UI behavior,
