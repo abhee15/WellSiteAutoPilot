@@ -81,6 +81,9 @@ jobs:
       - name: Verify pure scoped-grant authorization isolation
         run: dotnet run --project tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj --configuration Release --no-build
 
+      - name: Verify legacy Asset scope boundaries
+        run: dotnet run --project tests/WellSiteAutoPilot.SecurityBoundaryTests/WellSiteAutoPilot.SecurityBoundaryTests.csproj --configuration Release --no-build
+
       - name: Verify Logic Module manifest contracts
         run: |
           dotnet run --project tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj --configuration Release --no-build
