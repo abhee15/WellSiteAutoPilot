@@ -7,6 +7,11 @@ import { loadRoleCatalog } from '../../src/views/roleCatalog';
 import { loadGrantAssetDirectory } from '../../src/views/grantAssetDirectory';
 import { createGrant, deactivateGrant, loadGrants } from '../../src/views/grantAdministration';
 
+import { loadDeploymentParity } from '../../src/views/deploymentMigrationPreflight';
+import { materializeLegacyGrants } from '../../src/views/materializeLegacyGrants';
+vi.mock('../../src/views/deploymentMigrationPreflight', () => ({ loadDeploymentParity: vi.fn() }));
+vi.mock('../../src/views/materializeLegacyGrants', () => ({ materializeLegacyGrants: vi.fn() }));
+
 vi.mock('../../src/views/accessManagement', () => ({ loadSecurityUsers: vi.fn() }));
 vi.mock('../../src/views/roleCatalog', () => ({ loadRoleCatalog: vi.fn() }));
 vi.mock('../../src/views/grantAssetDirectory', async importOriginal => ({
@@ -101,4 +106,37 @@ describe('audited grant administration interaction', () => {
     await screen.findByText('Grant deactivated and verified. Current live user access remains unchanged.');
     expect(deactivateGrant).toHaveBeenCalledExactlyOnceWith(row, true, expect.any(AbortSignal));
   });
+});
+
+
+it('clears selected-user grants and blocks administration while a deployment write is uncertain', async () => {
+  vi.mocked(loadGrants).mockResolvedValue([row]);
+  vi.mocked(loadDeploymentParity).mockResolvedValue({ activeUserCount: 1, activeAssetCount: 1,
+    matchingUserCount: 0, expansionCount: 0, reductionCount: 1, users: [{ userId,
+      expectedLegacyGrantCount: 1, recordedGrantCount: 0, expansionCount: 0, reductionCount: 1,
+      recordedGrantsMatchLegacy: false }], allActiveUsersMatchRecordedGrants: false, isDiagnosticOnly: true });
+  let reject!: (reason: Error) => void;
+  vi.mocked(materializeLegacyGrants).mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
+  const user = userEvent.setup();
+  render(<GrantAdministrationPage currentUserId={adminId} />);
+  const picker = await screen.findByRole('combobox', { name: 'User to administer' });
+  await user.selectOptions(picker, userId);
+  await screen.findByRole('button', { name: 'Deactivate grant' });
+  await user.click(screen.getByRole('button', { name: 'Check deployment parity' }));
+  await user.click(await screen.findByRole('checkbox', { name: /records grants for all active users/ }));
+  await user.type(screen.getByRole('textbox', { name: /Type RECORD LEGACY GRANTS/ }), 'RECORD LEGACY GRANTS');
+  await user.click(screen.getByRole('button', { name: 'Record legacy grants' }));
+  expect(screen.queryByRole('button', { name: 'Deactivate grant' })).toBeNull();
+  expect((picker as HTMLSelectElement).value).toBe('');
+  expect((picker as HTMLSelectElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: 'Reload users' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: 'Compare access' })).toBeNull();
+  reject(new Error('write may have committed'));
+  await screen.findByRole('alert');
+  expect((picker as HTMLSelectElement).disabled).toBe(false);
+  expect(screen.queryByRole('button', { name: 'Deactivate grant' })).toBeNull();
+  await user.selectOptions(picker, userId);
+  await screen.findByRole('button', { name: 'Deactivate grant' });
+  expect(loadGrants).toHaveBeenCalledTimes(2);
+  expect(materializeLegacyGrants).toHaveBeenCalledTimes(1);
 });

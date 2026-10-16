@@ -1,3 +1,4 @@
+import { ProposedAssetAccessPanel } from './ProposedAssetAccessPanel';
 import { LegacyMigrationPreflightPanel } from './LegacyMigrationPreflightPanel';
 import { DeploymentMigrationPreflightPanel } from './DeploymentMigrationPreflightPanel';
 import './grantAdministration.css';
@@ -33,10 +34,22 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
   const [isLoading, setIsLoading] = useState(true);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deploymentWriting, setDeploymentWriting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const mutationRef = useRef<AbortController | null>(null);
+
+  // Deployment writes invalidate every per-user read, even if the response
+  // is lost after commit. Clear local grants and diagnostic panels immediately.
+  const deploymentWritingChanged = useCallback((writing: boolean) => {
+    setDeploymentWriting(writing);
+    if (writing) {
+      requestRef.current?.abort();
+      setSelectedUserId(''); setGrants([]); setPending(null);
+      setRetiring(null); setRetireConfirmed(false); setNotice(null);
+    }
+  }, []);
 
   const selectedUser = users.find(x => x.userId === selectedUserId);
   const selectedRole = roles.find(x => x.roleId === pending?.roleId) ?? null;
@@ -166,7 +179,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         <div className="panel-header">
           <h2>{t('grants.manage')}</h2>
           <button type="button" className="secondary-button"
-            disabled={isLoading || saving} onClick={() => void load()}>
+            disabled={isLoading || saving || deploymentWriting} onClick={() => void load()}>
             {t('access.refresh')}
           </button>
         </div>
@@ -177,7 +190,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         {!isLoading && !error && (
           <label className="grant-user-picker">
             {t('grants.chooseUser')}
-            <select value={selectedUserId} disabled={saving}
+            <select value={selectedUserId} disabled={saving || deploymentWriting}
               onChange={event => void pickUser(event.target.value)}>
               <option value="">{t('grants.selectUser')}</option>
               {users.filter(user => user.isActive &&
@@ -220,11 +233,13 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         )}
       </section>
       {!pending && !retiring && !error && !isLoading && !grantsLoading &&
-        <DeploymentMigrationPreflightPanel users={users} />}
+        <DeploymentMigrationPreflightPanel users={users} onWritingChange={deploymentWritingChanged} />}
       {selectedUser && !pending && !retiring && !error && !grantsLoading &&
-        <LegacyMigrationPreflightPanel key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
+        <LegacyMigrationPreflightPanel key={'preflight:' + selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
       {selectedUser && !pending && !retiring && !error && !grantsLoading &&
-        <EffectiveAccessInspector key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
+        <EffectiveAccessInspector key={'inspection:' + selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
+      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+        <ProposedAssetAccessPanel key={'assets:' + selectedUser.userId} userId={selectedUser.userId} permissions={permissions} />}
       {selectedUser && retiring && !error && (
         <section className="panel grant-final-review" role="region"
           aria-label={t('grants.retireReview')}>

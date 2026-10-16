@@ -22,12 +22,14 @@ never restore its complete old tree or overwrite newer work to reduce a diff.
 | Atomic legacy grant materialization and provenance-checked rollback APIs | #112 |
 | Explicitly confirmed migration/rollback UI and stale-data invalidation | #113 |
 | Audited, paged proposed Asset access API and UI | #114 |
-| Legacy malformed-scope guards and retained cutover acceptance checklist | This slice |
+| Legacy malformed-scope guards and retained cutover acceptance checklist | #115 |
 
 PRs #102–#111 are integrated in baseline `94458429`. PR #112 merged as
 `46080ebf09b7d150b96c981046a3d878abef28cc`, after all seven jobs passed for
 `df2dcd2e72c2d30ea0477462994243c2fc3b7547` in run `38834417336`.
-The other extracted PRs each require their own current-head validation and
+PR #113 merged as `7fc9480db498545311d82d8c7a437f648844dc2b`, after all
+seven jobs passed for `a2dabc78d2b15fb8cc5586339f4e7b6c4953bf89` in run
+`38835101475`. PRs #114 and #115 require their own final-head validation and
 review; inclusion in this table is not a claim that an open PR is merged.
 
 ## Intentional differences from the original branch
