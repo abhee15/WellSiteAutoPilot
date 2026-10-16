@@ -78,7 +78,7 @@ internal static class ScopedResourceQueryChecks
         };
         var engineer = Role(readPermissions.Concat(new[]
         {
-            WellSitePermissions.AssetsManage, WellSitePermissions.ConfiguredLogicManage,
+            WellSitePermissions.LogicRead, WellSitePermissions.AssetsManage, WellSitePermissions.ConfiguredLogicManage,
             WellSitePermissions.ExecutionsRequest, WellSitePermissions.RecommendationsDecide
         }).ToArray());
         var reader = Role(readPermissions);
@@ -129,6 +129,57 @@ internal static class ScopedResourceQueryChecks
         db.ChangeTracker.Clear();
 
         await AssertVisibleAsync();
+        var groupUser = Guid.NewGuid();
+        var groupIdentity = $"group-query-{groupUser:N}";
+        db.Users.Add(new UserEntity
+        {
+            Id = groupUser, IdentityKey = groupIdentity, IdentityName = groupIdentity,
+            NormalizedIdentityName = groupIdentity.ToUpperInvariant(), IsActive = true,
+            CreatedAtUtc = now, LastSeenAtUtc = now
+        });
+        const string groupA = "S-1-5-21-801";
+        const string groupB = "S-1-5-21-802";
+        var groupGrantA = GroupGrant(engineer, groupA, "ExactAssets", assetA);
+        GroupGrant(reader, groupB, "ExactAssets", assetB);
+        GroupGrant(engineer, groupA, "DeploymentWide");
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var membership = new VerifiedWindowsGroupMembership(groupUser, [groupA, groupB], now);
+        await AssertEmptyAsync(groupUser); // Stored group assignments alone prove nothing.
+        await AssertVisibleAsync(groupUser, membership, now);
+        if (!await ScopedAccessQueries.DeploymentGrants(db, groupUser, WellSitePermissions.LogicRead,
+                membership, now).AnyAsync() ||
+            await ScopedAccessQueries.DeploymentGrants(db, groupUser, WellSitePermissions.AssetsRead,
+                membership, now).AnyAsync())
+            throw new InvalidOperationException("Group deployment-wide grant lost permission scope semantics.");
+        await AssertEmptyAsync(groupUser, membership: membership,
+            at: now.Add(VerifiedWindowsGroupMembership.MaximumAge).AddTicks(1));
+        await AssertEmptyAsync(groupUser, membership: new(userId, [groupA, groupB], now), at: now);
+        var oneGroup = new VerifiedWindowsGroupMembership(groupUser, [groupA], now);
+        if (await ScopedAccessQueries.Assets(db, groupUser, WellSitePermissions.AssetsRead,
+                oneGroup, now).AnyAsync(asset => asset.Id == assetB))
+            throw new InvalidOperationException("Removed group membership continued granting access.");
+        await db.AccessGrants.Where(grant => grant.Id == groupGrantA)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(grant => grant.IsActive, false));
+        if (await ScopedAccessQueries.Assets(db, groupUser, WellSitePermissions.AssetsManage,
+                membership, now).AnyAsync())
+            throw new InvalidOperationException("Revoked group assignment remained effective.");
+        await db.AccessGrants.Where(grant => grant.Id == groupGrantA)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(grant => grant.IsActive, true));
+        db.AccessGrants.Add(new AccessGrantEntity
+        {
+            Id = Guid.NewGuid(), UserId = groupUser, RoleId = reader, ScopeKind = "ExactAssets",
+            IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
+        });
+        var directReader = db.AccessGrants.Local.Single(grant => grant.UserId == groupUser);
+        db.AccessGrantAssets.Add(new AccessGrantAssetEntity { GrantId = directReader.Id, AssetId = assetB });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        await AssertVisibleAsync(groupUser, oneGroup, now); // Direct B + group A.
+        await db.Users.Where(user => user.Id == groupUser)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsActive, false));
+        await AssertEmptyAsync(groupUser, membership: membership, at: now);
+
         // A known permission from a different family must not authorize a query.
         if (await ScopedAccessQueries.ConfiguredLogic(db, userId, WellSitePermissions.AssetsRead).AnyAsync() ||
             await ScopedAccessQueries.Executions(db, userId, WellSitePermissions.AssetsRead).AnyAsync() ||
@@ -181,44 +232,47 @@ internal static class ScopedResourceQueryChecks
         await transaction.RollbackAsync();
         Console.WriteLine("Grant-scoped resource SQL: paired permission, all revisions/inputs, V1/V2 scope, pagination and revocation passed.");
 
-        async Task AssertVisibleAsync()
+        async Task AssertVisibleAsync(Guid? subjectId = null,
+            VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? at = null)
         {
-            var assets = ScopedAccessQueries.Assets(db, userId, WellSitePermissions.AssetsRead);
+            var subject = subjectId ?? userId;
+            var assets = ScopedAccessQueries.Assets(db, subject, WellSitePermissions.AssetsRead, membership, at);
             if ((await assets.CountAsync()) != 2 ||
                 await assets.OrderBy(asset => asset.Name).Take(1).AnyAsync(asset => asset.Id == assetC))
                 throw new InvalidOperationException("Asset filtering did not precede pagination.");
-            var configs = ScopedAccessQueries.ConfiguredLogic(db, userId, WellSitePermissions.ConfiguredLogicRead);
+            var configs = ScopedAccessQueries.ConfiguredLogic(db, subject, WellSitePermissions.ConfiguredLogicRead, membership, at);
             if (!(await configs.Select(item => item.Id).ToArrayAsync()).ToHashSet().SetEquals([allowed.Id, mixed.Id]) ||
                 (await configs.OrderBy(item => item.Name).Take(1).SingleAsync()).Id != allowed.Id ||
                 (await configs.OrderBy(item => item.Name).Skip(1).Take(1).SingleAsync()).Id != mixed.Id)
                 throw new InvalidOperationException("Configuration history/input scope escaped SQL or displaced a valid page.");
-            if ((await ScopedAccessQueries.ConfiguredLogic(db, userId, WellSitePermissions.ConfiguredLogicManage)
+            if ((await ScopedAccessQueries.ConfiguredLogic(db, subject, WellSitePermissions.ConfiguredLogicManage, membership, at)
                     .Select(item => item.Id).SingleAsync()) != allowed.Id)
                 throw new InvalidOperationException("Manage permission crossed between complete grants.");
-            var executions = ScopedAccessQueries.Executions(db, userId, WellSitePermissions.ExecutionsRead);
+            var executions = ScopedAccessQueries.Executions(db, subject, WellSitePermissions.ExecutionsRead, membership, at);
             if (!(await executions.Select(item => item.Id).ToArrayAsync()).ToHashSet()
                     .SetEquals([allowedExecution, mixedExecution, v1Execution]) ||
                 await executions.OrderByDescending(item => item.RequestedAtUtc).Take(1)
                     .AnyAsync(item => item.Id == deniedExecution))
                 throw new InvalidOperationException("Execution snapshot scope escaped SQL or displaced a valid page.");
-            if (await ScopedAccessQueries.Executions(db, userId, WellSitePermissions.ExecutionsRequest)
+            if (await ScopedAccessQueries.Executions(db, subject, WellSitePermissions.ExecutionsRequest, membership, at)
                     .AnyAsync(item => item.Id == mixedExecution))
                 throw new InvalidOperationException("Request permission leaked from A to B.");
-            var recommendations = ScopedAccessQueries.Recommendations(db, userId, WellSitePermissions.RecommendationsRead);
+            var recommendations = ScopedAccessQueries.Recommendations(db, subject, WellSitePermissions.RecommendationsRead, membership, at);
             if (!(await recommendations.Select(item => item.Id).ToArrayAsync()).ToHashSet()
                     .SetEquals([recommendationA, recommendationB]) ||
                 (await recommendations.OrderByDescending(item => item.CreatedAtUtc).Take(1).SingleAsync()).Id != recommendationA ||
-                (await ScopedAccessQueries.Recommendations(db, userId, WellSitePermissions.RecommendationsDecide)
+                (await ScopedAccessQueries.Recommendations(db, subject, WellSitePermissions.RecommendationsDecide, membership, at)
                     .Select(item => item.Id).SingleAsync()) != recommendationA)
                 throw new InvalidOperationException("Recommendation pagination or paired decision scope failed.");
         }
 
-        async Task AssertEmptyAsync(Guid subject, string? permission = null)
+        async Task AssertEmptyAsync(Guid subject, string? permission = null,
+            VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? at = null)
         {
-            if (await ScopedAccessQueries.Assets(db, subject, permission ?? WellSitePermissions.AssetsRead).AnyAsync() ||
-                await ScopedAccessQueries.ConfiguredLogic(db, subject, permission ?? WellSitePermissions.ConfiguredLogicRead).AnyAsync() ||
-                await ScopedAccessQueries.Executions(db, subject, permission ?? WellSitePermissions.ExecutionsRead).AnyAsync() ||
-                await ScopedAccessQueries.Recommendations(db, subject, permission ?? WellSitePermissions.RecommendationsRead).AnyAsync())
+            if (await ScopedAccessQueries.Assets(db, subject, permission ?? WellSitePermissions.AssetsRead, membership, at).AnyAsync() ||
+                await ScopedAccessQueries.ConfiguredLogic(db, subject, permission ?? WellSitePermissions.ConfiguredLogicRead, membership, at).AnyAsync() ||
+                await ScopedAccessQueries.Executions(db, subject, permission ?? WellSitePermissions.ExecutionsRead, membership, at).AnyAsync() ||
+                await ScopedAccessQueries.Recommendations(db, subject, permission ?? WellSitePermissions.RecommendationsRead, membership, at).AnyAsync())
                 throw new InvalidOperationException("Invalid/inactive identity or permission authorized a resource.");
         }
 
@@ -233,6 +287,20 @@ internal static class ScopedResourceQueryChecks
             });
             db.RolePermissions.AddRange(permissions.Select(permission =>
                 new RolePermissionEntity { RoleId = id, Permission = permission }));
+            return id;
+        }
+
+        Guid GroupGrant(Guid roleId, string sid, string scopeKind, params Guid[] assets)
+        {
+            var id = Guid.NewGuid();
+            db.AccessGrants.Add(new AccessGrantEntity
+            {
+                Id = id, SubjectKind = "WindowsGroup", GroupSid = sid, RoleId = roleId,
+                ScopeKind = scopeKind, IsActive = true, Revision = 1,
+                CreatedAtUtc = now, UpdatedAtUtc = now
+            });
+            db.AccessGrantAssets.AddRange(assets.Select(asset =>
+                new AccessGrantAssetEntity { GrantId = id, AssetId = asset }));
             return id;
         }
 

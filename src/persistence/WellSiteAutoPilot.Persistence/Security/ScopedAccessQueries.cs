@@ -8,7 +8,7 @@ using WellSiteAutoPilot.Persistence.Recommendations;
 namespace WellSiteAutoPilot.Persistence.Security;
 
 /// <summary>
-/// Composable SQL predicates for direct-user grants. Permission and Asset scope
+/// Composable SQL predicates for direct-user and verified Windows-group grants. Permission and Asset scope
 /// always match within one active grant. Apply ordering/paging/projection only
 /// after these predicates. This is query preparation for #76, not a runtime
 /// authority switch or a transaction boundary for authorizing mutations.
@@ -16,34 +16,20 @@ namespace WellSiteAutoPilot.Persistence.Security;
 public static class ScopedAccessQueries
 {
     public static IQueryable<AssetEntity> Assets(
-        WellSiteAutoPilotDbContext db, Guid userId, string permission)
+        WellSiteAutoPilotDbContext db, Guid userId, string permission,
+        VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? nowUtc = null)
     {
         ArgumentNullException.ThrowIfNull(db);
         if (userId == Guid.Empty || !ProductPermissionCatalog.Definitions.Any(item =>
                 item.Key == permission && item.ScopeKind == "ResourceScoped"))
             return db.Assets.AsNoTracking().Where(_ => false);
 
-        var activeUsers = db.Users.AsNoTracking();
-        var assignments = db.AccessGrants.AsNoTracking();
+        var assignments = EligibleGrants(db, userId, permission, membership, nowUtc);
         var bindings = db.AccessGrantAssets.AsNoTracking();
-        var roleDefinitions = db.RoleDefinitions.AsNoTracking();
-        var rolePermissions = db.RolePermissions.AsNoTracking();
         var activeAssets = db.Assets.AsNoTracking()
             .Where(asset => asset.IsActive && asset.Id != Guid.Empty);
 
-        return activeAssets
-            .Where(asset => activeUsers.Any(user =>
-                user.Id == userId && user.IsActive) &&
-                assignments.Any(grant =>
-                    grant.SubjectKind == "User" &&
-                    grant.UserId == userId &&
-                    grant.GroupSid == null &&
-                    grant.Id != Guid.Empty && grant.RoleId != Guid.Empty &&
-                    grant.IsActive && grant.Revision >= 1 &&
-                    roleDefinitions.Any(role => role.Id == grant.RoleId &&
-                        role.IsActive && rolePermissions.Any(rolePermission =>
-                            rolePermission.RoleId == role.Id &&
-                            rolePermission.Permission == permission)) &&
+        return activeAssets.Where(asset => assignments.Any(grant =>
                     (
                         (grant.ScopeKind == "AllAssets" &&
                          !bindings.Any(binding => binding.GrantId == grant.Id)) ||
@@ -59,8 +45,45 @@ public static class ScopedAccessQueries
                     )));
     }
 
+    public static IQueryable<AccessGrantEntity> DeploymentGrants(
+        WellSiteAutoPilotDbContext db, Guid userId, string permission,
+        VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? nowUtc = null)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        if (!ProductPermissionCatalog.Definitions.Any(item =>
+                item.Key == permission && item.ScopeKind == "DeploymentWide"))
+            return db.AccessGrants.AsNoTracking().Where(_ => false);
+        var bindings = db.AccessGrantAssets.AsNoTracking();
+        return EligibleGrants(db, userId, permission, membership, nowUtc)
+            .Where(grant => grant.ScopeKind == "DeploymentWide" &&
+                !bindings.Any(binding => binding.GrantId == grant.Id));
+    }
+
+    private static IQueryable<AccessGrantEntity> EligibleGrants(
+        WellSiteAutoPilotDbContext db, Guid userId, string permission,
+        VerifiedWindowsGroupMembership? membership, DateTimeOffset? nowUtc)
+    {
+        if (userId == Guid.Empty || !ProductPermissionCatalog.IsKnown(permission))
+            return db.AccessGrants.AsNoTracking().Where(_ => false);
+        var groupSids = membership is not null && nowUtc is { } observed &&
+            membership.IsUsableFor(userId, observed)
+            ? membership.GroupSids.ToArray() : Array.Empty<string>();
+        var users = db.Users.AsNoTracking();
+        var roles = db.RoleDefinitions.AsNoTracking();
+        var permissions = db.RolePermissions.AsNoTracking();
+        return db.AccessGrants.AsNoTracking().Where(grant =>
+            grant.Id != Guid.Empty && grant.RoleId != Guid.Empty && grant.IsActive && grant.Revision >= 1 &&
+            users.Any(user => user.Id == userId && user.IsActive) &&
+            ((grant.SubjectKind == "User" && grant.UserId == userId && grant.GroupSid == null) ||
+             (grant.SubjectKind == "WindowsGroup" && grant.UserId == null && grant.GroupSid != null &&
+              groupSids.Contains(grant.GroupSid))) &&
+            roles.Any(role => role.Id == grant.RoleId && role.IsActive &&
+                permissions.Any(item => item.RoleId == role.Id && item.Permission == permission)));
+    }
+
     public static IQueryable<ConfiguredLogicEntity> ConfiguredLogic(
-        WellSiteAutoPilotDbContext db, Guid userId, string permission)
+        WellSiteAutoPilotDbContext db, Guid userId, string permission,
+        VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? nowUtc = null)
     {
         ArgumentNullException.ThrowIfNull(db);
         var query = db.ConfiguredLogicDefinitions.AsNoTracking();
@@ -68,7 +91,7 @@ public static class ScopedAccessQueries
             WellSitePermissions.ConfiguredLogicManage))
             return query.Where(_ => false);
 
-        var assets = Assets(db, userId, permission);
+        var assets = Assets(db, userId, permission, membership, nowUtc);
         var revisions = db.ConfiguredLogicRevisions.AsNoTracking();
         var bindings = db.ConfiguredLogicAssetBindings.AsNoTracking();
         var inputs = db.ConfiguredLogicDataBindings.AsNoTracking();
@@ -85,7 +108,8 @@ public static class ScopedAccessQueries
     }
 
     public static IQueryable<ExecutionEntity> Executions(
-        WellSiteAutoPilotDbContext db, Guid userId, string permission)
+        WellSiteAutoPilotDbContext db, Guid userId, string permission,
+        VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? nowUtc = null)
     {
         ArgumentNullException.ThrowIfNull(db);
         var query = db.Executions.AsNoTracking();
@@ -93,7 +117,7 @@ public static class ScopedAccessQueries
             WellSitePermissions.ExecutionsRequest))
             return query.Where(_ => false);
 
-        var assets = Assets(db, userId, permission);
+        var assets = Assets(db, userId, permission, membership, nowUtc);
         var scopes = db.ExecutionAssetScopes.AsNoTracking();
         // V1 discloses its target column; V2 discloses an immutable snapshot.
         // Do not authorize from the configuration's current, mutable bindings.
@@ -107,7 +131,8 @@ public static class ScopedAccessQueries
     }
 
     public static IQueryable<RecommendationEntity> Recommendations(
-        WellSiteAutoPilotDbContext db, Guid userId, string permission)
+        WellSiteAutoPilotDbContext db, Guid userId, string permission,
+        VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? nowUtc = null)
     {
         ArgumentNullException.ThrowIfNull(db);
         var query = db.Recommendations.AsNoTracking();
@@ -115,7 +140,7 @@ public static class ScopedAccessQueries
             WellSitePermissions.RecommendationsDecide))
             return query.Where(_ => false);
 
-        var assets = Assets(db, userId, permission);
+        var assets = Assets(db, userId, permission, membership, nowUtc);
         return query.Where(recommendation =>
             assets.Any(asset => asset.Id == recommendation.AssetId));
     }

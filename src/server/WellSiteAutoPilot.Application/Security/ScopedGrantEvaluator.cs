@@ -6,7 +6,7 @@ namespace WellSiteAutoPilot.Application.Security;
 /// Pure fail-closed permission evaluator. All permissions must match an active
 /// role AND a trusted subject AND Asset scope within the SAME grant.
 /// The caller must resolve user activity and active Assets from authoritative
-/// server-owned storage; group proof stays disabled until #77 is implemented.
+/// server-owned storage. Groups require explicit request-bound membership proof.
 /// </summary>
 public static class ScopedGrantEvaluator
 {
@@ -23,7 +23,9 @@ public static class ScopedGrantEvaluator
         Guid? targetAssetId,
         IReadOnlySet<Guid> activeAssetIds,
         IReadOnlyCollection<AccessGrant> assignments,
-        IReadOnlyCollection<RoleDefinition> roles)
+        IReadOnlyCollection<RoleDefinition> roles,
+        VerifiedWindowsGroupMembership? membership = null,
+        DateTimeOffset? nowUtc = null)
     {
         ArgumentNullException.ThrowIfNull(activeAssetIds);
         ArgumentNullException.ThrowIfNull(assignments);
@@ -58,16 +60,23 @@ public static class ScopedGrantEvaluator
             .GroupBy(role => role.Id)
             .ToDictionary(group => group.Key, group => group.ToArray());
 
+        var groupSids = membership is not null && nowUtc is { } observed &&
+            membership.IsUsableFor(userId, observed) ? membership.GroupSids : null;
         foreach (var grant in assignments)
         {
+            var subjectMatches = grant.SubjectKind switch
+            {
+                AccessGrantSubjectKind.User => grant.UserId == userId && grant.GroupSid is null,
+                AccessGrantSubjectKind.WindowsGroup => grant.UserId is null &&
+                    grant.GroupSid is { } sid && groupSids is not null &&
+                    groupSids.Contains(sid),
+                _ => false
+            };
             if (!grant.IsActive || grant.Id == Guid.Empty || grant.Revision < 1 ||
-                grant.SubjectKind != AccessGrantSubjectKind.User ||
-                grant.UserId != userId || grant.GroupSid is not null ||
+                !subjectMatches ||
                 !byId.TryGetValue(grant.RoleId, out var candidates) ||
                 candidates.Length != 1)
             {
-                // WindowsGroup is deliberately unsupported until a trusted
-                // server-side group SID resolver becomes authoritative.
                 continue;
             }
 
