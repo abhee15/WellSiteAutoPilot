@@ -189,3 +189,16 @@ test('Windows group assignments keep subject identity through create, readback a
       async () => { throw new Error('Invalid subject reached network'); }), { kind: 'invalid' });
   }
 });
+
+test('last direct administrator refusal has a definite outcome and is never retried', async () => {
+  let writes = 0;
+  await assert.rejects(api.deactivateGrant(row, true, signal(), async () => {
+    writes++;
+    return new Response(JSON.stringify({ code: 'SECURITY_LAST_DIRECT_ADMIN_REQUIRED' }), { status: 409 });
+  }), { kind: 'lastDirectAdmin' });
+  assert.equal(writes, 1);
+  for (const body of ['not json', '{}', '{"code":"SECURITY_GRANT_CONFLICT"}']) {
+    await assert.rejects(api.deactivateGrant(row, true, signal(), async () =>
+      new Response(body, { status: 409 })), { kind: 'conflict' });
+  }
+});

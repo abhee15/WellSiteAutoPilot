@@ -10,7 +10,7 @@ import { loadSecurityUsers } from './accessManagement';
 import type { VerifiedSecurityUser } from './accessManagement';
 import { loadRoleCatalog } from './roleCatalog';
 import type { PermissionDefinition, RoleRecord } from './roleCatalog';
-import { createGrant, deactivateGrant, grantSubjectKey, verifyGrantReadback, loadGrants } from './grantAdministration';
+import { createGrant, deactivateGrant, grantSubjectKey, verifyGrantReadback, loadGrants, GrantApiError } from './grantAdministration';
 import type { PersistedGrant } from './grantAdministration';
 import { previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
@@ -164,12 +164,13 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
       verifyGrantReadback(saved, records);
       setGrants(records); setRetiring(null); setRetireConfirmed(false);
       setNotice(t('grants.retired'));
-    } catch {
+    } catch (cause) {
       if (!abort.signal.aborted) {
         // Whether the server committed is unknown. Require a fresh read;
         // never silently retry a security mutation.
         setRetiring(null); setRetireConfirmed(false); setGrants([]);
-        setError(t('grants.saveUncertain'));
+        setError(t(cause instanceof GrantApiError && cause.kind === 'lastDirectAdmin'
+          ? 'grants.lastDirectAdmin' : 'grants.saveUncertain'));
       }
     } finally {
       if (mutationRef.current === abort) {

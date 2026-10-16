@@ -111,3 +111,24 @@ Runtime enforcement remains open under #76. Frontend milestone #80 is complete;
 directory group verification remains #77. The migration diagnostics already
 landed are not prerequisites for the simplified MVP replacement and should be
 removed with the obsolete authority when the replacement is complete.
+
+## Direct administrator recovery preparation (2026-10-16)
+
+Grant retirement preserves the last active direct recovery administrator. A
+recovery assignment is a valid deployment-wide grant of the active protected
+built-in `admin` role (including `security.manage`) to an active local user,
+with no Asset bindings. Legacy roles, group grants, custom roles, inactive
+users/grants and Asset-scoped or malformed assignments are not recovery
+substitutes. The remaining-administrator query, compare-and-set retirement and
+audit share a serializable transaction; concurrent retirement of two distinct
+administrators cannot commit both removals. The structured 409 refusal is
+`SECURITY_LAST_DIRECT_ADMIN_REQUIRED`; the UI explains how to assign another
+direct administrator and requires a fresh read without automatic retry.
+
+This protects assignment retirement during preparation. It does not provision
+the first grant-based administrator or switch runtime authority. Complete
+bootstrap/reseeding, group-aware self-change checks, all runtime policies,
+resource mutations and capability hints before removing legacy authority.
+Future user deactivation or recovery-role mutation paths must preserve this
+same invariant; the built-in role is currently immutable and there is no
+public user-deactivation API.

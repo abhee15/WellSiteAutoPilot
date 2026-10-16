@@ -16,7 +16,7 @@ export type PersistedGrant = AccessGrantResponse & {
 };
 export class GrantApiError extends Error {
   constructor(public readonly kind:
-    'denied' | 'notFound' | 'conflict' | 'invalid' | 'unavailable' | 'invalidResponse') {
+    'denied' | 'notFound' | 'conflict' | 'lastDirectAdmin' | 'invalid' | 'unavailable' | 'invalidResponse') {
     super(kind);
   }
 }
@@ -139,7 +139,19 @@ export async function deactivateGrant(grant: PersistedGrant, confirmed: boolean,
     if (signal.aborted) throw error;
     throw new GrantApiError('unavailable');
   }
-  if (!response.ok) throw failed(response.status);
+  if (!response.ok) {
+    if (response.status === 409) {
+      // Only a definite structured server refusal has a known outcome.
+      // Malformed/unknown failures retain the uncertain-write behavior.
+      let problem: unknown;
+      try { problem = await response.json(); } catch { /* handled below */ }
+      if (problem && typeof problem === 'object' && 'code' in problem &&
+          problem.code === 'SECURITY_LAST_DIRECT_ADMIN_REQUIRED') {
+        throw new GrantApiError('lastDirectAdmin');
+      }
+    }
+    throw failed(response.status);
+  }
   const saved = await payload(response);
   if (response.status !== 200 || !parse(saved) || saved.isActive ||
     saved.grantId.toLowerCase() !== grant.grantId.toLowerCase() ||

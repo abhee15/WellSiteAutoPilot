@@ -258,6 +258,21 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
 
         try
         {
+            // Recovery cannot depend on directory availability, custom roles,
+            // legacy role claims or an Asset-scoped Admin assignment. Read the
+            // complete direct recovery set inside this serializable transaction:
+            // two writers retiring different final administrators must not both
+            // commit. Keep the check before the mutation and its atomic audit.
+            var recovery = DirectRecoveryAdministratorGrants();
+            if (await recovery.AnyAsync(item => item.Id == grantId, cancellationToken) &&
+                !await recovery.TagWith("Remaining direct recovery administrators")
+                    .AnyAsync(item => item.Id != grantId, cancellationToken))
+            {
+                throw new WellSiteAutoPilotException(
+                    "SECURITY_LAST_DIRECT_ADMIN_REQUIRED", FailureKind.Conflict,
+                    "Assign another active user the built-in Admin role with deployment-wide scope before retiring the last direct administrator.");
+            }
+
             // Atomic compare-and-set prevents stale writers and double audit.
             var changed = await dbContext.AccessGrants
                 .Where(item => item.Id == grantId &&
@@ -318,6 +333,19 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
 
     public Task<IReadOnlyCollection<AccessGrant>> ListForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
         ListAsync(AccessGrantSubject.ForUser(userId), cancellationToken);
+
+    private IQueryable<AccessGrantEntity> DirectRecoveryAdministratorGrants() =>
+        dbContext.AccessGrants.AsNoTracking().Where(grant =>
+            grant.Id != Guid.Empty && grant.IsActive && grant.Revision >= 1 &&
+            grant.SubjectKind == "User" && grant.UserId != null &&
+            grant.UserId != Guid.Empty && grant.GroupSid == null &&
+            grant.ScopeKind == "DeploymentWide" &&
+            !dbContext.AccessGrantAssets.Any(binding => binding.GrantId == grant.Id) &&
+            dbContext.Users.Any(user => user.Id == grant.UserId && user.IsActive) &&
+            dbContext.RoleDefinitions.Any(role => role.Id == grant.RoleId &&
+                role.IsSystem && role.Key == "admin" && role.IsActive && role.Revision >= 1 &&
+                dbContext.RolePermissions.Any(permission => permission.RoleId == role.Id &&
+                    permission.Permission == WellSitePermissions.SecurityManage)));
 
     public Task<AccessGrant> CreateForUserAsync(Guid userId, CreateAccessGrantCommand command, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
         CreateAsync(AccessGrantSubject.ForUser(userId), command, actor, nowUtc, cancellationToken);
