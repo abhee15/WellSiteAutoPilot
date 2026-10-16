@@ -12,9 +12,17 @@ namespace WellSiteAutoPilot.Persistence.Security;
 /// </summary>
 public static class GrantWriteGuard
 {
+    public static Task RequireAdministratorAsync(WellSiteAutoPilotDbContext db, AccessSubject subject,
+        TimeProvider clock, CancellationToken cancellationToken = default) =>
+        RequireAsync(db, subject, WellSitePermissions.SecurityManage, null, clock, true, cancellationToken);
+
+    public static Task RequireAllAssetsAsync(WellSiteAutoPilotDbContext db, AccessSubject subject,
+        string permission, TimeProvider clock, CancellationToken cancellationToken = default) =>
+        RequireAsync(db, subject, permission, [], clock, false, cancellationToken, requireAllAssets: true);
+
     public static Task RequireDeploymentAsync(WellSiteAutoPilotDbContext db, AccessSubject subject,
         string permission, TimeProvider clock, CancellationToken cancellationToken = default) =>
-        RequireAsync(db, subject, permission, null, clock, cancellationToken);
+        RequireAsync(db, subject, permission, null, clock, permission == WellSitePermissions.SecurityManage, cancellationToken);
 
     public static Task RequireAssetsAsync(WellSiteAutoPilotDbContext db, AccessSubject subject,
         string permission, IReadOnlyCollection<Guid> assetIds, TimeProvider clock,
@@ -22,11 +30,12 @@ public static class GrantWriteGuard
     {
         ArgumentNullException.ThrowIfNull(assetIds);
         if (assetIds.Count == 0 || assetIds.Contains(Guid.Empty)) throw Denied();
-        return RequireAsync(db, subject, permission, assetIds.Distinct().Order().ToArray(), clock, cancellationToken);
+        return RequireAsync(db, subject, permission, assetIds.Distinct().Order().ToArray(), clock, false, cancellationToken);
     }
 
     private static async Task RequireAsync(WellSiteAutoPilotDbContext db, AccessSubject subject,
-        string permission, Guid[]? targets, TimeProvider clock, CancellationToken cancellationToken)
+        string permission, Guid[]? targets, TimeProvider clock, bool protectedAdministrator, CancellationToken cancellationToken,
+        bool requireAllAssets = false)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(subject);
@@ -39,8 +48,11 @@ public static class GrantWriteGuard
             var grants = targets is null
                 ? ScopedAccessQueries.DeploymentGrants(db, subject.UserId, permission, subject.WindowsGroups, now)
                 : ScopedAccessQueries.ResourceGrants(db, subject.UserId, permission, subject.WindowsGroups, now);
+            if (protectedAdministrator)
+                grants = ScopedAccessQueries.AdministratorGrants(db, subject.UserId, subject.WindowsGroups, now);
+            if (requireAllAssets) grants = grants.Where(grant => grant.ScopeKind == "AllAssets");
             var selected = new HashSet<Guid>();
-            if (targets is null)
+            if (targets is null || requireAllAssets)
             {
                 var id = await grants.OrderBy(grant => grant.Id).Select(grant => grant.Id)
                     .FirstOrDefaultAsync(cancellationToken);
@@ -83,7 +95,7 @@ public static class GrantWriteGuard
                 SELECT b.* FROM security.assignment_asset_scopes AS b
                 WHERE b."GrantId" = ANY({ids}) ORDER BY b."GrantId", b."AssetId" FOR SHARE OF b
                 """).AsNoTracking().ToArrayAsync(cancellationToken);
-            if (targets is not null)
+            if (targets is { Length: > 0 })
             {
                 await db.Assets.FromSqlInterpolated($"""
                     SELECT a.* FROM assets.assets AS a
@@ -98,9 +110,17 @@ public static class GrantWriteGuard
             // time and only the grants we actually hold. Never substitute a
             // newly added but unlocked assignment after a concurrent revoke.
             now = clock.GetUtcNow();
-            if (targets is null)
+            if (requireAllAssets)
             {
-                if (!await ScopedAccessQueries.DeploymentGrants(db, userId, permission, subject.WindowsGroups, now)
+                if (!await ScopedAccessQueries.ResourceGrants(db, userId, permission, subject.WindowsGroups, now)
+                        .AnyAsync(grant => ids.Contains(grant.Id) && grant.ScopeKind == "AllAssets", cancellationToken)) throw Denied();
+            }
+            else if (targets is null)
+            {
+                var heldGrants = protectedAdministrator
+                    ? ScopedAccessQueries.AdministratorGrants(db, userId, subject.WindowsGroups, now)
+                    : ScopedAccessQueries.DeploymentGrants(db, userId, permission, subject.WindowsGroups, now);
+                if (!await heldGrants
                         .AnyAsync(grant => ids.Contains(grant.Id), cancellationToken)) throw Denied();
             }
             else

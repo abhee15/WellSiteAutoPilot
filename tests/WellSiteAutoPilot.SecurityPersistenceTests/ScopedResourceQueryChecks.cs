@@ -47,7 +47,8 @@ internal static class ScopedResourceQueryChecks
         {
             ScopedAccessQueries.Permissions(db, user),
             ScopedAccessQueries.ResourceGrants(db, user, WellSitePermissions.AssetsManage),
-            ScopedAccessQueries.DeploymentGrants(db, user, WellSitePermissions.SecurityManage)
+            ScopedAccessQueries.DeploymentGrants(db, user, WellSitePermissions.SecurityManage),
+            ScopedAccessQueries.AdministratorGrants(db, user)
         })
             if (!query.ToQueryString().Contains("EXISTS", StringComparison.Ordinal))
                 throw new InvalidOperationException("Grant authority did not translate to PostgreSQL.");

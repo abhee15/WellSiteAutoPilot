@@ -128,6 +128,24 @@ installer job was still running; this is not a seven-job or current-head claim.
 
 ## Release limits
 
+Protected-administrator classification is now available for request checks and
+transaction fences. It requires a usable direct/verified-group DeploymentWide
+grant of the protected system Admin role. Coarse `security.manage` hints and
+request/transaction checks preserve that ADR-006 privilege-class restriction;
+a custom role's known permission string does not imply protected administration.
+Generic tuple evaluation remains separate from that additional product boundary.
+New bootstrap-fixture tests cover direct/group positives and missing/stale proof
+and custom-role negatives. Live administrator service/repository replacement
+still needs to use this authority in place of legacy roles.
+
+An explicit AllAssets transaction fence is also prepared for first/root Asset
+creation and privileged catalog workflows. It works without existing Assets;
+an empty target list is never accepted as its substitute. Tests remove only
+the bootstrap AllAssets grant and verify that the remaining protected global
+administrator cannot acquire a resource wildcard. Root/type-catalog integration
+must retain the protected-administrator prerequisite **and** explicit AllAssets
+`assets.manage` authority; ordinary child creation checks its persisted parent.
+
 Genuine browser Negotiate, domain/nested groups, cross-domain trusts and token
 renewal/revocation latency remain release gate #92. TestHeader and injected
 proof fixtures do not establish those properties. Keep execution in Shadow.

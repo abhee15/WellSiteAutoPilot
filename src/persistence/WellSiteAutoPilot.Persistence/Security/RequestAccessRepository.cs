@@ -6,6 +6,13 @@ namespace WellSiteAutoPilot.Persistence.Security;
 public sealed class RequestAccessRepository(WellSiteAutoPilotDbContext db, TimeProvider clock)
     : IRequestAccessRepository
 {
+    public Task<bool> HasAdministratorAsync(AccessSubject subject, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return ScopedAccessQueries.AdministratorGrants(db, subject.UserId, subject.WindowsGroups,
+            clock.GetUtcNow()).AnyAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<string>> GetPermissionHintsAsync(AccessSubject subject,
         CancellationToken cancellationToken = default)
     {
@@ -18,6 +25,8 @@ public sealed class RequestAccessRepository(WellSiteAutoPilotDbContext db, TimeP
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
+        if (permission == WellSitePermissions.SecurityManage)
+            return HasAdministratorAsync(subject, cancellationToken);
         return ScopedAccessQueries.DeploymentGrants(db, subject.UserId, permission,
             subject.WindowsGroups, clock.GetUtcNow()).AnyAsync(cancellationToken);
     }

@@ -48,6 +48,83 @@ internal static class GrantBootstrapChecks
                 .GetPermissionHintsAsync(new AccessSubject(winner));
             if (!hints.ToHashSet().SetEquals(WellSitePermissions.All) || await setup.Assets.AnyAsync())
                 throw new InvalidOperationException("Fresh-deployment bootstrap lost coarse capabilities before the first Asset.");
+            var access = new RequestAccessRepository(setup, TimeProvider.System);
+            if (!await access.HasAdministratorAsync(new AccessSubject(winner)))
+                throw new InvalidOperationException("Direct protected bootstrap administrator was not recognized.");
+            await DemandAdministratorAsync(new AccessSubject(winner));
+            await using (var empty = new WellSiteAutoPilotDbContext(options))
+            {
+                await using var transaction = await empty.Database.BeginTransactionAsync();
+                await GrantWriteGuard.RequireAllAssetsAsync(empty, new AccessSubject(winner), WellSitePermissions.AssetsManage, TimeProvider.System);
+                try
+                {
+                    await GrantWriteGuard.RequireAssetsAsync(empty, new AccessSubject(winner), WellSitePermissions.AssetsManage, [], TimeProvider.System);
+                    throw new InvalidOperationException("An empty target set was mistaken for explicit AllAssets authority.");
+                }
+                catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Authorization) { }
+            }
+            var assetGrant = grants.Single(grant => grant.ScopeKind == "AllAssets").Id;
+            await setup.AccessGrants.Where(grant => grant.Id == assetGrant)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(grant => grant.IsActive, false));
+            await DemandAdministratorAsync(new AccessSubject(winner));
+            await using (var globalOnly = new WellSiteAutoPilotDbContext(options))
+            {
+                await using var transaction = await globalOnly.Database.BeginTransactionAsync();
+                try
+                {
+                    await GrantWriteGuard.RequireAllAssetsAsync(globalOnly, new AccessSubject(winner), WellSitePermissions.AssetsManage, TimeProvider.System);
+                    throw new InvalidOperationException("Global administrator authority implied an Asset wildcard.");
+                }
+                catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Authorization) { }
+            }
+            await setup.AccessGrants.Where(grant => grant.Id == assetGrant)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(grant => grant.IsActive, true));
+            var other = winner == first ? second : first;
+            var customRole = Guid.NewGuid();
+            var customGrant = Guid.NewGuid();
+            var groupGrant = Guid.NewGuid();
+            setup.RoleDefinitions.Add(new RoleDefinitionEntity
+            {
+                Id = customRole, Key = "custom-" + customRole.ToString("N"), Name = "Custom security capability",
+                NormalizedName = "CUSTOM SECURITY CAPABILITY", IsActive = true, Revision = 1,
+                CreatedAtUtc = now, UpdatedAtUtc = now
+            });
+            setup.RolePermissions.Add(new RolePermissionEntity { RoleId = customRole, Permission = WellSitePermissions.SecurityManage });
+            setup.AccessGrants.AddRange(new AccessGrantEntity
+            {
+                Id = customGrant, UserId = other, RoleId = customRole, ScopeKind = "DeploymentWide",
+                IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
+            }, new AccessGrantEntity
+            {
+                Id = groupGrant, SubjectKind = "WindowsGroup", GroupSid = "S-1-5-21-915-1", RoleId = grants[0].RoleId,
+                ScopeKind = "DeploymentWide", IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
+            });
+            await setup.SaveChangesAsync();
+            var customSubject = new AccessSubject(other);
+            if (!await ScopedAccessQueries.DeploymentGrants(setup, other, WellSitePermissions.SecurityManage).AnyAsync() ||
+                await access.HasDeploymentPermissionAsync(customSubject, WellSitePermissions.SecurityManage) ||
+                await access.HasAdministratorAsync(customSubject) ||
+                (await access.GetPermissionHintsAsync(customSubject)).Contains(WellSitePermissions.SecurityManage))
+                throw new InvalidOperationException("Custom security capability bypassed protected-administrator classification.");
+            await ExpectAdministratorDeniedAsync(customSubject);
+            await using (var denied = new WellSiteAutoPilotDbContext(options))
+            {
+                await using var transaction = await denied.Database.BeginTransactionAsync();
+                try
+                {
+                    await GrantWriteGuard.RequireDeploymentAsync(denied, customSubject, WellSitePermissions.SecurityManage, TimeProvider.System);
+                    throw new InvalidOperationException("Generic deployment check bypassed protected administration.");
+                }
+                catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Authorization) { }
+            }
+            var groupSubject = new AccessSubject(other, new(other, ["S-1-5-21-915-1"], now));
+            if (!await access.HasAdministratorAsync(groupSubject))
+                throw new InvalidOperationException("Verified protected-administrator group grant was ignored.");
+            await DemandAdministratorAsync(groupSubject);
+            await ExpectAdministratorDeniedAsync(new AccessSubject(other, new(other, ["S-1-5-21-915-1"], now.AddMinutes(-2))));
+            await setup.AccessGrants.Where(grant => grant.Id == customGrant || grant.Id == groupGrant).ExecuteDeleteAsync();
+            await setup.RolePermissions.Where(item => item.RoleId == customRole).ExecuteDeleteAsync();
+            await setup.RoleDefinitions.Where(role => role.Id == customRole).ExecuteDeleteAsync();
             if (await InitializeAsync(first) || await InitializeAsync(second))
                 throw new InvalidOperationException("Bootstrap was repeated for an initialized deployment.");
             await setup.AccessGrants.ExecuteUpdateAsync(setters => setters.SetProperty(grant => grant.IsActive, false));
@@ -106,6 +183,18 @@ internal static class GrantBootstrapChecks
             {
                 await using var db = new WellSiteAutoPilotDbContext(options);
                 return await new GrantBootstrapRepository(db).TryInitializeAdministratorAsync(userId, now);
+            }
+            async Task DemandAdministratorAsync(AccessSubject subject)
+            {
+                await using var db = new WellSiteAutoPilotDbContext(options);
+                await using var transaction = await db.Database.BeginTransactionAsync();
+                await GrantWriteGuard.RequireAdministratorAsync(db, subject, TimeProvider.System);
+                await GrantWriteGuard.RequireDeploymentAsync(db, subject, WellSitePermissions.SecurityManage, TimeProvider.System);
+            }
+            async Task ExpectAdministratorDeniedAsync(AccessSubject subject)
+            {
+                try { await DemandAdministratorAsync(subject); throw new InvalidOperationException("Non-administrator acquired protected authority."); }
+                catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Authorization) { }
             }
             async Task ExpectInvalidRoleAsync()
             {

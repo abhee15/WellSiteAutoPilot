@@ -6,6 +6,8 @@ namespace WellSiteAutoPilot.Application.Security;
 /// </summary>
 public interface IRequestAccessRepository
 {
+    Task<bool> HasAdministratorAsync(AccessSubject subject, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<string>> GetPermissionHintsAsync(AccessSubject subject,
         CancellationToken cancellationToken = default);
 
