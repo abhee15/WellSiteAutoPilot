@@ -2,4 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/persistence/WellSiteAutoPilot.Persistence/WellSiteAutoPilot.Persistence.csproj" />
+  </ItemGroup>
 </Project>

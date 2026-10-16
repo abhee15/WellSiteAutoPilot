@@ -199,7 +199,7 @@ export function App() {
         )}
         {section === 'assets' && (
           <AssetsPage
-            key={currentUser?.userId ?? 'no-user'}
+            key={JSON.stringify([currentUser?.userId, currentUser?.roles, currentUser?.assetScopeIds])}
             assetTypes={assetTypes}
             assets={assets}
             userId={currentUser?.userId}
@@ -537,7 +537,7 @@ function AssetsPage({
                 <tr key={asset.id}>
                   <td><button type="button" className="asset-select"
                     onClick={() => setSelected(asset)}
-                    aria-label={t('assets.selectNamed', { name: asset.name })}>
+                    aria-label={t('assets.selectNamed', { name: asset.name ?? t('assets.unnamed') })}>
                     {asset.name}
                   </button></td>
                   <td>{typeNames.get(asset.assetTypeId) ?? asset.assetTypeId}</td>
@@ -558,7 +558,7 @@ function AssetsPage({
           <h3>{t('assets.selected')}</h3>
           <strong>{selected.name}</strong>
           <p>{t('assets.selectedType', { name:
-            typeNames.get(selected.assetTypeId) ?? selected.assetTypeId })}</p>
+            typeNames.get(selected.assetTypeId) ?? selected.assetTypeId ?? t('assets.unknownType') })}</p>
           <code>{selected.id}</code>
           <button type="button" className="secondary-button"
             onClick={() => setSelected(null)}>{t('assets.clearSelection')}</button>

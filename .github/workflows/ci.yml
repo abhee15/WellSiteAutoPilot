@@ -78,6 +78,14 @@ jobs:
       - name: Verify failure contracts
         run: dotnet run --project tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj --configuration Release --no-build
 
+      - name: Verify authenticated external identity boundary
+        run: dotnet run --project tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj --configuration Release --no-build
+      - name: Verify pure scoped-grant authorization isolation
+        run: dotnet run --project tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj --configuration Release --no-build
+
+      - name: Verify legacy Asset scope boundaries
+        run: dotnet run --project tests/WellSiteAutoPilot.SecurityBoundaryTests/WellSiteAutoPilot.SecurityBoundaryTests.csproj --configuration Release --no-build
+
       - name: Verify Logic Module manifest contracts
         run: |
           dotnet run --project tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj --configuration Release --no-build
@@ -575,6 +583,9 @@ jobs:
       - name: Verify security identity, RBAC, and Asset scope persistence
         run: dotnet run --project tests/WellSiteAutoPilot.SecurityPersistenceTests/WellSiteAutoPilot.SecurityPersistenceTests.csproj --configuration Release --no-build
 
+      - name: Verify authenticated identity persistence and claims
+        run: dotnet run --project tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj --configuration Release --no-build -- --persistence
+
       - name: Verify asset persistence
         run: dotnet run --project tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj --configuration Release --no-build
 
@@ -587,6 +598,9 @@ jobs:
           WSA_ASSET_API_URL: http://127.0.0.1:5085
         run: |
           set -euo pipefail
+          export WSA_DATABASE_CONNECTION_STRING="${WSA_DATABASE_CONNECTION_STRING/Database=wellsite_autopilot/Database=wsa_asset_api}"
+          dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj --configuration Release --no-build -- --prepare
+          dotnet run --project tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj --configuration Release --no-build
           dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj             --configuration Release --no-build -- --urls http://127.0.0.1:5085             > /tmp/wsa-asset-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
@@ -1011,6 +1025,9 @@ jobs:
             echo "Expected Operator Asset mutation to return 403, got $status"
             exit 1
           fi
+
+      - name: Verify audit-only grant administration HTTP boundaries
+        run: python3 tools/ci/verify_grant_administration.py
 
       - name: Request and verify Shadow execution
         shell: bash

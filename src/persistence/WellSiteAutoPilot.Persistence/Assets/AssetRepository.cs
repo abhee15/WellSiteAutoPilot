@@ -130,6 +130,28 @@ public sealed class AssetRepository(
             .ToArray();
     }
 
+    public async Task<IReadOnlySet<Guid>> GetActiveAssetIdsAsync(
+        IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(assetIds);
+        if (assetIds.Count == 0) return new HashSet<Guid>();
+        var ids = assetIds.Distinct().ToArray();
+        return (await dbContext.Assets.AsNoTracking()
+            .Where(item => ids.Contains(item.Id) && item.IsActive)
+            .Select(item => item.Id).ToArrayAsync(cancellationToken))
+            .ToHashSet();
+    }
+
+    public async Task<IReadOnlyCollection<Asset>> ListAssetDirectoryPageAsync(
+        int offset, int limit,
+        CancellationToken cancellationToken = default) =>
+        (await dbContext.Assets.AsNoTracking()
+            .OrderBy(item => item.Name).ThenBy(item => item.Id)
+            .Skip(offset).Take(limit)
+            .ToArrayAsync(cancellationToken))
+        .Select(ToDomain).ToArray();
+
     public async Task AddAssetAsync(
         Asset asset,
         CancellationToken cancellationToken = default)

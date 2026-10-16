@@ -65,7 +65,7 @@ contract with its own UX/compatibility tests.
 and authorized parent creation. It does not authorize writes; `POST /assets`
 independently requires `assets.manage`, a built-in administrator for root
 creation, or Asset scope for an existing parent. This follows current legacy
-runtime policy; the dynamic role/grant authorization cutover (#79) is separate.
+runtime policy; live dynamic role/grant cutover remains separate under #76.
 
 After `201`, the SPA verifies the server response and uses scoped
 `GET /assets/{id}` before announcing selection. The list remains based on
@@ -83,8 +83,11 @@ Asset list before considering another create.
 ## Integration validation
 
 The PostgreSQL CI job runs `WellSiteAutoPilot.AssetApiTests` with the
-real ASP.NET server in CI-only loopback TestHeader mode, using an ephemeral
-PostgreSQL instance. This exercises administrator root creation, scoped
+real ASP.NET server in CI-only loopback TestHeader mode, using a dedicated
+`wsa_asset_api` database on the ephemeral PostgreSQL instance. The test CLI
+creates that empty test database and the normal migrator applies its schema.
+This keeps existing service-test administrators from changing bootstrap
+semantics; it never resets shared state or bypasses production authorization. This exercises administrator root creation, scoped
 Engineer child creation, 401/403/400, schema-denied values, server-issued
 capabilities, and a live 201/readback from authorized/unauthorized principals.
 It does not claim to validate Windows Negotiate; that has its separate native

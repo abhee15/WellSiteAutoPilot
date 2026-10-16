@@ -10,21 +10,15 @@ public sealed class UserAccessClaimsMiddleware(RequestDelegate next)
     public async Task InvokeAsync(
         HttpContext context,
         UserAccessService userAccessService,
+        IAuthenticatedPrincipalResolver principalResolver,
         IOptions<SecurityOptions> options)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
-            var identityName = context.User.Identity.Name;
-            var normalizedIdentityName =
-                UserAccessService.NormalizeIdentity(
-                    identityName ?? string.Empty);
-            var primarySid =
-                context.User.FindFirst(ClaimTypes.PrimarySid)?.Value;
-            var identityKey = string.IsNullOrWhiteSpace(primarySid)
-                ? $"NAME:{normalizedIdentityName}"
-                : $"SID:{primarySid.Trim()}";
-            var displayName = context.User.FindFirst("name")?.Value ??
-                              context.User.FindFirst("wsa:test-display-name")?.Value;
+            // The host's configured provider resolves the trusted external
+            // identity. Access provisioning no longer interprets Windows SIDs
+            // or external identity-provider claim shapes.
+            var externalIdentity = principalResolver.Resolve(context.User);
 
             var bootstrapAdmins = options.Value.BootstrapAdministrators
                 .Where(item => !string.IsNullOrWhiteSpace(item))
@@ -32,9 +26,9 @@ public sealed class UserAccessClaimsMiddleware(RequestDelegate next)
                 .ToHashSet(StringComparer.Ordinal);
 
             var profile = await userAccessService.ResolveAuthenticatedAsync(
-                identityKey,
-                identityName ?? string.Empty,
-                displayName,
+                externalIdentity.PersistedIdentityKey,
+                externalIdentity.IdentityName,
+                externalIdentity.DisplayName,
                 bootstrapAdmins,
                 context.RequestAborted);
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AssetCreationPanel } from '../../src/views/AssetCreationPanel';
 import type {
@@ -25,9 +25,6 @@ const created: AssetResponse = {
   name: 'Well 101', parentAssetId: field.id,
 };
 
-const grant = {
-  canCreateRoot: false, canCreateUnderAuthorizedParents: true,
-};
 const success = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
     status, headers: { 'Content-Type': 'application/json' }
@@ -206,4 +203,59 @@ describe('Asset create workflow with real DOM events', () => {
       .not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Create Asset' })).toBeNull();
   });
+});
+
+it('preserves raw duplicate attribute keys for authoritative server rejection', async () => {
+  const user = userEvent.setup();
+  const raw = '{"field":"Alpha","field":"Beta"}';
+  const http = vi.fn<typeof fetch>(async () => success({}, 400));
+  vi.stubGlobal('fetch', http);
+  panel();
+  await prepareForm(user);
+  const editor = screen.getByRole('textbox', { name: 'Attributes (JSON object)' });
+  await user.clear(editor);
+  await user.paste(raw);
+  await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+  await screen.findByRole('alert');
+  expect(JSON.parse(String(http.mock.calls[0][1]?.body)).attributeValuesJson).toBe(raw);
+  expect(http).toHaveBeenCalledTimes(1);
+});
+
+
+it.each([
+  [202, created],
+  [200, { ...created, id: '55555555-5555-4555-8555-555555555555' }],
+  [200, { ...created, parentAssetId: null }],
+  [200, { ...created, isActive: false }],
+])('refuses unverified readback status or identity (%d)', async (status, result) => {
+  const user = userEvent.setup();
+  const onCreated = vi.fn();
+  const http = vi.fn(async (url: string) => url === '/api/v1/assets'
+    ? success(created, 201) : success(result, status));
+  vi.stubGlobal('fetch', http);
+  panel({ onCreated });
+  await prepareForm(user);
+  await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+  await screen.findByRole('alert');
+  expect(onCreated).not.toHaveBeenCalled();
+  expect(http).toHaveBeenCalledTimes(2);
+});
+
+it('aborts a pending create on removal and never starts stale readback or selection', async () => {
+  const user = userEvent.setup();
+  let finish!: (response: Response) => void;
+  const http = vi.fn<typeof fetch>(() => new Promise(resolve => { finish = resolve; }));
+  const onCreated = vi.fn();
+  const onRefresh = vi.fn();
+  vi.stubGlobal('fetch', http);
+  const view = panel({ onCreated, onRefresh });
+  await prepareForm(user);
+  await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+  const signal = http.mock.calls[0][1]?.signal;
+  view.unmount();
+  expect(signal?.aborted).toBe(true);
+  await act(async () => { finish(success(created, 201)); });
+  expect(http).toHaveBeenCalledTimes(1);
+  expect(onCreated).not.toHaveBeenCalled();
+  expect(onRefresh).not.toHaveBeenCalled();
 });

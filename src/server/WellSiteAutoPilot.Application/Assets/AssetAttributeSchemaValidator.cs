@@ -149,9 +149,10 @@ public static class AssetAttributeSchemaValidator
                     if (keyword.Value.ValueKind != JsonValueKind.Object ||
                         keyword.Value.EnumerateObject().Count() > 64)
                         throw Unsupported();
+                    var propertyNames = new HashSet<string>(StringComparer.Ordinal);
                     foreach (var property in keyword.Value.EnumerateObject())
                     {
-                        if (string.IsNullOrWhiteSpace(property.Name) ||
+                        if (!propertyNames.Add(property.Name) || string.IsNullOrWhiteSpace(property.Name) ||
                             property.Name.Length > 128)
                             throw Unsupported();
                         ValidateShape(property.Value, depth + 1, false);

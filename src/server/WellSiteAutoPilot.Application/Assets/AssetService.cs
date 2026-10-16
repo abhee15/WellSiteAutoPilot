@@ -66,7 +66,6 @@ public sealed class AssetService(
                 FailureCodes.ValidationFailed, FailureKind.Validation,
                 "Asset name must not exceed 256 characters.");
         }
-        
 
         var assetType = await repository.GetAssetTypeAsync(command.AssetTypeId, cancellationToken);
         if (assetType is null || !assetType.IsActive)
@@ -167,6 +166,22 @@ public sealed class AssetService(
             limit,
             allowedAssetIds,
             cancellationToken);
+    }
+
+    public Task<IReadOnlyCollection<Asset>> ListAssetDirectoryPageAsync(
+        int offset, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset is < 0 or > 1000000 || limit is < 1 or > 500)
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed,
+                FailureKind.Validation,
+                "Asset directory offset or page limit is invalid.");
+        }
+
+        return repository.ListAssetDirectoryPageAsync(
+            offset, limit, cancellationToken);
     }
 
     private static string RequireText(string value, string message)

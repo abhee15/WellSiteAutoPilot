@@ -1,6 +1,25 @@
+using Npgsql;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+
+// Isolate the real HTTP suite from service tests' provisioned administrators.
+// No reset/drop or production bootstrap bypass is involved.
+if (args.Length == 1 && args[0] == "--prepare")
+{
+    var testConnection = new NpgsqlConnectionStringBuilder(
+        Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") ??
+        throw new InvalidOperationException("WSA_DATABASE_CONNECTION_STRING is required."));
+    if (testConnection.Database != "wsa_asset_api")
+        throw new InvalidOperationException("Asset API preparation requires its dedicated wsa_asset_api test database.");
+    testConnection.Database = "postgres";
+    await using var connection = new NpgsqlConnection(testConnection.ConnectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("CREATE DATABASE wsa_asset_api", connection);
+    await command.ExecuteNonQueryAsync();
+    return 0;
+}
+if (args.Length != 0) throw new InvalidOperationException("Unsupported Asset API test arguments.");
 
 var origin = Environment.GetEnvironmentVariable("WSA_ASSET_API_URL") ??
     throw new InvalidOperationException("WSA_ASSET_API_URL is required.");

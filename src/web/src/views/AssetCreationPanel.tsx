@@ -1,3 +1,4 @@
+import './assetCreation.css';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type {
@@ -6,6 +7,7 @@ import type {
   AssetTypeResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { isSecurityId } from '../security/identifiers';
 
 type Props = {
   userId: string | null | undefined;
@@ -16,14 +18,22 @@ type Props = {
   onRefresh: () => Promise<void> | void;
 };
 
+type VerifiedAsset = AssetResponse & {
+  id: string;
+  assetTypeId: string;
+  name: string;
+  parentAssetId: string | null;
+  isActive: true;
+};
+
 function isVerifiedAsset(
   value: unknown, typeId: string, name: string,
   expectedParentId: string | null, expectedId?: string
-): value is AssetResponse {
+): value is VerifiedAsset {
   if (value === null || typeof value !== 'object') return false;
   const asset = value as Partial<AssetResponse>;
   return typeof asset.id === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(asset.id) &&
+    isSecurityId(asset.id) &&
     asset.assetTypeId === typeId && asset.name === name &&
     asset.parentAssetId === expectedParentId &&
     (expectedId === undefined || asset.id === expectedId) &&
@@ -42,10 +52,11 @@ export function AssetCreationPanel({
   const [error, setError] = useState<string | null>(null);
   const active = useRef(true);
   const pending = useRef(false);
+  const request = useRef<AbortController | null>(null);
 
   useEffect(() => {
     active.current = true;
-    return () => { active.current = false; };
+    return () => { active.current = false; request.current?.abort(); };
   }, []);
 
   const selectedType = assetTypes.find(type => type.id === typeId && type.isActive);
@@ -61,7 +72,8 @@ export function AssetCreationPanel({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (pending.current || !hasOptions || !selectedParentValid || !selectedType) return;
+    const assetTypeId = selectedType?.id;
+    if (pending.current || !hasOptions || !selectedParentValid || !selectedType || !isSecurityId(assetTypeId)) return;
     setNotice(null);
     setError(null);
 
@@ -84,15 +96,18 @@ export function AssetCreationPanel({
 
     pending.current = true;
     setIsSubmitting(true);
+    const controller = new AbortController();
+    request.current = controller;
+    let confirmed = false;
     try {
       const response = await fetch('/api/v1/assets', {
-        method: 'POST',
+        method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          assetTypeId: selectedType.id,
+          assetTypeId,
           name: trimmed,
           parentAssetId: parentId === '__root__' ? null : parentId,
-          attributeValuesJson: JSON.stringify(parsed),
+          attributeValuesJson: attributes,
         }),
       });
 
@@ -112,13 +127,17 @@ export function AssetCreationPanel({
       }
       const expectedParentId = parentId === '__root__' ? null : parentId;
       const created: unknown = await response.json();
-      if (!isVerifiedAsset(created, selectedType.id, trimmed, expectedParentId)) {
+      if (!isVerifiedAsset(created, assetTypeId, trimmed, expectedParentId)) {
         if (active.current) setError(t('assets.createUncertain'));
         return;
       }
+      confirmed = true;
+      if (!active.current || controller.signal.aborted) return;
       // Read back from the authoritative, scoped API before selecting. Do not
       // insert an optimistic row into the cached first 100 results.
-      const verifiedResponse = await fetch('/api/v1/assets/' + created.id);
+      const verifiedResponse = await fetch('/api/v1/assets/' + created.id, {
+        credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+      });
       if (!verifiedResponse.ok) {
         if (active.current && verifiedResponse.status === 403) {
           // The write is committed, but explicit Asset scopes do not
@@ -133,9 +152,13 @@ export function AssetCreationPanel({
         }
         return;
       }
+      if (verifiedResponse.status !== 200) {
+        if (active.current) setError(t('assets.createReadbackFailed'));
+        return;
+      }
       const verified: unknown = await verifiedResponse.json();
       if (!isVerifiedAsset(
-        verified, selectedType.id, trimmed, expectedParentId, created.id
+        verified, assetTypeId, trimmed, expectedParentId, created.id
       )) {
         if (active.current) setError(t('assets.createReadbackFailed'));
         return;
@@ -148,8 +171,9 @@ export function AssetCreationPanel({
     } catch {
       // A POST with an interrupted response may already have committed.
       // Never automatically retry it or claim that it definitely failed.
-      if (active.current) setError(t('assets.createUncertain'));
+      if (active.current) setError(t(confirmed ? 'assets.createReadbackFailed' : 'assets.createUncertain'));
     } finally {
+      if (request.current === controller) request.current = null;
       pending.current = false;
       if (active.current) setIsSubmitting(false);
     }

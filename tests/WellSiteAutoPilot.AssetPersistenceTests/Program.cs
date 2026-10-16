@@ -115,6 +115,49 @@ if (noParentMatch.Count != 0)
     throw new InvalidOperationException("Parent filtering leaked Assets outside the authorized scope.");
 }
 
+// Administration must discover the full asset directory in deterministic
+// pages even when multiple Assets have exactly the same display name.
+var duplicateName = await service.CreateAssetAsync(
+    new CreateAssetCommand(wellType.Id, "Well 101", parent.Id, "{}"));
+var directoryExpected = await dbContext.Assets.AsNoTracking()
+    .OrderBy(item => item.Name).ThenBy(item => item.Id)
+    .Select(item => item.Id).ToArrayAsync();
+if (!directoryExpected.Contains(duplicateName.Id) ||
+    !directoryExpected.Contains(child.Id))
+{
+    throw new InvalidOperationException("Created duplicate-name Assets are missing.");
+}
+var directoryIds = new List<Guid>();
+for (var offset = 0; ; offset += 2)
+{
+    var page = await service.ListAssetDirectoryPageAsync(offset, 2);
+    directoryIds.AddRange(page.Select(item => item.Id));
+    if (page.Count < 2) break;
+}
+if (!directoryIds.SequenceEqual(directoryExpected) ||
+    directoryIds.Distinct().Count() != directoryExpected.Length)
+{
+    throw new InvalidOperationException(
+        "Paged administrator Asset directory skipped, duplicated or reordered Assets.");
+}
+try
+{
+    await service.ListAssetDirectoryPageAsync(-1, 200);
+    throw new InvalidOperationException("Negative Asset directory offset was accepted.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == WellSiteAutoPilot.Failures.FailureCodes.ValidationFailed)
+{
+}
+try
+{
+    await service.ListAssetDirectoryPageAsync(0, 501);
+    throw new InvalidOperationException("Unbounded Asset directory page was accepted.");
+}
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+    when (exception.Code == WellSiteAutoPilot.Failures.FailureCodes.ValidationFailed)
+{
+}
 
 // Standard JSON Schema subset is enforced by the server *before* PostgreSQL
 // persistence. Reject missing/wrong/out-of-range/unknown attributes even if
@@ -158,6 +201,7 @@ foreach (var unsafeSchema in new[]
     """{"type":"object","properties":{"x":{"$ref":"file:///etc/passwd"}}}""",
     """{"type":"object","allOf":[{"type":"object"}]}""",
     """{"type":"object","type":"object"}""",
+    """{"type":"object","properties":{"x":{"type":"string"},"x":{"type":"number"}}}""",
     """{"type":"object","properties":{"x":{"type":"string","pattern":"(a+)+"}}}""",
     """{"type":"array"}""",
     """{"type":"object","properties":{"x":{"type":"mystery"}}}""",
@@ -219,6 +263,11 @@ await AssertFailureAsync(
         new CreateAssetCommand(legacyType.Id, "Blocked legacy row", parent.Id, "{}")),
     "ASSET_ATTRIBUTE_SCHEMA_UNSUPPORTED");
 
+
+Console.WriteLine("Asset type and hierarchical asset persistence checks passed.");
+return 0;
+
+
 static async Task AssertFailureAsync(Func<Task> operation, string expectedCode)
 {
     try
@@ -233,6 +282,3 @@ static async Task AssertFailureAsync(Func<Task> operation, string expectedCode)
     }
     throw new InvalidOperationException($"Expected {expectedCode}, operation succeeded.");
 }
-
-Console.WriteLine("Asset type and hierarchical asset persistence checks passed.");
-return 0;

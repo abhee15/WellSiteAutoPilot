@@ -89,6 +89,8 @@ else
         $"Unsupported Security:AuthenticationMode '{authenticationMode}'.");
 }
 
+builder.Services.AddSingleton<IAuthenticatedPrincipalResolver>(
+    new ConfiguredPrincipalResolver(authenticationMode));
 builder.Services.AddAuthorization(WellSitePolicies.AddPolicies);
 
 builder.Services.AddWellSiteHttpErrorHandling();
@@ -138,6 +140,12 @@ builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddScoped<UserAccessService>();
 builder.Services.AddScoped<RoleCatalogService>();
+builder.Services.AddScoped<AccessGrantAdministrationService>();
+builder.Services.AddScoped<ScopedAccessInspectionService>();
+builder.Services.AddScoped<ProposedAssetAccessService>();
+builder.Services.AddScoped<LegacyMigrationPreflightService>();
+builder.Services.AddScoped<DeploymentMigrationPreflightService>();
+builder.Services.AddScoped<LegacyGrantMigrationService>();
 builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
@@ -371,6 +379,304 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
+// Administrator-only rollback of grants created by a legacy migration.
+// Only server-audited migration-origin rows are affected, never customer
+// assignments, compiled legacy RBAC or production runtime permissions.
+v1.MapPost(
+    "/security/rollback-legacy-grants",
+    async (
+        RollbackLegacyGrantsRequest request,
+        LegacyGrantMigrationService migration,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await migration.RollbackAsync(
+            request.Confirmed,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new RollbackLegacyGrantsResponse(
+            result.MigratedGrantsInspected, result.GrantsDeactivated,
+            result.LiveAuthorizationUnchanged);
+    })
+    .WithName("RollbackLegacyAccessGrants")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<RollbackLegacyGrantsResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+// Explicit, audited grant materialization from the current legacy model.
+// Performs complete serializable transaction parity validation and declines
+// conflicting active grants. It NEVER changes LIVE authorization policies.
+v1.MapPost(
+    "/security/materialize-legacy-grants",
+    async (
+        MaterializeLegacyGrantsRequest request,
+        LegacyGrantMigrationService migration,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await migration.MigrateAsync(
+            request.Confirmed,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new MaterializeLegacyGrantsResponse(
+            result.ActiveUsersInspected, result.ActiveAssetsInspected,
+            result.GrantsCreated, result.UsersAlreadyMatching,
+            result.RecordedGrantsMatchLegacy,
+            result.LiveAuthorizationUnchanged);
+    })
+    .WithName("MaterializeLegacyAccessGrants")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<MaterializeLegacyGrantsResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+// Complete bounded deployment parity preview, using one consistent
+// database snapshot across ALL users, roles, grants and Assets. Admin-only,
+// read-only, and never authorization cutover approval.
+v1.MapGet(
+    "/security/migration-preflight",
+    async (
+        DeploymentMigrationPreflightService preflight,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preflight.InspectAsync(
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new DeploymentMigrationPreflightResponse(
+            result.ActiveUserCount, result.ActiveAssetCount,
+            result.MatchingUserCount, result.ExpansionCount,
+            result.ReductionCount,
+            result.Users.Select(item => new DeploymentMigrationUserResponse(
+                item.UserId, item.ExpectedLegacyGrantCount,
+                item.RecordedGrantCount, item.ExpansionCount,
+                item.ReductionCount, item.RecordedGrantsMatchLegacy)).ToArray(),
+            result.AllActiveUsersMatchRecordedGrants,
+            result.IsDiagnosticOnly);
+    })
+    .WithName("InspectDeploymentLegacyMigration")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<DeploymentMigrationPreflightResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+// Migration preflight captures roles, direct grants, the user and the full
+// bounded active Asset inventory under a single PostgreSQL snapshot. It is
+// read-only, one user at a time, and NEVER enables authorization cutover.
+v1.MapGet(
+    "/security/users/{userId:guid}/migration-preflight",
+    async (
+        Guid userId,
+        LegacyMigrationPreflightService preflight,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preflight.InspectAsync(
+            userId,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new LegacyMigrationPreflightResponse(
+            result.UserId, result.ActiveAssetCount,
+            result.ExpectedLegacyGrantCount, result.RecordedGrantCount,
+            result.ExpansionCount, result.ReductionCount,
+            result.DifferenceSamples.Select(item =>
+                new LegacyMigrationDifferenceResponse(
+                    item.AssetId, item.Permission,
+                    item.LegacyAllowed, item.RecordedGrantAllowed)).ToArray(),
+            result.RecordedGrantsMatchLegacy, result.IsDiagnosticOnly);
+    })
+    .WithName("InspectLegacyGrantMigration")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<LegacyMigrationPreflightResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+// Proposed resource preview uses one database query that restricts Assets
+// by the same grant's active role and scope BEFORE Skip/Take. It never
+// authorizes live requests or changes existing user access.
+v1.MapGet(
+    "/security/users/{userId:guid}/proposed-assets",
+    async (
+        Guid userId,
+        string permission,
+        int? offset,
+        int? limit,
+        ProposedAssetAccessService preview,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preview.ListAsync(
+            userId, permission, offset ?? 0, limit ?? 100,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new ProposedAssetAccessResponse(
+            result.UserId, result.Permission, result.Offset, result.Limit,
+            result.Assets.Select(item =>
+                new ProposedAuthorizedAssetResponse(item.Id, item.Name)).ToArray(),
+            result.IsDiagnosticOnly);
+    })
+    .WithName("ListProposedAuthorizedAssets")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<ProposedAssetAccessResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+// Read-only diagnostic: evaluate every registered permission against
+// legacy live RBAC and the stored, inactive-for-runtime scoped-grant model.
+// A single Asset inspection never certifies whole-deployment migration parity.
+v1.MapGet(
+    "/security/users/{userId:guid}/effective-access",
+    async (
+        Guid userId,
+        Guid? assetId,
+        ScopedAccessInspectionService inspector,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var inspection = await inspector.InspectAsync(
+            userId, assetId,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        return new ScopedAccessInspectionResponse(
+            inspection.UserId,
+            inspection.AssetId,
+            inspection.AssetName,
+            inspection.Permissions.Select(item =>
+                new PermissionAccessComparisonResponse(
+                    item.Permission, item.ScopeKind,
+                    item.LegacyAllowed, item.ProposedAllowed,
+                    item.ProposedReasonCode, item.ProposedGrantId)).ToArray(),
+            inspection.WideningCount, inspection.ReductionCount,
+            inspection.IsDiagnosticOnly);
+    })
+    .WithName("InspectUserEffectiveAccess")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<ScopedAccessInspectionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+// Additive grants are recorded and audited but do not alter legacy
+// authorization until the parity-verified entitlement cutover is complete.
+v1.MapGet(
+    "/security/users/{userId:guid}/grants",
+    async (
+        Guid userId,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+        (await grants.ListForUserAsync(
+            userId,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken))
+        .Select(ToAccessGrantResponse).ToArray())
+    .WithName("ListUserAccessGrants")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse[]>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapPost(
+    "/security/users/{userId:guid}/grants",
+    async (
+        Guid userId,
+        CreateUserAccessGrantRequest request,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        if (!Enum.TryParse<AccessGrantScopeKind>(
+                request.ScopeKind, ignoreCase: false, out var scope) ||
+            !Enum.IsDefined(scope))
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed, FailureKind.Validation,
+                "An explicit supported grant scope kind is required.");
+        }
+
+        var result = await grants.CreateForUserAsync(
+            userId,
+            new CreateAccessGrantCommand(
+                request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/security/users/{userId}/grants",
+            ToAccessGrantResponse(result));
+    })
+    .WithName("CreateUserAccessGrant")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapPut(
+    "/security/users/{userId:guid}/grants/{grantId:guid}/deactivate",
+    async (
+        Guid userId,
+        Guid grantId,
+        DeactivateUserAccessGrantRequest request,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+        ToAccessGrantResponse(await grants.DeactivateForUserAsync(
+            userId, grantId, request.ExpectedRevision,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken)))
+    .WithName("DeactivateUserAccessGrant")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 v1.MapPost(
     "/asset-types",
     async (
@@ -472,6 +778,38 @@ v1.MapPost(
     .Produces<AssetResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet(
+    "/security/assets/directory",
+    async (
+        int? offset,
+        int? limit,
+        AssetService assetService,
+        AssetScopeAuthorizer assetScopeAuthorizer,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        assetScopeAuthorizer.RequireAdministrator(context.User);
+        // Recheck current persisted administrator status on every full-directory
+        // read; a stale identity claim must not survive role revocation.
+        await grants.RequireAdministratorAsync(
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+        var assets = await assetService.ListAssetDirectoryPageAsync(
+            offset ?? 0, limit ?? 200, cancellationToken);
+        return assets.Select(asset => new AssetDirectoryEntryResponse(
+            asset.Id, asset.Name, asset.IsActive)).ToArray();
+    })
+    .WithName("ListSecurityAssetDirectory")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AssetDirectoryEntryResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
 
 v1.MapGet(
     "/assets",
@@ -1220,5 +1558,9 @@ static IReadOnlyCollection<ApplicationRole> ParseApplicationRoles(
     return roles.Distinct().OrderBy(item => item).ToArray();
 }
 
-public partial class Program;
+static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>
+    new(grant.Id, grant.SubjectKind.ToString(), grant.UserId,
+        grant.GroupSid, grant.RoleId, grant.ScopeKind.ToString(),
+        grant.AssetIds.ToArray(), grant.IsActive, grant.Revision);
 
+public partial class Program;
