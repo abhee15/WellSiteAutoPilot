@@ -12,6 +12,9 @@ using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Security;
 
+ScopedResourceQueryChecks.VerifyTranslation();
+if (args.Contains("--query-translation", StringComparer.Ordinal)) return 0;
+
 var connectionString = Environment.GetEnvironmentVariable(
     "WSA_DATABASE_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -617,6 +620,8 @@ await ScopedGrantAdministrationChecks.RunAsync(
 
 await ScopedSqlProjectionChecks.RunAsync(
     options, operatorUser.Id, secondAdministrator.Id, asset.Id, otherAsset.Id);
+
+await ScopedResourceQueryChecks.RunAsync(options, asset.Id, otherAsset.Id);
 
 await ScopedAccessInspectionChecks.RunAsync(
     options, operatorUser, administrator, secondAdministrator, otherAsset.Id, clock);
