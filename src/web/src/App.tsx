@@ -629,10 +629,10 @@ function LogicPage({
     }).then(async response => {
       if (!response.ok) throw new Error();
       const value = await response.json() as ConfiguredLogicCapabilitiesResponse;
-      if (!c.signal.aborted) setCanManage(value.canManage === true);
+      if (!c.signal.aborted) { setCanManage(value.canManage === true); setCapabilityError(false); }
     }).catch(() => { if (!c.signal.aborted) { setCanManage(false); setCapabilityError(true); } });
     return () => c.abort();
-  }, [userId]);
+  }, [userId, configuredLogic]);
   const visibleConfigurations = useMemo(
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],

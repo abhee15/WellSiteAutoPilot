@@ -228,4 +228,23 @@ describe('Configured Logic setup journey', () => {
     window.location.hash = '';
   });
 
+  it('recovers capability loading on explicit refresh without requiring a new login', async () => {
+    window.location.hash = '#logic'; let recover = false;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/v1/configured-logic/capabilities') return response({ canManage: true }, recover ? 200 : 503);
+      return response(url === '/api/v1/security/me' ? { userId: otherRevisionId, roles: ['Engineer'], assetScopeIds: [assetId] }
+        : url.startsWith('/api/v1/logic-modules') ? [module]
+        : url.startsWith('/api/v1/asset-types') ? types
+        : url.startsWith('/api/v1/assets?') ? assets
+        : url.startsWith('/api/v1/system/info') || url.startsWith('/api/v1/assets/capabilities') ? {} : []);
+    }));
+    const user = userEvent.setup(); render(<App />);
+    await screen.findByText('Configuration capabilities are unavailable. Refresh before editing.');
+    expect(screen.queryByRole('button', { name: 'Configure Logic' })).toBeNull();
+    recover = true; await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    await screen.findByRole('button', { name: 'Configure Logic' });
+    expect(screen.queryByText('Configuration capabilities are unavailable. Refresh before editing.')).toBeNull();
+    window.location.hash = '';
+  });
+
 });
