@@ -391,6 +391,8 @@ internal static class ScopedGrantAdministrationChecks
             throw new InvalidOperationException("Concurrent retirement did not have one audited winner.");
         }
 
+        await WindowsGroupAdministrationChecks.RunAsync(options, secondAdministrator, operatorUser, assetId, clock);
+
         async Task<bool> RetireAsync(WellSiteAutoPilotDbContext writer)
         {
             try

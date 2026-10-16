@@ -278,6 +278,9 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         grant.HasIndex(item => new { item.UserId, item.RoleId, item.ScopeKind })
             .IsUnique()
             .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'User'");
+        grant.HasIndex(item => new { item.GroupSid, item.RoleId, item.ScopeKind })
+            .IsUnique()
+            .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'WindowsGroup'");
         grant.HasOne<UserEntity>().WithMany()
             .HasForeignKey(item => item.UserId)
             .OnDelete(DeleteBehavior.Restrict);

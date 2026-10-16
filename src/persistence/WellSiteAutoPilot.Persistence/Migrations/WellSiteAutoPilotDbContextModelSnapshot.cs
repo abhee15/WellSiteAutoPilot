@@ -277,6 +277,9 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.HasIndex("UserId", "RoleId", "ScopeKind")
                     .IsUnique()
                     .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'User'");
+                entity.HasIndex("GroupSid", "RoleId", "ScopeKind")
+                    .IsUnique()
+                    .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'WindowsGroup'");
                 entity.ToTable("access_grants", "security", table =>
                 {
                     table.HasCheckConstraint("CK_access_grants_subject",

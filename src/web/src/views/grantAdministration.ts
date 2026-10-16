@@ -1,12 +1,13 @@
+import { isWindowsSid } from '../security/windowsSid';
 import { isSecurityId as validId } from '../security/identifiers';
 import type { AccessGrantResponse } from '../api/generated/v1/types.gen';
 import type { GrantDraft } from './scopedAccessGrants';
 
 export type PersistedGrant = AccessGrantResponse & {
   grantId: string;
-  subjectKind: 'User';
-  userId: string;
-  groupSid: null;
+  subjectKind: 'User' | 'WindowsGroup';
+  userId: string | null;
+  groupSid: string | null;
   roleId: string;
   scopeKind: GrantDraft['scopeKind'];
   assetIds: string[];
@@ -23,8 +24,8 @@ function parse(response: unknown): response is PersistedGrant {
   if (!response || typeof response !== 'object' || Array.isArray(response)) return false;
   const p = response as Partial<PersistedGrant>;
   return typeof p.grantId === 'string' && validId(p.grantId) &&
-    p.subjectKind === 'User' && typeof p.userId === 'string' &&
-    validId(p.userId) && p.groupSid === null && typeof p.roleId === 'string' &&
+    (p.subjectKind === 'User' ? typeof p.userId === 'string' && validId(p.userId) && p.groupSid === null
+      : p.subjectKind === 'WindowsGroup' && p.userId === null && isWindowsSid(p.groupSid) && p.groupSid === p.groupSid.toUpperCase()) && typeof p.roleId === 'string' &&
     validId(p.roleId) && (p.scopeKind === 'ExactAssets' ||
       p.scopeKind === 'DeploymentWide' || p.scopeKind === 'AllAssets') &&
     Array.isArray(p.assetIds) && p.assetIds.every(x =>
@@ -46,14 +47,21 @@ async function payload(response: Response): Promise<unknown> {
   try { return await response.json(); }
   catch { throw new GrantApiError('invalidResponse'); }
 }
+export function grantSubjectKey(grant: Pick<PersistedGrant, 'userId' | 'groupSid'>): string {
+  return grant.groupSid ?? grant.userId ?? '';
+}
+function subjectPath(key: string): string {
+  if (isWindowsSid(key)) return '/api/v1/security/windows-groups/' + encodeURIComponent(key.toUpperCase()) + '/grants';
+  if (validId(key)) return '/api/v1/security/users/' + encodeURIComponent(key) + '/grants';
+  throw new GrantApiError('invalid');
+}
 /** Read audited new assignments; these do not yet replace legacy access. */
 export async function loadGrants(userId: string, signal: AbortSignal,
   fetcher: typeof fetch = fetch): Promise<PersistedGrant[]> {
-  if (!validId(userId)) throw new GrantApiError('invalid');
+  const path = subjectPath(userId);
   let response: Response;
   try {
-    response = await fetcher('/api/v1/security/users/' + encodeURIComponent(userId) +
-      '/grants', { credentials: 'same-origin', cache: 'no-store', signal });
+    response = await fetcher(path, { credentials: 'same-origin', cache: 'no-store', signal });
   } catch (error) {
     if (signal.aborted) throw error;
     throw new GrantApiError('unavailable');
@@ -61,7 +69,7 @@ export async function loadGrants(userId: string, signal: AbortSignal,
   if (!response.ok) throw failed(response.status);
   const body = await payload(response);
   if (!Array.isArray(body) || body.length > 500 || !body.every(parse) ||
-    body.some(row => row.userId.toLowerCase() !== userId.toLowerCase()) ||
+    body.some(row => grantSubjectKey(row).toLowerCase() !== userId.toLowerCase()) ||
     new Set(body.map(row => row.grantId.toLowerCase())).size !== body.length) {
     throw new GrantApiError('invalidResponse');
   }
@@ -73,16 +81,15 @@ export async function loadGrants(userId: string, signal: AbortSignal,
  */
 export async function createGrant(draft: GrantDraft, confirmed: boolean,
   signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<PersistedGrant> {
-  if (!confirmed || draft.subjectKind !== 'User' ||
-    !validId(draft.userId) || !validId(draft.roleId) ||
+  if (!confirmed || !(draft.subjectKind === 'User' ? validId(draft.userId) && !draft.groupSid
+      : draft.subjectKind === 'WindowsGroup' && draft.userId === '' && isWindowsSid(draft.groupSid)) || !validId(draft.roleId) ||
     !Number.isSafeInteger(draft.expectedRoleRevision) || draft.expectedRoleRevision < 1 ||
     !(['ExactAssets', 'DeploymentWide', 'AllAssets'] as const).includes(draft.scopeKind)) {
     throw new GrantApiError('invalid');
   }
   let response: Response;
   try {
-    response = await fetcher('/api/v1/security/users/' +
-      encodeURIComponent(draft.userId) + '/grants', {
+    response = await fetcher(subjectPath(draft.groupSid ?? draft.userId), {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roleId: draft.roleId,
@@ -97,7 +104,8 @@ export async function createGrant(draft: GrantDraft, confirmed: boolean,
   if (!response.ok) throw failed(response.status);
   const saved = await payload(response);
   if (response.status !== 201 || !parse(saved) ||
-    saved.userId.toLowerCase() !== draft.userId.toLowerCase() ||
+    grantSubjectKey(saved).toLowerCase() !== (draft.groupSid ?? draft.userId).toLowerCase() ||
+    saved.subjectKind !== draft.subjectKind ||
     saved.roleId.toLowerCase() !== draft.roleId.toLowerCase() ||
     saved.scopeKind !== draft.scopeKind || !saved.isActive ||
     saved.assetIds.map(x => x.toLowerCase()).sort().join('|') !==
@@ -120,8 +128,7 @@ export async function deactivateGrant(grant: PersistedGrant, confirmed: boolean,
   }
   let response: Response;
   try {
-    response = await fetcher('/api/v1/security/users/' +
-      encodeURIComponent(grant.userId) + '/grants/' +
+    response = await fetcher(subjectPath(grantSubjectKey(grant)) + '/' +
       encodeURIComponent(grant.grantId) + '/deactivate', {
       method: 'PUT', credentials: 'same-origin', cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
@@ -136,7 +143,8 @@ export async function deactivateGrant(grant: PersistedGrant, confirmed: boolean,
   const saved = await payload(response);
   if (response.status !== 200 || !parse(saved) || saved.isActive ||
     saved.grantId.toLowerCase() !== grant.grantId.toLowerCase() ||
-    saved.userId.toLowerCase() !== grant.userId.toLowerCase() ||
+    grantSubjectKey(saved).toLowerCase() !== grantSubjectKey(grant).toLowerCase() ||
+    saved.subjectKind !== grant.subjectKind ||
     saved.roleId.toLowerCase() !== grant.roleId.toLowerCase() ||
     saved.scopeKind !== grant.scopeKind ||
     saved.revision !== grant.revision + 1 ||
@@ -151,7 +159,7 @@ export async function deactivateGrant(grant: PersistedGrant, confirmed: boolean,
 export function verifyGrantReadback(expected: PersistedGrant, records: readonly PersistedGrant[]): void {
   const actual = records.find(row => row.grantId.toLowerCase() === expected.grantId.toLowerCase());
   if (!actual || actual.subjectKind !== expected.subjectKind || actual.groupSid !== expected.groupSid ||
-    actual.userId.toLowerCase() !== expected.userId.toLowerCase() ||
+    actual.userId?.toLowerCase() !== expected.userId?.toLowerCase() ||
     actual.roleId.toLowerCase() !== expected.roleId.toLowerCase() ||
     actual.scopeKind !== expected.scopeKind || actual.isActive !== expected.isActive ||
     actual.revision !== expected.revision ||

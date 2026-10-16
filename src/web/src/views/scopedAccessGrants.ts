@@ -1,11 +1,12 @@
+import { isWindowsSid } from '../security/windowsSid';
 import { isSecurityId as validId } from '../security/identifiers';
-import type { AssetDirectoryEntryResponse, CreateUserAccessGrantRequest } from '../api/generated/v1/types.gen';
+import type { AssetDirectoryEntryResponse, CreateAccessGrantRequest } from '../api/generated/v1/types.gen';
 import type { RoleRecord, PermissionDefinition } from './roleCatalog';
 
 export type ScopeKind = 'ExactAssets' | 'DeploymentWide' | 'AllAssets';
 export type AssetChoice = AssetDirectoryEntryResponse & { id: string; name: string; isActive: boolean };
-export type GrantDraft = CreateUserAccessGrantRequest & {
-  subjectKind: 'User'; userId: string; roleId: string;
+export type GrantDraft = CreateAccessGrantRequest & {
+  subjectKind: 'User' | 'WindowsGroup'; userId: string; groupSid?: string; roleId: string;
   scopeKind: ScopeKind; assetIds: string[]; expectedRoleRevision: number;
 };
 export type GrantPreview = {
@@ -18,7 +19,8 @@ export class GrantValidationError extends Error {}
 export function previewGrant(draft: GrantDraft, role: RoleRecord | null,
   catalog: readonly PermissionDefinition[], assets: readonly AssetChoice[],
   allowAllAssets: boolean): GrantPreview {
-  if (draft.subjectKind !== 'User' || !validId(draft.userId) ||
+  if (!(draft.subjectKind === 'User' ? validId(draft.userId) && !draft.groupSid
+    : draft.subjectKind === 'WindowsGroup' && draft.userId === '' && isWindowsSid(draft.groupSid)) ||
     !validId(draft.roleId) || !role?.isActive ||
     draft.roleId.toLowerCase() !== role.roleId.toLowerCase() ||
     !Number.isSafeInteger(draft.expectedRoleRevision) || draft.expectedRoleRevision < 1 ||

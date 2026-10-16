@@ -11,9 +11,9 @@ public sealed record AccessGrantResponse(
     bool IsActive,
     long Revision);
 
-public sealed record DeactivateUserAccessGrantRequest(long ExpectedRevision);
+public sealed record DeactivateAccessGrantRequest(long ExpectedRevision);
 
-public sealed record CreateUserAccessGrantRequest(
+public sealed record CreateAccessGrantRequest(
     Guid RoleId,
     string ScopeKind,
     IReadOnlyCollection<Guid>? AssetIds,
