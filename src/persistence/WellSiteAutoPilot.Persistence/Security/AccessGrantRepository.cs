@@ -9,18 +9,18 @@ using WellSiteAutoPilot.Persistence.Audit;
 
 namespace WellSiteAutoPilot.Persistence.Security;
 
-/// <summary>Explicit direct-user entitlements, currently audit-only until cutover.</summary>
+/// <summary>Explicit user and Windows-group entitlements, currently audit-only until cutover.</summary>
 public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
     : IAccessGrantRepository
 {
     private static readonly JsonSerializerOptions AuditOptions =
         new(JsonSerializerDefaults.Web);
 
-    public async Task<IReadOnlyCollection<AccessGrant>> ListForUserAsync(
-        Guid userId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<AccessGrant>> ListAsync(
+        AccessGrantSubject subject, CancellationToken cancellationToken = default)
     {
         var rows = await dbContext.AccessGrants.AsNoTracking()
-            .Where(item => item.SubjectKind == "User" && item.UserId == userId)
+            .Where(item => item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupSid == subject.GroupSid)
             .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Id)
             .Take(501)
             .ToArrayAsync(cancellationToken);
@@ -31,7 +31,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_LIST_TOO_LARGE", FailureKind.Validation,
-                "The user has too many assignment records for a complete inspection.");
+                "The subject has too many assignment records for a complete inspection.");
         }
 
         if (rows.Length == 0)
@@ -50,8 +50,8 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 .Select(binding => binding.AssetId))).ToArray();
     }
 
-    public async Task<AccessGrant> CreateForUserAsync(
-        Guid userId, CreateAccessGrantCommand command,
+    public async Task<AccessGrant> CreateAsync(
+        AccessGrantSubject subject, CreateAccessGrantCommand command,
         SecurityActorContext actor, DateTimeOffset nowUtc,
         CancellationToken cancellationToken = default)
     {
@@ -62,9 +62,9 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
 
-        var user = await dbContext.Users.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == userId && item.IsActive,
-                cancellationToken);
+        var targetActive = subject.Kind == AccessGrantSubjectKind.WindowsGroup ||
+            await dbContext.Users.AsNoTracking().AnyAsync(
+                item => item.Id == subject.UserId && item.IsActive, cancellationToken);
         var admin = await dbContext.Users.AsNoTracking()
             .AnyAsync(item => item.Id == actor.UserId && item.IsActive,
                 cancellationToken);
@@ -75,8 +75,8 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             .SingleOrDefaultAsync(item => item.Id == command.RoleId && item.IsActive,
                 cancellationToken);
 
-        if (user is null || !admin || !isAdmin || role is null ||
-            actor.UserId == userId)
+        if (!targetActive || !admin || !isAdmin || role is null ||
+            actor.UserId == subject.UserId)
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_FORBIDDEN",
@@ -92,7 +92,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         }
 
         var scopeIds = command.AssetIds.Distinct().ToArray();
-        if (scopeIds.Length != command.AssetIds.Count ||
+        if (!Enum.IsDefined(command.ScopeKind) || scopeIds.Length != command.AssetIds.Count ||
             (command.ScopeKind == AccessGrantScopeKind.ExactAssets &&
              scopeIds.Length == 0) ||
             (command.ScopeKind != AccessGrantScopeKind.ExactAssets &&
@@ -140,7 +140,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         // Prevent uncontrolled duplicate grants; administrators should edit
         // the existing assignment rather than create indistinguishable rows.
         var existing = await dbContext.AccessGrants.AsNoTracking()
-            .Where(item => item.SubjectKind == "User" && item.UserId == userId &&
+            .Where(item => item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupSid == subject.GroupSid &&
                 item.RoleId == command.RoleId &&
                 item.ScopeKind == command.ScopeKind.ToString() && item.IsActive)
             .AnyAsync(cancellationToken);
@@ -156,8 +156,9 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         dbContext.AccessGrants.Add(new AccessGrantEntity
         {
             Id = id,
-            SubjectKind = "User",
-            UserId = userId,
+            SubjectKind = subject.Kind.ToString(),
+            UserId = subject.UserId,
+            GroupSid = subject.GroupSid,
             RoleId = role.Id,
             ScopeKind = command.ScopeKind.ToString(),
             IsActive = true,
@@ -186,7 +187,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             CorrelationId = actor.CorrelationId,
             DetailsJson = JsonSerializer.Serialize(new
             {
-                userId, roleId = role.Id, roleRevision = role.Revision,
+                subjectKind = subject.Kind.ToString(), userId = subject.UserId, groupSid = subject.GroupSid, roleId = role.Id, roleRevision = role.Revision,
                 scopeKind = command.ScopeKind.ToString(),
                 assetIds = scopeIds,
                 liveAuthorizationUnchanged = true
@@ -198,42 +199,20 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (PostgresException exception)
-            when (exception.SqlState is PostgresErrorCodes.SerializationFailure or
-                PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.UniqueViolation)
+        catch (Exception exception) when (IsConcurrentWrite(exception))
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
                 "A concurrent security change occurred. Reload before retrying.",
                 innerException: exception);
         }
-        catch (DbUpdateException exception)
-            when (exception.InnerException is PostgresException
-                { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            throw new WellSiteAutoPilotException(
-                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
-                "An active matching grant already exists. Reload before retrying.",
-                innerException: exception);
-        }
-        catch (InvalidOperationException exception)
-            when (exception.InnerException is PostgresException postgres &&
-                postgres.SqlState is
-                    PostgresErrorCodes.SerializationFailure or
-                    PostgresErrorCodes.DeadlockDetected)
-        {
-            throw new WellSiteAutoPilotException(
-                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
-                "Concurrent grant creation interrupted the transaction. Reload before retrying.",
-                innerException: exception);
-        }
 
-        return new AccessGrant(id, AccessGrantSubjectKind.User,
-            userId, null, role.Id, command.ScopeKind, scopeIds, true, 1);
+        return new AccessGrant(id, subject.Kind,
+            subject.UserId, subject.GroupSid, role.Id, command.ScopeKind, scopeIds, true, 1);
     }
 
-    public async Task<AccessGrant> DeactivateForUserAsync(
-        Guid userId, Guid grantId, long expectedRevision,
+    public async Task<AccessGrant> DeactivateAsync(
+        AccessGrantSubject subject, Guid grantId, long expectedRevision,
         SecurityActorContext actor, DateTimeOffset nowUtc,
         CancellationToken cancellationToken = default)
     {
@@ -241,7 +220,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         nowUtc = nowUtc.ToUniversalTime();
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
-        var authorized = actor.UserId is { } adminId && adminId != userId &&
+        var authorized = actor.UserId is { } adminId && adminId != subject.UserId &&
             await dbContext.Users.AsNoTracking().AnyAsync(
                 user => user.Id == adminId && user.IsActive, cancellationToken) &&
             await dbContext.UserRoles.AsNoTracking().AnyAsync(
@@ -253,7 +232,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 "SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
                 "An active, distinct administrator is required.");
         }
-        if (!await dbContext.Users.AsNoTracking().AnyAsync(
+        if (subject.UserId is { } userId && !await dbContext.Users.AsNoTracking().AnyAsync(
             user => user.Id == userId && user.IsActive, cancellationToken))
         {
             throw new WellSiteAutoPilotException(
@@ -262,13 +241,13 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
         }
         var current = await dbContext.AccessGrants.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == grantId &&
-                item.SubjectKind == "User" && item.UserId == userId,
+                item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupSid == subject.GroupSid,
                 cancellationToken);
         if (current is null)
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_NOT_FOUND", FailureKind.NotFound,
-                "Assignment not found for the specified user.");
+                "Assignment not found for the specified subject.");
         }
         if (!current.IsActive || current.Revision != expectedRevision)
         {
@@ -282,7 +261,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             // Atomic compare-and-set prevents stale writers and double audit.
             var changed = await dbContext.AccessGrants
                 .Where(item => item.Id == grantId &&
-                    item.SubjectKind == "User" && item.UserId == userId &&
+                    item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupSid == subject.GroupSid &&
                     item.IsActive && item.Revision == expectedRevision)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(item => item.IsActive, false)
@@ -308,7 +287,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 CorrelationId = actor.CorrelationId,
                 DetailsJson = JsonSerializer.Serialize(new
                 {
-                    userId, roleId = current.RoleId,
+                    subjectKind = subject.Kind.ToString(), userId = subject.UserId, groupSid = subject.GroupSid, roleId = current.RoleId,
                     scopeKind = current.ScopeKind,
                     previousRevision = expectedRevision,
                     newRevision = expectedRevision + 1,
@@ -318,20 +297,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (PostgresException exception)
-            when (exception.SqlState is PostgresErrorCodes.SerializationFailure or
-                PostgresErrorCodes.DeadlockDetected)
-        {
-            throw new WellSiteAutoPilotException(
-                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
-                "Concurrent security change. Reload before retrying.",
-                innerException: exception);
-        }
-        catch (InvalidOperationException exception)
-            when (exception.InnerException is PostgresException postgres &&
-                postgres.SqlState is
-                    PostgresErrorCodes.SerializationFailure or
-                    PostgresErrorCodes.DeadlockDetected)
+        catch (Exception exception) when (IsConcurrentWrite(exception))
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
@@ -344,11 +310,29 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             .OrderBy(item => item.AssetId)
             .Select(item => item.AssetId)
             .ToArrayAsync(cancellationToken);
-        return new AccessGrant(current.Id, AccessGrantSubjectKind.User,
-            current.UserId, null, current.RoleId,
+        return new AccessGrant(current.Id, subject.Kind,
+            current.UserId, current.GroupSid, current.RoleId,
             Enum.Parse<AccessGrantScopeKind>(current.ScopeKind),
             assets, false, expectedRevision + 1);
     }
+
+    public Task<IReadOnlyCollection<AccessGrant>> ListForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        ListAsync(AccessGrantSubject.ForUser(userId), cancellationToken);
+
+    public Task<AccessGrant> CreateForUserAsync(Guid userId, CreateAccessGrantCommand command, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+        CreateAsync(AccessGrantSubject.ForUser(userId), command, actor, nowUtc, cancellationToken);
+
+    public Task<AccessGrant> DeactivateForUserAsync(Guid userId, Guid grantId, long expectedRevision, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+        DeactivateAsync(AccessGrantSubject.ForUser(userId), grantId, expectedRevision, actor, nowUtc, cancellationToken);
+
+    // SaveChanges may wrap a PostgreSQL serialization/deadlock error first in
+    // DbUpdateException, then in Npgsql's transient InvalidOperationException.
+    // Classify the original provider code at any depth; never retry a security
+    // mutation or turn unrelated failures (e.g. an invalid audit) into success.
+    private static bool IsConcurrentWrite(Exception exception) =>
+        exception.GetBaseException() is PostgresException postgres &&
+        postgres.SqlState is PostgresErrorCodes.SerializationFailure or
+            PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.UniqueViolation;
 
     private static AccessGrant ToDomain(AccessGrantEntity row,
         IEnumerable<Guid> assetIds)

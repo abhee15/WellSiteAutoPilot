@@ -5,7 +5,7 @@ import { GrantValidationError, previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft, ScopeKind } from './scopedAccessGrants';
 
 type Props = {
-  user: { userId: string; identityName: string };
+  user: { userId: string; identityName: string; groupSid?: string };
   roles: readonly RoleRecord[]; permissions: readonly PermissionDefinition[];
   assets: readonly AssetChoice[]; allowAllAssets: boolean;
   onContinue: (grant: GrantDraft) => void; onCancel: () => void;
@@ -21,9 +21,10 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
   const [acknowledged, setAcknowledged] = useState(false);
   const role = roles.find(item => item.roleId === roleId) ?? null;
   const reviewedRoleRevision = role?.revision ?? 0;
-  const draft = useMemo<GrantDraft>(() => ({ subjectKind: 'User', userId: user.userId,
+  const draft = useMemo<GrantDraft>(() => ({ subjectKind: user.groupSid ? 'WindowsGroup' : 'User', userId: user.userId,
+    ...(user.groupSid ? { groupSid: user.groupSid } : {}),
     roleId, scopeKind, assetIds, expectedRoleRevision: reviewedRoleRevision }),
-  [user.userId, roleId, scopeKind, assetIds, reviewedRoleRevision]);
+  [user.userId, user.groupSid, roleId, scopeKind, assetIds, reviewedRoleRevision]);
   const preview = useMemo(() => {
     try { return previewGrant(draft, role, permissions, assets, allowAllAssets); }
     catch (error) {
@@ -47,7 +48,7 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
           {t('access.cancel')}
         </button>
       </div>
-      <p className="access-note access-intro">{t('grants.forUser', { name: user.identityName })}</p>
+      <p className="access-note access-intro">{t(user.groupSid ? 'grants.forGroup' : 'grants.forUser', { name: user.identityName })}</p>
       <div className="grant-fields">
         <label>{t('grants.role')}
           <select value={roleId} onChange={event => {

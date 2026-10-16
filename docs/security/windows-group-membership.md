@@ -66,3 +66,38 @@ Do not report token observation time as directory verification time.
   membership; Linux tests prove generic/header claims cannot substitute for it.
   A local Windows process-token test is not a browser Negotiate handshake or
   evidence of domain/nested-group/reauthentication behavior.
+
+## Assignment administration
+
+Administration → Scoped grants supports both individual users and Windows
+security groups. Select Windows group, enter the group's SID obtained from
+Windows/AD, then load its assignments. The role/permission preview, explicit
+Asset scope, final review, durable readback and revision-fenced retirement
+are shared with direct assignments. Built-in and custom roles use the same
+catalog; resource and deployment permissions remain paired with each grant's
+scope. Group names are not identifiers. SID syntax validation does not prove
+that a group exists in the directory, or that the current user belongs to it.
+Directory browsing is not required for this MVP slice.
+
+Group endpoints are `/security/windows-groups/{groupSid}/grants` (GET/POST)
+and `/{grantId}/deactivate` (PUT), under `/api/v1`. They require the existing
+active administrator authority. Both service and transactional repository
+validate roles/scopes; writes audit the subject kind, canonical SID, actor,
+role/revision and mutation in the same transaction. An active subject/role/
+scope assignment is unique. Failed audit writes roll back creation and
+retirement. No automatic write retries occur in the UI.
+
+These records remain **proposed access**: neither entering a SID nor assigning
+a role changes the administrator's or any member's current legacy authority.
+The runtime replacement must add group-aware self-change checks, last-direct-
+administrator protection and request-time revocation before activating these
+grants. Do not wire group grants into legacy claims independently of those
+protections. Multi-group and direct/group evaluation is already tested at the
+pure evaluator and SQL resource-query boundary; this slice adds authoring,
+not a claim that the complete AD/domain runtime has shipped.
+
+The schema change adds only a filtered uniqueness index for active group
+assignments. It contains no backfill or rollout state machine. Unreleased dev
+snapshots containing manually inserted duplicate active group assignments
+should be reset/reseeded explicitly rather than preserved through a data
+repair campaign.

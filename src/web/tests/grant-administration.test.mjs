@@ -155,3 +155,37 @@ test('post-write readback must match the entire receipt before claiming success'
   }
   assert.throws(() => api.verifyGrantReadback(row, []), { kind: 'invalidResponse' });
 });
+
+test('Windows group assignments keep subject identity through create, readback and retirement', async () => {
+  const groupSid = 'S-1-5-21-100-200-300-400';
+  const groupDraft = { ...draft, subjectKind: 'WindowsGroup', userId: '', groupSid };
+  const groupRow = { ...row, subjectKind: 'WindowsGroup', userId: null, groupSid };
+  const path = '/api/v1/security/windows-groups/' + groupSid + '/grants';
+  const saved = await api.createGrant(groupDraft, true, signal(), async (url, init) => {
+    assert.equal(url, path);
+    assert.equal(init.method, 'POST');
+    assert.equal(JSON.parse(init.body).groupSid, undefined);
+    return new Response(JSON.stringify(groupRow), { status: 201 });
+  });
+  assert.equal(saved.groupSid, groupSid);
+  const rows = await api.loadGrants(groupSid, signal(), async (url) => {
+    assert.equal(url, path); return new Response(JSON.stringify([groupRow]));
+  });
+  api.verifyGrantReadback(groupRow, rows);
+  const retired = { ...groupRow, isActive: false, revision: 2 };
+  assert.deepEqual(await api.deactivateGrant(groupRow, true, signal(), async (url) => {
+    assert.equal(url, path + '/' + grantId + '/deactivate');
+    return new Response(JSON.stringify(retired));
+  }), retired);
+  for (const bad of [row, { ...groupRow, groupSid: 'S-1-5-21-100-200-300-401' },
+    { ...groupRow, userId }, { ...groupRow, groupSid: groupSid.toLowerCase() }]) {
+    await assert.rejects(api.loadGrants(groupSid, signal(), async () => new Response(JSON.stringify([bad]))),
+      { kind: 'invalidResponse' });
+    await assert.rejects(api.createGrant(groupDraft, true, signal(), async () => new Response(JSON.stringify(bad), { status: 201 })),
+      { kind: 'invalidResponse' });
+  }
+  for (const badSid of ['FIELD\\Operators', 'S-1-5-01', 'S-1-5-4294967296', ' S-1-5-21']) {
+    await assert.rejects(api.createGrant({ ...groupDraft, groupSid: badSid }, true, signal(),
+      async () => { throw new Error('Invalid subject reached network'); }), { kind: 'invalid' });
+  }
+});

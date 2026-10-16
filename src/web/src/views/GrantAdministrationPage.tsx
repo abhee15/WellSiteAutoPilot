@@ -1,3 +1,4 @@
+import { isWindowsSid } from '../security/windowsSid';
 import { ProposedAssetAccessPanel } from './ProposedAssetAccessPanel';
 import { LegacyMigrationPreflightPanel } from './LegacyMigrationPreflightPanel';
 import { DeploymentMigrationPreflightPanel } from './DeploymentMigrationPreflightPanel';
@@ -9,7 +10,7 @@ import { loadSecurityUsers } from './accessManagement';
 import type { VerifiedSecurityUser } from './accessManagement';
 import { loadRoleCatalog } from './roleCatalog';
 import type { PermissionDefinition, RoleRecord } from './roleCatalog';
-import { createGrant, deactivateGrant, verifyGrantReadback, loadGrants } from './grantAdministration';
+import { createGrant, deactivateGrant, grantSubjectKey, verifyGrantReadback, loadGrants } from './grantAdministration';
 import type { PersistedGrant } from './grantAdministration';
 import { previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
@@ -27,6 +28,8 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
   const [permissions, setPermissions] = useState<PermissionDefinition[]>([]);
   const [assets, setAssets] = useState<AssetChoice[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [subjectKind, setSubjectKind] = useState<'User' | 'WindowsGroup'>('User');
+  const [groupSid, setGroupSid] = useState('');
   const [grants, setGrants] = useState<PersistedGrant[]>([]);
   const [pending, setPending] = useState<GrantDraft | null>(null);
   const [retiring, setRetiring] = useState<PersistedGrant | null>(null);
@@ -51,7 +54,9 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
     }
   }, []);
 
-  const selectedUser = users.find(x => x.userId === selectedUserId);
+  const selectedUser = subjectKind === 'WindowsGroup' && isWindowsSid(selectedUserId)
+    ? { userId: '', identityName: selectedUserId, groupSid: selectedUserId }
+    : users.find(x => x.userId === selectedUserId);
   const selectedRole = roles.find(x => x.roleId === pending?.roleId) ?? null;
   const preview = useMemo(() => {
     if (!pending) return null;
@@ -121,14 +126,14 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
 
   const save = async () => {
     if (!pending || !preview || saving || grantsLoading || mutationRef.current || retiring ||
-      pending.userId !== selectedUserId) return;
+      (pending.groupSid ?? pending.userId) !== selectedUserId) return;
     const abort = new AbortController();
     mutationRef.current = abort;
     setSaving(true); setNotice(null);
     try {
       const persisted = await createGrant(pending, true, abort.signal);
       if (abort.signal.aborted) return;
-      const records = await loadGrants(pending.userId, abort.signal);
+      const records = await loadGrants(pending.groupSid ?? pending.userId, abort.signal);
       if (abort.signal.aborted) return;
       verifyGrantReadback(persisted, records);
       setGrants(records); setPending(null); setNotice(t('grants.savedDraft'));
@@ -147,14 +152,14 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
 
   const deactivate = async () => {
     if (!retiring || !retireConfirmed || !retiring.isActive || saving || grantsLoading ||
-      mutationRef.current || retiring.userId !== selectedUserId) return;
+      mutationRef.current || grantSubjectKey(retiring) !== selectedUserId) return;
     const abort = new AbortController();
     mutationRef.current = abort;
     setSaving(true); setNotice(null); setError(null);
     try {
       const saved = await deactivateGrant(retiring, true, abort.signal);
       if (abort.signal.aborted) return;
-      const records = await loadGrants(retiring.userId, abort.signal);
+      const records = await loadGrants(grantSubjectKey(retiring), abort.signal);
       if (abort.signal.aborted) return;
       verifyGrantReadback(saved, records);
       setGrants(records); setRetiring(null); setRetireConfirmed(false);
@@ -188,6 +193,24 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
         {notice && <p role="status" className="access-intro">{notice}</p>}
         {!isLoading && !error && (
+          <label className="grant-user-picker">{t('grants.subjectKind')}
+            <select value={subjectKind} disabled={saving || deploymentWriting}
+              onChange={event => { setSubjectKind(event.target.value as 'User' | 'WindowsGroup'); void pickUser(''); }}>
+              <option value="User">{t('grants.userSubject')}</option>
+              <option value="WindowsGroup">{t('grants.groupSubject')}</option>
+            </select>
+          </label>
+        )}
+        {!isLoading && !error && subjectKind === 'WindowsGroup' && (
+          <form className="grant-user-picker" onSubmit={event => { event.preventDefault(); if (isWindowsSid(groupSid)) void pickUser(groupSid.toUpperCase()); }}>
+            <label htmlFor="grant-group-sid">{t('grants.groupSid')}</label>
+            <input id="grant-group-sid" value={groupSid} maxLength={252} disabled={saving || deploymentWriting}
+              onChange={event => { setGroupSid(event.target.value); void pickUser(''); }} aria-describedby="grant-group-help" />
+            <small id="grant-group-help">{t('grants.groupHelp')}</small>
+            <button type="submit" disabled={saving || deploymentWriting || !isWindowsSid(groupSid)}>{t('grants.loadGroup')}</button>
+          </form>
+        )}
+        {!isLoading && !error && subjectKind === 'User' && (
           <label className="grant-user-picker">
             {t('grants.chooseUser')}
             <select value={selectedUserId} disabled={saving || deploymentWriting}
@@ -226,19 +249,20 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
               })}</ul>}
             <button type="button" disabled={saving || grantsLoading || Boolean(retiring)}
               onClick={() => setPending({
-                subjectKind: 'User', userId: selectedUser.userId,
+                subjectKind, userId: selectedUser.userId,
+                ...('groupSid' in selectedUser ? { groupSid: selectedUser.groupSid } : {}),
                 roleId: '', scopeKind: 'ExactAssets', assetIds: [], expectedRoleRevision: 0,
               })}>{t('grants.new')}</button>
           </div>
         )}
       </section>
-      {!pending && !retiring && !error && !isLoading && !grantsLoading &&
+      {subjectKind === 'User' && !pending && !retiring && !error && !isLoading && !grantsLoading &&
         <DeploymentMigrationPreflightPanel users={users} onWritingChange={deploymentWritingChanged} />}
-      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+      {subjectKind === 'User' && selectedUser && !pending && !retiring && !error && !grantsLoading &&
         <LegacyMigrationPreflightPanel key={'preflight:' + selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
-      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+      {subjectKind === 'User' && selectedUser && !pending && !retiring && !error && !grantsLoading &&
         <EffectiveAccessInspector key={'inspection:' + selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
-      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+      {subjectKind === 'User' && selectedUser && !pending && !retiring && !error && !grantsLoading &&
         <ProposedAssetAccessPanel key={'assets:' + selectedUser.userId} userId={selectedUser.userId} permissions={permissions} />}
       {selectedUser && retiring && !error && (
         <section className="panel grant-final-review" role="region"
@@ -269,7 +293,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
       )}
       {selectedUser && pending && !pending.roleId && (
         <ScopedGrantEditor
-          key={selectedUser.userId} user={selectedUser}
+          key={selectedUserId} user={selectedUser}
           roles={roles} permissions={permissions} assets={assets}
           allowAllAssets={true}
           onContinue={draft => setPending(draft)}

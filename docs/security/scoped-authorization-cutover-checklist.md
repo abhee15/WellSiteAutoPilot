@@ -9,10 +9,10 @@ an enforcement switch based solely on this document or passing migration CI.**
   scopes remain the live authorization source until the complete grant-based replacement is validated.
 - The new grant/role SQL queries are diagnostic and must agree with the pure
   scoped-grant evaluator. Any SQL/domain disagreement blocks cutover.
-- Every resource decision must use a **single active direct-user role grant**
+- Every resource decision must use a **single active direct-user or verified Windows-group role grant**
   containing both the permission and the Asset scope; do not union permissions
-  from one grant with scopes from another. Windows group SID grants cannot
-  authorize until a trusted resolver and issue #77 are complete.
+  from one grant with scopes from another. The native enabled-token resolver and paired group evaluation are implemented;
+  live group authorization still requires the complete #76/#77 runtime boundary.
 - Role or Asset inactivity, malformed/duplicate grants, unknown permissions,
   absent Assets, unverified identities, and concurrent revisions must fail
   closed. `AllAssets` is explicit, not implied by a global permission.
@@ -93,10 +93,9 @@ implemented in small PRs, but do not expose an incomplete mixed authority.
 
 The reviewed route/method/policy inventory lives in
 [`tools/ci/check_api_authorization.py`](../../tools/ci/check_api_authorization.py).
-At this review it contains **43 endpoints: 2 authenticated-only and 41 named
-policy endpoints**, including Asset/Configured Logic capabilities and configured
-Shadow submission. Keep that executable inventory current in each API change
-rather than maintaining a second table here that can drift.
+It includes user/group assignment administration, Asset/Configured Logic
+capabilities and configured Shadow submission. Keep that executable inventory
+current in each API change rather than duplicating endpoint counts here.
 
 The guard detects policy metadata changes; it does not prove resource
 scope, revocation safety or SQL filtering before pagination. Integration tests

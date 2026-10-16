@@ -140,3 +140,42 @@ it('clears selected-user grants and blocks administration while a deployment wri
   expect(loadGrants).toHaveBeenCalledTimes(2);
   expect(materializeLegacyGrants).toHaveBeenCalledTimes(1);
 });
+
+it('records and retires a Windows group custom-role assignment through the shared reviewed workflow', async () => {
+  const sid = 'S-1-5-21-100-200-300-400';
+  const groupRow = { ...row, subjectKind: 'WindowsGroup' as const, userId: null, groupSid: sid };
+  const retired = { ...groupRow, isActive: false, revision: 2 };
+  vi.mocked(loadGrants).mockResolvedValueOnce([]).mockResolvedValueOnce([groupRow]).mockResolvedValueOnce([retired]);
+  vi.mocked(createGrant).mockResolvedValue(groupRow);
+  vi.mocked(deactivateGrant).mockResolvedValue(retired);
+  const user = userEvent.setup();
+  render(<GrantAdministrationPage currentUserId={adminId} />);
+  await user.selectOptions(await screen.findByRole('combobox', { name: 'Assignment target' }), 'WindowsGroup');
+  expect(screen.queryByRole('combobox', { name: 'User to administer' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Check deployment parity' })).toBeNull();
+  const sidInput = screen.getByRole('textbox', { name: 'Windows group SID' });
+  const load = screen.getByRole('button', { name: 'Load group assignments' });
+  await user.type(sidInput, 'FIELD\\Operators');
+  expect((load as HTMLButtonElement).disabled).toBe(true);
+  expect(loadGrants).not.toHaveBeenCalled();
+  await user.clear(sidInput);
+  await user.type(sidInput, sid.toLowerCase());
+  await user.click(load);
+  expect(loadGrants).toHaveBeenCalledWith(sid, expect.any(AbortSignal));
+  await user.click(await screen.findByRole('button', { name: 'Prepare a scoped grant' }));
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Role' }), roleId);
+  await user.click(screen.getByRole('checkbox', { name: /^Well Alpha/ }));
+  await user.click(screen.getByRole('checkbox', { name: 'I reviewed the role, permissions, and Asset boundaries.' }));
+  await user.click(screen.getByRole('button', { name: 'Continue to final review' }));
+  expect(createGrant).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Record and audit grant' }));
+  await screen.findByText('Grant recorded, audited, and verified. Live user access remains unchanged.');
+  expect(createGrant).toHaveBeenCalledExactlyOnceWith({ subjectKind: 'WindowsGroup', userId: '', groupSid: sid,
+    roleId, scopeKind: 'ExactAssets', assetIds: [assetId], expectedRoleRevision: 1 }, true, expect.any(AbortSignal));
+  await user.click(screen.getByRole('button', { name: 'Deactivate grant' }));
+  const review = screen.getByRole('region', { name: 'Review grant deactivation' });
+  await user.click(within(review).getByRole('checkbox'));
+  await user.click(within(review).getByRole('button', { name: 'Deactivate grant' }));
+  await screen.findByText('Grant deactivated and verified. Current live user access remains unchanged.');
+  expect(deactivateGrant).toHaveBeenCalledExactlyOnceWith(groupRow, true, expect.any(AbortSignal));
+});

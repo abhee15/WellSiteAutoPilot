@@ -11,7 +11,7 @@
 
 /* Grant admin: clear separation between planning and audited persistence. */
 .grant-user-picker { display: grid; gap: 8px; margin: 12px 18px; max-width: 520px; }
-.grant-user-picker select { color: var(--color-text-primary); background: var(--color-surface-input); border: 1px solid var(--color-border-control); border-radius: 6px; padding: 9px; font: inherit; width: 100%; }
+.grant-user-picker select, .grant-user-picker input { color: var(--color-text-primary); background: var(--color-surface-input); border: 1px solid var(--color-border-control); border-radius: 6px; padding: 9px; font: inherit; width: 100%; }
 .grant-current-list { margin: 18px; }
 .grant-current-list li, .grant-final-review li { overflow-wrap: anywhere; }
 .grant-final-review { margin-top: 18px; }

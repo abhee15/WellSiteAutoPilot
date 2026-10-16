@@ -173,3 +173,38 @@ assert request("POST", "/security/rollback-legacy-grants", body={"confirmed": Tr
 assert request("GET", "/assets", OPERATOR) == before_assets
 request("GET", f"/assets/{outside['id']}", OPERATOR, expected=403)
 print("Migration HTTP confirmation, parity, idempotency, rollback, and legacy authorization checks passed.")
+
+# Group targets use SID identity, the same role/scope validation, and CAS retirement.
+# The SID is an assignment target, never a claim of the caller's membership.
+group_sid = 'S-1-5-21-710-720-730-740'
+group_path = f'/security/windows-groups/{group_sid}/grants'
+for identity, status in [(None, 401), (OPERATOR, 403)]:
+    request('GET', group_path, identity, expected=status)
+    request('POST', group_path, identity, command, expected=status)
+    request('PUT', group_path + f'/{uuid.uuid4()}/deactivate', identity,
+            {'expectedRevision': 1}, expected=status)
+for invalid_sid in ['not-a-sid', 'S-1-5-01', 'S-1-5-4294967296']:
+    request('GET', f'/security/windows-groups/{invalid_sid}/grants', expected=400)
+request('POST', group_path, body=command, expected=409)  # role changed above
+current_role = request('GET', f"/security/roles/{role['roleId']}")
+group_command = {**command, 'expectedRoleRevision': current_role['revision']}
+request('POST', group_path, body={**group_command, 'assetIds': []}, expected=400)
+request('POST', group_path, body={**group_command, 'scopeKind': 'Unknown'}, expected=400)
+group_grant = request('POST', group_path.replace('S-1-', 's-1-'), body=group_command, expected=201)
+assert group_grant['subjectKind'] == 'WindowsGroup' and group_grant['userId'] is None
+assert group_grant['groupSid'] == group_sid and group_grant['assetIds'] == command['assetIds']
+assert request('GET', group_path) == [group_grant]
+assert request('GET', '/security/windows-groups/S-1-5-21-710-720-730-741/grants') == []
+request('POST', group_path, body=group_command, expected=409)
+request('PUT', f"/security/users/{operator['userId']}/grants/{group_grant['grantId']}/deactivate",
+        body={'expectedRevision': 1}, expected=404)
+request('PUT', f"/security/windows-groups/S-1-5-21-710-720-730-741/grants/{group_grant['grantId']}/deactivate",
+        body={'expectedRevision': 1}, expected=404)
+retire_group_path = group_path + f"/{group_grant['grantId']}/deactivate"
+group_retired = request('PUT', retire_group_path, body={'expectedRevision': 1})
+assert not group_retired['isActive'] and group_retired['revision'] == 2
+assert group_retired['groupSid'] == group_sid and group_retired['userId'] is None
+assert request('GET', group_path) == [group_retired]
+request('PUT', retire_group_path, body={'expectedRevision': 1}, expected=409)
+assert request('GET', '/assets', OPERATOR) == before_assets
+print('Windows-group HTTP authentication, SID normalization, scope validation, subject isolation and retirement passed.')

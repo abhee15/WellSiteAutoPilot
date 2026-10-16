@@ -617,7 +617,7 @@ v1.MapPost(
     "/security/users/{userId:guid}/grants",
     async (
         Guid userId,
-        CreateUserAccessGrantRequest request,
+        CreateAccessGrantRequest request,
         AccessGrantAdministrationService grants,
         HttpContext context,
         CancellationToken cancellationToken) =>
@@ -659,7 +659,7 @@ v1.MapPut(
     async (
         Guid userId,
         Guid grantId,
-        DeactivateUserAccessGrantRequest request,
+        DeactivateAccessGrantRequest request,
         AccessGrantAdministrationService grants,
         HttpContext context,
         CancellationToken cancellationToken) =>
@@ -671,6 +671,92 @@ v1.MapPut(
                 CorrelationContext.GetCorrelationId(context)),
             cancellationToken)))
     .WithName("DeactivateUserAccessGrant")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapGet(
+    "/security/windows-groups/{groupSid}/grants",
+    async (
+        string groupSid,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+        (await grants.ListAsync(
+            AccessGrantSubject.ForWindowsGroup(groupSid),
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken))
+        .Select(ToAccessGrantResponse).ToArray())
+    .WithName("ListWindowsGroupAccessGrants")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapPost(
+    "/security/windows-groups/{groupSid}/grants",
+    async (
+        string groupSid,
+        CreateAccessGrantRequest request,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        if (!Enum.TryParse<AccessGrantScopeKind>(
+                request.ScopeKind, ignoreCase: false, out var scope) ||
+            !Enum.IsDefined(scope))
+        {
+            throw new WellSiteAutoPilotException(
+                FailureCodes.ValidationFailed, FailureKind.Validation,
+                "An explicit supported grant scope kind is required.");
+        }
+
+        var result = await grants.CreateAsync(
+            AccessGrantSubject.ForWindowsGroup(groupSid),
+            new CreateAccessGrantCommand(
+                request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/security/windows-groups/{Uri.EscapeDataString(result.GroupSid!)}/grants",
+            ToAccessGrantResponse(result));
+    })
+    .WithName("CreateWindowsGroupAccessGrant")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AccessGrantResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapPut(
+    "/security/windows-groups/{groupSid}/grants/{grantId:guid}/deactivate",
+    async (
+        string groupSid,
+        Guid grantId,
+        DeactivateAccessGrantRequest request,
+        AccessGrantAdministrationService grants,
+        HttpContext context,
+        CancellationToken cancellationToken) =>
+        ToAccessGrantResponse(await grants.DeactivateAsync(
+            AccessGrantSubject.ForWindowsGroup(groupSid), grantId, request.ExpectedRevision,
+            new SecurityActorContext(
+                GetCurrentUserId(context.User),
+                context.User.Identity?.Name ?? "unknown",
+                CorrelationContext.GetCorrelationId(context)),
+            cancellationToken)))
+    .WithName("DeactivateWindowsGroupAccessGrant")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
