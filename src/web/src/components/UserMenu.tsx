@@ -1,3 +1,4 @@
+import { hasPermission } from '../security/sessionAccess';
 import type { CurrentUserResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 
@@ -37,7 +38,7 @@ export function UserMenu({
           </dl>
         )}
         <p className="user-panel-note">{t('session.authNotice')}</p>
-        {user?.isActive && user.roles?.includes('Admin') && (
+        {hasPermission(user, 'security.manage') && (
           <a className="user-panel-link" href="#access">{t('access.menu')}</a>
         )}
       </div>

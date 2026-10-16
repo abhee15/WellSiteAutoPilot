@@ -134,3 +134,26 @@ field deployments, and must be recorded as passed or explicitly not run.
 
 This development facility is independent of the Perforce pending changelist
 and should not be copied into the P4 workspace as a private custom proxy.
+
+## Server permission hints and scoped workspaces
+
+`GET /api/v1/security/me` supplies the current session's permission keys in
+addition to display roles and legacy Asset scope. The frontend uses those keys
+for navigation, Administration visibility and Recommendation decision controls;
+it does not infer capability from `Admin`, `Engineer` or `Operator` names.
+Missing/malformed permission data fails closed. Role names remain display data.
+
+Refresh resolves the session first and requests only permitted work areas.
+Losing identity, permissions or scope clears previous workspace data and local
+editor state. A 401 invalidates the session. A 403 from one feature clears its
+entire data family and permission hint while preserving unrelated permitted
+work. Malformed/error responses leave that area's data empty and show a refresh
+message. These are presentation hints: resource capabilities and all backend
+checks remain authoritative on every action.
+
+Until the #76/#77 runtime replacement, the server derives this permission list
+from the same persisted legacy roles as current backend policies. Proposed
+custom/direct/group grants do not gain runtime authority through this DTO.
+The final grant cutover must replace that one permission source together with
+policies, scoped SQL and transactional mutation checks. The client is ready to
+consume the resulting keys without depending on built-in role names.

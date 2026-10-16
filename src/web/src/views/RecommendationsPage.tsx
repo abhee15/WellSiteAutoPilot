@@ -100,10 +100,10 @@ export function RecommendationInboxTable({
 }
 
 export function RecommendationsPage({
-  userId, roles,
+  userId, permissions,
 }: {
   userId: string | null | undefined;
-  roles?: readonly string[] | null;
+  permissions?: readonly string[] | null;
 }) {
   const [items, setItems] = useState<RecommendationSummaryResponse[]>([]);
   const [criteria, setCriteria] = useState<RecommendationInboxCriteria>(
@@ -114,8 +114,7 @@ export function RecommendationsPage({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
   const [reviewNotice, setReviewNotice] = useState<string | null>(null);
-  const canDecide = Boolean(userId && roles?.some(role =>
-    role === 'Admin' || role === 'Engineer' || role === 'Operator'));
+  const canDecide = Boolean(userId && permissions?.includes('recommendations.decide'));
   const activeRefresh = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
@@ -169,12 +168,12 @@ export function RecommendationsPage({
   const nowUtc = Date.now();
   const selectedRecommendation = items.find(item => item.id === selectedReviewId);
   useEffect(() => {
-    if (selectedReviewId && (!selectedRecommendation ||
+    if (selectedReviewId && (!canDecide || !selectedRecommendation ||
       !recommendationIsAwaiting(selectedRecommendation, Date.now()))) {
       setSelectedReviewId(null);
-      setReviewNotice(t('decision.outdated'));
+      setReviewNotice(t(canDecide ? 'decision.outdated' : 'decision.accessDenied'));
     }
-  }, [selectedReviewId, selectedRecommendation]);
+  }, [selectedReviewId, selectedRecommendation, canDecide]);
   const counts = inboxCounts(items, nowUtc);
   const visible = useMemo(
     () => filterRecommendationInbox(items, criteria, nowUtc),

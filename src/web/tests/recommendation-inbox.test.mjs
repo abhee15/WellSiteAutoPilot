@@ -117,3 +117,14 @@ test('inbox page initially shows loading without displaying old suggestions', ()
   assert.match(html, /Loading recommendations/);
   assert.doesNotMatch(html, /asset-1/);
 });
+
+test('decision visibility follows server permission even for a custom role name', () => {
+  const deciding = renderToStaticMarkup(createElement(page.RecommendationsPage, {
+    userId: 'custom-reviewer', permissions: ['recommendations.decide'],
+  }));
+  const readOnly = renderToStaticMarkup(createElement(page.RecommendationsPage, {
+    userId: 'named-admin', permissions: [],
+  }));
+  assert.match(deciding, /Approval records a governed review decision/);
+  assert.match(readOnly, /Read-only review/);
+});
