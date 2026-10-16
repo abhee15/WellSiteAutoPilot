@@ -199,33 +199,11 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (PostgresException exception)
-            when (exception.SqlState is PostgresErrorCodes.SerializationFailure or
-                PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.UniqueViolation)
+        catch (Exception exception) when (IsConcurrentWrite(exception))
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
                 "A concurrent security change occurred. Reload before retrying.",
-                innerException: exception);
-        }
-        catch (DbUpdateException exception)
-            when (exception.InnerException is PostgresException
-                { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            throw new WellSiteAutoPilotException(
-                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
-                "An active matching grant already exists. Reload before retrying.",
-                innerException: exception);
-        }
-        catch (InvalidOperationException exception)
-            when (exception.InnerException is PostgresException postgres &&
-                postgres.SqlState is
-                    PostgresErrorCodes.SerializationFailure or
-                    PostgresErrorCodes.DeadlockDetected)
-        {
-            throw new WellSiteAutoPilotException(
-                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
-                "Concurrent grant creation interrupted the transaction. Reload before retrying.",
                 innerException: exception);
         }
 
@@ -319,20 +297,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (PostgresException exception)
-            when (exception.SqlState is PostgresErrorCodes.SerializationFailure or
-                PostgresErrorCodes.DeadlockDetected)
-        {
-            throw new WellSiteAutoPilotException(
-                "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
-                "Concurrent security change. Reload before retrying.",
-                innerException: exception);
-        }
-        catch (InvalidOperationException exception)
-            when (exception.InnerException is PostgresException postgres &&
-                postgres.SqlState is
-                    PostgresErrorCodes.SerializationFailure or
-                    PostgresErrorCodes.DeadlockDetected)
+        catch (Exception exception) when (IsConcurrentWrite(exception))
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_GRANT_CONFLICT", FailureKind.Conflict,
@@ -359,6 +324,15 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
 
     public Task<AccessGrant> DeactivateForUserAsync(Guid userId, Guid grantId, long expectedRevision, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
         DeactivateAsync(AccessGrantSubject.ForUser(userId), grantId, expectedRevision, actor, nowUtc, cancellationToken);
+
+    // SaveChanges may wrap a PostgreSQL serialization/deadlock error first in
+    // DbUpdateException, then in Npgsql's transient InvalidOperationException.
+    // Classify the original provider code at any depth; never retry a security
+    // mutation or turn unrelated failures (e.g. an invalid audit) into success.
+    private static bool IsConcurrentWrite(Exception exception) =>
+        exception.GetBaseException() is PostgresException postgres &&
+        postgres.SqlState is PostgresErrorCodes.SerializationFailure or
+            PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.UniqueViolation;
 
     private static AccessGrant ToDomain(AccessGrantEntity row,
         IEnumerable<Guid> assetIds)

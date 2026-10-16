@@ -185,11 +185,11 @@ for identity, status in [(None, 401), (OPERATOR, 403)]:
             {'expectedRevision': 1}, expected=status)
 for invalid_sid in ['not-a-sid', 'S-1-5-01', 'S-1-5-4294967296']:
     request('GET', f'/security/windows-groups/{invalid_sid}/grants', expected=400)
-request('POST', group_path, body={**command, 'assetIds': []}, expected=400)
-request('POST', group_path, body={**command, 'scopeKind': 'Unknown'}, expected=400)
 request('POST', group_path, body=command, expected=409)  # role changed above
 current_role = request('GET', f"/security/roles/{role['roleId']}")
 group_command = {**command, 'expectedRoleRevision': current_role['revision']}
+request('POST', group_path, body={**group_command, 'assetIds': []}, expected=400)
+request('POST', group_path, body={**group_command, 'scopeKind': 'Unknown'}, expected=400)
 group_grant = request('POST', group_path.replace('S-1-', 's-1-'), body=group_command, expected=201)
 assert group_grant['subjectKind'] == 'WindowsGroup' and group_grant['userId'] is None
 assert group_grant['groupSid'] == group_sid and group_grant['assetIds'] == command['assetIds']

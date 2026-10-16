@@ -54,6 +54,8 @@ internal static class WindowsGroupAdministrationChecks
         if (beforeGrants != await db.AccessGrants.CountAsync() || beforeBindings != await db.AccessGrantAssets.CountAsync() ||
             beforeAudits != await db.AuditEvents.CountAsync()) throw new InvalidOperationException("Partial group creation survived failed audit.");
 
+        await GrantConcurrencyFailureChecks.RunAsync(options, group, command, actor, clock.GetUtcNow());
+
         var grant = await service.CreateAsync(group, command, actor);
         if (grant.SubjectKind != AccessGrantSubjectKind.WindowsGroup || grant.UserId is not null ||
             grant.GroupSid != group.GroupSid || grant.AssetIds.Single() != assetId)
