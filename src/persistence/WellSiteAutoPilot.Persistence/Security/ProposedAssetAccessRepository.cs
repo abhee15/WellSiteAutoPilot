@@ -100,42 +100,6 @@ public sealed class ProposedAssetAccessRepository(WellSiteAutoPilotDbContext db)
         ProductPermissionCatalog.Definitions.Any(item =>
             item.Key == permission && item.ScopeKind == "ResourceScoped");
 
-    private IQueryable<AssetEntity> AuthorizedAssets(
-        Guid userId, string permission)
-    {
-        var activeUsers = db.Users.AsNoTracking();
-        var assignments = db.AccessGrants.AsNoTracking();
-        var bindings = db.AccessGrantAssets.AsNoTracking();
-        var roleDefinitions = db.RoleDefinitions.AsNoTracking();
-        var rolePermissions = db.RolePermissions.AsNoTracking();
-        var activeAssets = db.Assets.AsNoTracking()
-            .Where(asset => asset.IsActive && asset.Id != Guid.Empty);
-
-        return activeAssets
-            .Where(asset => activeUsers.Any(user =>
-                user.Id == userId && user.IsActive) &&
-                assignments.Any(grant =>
-                    grant.SubjectKind == "User" &&
-                    grant.UserId == userId &&
-                    grant.GroupSid == null &&
-                    grant.Id != Guid.Empty && grant.RoleId != Guid.Empty &&
-                    grant.IsActive && grant.Revision >= 1 &&
-                    roleDefinitions.Any(role => role.Id == grant.RoleId &&
-                        role.IsActive && rolePermissions.Any(rolePermission =>
-                            rolePermission.RoleId == role.Id &&
-                            rolePermission.Permission == permission)) &&
-                    (
-                        (grant.ScopeKind == "AllAssets" &&
-                         !bindings.Any(binding => binding.GrantId == grant.Id)) ||
-                        (grant.ScopeKind == "ExactAssets" &&
-                         bindings.Any(binding => binding.GrantId == grant.Id &&
-                             binding.AssetId == asset.Id) &&
-                         bindings.Count(binding => binding.GrantId == grant.Id) <=
-                             ScopedGrantEvaluator.MaximumExactAssetsPerGrant &&
-                         !bindings.Any(binding => binding.GrantId == grant.Id &&
-                             binding.AssetId == Guid.Empty) &&
-                         !bindings.Any(binding => binding.GrantId == grant.Id &&
-                             !activeAssets.Any(other => other.Id == binding.AssetId)))
-                    )));
-    }
+    private IQueryable<AssetEntity> AuthorizedAssets(Guid userId, string permission) =>
+        ScopedAccessQueries.Assets(db, userId, permission);
 }
