@@ -4,6 +4,7 @@ import type {
   AssetCreationCapabilitiesResponse,
   AssetTypeResponse,
   ConfiguredLogicResponse,
+  ConfiguredLogicCapabilitiesResponse,
   CurrentUserResponse,
   ExecutionResponse,
   LogicModuleResponse,
@@ -24,7 +25,7 @@ import { AssetInventoryControls } from './views/AssetInventoryControls';
 import { AssetCreationPanel } from './views/AssetCreationPanel';
 import { LogicCatalogControls } from './views/LogicCatalogControls';
 import { ConfiguredLogicControls } from './views/ConfiguredLogicControls';
-import { ConfiguredLogicRevisionOverview } from './views/ConfiguredLogicRevisionOverview';
+import { ConfiguredLogicWorkspace } from './views/ConfiguredLogicWorkspace';
 import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, latestRevision } from './views/configuredLogicViews';
 import type { ConfiguredLogicCriteria } from './views/configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './views/logicCatalog';
@@ -209,7 +210,11 @@ export function App() {
         )}
         {section === 'logic' && (
           <LogicPage
-            key={currentUser?.userId ?? 'no-user'}
+            key={JSON.stringify([currentUser?.userId, currentUser?.roles, currentUser?.assetScopeIds])}
+            userId={currentUser?.userId}
+            assets={assets}
+            assetTypes={assetTypes}
+            onRefresh={refresh}
             modules={logicModules}
             configuredLogic={configuredLogic}
           />
@@ -598,9 +603,14 @@ function AssetsPage({
 function LogicPage({
   modules,
   configuredLogic,
+  userId, assets, assetTypes, onRefresh,
 }: {
   modules: LogicModuleResponse[];
   configuredLogic: ConfiguredLogicResponse[];
+  userId: string | null | undefined;
+  assets: AssetResponse[];
+  assetTypes: AssetTypeResponse[];
+  onRefresh: () => Promise<void>;
 }) {
   const [catalogCriteria, setCatalogCriteria] = useState<LogicCatalogCriteria>(
     DEFAULT_LOGIC_CATALOG_CRITERIA,
@@ -609,10 +619,20 @@ function LogicPage({
     DEFAULT_CONFIGURED_LOGIC_CRITERIA,
   );
   const [selectedConfiguredId, setSelectedConfiguredId] = useState<string | null>(null);
-  const selectedConfiguration = configuredLogic.find(item => item.id === selectedConfiguredId);
+  const [creating, setCreating] = useState(false);
+  const [canManage, setCanManage] = useState(false);
+  const [capabilityError, setCapabilityError] = useState(false);
   useEffect(() => {
-    if (selectedConfiguredId && !selectedConfiguration) setSelectedConfiguredId(null);
-  }, [selectedConfiguredId, selectedConfiguration]);
+    const c = new AbortController();
+    if (userId) void fetch('/api/v1/configured-logic/capabilities', {
+      signal: c.signal, credentials: 'same-origin', cache: 'no-store',
+    }).then(async response => {
+      if (!response.ok) throw new Error();
+      const value = await response.json() as ConfiguredLogicCapabilitiesResponse;
+      if (!c.signal.aborted) setCanManage(value.canManage === true);
+    }).catch(() => { if (!c.signal.aborted) { setCanManage(false); setCapabilityError(true); } });
+    return () => c.abort();
+  }, [userId]);
   const visibleConfigurations = useMemo(
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
@@ -681,6 +701,9 @@ function LogicPage({
       <section className="panel">
         <PanelHeader eyebrow="Configuration" title="Configured Logic"
           count={visibleConfigurations.length} />
+        {capabilityError && <p role="status">{t('setup.capabilitiesUnavailable')}</p>}
+        {canManage && !creating && !selectedConfiguredId && <button type="button"
+          onClick={() => setCreating(true)}>{t('setup.heading')}</button>}
         <ConfiguredLogicControls
           criteria={configuredCriteria}
           onChange={setConfiguredCriteria}
@@ -719,8 +742,8 @@ function LogicPage({
                         aria-controls={selectedConfiguredId === item.id
                           ? 'configured-revisions' : undefined}
                         aria-label={t('configured.inspectFor', { name: item.name ?? '—' })}
-                        onClick={() => setSelectedConfiguredId(current =>
-                          current === item.id ? null : item.id ?? null)}
+                        onClick={() => { setCreating(false); setSelectedConfiguredId(current =>
+                          current === item.id ? null : item.id ?? null); }}
                       >
                         {t('configured.inspect')}
                       </button>
@@ -736,11 +759,14 @@ function LogicPage({
             </tbody>
           </table>
         </div>
-        {selectedConfiguration && (
-          <ConfiguredLogicRevisionOverview
-            key={selectedConfiguration.id}
-            logic={selectedConfiguration}
-            onClose={() => setSelectedConfiguredId(null)}
+        {(creating || selectedConfiguredId) && (
+          <ConfiguredLogicWorkspace
+            key={selectedConfiguredId ?? 'new'}
+            selectedId={selectedConfiguredId}
+            canManage={canManage}
+            modules={modules} assets={assets} assetTypes={assetTypes}
+            onChanged={onRefresh}
+            onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
           />
         )}
       </section>

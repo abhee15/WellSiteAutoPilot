@@ -1,3 +1,6 @@
+using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Persistence.Audit;
+using WellSiteAutoPilot.Application.Security;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
@@ -11,6 +14,7 @@ public sealed class ConfiguredLogicRepository(
 {
     public async Task AddAsync(
         ConfiguredLogicDefinition configuredLogic,
+        SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configuredLogic);
@@ -26,17 +30,27 @@ public sealed class ConfiguredLogicRepository(
         });
 
         AddRevision(initialRevision);
+        Audit(initialRevision, "CONFIGURED_LOGIC_CREATED", actor, initialRevision.CreatedAtUtc);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task AddRevisionAsync(
         ConfiguredLogicRevision revision,
+        SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(revision);
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await LockDefinitionAsync(revision.ConfiguredLogicId, cancellationToken);
+        var latest = await dbContext.ConfiguredLogicRevisions.AsNoTracking()
+            .Where(item => item.ConfiguredLogicId == revision.ConfiguredLogicId)
+            .MaxAsync(item => (int?)item.RevisionNumber, cancellationToken) ?? 0;
+        if (revision.RevisionNumber != latest + 1) throw Conflict();
         AddRevision(revision);
+        Audit(revision, "CONFIGURED_LOGIC_REVISION_CREATED", actor, revision.CreatedAtUtc);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<ConfiguredLogicDefinition?> GetAsync(
@@ -233,54 +247,81 @@ public sealed class ConfiguredLogicRepository(
         Guid configuredLogicId,
         Guid revisionId,
         DateTimeOffset validatedAtUtc,
+        SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
-        var revision = await dbContext.ConfiguredLogicRevisions
-            .SingleAsync(
-                item => item.Id == revisionId &&
-                        item.ConfiguredLogicId == configuredLogicId,
-                cancellationToken);
-
-        revision.Status = ConfiguredLogicRevisionStatus.Validated.ToString();
-        revision.ValidatedAtUtc = validatedAtUtc;
-
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await LockDefinitionAsync(configuredLogicId, cancellationToken);
+        var changed = await dbContext.ConfiguredLogicRevisions
+            .Where(item => item.Id == revisionId && item.ConfiguredLogicId == configuredLogicId &&
+                item.Status == nameof(ConfiguredLogicRevisionStatus.Draft))
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(item => item.Status, nameof(ConfiguredLogicRevisionStatus.Validated))
+                .SetProperty(item => item.ValidatedAtUtc, validatedAtUtc), cancellationToken);
+        if (changed != 1) throw Conflict();
+        Audit(configuredLogicId, revisionId, "CONFIGURED_LOGIC_REVISION_VALIDATED", actor, validatedAtUtc);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task ActivateRevisionAsync(
         Guid configuredLogicId,
         Guid revisionId,
         DateTimeOffset activatedAtUtc,
+        Guid? expectedActiveRevisionId,
+        SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var definition = await LockDefinitionAsync(configuredLogicId, cancellationToken);
+        if (definition.ActiveRevisionId != expectedActiveRevisionId) throw Conflict();
+        var target = await dbContext.ConfiguredLogicRevisions.AsNoTracking().SingleAsync(
+            item => item.Id == revisionId && item.ConfiguredLogicId == configuredLogicId, cancellationToken);
+        if (target.Status != nameof(ConfiguredLogicRevisionStatus.Validated)) throw Conflict();
 
-        var definition = await dbContext.ConfiguredLogicDefinitions
-            .SingleAsync(item => item.Id == configuredLogicId, cancellationToken);
-
-        var target = await dbContext.ConfiguredLogicRevisions
-            .SingleAsync(
-                item => item.Id == revisionId &&
-                        item.ConfiguredLogicId == configuredLogicId,
-                cancellationToken);
-
-        var activeRevisions = await dbContext.ConfiguredLogicRevisions
-            .Where(
-                item => item.ConfiguredLogicId == configuredLogicId &&
-                        item.Status == nameof(ConfiguredLogicRevisionStatus.Active))
-            .ToArrayAsync(cancellationToken);
-
-        foreach (var active in activeRevisions)
-        {
-            active.Status = ConfiguredLogicRevisionStatus.Superseded.ToString();
-        }
-
-        target.Status = ConfiguredLogicRevisionStatus.Active.ToString();
-        target.ActivatedAtUtc = activatedAtUtc;
-        definition.ActiveRevisionId = target.Id;
-
+        await dbContext.ConfiguredLogicRevisions
+            .Where(item => item.ConfiguredLogicId == configuredLogicId &&
+                item.Status == nameof(ConfiguredLogicRevisionStatus.Active))
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.Status,
+                nameof(ConfiguredLogicRevisionStatus.Superseded)), cancellationToken);
+        await dbContext.ConfiguredLogicRevisions.Where(item => item.Id == revisionId)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(item => item.Status, nameof(ConfiguredLogicRevisionStatus.Active))
+                .SetProperty(item => item.ActivatedAtUtc, activatedAtUtc), cancellationToken);
+        await dbContext.ConfiguredLogicDefinitions.Where(item => item.Id == configuredLogicId)
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, revisionId), cancellationToken);
+        Audit(configuredLogicId, revisionId, "CONFIGURED_LOGIC_REVISION_ACTIVATED", actor, activatedAtUtc);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    // One definition lock orders revision creation, validation and activation.
+    // Use fresh, untracked rows: callers may reuse their scoped DbContext.
+    private Task<ConfiguredLogicEntity> LockDefinitionAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.ConfiguredLogicDefinitions.FromSqlInterpolated(
+            $"SELECT * FROM logic.configured_logic WHERE \"Id\" = {id} FOR UPDATE")
+            .AsNoTracking().SingleAsync(cancellationToken);
+
+    private static WellSiteAutoPilotException Conflict() => new(
+        "CONFIGURED_LOGIC_REVISION_CONFLICT", FailureKind.Conflict,
+        "The configuration changed. Refresh and review before retrying.");
+
+    private void Audit(ConfiguredLogicRevision revision, string action,
+        SecurityActorContext? actor, DateTimeOffset now) =>
+        Audit(revision.ConfiguredLogicId, revision.Id, action, actor, now);
+
+    private void Audit(Guid id, Guid revisionId, string action,
+        SecurityActorContext? actor, DateTimeOffset now)
+    {
+        // Service callers have an explicit system identity; HTTP supplies real user/correlation.
+        dbContext.AuditEvents.Add(new AuditEventEntity
+        {
+            Id = Guid.NewGuid(), OccurredAtUtc = now, ActorUserId = actor?.UserId,
+            ActorIdentity = actor?.IdentityName ?? "system:configured-logic",
+            Action = action, TargetType = "ConfiguredLogic", TargetId = id.ToString("D"),
+            CorrelationId = actor?.CorrelationId,
+            DetailsJson = JsonSerializer.Serialize(new { revisionId })
+        });
     }
 
     private void AddRevision(ConfiguredLogicRevision revision)

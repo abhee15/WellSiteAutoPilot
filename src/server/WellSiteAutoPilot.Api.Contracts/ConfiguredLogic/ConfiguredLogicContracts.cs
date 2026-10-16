@@ -73,3 +73,5 @@ public sealed record ConfiguredLogicResponse(
     Guid? ActiveRevisionId,
     DateTimeOffset CreatedAtUtc,
     IReadOnlyCollection<ConfiguredLogicRevisionResponse> Revisions);
+
+public sealed record ConfiguredLogicCapabilitiesResponse(bool CanManage);

@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Application.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Application.Assets;
@@ -19,11 +20,15 @@ public sealed class ConfiguredLogicService(
 
     public async Task<ConfiguredLogicDefinition> CreateAsync(
         CreateConfiguredLogicCommand command,
+        SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
 
         var name = RequireText(command.Name, "Configured Logic name is required.");
+        if (name.Length > 256)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed,
+                FailureKind.Validation, "Configured Logic name must not exceed 256 characters.");
         var requestedManifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
         var installedModule = await GetInstalledModuleAsync(
             requestedManifest.ModuleId,
@@ -31,7 +36,7 @@ public sealed class ConfiguredLogicService(
             cancellationToken);
         EnsureManifestMatchesInstalled(command.ModuleManifestJson, installedModule);
         var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
-        ValidateJson(command.ParametersJson, "Configured Logic parameters must be valid JSON.");
+        ValidateParameterObject(command.ParametersJson);
 
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
@@ -69,13 +74,14 @@ public sealed class ConfiguredLogicService(
             now,
             [revision]);
 
-        await repository.AddAsync(configuredLogic, cancellationToken);
+        await repository.AddAsync(configuredLogic, actor, cancellationToken);
         return configuredLogic;
     }
 
     public async Task<ConfiguredLogicRevision> CreateRevisionAsync(
         Guid configuredLogicId,
         CreateConfiguredLogicRevisionCommand command,
+        SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -88,7 +94,7 @@ public sealed class ConfiguredLogicService(
             cancellationToken);
         EnsureManifestMatchesInstalled(command.ModuleManifestJson, installedModule);
         var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
-        ValidateJson(command.ParametersJson, "Configured Logic parameters must be valid JSON.");
+        ValidateParameterObject(command.ParametersJson);
 
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
@@ -119,13 +125,14 @@ public sealed class ConfiguredLogicService(
             assetBindings,
             dataBindings);
 
-        await repository.AddRevisionAsync(revision, cancellationToken);
+        await repository.AddRevisionAsync(revision, actor, cancellationToken);
         return revision;
     }
 
     public async Task<ConfiguredLogicRevision> ValidateRevisionAsync(
         Guid configuredLogicId,
         Guid revisionId,
+        SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
         var configuredLogic = await GetRequiredAsync(configuredLogicId, cancellationToken);
@@ -182,7 +189,7 @@ public sealed class ConfiguredLogicService(
             configuredLogicId,
             revisionId,
             timeProvider.GetUtcNow(),
-            cancellationToken);
+            actor, cancellationToken);
 
         var updated = await GetRequiredAsync(configuredLogicId, cancellationToken);
         return GetRequiredRevision(updated, revisionId);
@@ -191,6 +198,8 @@ public sealed class ConfiguredLogicService(
     public async Task<ConfiguredLogicRevision> ActivateRevisionAsync(
         Guid configuredLogicId,
         Guid revisionId,
+        SecurityActorContext? actor = null,
+        string? expectedActivationToken = null,
         CancellationToken cancellationToken = default)
     {
         var configuredLogic = await GetRequiredAsync(configuredLogicId, cancellationToken);
@@ -211,11 +220,27 @@ public sealed class ConfiguredLogicService(
         EnsureModuleEnabled(installedModule);
         EnsureManifestMatchesInstalled(revision.ModuleManifestJson, installedModule);
 
+        // A browser must activate against the active revision it actually reviewed.
+        var token = configuredLogic.ActiveRevisionId?.ToString("D") ?? "none";
+        if (expectedActivationToken is not null &&
+            !string.Equals(expectedActivationToken, token, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_REVISION_CONFLICT",
+                FailureKind.Conflict, "The active revision changed. Refresh and review before activating.");
+        }
+
+        // Assets may have been retired after validation. Check again at activation.
+        var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
+        await ValidateAssetBindingsAsync(manifest, revision.AssetBindings.Select(item =>
+            new ConfiguredLogicAssetBindingCommand(item.Role, item.AssetId,
+                item.ParameterOverridesJson)).ToArray(), cancellationToken);
+
         await repository.ActivateRevisionAsync(
             configuredLogicId,
             revisionId,
             timeProvider.GetUtcNow(),
-            cancellationToken);
+            configuredLogic.ActiveRevisionId,
+            actor, cancellationToken);
 
         var updated = await GetRequiredAsync(configuredLogicId, cancellationToken);
         return GetRequiredRevision(updated, revisionId);
@@ -330,9 +355,7 @@ public sealed class ConfiguredLogicService(
                     $"Asset '{command.AssetId}' is bound more than once to role '{role}'.");
             }
 
-            ValidateJson(
-                command.ParameterOverridesJson,
-                $"Parameter overrides for role '{role}' must be valid JSON.");
+            ValidateParameterObject(command.ParameterOverridesJson);
 
             var asset = await assetRepository.GetAssetAsync(command.AssetId, cancellationToken);
             if (asset is null || !asset.IsActive)
@@ -659,7 +682,10 @@ public sealed class ConfiguredLogicService(
 
         try
         {
-            using var _ = JsonDocument.Parse(json);
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 32 });
+            if (global::System.Text.Encoding.UTF8.GetByteCount(json) > 65536 ||
+                HasDuplicateProperties(document.RootElement))
+                throw new JsonException("JSON is oversized or contains duplicate property names.");
         }
         catch (JsonException exception)
         {
@@ -669,6 +695,29 @@ public sealed class ConfiguredLogicService(
                 message,
                 innerException: exception);
         }
+    }
+
+    private static void ValidateParameterObject(string json)
+    {
+        ValidateJson(json, "Parameters and overrides require a bounded JSON object with unique property names.");
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed,
+                FailureKind.Validation, "Parameters and overrides must be JSON objects.");
+    }
+
+    private static bool HasDuplicateProperties(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in element.EnumerateObject())
+                if (!names.Add(property.Name) || HasDuplicateProperties(property.Value)) return true;
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+            foreach (var item in element.EnumerateArray())
+                if (HasDuplicateProperties(item)) return true;
+        return false;
     }
 
     private static string NormalizeJson(string json)

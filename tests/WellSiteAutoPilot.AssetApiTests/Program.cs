@@ -130,6 +130,8 @@ await CheckAsync(await admin.PostAsJsonAsync("/api/v1/asset-types", new
     attributeSchemaJson = """{"$ref":"https://example.org/remote-schema.json"}"""
 }), HttpStatusCode.BadRequest, "Remote JSON Schema reference must be rejected");
 
+await ConfiguredLogicApiChecks.RunAsync(admin, engineer, operatorUser, anonymous, fieldId, key);
+
 Console.WriteLine("Live Asset API create/capabilities/schema/scope checks passed.");
 return 0;
 
