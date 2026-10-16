@@ -41,6 +41,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IDeploymentMigrationSnapshotRepository, DeploymentMigrationSnapshotRepository>();
         services.AddScoped<ILegacyMigrationPreflightAuditRepository, LegacyMigrationPreflightAuditRepository>();
 
+        services.AddScoped<ILegacyGrantMigrationRepository, LegacyGrantMigrationRepository>();
+
         return services;
     }
 }
