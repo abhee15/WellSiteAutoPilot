@@ -1,8 +1,24 @@
 # Frontend design tokens (V1)
 
 The frontend uses **CSS custom properties**, not a new UI framework. Load
-`src/tokens.css` before `src/styles.css`. Preserve our dark, responsive
-industrial application appearance as the baseline.
+`src/tokens.css` before `src/styles.css`.
+
+## Agreed design reference and implementation gap
+
+The user identified this [Claude design reference](https://claude.ai/share/39615aa3-bd6c-4812-976c-edb0ec90a284)
+on 2026-10-16 as the agreed design. The earlier project discussion records a
+**light neutral canvas, white surfaces and restrained blue accents**, with
+red/amber/green used mainly for operational meaning. The Logic Instance detail
+direction uses Overview / Activity / Configuration / Engineering sections.
+
+The current dark CSS is an implementation state, **not the approved palette**.
+Do not infer design approval from existing styles or their regression tests.
+At this review, the shared conversation content was access-denied from the
+available environment; exact colors, spacing and prototype details have not
+been inspected. Retrieve the prototype/source before claiming visual parity
+or choosing exact replacement values. Track that alignment separately from
+backend authorization; do not let the current dark styling become a design
+requirement by repetition.
 
 ## The two token layers
 
@@ -44,8 +60,9 @@ safety or operating state; keep readable labels and accessible focus/contrast.
 
 ## Feature design review
 
-Keep the agreed dark industrial palette, existing application shell and
-navigation hierarchy. Administration stays in the privileged user-menu area;
+Follow the linked agreed design and verified project decisions for palette,
+application shell and navigation hierarchy. Administration stays in the
+privileged user-menu area;
 do not promote Audit or System Health into primary operator navigation.
 Use the existing semantic tokens and shared controls before adding new styles.
 
@@ -53,16 +70,20 @@ Improve a design when a concrete workflow exposes a gap: record the problem,
 keep the adjustment local, and review the affected normal, loading, empty,
 error and permission-denied states. Check keyboard access and a narrow panel
 viewport as well as desktop. Retain explicit operating-state labels, localized
-text and locale/timezone formatting. Do not introduce a new theme or rearrange
-the application shell as an incidental feature change.
+text and locale/timezone formatting. Align the current implementation with
+the agreed prototype in a focused
+visual change; avoid inventing a replacement theme or rearranging the shell
+as an incidental feature change.
 
 Token checks establish color/declaration consistency, not visual proof of a
 new screen. Review rendered UI for changes to layout or interaction.
 
 ## Initial tokenization scope and verification
 
-This PR changes **only CSS values via var() substitution**, token definitions,
+The initial tokenization changed **only CSS values via var() substitution**, token definitions,
 one CSS import, documentation and regression tests. No product UI behavior,
-authorization, JS business logic, backend, or media-query breakpoints change.
+authorization, JS business logic, backend, or media-query breakpoints changed
+in that tokenization. Its dark CSS parity checks describe implementation
+preservation, not conformance to the agreed light design.
 The migration parity test verifies unchanged CSS semantics; native screenshots
 and keyboard/contrast tests remain desirable for later UI-specific PRs.
