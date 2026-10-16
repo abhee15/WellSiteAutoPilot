@@ -35,6 +35,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IRoleCatalogRepository, RoleCatalogRepository>();
         services.AddScoped<IAccessGrantRepository, AccessGrantRepository>();
         services.AddScoped<IProposedAssetAccessRepository, ProposedAssetAccessRepository>();
+        services.AddScoped<IProposedAssetAccessAuditRepository, ProposedAssetAccessAuditRepository>();
         services.AddScoped<IScopedAccessInspectionAuditRepository, ScopedAccessInspectionAuditRepository>();
 
         services.AddScoped<ILegacyMigrationSnapshotRepository, LegacyMigrationSnapshotRepository>();

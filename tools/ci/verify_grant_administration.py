@@ -85,6 +85,23 @@ assert inspection["userId"] == operator["userId"] and inspection["assetId"] == o
 request("GET", f"/security/users/{uuid.uuid4()}/effective-access", expected=404)
 request("GET", f"/security/users/{operator['userId']}/effective-access?assetId={uuid.uuid4()}", expected=404)
 
+# SQL-scoped proposed Assets are privileged, bounded and diagnostic only.
+proposed_path = f"/security/users/{operator['userId']}/proposed-assets"
+query = proposed_path + "?permission=assets.manage&offset=0&limit=1"
+request("GET", query, None, expected=401)
+request("GET", query, OPERATOR, expected=403)
+proposed = request("GET", query)
+assert proposed["isDiagnosticOnly"] is True
+assert proposed["userId"] == operator["userId"] and proposed["permission"] == "assets.manage"
+assert proposed["offset"] == 0 and proposed["limit"] == 1
+assert proposed["assets"] == [{"id": outside["id"], "name": outside["name"]}]
+assert request("GET", proposed_path + "?permission=assets.manage&offset=1&limit=1")["assets"] == []
+request("GET", proposed_path + "?permission=security.manage", expected=400)
+request("GET", proposed_path + "?permission=assets.read&limit=501", expected=400)
+request("GET", proposed_path + "?permission=assets.read&offset=-1", expected=400)
+request("GET", f"/security/users/{uuid.uuid4()}/proposed-assets?permission=assets.read", expected=404)
+assert request("GET", "/assets", OPERATOR) == before_assets
+
 # Bounded complete migration snapshots remain privileged diagnostics.
 user_preflight = f"/security/users/{operator['userId']}/migration-preflight"
 for route in [user_preflight, "/security/migration-preflight"]:

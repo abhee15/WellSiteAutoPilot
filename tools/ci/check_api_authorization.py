@@ -28,6 +28,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("POST", "/security/rollback-legacy-grants"): ("RollbackLegacyAccessGrants", "SecurityManage"),
     ("GET", "/security/migration-preflight"): ("InspectDeploymentLegacyMigration", "SecurityManage"),
     ("GET", "/security/users/{userId:guid}/migration-preflight"): ("InspectLegacyGrantMigration", "SecurityManage"),
+    ("GET", "/security/users/{userId:guid}/proposed-assets"): ("ListProposedAuthorizedAssets", "SecurityManage"),
     ("GET", "/security/users/{userId:guid}/effective-access"): ("InspectUserEffectiveAccess", "SecurityManage"),
     ("GET", "/security/users/{userId:guid}/grants"): ("ListUserAccessGrants", "SecurityManage"),
     ("POST", "/security/users/{userId:guid}/grants"): ("CreateUserAccessGrant", "SecurityManage"),

@@ -3,6 +3,15 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'grants.proposedAssetsResults': 'Proposed resource access result',
+  'grants.proposedAssetsHeading': 'Proposed resource access',
+  'grants.proposedAssetsExplanation': 'Review which Assets the recorded grants would authorize for one selected permission. This preview is read-only and does not change live access.',
+  'grants.proposedAssetsSelect': 'Select a resource permission',
+  'grants.proposedAssetsFailed': 'Proposed Asset access could not be verified. Reload before relying on the result.',
+  'grants.proposedAssetsEmpty': 'No Assets would be accessible with this permission in the proposed model.',
+  'grants.proposedAssetsPrevious': 'Previous',
+  'grants.proposedAssetsNext': 'Next',
+  'grants.proposedAssetsPage': 'Starting at {start}; {count} Assets displayed',
   'grants.rollbackHeading': 'Rollback migrated grants',
   'grants.rollbackWarning': 'This deactivates ALL still-active assignments previously created by the audited legacy migration, across the entire deployment, not only the selected user or this session. It does not affect manually authored grants or live legacy permissions. Modified migration assignments or uncertain provenance stop the entire rollback.',
   'grants.rollbackConfirm': 'I understand that rollback affects all migrated grants across the deployment, but does not change live authorization.',
