@@ -9,4 +9,3 @@ public sealed record ProposedAssetAccessResponse(
     int Limit,
     IReadOnlyCollection<ProposedAuthorizedAssetResponse> Assets,
     bool IsDiagnosticOnly);
-
