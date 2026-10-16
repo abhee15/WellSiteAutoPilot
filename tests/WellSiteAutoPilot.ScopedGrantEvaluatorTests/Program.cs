@@ -191,6 +191,24 @@ if (!ScopedGrantEvaluator.Authorize(
 }
 
 
+// Invalid imported role revisions fail closed for every scope class, while
+// an independent valid role/grant remains available.
+foreach (var invalidRevision in new long[] { 0, -1 })
+{
+    var invalidRole = engineerRole with { Revision = invalidRevision };
+    foreach (var scoped in new[] { engineerGrant, engineerGrant with
+        { ScopeKind = AccessGrantScopeKind.AllAssets, AssetIds = [] } })
+        if (ScopedGrantEvaluator.Authorize(grantUserId, true, WellSitePermissions.AssetsRead,
+            wellA, activeWellIds, [scoped], [invalidRole]).Allowed)
+            throw new InvalidOperationException("An invalid role revision authorized Asset access.");
+    if (ScopedGrantEvaluator.Authorize(grantUserId, true, WellSitePermissions.SecurityManage,
+        null, activeWellIds, [globalGrant], [globalRole with { Revision = invalidRevision }]).Allowed)
+        throw new InvalidOperationException("An invalid role revision authorized global access.");
+    if (!ScopedGrantEvaluator.Authorize(grantUserId, true, WellSitePermissions.AssetsRead,
+        wellB, activeWellIds, grants, [invalidRole, operatorRole]).Allowed)
+        throw new InvalidOperationException("An invalid role disabled an unrelated valid assignment.");
+}
+
 // Malformed imported records never become usable grants, even when their
 // role contains the requested permission.
 foreach (var malformed in new[]
