@@ -138,14 +138,50 @@ internal static class LegacyGrantMigrationChecks
             new CreateAccessGrantCommand(custom.Id, AccessGrantScopeKind.ExactAssets, [assetId], custom.Revision), actor);
         await AuditFailureAsync(true);
         var migratedIds = migrated.Select(item => Guid.Parse(item.TargetId!)).ToArray();
-        var tamperedId = migratedIds[0];
-        var original = await db.AccessGrants.AsNoTracking().SingleAsync(item => item.Id == tamperedId);
-        var changedScope = original.ScopeKind == "AllAssets" ? "DeploymentWide" : "AllAssets";
+        // Admin intentionally has both DeploymentWide and AllAssets grants for
+        // the same role. Selecting an arbitrary audit row and toggling between
+        // those scopes hits the unique index before rollback can be exercised.
+        // ExactAssets is absent from the Admin migration plan, so this mutation
+        // is schema-valid while still disagreeing with immutable provenance.
+        var original = await db.AccessGrants.AsNoTracking().SingleAsync(item =>
+            migratedIds.Contains(item.Id) && item.UserId == administrator.Id &&
+            item.ScopeKind == "AllAssets");
+        if (!await db.AccessGrants.AnyAsync(item => item.UserId == original.UserId &&
+            item.RoleId == original.RoleId && item.IsActive && item.ScopeKind == "DeploymentWide") ||
+            await db.AccessGrants.AnyAsync(item => item.UserId == original.UserId &&
+                item.RoleId == original.RoleId && item.IsActive && item.ScopeKind == "ExactAssets"))
+            throw new InvalidOperationException("Scope-tampering fixture lacks the paired Admin grant or has a conflicting scope.");
+        var tamperedId = original.Id;
         await db.AccessGrants.Where(item => item.Id == tamperedId)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ScopeKind, changedScope));
-        await RejectWithoutWritesAsync(() => service.RollbackAsync(true, actor));
-        await db.AccessGrants.Where(item => item.Id == tamperedId)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ScopeKind, original.ScopeKind));
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ScopeKind, "ExactAssets"));
+        try
+        {
+            await RejectWithoutWritesAsync(() => service.RollbackAsync(true, actor));
+            if (!await db.AccessGrants.AnyAsync(item => item.Id == tamperedId &&
+                item.ScopeKind == "ExactAssets" && item.IsActive && item.Revision == 1))
+                throw new InvalidOperationException("Rejected rollback modified the tampered assignment.");
+        }
+        finally
+        {
+            await db.AccessGrants.Where(item => item.Id == tamperedId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ScopeKind, original.ScopeKind));
+        }
+
+        // Binding provenance must also be checked even when the scope and
+        // revision are unchanged; a count-only atomicity check cannot prove it.
+        db.AccessGrantAssets.Add(new AccessGrantAssetEntity { GrantId = tamperedId, AssetId = assetId });
+        await db.SaveChangesAsync();
+        try
+        {
+            await RejectWithoutWritesAsync(() => service.RollbackAsync(true, actor));
+            if (!await db.AccessGrantAssets.AnyAsync(item => item.GrantId == tamperedId && item.AssetId == assetId))
+                throw new InvalidOperationException("Rejected rollback modified the tampered binding.");
+        }
+        finally
+        {
+            await db.AccessGrantAssets.Where(item => item.GrantId == tamperedId && item.AssetId == assetId).ExecuteDeleteAsync();
+            db.ChangeTracker.Clear();
+        }
         var originalProof = migrated[0];
         await db.AuditEvents.Where(item => item.Id == originalProof.Id)
             .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.DetailsJson, "{}"));
