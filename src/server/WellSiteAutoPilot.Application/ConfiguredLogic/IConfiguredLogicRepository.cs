@@ -5,6 +5,12 @@ namespace WellSiteAutoPilot.Application.ConfiguredLogic;
 
 public interface IConfiguredLogicRepository
 {
+    Task<ConfiguredLogicDefinition?> GetAuthorizedAsync(AccessSubject subject, Guid id,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListAuthorizedAsync(AccessSubject subject, int limit,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(
         ConfiguredLogicDefinition configuredLogic,
         SecurityActorContext? actor = null,

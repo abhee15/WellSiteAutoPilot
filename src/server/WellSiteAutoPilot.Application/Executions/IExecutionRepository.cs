@@ -5,6 +5,12 @@ namespace WellSiteAutoPilot.Application.Executions;
 
 public interface IExecutionRepository
 {
+    Task<ExecutionRecord?> GetAuthorizedAsync(AccessSubject subject, Guid id,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<ExecutionRecord>> ListAuthorizedAsync(AccessSubject subject, ExecutionStatus? status, int limit,
+        CancellationToken cancellationToken = default);
+
     Task AddRequestedAsync(
         ExecutionRecord execution,
         CancellationToken cancellationToken = default);

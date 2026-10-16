@@ -94,6 +94,22 @@ persisted identity to one trusted provider observation and excludes TestHeader
 from Windows membership. These services are registered but not called by live
 middleware yet; request/route integration remains the next implementation step.
 
+The resource repositories now expose grant-authorized list/detail entry points
+for all four families. They compose the paired SQL predicates before filtering,
+ordering and limits. Configured Logic predicates and all revision/binding
+hydration share one repeatable-read snapshot; an existing weaker transaction is
+rejected. New deterministic PostgreSQL tests commit an out-of-scope revision
+between predicate execution and hydration, verify no disclosure, and verify
+that the following fresh read loses access. These entry points are not yet used
+by published routes. Route/application integration and mutation target fences
+remain required before activation.
+
+Verified foundation CI checkpoint: head
+`2872da778555330abc4bf012809d49e00ee7c761`, run `38953414941`, passed the
+PostgreSQL job including all 20 revocation cases, fresh-database bootstrap and
+the existing security/migration suites. At that observation the Windows
+installer job was still running; this is not a seven-job or current-head claim.
+
 ## Release limits
 
 Genuine browser Negotiate, domain/nested groups, cross-domain trusts and token

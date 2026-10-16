@@ -9,8 +9,8 @@ using WellSiteAutoPilot.Domain.Executions;
 
 namespace WellSiteAutoPilot.Persistence.ConfiguredLogic;
 
-public sealed class ConfiguredLogicRepository(
-    WellSiteAutoPilotDbContext dbContext) : IConfiguredLogicRepository
+public sealed partial class ConfiguredLogicRepository(
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IConfiguredLogicRepository
 {
     public async Task AddAsync(
         ConfiguredLogicDefinition configuredLogic,

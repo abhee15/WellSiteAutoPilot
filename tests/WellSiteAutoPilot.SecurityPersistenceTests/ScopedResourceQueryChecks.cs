@@ -58,7 +58,7 @@ internal static class ScopedResourceQueryChecks
         Guid assetTypeId)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
-        await using var transaction = await db.Database.BeginTransactionAsync();
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         var now = DateTimeOffset.UtcNow;
         var userId = Guid.NewGuid();
         var identity = $"grant-query-{userId:N}";
@@ -136,7 +136,7 @@ internal static class ScopedResourceQueryChecks
         Execution(allowed.Id, allowed.Revision, 2, null); // Missing immutable scope.
         Execution(allowed.Id, allowed.Revision, 2, null, assetA, Guid.NewGuid()); // Missing Asset.
         Execution(allowed.Id, allowed.Revision, 3, null, assetA); // Unknown contract.
-        Recommendation(denied, deniedExecution, assetC, now.AddMinutes(2));
+        var recommendationC = Recommendation(denied, deniedExecution, assetC, now.AddMinutes(2));
         var recommendationA = Recommendation(allowed, allowedExecution, assetA, now);
         var recommendationB = Recommendation(mixed, mixedExecution, assetB, now.AddMinutes(-1));
         await db.SaveChangesAsync();
@@ -344,6 +344,31 @@ internal static class ScopedResourceQueryChecks
                 (await ScopedAccessQueries.Recommendations(db, subject, WellSitePermissions.RecommendationsDecide, membership, at)
                     .Select(item => item.Id).SingleAsync()) != recommendationA)
                 throw new InvalidOperationException("Recommendation pagination or paired decision scope failed.");
+
+            var request = new AccessSubject(subject, membership);
+            var requestClock = new AdjustableTimeProvider(at ?? now);
+            var assetRepository = new AssetRepository(db, requestClock);
+            var configuredRepository = new ConfiguredLogicRepository(db, requestClock);
+            var executionRepository = new ExecutionRepository(db, requestClock);
+            var recommendationRepository = new RecommendationRepository(db, requestClock);
+            if ((await assetRepository.ListAuthorizedAsync(request, null, null, 1)).Single().Id != assetA ||
+                await assetRepository.GetAuthorizedAsync(request, assetC) is not null ||
+                (await assetRepository.GetAuthorizedAsync(request, assetB))?.Id != assetB)
+                throw new InvalidOperationException("Asset repository lost authorized detail/page semantics.");
+            if ((await configuredRepository.ListAuthorizedAsync(request, 1)).Single().Id != allowed.Id ||
+                await configuredRepository.GetAuthorizedAsync(request, history.Id) is not null ||
+                await configuredRepository.GetAuthorizedAsync(request, inputLeak.Id) is not null ||
+                (await configuredRepository.GetAuthorizedAsync(request, mixed.Id))?.Revisions.Count != 1)
+                throw new InvalidOperationException("Configured Logic repository disclosed unchecked revisions or displaced an authorized page.");
+            if (!(await executionRepository.ListAuthorizedAsync(request, null, 100)).Select(item => item.Id)
+                    .ToHashSet().SetEquals([allowedExecution, mixedExecution, v1Execution]) ||
+                await executionRepository.GetAuthorizedAsync(request, deniedExecution) is not null ||
+                (await executionRepository.GetAuthorizedAsync(request, v1Execution))?.Id != v1Execution)
+                throw new InvalidOperationException("Execution repository lost V1/V2 authorized snapshot semantics.");
+            if ((await recommendationRepository.ListAuthorizedAsync(request, null, 1)).Single().Id != recommendationA ||
+                await recommendationRepository.GetAuthorizedAsync(request, recommendationC) is not null ||
+                (await recommendationRepository.GetAuthorizedAsync(request, recommendationB))?.Id != recommendationB)
+                throw new InvalidOperationException("Recommendation repository lost authorized detail/page semantics.");
         }
 
         async Task AssertEmptyAsync(Guid subject, string? permission = null,
@@ -354,6 +379,19 @@ internal static class ScopedResourceQueryChecks
                 await ScopedAccessQueries.Executions(db, subject, permission ?? WellSitePermissions.ExecutionsRead, membership, at).AnyAsync() ||
                 await ScopedAccessQueries.Recommendations(db, subject, permission ?? WellSitePermissions.RecommendationsRead, membership, at).AnyAsync())
                 throw new InvalidOperationException("Invalid/inactive identity or permission authorized a resource.");
+            if (permission is null)
+            {
+                // Do not construct a trusted subject with a mismatched proof;
+                // the host rejects that before any repository is called.
+                if (subject == Guid.Empty || (membership is not null && membership.UserId != subject)) return;
+                var request = new AccessSubject(subject, membership);
+                var requestClock = new AdjustableTimeProvider(at ?? now);
+                if ((await new AssetRepository(db, requestClock).ListAuthorizedAsync(request, null, null, 100)).Count != 0 ||
+                    (await new ConfiguredLogicRepository(db, requestClock).ListAuthorizedAsync(request, 100)).Count != 0 ||
+                    (await new ExecutionRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0 ||
+                    (await new RecommendationRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0)
+                    throw new InvalidOperationException("Invalid/inactive subject was disclosed by a resource repository.");
+            }
         }
 
         Guid Role(string[] permissions)

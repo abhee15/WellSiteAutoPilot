@@ -4,8 +4,8 @@ using WellSiteAutoPilot.Domain.Assets;
 
 namespace WellSiteAutoPilot.Persistence.Assets;
 
-public sealed class AssetRepository(
-    WellSiteAutoPilotDbContext dbContext) : IAssetRepository
+public sealed partial class AssetRepository(
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IAssetRepository
 {
     public Task<bool> AssetTypeKeyExistsAsync(
         string key,
@@ -124,6 +124,7 @@ public sealed class AssetRepository(
 
         return (await baseQuery
             .OrderBy(item => item.Name)
+            .ThenBy(item => item.Id)
             .Take(limit)
             .ToArrayAsync(cancellationToken))
             .Select(ToDomain)

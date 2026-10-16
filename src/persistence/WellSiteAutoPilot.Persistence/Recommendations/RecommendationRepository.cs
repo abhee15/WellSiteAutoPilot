@@ -7,8 +7,8 @@ using WellSiteAutoPilot.Domain.Executions;
 
 namespace WellSiteAutoPilot.Persistence.Recommendations;
 
-public sealed class RecommendationRepository(
-    WellSiteAutoPilotDbContext dbContext) : IRecommendationRepository
+public sealed partial class RecommendationRepository(
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IRecommendationRepository
 {
     public async Task<int> AddMissingAsync(
         IReadOnlyCollection<RecommendationRecord> recommendations,
