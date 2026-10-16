@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
@@ -244,6 +245,24 @@ public sealed class ConfiguredLogicService(
 
         var updated = await GetRequiredAsync(configuredLogicId, cancellationToken);
         return GetRequiredRevision(updated, revisionId);
+    }
+
+    public async Task<ConfiguredShadowExecutionCommand> PrepareManualShadowAsync(
+        Guid configuredLogicId, Guid revisionId, CancellationToken cancellationToken = default)
+    {
+        var definition = await GetRequiredAsync(configuredLogicId, cancellationToken);
+        var revision = GetRequiredRevision(definition, revisionId);
+        if (definition.ActiveRevisionId != revisionId ||
+            revision.Status != ConfiguredLogicRevisionStatus.Active || revision.Mode != ExecutionMode.Shadow)
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_REVISION_CONFLICT",
+                FailureKind.Conflict, "Review the current active Shadow revision before running.");
+        var installed = await GetInstalledModuleAsync(revision.ModuleId, revision.ModuleVersion, cancellationToken);
+        EnsureModuleEnabled(installed);
+        EnsureManifestMatchesInstalled(revision.ModuleManifestJson, installed);
+        var manifest = DeserializeAndValidateManifest(installed.ManifestJson);
+        await ValidateAssetBindingsAsync(manifest, revision.AssetBindings.Select(b =>
+            new ConfiguredLogicAssetBindingCommand(b.Role, b.AssetId, b.ParameterOverridesJson)).ToArray(), cancellationToken);
+        return ConfiguredExecutionSnapshot.Create(definition, revision, ExecutionTriggerKind.Manual, null);
     }
 
     public async Task<ConfiguredLogicDefinition> GetRequiredAsync(

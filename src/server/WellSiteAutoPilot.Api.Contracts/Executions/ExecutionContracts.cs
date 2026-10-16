@@ -30,3 +30,5 @@ public sealed record ExecutionResponse(
     string? ResultCode,
     string? FailureCode,
     string? OutputJson);
+
+public sealed record RequestConfiguredShadowRequest(Guid RequestId);

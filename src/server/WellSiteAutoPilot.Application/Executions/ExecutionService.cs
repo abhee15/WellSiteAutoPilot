@@ -49,9 +49,24 @@ public sealed class ExecutionService(
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
 
         var normalized = ValidateAndNormalize(command);
-        var requestedAtUtc = timeProvider.GetUtcNow();
-        var execution = new ExecutionRecord(
-            Guid.NewGuid(),
+        var execution = CreateConfiguredRequest(normalized, correlationId,
+            timeProvider.GetUtcNow(), Guid.NewGuid());
+
+        await repository.AddConfiguredRequestedAsync(
+            execution,
+            normalized,
+            cancellationToken);
+
+        return execution;
+    }
+
+    internal static ExecutionRecord CreateConfiguredRequest(
+        ConfiguredShadowExecutionCommand command, string correlationId,
+        DateTimeOffset requestedAtUtc, Guid executionId)
+    {
+        var normalized = ValidateAndNormalize(command);
+        return new ExecutionRecord(
+            executionId,
             normalized.ConfiguredLogicId,
             normalized.ModuleId,
             normalized.ModuleVersion,
@@ -68,12 +83,6 @@ public sealed class ExecutionService(
             normalized.ScheduledForUtc,
             JsonSerializer.Serialize(normalized, SerializerOptions));
 
-        await repository.AddConfiguredRequestedAsync(
-            execution,
-            normalized,
-            cancellationToken);
-
-        return execution;
     }
 
     public async Task<ExecutionRecord> GetRequiredAsync(

@@ -1111,6 +1111,9 @@ jobs:
               raise SystemExit("Recent execution activity did not contain the completed execution.")
           PY
 
+      - name: Verify configured Shadow execution and result provenance
+        run: dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj --configuration Release --no-build -- --configured-e2e
+
       - name: Show runtime logs on failure
         if: failure()
         shell: bash

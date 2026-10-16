@@ -91,3 +91,20 @@ export function previewExecutionOutput(value?: string | null): {
     truncated: value.length > MAX_EXECUTION_OUTPUT_PREVIEW,
   };
 }
+
+
+type InputObservation = { requirementId: string; assetId: string; quantity: string;
+  value: number; unit: string; timestampUtc: string; quality: string; source: string };
+/** Bounded, defensive view of worker telemetry; never render arbitrary output as HTML. */
+export function executionInputObservations(output?: string | null): InputObservation[] {
+  if (!output || output.length > 1048576) return [];
+  try {
+    const value = JSON.parse(output) as { inputObservations?: unknown };
+    if (!Array.isArray(value.inputObservations)) return [];
+    return value.inputObservations.slice(0, 100).filter((o: InputObservation) =>
+      !!o && typeof o === 'object' && Number.isFinite(o.value) &&
+      ['requirementId', 'assetId', 'quantity', 'unit', 'timestampUtc', 'quality', 'source'].every(key =>
+        typeof o[key as keyof InputObservation] === 'string' &&
+        String(o[key as keyof InputObservation]).length <= 512));
+  } catch { return []; }
+}

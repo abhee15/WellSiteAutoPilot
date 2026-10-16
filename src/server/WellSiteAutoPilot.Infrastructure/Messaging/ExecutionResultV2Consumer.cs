@@ -58,6 +58,7 @@ public sealed partial class ExecutionResultV2Consumer(
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
                 FilterSubjects =
                 [
+                    Subjects.ExecutionStartedV2,
                     Subjects.ExecutionCompletedV2,
                     Subjects.ExecutionFailedV2
                 ],
@@ -78,7 +79,14 @@ public sealed partial class ExecutionResultV2Consumer(
             await using var scope = scopeFactory.CreateAsyncScope();
             var repository = scope.ServiceProvider.GetRequiredService<IExecutionRepository>();
 
-            if (string.Equals(
+            if (string.Equals(message.Subject, Subjects.ExecutionStartedV2, StringComparison.Ordinal))
+            {
+                var envelope = JsonSerializer.Deserialize<MessageEnvelope<ExecutionStartedV2>>(
+                    message.Data, SerializerOptions) ?? throw new InvalidOperationException("Invalid started envelope.");
+                await repository.ApplyStartedAsync(envelope.MessageId, ConsumerName,
+                    envelope.Payload.ExecutionId, envelope.Payload.StartedAtUtc, cancellationToken);
+            }
+            else if (string.Equals(
                     message.Subject,
                     Subjects.ExecutionCompletedV2,
                     StringComparison.Ordinal))
