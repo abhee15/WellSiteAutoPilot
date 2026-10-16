@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Failures;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -169,6 +170,23 @@ if (result.OutcomeCode != "MULTI_INPUT_COMPLETED" ||
         "Execution V2 did not construct the expected multi-input SDK context.");
 }
 
+var observed = await engine.ExecuteObservedAsync(request, "observed-input-test", now);
+if (observed.InputObservations.Count != 2 || observed.InputObservations.Any(input =>
+    input.Quality != "Good" || input.TimestampUtc != now || string.IsNullOrWhiteSpace(input.Source)))
+    throw new InvalidOperationException("Execution input provenance was not preserved.");
+
+foreach (var quality in new[] { "Bad", "Unknown", "Unexpected", "Uncertain" })
+{
+    using var badClient = new HttpClient(new EngineeringValueHandler(now, quality: quality)) { BaseAddress = new Uri("http://127.0.0.1:5081") };
+    var badEngine = new ModuleExecutionEngine(new GatewayDataClient(badClient), new TestModuleResolver());
+    try
+    {
+        await badEngine.ExecuteAsync(request, "bad-quality-test", now);
+        throw new InvalidOperationException("Unsupported input quality was accepted.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Code == "EXECUTION_INPUT_QUALITY_REJECTED") { }
+}
+
 // Reject unsafe future-dated telemetry before invoking logic.
 using (var futureClient = new HttpClient(new EngineeringValueHandler(now.AddMinutes(5)))
 {
@@ -181,7 +199,7 @@ using (var futureClient = new HttpClient(new EngineeringValueHandler(now.AddMinu
         await futureEngine.ExecuteAsync(request, "future-data-test", now);
         throw new InvalidOperationException("Future-dated telemetry was accepted.");
     }
-    catch (InvalidOperationException exception) when (exception.Message.Contains("future-dated", StringComparison.Ordinal))
+    catch (WellSiteAutoPilotException exception) when (exception.Code == "EXECUTION_INPUT_FUTURE")
     {
     }
 }
@@ -198,7 +216,7 @@ using (var wrongUnitClient = new HttpClient(new EngineeringValueHandler(now, wro
         await wrongUnitEngine.ExecuteAsync(request, "wrong-unit-test", now);
         throw new InvalidOperationException("Mismatched engineering unit was accepted.");
     }
-    catch (InvalidOperationException exception) when (exception.Message.Contains("mismatched quantity or unit", StringComparison.Ordinal))
+    catch (WellSiteAutoPilotException exception) when (exception.Code == "EXECUTION_INPUT_QUANTITY_MISMATCH")
     {
     }
 }
@@ -380,7 +398,7 @@ file sealed class MultiInputModule : ILogicModuleV1
     }
 }
 
-file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc, bool wrongUnit = false)
+file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc, bool wrongUnit = false, string quality = "Good")
     : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(
@@ -401,7 +419,7 @@ file sealed class EngineeringValueHandler(DateTimeOffset timestampUtc, bool wron
                 value = isFillage ? 82m : 12m,
                 unit = wrongUnit ? "invalid-unit" : isFillage ? "%" : "spm",
                 timestampUtc,
-                quality = "Good",
+                quality,
                 source = "simulator:WELL-101"
             });
 

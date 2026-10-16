@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ExecutionResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import {
@@ -6,19 +6,31 @@ import {
   fetchExecutionDetail,
   formatDetailTimestamp,
   previewExecutionOutput,
+  executionInputObservations,
 } from './executionDetail';
 import type { ExecutionDetailErrorKind } from './executionDetail';
 
 type Props = {
   executionId: string;
   onClose: () => void;
+  poll?: boolean;
+  onObserved?: (detail: ExecutionResponse) => void;
+  onAccessLost?: () => void;
 };
 
-export function ExecutionDetailPanel({ executionId, onClose }: Props) {
+export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, onAccessLost }: Props) {
   const [detail, setDetail] = useState<ExecutionResponse | null>(null);
   const [error, setError] = useState<ExecutionDetailErrorKind | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshNumber, setRefreshNumber] = useState(0);
+
+  const callbacks = useRef({ onObserved, onAccessLost });
+  useEffect(() => { callbacks.current = { onObserved, onAccessLost }; }, [onObserved, onAccessLost]);
+  useEffect(() => {
+    if (!poll || !detail || !['Requested', 'Queued', 'Starting', 'Running', 'Waiting'].includes(detail.status ?? '')) return;
+    const timer = window.setTimeout(() => setRefreshNumber(n => n + 1), 2000);
+    return () => window.clearTimeout(timer);
+  }, [detail, poll]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -32,10 +44,13 @@ export function ExecutionDetailPanel({ executionId, onClose }: Props) {
         if (active && !controller.signal.aborted) {
           setDetail(value);
           setIsLoading(false);
+          callbacks.current.onObserved?.(value);
         }
       })
       .catch(reason => {
         if (!active || controller.signal.aborted) return;
+        if (reason instanceof ExecutionDetailError && ['accessDenied', 'notFound'].includes(reason.kind))
+          callbacks.current.onAccessLost?.();
         setDetail(null);
         setError(reason instanceof ExecutionDetailError ? reason.kind : 'unavailable');
         setIsLoading(false);
@@ -104,6 +119,7 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionResponse }
     [t('execution.id'), detail.executionId],
   ];
   const output = previewExecutionOutput(detail.outputJson);
+  const observations = executionInputObservations(detail.outputJson);
 
   return (
     <>
@@ -115,6 +131,17 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionResponse }
           </div>
         ))}
       </dl>
+      {observations.length > 0 && <section aria-label={t('shadow.observations')}>
+        <h4>{t('shadow.observations')}</h4>
+        <div className="table-wrap"><table className="activity-table"><thead><tr>
+          {[t('shadow.input'), t('shadow.value'), t('shadow.quality'), t('shadow.timestamp'), t('shadow.source')]
+            .map(label => <th key={label} scope="col">{label}</th>)}
+        </tr></thead><tbody>{observations.map((o, index) => <tr key={index}>
+          <td>{o.requirementId}<small>{o.assetId} · {o.quantity}</small></td>
+          <td>{new Intl.NumberFormat(undefined, { maximumSignificantDigits: 17 }).format(o.value)} {o.unit}</td><td>{o.quality}</td>
+          <td>{formatDetailTimestamp(o.timestampUtc)}</td><td>{o.source}</td>
+        </tr>)}</tbody></table></div>
+      </section>}
       {output.text && (
         <details className="execution-detail-output">
           <summary>{t('execution.output')}</summary>

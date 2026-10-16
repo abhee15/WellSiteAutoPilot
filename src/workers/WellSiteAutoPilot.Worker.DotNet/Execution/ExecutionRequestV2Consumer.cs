@@ -105,19 +105,29 @@ public sealed partial class ExecutionRequestV2Consumer(
                     "The .NET foundation worker currently accepts Shadow executions only.");
             }
 
-            var moduleResult = await moduleExecutionEngine.ExecuteAsync(
+            await PublishResultAsync(Subjects.ExecutionStartedV2, envelope,
+                new ExecutionStartedV2(envelope.Payload.ExecutionId, startedAtUtc),
+                $"{envelope.Payload.ExecutionId:N}:started:v2", jetStream, cancellationToken);
+
+            var observed = await moduleExecutionEngine.ExecuteObservedAsync(
                 envelope.Payload,
                 envelope.CorrelationId,
                 startedAtUtc,
                 cancellationToken);
 
+            var moduleResult = observed.Result;
             var completedAtUtc = timeProvider.GetUtcNow();
             var result = new ExecutionCompletedV2(
                 envelope.Payload.ExecutionId,
                 startedAtUtc,
                 completedAtUtc,
                 moduleResult.OutcomeCode,
-                JsonSerializer.Serialize(moduleResult, SerializerOptions));
+                JsonSerializer.Serialize(new
+                {
+                    moduleResult.OutcomeCode, moduleResult.EngineeringResults,
+                    moduleResult.Recommendations, moduleResult.ControlIntents, moduleResult.StateUpdates,
+                    observed.InputObservations
+                }, SerializerOptions));
 
             await PublishResultAsync(
                 Subjects.ExecutionCompletedV2,

@@ -2,19 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { ConfiguredShadowPanel } from './ConfiguredShadowPanel';
 import { ConfiguredLogicSetupPanel } from './ConfiguredLogicSetupPanel';
 import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOverview';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
 import type { VerifiedConfiguration } from './configuredLogicSetup';
 
 type Props = {
-  selectedId: string | null; canManage: boolean; modules: LogicModuleResponse[];
+  selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
 };
 /** A fresh authorized detail is the mutation boundary. Polling list metadata
  * cannot silently replace the revision a user is reviewing. */
-export function ConfiguredLogicWorkspace({ selectedId, canManage, modules,
+export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
   assets, assetTypes, onClose, onChanged }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
@@ -116,6 +117,9 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, modules,
             <button type="button" disabled={busy} onClick={() => setConfirmId(null)}>{t('setup.cancelActivation')}</button>
           </div>}
         </div>}
+        {userId && r.status === 'Active' && r.id === detail.activeRevisionId && !editing && <ConfiguredShadowPanel
+          key={r.id} userId={userId} configurationId={detail.id} revision={r}
+          canRequest={canRequestShadow === true} disabled={busy || blocked} />}
       </li>)}</ul>
     </>}
     {(detail || selectedId) && !editing && <button type="button" disabled={busy}

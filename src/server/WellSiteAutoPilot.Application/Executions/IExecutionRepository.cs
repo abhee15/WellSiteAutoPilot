@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Domain.Executions;
+using WellSiteAutoPilot.Application.Security;
 
 namespace WellSiteAutoPilot.Application.Executions;
 
@@ -12,6 +13,13 @@ public interface IExecutionRepository
         ExecutionRecord execution,
         ConfiguredShadowExecutionCommand command,
         CancellationToken cancellationToken = default);
+
+    Task<ExecutionRecord> AddManualConfiguredRequestedAsync(ExecutionRecord execution,
+        ConfiguredShadowExecutionCommand command, SecurityActorContext actor,
+        CancellationToken cancellationToken = default);
+
+    Task ApplyStartedAsync(Guid messageId, string consumer, Guid executionId,
+        DateTimeOffset startedAtUtc, CancellationToken cancellationToken = default);
 
     Task<ExecutionRecord?> GetAsync(
         Guid executionId,

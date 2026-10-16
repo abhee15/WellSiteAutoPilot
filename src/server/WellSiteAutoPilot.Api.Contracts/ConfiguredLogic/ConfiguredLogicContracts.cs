@@ -74,4 +74,4 @@ public sealed record ConfiguredLogicResponse(
     DateTimeOffset CreatedAtUtc,
     IReadOnlyCollection<ConfiguredLogicRevisionResponse> Revisions);
 
-public sealed record ConfiguredLogicCapabilitiesResponse(bool CanManage);
+public sealed record ConfiguredLogicCapabilitiesResponse(bool CanManage, bool CanRequestShadow);

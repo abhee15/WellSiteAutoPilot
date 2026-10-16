@@ -1,7 +1,10 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using WellSiteAutoPilot.Persistence.Audit;
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
@@ -12,6 +15,10 @@ namespace WellSiteAutoPilot.Persistence.Executions;
 public sealed class ExecutionRepository(
     WellSiteAutoPilotDbContext dbContext) : IExecutionRepository
 {
+    private const int ManualRequestLock = 1;
+    private const int ConfigurationDispatchLock = 2;
+    private const int StartedMessageLock = 3;
+
     private static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
 
@@ -83,6 +90,24 @@ public sealed class ExecutionRepository(
         ArgumentNullException.ThrowIfNull(execution);
         ArgumentNullException.ThrowIfNull(command);
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await LockRequestKeyAsync(ConfigurationDispatchLock, command.ConfiguredLogicId, cancellationToken);
+        if (command.Trigger == ExecutionTriggerKind.Scheduled && command.ScheduledForUtc is { } occurrence &&
+            await ScheduledOccurrenceExistsAsync(command.ConfigurationRevisionId, occurrence, cancellationToken))
+            throw new WellSiteAutoPilotException("EXECUTION_SCHEDULED_OCCURRENCE_EXISTS", FailureKind.Conflict,
+                "This scheduled occurrence has already been dispatched.");
+        if (command.Trigger == ExecutionTriggerKind.Scheduled &&
+            await HasActiveAssetOverlapAsync(command.ConfiguredLogicId,
+                command.Assets.Select(a => a.AssetId).ToArray(), cancellationToken))
+            throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
+                "A configured execution is already pending or running.");
+        StageConfiguredRequest(execution, command);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private void StageConfiguredRequest(ExecutionRecord execution, ConfiguredShadowExecutionCommand command)
+    {
         var payload = new ExecutionRequestedV2(
             execution.Id,
             command.ConfiguredLogicId,
@@ -128,7 +153,70 @@ public sealed class ExecutionRepository(
                 .Distinct()
                 .ToArray());
 
+    }
+
+    public async Task<ExecutionRecord> AddManualConfiguredRequestedAsync(ExecutionRecord execution,
+        ConfiguredShadowExecutionCommand command, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        // Request-key then configuration locks have a fixed order. Scheduled
+        // dispatch uses the same configuration advisory lock for overlap checks.
+        await LockRequestKeyAsync(ManualRequestLock, execution.Id, cancellationToken);
+        var previous = await GetAsync(execution.Id, cancellationToken);
+        if (previous is not null)
+            return ManualShadowRequestService.Match(previous, command.ConfiguredLogicId, command.ConfigurationRevisionId);
+        await LockRequestKeyAsync(ConfigurationDispatchLock, command.ConfiguredLogicId, cancellationToken);
+        var definition = await dbContext.ConfiguredLogicDefinitions.FromSqlInterpolated(
+            $"SELECT * FROM logic.configured_logic WHERE \"Id\" = {command.ConfiguredLogicId} FOR UPDATE")
+            .AsNoTracking().SingleAsync(cancellationToken);
+        var active = await dbContext.ConfiguredLogicRevisions.AsNoTracking().AnyAsync(r =>
+            r.Id == command.ConfigurationRevisionId && r.ConfiguredLogicId == command.ConfiguredLogicId && r.Status == "Active", cancellationToken);
+        var enabled = await dbContext.LogicModules.AsNoTracking().AnyAsync(m =>
+            m.ModuleId == command.ModuleId && m.Version == command.ModuleVersion && m.IsEnabled, cancellationToken);
+        var assetIds = command.Assets.Select(a => a.AssetId).Distinct().ToArray();
+        var activeAssets = await dbContext.Assets.AsNoTracking().CountAsync(a => assetIds.Contains(a.Id) && a.IsActive, cancellationToken);
+        if (definition.ActiveRevisionId != command.ConfigurationRevisionId || !active || !enabled || activeAssets != assetIds.Length)
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_REVISION_CONFLICT", FailureKind.Conflict,
+                "The reviewed revision or its dependencies changed before dispatch.");
+        if (await HasActiveAssetOverlapAsync(command.ConfiguredLogicId, assetIds, cancellationToken))
+            throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
+                "A configured execution is already pending or running.");
+        StageConfiguredRequest(execution, command);
+        dbContext.AuditEvents.Add(new AuditEventEntity
+        {
+            Id = Guid.NewGuid(), OccurredAtUtc = execution.RequestedAtUtc,
+            ActorUserId = actor.UserId, ActorIdentity = actor.IdentityName,
+            Action = "EXECUTION_SHADOW_REQUESTED", TargetType = "Execution", TargetId = execution.Id.ToString("D"),
+            CorrelationId = execution.CorrelationId,
+            DetailsJson = JsonSerializer.Serialize(new { command.ConfiguredLogicId, command.ConfigurationRevisionId })
+        });
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return execution;
+    }
+
+    private Task<int> LockRequestKeyAsync(int lockClass, Guid id, CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({lockClass}, {BinaryPrimitives.ReadInt32BigEndian(id.ToByteArray())})", cancellationToken);
+
+    public async Task ApplyStartedAsync(Guid messageId, string consumer, Guid executionId,
+        DateTimeOffset startedAtUtc, CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        // Serialize exact-message replays without relying on a unique-violation catch.
+        await LockRequestKeyAsync(StartedMessageLock, messageId, cancellationToken);
+        if (await dbContext.InboxMessages.AnyAsync(m => m.MessageId == messageId && m.Consumer == consumer, cancellationToken)) return;
+        await dbContext.Executions.Where(e => e.Id == executionId && e.RequestContractVersion == 2 &&
+            (e.Status == "Requested" || e.Status == "Queued" || e.Status == "Starting"))
+            .ExecuteUpdateAsync(set => set.SetProperty(e => e.Status, "Running")
+                .SetProperty(e => e.StartedAtUtc, startedAtUtc), cancellationToken);
+        dbContext.InboxMessages.Add(new InboxMessageEntity
+        {
+            MessageId = messageId, Consumer = consumer, ProcessedAtUtc = DateTimeOffset.UtcNow
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<ExecutionRecord?> GetAsync(

@@ -146,3 +146,16 @@ test('detail renderer escapes untrusted output and displays bounded operational 
   }));
   assert.match(oversized, /Preview limited to the first 4,096 characters/);
 });
+
+
+test('input observations fail closed on malformed or oversized output and cap visible telemetry', () => {
+  assert.deepEqual(detail.executionInputObservations('null'), []);
+  assert.deepEqual(detail.executionInputObservations('not json'), []);
+  assert.deepEqual(detail.executionInputObservations(' '.repeat(1048577)), []);
+  const row = { requirementId: 'fillage', assetId: id, quantity: 'PumpFillage',
+    value: 82, unit: '%', quality: 'Good', timestampUtc: '2026-10-16T12:00:00Z', source: 'simulator' };
+  assert.equal(detail.executionInputObservations(JSON.stringify({ inputObservations: Array(120).fill(row) })).length, 100);
+  assert.deepEqual(detail.executionInputObservations(JSON.stringify({ inputObservations: [
+    { ...row, value: null }, { ...row, source: 'x'.repeat(513) }, null
+  ] })), []);
+});

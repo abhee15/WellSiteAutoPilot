@@ -1,0 +1,9 @@
+.shadow-panel { padding: var(--space-12); margin-top: var(--space-12);
+  border-top: var(--border-width-thin) solid var(--color-border-subtle); min-width: 0; }
+.shadow-panel h4 { font-size: var(--font-size-body); margin: 0; }
+.shadow-panel p { color: var(--color-text-subtle); overflow-wrap: anywhere; }
+.shadow-panel code { display: block; overflow-wrap: anywhere; margin-bottom: var(--space-8); }
+.shadow-panel button { margin: var(--space-4); }
+.shadow-panel [role="alert"] { color: var(--color-text-warning-strong); }
+.shadow-panel button:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset); }

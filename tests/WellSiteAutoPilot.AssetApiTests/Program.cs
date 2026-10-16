@@ -19,6 +19,11 @@ if (args.Length == 1 && args[0] == "--prepare")
     await command.ExecuteNonQueryAsync();
     return 0;
 }
+if (args.Length == 1 && args[0] == "--configured-e2e")
+{
+    await ConfiguredShadowE2e.RunAsync();
+    return 0;
+}
 if (args.Length != 0) throw new InvalidOperationException("Unsupported Asset API test arguments.");
 
 var origin = Environment.GetEnvironmentVariable("WSA_ASSET_API_URL") ??

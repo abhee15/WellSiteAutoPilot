@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.ModuleSdk;
 
@@ -61,6 +62,11 @@ public sealed class ModuleExecutionEngine(
     }
 
     public async Task<LogicModuleExecutionResult> ExecuteAsync(
+        ExecutionRequestedV2 request, string correlationId, DateTimeOffset evaluationTimeUtc,
+        CancellationToken cancellationToken = default) =>
+        (await ExecuteObservedAsync(request, correlationId, evaluationTimeUtc, cancellationToken)).Result;
+
+    public async Task<ObservedExecutionResult> ExecuteObservedAsync(
         ExecutionRequestedV2 request,
         string correlationId,
         DateTimeOffset evaluationTimeUtc,
@@ -111,9 +117,8 @@ public sealed class ModuleExecutionEngine(
                 .ToArray(),
             inputs);
 
-        return await logicModule.ExecuteAsync(
-            context,
-            cancellationToken);
+        var result = await logicModule.ExecuteAsync(context, cancellationToken);
+        return new ObservedExecutionResult(result, inputs);
     }
 
     private async Task<LogicInputValue> ReadInputAsync(
@@ -123,8 +128,7 @@ public sealed class ModuleExecutionEngine(
     {
         if (!string.Equals(binding.Access, "Current", StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
-                $"Execution input '{binding.RequirementId}' uses unsupported access '{binding.Access}'.");
+            throw InputFailure("EXECUTION_INPUT_ACCESS_UNSUPPORTED");
         }
 
         var value = await gatewayDataClient.GetCurrentAsync(
@@ -137,31 +141,25 @@ public sealed class ModuleExecutionEngine(
             (binding.CanonicalUnit is not null &&
              !string.Equals(value.Unit, binding.CanonicalUnit, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidOperationException(
-                $"Execution input '{binding.RequirementId}' returned a mismatched quantity or unit.");
+            throw InputFailure("EXECUTION_INPUT_QUANTITY_MISMATCH");
         }
 
-        if (string.Equals(value.Quality, "Bad", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(value.Quality, "Unknown", StringComparison.OrdinalIgnoreCase) ||
-            (!binding.AllowUncertainQuality &&
-             string.Equals(value.Quality, "Uncertain", StringComparison.OrdinalIgnoreCase)))
+        if (!string.Equals(value.Quality, "Good", StringComparison.OrdinalIgnoreCase) &&
+            !(binding.AllowUncertainQuality && string.Equals(value.Quality, "Uncertain", StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidOperationException(
-                $"Execution input '{binding.RequirementId}' does not satisfy the required data quality.");
+            throw InputFailure("EXECUTION_INPUT_QUALITY_REJECTED");
         }
 
         if (value.TimestampUtc > evaluationTimeUtc.AddSeconds(30))
         {
-            throw new InvalidOperationException(
-                $"Execution input '{binding.RequirementId}' is future-dated.");
+            throw InputFailure("EXECUTION_INPUT_FUTURE");
         }
 
         if (binding.MaximumAgeSeconds is > 0 &&
             evaluationTimeUtc - value.TimestampUtc >
             TimeSpan.FromSeconds(binding.MaximumAgeSeconds.Value))
         {
-            throw new InvalidOperationException(
-                $"Execution input '{binding.RequirementId}' is stale.");
+            throw InputFailure("EXECUTION_INPUT_STALE");
         }
 
         return new LogicInputValue(
@@ -174,4 +172,10 @@ public sealed class ModuleExecutionEngine(
             value.Quality,
             value.Source);
     }
+    private static WellSiteAutoPilotException InputFailure(string code) =>
+        new(code, FailureKind.Validation, "Execution input did not satisfy its declared requirements.");
+
 }
+
+public sealed record ObservedExecutionResult(LogicModuleExecutionResult Result,
+    IReadOnlyCollection<LogicInputValue> InputObservations);

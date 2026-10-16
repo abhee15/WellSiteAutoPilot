@@ -621,6 +621,7 @@ function LogicPage({
   const [selectedConfiguredId, setSelectedConfiguredId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [canRequestShadow, setCanRequestShadow] = useState(false);
   const [capabilityError, setCapabilityError] = useState(false);
   useEffect(() => {
     const c = new AbortController();
@@ -629,8 +630,8 @@ function LogicPage({
     }).then(async response => {
       if (!response.ok) throw new Error();
       const value = await response.json() as ConfiguredLogicCapabilitiesResponse;
-      if (!c.signal.aborted) { setCanManage(value.canManage === true); setCapabilityError(false); }
-    }).catch(() => { if (!c.signal.aborted) { setCanManage(false); setCapabilityError(true); } });
+      if (!c.signal.aborted) { setCanManage(value.canManage === true); setCanRequestShadow(value.canRequestShadow === true); setCapabilityError(false); }
+    }).catch(() => { if (!c.signal.aborted) { setCanManage(false); setCanRequestShadow(false); setCapabilityError(true); } });
     return () => c.abort();
   }, [userId, configuredLogic]);
   const visibleConfigurations = useMemo(
@@ -763,7 +764,7 @@ function LogicPage({
           <ConfiguredLogicWorkspace
             key={selectedConfiguredId ?? 'new'}
             selectedId={selectedConfiguredId}
-            canManage={canManage}
+            canManage={canManage} userId={userId} canRequestShadow={canRequestShadow}
             modules={modules} assets={assets} assetTypes={assetTypes}
             onChanged={onRefresh}
             onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}

@@ -69,3 +69,5 @@ public sealed record ExecutionFailedV2(
     DateTimeOffset FailedAtUtc,
     string FailureCode,
     bool RequiresAttention);
+
+public sealed record ExecutionStartedV2(Guid ExecutionId, DateTimeOffset StartedAtUtc);

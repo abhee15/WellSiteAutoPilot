@@ -6,6 +6,7 @@ using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Logic;
+using WellSiteAutoPilot.Persistence.Executions;
 
 internal static class ConfiguredLogicApiChecks
 {
@@ -92,11 +93,61 @@ internal static class ConfiguredLogicApiChecks
         if (audit.Length != 6 || audit.Any(a => a.ActorUserId == null || a.ActorIdentity != @"LOCAL\ci-asset-engineer" ||
             a.CorrelationId != "ci-configured-setup" || a.DetailsJson.Contains("provider-simulator", StringComparison.Ordinal)))
             throw new InvalidOperationException("Mutation audit lost actor/correlation or leaked input data.");
+        var runPath = detailPath + "/revisions/" + second + "/shadow";
+        await Expect(await anonymous.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.Unauthorized);
+        await Expect(await unprivileged.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.Forbidden);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.Empty }), HttpStatusCode.BadRequest);
+        await Expect(await engineer.PostAsJsonAsync(revisionPath + "/shadow", new { requestId = Guid.NewGuid() }), HttpStatusCode.Conflict);
+        var requestKey = Guid.NewGuid();
+        var requests = await Task.WhenAll(Enumerable.Range(0, 4).Select(async _ =>
+            await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK)));
+        var executionId = requests[0].GetProperty("executionId").GetGuid();
+        if (requests.Any(r => r.GetProperty("executionId").GetGuid() != executionId))
+            throw new InvalidOperationException("Concurrent manual request retries created duplicates.");
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.Conflict);
+        await Expect(await engineer.PostAsJsonAsync(revisionPath + "/shadow", new { requestId = requestKey }), HttpStatusCode.Conflict);
+        if (await db.OutboxMessages.CountAsync(m => m.Payload.Contains(executionId.ToString())) != 1 ||
+            await db.AuditEvents.CountAsync(a => a.Action == "EXECUTION_SHADOW_REQUESTED" && a.TargetId == executionId.ToString()) != 1)
+            throw new InvalidOperationException("Manual request/outbox/audit did not commit singularly.");
+        var startMessage = Guid.NewGuid();
+        async Task ApplyStarted()
+        {
+            await using var context = new WellSiteAutoPilotDbContext(options);
+            await new ExecutionRepository(context).ApplyStartedAsync(startMessage, "ci-started", executionId, DateTimeOffset.UtcNow);
+        }
+        await Task.WhenAll(ApplyStarted(), ApplyStarted());
+        var running = await Read(await engineer.GetAsync("/api/v1/executions/" + executionId), HttpStatusCode.OK);
+        if (running.GetProperty("status").GetString() != "Running") throw new InvalidOperationException("Started transition was not durable.");
+        var executionRepository = new ExecutionRepository(db);
+        await executionRepository.ApplyCompletedAsync(Guid.NewGuid(), "ci-completed", executionId,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "CI_COMPLETED", "{}");
+        var beforeLate = await Read(await engineer.GetAsync("/api/v1/executions/" + executionId), HttpStatusCode.OK);
+        await executionRepository.ApplyStartedAsync(Guid.NewGuid(), "ci-late-started", executionId, DateTimeOffset.UtcNow);
+        var recovered = await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
+        if (recovered.TryGetProperty("outputJson", out _) || recovered.TryGetProperty("failureCode", out _))
+            throw new InvalidOperationException("Request recovery leaked result data outside the read policy.");
+        var canonical = await Read(await engineer.GetAsync("/api/v1/executions/" + executionId), HttpStatusCode.OK);
+        if (canonical.GetProperty("status").GetString() != "Completed" ||
+            canonical.GetProperty("startedAtUtc").GetString() != beforeLate.GetProperty("startedAtUtc").GetString() ||
+            canonical.GetProperty("completedAtUtc").GetString() != beforeLate.GetProperty("completedAtUtc").GetString())
+            throw new InvalidOperationException("Late started notification overwrote terminal status.");
+        await db.LogicModules.Where(m => m.ModuleId == "weatherford.setup-api-test")
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.IsEnabled, false));
+        await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.ServiceUnavailable);
+        await db.LogicModules.Where(m => m.ModuleId == "weatherford.setup-api-test")
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.IsEnabled, true));
+        await db.Assets.Where(a => a.Id == assetId).ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, false));
+        await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.NotFound);
+        await db.Assets.Where(a => a.Id == assetId).ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, true));
         // Revocation is checked again by the middleware on every request.
         var me = await Read(await engineer.GetAsync("/api/v1/security/me"), HttpStatusCode.OK);
         await Expect(await admin.PutAsJsonAsync("/api/v1/security/users/" + me.GetProperty("userId").GetGuid() + "/access",
             new { roles = new List<string> { "Engineer" }, assetScopeIds = Array.Empty<Guid>() }), HttpStatusCode.OK);
         await Expect(await engineer.GetAsync(detailPath), HttpStatusCode.NotFound);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.NotFound);
+        await Expect(await engineer.GetAsync("/api/v1/executions/" + executionId), HttpStatusCode.NotFound);
         await Expect(await engineer.PostAsJsonAsync(detailPath + "/revisions", Request(assetId)), HttpStatusCode.NotFound);
         Console.WriteLine("Live Configured Logic create/revise/validate/activate/conflict/revocation/audit checks passed.");
     }
