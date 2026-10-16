@@ -83,6 +83,17 @@ must pass in CI before making any validation claim. Next implement bootstrap,
 request-host binding and resource repository/route integration, then remove
 obsolete editing/migration surfaces as listed above before runtime activation.
 
+The next checkpoint adds `GrantBootstrapRepository` and a scoped host
+`RequestAccessContext`. Bootstrap persists separate direct DeploymentWide and
+AllAssets grants with one audit and a cross-instance initialization lock. Any
+prior grant/bootstrap audit prevents automatic regrant. Its disposable-database
+tests cover simultaneous attempts, audit failure, invalid system role and a
+genuinely empty Asset store. Initialization/reset assumptions are documented in
+`docs/development/grant-runtime-initialization.md`. The context binds one
+persisted identity to one trusted provider observation and excludes TestHeader
+from Windows membership. These services are registered but not called by live
+middleware yet; request/route integration remains the next implementation step.
+
 ## Release limits
 
 Genuine browser Negotiate, domain/nested groups, cross-domain trusts and token

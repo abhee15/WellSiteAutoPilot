@@ -135,6 +135,15 @@ internal static class GrantAuthorityChecks
                 await freshTransaction.RollbackAsync();
             }
 
+            // These deliberately active/inactive group fixtures must not
+            // become input to the following whole-deployment legacy checks.
+            await setup.AuditEvents.Where(audit => audit.Id == auditId).ExecuteDeleteAsync();
+            await setup.AccessGrants.Where(grant => grant.Id == grantId).ExecuteDeleteAsync();
+            await setup.RolePermissions.Where(item => item.RoleId == roleId).ExecuteDeleteAsync();
+            await setup.RoleDefinitions.Where(role => role.Id == roleId).ExecuteDeleteAsync();
+            await setup.Assets.Where(asset => asset.Id == assetId).ExecuteDeleteAsync();
+            await setup.Users.Where(user => user.Id == userId).ExecuteDeleteAsync();
+
             Task AuthorizeAsync(WellSiteAutoPilotDbContext db) => global
                 ? GrantWriteGuard.RequireDeploymentAsync(db, subject, permission, clock)
                 : GrantWriteGuard.RequireAssetsAsync(db, subject, permission, [assetId], clock);

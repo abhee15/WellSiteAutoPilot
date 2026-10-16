@@ -95,6 +95,7 @@ builder.Services.AddAuthorization(WellSitePolicies.AddPolicies);
 builder.Services.AddSingleton<IIdentityGroupResolver>(services =>
     new WindowsTokenGroupResolver(authenticationMode, services.GetRequiredService<TimeProvider>()));
 builder.Services.AddScoped<SecurityActorFactory>();
+builder.Services.AddScoped<RequestAccessContext>();
 
 builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
