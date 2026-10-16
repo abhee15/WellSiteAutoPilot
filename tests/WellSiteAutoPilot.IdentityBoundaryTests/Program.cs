@@ -3,6 +3,8 @@ using System.Security.Principal;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Server.Security;
 
+WindowsGroupResolverChecks.Run();
+
 var windows = new ConfiguredPrincipalResolver(
     SecurityOptions.NegotiateAuthenticationMode);
 var testHeader = new ConfiguredPrincipalResolver(

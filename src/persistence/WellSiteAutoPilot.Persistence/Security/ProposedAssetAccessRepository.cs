@@ -76,23 +76,8 @@ public sealed class ProposedAssetAccessRepository(WellSiteAutoPilotDbContext db)
             return Task.FromResult(false);
         }
 
-        var activeUsers = db.Users.AsNoTracking();
-        var roleDefinitions = db.RoleDefinitions.AsNoTracking();
-        var rolePermissions = db.RolePermissions.AsNoTracking();
-        var bindings = db.AccessGrantAssets.AsNoTracking();
-        return db.AccessGrants.AsNoTracking().AnyAsync(grant =>
-            grant.Id != Guid.Empty && grant.RoleId != Guid.Empty &&
-            grant.SubjectKind == "User" && grant.UserId == userId &&
-            grant.GroupSid == null && grant.IsActive && grant.Revision >= 1 &&
-            grant.ScopeKind == "DeploymentWide" &&
-            !bindings.Any(binding => binding.GrantId == grant.Id) &&
-            activeUsers.Any(user => user.Id == userId && user.IsActive) &&
-            roleDefinitions.Any(role =>
-                role.Id == grant.RoleId && role.IsActive &&
-                rolePermissions.Any(rolePermission =>
-                    rolePermission.RoleId == role.Id &&
-                    rolePermission.Permission == permission)),
-            cancellationToken);
+        return ScopedAccessQueries.DeploymentGrants(db, userId, permission)
+            .AnyAsync(cancellationToken);
     }
 
     private static bool ValidResourceQuery(Guid userId, string permission) =>
