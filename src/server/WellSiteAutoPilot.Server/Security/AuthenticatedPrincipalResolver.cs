@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Globalization;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Failures;
 
@@ -60,6 +61,11 @@ public sealed class ConfiguredPrincipalResolver(string authenticationMode)
 
         // Read only the primary authenticated identity, not arbitrary
         // secondary identities that could carry misleading SID/name claims.
+        if (identity.FindAll(identity.NameClaimType).Skip(1).Any())
+        {
+            throw Denied("SECURITY_IDENTITY_AMBIGUOUS",
+                "The authenticated identity has ambiguous account name claims.");
+        }
         var normalizedName = UserAccessService.NormalizeIdentity(
             identity.Name ?? string.Empty);
         var sidClaims = identity.FindAll(ClaimTypes.PrimarySid).ToArray();
@@ -70,7 +76,7 @@ public sealed class ConfiguredPrincipalResolver(string authenticationMode)
         }
 
         var sid = sidClaims.SingleOrDefault()?.Value?.Trim();
-        if (sidClaims.Length == 1 && string.IsNullOrWhiteSpace(sid))
+        if (sidClaims.Length == 1 && !IsValidSid(sid))
         {
             throw Denied("SECURITY_IDENTITY_KEY_INVALID",
                 "The authenticated primary SID is invalid.");
@@ -96,6 +102,35 @@ public sealed class ConfiguredPrincipalResolver(string authenticationMode)
             identity.Name!.Trim(),
             displayName);
     }
+
+    // MS-DTYP 2.4.2.1/2.4.2.2: canonical revision-1 SID string,
+    // 48-bit authority (decimal below 2^32, otherwise 12 hex digits),
+    // and 1..15 unsigned 32-bit subauthorities. No platform-specific API
+    // is needed to validate the trusted host's serialized identity on Linux.
+    private static bool IsValidSid(string? sid)
+    {
+        if (sid is null || sid.Length > 252) return false;
+        var parts = sid.Split('-');
+        if (parts.Length is < 4 or > 18 ||
+            !string.Equals(parts[0], "S", StringComparison.OrdinalIgnoreCase) ||
+            parts[1] != "1") return false;
+        var authority = parts[2];
+        if (authority.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            if (authority.Length != 14 ||
+                !ulong.TryParse(authority.AsSpan(2), NumberStyles.AllowHexSpecifier,
+                    CultureInfo.InvariantCulture, out var value) || value < 0x100000000)
+                return false;
+        }
+        else if (!IsDecimalUInt32(authority)) return false;
+        return parts.Skip(3).All(IsDecimalUInt32);
+    }
+
+    private static bool IsDecimalUInt32(string value) =>
+        value.Length is >= 1 and <= 10 &&
+        (value.Length == 1 || value[0] != '0') &&
+        value.All(char.IsAsciiDigit) &&
+        uint.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out _);
 
     private static WellSiteAutoPilotException Denied(string code, string detail) =>
         new(code, FailureKind.Authorization, detail);

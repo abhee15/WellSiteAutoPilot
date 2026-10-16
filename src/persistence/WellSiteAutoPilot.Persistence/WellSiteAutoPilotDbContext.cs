@@ -28,6 +28,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
     public DbSet<RoleDefinitionEntity> RoleDefinitions => Set<RoleDefinitionEntity>();
     public DbSet<RolePermissionEntity> RolePermissions => Set<RolePermissionEntity>();
+    public DbSet<AccessGrantEntity> AccessGrants => Set<AccessGrantEntity>();
+    public DbSet<AccessGrantAssetEntity> AccessGrantAssets => Set<AccessGrantAssetEntity>();
     public DbSet<UserEntity> Users => Set<UserEntity>();
     public DbSet<UserRoleEntity> UserRoles => Set<UserRoleEntity>();
     public DbSet<UserAssetScopeEntity> UserAssetScopes => Set<UserAssetScopeEntity>();
@@ -251,6 +253,48 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .WithMany()
             .HasForeignKey(item => item.RoleId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        var grant = modelBuilder.Entity<AccessGrantEntity>();
+        grant.ToTable("access_grants", "security", table =>
+        {
+            table.HasCheckConstraint("CK_access_grants_subject",
+                "\"SubjectKind\" = 'User' AND \"UserId\" IS NOT NULL AND \"GroupSid\" IS NULL OR " +
+                "\"SubjectKind\" = 'WindowsGroup' AND \"UserId\" IS NULL AND \"GroupSid\" IS NOT NULL");
+            table.HasCheckConstraint("CK_access_grants_scope_kind",
+                "\"ScopeKind\" IN ('ExactAssets', 'DeploymentWide', 'AllAssets')");
+            table.HasCheckConstraint("CK_access_grants_revision", "\"Revision\" >= 1");
+        });
+        grant.HasKey(item => item.Id);
+        grant.Property(item => item.SubjectKind).HasMaxLength(32).IsRequired();
+        grant.Property(item => item.GroupSid).HasMaxLength(256);
+        grant.Property(item => item.ScopeKind).HasMaxLength(32).IsRequired();
+        grant.Property(item => item.IsActive).IsRequired();
+        grant.Property(item => item.Revision).IsRequired();
+        grant.Property(item => item.CreatedAtUtc).IsRequired();
+        grant.Property(item => item.UpdatedAtUtc).IsRequired();
+        grant.HasIndex(item => item.UserId);
+        grant.HasIndex(item => item.GroupSid);
+        grant.HasIndex(item => item.RoleId);
+        grant.HasIndex(item => new { item.UserId, item.RoleId, item.ScopeKind })
+            .IsUnique()
+            .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'User'");
+        grant.HasOne<UserEntity>().WithMany()
+            .HasForeignKey(item => item.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        grant.HasOne<RoleDefinitionEntity>().WithMany()
+            .HasForeignKey(item => item.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        var grantAsset = modelBuilder.Entity<AccessGrantAssetEntity>();
+        grantAsset.ToTable("assignment_asset_scopes", "security");
+        grantAsset.HasKey(item => new { item.GrantId, item.AssetId });
+        grantAsset.HasIndex(item => item.AssetId);
+        grantAsset.HasOne<AccessGrantEntity>().WithMany()
+            .HasForeignKey(item => item.GrantId)
+            .OnDelete(DeleteBehavior.Cascade);
+        grantAsset.HasOne<AssetEntity>().WithMany()
+            .HasForeignKey(item => item.AssetId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         var user = modelBuilder.Entity<UserEntity>();
         user.ToTable("users", "security");

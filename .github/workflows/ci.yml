@@ -80,6 +80,11 @@ jobs:
 
       - name: Verify authenticated external identity boundary
         run: dotnet run --project tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj --configuration Release --no-build
+      - name: Verify pure scoped-grant authorization isolation
+        run: dotnet run --project tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj --configuration Release --no-build
+
+      - name: Verify legacy Asset scope boundaries
+        run: dotnet run --project tests/WellSiteAutoPilot.SecurityBoundaryTests/WellSiteAutoPilot.SecurityBoundaryTests.csproj --configuration Release --no-build
 
       - name: Verify Logic Module manifest contracts
         run: |
@@ -206,14 +211,31 @@ jobs:
             }
           }
 
-      - name: Generate TypeScript API client and build React
+      # Each command must be independently blocking: PowerShell can otherwise
+      # report success from the last npm command after an earlier failure.
+      - name: Install frontend dependencies
         working-directory: src/web
-        run: |
-          npm install
-          npm run generate-api
-          npm run lint
-          npm run test:ui
-          npm run build
+        run: npm install
+
+      - name: Generate TypeScript API client
+        working-directory: src/web
+        run: npm run generate-api
+
+      - name: Lint frontend
+        working-directory: src/web
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: src/web
+        run: npm run test:ui
+
+      - name: Test frontend interactions
+        working-directory: src/web
+        run: npm run test:interaction
+
+      - name: Build frontend
+        working-directory: src/web
+        run: npm run build
 
       - name: Validate Python worker
         run: python -m compileall -q src/workers/python/src
@@ -560,6 +582,9 @@ jobs:
 
       - name: Verify security identity, RBAC, and Asset scope persistence
         run: dotnet run --project tests/WellSiteAutoPilot.SecurityPersistenceTests/WellSiteAutoPilot.SecurityPersistenceTests.csproj --configuration Release --no-build
+
+      - name: Verify authenticated identity persistence and claims
+        run: dotnet run --project tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj --configuration Release --no-build -- --persistence
 
       - name: Verify asset persistence
         run: dotnet run --project tests/WellSiteAutoPilot.AssetPersistenceTests/WellSiteAutoPilot.AssetPersistenceTests.csproj --configuration Release --no-build
@@ -967,6 +992,9 @@ jobs:
             echo "Expected Operator Asset mutation to return 403, got $status"
             exit 1
           fi
+
+      - name: Verify audit-only grant administration HTTP boundaries
+        run: python3 tools/ci/verify_grant_administration.py
 
       - name: Request and verify Shadow execution
         shell: bash

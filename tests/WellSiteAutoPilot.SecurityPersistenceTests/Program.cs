@@ -607,6 +607,29 @@ await using (var second = new WellSiteAutoPilotDbContext(options))
     }
 }
 
+await ScopedGrantFoundationChecks.RunAsync(
+    options, operatorUser.Id,
+    builtin.Single(item => item.Name == "Operator").Id, asset.Id);
+
+await ScopedGrantAdministrationChecks.RunAsync(
+    options, operatorUser, administrator, secondAdministrator,
+    asset.Id, otherAsset.Id, clock);
+
+await ScopedSqlProjectionChecks.RunAsync(
+    options, operatorUser.Id, secondAdministrator.Id, asset.Id, otherAsset.Id);
+
+await ScopedAccessInspectionChecks.RunAsync(
+    options, operatorUser, administrator, secondAdministrator, otherAsset.Id, clock);
+
+await MigrationPreflightChecks.RunAsync(
+    options, operatorUser, administrator, secondAdministrator, otherAsset.Id, clock);
+
+await LegacyGrantMigrationChecks.RunAsync(
+    options, operatorUser, administrator, secondAdministrator, otherAsset.Id, clock);
+
+await ProposedAssetAccessChecks.RunAsync(
+    options, secondAdministrator, administrator, asset.Id, otherAsset.Id, clock);
+
 Console.WriteLine(
     "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;

@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{ts,json}\"",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,json}\"",
-    "test:ui": "node --test tests/*.test.mjs"
+    "test:ui": "node --test tests/*.test.mjs",
+    "test:interaction": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "react": "19.3.0",
@@ -28,6 +29,12 @@
     "@eslint/js": "^9.39.0",
     "typescript-eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^5.2.0",
-    "prettier": "^3.7.0"
+    "prettier": "^3.7.0",
+    "@types/node": "^24.0.0",
+    "vitest": "^4.0.0",
+    "jsdom": "^27.0.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.0.0",
+    "@testing-library/dom": "^10.0.0"
   }
 }

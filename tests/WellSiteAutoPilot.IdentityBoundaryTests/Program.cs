@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Principal;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Server.Security;
 
@@ -93,7 +94,41 @@ ExpectCode(
     () => new ConfiguredPrincipalResolver("oidc").Resolve(nameOnlyPrincipal),
     "SECURITY_IDENTITY_PROVIDER_UNSUPPORTED");
 
+foreach (var sid in new[]
+{
+    "not-a-sid", "S-2-5-21", "S-1-5", "S-1-5-", "S-1-5--1",
+    "S-1-5-+1", "S-1-05-1", "S-1-5-01", "S-1-5-4294967296",
+    "S-1-4294967296-1", "S-1-0x000000000005-1", "S-1-0x1000000000000-1",
+    "S-1-5-１２", "S-1-5-1 2", "S-1-5" + string.Concat(Enumerable.Repeat("-1", 16))
+})
+    ExpectCode(() => windows.Resolve(Principal("CORP\\Operator", new Claim(ClaimTypes.PrimarySid, sid))),
+        "SECURITY_IDENTITY_KEY_INVALID");
+foreach (var sid in new[]
+{
+    "S-1-0-0", "S-1-5-4294967295", "S-1-4294967295-1",
+    "S-1-0x000100000000-1", "S-1-0xffffffffffff-4294967295",
+    "S-1-5" + string.Concat(Enumerable.Repeat("-4294967295", 15))
+})
+{
+    if (windows.Resolve(Principal("CORP\\Operator", new Claim(ClaimTypes.PrimarySid, sid)))
+        .PersistedIdentityKey != "SID:" + sid.ToUpperInvariant())
+        throw new InvalidOperationException("Valid SID boundary changed its persisted account key.");
+    if (OperatingSystem.IsWindows())
+    {
+        var native = new SecurityIdentifier(sid);
+        if (native.BinaryLength != 8 + 4 * (sid.Split('-').Length - 3) ||
+            !native.Equals(new SecurityIdentifier(native.Value)))
+            throw new InvalidOperationException("SID boundary disagrees with the native Windows representation.");
+    }
+}
+ExpectCode(() => windows.Resolve(Principal("CORP\\Operator", new Claim(ClaimTypes.Name, "CORP\\Other"))),
+    "SECURITY_IDENTITY_AMBIGUOUS");
+
 Console.WriteLine("Authenticated identity provider boundary checks passed.");
+if (args.Length == 1 && args[0] == "--persistence")
+    await PersistedIdentityChecks.RunAsync();
+else if (args.Length != 0)
+    throw new InvalidOperationException("Unsupported identity test arguments.");
 return 0;
 
 static ClaimsPrincipal Principal(string accountName, params Claim[] additional)
