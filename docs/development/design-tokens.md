@@ -6,19 +6,45 @@ The frontend uses **CSS custom properties**, not a new UI framework. Load
 ## Agreed design reference and implementation gap
 
 The user identified this [Claude design reference](https://claude.ai/share/39615aa3-bd6c-4812-976c-edb0ec90a284)
-on 2026-10-16 as the agreed design. The earlier project discussion records a
-**light neutral canvas, white surfaces and restrained blue accents**, with
-red/amber/green used mainly for operational meaning. The Logic Instance detail
-direction uses Overview / Activity / Configuration / Engineering sections.
+on 2026-10-16 as the agreed design. The shared conversation was inspected in
+the browser, including the later refinements through prototype version 10.
+Attachments and the running prototype are hidden in this shared snapshot;
+exact token values and rendered visual parity still need the prototype source.
 
-The current dark CSS is an implementation state, **not the approved palette**.
-Do not infer design approval from existing styles or their regression tests.
-At this review, the shared conversation content was access-denied from the
-available environment; exact colors, spacing and prototype details have not
-been inspected. Retrieve the prototype/source before claiming visual parity
-or choosing exact replacement values. Track that alignment separately from
-backend authorization; do not let the current dark styling become a design
-requirement by repetition.
+The verified visual and layout direction is:
+
+- A modern engineering workstation: neutral/slate canvas, white/brighter
+  surfaces, subtle borders, clear typography and one restrained blue accent.
+  Reserve red/amber/green mainly for operational semantics. Show modes through
+  labels, icons, borders and subtle accents instead of saturated surfaces.
+- Organize disclosure into Operate, Understand and Diagnose/Configure. Favor
+  role/task defaults and engineering concepts; expose provider-specific
+  mappings and infrastructure diagnostics on drill-down.
+- Primary navigation: Operations, Assets, Logic and Recommendations, subject
+  to permission. Operations centers on Active logic with one contextual rail:
+  My attention until a row is selected, then its inspector. Avoid KPI/card walls.
+- Logic detail: Overview, Activity, Configuration and Engineering. Preserve
+  Asset, Logic Module, mode, execution, attention and control ownership context.
+  Show meaningful permitted actions without rows of disabled controls.
+- Keep the signed-in user at the bottom left. Click/keyboard activation expands
+  permitted account/support options **inline within the sidebar**, with quieter
+  type and indentation. Do not use a floating account menu or invent an editable
+  Profile page for enterprise-owned identity. Audit, System Health and
+  Administration belong in this secondary area when permitted.
+- Keep the essential desktop task within a typical 1440px workspace using
+  tabs, split panes, inspectors, sticky context/actions and focused internal
+  scrolling. Configure Logic remains a stepwise workflow. Adapt for smaller
+  panels; do not force a fixed desktop viewport or hide essential actions.
+- The Activity panel contains attention plus a contextual live feed and scrolls
+  independently. Routine sensor updates stay quiet; meaningful state changes
+  update visibly and actions requiring a person raise attention. Preserve
+  selection, sort, filters and scroll during live updates. Show quality,
+  freshness, timestamps and connection state wherever they affect a decision.
+
+The current dark CSS is an implementation gap, **not the approved palette**.
+Its regression checks preserve existing declarations; they do not establish
+conformance to this design. Align styling in a focused change using the actual
+prototype/source for exact values, without blocking backend authorization.
 
 ## The two token layers
 
