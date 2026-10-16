@@ -13,7 +13,8 @@ internal static class WindowsGroupAdministrationChecks
         UserAccessProfile administrator, UserAccessProfile ordinaryUser, Guid assetId, TimeProvider clock)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
-        var actor = new SecurityActorContext(administrator.Id, administrator.IdentityName, "group-admin-test");
+        var actor = new SecurityActorContext(administrator.Id, administrator.IdentityName, "group-admin-test")
+        { RequiresWindowsGroupProof = false }; // Explicit CI authoring without group runtime authority.
         var users = new UserAccessRepository(db);
         var roles = new RoleCatalogRepository(db);
         var catalog = new RoleCatalogService(roles, users, clock);

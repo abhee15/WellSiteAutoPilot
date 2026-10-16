@@ -18,6 +18,8 @@ internal static class SecurityActorGroupGuardChecks
         foreach (var own in new[] { first, second })
             Denied(() => SecurityActorGroupGuard.RequireOtherGroup(actor, own, now), "SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN");
         SecurityActorGroupGuard.RequireOtherGroup(actor, other, now);
+        Denied(() => SecurityActorGroupGuard.RequireOtherGroup(
+            new SecurityActorContext(id, "DOMAIN\\admin", null), other, now), "SECURITY_GROUP_MEMBERSHIP_REQUIRED");
         foreach (var invalid in new[]
         {
             actor with { WindowsGroups = null },

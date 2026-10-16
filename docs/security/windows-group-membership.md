@@ -128,3 +128,9 @@ membership proof. The frontend explains that no change was saved and requires
 another administrator or reauthentication; it never retries the mutation.
 These own-access checks do not activate grant runtime authority or complete
 the remaining #76/#77 cutover.
+
+Application actors require group proof by default. Only the trusted host's
+explicit TestHeader provider path (and explicit test fixtures) opts out because
+that identity cannot receive group-derived runtime access. Ordinary application
+callers with absent proof therefore fail closed rather than accidentally
+inheriting the simulation behavior.

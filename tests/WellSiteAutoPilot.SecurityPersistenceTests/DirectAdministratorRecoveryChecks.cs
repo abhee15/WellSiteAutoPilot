@@ -15,7 +15,8 @@ internal static class DirectAdministratorRecoveryChecks
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
         var adminRole = await db.RoleDefinitions.SingleAsync(x => x.Key == "admin" && x.IsSystem);
-        var actor = new SecurityActorContext(administrator.Id, administrator.IdentityName, "direct-admin-recovery");
+        var actor = new SecurityActorContext(administrator.Id, administrator.IdentityName, "direct-admin-recovery")
+        { RequiresWindowsGroupProof = false }; // Explicit test-only group authoring/retirement.
         var users = new UserAccessRepository(db);
         var targets = new List<Guid>();
         for (var i = 0; i < 6; i++)
