@@ -12,6 +12,7 @@ internal static class GrantAuthorityChecks
 {
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, Guid assetTypeId)
     {
+        var scenario = 0;
         foreach (var group in new[] { false, true })
         foreach (var global in new[] { false, true })
         foreach (var revoke in global ? new[] { "user", "grant", "role", "permission" }
@@ -19,6 +20,7 @@ internal static class GrantAuthorityChecks
         {
             await using var setup = new WellSiteAutoPilotDbContext(options);
             var now = DateTimeOffset.UtcNow;
+            var groupSid = $"S-1-5-21-909-{++scenario}";
             var userId = Guid.NewGuid();
             var roleId = Guid.NewGuid();
             var grantId = Guid.NewGuid();
@@ -43,13 +45,13 @@ internal static class GrantAuthorityChecks
             setup.AccessGrants.Add(new AccessGrantEntity
             {
                 Id = grantId, SubjectKind = group ? "WindowsGroup" : "User", UserId = group ? null : userId,
-                GroupSid = group ? "S-1-5-21-909" : null, RoleId = roleId,
+                GroupSid = group ? groupSid : null, RoleId = roleId,
                 ScopeKind = global ? "DeploymentWide" : "ExactAssets", IsActive = true, Revision = 1,
                 CreatedAtUtc = now, UpdatedAtUtc = now
             });
             if (!global) setup.AccessGrantAssets.Add(new AccessGrantAssetEntity { GrantId = grantId, AssetId = assetId });
             await setup.SaveChangesAsync();
-            var subject = new AccessSubject(userId, group ? new(userId, ["S-1-5-21-909"], now) : null);
+            var subject = new AccessSubject(userId, group ? new(userId, [groupSid], now) : null);
             var clock = new FixedClock(now);
             await using var writer = new WellSiteAutoPilotDbContext(options);
             try { await AuthorizeAsync(writer); throw new InvalidOperationException("Grant guard allowed a missing transaction."); }
@@ -108,7 +110,11 @@ internal static class GrantAuthorityChecks
 
             await using var denied = new WellSiteAutoPilotDbContext(options);
             await using var deniedTransaction = await denied.Database.BeginTransactionAsync();
-            await ExpectDeniedAsync(() => AuthorizeAsync(denied));
+            try { await ExpectDeniedAsync(() => AuthorizeAsync(denied)); }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException($"Post-revocation check failed for {group}/{global}/{revoke}.", exception);
+            }
             await deniedTransaction.RollbackAsync();
             if (group)
             {
