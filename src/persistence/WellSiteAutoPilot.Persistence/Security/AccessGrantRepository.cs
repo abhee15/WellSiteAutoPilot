@@ -91,6 +91,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 "Role changed since review. Reload and review its permissions again.");
         }
 
+        await LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken);
         if (subject.GroupSid is { } groupSid)
             SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, nowUtc);
 
@@ -235,6 +236,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 "SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
                 "An active, distinct administrator is required.");
         }
+        await LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken);
         if (subject.GroupSid is { } groupSid)
             SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, nowUtc);
         if (subject.UserId is { } userId && !await dbContext.Users.AsNoTracking().AnyAsync(

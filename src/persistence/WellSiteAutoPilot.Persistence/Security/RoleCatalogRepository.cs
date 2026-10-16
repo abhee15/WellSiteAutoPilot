@@ -62,6 +62,9 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
         ArgumentNullException.ThrowIfNull(role);
         ArgumentNullException.ThrowIfNull(actor);
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        await LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken);
         var normalizedName = NormalizeName(role.Name);
 
         dbContext.RoleDefinitions.Add(new RoleDefinitionEntity
@@ -97,6 +100,7 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException exception)
             when (exception.InnerException is PostgresException
@@ -121,6 +125,7 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
         {
             await using var transaction = await dbContext.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable, cancellationToken);
+            await LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken);
 
             var current = await GetAsync(roleId, cancellationToken) ??
                 throw new WellSiteAutoPilotException(

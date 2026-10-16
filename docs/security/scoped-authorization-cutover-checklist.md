@@ -132,3 +132,25 @@ resource mutations and capability hints before removing legacy authority.
 Future user deactivation or recovery-role mutation paths must preserve this
 same invariant; the built-in role is currently immutable and there is no
 public user-deactivation API.
+
+## Current-administrator write/revocation boundary
+
+Role creation/update and direct/group grant creation/retirement revalidate the
+persisted active administrator inside the mutation transaction. The guard
+locks both the active user row and its direct legacy Admin assignment with
+`FOR SHARE`. Concurrent account deactivation or assignment deletion must wait
+until the authorized write commits; if revocation wins first, the mutation is
+denied or conflicted without automatic retry. A service check or serializable
+snapshot alone is not a substitute for holding the authority rows through the
+write. Roles/grants and their audits remain atomic.
+
+The regression matrix observes actual PostgreSQL lock waits for all four write
+paths against both role removal and user deactivation, then rejects direct
+repository writes from the revoked actor without new records or audits.
+
+This guard protects the **current** administrator authority. It does not wire
+resource operations to proposed grants. At complete cutover, replace the
+legacy authority predicate with the paired direct/verified-group grants and
+apply the same held-authority/target boundary to every protected mutation;
+remove obsolete legacy administration paths together. Do not mix legacy scope
+claims with newly effective grant permissions.

@@ -637,6 +637,8 @@ await LegacyGrantMigrationChecks.RunAsync(
 await ProposedAssetAccessChecks.RunAsync(
     options, secondAdministrator, administrator, asset.Id, otherAsset.Id, clock);
 
+await AdministratorRevocationChecks.RunAsync(options, secondAdministrator, operatorUser, asset.Id, clock);
+
 Console.WriteLine(
     "Stable Windows identity, role authoring, optimistic concurrency, RBAC, Asset scope, audit, and last-Admin invariants passed.");
 return 0;
