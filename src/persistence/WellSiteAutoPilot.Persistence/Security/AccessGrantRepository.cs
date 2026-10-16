@@ -91,6 +91,9 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 "Role changed since review. Reload and review its permissions again.");
         }
 
+        if (subject.GroupSid is { } groupSid)
+            SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, nowUtc);
+
         var scopeIds = command.AssetIds.Distinct().ToArray();
         if (!Enum.IsDefined(command.ScopeKind) || scopeIds.Length != command.AssetIds.Count ||
             (command.ScopeKind == AccessGrantScopeKind.ExactAssets &&
@@ -232,6 +235,8 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 "SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
                 "An active, distinct administrator is required.");
         }
+        if (subject.GroupSid is { } groupSid)
+            SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, nowUtc);
         if (subject.UserId is { } userId && !await dbContext.Users.AsNoTracking().AnyAsync(
             user => user.Id == userId && user.IsActive, cancellationToken))
         {

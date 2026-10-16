@@ -199,3 +199,19 @@ it('explains last direct administrator refusal and requires a refresh without re
   await screen.findByRole('combobox', { name: 'User to administer' });
   expect(deactivateGrant).toHaveBeenCalledTimes(1);
 });
+
+it.each(['selfAccess', 'groupProofRequired'] as const)('explains %s refusal without retrying a grant change', async kind => {
+  const { GrantApiError } = await import('../../src/views/grantAdministration');
+  vi.mocked(loadGrants).mockResolvedValue([row]);
+  vi.mocked(deactivateGrant).mockRejectedValue(new GrantApiError(kind));
+  const user = userEvent.setup();
+  render(<GrantAdministrationPage currentUserId={adminId} />);
+  await user.selectOptions(await screen.findByRole('combobox', { name: 'User to administer' }), userId);
+  await user.click(await screen.findByRole('button', { name: 'Deactivate grant' }));
+  const review = screen.getByRole('region', { name: 'Review grant deactivation' });
+  await user.click(within(review).getByRole('checkbox'));
+  await user.click(within(review).getByRole('button', { name: 'Deactivate grant' }));
+  await screen.findByText(kind === 'selfAccess' ? /Another administrator must change access/ : /Windows group membership could not be verified/);
+  expect(deactivateGrant).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: 'Deactivate grant' })).toBeNull();
+});

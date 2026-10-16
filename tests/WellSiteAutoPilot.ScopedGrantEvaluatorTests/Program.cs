@@ -1,6 +1,7 @@
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Security;
 
+SecurityActorGroupGuardChecks.Run();
 var clock = TimeProvider.System;
 
 // The new grant evaluator must never combine the roles from one assignment

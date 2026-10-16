@@ -13,7 +13,8 @@ internal static class WindowsGroupAdministrationChecks
         UserAccessProfile administrator, UserAccessProfile ordinaryUser, Guid assetId, TimeProvider clock)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
-        var actor = new SecurityActorContext(administrator.Id, administrator.IdentityName, "group-admin-test");
+        var actor = new SecurityActorContext(administrator.Id, administrator.IdentityName, "group-admin-test")
+        { RequiresWindowsGroupProof = false }; // Explicit CI authoring without group runtime authority.
         var users = new UserAccessRepository(db);
         var roles = new RoleCatalogRepository(db);
         var catalog = new RoleCatalogService(roles, users, clock);
@@ -66,6 +67,7 @@ internal static class WindowsGroupAdministrationChecks
             if (saved.Id != grant.Id || saved.GroupSid != group.GroupSid || !saved.IsActive)
                 throw new InvalidOperationException("Group assignment was not durable.");
         }
+        await GroupOwnAccessPersistenceChecks.RunAsync(options, group, grant, command, actor, clock);
         if ((await service.ListAsync(otherGroup, actor)).Count != 0)
             throw new InvalidOperationException("Group inspection crossed subject boundary.");
         await ExpectAsync(() => service.DeactivateAsync(otherGroup, grant.Id, 1, actor), FailureKind.NotFound);

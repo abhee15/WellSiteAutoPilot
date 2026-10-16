@@ -22,6 +22,15 @@ function scopeLabel(scope: GrantDraft['scopeKind']): string {
     : scope === 'AllAssets' ? 'grants.allAssets' : 'grants.deployment');
 }
 
+function mutationError(cause: unknown): string {
+  if (cause instanceof GrantApiError) {
+    if (cause.kind === 'lastDirectAdmin') return t('grants.lastDirectAdmin');
+    if (cause.kind === 'selfAccess') return t('security.selfAccessChange');
+    if (cause.kind === 'groupProofRequired') return t('security.groupProofRequired');
+  }
+  return t('grants.saveUncertain');
+}
+
 export function GrantAdministrationPage({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
@@ -137,11 +146,11 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
       if (abort.signal.aborted) return;
       verifyGrantReadback(persisted, records);
       setGrants(records); setPending(null); setNotice(t('grants.savedDraft'));
-    } catch {
+    } catch (cause) {
       if (!abort.signal.aborted) {
         // An uncertain write must be reconciled with the server, not retried.
         setPending(null); setGrants([]);
-        setError(t('grants.saveUncertain'));
+        setError(mutationError(cause));
       }
     } finally {
       if (mutationRef.current === abort) {
@@ -169,8 +178,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         // Whether the server committed is unknown. Require a fresh read;
         // never silently retry a security mutation.
         setRetiring(null); setRetireConfirmed(false); setGrants([]);
-        setError(t(cause instanceof GrantApiError && cause.kind === 'lastDirectAdmin'
-          ? 'grants.lastDirectAdmin' : 'grants.saveUncertain'));
+        setError(mutationError(cause));
       }
     } finally {
       if (mutationRef.current === abort) {

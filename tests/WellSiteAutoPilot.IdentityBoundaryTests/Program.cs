@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Server.Security;
 
 WindowsGroupResolverChecks.Run();
+SecurityActorFactoryChecks.Run();
 
 var windows = new ConfiguredPrincipalResolver(
     SecurityOptions.NegotiateAuthenticationMode);

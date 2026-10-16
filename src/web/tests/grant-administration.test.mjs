@@ -202,3 +202,16 @@ test('last direct administrator refusal has a definite outcome and is never retr
       new Response(body, { status: 409 })), { kind: 'conflict' });
   }
 });
+
+test('own-access and unverifiable-membership server refusals are explicit for create and retirement', async () => {
+  for (const [code, kind] of [
+    ['SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN', 'selfAccess'],
+    ['SECURITY_GROUP_MEMBERSHIP_REQUIRED', 'groupProofRequired'],
+  ]) {
+    const fetcher = async () => new Response(JSON.stringify({ code }), { status: 403 });
+    await assert.rejects(api.createGrant(draft, true, signal(), fetcher), { kind });
+    await assert.rejects(api.deactivateGrant(row, true, signal(), fetcher), { kind });
+    await assert.rejects(api.deactivateGrant(row, true, signal(), async () =>
+      new Response(JSON.stringify({ code }), { status: 500 })), { kind: 'unavailable' });
+  }
+});

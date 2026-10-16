@@ -1,3 +1,4 @@
+import { readSecurityRefusal } from '../security/securityRefusal';
 export type RoleRecord = {
   roleId: string;
   key: string;
@@ -25,7 +26,7 @@ export type RoleMutation = {
   isActive: boolean;
 };
 
-export type RoleErrorKind = 'accessDenied' | 'notFound' | 'conflict' |
+export type RoleErrorKind = 'accessDenied' | 'notFound' | 'conflict' | 'selfAccess' | 'groupProofRequired' |
   'invalid' | 'invalidResponse' | 'unavailable';
 
 export class RoleCatalogError extends Error {
@@ -168,7 +169,11 @@ export async function saveRole(
     if (signal.aborted) throw error;
     throw new RoleCatalogError('unavailable');
   }
-  if (!response.ok) throw classify(response.status);
+  if (!response.ok) {
+    const refusal = await readSecurityRefusal(response);
+    throw refusal && refusal !== 'lastDirectAdmin'
+      ? new RoleCatalogError(refusal) : classify(response.status);
+  }
 
   const result = await safeJson(response);
   if (!isRole(result) ||

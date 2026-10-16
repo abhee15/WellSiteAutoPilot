@@ -153,3 +153,18 @@ test('Role page loads with no previous user or role records exposed', () => {
   assert.match(html, /Loading authorized role catalog/);
   assert.doesNotMatch(html, /Field Supervisor/);
 });
+
+test('role deactivation surfaces own-access and membership refusals without retrying', async () => {
+  for (const [code, kind] of [
+    ['SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN', 'selfAccess'],
+    ['SECURITY_GROUP_MEMBERSHIP_REQUIRED', 'groupProofRequired'],
+  ]) {
+    let attempts = 0;
+    await assert.rejects(api.saveRole(role, { name: role.name, description: role.description,
+      permissions: role.permissions, isActive: false }, ['assets.read'], true, signal(), async () => {
+      attempts++;
+      return new Response(JSON.stringify({ code }), { status: 403 });
+    }), { kind });
+    assert.equal(attempts, 1);
+  }
+});

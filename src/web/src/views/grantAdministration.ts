@@ -1,3 +1,4 @@
+import { readSecurityRefusal } from '../security/securityRefusal';
 import { isWindowsSid } from '../security/windowsSid';
 import { isSecurityId as validId } from '../security/identifiers';
 import type { AccessGrantResponse } from '../api/generated/v1/types.gen';
@@ -16,7 +17,7 @@ export type PersistedGrant = AccessGrantResponse & {
 };
 export class GrantApiError extends Error {
   constructor(public readonly kind:
-    'denied' | 'notFound' | 'conflict' | 'lastDirectAdmin' | 'invalid' | 'unavailable' | 'invalidResponse') {
+    'denied' | 'notFound' | 'conflict' | 'lastDirectAdmin' | 'selfAccess' | 'groupProofRequired' | 'invalid' | 'unavailable' | 'invalidResponse') {
     super(kind);
   }
 }
@@ -101,7 +102,7 @@ export async function createGrant(draft: GrantDraft, confirmed: boolean,
     if (signal.aborted) throw error;
     throw new GrantApiError('unavailable');
   }
-  if (!response.ok) throw failed(response.status);
+  if (!response.ok) throw new GrantApiError(await readSecurityRefusal(response) ?? failed(response.status).kind);
   const saved = await payload(response);
   if (response.status !== 201 || !parse(saved) ||
     grantSubjectKey(saved).toLowerCase() !== (draft.groupSid ?? draft.userId).toLowerCase() ||
@@ -139,19 +140,7 @@ export async function deactivateGrant(grant: PersistedGrant, confirmed: boolean,
     if (signal.aborted) throw error;
     throw new GrantApiError('unavailable');
   }
-  if (!response.ok) {
-    if (response.status === 409) {
-      // Only a definite structured server refusal has a known outcome.
-      // Malformed/unknown failures retain the uncertain-write behavior.
-      let problem: unknown;
-      try { problem = await response.json(); } catch { /* handled below */ }
-      if (problem && typeof problem === 'object' && 'code' in problem &&
-          problem.code === 'SECURITY_LAST_DIRECT_ADMIN_REQUIRED') {
-        throw new GrantApiError('lastDirectAdmin');
-      }
-    }
-    throw failed(response.status);
-  }
+  if (!response.ok) throw new GrantApiError(await readSecurityRefusal(response) ?? failed(response.status).kind);
   const saved = await payload(response);
   if (response.status !== 200 || !parse(saved) || saved.isActive ||
     saved.grantId.toLowerCase() !== grant.grantId.toLowerCase() ||
