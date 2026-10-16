@@ -1,3 +1,4 @@
+import { ProposedAssetAccessPanel } from './ProposedAssetAccessPanel';
 import { LegacyMigrationPreflightPanel } from './LegacyMigrationPreflightPanel';
 import { DeploymentMigrationPreflightPanel } from './DeploymentMigrationPreflightPanel';
 import './grantAdministration.css';
@@ -225,6 +226,8 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         <LegacyMigrationPreflightPanel key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
       {selectedUser && !pending && !retiring && !error && !grantsLoading &&
         <EffectiveAccessInspector key={selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
+      {selectedUser && !pending && !retiring && !error && !grantsLoading &&
+        <ProposedAssetAccessPanel key={selectedUser.userId} userId={selectedUser.userId} permissions={permissions} />}
       {selectedUser && retiring && !error && (
         <section className="panel grant-final-review" role="region"
           aria-label={t('grants.retireReview')}>

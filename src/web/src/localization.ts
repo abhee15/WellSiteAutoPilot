@@ -3,6 +3,15 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'grants.proposedAssetsResults': 'Proposed resource access result',
+  'grants.proposedAssetsHeading': 'Proposed resource access',
+  'grants.proposedAssetsExplanation': 'Review which Assets the recorded grants would authorize for one selected permission. This preview is read-only and does not change live access.',
+  'grants.proposedAssetsSelect': 'Select a resource permission',
+  'grants.proposedAssetsFailed': 'Proposed Asset access could not be verified. Reload before relying on the result.',
+  'grants.proposedAssetsEmpty': 'No Assets would be accessible with this permission in the proposed model.',
+  'grants.proposedAssetsPrevious': 'Previous',
+  'grants.proposedAssetsNext': 'Next',
+  'grants.proposedAssetsPage': 'Starting at {start}; {count} Assets displayed',
   'grants.deploymentHeading': 'Deployment migration preflight',
   'grants.deploymentExplain': 'Compare all active users and active Assets in one bounded database snapshot. Recorded grants must not expand existing permissions. This is a read-only diagnostic and never enables authorization.',
   'grants.deploymentInspect': 'Check deployment parity',
