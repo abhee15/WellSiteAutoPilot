@@ -696,6 +696,7 @@ v1.MapGet(
     .WithName("ListWindowsGroupAccessGrants")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapPost(
@@ -727,7 +728,7 @@ v1.MapPost(
             cancellationToken);
 
         return Results.Created(
-            $"/api/v1/security/windows-groups/{Uri.EscapeDataString(groupSid)}/grants",
+            $"/api/v1/security/windows-groups/{Uri.EscapeDataString(result.GroupSid!)}/grants",
             ToAccessGrantResponse(result));
     })
     .WithName("CreateWindowsGroupAccessGrant")
