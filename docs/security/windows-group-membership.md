@@ -89,9 +89,10 @@ retirement. No automatic write retries occur in the UI.
 
 These records remain **proposed access**: neither entering a SID nor assigning
 a role changes the administrator's or any member's current legacy authority.
-The runtime replacement must add group-aware self-change checks, last-direct-
-administrator protection and request-time revocation before activating these
-grants. Do not wire group grants into legacy claims independently of those
+Group-aware own-access checks and direct-administrator retirement protection
+are now implemented as described below and in the cutover checklist. Complete
+grant-based bootstrap and request-time mutation/revocation enforcement before
+activating these grants. Do not wire group grants into legacy claims independently of those
 protections. Multi-group and direct/group evaluation is already tested at the
 pure evaluator and SQL resource-query boundary; this slice adds authoring,
 not a claim that the complete AD/domain runtime has shipped.
@@ -101,3 +102,29 @@ assignments. It contains no backfill or rollout state machine. Unreleased dev
 snapshots containing manually inserted duplicate active group assignments
 should be reset/reseeded explicitly rather than preserved through a data
 repair campaign.
+
+## Group-aware own-access protection
+
+Group assignment creation/retirement and role deactivation now carry a
+host-created `SecurityActorContext`. The administration actor factory resolves
+the authenticated external provider and native enabled-token membership; no
+request DTO, header, generic group claim or secondary identity supplies this
+proof. Windows/Negotiate administration that changes group-derived access
+requires a matching, fresh membership snapshot. Missing, expired, future-dated
+or wrong-user proof fails closed. An administrator cannot create/retire grants
+for any group in that snapshot or deactivate a role assigned directly to them
+or any of their groups. Checks run again inside the persistence transaction;
+failed changes leave no grant, revision or audit mutation. Assigned-role
+permission edits/reactivation remain blocked until assignments are retired.
+
+A TestHeader identity is explicitly a CI simulation without Windows-group
+runtime authority. It can author proposed group records, as before, but cannot
+supply group proof or acquire group-derived permission. That testing behavior
+must never be reported as browser/AD validation. Genuine Windows sign-in,
+nested/domain groups and token-renewal behavior remain release gate #92.
+
+Structured 403 responses distinguish own-access refusal from unavailable
+membership proof. The frontend explains that no change was saved and requires
+another administrator or reauthentication; it never retries the mutation.
+These own-access checks do not activate grant runtime authority or complete
+the remaining #76/#77 cutover.

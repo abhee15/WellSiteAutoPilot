@@ -92,6 +92,9 @@ else
 builder.Services.AddSingleton<IAuthenticatedPrincipalResolver>(
     new ConfiguredPrincipalResolver(authenticationMode));
 builder.Services.AddAuthorization(WellSitePolicies.AddPolicies);
+builder.Services.AddSingleton<IIdentityGroupResolver>(services =>
+    new WindowsTokenGroupResolver(authenticationMode, services.GetRequiredService<TimeProvider>()));
+builder.Services.AddScoped<SecurityActorFactory>();
 
 builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
@@ -359,6 +362,7 @@ v1.MapPut(
         UpdateSecurityRoleRequest request,
         RoleCatalogService catalog,
         HttpContext context,
+        SecurityActorFactory actors,
         CancellationToken cancellationToken) =>
     {
         var role = await catalog.UpdateAsync(
@@ -366,10 +370,7 @@ v1.MapPut(
             request.ExpectedRevision,
             new RoleMutationCommand(request.Name, request.Description,
                 request.Permissions, request.IsActive),
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
+            actors.Create(context, GetCurrentUserId(context.User)),
             cancellationToken);
         return ToRoleResponse(role);
     })
@@ -706,6 +707,7 @@ v1.MapPost(
         CreateAccessGrantRequest request,
         AccessGrantAdministrationService grants,
         HttpContext context,
+        SecurityActorFactory actors,
         CancellationToken cancellationToken) =>
     {
         if (!Enum.TryParse<AccessGrantScopeKind>(
@@ -721,10 +723,7 @@ v1.MapPost(
             AccessGrantSubject.ForWindowsGroup(groupSid),
             new CreateAccessGrantCommand(
                 request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
+            actors.Create(context, GetCurrentUserId(context.User)),
             cancellationToken);
 
         return Results.Created(
@@ -748,13 +747,11 @@ v1.MapPut(
         DeactivateAccessGrantRequest request,
         AccessGrantAdministrationService grants,
         HttpContext context,
+        SecurityActorFactory actors,
         CancellationToken cancellationToken) =>
         ToAccessGrantResponse(await grants.DeactivateAsync(
             AccessGrantSubject.ForWindowsGroup(groupSid), grantId, request.ExpectedRevision,
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
+            actors.Create(context, GetCurrentUserId(context.User)),
             cancellationToken)))
     .WithName("DeactivateWindowsGroupAccessGrant")
     .RequireAuthorization(WellSitePolicies.SecurityManage)

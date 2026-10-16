@@ -28,6 +28,8 @@ const categories: Record<string, MessageKey> = {
 function errorLabel(kind: RoleErrorKind): string {
   switch (kind) {
     case 'accessDenied': return t('roles.denied');
+    case 'selfAccess': return t('security.selfAccessChange');
+    case 'groupProofRequired': return t('security.groupProofRequired');
     case 'notFound': return t('roles.notFound');
     case 'conflict': return t('roles.conflict');
     case 'invalid': return t('roles.invalid');

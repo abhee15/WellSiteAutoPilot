@@ -66,6 +66,7 @@ internal static class WindowsGroupAdministrationChecks
             if (saved.Id != grant.Id || saved.GroupSid != group.GroupSid || !saved.IsActive)
                 throw new InvalidOperationException("Group assignment was not durable.");
         }
+        await GroupOwnAccessPersistenceChecks.RunAsync(options, group, grant, command, actor, clock);
         if ((await service.ListAsync(otherGroup, actor)).Count != 0)
             throw new InvalidOperationException("Group inspection crossed subject boundary.");
         await ExpectAsync(() => service.DeactivateAsync(otherGroup, grant.Id, 1, actor), FailureKind.NotFound);

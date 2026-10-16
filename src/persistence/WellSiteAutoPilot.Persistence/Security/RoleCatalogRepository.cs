@@ -158,6 +158,26 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
                 }
             }
 
+            if (current.IsActive && !mutation.IsActive)
+            {
+                var assignments = dbContext.AccessGrants.AsNoTracking()
+                    .Where(grant => grant.RoleId == roleId && grant.IsActive);
+                var ownDirect = await assignments.AnyAsync(grant =>
+                    grant.SubjectKind == "User" && grant.UserId == actor.UserId,
+                    cancellationToken);
+                var ownGroup = false;
+                if (await assignments.AnyAsync(grant => grant.SubjectKind == "WindowsGroup", cancellationToken))
+                {
+                    var groups = SecurityActorGroupGuard.RequireUsableGroups(actor, nowUtc).ToArray();
+                    ownGroup = await assignments.AnyAsync(grant =>
+                        grant.SubjectKind == "WindowsGroup" && groups.Contains(grant.GroupSid!),
+                        cancellationToken);
+                }
+                if (ownDirect || ownGroup)
+                    throw new WellSiteAutoPilotException("SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN",
+                        FailureKind.Authorization, "Administrators may not deactivate a role assigned to themselves or their Windows groups.");
+            }
+
             var changed = await dbContext.RoleDefinitions
                 .Where(item => item.Id == roleId &&
                     !item.IsSystem && item.Revision == expectedRevision)
