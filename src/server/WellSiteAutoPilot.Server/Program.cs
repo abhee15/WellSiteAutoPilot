@@ -55,6 +55,11 @@ builder.Services.Configure<SecurityOptions>(
     });
 
 var authenticationMode = securityOptions.AuthenticationMode;
+var windowsAuthenticationDiagnostics = builder.Configuration.GetValue("Diagnostics:WindowsAuthentication", false);
+if (windowsAuthenticationDiagnostics && (!builder.Environment.IsEnvironment("CI") ||
+    !string.Equals(authenticationMode, SecurityOptions.NegotiateAuthenticationMode, StringComparison.OrdinalIgnoreCase)))
+    throw new InvalidOperationException("Windows authentication diagnostics require CI with native Negotiate authentication.");
+
 
 if (string.Equals(
         authenticationMode,
@@ -183,6 +188,7 @@ if (swaggerEnabled)
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+if (windowsAuthenticationDiagnostics) app.UseMiddleware<WindowsAuthenticationDiagnosticsMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<GrantIdentityMiddleware>();
 app.UseAuthorization();

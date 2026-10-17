@@ -27,5 +27,7 @@ wire names and fail-closed validation; test unknown/malformed/numeric values
 and regeneration. Never edit generated files by hand. Runtime response
 validation remains necessary even with generated compile-time types.
 
-Current priority remains enterprise RBAC #76/#77. This follow-up is planned,
-not implemented, and does not change the active task by itself.
+PR #127 completed the coordinated enterprise RBAC runtime integration and
+merged as d23ef0d after seven passing checks. The next agreed Phase 1 priority
+is the real Windows browser diagnostic under #92. Enum generation remains
+queued and does not interrupt that investigation.

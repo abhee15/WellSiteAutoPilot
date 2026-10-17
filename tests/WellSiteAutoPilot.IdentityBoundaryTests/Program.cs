@@ -3,6 +3,7 @@ using System.Security.Principal;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Server.Security;
 
+WindowsAuthenticationDiagnosticChecks.Run();
 WindowsGroupResolverChecks.Run();
 SecurityActorFactoryChecks.Run();
 RequestAccessContextChecks.Run();

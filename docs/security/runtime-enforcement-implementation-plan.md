@@ -3,6 +3,13 @@
 Implementation checkpoint derived from ADR-006 and #76/#77, after PRs #121–#124.
 This is a work plan, not an authorization switch or a completion claim.
 
+PR #127 merged into develop as `d23ef0d445cdd7264ac59ee884a0547dd806afb4`
+after all seven jobs passed head `1a13a4d917800cf3b2e3fb751a3a5ca320e40c42`
+in run `39004825569`. The reviewed merge tree matched the tested tree. The
+remaining Phase 1 authentication investigation is #92; its local native-browser
+probe and privacy-checked CI observation code are being prepared separately.
+No real Windows browser or domain validation is claimed by the runtime merge.
+
 ## Current working integration — 2026-10-17
 
 The working API now binds identity-only middleware, explicit bootstrap and
