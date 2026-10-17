@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI guard: all product API endpoints must have reviewed legacy policy metadata.
+"""CI guard: all product API endpoints must have reviewed grant policy metadata.
 
 This static inventory is a *regression tripwire*, not proof of scoped-grant
 enforcement. Runtime integration tests and SQL-before-pagination tests remain
@@ -18,18 +18,11 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/system/info"): ("GetSystemInformation", None),
     ("GET", "/security/me"): ("GetCurrentUser", None),
     ("GET", "/security/users"): ("ListSecurityUsers", "SecurityManage"),
-    ("PUT", "/security/users/{userId:guid}/access"): ("ReplaceSecurityUserAccess", "SecurityManage"),
     ("GET", "/security/role-permissions"): ("ListProductPermissions", "SecurityManage"),
     ("GET", "/security/roles"): ("ListSecurityRoles", "SecurityManage"),
     ("GET", "/security/roles/{roleId:guid}"): ("GetSecurityRole", "SecurityManage"),
     ("POST", "/security/roles"): ("CreateSecurityRole", "SecurityManage"),
     ("PUT", "/security/roles/{roleId:guid}"): ("UpdateSecurityRole", "SecurityManage"),
-    ("POST", "/security/materialize-legacy-grants"): ("MaterializeLegacyAccessGrants", "SecurityManage"),
-    ("POST", "/security/rollback-legacy-grants"): ("RollbackLegacyAccessGrants", "SecurityManage"),
-    ("GET", "/security/migration-preflight"): ("InspectDeploymentLegacyMigration", "SecurityManage"),
-    ("GET", "/security/users/{userId:guid}/migration-preflight"): ("InspectLegacyGrantMigration", "SecurityManage"),
-    ("GET", "/security/users/{userId:guid}/proposed-assets"): ("ListProposedAuthorizedAssets", "SecurityManage"),
-    ("GET", "/security/users/{userId:guid}/effective-access"): ("InspectUserEffectiveAccess", "SecurityManage"),
     ("GET", "/security/users/{userId:guid}/grants"): ("ListUserAccessGrants", "SecurityManage"),
     ("POST", "/security/users/{userId:guid}/grants"): ("CreateUserAccessGrant", "SecurityManage"),
     ("PUT", "/security/users/{userId:guid}/grants/{grantId:guid}/deactivate"): ("DeactivateUserAccessGrant", "SecurityManage"),
@@ -44,7 +37,6 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/security/assets/directory"): ("ListSecurityAssetDirectory", "SecurityManage"),
     ("GET", "/assets"): ("ListAssets", "AssetsRead"),
     ("GET", "/assets/{assetId:guid}"): ("GetAsset", "AssetsRead"),
-    ("GET", "/configured-logic/capabilities"): ("GetConfiguredLogicCapabilities", "ConfiguredLogicRead"),
     ("POST", "/configured-logic"): ("CreateConfiguredLogic", "ConfiguredLogicManage"),
     ("GET", "/configured-logic"): ("ListConfiguredLogic", "ConfiguredLogicRead"),
     ("GET", "/configured-logic/{configuredLogicId:guid}"): ("GetConfiguredLogic", "ConfiguredLogicRead"),

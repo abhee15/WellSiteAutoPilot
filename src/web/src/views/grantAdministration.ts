@@ -56,7 +56,7 @@ function subjectPath(key: string): string {
   if (validId(key)) return '/api/v1/security/users/' + encodeURIComponent(key) + '/grants';
   throw new GrantApiError('invalid');
 }
-/** Read audited new assignments; these do not yet replace legacy access. */
+/** Read current paired user/group assignments. */
 export async function loadGrants(userId: string, signal: AbortSignal,
   fetcher: typeof fetch = fetch): Promise<PersistedGrant[]> {
   const path = subjectPath(userId);
@@ -117,7 +117,7 @@ export async function createGrant(draft: GrantDraft, confirmed: boolean,
 }
 
 /**
- * Retire an existing audit-only grant with optimistic concurrency. Never
+ * Retire an existing grant with optimistic concurrency. Never
  * retry a write after an ambiguous network outcome. A confirmed response
  * must identify the same grant and its next inactive revision.
  */

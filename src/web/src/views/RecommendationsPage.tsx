@@ -76,7 +76,7 @@ export function RecommendationInboxTable({
               </td>
               {onReview && (
                 <td>
-                  {item.id && recommendationIsAwaiting(item, nowUtc) ? (
+                  {item.id && item.canDecide === true && recommendationIsAwaiting(item, nowUtc) ? (
                     <button type="button" className="execution-inspect-button"
                       onClick={() => onReview(item.id!)}>
                       {t('decision.open')}
@@ -166,7 +166,7 @@ export function RecommendationsPage({
   }, [userId, refresh]);
 
   const nowUtc = Date.now();
-  const selectedRecommendation = items.find(item => item.id === selectedReviewId);
+  const selectedRecommendation = items.find(item => item.id === selectedReviewId && item.canDecide === true);
   useEffect(() => {
     if (selectedReviewId && (!canDecide || !selectedRecommendation ||
       !recommendationIsAwaiting(selectedRecommendation, Date.now()))) {
@@ -248,7 +248,7 @@ export function RecommendationsPage({
         {canDecide && selectedRecommendation &&
           recommendationIsAwaiting(selectedRecommendation, nowUtc) && (
             <RecommendationDecisionReviewPanel
-              key={selectedRecommendation.id}
+              key={JSON.stringify(selectedRecommendation)}
               item={selectedRecommendation}
               onCancel={() => setSelectedReviewId(null)}
               onSaved={() => {

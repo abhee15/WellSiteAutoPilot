@@ -72,6 +72,8 @@ public sealed record ConfiguredLogicResponse(
     string Name,
     Guid? ActiveRevisionId,
     DateTimeOffset CreatedAtUtc,
-    IReadOnlyCollection<ConfiguredLogicRevisionResponse> Revisions);
-
-public sealed record ConfiguredLogicCapabilitiesResponse(bool CanManage, bool CanRequestShadow);
+    IReadOnlyCollection<ConfiguredLogicRevisionResponse> Revisions)
+{
+    public bool CanManage { get; init; }
+    public bool CanRequestShadow { get; init; }
+}

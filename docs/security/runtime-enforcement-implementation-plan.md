@@ -3,7 +3,59 @@
 Implementation checkpoint derived from ADR-006 and #76/#77, after PRs #121–#124.
 This is a work plan, not an authorization switch or a completion claim.
 
-## Verified baseline
+## Current working integration — 2026-10-17
+
+The working API now binds identity-only middleware, explicit bootstrap and
+GrantPermissionHandler to one RequestAccessContext. Every resource route uses
+the prepared scoped repository or transactional mutation boundary. Security
+administration uses protected grant authority and minimal snapshot directories;
+module writes use deployment-wide authority. No published route consumes legacy
+role, permission or wildcard claims. Fixed-role access editing, migration and
+diagnostic-only authorization APIs/UI and their wire DTOs are removed together.
+
+/security/me exposes identity metadata and current permission prerequisites,
+without a legacy role list or union of Asset IDs. Configurations and
+recommendations include per-resource action booleans. Missing/malformed hints
+cannot enable actions; the backend still reauthorizes every mutation. Selected
+configuration/recommendation reviews follow the authorized resource snapshot;
+unchanged refreshes retain drafts, while removal/capability loss/content drift
+clears stale state and cancels pending reads. Asset selection/drafts are cleared
+when their resource options disappear, without relying on session scope unions.
+
+Asset type metadata is SQL-filtered to types used by a caller's readable Assets.
+The complete catalog, including unused types, requires protected administration
+and explicit AllAssets assets.read. Type creation retains the stricter protected
+administrator plus AllAssets assets.manage fence. Ordinary scoped users can
+render their inventory and choose existing authorized types without gaining
+full type-catalog visibility.
+
+HTTP fixtures now author/retire paired grants through the public administration
+boundary. The runtime matrix covers read/write separation on A versus B, scoped
+paging/type metadata, no descendant auto-grant, deployment/resource separation,
+protected versus custom administration, untrusted TestHeader group claims,
+stale reviews, explicit scope names and fresh revocation. Configured requests
+hold persisted snapshots and expose only receipts. Concurrent serialization
+conflicts are explicit 409s; tests require one canonical execution and recover
+it through a fresh explicit replay, without automatic write retries. Activation
+tests supply the reviewed If-Match token.
+
+Verified pre-integration base: 518714685ef2f51f0c70141bf90291e294015898 passed
+all seven jobs in run 39003547790, including the protected Asset directory,
+retired-route refusal and V1/V2 worker journeys. That result does not validate
+the new integration. The earlier sections below describe historical preparation
+checkpoints. Current integration must pass all seven jobs on its own reviewed
+head and unchanged merge tree before merge. Windows browser/AD release gate
+#92 remains the next Phase 1 task after this runtime work.
+
+Local integration validation uses the same .NET SDK 10.0.402 observed in CI:
+full solution build is clean, identity/policy, pure direct/group grants, failure,
+manifest, SDK, provider and V2 worker contract checks pass, and all scoped/type
+queries translate with Npgsql. The regenerated client builds; 105 frontend unit
+checks, 69 DOM interactions, lint and 15 convention tests pass. The changed HTTP
+and PostgreSQL journeys require execution on the new CI head; no local DB or
+real Windows browser claim is made.
+
+## Historical foundation baseline
 
 - Windows token proof and pure/SQL paired direct/multiple-group evaluation exist.
 - User/group assignment authoring, custom roles, own-access protection and

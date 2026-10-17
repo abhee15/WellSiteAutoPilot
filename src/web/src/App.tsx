@@ -6,7 +6,6 @@ import type {
   AssetCreationCapabilitiesResponse,
   AssetTypeResponse,
   ConfiguredLogicResponse,
-  ConfiguredLogicCapabilitiesResponse,
   CurrentUserResponse,
   ExecutionResponse,
   LogicModuleResponse,
@@ -151,7 +150,7 @@ export function App() {
         )}
         {section === 'operations' && canOpenSection(currentUser, section) && (
           <OperationsPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions, currentUser?.assetScopeIds])}
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             systemInfo={systemInfo}
             executions={executions}
             userId={currentUser?.userId}
@@ -159,7 +158,7 @@ export function App() {
         )}
         {section === 'recommendations' && canOpenSection(currentUser, section) && (
           <RecommendationsPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions, currentUser?.assetScopeIds])}
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             userId={currentUser?.userId}
             permissions={currentUser?.permissions}
           />
@@ -171,7 +170,7 @@ export function App() {
         )}
         {section === 'assets' && canOpenSection(currentUser, section) && (
           <AssetsPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions, currentUser?.assetScopeIds])}
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             assetTypes={assetTypes}
             assets={assets}
             userId={currentUser?.userId}
@@ -181,7 +180,7 @@ export function App() {
         )}
         {section === 'logic' && canOpenSection(currentUser, section) && (
           <LogicPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions, currentUser?.assetScopeIds])}
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             userId={currentUser?.userId}
             assets={assets}
             assetTypes={assetTypes}
@@ -456,6 +455,10 @@ function AssetsPage({
   onRefresh: () => Promise<void>;
 }) {
   const [selected, setSelected] = useState<AssetResponse | null>(null);
+  const selectedAuthorized = assets.find(asset => asset.id === selected?.id);
+  useEffect(() => {
+    if (selected && !assets.some(asset => asset.id === selected.id)) setSelected(null);
+  }, [assets, selected]);
   const typeNames = useMemo(
     () => new Map(assetTypes.map(type => [type.id, type.displayName])),
     [assetTypes],
@@ -531,12 +534,12 @@ function AssetsPage({
             </tbody>
           </table>
         </div>
-        {selected && <div className="asset-selected" aria-live="polite">
+        {selectedAuthorized && <div className="asset-selected" aria-live="polite">
           <h3>{t('assets.selected')}</h3>
-          <strong>{selected.name}</strong>
+          <strong>{selectedAuthorized.name}</strong>
           <p>{t('assets.selectedType', { name:
-            typeNames.get(selected.assetTypeId) ?? selected.assetTypeId ?? t('assets.unknownType') })}</p>
-          <code>{selected.id}</code>
+            typeNames.get(selectedAuthorized.assetTypeId) ?? selectedAuthorized.assetTypeId ?? t('assets.unknownType') })}</p>
+          <code>{selectedAuthorized.id}</code>
           <button type="button" className="secondary-button"
             onClick={() => setSelected(null)}>{t('assets.clearSelection')}</button>
         </div>}
@@ -588,7 +591,6 @@ function LogicPage({
   const canReadCatalog = permissions.includes('logic.read');
   const canReadConfigurations = permissions.includes('configured-logic.read');
   const mayManage = permissions.includes('configured-logic.manage');
-  const mayRequestShadow = permissions.includes('executions.request');
   const [catalogCriteria, setCatalogCriteria] = useState<LogicCatalogCriteria>(
     DEFAULT_LOGIC_CATALOG_CRITERIA,
   );
@@ -597,20 +599,14 @@ function LogicPage({
   );
   const [selectedConfiguredId, setSelectedConfiguredId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [canManage, setCanManage] = useState(false);
-  const [canRequestShadow, setCanRequestShadow] = useState(false);
-  const [capabilityError, setCapabilityError] = useState(false);
+  const canManage = mayManage && canReadConfigurations;
+  const canCreate = canManage && assets.some(asset => asset.isActive);
+  useEffect(() => { if (!canCreate) setCreating(false); }, [canCreate]);
+  const selectedConfiguration = configuredLogic.find(item => item.id === selectedConfiguredId);
   useEffect(() => {
-    const c = new AbortController();
-    if (userId && canReadConfigurations && (mayManage || mayRequestShadow)) void fetch('/api/v1/configured-logic/capabilities', {
-      signal: c.signal, credentials: 'same-origin', cache: 'no-store',
-    }).then(async response => {
-      if (!response.ok) throw new Error();
-      const value = await response.json() as ConfiguredLogicCapabilitiesResponse;
-      if (!c.signal.aborted) { setCanManage(mayManage && value.canManage === true); setCanRequestShadow(mayRequestShadow && value.canRequestShadow === true); setCapabilityError(false); }
-    }).catch(() => { if (!c.signal.aborted) { setCanManage(false); setCanRequestShadow(false); setCapabilityError(true); } });
-    return () => c.abort();
-  }, [userId, configuredLogic, canReadConfigurations, mayManage, mayRequestShadow]);
+    if (selectedConfiguredId && !configuredLogic.some(item => item.id === selectedConfiguredId))
+      setSelectedConfiguredId(null);
+  }, [configuredLogic, selectedConfiguredId]);
   const visibleConfigurations = useMemo(
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
@@ -679,8 +675,7 @@ function LogicPage({
       {canReadConfigurations && <section className="panel">
         <PanelHeader eyebrow="Configuration" title="Configured Logic"
           count={visibleConfigurations.length} />
-        {capabilityError && <p role="status">{t('setup.capabilitiesUnavailable')}</p>}
-        {canManage && !creating && !selectedConfiguredId && <button type="button"
+        {canCreate && !creating && !selectedConfiguredId && <button type="button"
           onClick={() => setCreating(true)}>{t('setup.heading')}</button>}
         <ConfiguredLogicControls
           criteria={configuredCriteria}
@@ -737,11 +732,12 @@ function LogicPage({
             </tbody>
           </table>
         </div>
-        {(creating || selectedConfiguredId) && (
+        {((creating && canCreate) || selectedConfiguration) && (
           <ConfiguredLogicWorkspace
-            key={selectedConfiguredId ?? 'new'}
+            key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguration]) : 'new:' + assets.map(item => item.id).join(',')}
             selectedId={selectedConfiguredId}
-            canManage={canManage} userId={userId} canRequestShadow={canRequestShadow}
+            canManage={creating ? canManage : canManage && selectedConfiguration?.canManage === true}
+            userId={userId} canRequestShadow={permissions.includes('executions.request') && selectedConfiguration?.canRequestShadow === true}
             modules={modules} assets={assets} assetTypes={assetTypes}
             onChanged={onRefresh}
             onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}

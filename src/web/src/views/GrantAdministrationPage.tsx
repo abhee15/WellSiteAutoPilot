@@ -1,9 +1,5 @@
 import { isWindowsSid } from '../security/windowsSid';
-import { ProposedAssetAccessPanel } from './ProposedAssetAccessPanel';
-import { LegacyMigrationPreflightPanel } from './LegacyMigrationPreflightPanel';
-import { DeploymentMigrationPreflightPanel } from './DeploymentMigrationPreflightPanel';
 import './grantAdministration.css';
-import { EffectiveAccessInspector } from './EffectiveAccessInspector';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import { loadSecurityUsers } from './accessManagement';
@@ -46,22 +42,10 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
   const [isLoading, setIsLoading] = useState(true);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deploymentWriting, setDeploymentWriting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const mutationRef = useRef<AbortController | null>(null);
-
-  // Deployment writes invalidate every per-user read, even if the response
-  // is lost after commit. Clear local grants and diagnostic panels immediately.
-  const deploymentWritingChanged = useCallback((writing: boolean) => {
-    setDeploymentWriting(writing);
-    if (writing) {
-      requestRef.current?.abort();
-      setSelectedUserId(''); setGrants([]); setPending(null);
-      setRetiring(null); setRetireConfirmed(false); setNotice(null);
-    }
-  }, []);
 
   const selectedUser = subjectKind === 'WindowsGroup' && isWindowsSid(selectedUserId)
     ? { userId: '', identityName: selectedUserId, groupSid: selectedUserId }
@@ -145,7 +129,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
       const records = await loadGrants(pending.groupSid ?? pending.userId, abort.signal);
       if (abort.signal.aborted) return;
       verifyGrantReadback(persisted, records);
-      setGrants(records); setPending(null); setNotice(t('grants.savedDraft'));
+      setGrants(records); setPending(null); setNotice(t('grants.savedAssignment'));
     } catch (cause) {
       if (!abort.signal.aborted) {
         // An uncertain write must be reconciled with the server, not retried.
@@ -193,17 +177,17 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         <div className="panel-header">
           <h2>{t('grants.manage')}</h2>
           <button type="button" className="secondary-button"
-            disabled={isLoading || saving || deploymentWriting} onClick={() => void load()}>
+            disabled={isLoading || saving} onClick={() => void load()}>
             {t('access.refresh')}
           </button>
         </div>
-        <p className="access-note access-intro">{t('grants.draftOnly')}</p>
+        <p className="access-note access-intro">{t('grants.intro')}</p>
         {isLoading && <p role="status">{t('access.loading')}</p>}
         {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
         {notice && <p role="status" className="access-intro">{notice}</p>}
         {!isLoading && !error && (
           <label className="grant-user-picker">{t('grants.subjectKind')}
-            <select value={subjectKind} disabled={saving || deploymentWriting}
+            <select value={subjectKind} disabled={saving}
               onChange={event => { setSubjectKind(event.target.value as 'User' | 'WindowsGroup'); void pickUser(''); }}>
               <option value="User">{t('grants.userSubject')}</option>
               <option value="WindowsGroup">{t('grants.groupSubject')}</option>
@@ -213,16 +197,16 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
         {!isLoading && !error && subjectKind === 'WindowsGroup' && (
           <form className="grant-user-picker" onSubmit={event => { event.preventDefault(); if (isWindowsSid(groupSid)) void pickUser(groupSid.toUpperCase()); }}>
             <label htmlFor="grant-group-sid">{t('grants.groupSid')}</label>
-            <input id="grant-group-sid" value={groupSid} maxLength={252} disabled={saving || deploymentWriting}
+            <input id="grant-group-sid" value={groupSid} maxLength={252} disabled={saving}
               onChange={event => { setGroupSid(event.target.value); void pickUser(''); }} aria-describedby="grant-group-help" />
             <small id="grant-group-help">{t('grants.groupHelp')}</small>
-            <button type="submit" disabled={saving || deploymentWriting || !isWindowsSid(groupSid)}>{t('grants.loadGroup')}</button>
+            <button type="submit" disabled={saving || !isWindowsSid(groupSid)}>{t('grants.loadGroup')}</button>
           </form>
         )}
         {!isLoading && !error && subjectKind === 'User' && (
           <label className="grant-user-picker">
             {t('grants.chooseUser')}
-            <select value={selectedUserId} disabled={saving || deploymentWriting}
+            <select value={selectedUserId} disabled={saving}
               onChange={event => void pickUser(event.target.value)}>
               <option value="">{t('grants.selectUser')}</option>
               {users.filter(user => user.isActive &&
@@ -265,14 +249,6 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
           </div>
         )}
       </section>
-      {subjectKind === 'User' && !pending && !retiring && !error && !isLoading && !grantsLoading &&
-        <DeploymentMigrationPreflightPanel users={users} onWritingChange={deploymentWritingChanged} />}
-      {subjectKind === 'User' && selectedUser && !pending && !retiring && !error && !grantsLoading &&
-        <LegacyMigrationPreflightPanel key={'preflight:' + selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
-      {subjectKind === 'User' && selectedUser && !pending && !retiring && !error && !grantsLoading &&
-        <EffectiveAccessInspector key={'inspection:' + selectedUser.userId} userId={selectedUser.userId} assets={assets} />}
-      {subjectKind === 'User' && selectedUser && !pending && !retiring && !error && !grantsLoading &&
-        <ProposedAssetAccessPanel key={'assets:' + selectedUser.userId} userId={selectedUser.userId} permissions={permissions} />}
       {selectedUser && retiring && !error && (
         <section className="panel grant-final-review" role="region"
           aria-label={t('grants.retireReview')}>
@@ -323,7 +299,7 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
               onClick={() => setPending(null)}>{t('access.cancel')}</button>
             <button type="button" disabled={saving}
               onClick={() => void save()}>
-              {saving ? t('access.saving') : t('grants.saveDraft')}
+              {saving ? t('access.saving') : t('grants.saveAssignment')}
             </button>
           </div>
         </section>

@@ -44,9 +44,9 @@ await CheckAsync(await anonymous.GetAsync("/api/v1/assets/capabilities"),
     HttpStatusCode.Unauthorized, "Missing identity must challenge");
 var adminMe = await BodyAsync(await admin.GetAsync("/api/v1/security/me"),
     HttpStatusCode.OK);
-if (!adminMe.GetProperty("roles").EnumerateArray()
-    .Any(x => x.GetString() == "Admin"))
-    throw new InvalidOperationException("CI bootstrap principal has no Admin role");
+if (!adminMe.GetProperty("permissions").EnumerateArray().Any(item => item.GetString() == "security.manage") ||
+    adminMe.TryGetProperty("roles", out _) || adminMe.TryGetProperty("assetScopeIds", out _))
+    throw new InvalidOperationException("Bootstrap session must expose grant hints without legacy role/scope unions.");
 
 var key = "ci-well-" + Guid.NewGuid().ToString("N");
 var schema = """{"type":"object","required":["depth"],"properties":{"depth":{"type":"number","minimum":0}},"additionalProperties":false}""";
@@ -85,10 +85,7 @@ if (readback.GetProperty("assetTypeId").GetGuid() != typeId ||
 var engineerMe = await BodyAsync(
     await engineer.GetAsync("/api/v1/security/me"), HttpStatusCode.OK);
 var engineerId = engineerMe.GetProperty("userId").GetGuid();
-await CheckAsync(await admin.PutAsJsonAsync(
-    "/api/v1/security/users/" + engineerId + "/access",
-    new { roles = new List<string> { "Engineer" }, assetScopeIds = new List<Guid> { fieldId } }),
-    HttpStatusCode.OK, "Grant scoped Engineer access");
+await GrantFixture.ReplaceAsync(admin, engineerId, "engineer", [fieldId]);
 
 var engineerCaps = await BodyAsync(
     await engineer.GetAsync("/api/v1/assets/capabilities"), HttpStatusCode.OK);
@@ -106,7 +103,7 @@ await CheckAsync(await engineer.PostAsJsonAsync("/api/v1/assets", new
 {
     assetTypeId = typeId, name = "Forbidden parent",
     parentAssetId = Guid.NewGuid(), attributeValuesJson = """{"depth":1}"""
-}), HttpStatusCode.Forbidden, "Engineer must not create under unscoped parent");
+}), HttpStatusCode.NotFound, "Engineer must not create under missing parent");
 
 var createdChild = await BodyAsync(await engineer.PostAsJsonAsync("/api/v1/assets",
     new
@@ -120,7 +117,7 @@ var childId = createdChild.GetProperty("id").GetGuid();
 // intentionally denied, even after the Engineer created the child. The UI
 // reports confirmed creation with pending administrator-granted visibility.
 await CheckAsync(await engineer.GetAsync("/api/v1/assets/" + childId),
-    HttpStatusCode.Forbidden, "Child must not leak via parent-only scope");
+    HttpStatusCode.NotFound, "Child must not leak via parent-only scope");
 var engineerAssets = await BodyAsync(
     await engineer.GetAsync("/api/v1/assets?limit=100"), HttpStatusCode.OK);
 if (!engineerAssets.EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == fieldId) ||

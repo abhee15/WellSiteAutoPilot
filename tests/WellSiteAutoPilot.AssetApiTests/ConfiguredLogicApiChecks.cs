@@ -30,15 +30,9 @@ internal static class ConfiguredLogicApiChecks
         """;
         await new LogicModuleCatalogService(new LogicModuleCatalogRepository(db), TimeProvider.System)
             .RegisterAsync(new RegisterLogicModuleCommand(manifest, new string('a', 64), LogicModuleTrustStatus.TrustedPublisher));
-        var reader = await Read(await unprivileged.GetAsync("/api/v1/security/me"), HttpStatusCode.OK);
-        await Expect(await admin.PutAsJsonAsync("/api/v1/security/users/" + reader.GetProperty("userId").GetGuid() + "/access",
-            new { roles = new List<string> { "Operator" }, assetScopeIds = Array.Empty<Guid>() }), HttpStatusCode.OK);
         var path = "/api/v1/configured-logic";
-        await Expect(await anonymous.GetAsync(path + "/capabilities"), HttpStatusCode.Unauthorized);
-        var caps = await Read(await engineer.GetAsync(path + "/capabilities"), HttpStatusCode.OK);
-        if (!caps.GetProperty("canManage").GetBoolean()) throw new InvalidOperationException("Engineer capability missing.");
-        var deniedCaps = await Read(await unprivileged.GetAsync(path + "/capabilities"), HttpStatusCode.OK);
-        if (deniedCaps.GetProperty("canManage").GetBoolean()) throw new InvalidOperationException("Unprivileged management hint widened.");
+        await Expect(await anonymous.GetAsync(path), HttpStatusCode.Unauthorized);
+        await Expect(await unprivileged.GetAsync(path), HttpStatusCode.Forbidden);
         object Request(Guid bindingAsset, string parameters = "{}") => new
         {
             name = "Setup API " + Guid.NewGuid().ToString("N"), moduleManifestJson = manifest,
@@ -49,7 +43,7 @@ internal static class ConfiguredLogicApiChecks
             schedule = (object?)null
         };
         await Expect(await unprivileged.PostAsJsonAsync(path, Request(assetId)), HttpStatusCode.Forbidden);
-        await Expect(await engineer.PostAsJsonAsync(path, Request(Guid.NewGuid())), HttpStatusCode.Forbidden);
+        await Expect(await engineer.PostAsJsonAsync(path, Request(Guid.NewGuid())), HttpStatusCode.NotFound);
         await Expect(await engineer.PostAsJsonAsync(path, Request(assetId, "{\"x\":1,\"x\":2}")), HttpStatusCode.BadRequest);
         await Expect(await engineer.PostAsJsonAsync(path, new { name = "bad", assetBindings = (object?)null, dataBindings = (object?)null }), HttpStatusCode.BadRequest);
         await Expect(await engineer.PostAsJsonAsync(path, new
@@ -63,9 +57,9 @@ internal static class ConfiguredLogicApiChecks
         var revision = created.GetProperty("revisions")[0].GetProperty("id").GetGuid();
         var detailPath = path + "/" + id;
         var revisionPath = detailPath + "/revisions/" + revision;
-        await Expect(await unprivileged.GetAsync(detailPath), HttpStatusCode.NotFound);
+        await Expect(await unprivileged.GetAsync(detailPath), HttpStatusCode.Forbidden);
         await Expect(await unprivileged.PostAsync(revisionPath + "/validate", null), HttpStatusCode.Forbidden);
-        await Expect(await engineer.PostAsync(revisionPath + "/activate", null), HttpStatusCode.Conflict);
+        await Expect(await engineer.PostAsync(revisionPath + "/activate", null), HttpStatusCode.BadRequest);
         var validated = await Read(await engineer.PostAsync(revisionPath + "/validate", null), HttpStatusCode.OK);
         if (validated.GetProperty("status").GetString() != "Validated") throw new InvalidOperationException("Validation failed.");
         await Expect(await engineer.PostAsync(revisionPath + "/validate", null), HttpStatusCode.Conflict);
@@ -100,10 +94,19 @@ internal static class ConfiguredLogicApiChecks
         await Expect(await engineer.PostAsJsonAsync(revisionPath + "/shadow", new { requestId = Guid.NewGuid() }), HttpStatusCode.Conflict);
         var requestKey = Guid.NewGuid();
         var requests = await Task.WhenAll(Enumerable.Range(0, 4).Select(async _ =>
-            await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK)));
-        var executionId = requests[0].GetProperty("executionId").GetGuid();
-        if (requests.Any(r => r.GetProperty("executionId").GetGuid() != executionId))
-            throw new InvalidOperationException("Concurrent manual request retries created duplicates.");
+        {
+            using var response = await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey });
+            if (response.StatusCode == HttpStatusCode.Conflict) return (Guid?)null;
+            var receipt = await Read(response, HttpStatusCode.OK);
+            return receipt.GetProperty("executionId").GetGuid();
+        }));
+        var receipts = requests.Where(id => id is not null).Select(id => id!.Value).ToArray();
+        if (receipts.Length == 0 || receipts.Distinct().Count() != 1)
+            throw new InvalidOperationException("Concurrent requests lost the committed receipt or created duplicates.");
+        var executionId = receipts[0];
+        var explicitReplay = await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
+        if (explicitReplay.GetProperty("executionId").GetGuid() != executionId)
+            throw new InvalidOperationException("Fresh explicit replay did not recover the committed request.");
         await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.Conflict);
         await Expect(await engineer.PostAsJsonAsync(revisionPath + "/shadow", new { requestId = requestKey }), HttpStatusCode.Conflict);
         if (await db.OutboxMessages.CountAsync(m => m.Payload.Contains(executionId.ToString())) != 1 ||
@@ -134,21 +137,20 @@ internal static class ConfiguredLogicApiChecks
         await db.LogicModules.Where(m => m.ModuleId == "weatherford.setup-api-test")
             .ExecuteUpdateAsync(set => set.SetProperty(m => m.IsEnabled, false));
         await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
-        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.ServiceUnavailable);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.Conflict);
         await db.LogicModules.Where(m => m.ModuleId == "weatherford.setup-api-test")
             .ExecuteUpdateAsync(set => set.SetProperty(m => m.IsEnabled, true));
         await db.Assets.Where(a => a.Id == assetId).ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, false));
-        await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
-        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.NotFound);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.Forbidden);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = Guid.NewGuid() }), HttpStatusCode.Forbidden);
         await db.Assets.Where(a => a.Id == assetId).ExecuteUpdateAsync(set => set.SetProperty(a => a.IsActive, true));
         // Revocation is checked again by the middleware on every request.
         var me = await Read(await engineer.GetAsync("/api/v1/security/me"), HttpStatusCode.OK);
-        await Expect(await admin.PutAsJsonAsync("/api/v1/security/users/" + me.GetProperty("userId").GetGuid() + "/access",
-            new { roles = new List<string> { "Engineer" }, assetScopeIds = Array.Empty<Guid>() }), HttpStatusCode.OK);
-        await Expect(await engineer.GetAsync(detailPath), HttpStatusCode.NotFound);
-        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.NotFound);
-        await Expect(await engineer.GetAsync("/api/v1/executions/" + executionId), HttpStatusCode.NotFound);
-        await Expect(await engineer.PostAsJsonAsync(detailPath + "/revisions", Request(assetId)), HttpStatusCode.NotFound);
+        await GrantFixture.ReplaceAsync(admin, me.GetProperty("userId").GetGuid(), "engineer", []);
+        await Expect(await engineer.GetAsync(detailPath), HttpStatusCode.Forbidden);
+        await Expect(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.Forbidden);
+        await Expect(await engineer.GetAsync("/api/v1/executions/" + executionId), HttpStatusCode.Forbidden);
+        await Expect(await engineer.PostAsJsonAsync(detailPath + "/revisions", Request(assetId)), HttpStatusCode.Forbidden);
         Console.WriteLine("Live Configured Logic create/revise/validate/activate/conflict/revocation/audit checks passed.");
     }
 

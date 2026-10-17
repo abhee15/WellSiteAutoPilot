@@ -26,6 +26,8 @@ internal static class ScopedResourceQueryChecks
         [
             ScopedAccessQueries.Assets(db, user, WellSitePermissions.AssetsRead)
                 .OrderBy(asset => asset.Name).Skip(1).Take(1),
+            ScopedAccessQueries.AssetTypes(db, new AccessSubject(user), DateTimeOffset.UtcNow)
+                .OrderBy(type => type.DisplayName).Skip(1).Take(1),
             ScopedAccessQueries.ConfiguredLogic(db, user, WellSitePermissions.ConfiguredLogicRead)
                 .OrderBy(definition => definition.Name).Skip(1).Take(1),
             ScopedAccessQueries.Executions(db, user, WellSitePermissions.ExecutionsRead)
@@ -54,7 +56,7 @@ internal static class ScopedResourceQueryChecks
         })
             if (!query.ToQueryString().Contains("EXISTS", StringComparison.Ordinal))
                 throw new InvalidOperationException("Grant authority did not translate to PostgreSQL.");
-        Console.WriteLine("All four composed grant/resource queries and batch action capabilities translated with Npgsql.");
+        Console.WriteLine("Composed grant/resource/type queries and batch action capabilities translated with Npgsql.");
     }
 
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options,
@@ -65,6 +67,12 @@ internal static class ScopedResourceQueryChecks
         var now = DateTimeOffset.UtcNow;
         var userId = Guid.NewGuid();
         var identity = $"grant-query-{userId:N}";
+        var unusedTypeId = Guid.NewGuid();
+        db.AssetTypes.Add(new AssetTypeEntity
+        {
+            Id = unusedTypeId, Key = unusedTypeId.ToString("N"), DisplayName = "Unassigned scoped-query type",
+            SchemaVersion = 1, IsActive = true, CreatedAtUtc = now
+        });
         db.Users.Add(new UserEntity
         {
             Id = userId, IdentityKey = identity, IdentityName = identity,
@@ -496,6 +504,11 @@ internal static class ScopedResourceQueryChecks
                 await assetRepository.GetAuthorizedAsync(request, assetC) is not null ||
                 (await assetRepository.GetAuthorizedAsync(request, assetB))?.Id != assetB)
                 throw new InvalidOperationException("Asset repository lost authorized detail/page semantics.");
+            if (!(await assetRepository.ListAssetTypesAuthorizedAsync(request)).Select(type => type.Id)
+                    .ToHashSet().SetEquals([assetTypeId]) ||
+                (await assetRepository.GetAssetTypeAuthorizedAsync(request, assetTypeId))?.Id != assetTypeId ||
+                await assetRepository.GetAssetTypeAuthorizedAsync(request, unusedTypeId) is not null)
+                throw new InvalidOperationException("Scoped type metadata disclosed an unused catalog type or lost a readable Asset's type.");
             if ((await configuredRepository.ListAuthorizedAsync(request, 1)).Single().Id != allowed.Id ||
                 await configuredRepository.GetAuthorizedAsync(request, history.Id) is not null ||
                 await configuredRepository.GetAuthorizedAsync(request, inputLeak.Id) is not null ||

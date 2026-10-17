@@ -15,6 +15,21 @@ namespace WellSiteAutoPilot.Persistence.Security;
 /// </summary>
 public static partial class ScopedAccessQueries
 {
+    public static IQueryable<AssetTypeEntity> AssetTypes(WellSiteAutoPilotDbContext db, AccessSubject subject,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(subject);
+        var administrators = AdministratorGrants(db, subject.UserId, subject.WindowsGroups, nowUtc);
+        var broadReads = ResourceGrants(db, subject.UserId, WellSitePermissions.AssetsRead, subject.WindowsGroups, nowUtc)
+            .Where(grant => grant.ScopeKind == "AllAssets");
+        var readableAssets = Assets(db, subject.UserId, WellSitePermissions.AssetsRead, subject.WindowsGroups, nowUtc);
+        // Full type-catalog visibility is a protected administration operation.
+        // A scoped reader receives only metadata used by its readable Assets.
+        return db.AssetTypes.AsNoTracking().Where(type =>
+            administrators.Any() && broadReads.Any() || readableAssets.Any(asset => asset.AssetTypeId == type.Id));
+    }
+
     public static IQueryable<AssetEntity> Assets(
         WellSiteAutoPilotDbContext db, Guid userId, string permission,
         VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? nowUtc = null)

@@ -32,7 +32,7 @@ test('missing or malformed permission/session data fails closed', async () => {
   for (const invalid of [null, {}, { ...session, permissions: undefined },
     { ...session, permissions: ['assets.read', 'assets.read'] }, { ...session, permissions: [3] },
     { ...session, permissions: ['Admin role'] }, { ...session, userId: 'not-an-id' },
-    { ...session, assetScopeIds: ['*'] }, { ...session, isActive: 'true' }]) {
+ { ...session, isActive: 'true' }]) {
     await assert.rejects(access.loadSession(signal(), async () => response(invalid)));
   }
   for (const status of [401, 403, 500]) await assert.rejects(access.loadSession(signal(), async () => new Response('', { status })));

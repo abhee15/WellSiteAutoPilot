@@ -25,4 +25,7 @@ public sealed record RecommendationSummaryResponse(
     string? DecisionBy,
     DateTimeOffset? DecisionAtUtc,
     string? DecisionReason,
-    Guid? ControlActionId);
+    Guid? ControlActionId)
+{
+    public bool CanDecide { get; init; }
+}

@@ -31,10 +31,8 @@ export function UserMenu({
             <dd>{user.identityName}</dd>
             <dt>{t('session.account')}</dt>
             <dd>{user.isActive ? t('session.active') : t('session.inactive')}</dd>
-            <dt>{t('session.roles')}</dt>
-            <dd>{user.roles?.length ? user.roles.join(', ') : t('session.noRoles')}</dd>
-            <dt>{t('session.scope')}</dt>
-            <dd>{t('session.assigned', { count: user.assetScopeIds?.length ?? 0 })}</dd>
+            <dt>{t('session.access')}</dt>
+            <dd>{t('session.permissionCount', { count: user.permissions?.length ?? 0 })}</dd>
           </dl>
         )}
         <p className="user-panel-note">{t('session.authNotice')}</p>
