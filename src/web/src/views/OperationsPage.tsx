@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useForgetVanishedSelection, useHashDetail } from '../routing';
-import type { ExecutionResponse, SystemInfoResponse } from '../api/generated/v1/types.gen';
+import type {
+  AssetResponse, ConfiguredLogicResponse, ExecutionResponse, SystemInfoResponse,
+} from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
 import { formatTimestamp, shortId, toCssToken } from '../format';
 import { outcomeLabel } from '../words';
+import { describeRunContext, summarizeAssetLabels } from './runContext';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { OperationsViewControls } from './OperationsViewControls';
 import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './operationsViews';
@@ -15,11 +18,15 @@ export function OperationsPage({
   executions,
   userId,
   isLoaded = true,
+  assets = [],
+  configuredLogic = [],
 }: {
   systemInfo: SystemInfoResponse | null;
   executions: ExecutionResponse[];
   userId: string | null | undefined;
   isLoaded?: boolean;
+  assets?: AssetResponse[];
+  configuredLogic?: ConfiguredLogicResponse[];
 }) {
   const [viewCriteria, setViewCriteria] = useState<OperationsViewCriteria>(DEFAULT_OPERATIONS_VIEW);
   const [selectedExecutionId, setSelectedExecutionId] = useHashDetail('operations');
@@ -102,18 +109,22 @@ export function OperationsPage({
               </tr>
             </thead>
             <tbody>
-              {visibleExecutions.map(execution => (
+              {visibleExecutions.map(execution => {
+                const context = describeRunContext(execution, configuredLogic, assets);
+                return (
                 <tr key={execution.executionId}>
                   <td>
                     <StatusPill value={execution.status} />
                   </td>
                   <td>
-                    <strong>{execution.assetExternalId ?? (execution.assetId ? shortId(execution.assetId) : '—')}</strong>
+                    <strong>{assetText(execution, context)}</strong>
                     {execution.quantity && <small>{execution.quantity}</small>}
                   </td>
                   <td>
-                    <strong>{execution.moduleId}</strong>
-                    <small>v{execution.moduleVersion}</small>
+                    <strong>{context.logicName ?? execution.moduleId}</strong>
+                    <small>{context.logicName
+                      ? `${execution.moduleId} v${execution.moduleVersion}${context.revisionNumber ? ' · ' + t('setup.revision', { number: context.revisionNumber }) : ''}`
+                      : `v${execution.moduleVersion}`}</small>
                   </td>
                   <td>{execution.mode}</td>
                   <td>{formatTimestamp(execution.requestedAtUtc)}</td>
@@ -141,7 +152,8 @@ export function OperationsPage({
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {visibleExecutions.length === 0 && (
                 <EmptyRow columns={7}>{!isLoaded ? t('views.loading') : executions.length === 0
                   ? t('views.noActivity')
@@ -189,4 +201,10 @@ function OutcomeCell({ execution }: { execution: ExecutionResponse }) {
   }
   const outcome = outcomeLabel(code);
   return <span title={outcome.code ?? undefined}>{outcome.text}</span>;
+}
+
+function assetText(execution: ExecutionResponse, context: { assetLabels: string[] }): string {
+  if (execution.assetExternalId) return execution.assetExternalId;
+  if (context.assetLabels.length > 0) return summarizeAssetLabels(context.assetLabels);
+  return execution.assetId ? shortId(execution.assetId) : '—';
 }

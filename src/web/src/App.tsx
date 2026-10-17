@@ -187,6 +187,8 @@ export function App() {
             key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             systemInfo={systemInfo}
             executions={executions}
+            assets={assets}
+            configuredLogic={configuredLogic}
             isLoaded={isLoaded}
             userId={currentUser?.userId}
           />
