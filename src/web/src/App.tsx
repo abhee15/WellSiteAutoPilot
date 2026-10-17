@@ -1,4 +1,4 @@
-import { canOpenSection, loadSession, sessionAccessKey } from './security/sessionAccess';
+import { canOpenSection, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
 import { loadWorkspaceSnapshot } from './views/workspaceSnapshot';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
@@ -45,6 +45,8 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
   const activeRefresh = useRef<AbortController | null>(null);
   const accessKey = useRef<string | null>(null);
+  // A 401 means the browser sent no Windows credentials; polling would only repeat prompts.
+  const signInRequired = useRef(false);
   const [executions, setExecutions] = useState<ExecutionResponse[]>([]);
   const [assetTypes, setAssetTypes] = useState<AssetTypeResponse[]>([]);
   const [assets, setAssets] = useState<AssetResponse[]>([]);
@@ -75,6 +77,7 @@ export function App() {
     try {
       const user = await loadSession(controller.signal);
       if (controller.signal.aborted) return;
+      signInRequired.current = false;
       const nextKey = sessionAccessKey(user);
       if (nextKey !== accessKey.current) clearWorkspace();
       accessKey.current = nextKey;
@@ -96,7 +99,8 @@ export function App() {
           (reason instanceof DOMException && reason.name === 'AbortError')) return;
 
       clearWorkspace(); setCurrentUser(null); accessKey.current = null;
-      setError(t('refresh.sessionUnavailable'));
+      signInRequired.current = isSignInRequired(reason);
+      setError(t(signInRequired.current ? 'refresh.signInRequired' : 'refresh.sessionUnavailable'));
     } finally {
       if (activeRefresh.current === controller) {
         activeRefresh.current = null;
@@ -107,7 +111,9 @@ export function App() {
 
   useEffect(() => {
     void refresh();
-    const interval = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
+    const interval = window.setInterval(() => {
+      if (!signInRequired.current) void refresh();
+    }, REFRESH_INTERVAL_MS);
     return () => {
       window.clearInterval(interval);
       activeRefresh.current?.abort();

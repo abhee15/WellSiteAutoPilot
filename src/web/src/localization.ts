@@ -504,6 +504,7 @@ export const englishMessages = {
   'session.assigned': '{count} assigned',
   'session.authNotice': 'Server-side access rules remain authoritative.',
   'refresh.accessChanged': 'Access changed during refresh. Unavailable sections have been cleared; other permitted work remains available.',
+  'refresh.signInRequired': 'Windows sign-in is required. Your browser did not provide Windows credentials for this address, so automatic refresh is paused. Open the application from an address your browser trusts for Windows sign-in, then choose Refresh.',
   'refresh.partial': 'Some sections could not be refreshed. Refresh to try again.',
   'session.sectionDenied': 'Your current permissions do not allow this section.',
   'refresh.sessionUnavailable':
