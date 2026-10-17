@@ -1,0 +1,99 @@
+name: Native Windows browser diagnostics
+
+# Investigation evidence for #92. Deliberately not a required PR gate yet.
+on:
+  workflow_dispatch:
+  # Explicit maintainer opt-in permits the first run before default-branch registration.
+  pull_request:
+    branches: [develop, main]
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-browser-diagnostics-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native-windows-browser:
+    name: Native Windows Negotiate and Edge
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'run-windows-browser-diagnostics' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      WSA_NATS_SERVER_VERSION: 2.15.0
+      WSA_NATS_SERVER_SHA256: 2d0861dc2ca3567d17f7d19611d7b346cc2ccbd7086a0a77cc957a2c71663200
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - name: Build native server and migrator
+        run: |
+          dotnet publish src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj -c Release -r win-x64 --self-contained true -o artifacts/windows-diagnostic/server
+          if ($LASTEXITCODE -ne 0) { throw 'Server publish failed.' }
+          dotnet publish tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj -c Release -r win-x64 --self-contained true -o artifacts/windows-diagnostic/migrator
+          if ($LASTEXITCODE -ne 0) { throw 'Migrator publish failed.' }
+      - name: Generate contract without an authentication substitute
+        run: |
+          $toolPath = Join-Path $env:RUNNER_TEMP 'wsa-swagger'
+          dotnet tool install Swashbuckle.AspNetCore.Cli --version 10.2.3 --tool-path $toolPath
+          if ($LASTEXITCODE -ne 0) { throw 'OpenAPI tool install failed.' }
+          New-Item -ItemType Directory -Force artifacts/openapi/v1 | Out-Null
+          $env:ASPNETCORE_ENVIRONMENT = 'CI'
+          $env:Security__AuthenticationMode = 'Negotiate'
+          & (Join-Path $toolPath 'swagger.exe') tofile --output artifacts/openapi/v1/server.json artifacts/windows-diagnostic/server/WellSiteAutoPilot.Server.dll v1
+          if ($LASTEXITCODE -ne 0) { throw 'OpenAPI generation failed.' }
+      - name: Build SPA for direct Kestrel hosting
+        working-directory: src/web
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend dependency install failed.' }
+          npm run generate-api
+          if ($LASTEXITCODE -ne 0) { throw 'API client generation failed.' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
+          New-Item -ItemType Directory -Force ../../artifacts/windows-diagnostic/server/wwwroot | Out-Null
+          Copy-Item -Recurse -Force dist/* ../../artifacts/windows-diagnostic/server/wwwroot/
+      - name: Stage pinned NATS
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'windows-diagnostic-nats.zip'
+          $extract = Join-Path $env:RUNNER_TEMP 'windows-diagnostic-nats'
+          Invoke-WebRequest "https://github.com/nats-io/nats-server/releases/download/v$env:WSA_NATS_SERVER_VERSION/nats-server-v$env:WSA_NATS_SERVER_VERSION-windows-amd64.zip" -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:WSA_NATS_SERVER_SHA256) { throw 'NATS checksum mismatch.' }
+          Expand-Archive $archive -DestinationPath $extract
+          $binary = Get-ChildItem $extract -Filter nats-server.exe -Recurse | Select-Object -First 1
+          if (-not $binary) { throw 'Pinned NATS binary missing.' }
+          New-Item -ItemType Directory -Force artifacts/windows-diagnostic/nats | Out-Null
+          Copy-Item $binary.FullName artifacts/windows-diagnostic/nats/nats-server.exe
+      - name: Run disposable native logon and browser diagnostic
+        run: |
+          ./tools/ci/windows-browser/Invoke-WindowsFixture.ps1 `
+            -ServerPath artifacts/windows-diagnostic/server/WellSiteAutoPilot.Server.exe `
+            -MigratorPath artifacts/windows-diagnostic/migrator/WellSiteAutoPilot.DatabaseMigrator.exe `
+            -NatsPath artifacts/windows-diagnostic/nats/nats-server.exe `
+            -OutputDirectory artifacts/windows-browser-reports
+      - name: Upload sanitized diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-windows-browser-${{ github.run_id }}
+          path: |
+            artifacts/windows-browser-reports/fixture.json
+            artifacts/windows-browser-reports/Default.json
+            artifacts/windows-browser-reports/OriginAllowlist.json
+          if-no-files-found: warn
+          retention-days: 7

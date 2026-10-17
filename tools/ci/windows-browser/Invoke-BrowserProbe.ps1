@@ -134,7 +134,7 @@ try {
         $report.LocalCoverage = 'BROWSER SCENARIOS PASSED; CONNECTION EVIDENCE REQUIRED'
     } else { $report.LocalCoverage = 'FAILED' }
 } finally {
-    if ($driver -and -not $driver.HasExited) { Stop-Process -Id $driver.Id -Force -ErrorAction SilentlyContinue }
+    if ($driver -and -not $driver.HasExited) { & taskkill.exe /PID $driver.Id /T /F *> $null }
     $native.Dispose()
     New-Item -ItemType Directory -Path (Split-Path -Parent $OutputPath) -Force | Out-Null
     $report | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath $OutputPath -Encoding UTF8

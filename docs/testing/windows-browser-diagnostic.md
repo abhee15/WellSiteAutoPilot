@@ -3,10 +3,13 @@
 ## Working checkpoint — after PR #127
 
 PR #127 merged into develop as `d23ef0d445cdd7264ac59ee884a0547dd806afb4`
-after all seven jobs passed head `1a13a4d` in run `39004825569`.
+after all seven jobs passed head `1a13a4d` in run `39004825569`. All seven
+post-merge jobs also passed in run `39005201448`.
 
-`tools/ci/windows-browser/Invoke-BrowserProbe.ps1` is a browser probe under
-construction. It has not established Windows browser coverage. No authentication
+The manual workflow `.github/workflows/windows-browser-diagnostics.yml` builds
+the SPA and native server, provisions a disposable PostgreSQL database and native
+Windows user/group, and invokes `tools/ci/windows-browser/Invoke-WindowsFixture.ps1`.
+It has not yet established Windows browser coverage. No authentication
 architecture change or request-serialization workaround is selected.
 
 The probe uses the installed Microsoft Edge WebDriver and its real browser,
@@ -52,24 +55,54 @@ The report deliberately marks topology as caller-unverified and connection
 evidence as missing. Browser scenario success alone does not complete #92.
 Domain coverage remains NOT EXECUTED in the local fixture.
 
-## Remaining before a runnable diagnostic PR
+## Manual workflow and evidence limits
 
-- Add a manual-only Windows workflow with a disposable database, pinned NATS,
-  built SPA served directly by Kestrel in Negotiate mode, and disposable local
-  Windows user/group provisioning. Never use TestHeader for any auth baseline.
-- Launch the baseline and browser probe under that fresh Windows logon; verify
-  its native user SID and enabled group SID before browser startup. Keep the
-  generated password only in memory and use a Windows credential object for
-  process creation, never command-line or environment credentials.
-- Integrate the prepared CI-only server observations (`Diagnostics:WindowsAuthentication`)
-  with the runner. They contain endpoint name, protocol, status, elapsed time and
-  correlation/connection IDs. Portable checks assert that raw header/token values,
-  identity claims, paths and query strings do not enter the observation DTO.
-- Merge only sanitized reports with Windows/browser versions, actual local
-  outcomes and a separate domain NOT EXECUTED result. Do not upload raw process
-  logs or database contents. Clean up processes, profiles and local accounts.
-- Execute the workflow and inspect real challenge/connection progression before
-  selecting any authentication fix or adding required PR triggers.
+Run **Native Windows browser diagnostics** from Actions on the diagnostic branch
+once GitHub has registered this workflow on the default branch. Alternatively, explicitly add the `run-windows-browser-diagnostics` PR label
+on a same-repository PR to request the first diagnostic before default-branch
+registration. Remove and re-add the label to request another run after changes;
+pushes do not silently rerun it. The workflow handles only manual dispatch or
+this explicit label event; regular CI does not execute the native fixture.
+Fork PRs cannot opt in. The connected GitHub tools currently do not expose
+workflow dispatch, so the label path allows the diagnostic to be requested
+without promoting untested workflow code to the default branch. No native run
+is claimed from portable parsing, a green regular CI run, or creating this
+workflow.
+
+The fixture requires a disposable GitHub-hosted Windows 2025 runner. It uses the
+runner's PostgreSQL 17 installation, creates a uniquely named database, starts
+checksum-pinned NATS, and serves the built application directly from a known
+Kestrel process in Negotiate mode. CI-only diagnostic logging is opt-in and
+refuses non-CI environments or another authentication mode.
+
+The generated Windows password exists only in memory and a credential object
+used to create the fresh native process; it is never passed in arguments,
+environment variables or files. The child verifies its expected native user SID
+and enabled local group SID before any authentication probe. These checks prove
+the local token fixture, not WSA group-grant authorization or AD membership.
+
+`fixture.json` records native baseline results, policy outcomes, opaque server
+correlation/connection observations, cleanup status and a distinct domain
+NOT EXECUTED result. The standalone browser reports retain their explicit
+caller-unverified topology/connection labels; use the fixture report for the
+combined evidence. A successful native workflow requires both policies and all
+scenarios, a 401 Negotiate challenge, an authenticated 200, and successful cleanup.
+A failed default policy remains a failed result even when an explicit allowlist
+works. Inspect per-call correlation IDs alongside server observations to compare
+challenge progression and connection reuse; the presence of observations alone
+does not diagnose the cause.
+
+Only three named JSON reports are uploaded, for seven days. Raw process logs,
+profiles, usernames, SID values, claims, headers, tokens, bodies, screenshots,
+HAR and database contents are not uploaded. Process trees, the database, local
+account/group, profile and temporary files are removed in `finally`. Unexpected
+failures record a fixed failure stage without exporting exception messages.
+
+Before selecting an authentication fix or adding required PR triggers, execute
+this workflow and inspect actual challenge/connection progression. Group-grant
+mapping, multiple memberships, revocation followed by a fresh logon, and the
+separate domain AD/SPN/Kerberos matrix remain follow-up coverage. Local VM success
+cannot close the domain gate.
 
 ## Primary references
 
