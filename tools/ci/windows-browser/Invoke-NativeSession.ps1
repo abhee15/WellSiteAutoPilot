@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 $report = [ordered]@{
     SchemaVersion = 1; NativeUserMatches = $false; EnabledGroupMatches = $false
     Baseline = 'NOT EXECUTED'; Policies = @(); Status = 'FAILED'; FailureStage = 'TokenVerification'; DomainCoverage = 'NOT EXECUTED'
+    IdentityRequestStatus = $null; IdentityRequestFailure = $null; IdentityMatches = $null
 }
 $native = $null
 try {
@@ -29,9 +30,20 @@ try {
     $report.FailureStage = 'PowerShellBaseline'
     & (Join-Path $PSScriptRoot 'verify-windows-negotiate.ps1') -BaseUrl 'http://localhost:5080' *> $null
     # Verify the resolved identity, not only that some database user was returned.
+    # The request and the comparison are separate stages so a failure says which one broke.
+    # Only an HTTP status code, an exception type name and a boolean are recorded.
+    $report.FailureStage = 'NativeIdentityRequest'
+    try {
+        $me = Invoke-RestMethod 'http://localhost:5080/api/v1/security/me' -UseDefaultCredentials -TimeoutSec 30
+        $report.IdentityRequestStatus = 200
+    } catch {
+        $report.IdentityRequestFailure = $_.Exception.GetType().Name
+        if ($_.Exception.Response) { $report.IdentityRequestStatus = [int]$_.Exception.Response.StatusCode }
+        throw
+    }
     $report.FailureStage = 'NativeIdentityMatch'
-    $me = Invoke-RestMethod 'http://localhost:5080/api/v1/security/me' -UseDefaultCredentials -TimeoutSec 30
-    if ($me.identityName -ine $native.Name) { throw 'Native baseline identity did not match.' }
+    $report.IdentityMatches = ($me.identityName -ieq $native.Name)
+    if (-not $report.IdentityMatches) { throw 'Native baseline identity did not match.' }
     $report.Baseline = 'PASSED'
     $report.FailureStage = 'BrowserPolicies'
     foreach ($policy in @('Default', 'OriginAllowlist')) {
