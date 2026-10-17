@@ -80,11 +80,13 @@ Database modes (selected per launch profile or by editing `Mode`):
 - `Reset`: drop and recreate the named database, then migrate. Start from scratch.
 - `FromTemplate`: recreate the database from a saved template database
   (`CREATE DATABASE ... TEMPLATE`) for a fast return to a known seeded state.
+- `SaveTemplate`: save the current database as the template (replacing any older
+  one) and continue with it unchanged. Run once when the data is in the state you
+  want to return to, then switch `Mode` back to `Reuse`.
 
 Several named databases (`wsa_dev`, `wsa_demo`, ...) are just different `Name`
 values, so switching between "existing" and "fresh" never touches the other one.
-The AppHost also exposes dashboard commands (Reset database, Save as template)
-that call the same code. Safety rules for anything destructive: host must be
+Safety rules for anything destructive (`Reset`, `FromTemplate`, `SaveTemplate`): host must be
 local, the name must start with `wsa_` (the prefix the CI fixtures use), and a
 `Reset` is logged with the target name. The existing shipped
 `DatabaseMigrator` is reused unchanged for migrations; create/drop lives in the
@@ -107,6 +109,15 @@ Because an unbuilt project rots, one new path-filtered, build-only job (runs onl
 when `dev/**` or its dependencies change) keeps it compiling. Installer, Windows
 diagnostic and test jobs are unaffected.
 
+## The uncommitted TypeScript API client
+
+The generated client under `src/web/src/api/generated/v1` is not committed (CI
+builds it from the Server's OpenAPI document). A fresh checkout therefore cannot
+run the frontend until that has happened. After the Server is up, the AppHost
+runs `dev/scripts/generate-api-client.mjs`, which waits for
+`/swagger/v1/swagger.json`, saves it to `artifacts/openapi/v1/server.json` and
+runs `npm run generate-api`. The frontend starts only after that completes.
+
 ## Increments
 
 1. AppHost skeleton under `dev/`: database preparation (modes above), migrator,
@@ -127,6 +138,14 @@ land on the same branch and the PR is marked ready only when the feature is
 complete, tested and reviewed. The installer is deliberately not part of the
 AppHost; Aspire runs the services for development, while the NSIS installer and
 its smoke test stay validated by CI on a Windows runner.
+
+## Status
+
+All four increments are implemented on the feature branch and the build, tooling
+checks and script checks pass in CI. The AppHost has not been run end to end on a
+developer machine; that run is the remaining acceptance step before the pull
+request leaves draft. Dashboard buttons for reset/save were dropped in favour of
+the launch-time `Mode`, which is simpler and fully testable.
 
 ## Out of scope
 
