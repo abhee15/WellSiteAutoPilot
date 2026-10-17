@@ -11,6 +11,7 @@ $report = [ordered]@{
     SchemaVersion = 1; NativeUserMatches = $false; EnabledGroupMatches = $false
     Baseline = 'NOT EXECUTED'; Policies = @(); Status = 'FAILED'; FailureStage = 'TokenVerification'; DomainCoverage = 'NOT EXECUTED'
     IdentityRequestStatus = $null; IdentityRequestFailure = $null; IdentityRequestErrorId = $null; IdentityMatches = $null
+    DisplayNameResolved = $null
 }
 $native = $null
 try {
@@ -55,6 +56,11 @@ try {
     $report.FailureStage = 'NativeIdentityMatch'
     $report.IdentityMatches = ($me.identityName -ieq $native.Name)
     if (-not $report.IdentityMatches) { throw 'Native baseline identity did not match.' }
+    # The login (MACHINE\account) is not a person's name. The server looks the account up by SID and
+    # shows the full name set on the fixture account; only a boolean is recorded.
+    $report.FailureStage = 'NativeDisplayName'
+    $report.DisplayNameResolved = ($me.displayName -ceq 'Fixture Operator')
+    if (-not $report.DisplayNameResolved) { throw 'Native display name was not resolved from the account directory.' }
     $report.Baseline = 'PASSED'
     $report.FailureStage = 'BrowserPolicies'
     foreach ($policy in @('Default', 'OriginAllowlist')) {

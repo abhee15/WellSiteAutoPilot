@@ -69,7 +69,7 @@ try {
         if ($native) {
             $nativeText = "Status=$(ConvertTo-SafeToken $native.Status) FailureStage=$(ConvertTo-SafeToken $native.FailureStage) " +
                 "UserMatches=$(ConvertTo-SafeToken $native.NativeUserMatches) GroupMatches=$(ConvertTo-SafeToken $native.EnabledGroupMatches) " +
-                "Baseline=$(ConvertTo-SafeToken $native.Baseline) IdentityRequestStatus=$(ConvertTo-SafeToken $native.IdentityRequestStatus) " +
+                "Baseline=$(ConvertTo-SafeToken $native.Baseline) IdentityRequestStatus=$(ConvertTo-SafeToken $native.IdentityRequestStatus) DisplayNameResolved=$(ConvertTo-SafeToken $native.DisplayNameResolved) " +
                 "IdentityRequestFailure=$(ConvertTo-SafeToken $native.IdentityRequestFailure) IdentityRequestErrorId=$(ConvertTo-SafeToken $native.IdentityRequestErrorId) IdentityMatches=$(ConvertTo-SafeToken $native.IdentityMatches)"
             Write-Host "::notice title=Native session::$nativeText"
             $lines.Add('')

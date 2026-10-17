@@ -14,6 +14,7 @@ internal static class GrantIdentityMiddlewareChecks
         var principals = new ConfiguredPrincipalResolver("TestHeader");
         var groups = new RejectGroups();
         var options = Options.Create(new SecurityOptions { BootstrapAdministrators = ["  corp\\BOOTSTRAP  "] });
+        var directory = new DirectoryNames();
         var nextCalls = 0;
         var middleware = new GrantIdentityMiddleware(_ => { nextCalls++; return Task.CompletedTask; });
 
@@ -26,6 +27,8 @@ internal static class GrantIdentityMiddlewareChecks
         var regularAccess = new RequestAccessContext(principals, groups);
         var claims = regular.User.Claims.ToArray();
         await InvokeAsync(regular, regularAccess);
+        Require(directory.Calls == 1 && identity.LastDisplayName == "Directory Person",
+            "A login without a provider display name did not receive the directory name.");
         Require(nextCalls == 2 && identity.Calls == 1 && bootstrap.Calls == 0 &&
             regularAccess.Subject.UserId == identity.UserId && regularAccess.Subject.WindowsGroups is null &&
             regular.User.Claims.SequenceEqual(claims) && regular.User.Identities.Count() == 1,
@@ -87,7 +90,8 @@ internal static class GrantIdentityMiddlewareChecks
         }
 
         Task InvokeAsync(HttpContext http, RequestAccessContext access) => middleware.InvokeAsync(http,
-            new UserIdentityService(identity, TimeProvider.System), principals, access, bootstrap, options, TimeProvider.System);
+            new UserIdentityService(identity, TimeProvider.System), principals, access, bootstrap, options, TimeProvider.System,
+            directory);
     }
 
     private static DefaultHttpContext Context(string name) => new()
@@ -98,6 +102,17 @@ internal static class GrantIdentityMiddlewareChecks
     private static void Require(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);
+    }
+
+    private sealed class DirectoryNames : IDirectoryDisplayNameResolver
+    {
+        public int Calls { get; private set; }
+        public Task<string?> ResolveAsync(ClaimsPrincipal principal, AuthenticatedExternalIdentity externalIdentity,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult<string?>("Directory Person");
+        }
     }
 
     private sealed class RejectGroups : IIdentityGroupResolver
@@ -132,6 +147,7 @@ internal static class GrantIdentityMiddlewareChecks
         public int Calls { get; private set; }
         public string? LastKey { get; private set; }
         public string? LastNormalizedName { get; private set; }
+        public string? LastDisplayName { get; private set; }
         public CancellationToken LastCancellation { get; private set; }
         public Task<UserIdentity> UpsertIdentityAsync(string identityKey, string identityName, string normalizedIdentityName,
             string? displayName, DateTimeOffset seenAtUtc, CancellationToken cancellationToken = default)
@@ -140,6 +156,7 @@ internal static class GrantIdentityMiddlewareChecks
             if (ThrowOnUpsert) throw new InvalidOperationException("Injected identity persistence failure.");
             LastKey = identityKey;
             LastNormalizedName = normalizedIdentityName;
+            LastDisplayName = displayName;
             LastCancellation = cancellationToken;
             return Task.FromResult(new UserIdentity(UserId, identityKey, identityName, displayName, Active, seenAtUtc, seenAtUtc));
         }

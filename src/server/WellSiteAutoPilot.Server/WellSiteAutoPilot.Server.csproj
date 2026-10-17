@@ -6,6 +6,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="System.DirectoryServices.AccountManagement" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../WellSiteAutoPilot.Api.Contracts/WellSiteAutoPilot.Api.Contracts.csproj" />

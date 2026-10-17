@@ -81,7 +81,7 @@ try {
     $report.FailureStage = 'NativeAccountProvisioning'
     # This password is never a command-line argument, environment variable or file.
     $password = ConvertTo-SecureString ('Wsa!9a' + [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(36))) -AsPlainText -Force
-    $user = New-LocalUser -Name $userName -Password $password -AccountNeverExpires -PasswordNeverExpires
+    $user = New-LocalUser -Name $userName -FullName 'Fixture Operator' -Password $password -AccountNeverExpires -PasswordNeverExpires
     $otherUser = New-LocalUser -Name $otherUserName -Password $password -AccountNeverExpires -PasswordNeverExpires
     $group = New-LocalGroup -Name $groupName
     Add-LocalGroupMember -Group $groupName -Member $userName
