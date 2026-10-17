@@ -218,7 +218,7 @@ jobs:
       # report success from the last npm command after an earlier failure.
       - name: Install frontend dependencies
         working-directory: src/web
-        run: npm install
+        run: npm ci
 
       - name: Generate TypeScript API client
         working-directory: src/web

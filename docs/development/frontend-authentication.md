@@ -45,7 +45,7 @@ This is a **development simulation**, not Windows authentication.
 3. In a second terminal, from `src/web`:
 
    ```powershell
-   npm install
+   npm ci
    npm run dev
    ```
 
@@ -157,3 +157,12 @@ custom/direct/group grants do not gain runtime authority through this DTO.
 The final grant cutover must replace that one permission source together with
 policies, scoped SQL and transactional mutation checks. The client is ready to
 consume the resulting keys without depending on built-in role names.
+
+## Reproducible frontend dependencies
+
+Use `npm ci` in `src/web` for a clean install from the committed
+`package-lock.json`; CI uses the same command. It rejects a manifest/lockfile
+mismatch instead of silently resolving new package versions. For an intentional
+dependency change, use `npm install`, review the manifest and lockfile diff,
+run the frontend checks, and commit both files together. Keep optional platform
+packages in the lockfile so Windows and Linux can install their native tooling.
