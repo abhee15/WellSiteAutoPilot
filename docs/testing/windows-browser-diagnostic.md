@@ -93,6 +93,13 @@ works. Inspect per-call correlation IDs alongside server observations to compare
 challenge progression and connection reuse; the presence of observations alone
 does not diagnose the cause.
 
+After every run the workflow also publishes the sanitized outcome as GitHub
+annotations and a job summary (`Write-DiagnosticSummary.ps1`): fixture failure
+stage and type, native-session result, per-scenario status and HTTP status counts.
+It reads only the three sanitized reports, reduces every value to a safe token,
+and never fails the job. The failing stage is therefore readable from the run page
+or the check-runs API without downloading the artifact.
+
 Only three named JSON reports are uploaded, for seven days. Raw process logs,
 profiles, usernames, SID values, claims, headers, tokens, bodies, screenshots,
 HAR and database contents are not uploaded. Process trees, the database, local

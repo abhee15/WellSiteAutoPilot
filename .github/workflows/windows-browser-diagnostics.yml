@@ -86,6 +86,9 @@ jobs:
             -MigratorPath artifacts/windows-diagnostic/migrator/WellSiteAutoPilot.DatabaseMigrator.exe `
             -NatsPath artifacts/windows-diagnostic/nats/nats-server.exe `
             -OutputDirectory artifacts/windows-browser-reports
+      - name: Publish sanitized diagnostic outcome
+        if: always()
+        run: ./tools/ci/windows-browser/Write-DiagnosticSummary.ps1 -ReportDirectory artifacts/windows-browser-reports
       - name: Upload sanitized diagnostic reports
         if: always()
         uses: actions/upload-artifact@v4
