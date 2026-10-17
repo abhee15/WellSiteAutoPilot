@@ -67,3 +67,19 @@ The normal server does not reset or migrate the database. Installer/migrator
 credentials may be separate from runtime credentials. At the release baseline,
 customer upgrades require data preservation and the recovery controls in
 ADR-002; this development reset is not a customer upgrade process.
+
+## Granting access to people who are waiting
+
+A person who signs in without any grant sees "Waiting for access" and appears in
+Administration → User assignments. That tab shows each user's number of direct
+roles, and "Only users with no direct role" asks the server for active users that
+have no active grant to an active role, most recently seen first, so a waiting
+person is not hidden behind the 100-row page. **Assign role** opens Scoped grants
+with that person already selected; the usual review, audit and last-administrator
+protections still apply.
+
+The count covers roles assigned to the person directly. Access that arrives through
+a mapped Windows group is proven from the sign-in token on each request, so the
+directory cannot show it: someone covered only by a group can legitimately show
+"None". Default access for everyone in a Windows group is configured by assigning
+the group a role under Scoped grants, not by a separate setting.

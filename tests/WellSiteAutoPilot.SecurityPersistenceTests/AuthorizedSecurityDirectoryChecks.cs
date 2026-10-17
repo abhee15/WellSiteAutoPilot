@@ -25,8 +25,8 @@ internal static partial class AuthorizedSecurityDirectoryChecks
             await using var db = new WellSiteAutoPilotDbContext(options);
             var directory = new SecurityDirectoryRepository(db, TimeProvider.System);
             var users = await directory.ListUsersAuthorizedAsync(actor, 500);
-            if (!users.Any(item => item.Id == inactiveUser && !item.IsActive) ||
-                !users.Any(item => item.Id == groupAdministrator.UserId) ||
+            if (!users.Any(item => item.User.Id == inactiveUser && !item.User.IsActive) ||
+                !users.Any(item => item.User.Id == groupAdministrator.UserId) ||
                 (await directory.ListUsersAuthorizedAsync(actor, 1)).Count != 1)
                 throw new InvalidOperationException("Protected directory lost disabled/custom-role identities or paging.");
             var roles = await directory.ListRolesAuthorizedAsync(actor, 500);
@@ -112,6 +112,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
         setup.RolePermissions.Add(new RolePermissionEntity { RoleId = customRole, Permission = WellSitePermissions.SecurityManage });
         await setup.SaveChangesAsync();
         await CheckAssetDirectoryAsync(options, direct, groupAdministrator, administratorGrant);
+        await CheckAwaitingAccessAsync(options, direct);
         await setup.UserRoles.Where(item => item.UserId == groupAdministrator.UserId).ExecuteDeleteAsync();
         Console.WriteLine("Protected user/role/grant directory supports direct/group administrators, bypasses legacy role parsing, preserves a hydration snapshot and denies fresh reads after revocation.");
 

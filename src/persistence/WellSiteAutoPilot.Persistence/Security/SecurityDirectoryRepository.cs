@@ -24,11 +24,33 @@ public sealed class SecurityDirectoryRepository(WellSiteAutoPilotDbContext db, T
                 .ToArrayAsync(cancellationToken), cancellationToken);
     }
 
-    public Task<IReadOnlyCollection<UserIdentity>> ListUsersAuthorizedAsync(AccessSubject administrator, int limit,
-        CancellationToken cancellationToken = default)
+    public Task<IReadOnlyCollection<SecurityUserDirectoryEntry>> ListUsersAuthorizedAsync(AccessSubject administrator, int limit,
+        bool awaitingAccessOnly = false, CancellationToken cancellationToken = default)
     {
         ValidateLimit(limit);
-        return ReadAsync(administrator, () => new UserAccessRepository(db).ListIdentitiesAsync(limit, cancellationToken), cancellationToken);
+        return ReadAsync<IReadOnlyCollection<SecurityUserDirectoryEntry>>(administrator, async () =>
+        {
+            // A grant counts only while both it and its role are active. Windows-group access is
+            // proven per request from the token, so it can never appear in this count.
+            var directGrants = db.AccessGrants.AsNoTracking().Where(grant =>
+                grant.IsActive && grant.SubjectKind == "User" &&
+                db.RoleDefinitions.Any(role => role.Id == grant.RoleId && role.IsActive));
+            var rows = db.Users.AsNoTracking().Select(user => new
+            {
+                User = user,
+                Count = directGrants.Count(grant => grant.UserId == user.Id),
+            });
+            var page = awaitingAccessOnly
+                ? rows.Where(row => row.User.IsActive && row.Count == 0)
+                    .OrderByDescending(row => row.User.LastSeenAtUtc).ThenBy(row => row.User.Id)
+                : rows.OrderBy(row => row.User.IdentityName).ThenBy(row => row.User.Id);
+            return (await page.Take(limit).ToArrayAsync(cancellationToken))
+                .Select(row => new SecurityUserDirectoryEntry(
+                    new UserIdentity(row.User.Id, row.User.IdentityKey, row.User.IdentityName, row.User.DisplayName,
+                        row.User.IsActive, row.User.CreatedAtUtc, row.User.LastSeenAtUtc),
+                    row.Count))
+                .ToArray();
+        }, cancellationToken);
     }
 
     public Task<IReadOnlyCollection<RoleDefinition>> ListRolesAuthorizedAsync(AccessSubject administrator, int limit,

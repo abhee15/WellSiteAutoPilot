@@ -4,6 +4,7 @@ export type VerifiedSecurityUser = SecurityUserResponse & {
   userId: string;
   identityName: string;
   isActive: boolean;
+  activeDirectGrantCount: number;
 };
 
 export type AccessErrorKind =
@@ -23,7 +24,9 @@ function isUser(value: unknown): value is VerifiedSecurityUser {
   const user = value as Partial<SecurityUserResponse>;
   return typeof user.userId === 'string' && uuid.test(user.userId) &&
     typeof user.identityName === 'string' && !!user.identityName.trim() &&
-    typeof user.isActive === 'boolean';
+    typeof user.isActive === 'boolean' &&
+    typeof user.activeDirectGrantCount === 'number' &&
+    Number.isInteger(user.activeDirectGrantCount) && user.activeDirectGrantCount >= 0;
 }
 
 function classifyResponse(status: number): AccessError {
@@ -34,13 +37,19 @@ function classifyResponse(status: number): AccessError {
   return new AccessError('unavailable');
 }
 
-/** The endpoint is restricted server-side to security.manage (Admin). */
+export const awaitingAccessQuery = '&awaitingAccess=true';
+
+/**
+ * The endpoint is restricted server-side to security.manage (Admin). With `awaitingAccessOnly`
+ * the server returns active users with no direct role, newest sign-in first.
+ */
 export async function loadSecurityUsers(
   signal: AbortSignal, fetcher: typeof fetch = fetch,
+  options: { awaitingAccessOnly?: boolean } = {},
 ): Promise<VerifiedSecurityUser[]> {
   let response: Response;
   try {
-    response = await fetcher('/api/v1/security/users?limit=100', {
+    response = await fetcher(`/api/v1/security/users?limit=100${options.awaitingAccessOnly ? awaitingAccessQuery : ''}`, {
       method: 'GET', credentials: 'same-origin', cache: 'no-store', signal,
     });
   } catch (error) {
