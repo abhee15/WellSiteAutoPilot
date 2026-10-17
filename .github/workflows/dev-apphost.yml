@@ -1,0 +1,37 @@
+name: Dev AppHost build
+
+# Build-only guard for the Aspire developer tooling. Deliberately separate from ci.yml
+# so the product build is unchanged.
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'dev/**'
+      - '.github/workflows/dev-apphost.yml'
+  push:
+    branches: [develop]
+    paths:
+      - 'dev/**'
+      - '.github/workflows/dev-apphost.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-apphost-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Dev AppHost build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore dev/WellSiteAutoPilot.Dev.slnx
+      - name: Build
+        run: dotnet build dev/WellSiteAutoPilot.Dev.slnx --configuration Release --no-restore

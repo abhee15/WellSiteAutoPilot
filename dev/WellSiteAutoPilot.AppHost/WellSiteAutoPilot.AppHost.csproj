@@ -1,0 +1,12 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.0.0">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>wellsiteautopilot-apphost-dev</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\server\WellSiteAutoPilot.Server\WellSiteAutoPilot.Server.csproj" />
+  </ItemGroup>
+</Project>
