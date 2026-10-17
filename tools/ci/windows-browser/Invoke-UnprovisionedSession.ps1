@@ -1,6 +1,7 @@
 # Invoked by the disposable fixture as a second, fresh native Windows logon that is
 # neither bootstrap administrator nor a member of any fixture group. A real Windows
-# credential must authenticate (not 401) and then be refused by the grant runtime (403).
+# credential must authenticate (not 401); provisioning is identity-only, so it gets 200
+# with no roles, permissions or Asset scope.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ExpectedUserSid,
@@ -10,7 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $report = [ordered]@{
     SchemaVersion = 1; NativeUserMatches = $false; InFixtureGroup = $null
-    IdentityRequestStatus = $null; Expected = 403; Status = 'FAILED'; FailureStage = 'TokenVerification'
+    IdentityRequestStatus = $null; Expected = 200; HasNoAuthority = $null; Status = 'FAILED'; FailureStage = 'TokenVerification'
 }
 $native = $null
 try {
@@ -27,10 +28,16 @@ try {
     $client.Timeout = [TimeSpan]::FromSeconds(30)
     try {
         $response = $client.GetAsync([Uri]'http://localhost:5080/api/v1/security/me').GetAwaiter().GetResult()
-        try { $report.IdentityRequestStatus = [int]$response.StatusCode } finally { $response.Dispose() }
+        try {
+            $report.IdentityRequestStatus = [int]$response.StatusCode
+            if ($response.IsSuccessStatusCode) {
+                $me = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+                $report.HasNoAuthority = (@($me.roles).Count -eq 0 -and @($me.permissions).Count -eq 0 -and @($me.assetScopeIds).Count -eq 0)
+            }
+        } finally { $response.Dispose() }
     } finally { $client.Dispose() }
-    if ($report.IdentityRequestStatus -eq $report.Expected) { $report.Status = 'PASSED'; $report.FailureStage = $null }
-    else { $report.FailureStage = 'ExpectedForbidden' }
+    if ($report.IdentityRequestStatus -eq $report.Expected -and $report.HasNoAuthority) { $report.Status = 'PASSED'; $report.FailureStage = $null }
+    else { $report.FailureStage = 'ExpectedNoAuthority' }
 } catch { } # Never export exception messages, usernames, SID values or credentials.
 finally {
     if ($native) { $native.Dispose() }
