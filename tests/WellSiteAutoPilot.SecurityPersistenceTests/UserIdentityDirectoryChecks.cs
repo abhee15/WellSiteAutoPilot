@@ -28,9 +28,17 @@ internal static class UserIdentityDirectoryChecks
             !string.Equals((await service.GetRequiredAsync(id)).IdentityKey, key, StringComparison.OrdinalIgnoreCase) ||
             (await service.ListAsync(1)).Single().Id != id || await setup.AccessGrants.AnyAsync())
             throw new InvalidOperationException("Identity directory coupled customer role labels to identity resolution or authority.");
+        var repeated = new UserIdentityService(new UserAccessRepository(setup), TimeProvider.System);
+        if (!(await repeated.ResolveAuthenticatedAsync(key, identity, "Updated display")).IsActive)
+            throw new InvalidOperationException("Active identity fixture was not initialized.");
         await setup.Users.Where(item => item.Id == id).ExecuteUpdateAsync(set => set.SetProperty(item => item.IsActive, false));
         if ((await ResolveAsync("Updated display")).IsActive)
             throw new InvalidOperationException("Resolving a disabled identity reactivated it.");
+        var disabled = await repeated.ResolveAuthenticatedAsync(key, identity, "Disabled display refresh");
+        if (disabled.IsActive || disabled.DisplayName != "Disabled display refresh" ||
+            (await repeated.ResolveAuthenticatedAsync(key, identity, "Disabled display refresh")).IsActive ||
+            await setup.Users.AsNoTracking().AnyAsync(item => item.Id == id && item.IsActive))
+            throw new InvalidOperationException("Tracked identity reuse hid a deactivation or metadata refresh reactivated the account.");
         await setup.UserRoles.Where(item => item.UserId == id).ExecuteDeleteAsync();
         await setup.AuditEvents.Where(item => item.TargetId == id.ToString()).ExecuteDeleteAsync();
         await setup.Users.Where(item => item.Id == id).ExecuteDeleteAsync();

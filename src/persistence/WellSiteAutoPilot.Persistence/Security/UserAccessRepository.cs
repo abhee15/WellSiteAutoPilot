@@ -79,8 +79,16 @@ public sealed class UserAccessRepository(
     }
 
     public async Task<UserIdentity> UpsertIdentityAsync(string identityKey, string identityName, string normalizedIdentityName,
-        string? displayName, DateTimeOffset seenAtUtc, CancellationToken cancellationToken = default) =>
-        ToIdentity(await UpsertIdentityEntityAsync(identityKey, identityName, normalizedIdentityName, displayName, seenAtUtc, cancellationToken));
+        string? displayName, DateTimeOffset seenAtUtc, CancellationToken cancellationToken = default)
+    {
+        var user = await UpsertIdentityEntityAsync(identityKey, identityName, normalizedIdentityName, displayName,
+            seenAtUtc, cancellationToken);
+        // Metadata provisioning can reuse a tracked entity in this unit of
+        // work. Its active flag is not evidence of the current persisted state.
+        // Never let a prior active instance hide a subsequent deactivation.
+        return await GetIdentityAsync(user.Id, cancellationToken) ??
+            throw new InvalidOperationException("The provisioned identity is no longer available.");
+    }
 
     public async Task<UserAccessProfile> UpsertAuthenticatedUserAsync(
         string identityKey, string identityName, string normalizedIdentityName, string? displayName, DateTimeOffset seenAtUtc,
