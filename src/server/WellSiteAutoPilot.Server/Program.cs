@@ -100,6 +100,11 @@ else
 
 builder.Services.AddSingleton<IAuthenticatedPrincipalResolver>(
     new ConfiguredPrincipalResolver(authenticationMode));
+builder.Services.AddMemoryCache();
+if (string.Equals(authenticationMode, SecurityOptions.NegotiateAuthenticationMode, StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<IDirectoryDisplayNameResolver, WindowsDirectoryDisplayNameResolver>();
+else
+    builder.Services.AddSingleton<IDirectoryDisplayNameResolver, NoDirectoryDisplayNameResolver>();
 builder.Services.AddAuthorization(WellSitePolicies.AddGrantPolicies);
 builder.Services.AddSingleton<IIdentityGroupResolver>(services =>
     new WindowsTokenGroupResolver(authenticationMode, services.GetRequiredService<TimeProvider>()));

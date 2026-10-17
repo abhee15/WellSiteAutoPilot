@@ -173,3 +173,20 @@ mismatch instead of silently resolving new package versions. For an intentional
 dependency change, use `npm install`, review the manifest and lockfile diff,
 run the frontend checks, and commit both files together. Keep optional platform
 packages in the lockfile so Windows and Linux can install their native tooling.
+
+## Display name for Windows sign-ins
+
+A Windows sign-in carries only the login (`DOMAIN\account`), which is often an
+employee number. After a user is authenticated the Server looks the account up by
+SID, first in the domain directory and then in the machine's local accounts, and
+stores the person's name (display name, otherwise given name plus surname). The
+user menu and Administration then show that name; the login stays visible as the
+identity.
+
+The lookup is presentation only and never affects identity, grants or access. It
+is cached (one hour when found, five minutes when not), limited to three seconds
+and falls back to the login when the directory cannot be reached, for example on
+a VPN that is not connected. An existing user's name is refreshed at their next
+sign-in. The directory is read with the Server process's own credentials, so a
+service account without domain read access (for example `LocalService`) shows the
+login; `NetworkService` or a managed service account can read the domain.
