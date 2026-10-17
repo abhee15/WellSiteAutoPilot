@@ -37,3 +37,27 @@ it('offers a skip link that moves focus to the main content without changing the
   expect(document.activeElement).toBe(document.getElementById('main-content'));
   expect(window.location.hash).toBe('#operations');
 });
+
+it('operations name a run after its logic and the assets it covers', async () => {
+  window.location.hash = '#operations';
+  const configId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  const revisionId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\names', isActive: true, roles: [],
+      permissions: ['executions.read', 'assets.read', 'configured-logic.read'], assetScopeIds: [] });
+    if (url.includes('system/info')) return response({});
+    if (url.includes('/executions')) return response([{ executionId: '11111111-1111-4111-8111-111111111111', logicInstanceId: configId,
+      configurationRevisionId: revisionId, assetId: null, assetExternalId: null, moduleId: 'pump-monitor', moduleVersion: '1.0.0',
+      mode: 'Shadow', status: 'Completed', requestedAtUtc: '2026-10-17T12:00:00Z' }]);
+    if (url.includes('/configured-logic')) return response([{ id: configId, name: 'North pumps', activeRevisionId: revisionId,
+      createdAtUtc: '2026-10-01T00:00:00Z', revisions: [{ id: revisionId, revisionNumber: 3, status: 'Active',
+        assetBindings: [{ role: 'well', assetId }], dataBindings: [] }] }]);
+    if (url.includes('/assets?')) return response([{ id: assetId, assetTypeId: 't', name: 'North Well', isActive: true, createdAtUtc: '2026-10-01T00:00:00Z' }]);
+    if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
+    return response([]);
+  }));
+  render(<App />);
+  const row = (await screen.findByText('North pumps')).closest('tr')!;
+  expect(within(row).getByText('North Well')).not.toBeNull();
+  expect(within(row).getByText(/pump-monitor v1\.0\.0 · Revision 3/)).not.toBeNull();
+});
