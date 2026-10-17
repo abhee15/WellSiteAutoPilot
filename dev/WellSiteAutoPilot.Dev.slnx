@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="WellSiteAutoPilot.AppHost/WellSiteAutoPilot.AppHost.csproj" />
+  <Project Path="WellSiteAutoPilot.Dev.Core/WellSiteAutoPilot.Dev.Core.csproj" />
+  <Project Path="WellSiteAutoPilot.Dev.Tests/WellSiteAutoPilot.Dev.Tests.csproj" />
 </Solution>

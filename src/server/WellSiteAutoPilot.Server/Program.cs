@@ -28,6 +28,7 @@ using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
+using WellSiteAutoPilot.Server;
 using WellSiteAutoPilot.Server.Scheduling;
 using WellSiteAutoPilot.Server.Security;
 using WellSiteAutoPilot.Server.Contracts;
@@ -36,7 +37,10 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
     Args = args,
     ContentRootPath = AppContext.BaseDirectory,
-    WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
+    WebRootPath = FrontendStaticRoot.Resolve(
+        Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+        Environment.GetEnvironmentVariable("Frontend__DevelopmentStaticRoot"),
+        Path.Combine(AppContext.BaseDirectory, "wwwroot"))
 });
 
 builder.Services.AddWindowsService(options =>
