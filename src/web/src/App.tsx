@@ -1,6 +1,7 @@
 import { canOpenSection, isAwaitingAccess, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
 import { AwaitingAccessNotice } from './components/AwaitingAccessNotice';
 import { loadWorkspaceSnapshot } from './views/workspaceSnapshot';
+import type { SnapshotKey } from './views/workspaceSnapshot';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AssetResponse,
@@ -48,6 +49,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // False until the first complete read for this session, so "nothing here" is never shown while loading.
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const onHashChange = () => setSection(sectionFromHash());
@@ -73,6 +76,7 @@ export function App() {
     const clearWorkspace = () => {
       setSystemInfo(null); setExecutions([]); setAssetTypes([]); setAssets([]);
       setAssetCapabilities(null); setLogicModules([]); setConfiguredLogic([]); setLastUpdated(null);
+      setIsLoaded(false);
     };
     try {
       const user = await loadSession(controller.signal);
@@ -87,10 +91,16 @@ export function App() {
       const effectiveUser = { ...user, permissions: user.permissions.filter(p => !snapshot.deniedPermissions.includes(p)) };
       accessKey.current = sessionAccessKey(effectiveUser);
       setCurrentUser(effectiveUser);
-      setSystemInfo(snapshot.system); setExecutions(snapshot.executions);
-      setAssetTypes(snapshot.assetTypes); setAssets(snapshot.assets);
-      setAssetCapabilities(snapshot.capabilities); setLogicModules(snapshot.modules);
-      setConfiguredLogic(snapshot.configurations);
+      // A dataset that could not be read this time keeps its last good copy instead of emptying the page.
+      const fresh = (key: SnapshotKey) => !snapshot.unavailable.includes(key);
+      if (fresh('system')) setSystemInfo(snapshot.system);
+      if (fresh('executions')) setExecutions(snapshot.executions);
+      if (fresh('assetTypes')) setAssetTypes(snapshot.assetTypes);
+      if (fresh('assets')) setAssets(snapshot.assets);
+      if (fresh('capabilities')) setAssetCapabilities(snapshot.capabilities);
+      if (fresh('modules')) setLogicModules(snapshot.modules);
+      if (fresh('configurations')) setConfiguredLogic(snapshot.configurations);
+      setIsLoaded(true);
       setError(snapshot.deniedPermissions.length ? t('refresh.accessChanged')
         : snapshot.incomplete ? t('refresh.partial') : null);
       setLastUpdated(new Date());
@@ -167,6 +177,7 @@ export function App() {
             key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             systemInfo={systemInfo}
             executions={executions}
+            isLoaded={isLoaded}
             userId={currentUser?.userId}
           />
         )}
@@ -187,6 +198,7 @@ export function App() {
             key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             assetTypes={assetTypes}
             assets={assets}
+            isLoaded={isLoaded}
             userId={currentUser?.userId}
             capabilities={assetCapabilities}
             onRefresh={refresh}
@@ -201,6 +213,7 @@ export function App() {
             onRefresh={refresh}
             modules={logicModules}
             configuredLogic={configuredLogic}
+            isLoaded={isLoaded}
             permissions={currentUser?.permissions ?? []}
           />
         )}

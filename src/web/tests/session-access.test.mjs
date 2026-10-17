@@ -97,3 +97,18 @@ test('an active user without effective permissions is awaiting access', () => {
   assert.equal(access.isAwaitingAccess(user(false, [])), false);
   assert.equal(access.isAwaitingAccess(null), false);
 });
+
+test('transient read failures are reported as unavailable so callers keep their last good data', async () => {
+  const snapshot = await workspace.loadWorkspaceSnapshot(session, signal(), async url => {
+    if (url.includes('/assets?')) return new Response('', { status: 500 });
+    return response(url.includes('system/info') ? {} : url.includes('capabilities')
+      ? { canCreateRoot: true, canCreateUnderAuthorizedParents: true } : []);
+  });
+  assert.deepEqual(snapshot.unavailable, ['assets']);
+  assert.equal(snapshot.incomplete, true);
+  const denied = await workspace.loadWorkspaceSnapshot({ ...session, permissions: ['assets.read'] }, signal(),
+    async url => url === '/api/v1/asset-types' ? new Response('', { status: 403 })
+      : response(url.includes('system/info') ? {} : url.includes('capabilities')
+        ? { canCreateRoot: true, canCreateUnderAuthorizedParents: true } : []));
+  assert.deepEqual(denied.unavailable, []);
+});

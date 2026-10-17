@@ -13,10 +13,12 @@ export function OperationsPage({
   systemInfo,
   executions,
   userId,
+  isLoaded = true,
 }: {
   systemInfo: SystemInfoResponse | null;
   executions: ExecutionResponse[];
   userId: string | null | undefined;
+  isLoaded?: boolean;
 }) {
   const [viewCriteria, setViewCriteria] = useState<OperationsViewCriteria>(DEFAULT_OPERATIONS_VIEW);
   const [selectedExecutionId, setSelectedExecutionId] = useHashDetail('operations');
@@ -144,7 +146,7 @@ export function OperationsPage({
                 </tr>
               ))}
               {visibleExecutions.length === 0 && (
-                <EmptyRow columns={7}>{executions.length === 0
+                <EmptyRow columns={7}>{!isLoaded ? t('views.loading') : executions.length === 0
                   ? t('views.noActivity')
                   : t('views.noMatches')}</EmptyRow>
               )}

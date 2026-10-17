@@ -235,11 +235,11 @@ export function RecommendationsPage({
         {reviewNotice && <p role="status" className="recommendation-readonly-note">
           {reviewNotice}
         </p>}
-        {isLoading && <p role="status" className="status-loading">{t('inbox.loading')}</p>}
+        {isLoading && !lastUpdated && <p role="status" className="status-loading">{t('inbox.loading')}</p>}
         {error && <p role="alert" className="execution-detail-error inbox-error">
           {errorMessages[error]}
         </p>}
-        {!isLoading && !error && (
+        {(!isLoading || lastUpdated) && !error && (
           <RecommendationInboxTable items={visible} nowUtc={nowUtc}
             onReview={canDecide ? recommendationId => {
               setSelectedReviewId(recommendationId);

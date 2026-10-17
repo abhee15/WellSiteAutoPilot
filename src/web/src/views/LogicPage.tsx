@@ -20,7 +20,7 @@ import type { LogicCatalogCriteria } from './logicCatalog';
 export function LogicPage({
   modules,
   configuredLogic,
-  userId, assets, assetTypes, onRefresh, permissions,
+  userId, assets, assetTypes, onRefresh, permissions, isLoaded = true,
 }: {
   modules: LogicModuleResponse[];
   configuredLogic: ConfiguredLogicResponse[];
@@ -29,6 +29,7 @@ export function LogicPage({
   assetTypes: AssetTypeResponse[];
   onRefresh: () => Promise<void>;
   permissions: readonly string[];
+  isLoaded?: boolean;
 }) {
   const canReadCatalog = permissions.includes('logic.read');
   const canReadConfigurations = permissions.includes('configured-logic.read');
@@ -103,7 +104,7 @@ export function LogicPage({
               ))}
               {visibleModules.length === 0 && (
                 <EmptyRow columns={6}>
-                  {modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}
+                  {!isLoaded ? t('views.loading') : modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}
                 </EmptyRow>
               )}
             </tbody>
@@ -165,7 +166,7 @@ export function LogicPage({
               })}
               {visibleConfigurations.length === 0 && (
                 <EmptyRow columns={6}>
-                  {configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
+                  {!isLoaded ? t('views.loading') : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
                 </EmptyRow>
               )}
             </tbody>
