@@ -67,7 +67,8 @@ internal static class PersistedIdentityChecks
             var access = new RequestAccessContext(resolver, groups);
             var invoked = false;
             await new GrantIdentityMiddleware(_ => { invoked = true; return Task.CompletedTask; }).InvokeAsync(context,
-                service, resolver, access, new RejectBootstrap(), Options.Create(new SecurityOptions()), TimeProvider.System);
+                service, resolver, access, new RejectBootstrap(), Options.Create(new SecurityOptions()), TimeProvider.System,
+                new NoDirectoryDisplayNameResolver());
             if (context.User.HasClaim(item => item.Type == SecurityClaimTypes.Role || item.Type == SecurityClaimTypes.Permission ||
                 item.Type == SecurityClaimTypes.AssetScope || item.Type == SecurityClaimTypes.UserId))
                 throw new InvalidOperationException("Identity initialization issued legacy authority claims.");
