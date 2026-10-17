@@ -114,7 +114,7 @@ cannot close the domain gate.
 
 ## Unprovisioned Windows user
 
-The fixture also logs on a second fresh local user who is not the bootstrap administrator and belongs to no fixture group. It must authenticate through Negotiate (not 401) and receive 200 with no roles, permissions or Asset scope, because identity provisioning never grants authority. The result is reported as `UnprovisionedUser` in `fixture.json` and the job summary, and as `unprovisioned-session.json`. It is advisory in this first increment: it does not change `LocalCoverage`, so the browser-policy evidence stays unambiguous. Group-scoped positive cases and nested groups follow.
+The fixture also logs on a second fresh local user who is not the bootstrap administrator and belongs to no fixture group. It must authenticate through Negotiate (not 401) and receive 200 with no effective permissions, because identity provisioning never grants authority. The result is reported as `UnprovisionedUser` in `fixture.json` and the job summary, and as `unprovisioned-session.json`. It is advisory in this first increment: it does not change `LocalCoverage`, so the browser-policy evidence stays unambiguous. Group-scoped positive cases and nested groups follow.
 
 ## Primary references
 

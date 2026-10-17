@@ -1,7 +1,7 @@
 # Invoked by the disposable fixture as a second, fresh native Windows logon that is
 # neither bootstrap administrator nor a member of any fixture group. A real Windows
 # credential must authenticate (not 401); provisioning is identity-only, so it gets 200
-# with no roles, permissions or Asset scope.
+# with no effective permissions.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ExpectedUserSid,
@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $report = [ordered]@{
     SchemaVersion = 1; NativeUserMatches = $false; InFixtureGroup = $null
-    IdentityRequestStatus = $null; Expected = 200; HasNoAuthority = $null; Status = 'FAILED'; FailureStage = 'TokenVerification'
+    IdentityRequestStatus = $null; Expected = 200; HasNoAuthority = $null; PermissionCount = $null; Status = 'FAILED'; FailureStage = 'TokenVerification'
 }
 $native = $null
 try {
@@ -32,7 +32,10 @@ try {
             $report.IdentityRequestStatus = [int]$response.StatusCode
             if ($response.IsSuccessStatusCode) {
                 $me = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
-                $report.HasNoAuthority = (@($me.roles).Count -eq 0 -and @($me.permissions).Count -eq 0 -and @($me.assetScopeIds).Count -eq 0)
+                # CurrentUserResponse exposes only the effective permission hints. Do not wrap a possibly
+                # missing property in @(): @($null).Count is 1.
+                $report.PermissionCount = if ($null -eq $me.permissions) { 0 } else { @($me.permissions).Count }
+                $report.HasNoAuthority = ($report.PermissionCount -eq 0)
             }
         } finally { $response.Dispose() }
     } finally { $client.Dispose() }

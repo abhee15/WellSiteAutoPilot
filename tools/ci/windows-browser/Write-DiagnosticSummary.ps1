@@ -60,7 +60,7 @@ try {
         if ($other) {
             $otherText += " Status=$(ConvertTo-SafeToken $other.Status) FailureStage=$(ConvertTo-SafeToken $other.FailureStage) " +
                 "UserMatches=$(ConvertTo-SafeToken $other.NativeUserMatches) InFixtureGroup=$(ConvertTo-SafeToken $other.InFixtureGroup) " +
-                "IdentityRequestStatus=$(ConvertTo-SafeToken $other.IdentityRequestStatus) Expected=$(ConvertTo-SafeToken $other.Expected)"
+                "PermissionCount=$(ConvertTo-SafeToken $other.PermissionCount) IdentityRequestStatus=$(ConvertTo-SafeToken $other.IdentityRequestStatus) Expected=$(ConvertTo-SafeToken $other.Expected)"
         }
         Write-Host "::notice title=Unprovisioned user::$otherText"
         $lines.Add("| Unprovisioned user | $otherText |")
