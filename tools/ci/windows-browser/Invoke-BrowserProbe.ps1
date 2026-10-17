@@ -81,7 +81,7 @@ try {
     $paths = @('/api/v1/security/me', '/api/v1/system/info', '/api/v1/assets', '/api/v1/executions',
         '/api/v1/asset-types', '/api/v1/logic-modules', '/api/v1/configured-logic')
     foreach ($scenario in @('IdentityNavigation', 'Sequential', 'ColdConcurrent', 'WarmConcurrent', 'Spa')) {
-        $case = [ordered]@{ Name = $scenario; Status = 'FAILED'; FailureStage = 'DriverSession'; Observations = @(); IdentityMatches = $false; BrowserVersion = '' }
+        $case = [ordered]@{ Name = $scenario; Status = 'FAILED'; FailureStage = 'DriverSession'; StartedAtUtc = [DateTimeOffset]::UtcNow; CompletedAtUtc = $null; Observations = @(); IdentityMatches = $false; BrowserVersion = '' }
         try {
             $profile = Join-Path $runRoot $scenario
             $arguments = @('--headless=new', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$profile")
@@ -110,10 +110,12 @@ try {
                     Navigate '/'
                     $loaded = $false
                     for ($attempt = 0; $attempt -lt 50; $attempt++) {
-                        $loaded = Invoke-Driver 'POST' "/session/$session/execute/sync" @{
-                            script = 'return !!document.querySelector(".app-shell") && [...document.querySelectorAll("nav a")].some(a => a.getAttribute("href") === "#assets");'
+                        $spaState = Invoke-Driver 'POST' "/session/$session/execute/sync" @{
+                            script = 'if (document.querySelector(".status-error")) return "FAILED"; return document.querySelector(".last-updated") && document.querySelector(".page-header button:not(:disabled)") && [...document.querySelectorAll("nav a")].some(a => a.getAttribute("href") === "#assets") ? "READY" : "PENDING";'
                             args = @()
                         }
+                        if ($spaState -eq 'FAILED') { throw 'The SPA reported a startup error.' }
+                        $loaded = $spaState -eq 'READY'
                         if ($loaded) { break }
                         Start-Sleep -Milliseconds 200
                     }
@@ -132,6 +134,7 @@ try {
         } finally {
             if ($session) { try { Invoke-Driver 'DELETE' "/session/$session" | Out-Null } catch {}; $session = $null }
         }
+        $case.CompletedAtUtc = [DateTimeOffset]::UtcNow
         if ($case.Status -eq 'PASSED') { $case.FailureStage = $null }
         $report.Scenarios += $case
     }

@@ -60,7 +60,7 @@ jobs:
       - name: Build SPA for direct Kestrel hosting
         working-directory: src/web
         run: |
-          npm install --no-package-lock
+          npm ci
           if ($LASTEXITCODE -ne 0) { throw 'Frontend dependency install failed.' }
           npm run generate-api
           if ($LASTEXITCODE -ne 0) { throw 'API client generation failed.' }

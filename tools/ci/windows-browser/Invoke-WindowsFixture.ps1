@@ -24,11 +24,12 @@ $childOutput = Join-Path $root 'reports'
 $report = [ordered]@{
     SchemaVersion = 1; Commit = $env:GITHUB_SHA; Topology = 'NOT EXECUTED'; AuthenticationMode = 'NOT EXECUTED'
     WindowsVersion = [Environment]::OSVersion.Version.ToString(); NativeSession = $null
-    DomainCoverage = 'NOT EXECUTED'; LocalCoverage = 'NOT EXECUTED'; FailureStage = 'Preflight'
+    DomainCoverage = 'NOT EXECUTED'; LocalCoverage = 'NOT EXECUTED'; FailureStage = 'Preflight'; FailureType = $null
     ServerObservations = @(); BrowserCorrelationMatches = @(); ConnectionEvidence = 'NOT CAPTURED'; Cleanup = 'PENDING'
 }
 $user = $null; $group = $null; $server = $null; $nats = $null; $child = $null
 $databaseCreated = $false; $startedPostgres = $false; $startedSecondaryLogon = $false
+$postgresStartup = $null; $secondaryLogonStartup = $null
 $oldEnvironment = @{}
 $environmentKeys = @('PGPASSWORD', 'WSA_DATABASE_CONNECTION_STRING', 'ConnectionStrings__WellSiteAutoPilot',
     'ASPNETCORE_ENVIRONMENT', 'Security__AuthenticationMode', 'Security__BootstrapAdministrators__0',
@@ -43,16 +44,30 @@ function Stop-OwnedTree($Process) {
 }
 try {
     New-Item -ItemType Directory -Path $childOutput -Force | Out-Null
+    $report.FailureStage = 'EdgeDriverPreflight'
     $driverPath = Join-Path $env:EDGEWEBDRIVER 'msedgedriver.exe'
     if (-not (Test-Path -LiteralPath $driverPath -PathType Leaf)) { throw 'Edge WebDriver is missing.' }
+    $report.FailureStage = 'PostgreSQLStartup'
     $pgBin = 'C:\Program Files\PostgreSQL\17\bin'
     $psql = Join-Path $pgBin 'psql.exe'
     if (-not (Test-Path -LiteralPath $psql)) { throw 'Expected runner PostgreSQL 17 installation is missing.' }
     $postgres = Get-Service 'postgresql-x64-17'
-    if ($postgres.Status -ne 'Running') { Start-Service $postgres; $startedPostgres = $true }
+    $postgresStartup = $postgres.StartType
+    if ($postgres.Status -ne 'Running') {
+        if ($postgres.StartType -eq 'Disabled') { Set-Service $postgres -StartupType Manual }
+        Start-Service $postgres
+        $startedPostgres = $true
+    }
+    $report.FailureStage = 'SecondaryLogonStartup'
     $secondaryLogon = Get-Service 'seclogon'
-    if ($secondaryLogon.Status -ne 'Running') { Start-Service $secondaryLogon; $startedSecondaryLogon = $true }
+    $secondaryLogonStartup = $secondaryLogon.StartType
+    if ($secondaryLogon.Status -ne 'Running') {
+        if ($secondaryLogon.StartType -eq 'Disabled') { Set-Service $secondaryLogon -StartupType Manual }
+        Start-Service $secondaryLogon
+        $startedSecondaryLogon = $true
+    }
     # Public runner-image PostgreSQL fixture credential, unrelated to native logon.
+    $report.FailureStage = 'DatabaseCreation'
     $env:PGPASSWORD = 'root'
     & $psql -h 127.0.0.1 -U postgres -d postgres -w -v ON_ERROR_STOP=1 -c "CREATE DATABASE $database" *> $null
     if ($LASTEXITCODE -ne 0) { throw 'Disposable database creation failed.' }
@@ -125,6 +140,7 @@ try {
     if ($child.ExitCode -eq 0 -and $report.NativeSession.Status -eq 'PASSED') { $report.LocalCoverage = 'PASSED' }
     else { $report.LocalCoverage = 'FAILED' }
 } catch {
+    $report.FailureType = $_.Exception.GetType().Name
     $report.LocalCoverage = 'FAILED'
     # FailureStage is a fixed vocabulary. Never export the raw exception.
 } finally {
@@ -201,6 +217,12 @@ try {
     if ($group) { try { Remove-LocalGroup -SID $group.SID } catch { $cleanupPassed = $false } }
     if ($startedPostgres) { try { Stop-Service 'postgresql-x64-17' } catch { $cleanupPassed = $false } }
     if ($startedSecondaryLogon) { try { Stop-Service 'seclogon' } catch { $cleanupPassed = $false } }
+    if ($null -ne $postgresStartup) {
+        try { Set-Service 'postgresql-x64-17' -StartupType $postgresStartup } catch { $cleanupPassed = $false }
+    }
+    if ($null -ne $secondaryLogonStartup) {
+        try { Set-Service 'seclogon' -StartupType $secondaryLogonStartup } catch { $cleanupPassed = $false }
+    }
     foreach ($key in $environmentKeys) { [Environment]::SetEnvironmentVariable($key, $oldEnvironment[$key], 'Process') }
     try { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force } } catch { $cleanupPassed = $false }
     $report.Cleanup = if ($cleanupPassed) { 'PASSED' } else { 'FAILED' }
