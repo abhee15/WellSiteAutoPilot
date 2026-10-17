@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.Versioning;
+using System.Security.Principal;
 using System.Text.Json;
 
 return Bootstrapper.Run(args);
@@ -194,6 +196,11 @@ internal static class Bootstrapper
         var bootstrapIdentity = ValidateBootstrapIdentity(
             requestedIdentity);
 
+        if (OperatingSystem.IsWindows())
+        {
+            VerifyBootstrapAccountResolves(bootstrapIdentity);
+        }
+
         var payload = JsonSerializer.Serialize(
             new
             {
@@ -247,6 +254,44 @@ internal static class Bootstrapper
             .Select(item => item!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    /// <summary>
+    /// A typo in the bootstrap account would otherwise surface only as an unexplained
+    /// access failure at first sign-in. Reject an account Windows cannot find. When the
+    /// directory cannot be reached (offline or VPN-less install) only warn. Disposable
+    /// test installs may set WSA_ALLOW_UNRESOLVED_BOOTSTRAP_ADMIN=1 to accept a fake account.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static void VerifyBootstrapAccountResolves(string identity)
+    {
+        try
+        {
+            _ = new NTAccount(identity).Translate(typeof(SecurityIdentifier));
+        }
+        catch (IdentityNotMappedException)
+        {
+            if (string.Equals(
+                    Environment.GetEnvironmentVariable("WSA_ALLOW_UNRESOLVED_BOOTSTRAP_ADMIN"),
+                    "1",
+                    StringComparison.Ordinal))
+            {
+                Console.Error.WriteLine(
+                    $"WARNING: bootstrap administrator '{identity}' was not found; accepted because WSA_ALLOW_UNRESOLVED_BOOTSTRAP_ADMIN=1.");
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"Bootstrap administrator '{identity}' was not found by Windows. " +
+                "Check the spelling and use DOMAIN\\user, MACHINE\\user, or a UPN. " +
+                "For a domain account, make sure this machine can reach the domain.");
+        }
+        catch (Exception ex) when (ex is SystemException or ArgumentException)
+        {
+            Console.Error.WriteLine(
+                $"WARNING: could not verify bootstrap administrator '{identity}' ({ex.GetType().Name}). " +
+                "Continuing; confirm the account name before first sign-in.");
+        }
     }
 
     private static string ValidateBootstrapIdentity(string identity)

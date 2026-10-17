@@ -13,6 +13,13 @@ a role, group or user ID from a request body/header. The host must check the
 allowlist before calling it. TestHeader remains simulated authentication and
 does not establish Windows group authority or satisfy release gate #92.
 
+On a fresh Windows installation the bootstrapper asks Windows to resolve the
+`--bootstrap-admin` account and refuses an account that does not exist, so a typo
+fails at install time instead of at first sign-in. If the directory cannot be
+reached (for example an offline install) it warns and continues. Disposable test
+installs that use a fake account set `WSA_ALLOW_UNRESOLVED_BOOTSTRAP_ADMIN=1`;
+the CI installer smoke does this. Upgrades never re-check or replace the account.
+
 Initialization creates two direct built-in Admin assignments in one transaction:
 
 - `DeploymentWide` for deployment permissions and direct recovery protection.

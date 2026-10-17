@@ -387,6 +387,8 @@ jobs:
             Remove-Item -Recurse -Force $installRoot
           }
 
+          # CI\wsa-admin is a fake account; production installs verify the account exists.
+          $env:WSA_ALLOW_UNRESOLVED_BOOTSTRAP_ADMIN = "1"
           $install = Start-Process -FilePath $installer -ArgumentList @(
             "/S",
             "/BOOTSTRAPADMIN=CI\wsa-admin",
