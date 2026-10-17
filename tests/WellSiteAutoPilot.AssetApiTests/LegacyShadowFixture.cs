@@ -43,7 +43,7 @@ internal static class LegacyShadowFixture
             };
             if (identity is not null) request.Headers.Add("X-WSA-Test-Identity", identity);
             using var response = await client.SendAsync(request);
-            if (response.StatusCode != HttpStatusCode.NotFound)
+            if (response.StatusCode is not (HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed))
                 throw new InvalidOperationException($"Retired raw dispatch returned {response.StatusCode} for {identity ?? "anonymous"}.");
         }
         if (await db.Executions.CountAsync() != executionsBefore || await db.OutboxMessages.CountAsync() != outboxBefore)

@@ -6,7 +6,7 @@ using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Security;
 
-internal static class AuthorizedSecurityDirectoryChecks
+internal static partial class AuthorizedSecurityDirectoryChecks
 {
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, Guid directAdministrator,
         AccessSubject groupAdministrator, Guid administratorGrant, Guid customRole, Guid inactiveUser)
@@ -111,6 +111,7 @@ internal static class AuthorizedSecurityDirectoryChecks
         await setup.RolePermissions.Where(item => item.RoleId == customRole).ExecuteDeleteAsync();
         setup.RolePermissions.Add(new RolePermissionEntity { RoleId = customRole, Permission = WellSitePermissions.SecurityManage });
         await setup.SaveChangesAsync();
+        await CheckAssetDirectoryAsync(options, direct, groupAdministrator, administratorGrant);
         await setup.UserRoles.Where(item => item.UserId == groupAdministrator.UserId).ExecuteDeleteAsync();
         Console.WriteLine("Protected user/role/grant directory supports direct/group administrators, bypasses legacy role parsing, preserves a hydration snapshot and denies fresh reads after revocation.");
 
@@ -118,6 +119,7 @@ internal static class AuthorizedSecurityDirectoryChecks
         {
             await using var db = new WellSiteAutoPilotDbContext(options);
             var directory = new SecurityDirectoryRepository(db, TimeProvider.System);
+            await ExpectAsync(() => directory.ListAssetsAuthorizedAsync(actor, 0, 100), FailureKind.Authorization);
             await ExpectAsync(() => directory.ListUsersAuthorizedAsync(actor, 100), FailureKind.Authorization);
             await ExpectAsync(() => directory.ListRolesAuthorizedAsync(actor, 100), FailureKind.Authorization);
             await ExpectAsync(() => directory.GetRoleAuthorizedAsync(actor, protectedRole), FailureKind.Authorization);

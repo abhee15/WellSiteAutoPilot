@@ -10,6 +10,20 @@ namespace WellSiteAutoPilot.Persistence.Security;
 public sealed class SecurityDirectoryRepository(WellSiteAutoPilotDbContext db, TimeProvider clock)
     : ISecurityDirectoryRepository
 {
+    public Task<IReadOnlyCollection<SecurityAssetDirectoryEntry>> ListAssetsAuthorizedAsync(AccessSubject administrator,
+        int offset, int limit, CancellationToken cancellationToken = default)
+    {
+        ValidateLimit(limit);
+        if (offset is < 0 or > 1000000)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Security Asset directory offset must be between 0 and 1000000.");
+        return ReadAsync<IReadOnlyCollection<SecurityAssetDirectoryEntry>>(administrator, async () =>
+            await db.Assets.AsNoTracking().OrderBy(asset => asset.Name).ThenBy(asset => asset.Id)
+                .Skip(offset).Take(limit)
+                .Select(asset => new SecurityAssetDirectoryEntry(asset.Id, asset.Name, asset.IsActive))
+                .ToArrayAsync(cancellationToken), cancellationToken);
+    }
+
     public Task<IReadOnlyCollection<UserIdentity>> ListUsersAuthorizedAsync(AccessSubject administrator, int limit,
         CancellationToken cancellationToken = default)
     {

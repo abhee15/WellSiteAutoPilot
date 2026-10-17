@@ -457,3 +457,29 @@ coverage checks raw HTTP refusal for administrator, Operator, unprivileged and
 anonymous callers, unchanged execution/outbox counts and absence from OpenAPI.
 The API inventory rejects accidental reintroduction even with a coarse policy.
 New-head CI must validate this change before any merge claim.
+
+## Protected Asset assignment directory
+
+The protected security directory now also projects bounded Asset assignment
+pages: Id, Name and IsActive only, with stable Name/Id ordering. It includes
+inactive Assets so existing assignments remain inspectable. Resource attributes,
+provider mappings and execution/configuration data are never part of this
+projection. Protected direct or verified-group administrator authority is required;
+ordinary Asset read/manage grants or custom security.manage roles do not qualify.
+The directory deliberately does not confer resource-read authority.
+
+Authority, paging and projection use the same RepeatableRead/Serializable
+snapshot, with proof freshness checked again after hydration. New PostgreSQL
+coverage exercises direct/group paging with duplicate names and inactive rows,
+invalid bounds, no implicit resource access, expiry during hydration, an observed
+pause between authority and Asset SQL with concurrent rename/revocation, fresh
+post-revocation denial and rejection of weaker caller transactions. These cases
+need current-head CI. The atomic route switch must use this entry point for
+/security/assets/directory instead of the legacy full-Asset service method.
+
+The raw-route refusal fixture accepts both 404 and 405: ASP.NET can retain
+GET route/fallback metadata after POST removal. Both are routing refusals; the
+no-execution/outbox-write checks and OpenAPI absence remain required. Run
+39003149982 passed PostgreSQL and four other jobs but exposed the fixture's
+incorrect 404-only assumption in Shadow end-to-end. The corrected fixture and
+new Asset-directory cases require a new head; no all-seven success is claimed.
