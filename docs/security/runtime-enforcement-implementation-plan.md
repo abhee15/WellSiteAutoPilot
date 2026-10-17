@@ -253,6 +253,22 @@ pass local full-solution compilation with zero warnings/errors, identity/pure
 grant checks, Npgsql translation, 14 convention tests and convention validation.
 None of those local checks substitutes for new-head PostgreSQL execution.
 
+Manual-request head `3fab500fa6fc507e8ab60b779eed2e9b787da645` passed
+PostgreSQL integration in run `38985438569`, including the new request/replay,
+receipt integrity, rollback and observed grant-revocation cases. Five other jobs
+also passed; the Windows installer remained in progress at this observation.
+
+The next prepared boundary is module catalog registration. Its authorized
+application path reuses manifest/checksum/trust validation; the repository
+retains DeploymentWide logic.manage authority through module/audit commit and
+rechecks it for idempotent registrations too. ExactAssets/AllAssets never
+satisfy the global operation. Installed version content/trust remains immutable;
+concurrent writes/revocation surface conflicts without blind retry. Existing
+legacy/CLI methods remain until the complete route cutover. PostgreSQL tests
+cover direct/group global grants, resource-vs-global isolation, missing proof,
+idempotency after permission loss, immutable content, post-save rollback and an
+actual revocation wait. This boundary requires validation on its own new head.
+
 Do not introduce a Legacy/Observe/Enforce state machine or a production
 migration campaign for this unreleased baseline. Do not enable a partial mixed
 legacy/grant runtime merely because an individual repository or UI test passes.

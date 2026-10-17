@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Scheduling;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Logic;
@@ -495,6 +496,10 @@ file sealed class FaultInjectingModuleCatalogRepository(
     ILogicModuleCatalogRepository inner,
     string faultedModuleId) : ILogicModuleCatalogRepository
 {
+    public Task<InstalledLogicModule> RegisterAuthorizedAsync(InstalledLogicModule logicModule, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default) =>
+        inner.RegisterAuthorizedAsync(logicModule, subject, actor, cancellationToken);
+
     public bool FailTargetGet { get; set; } = true;
 
     public CancellationTokenSource? CancelTargetGet { get; set; }

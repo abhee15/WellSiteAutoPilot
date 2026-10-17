@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Domain.Logic;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Failures;
 
 namespace WellSiteAutoPilot.Application.Logic;
@@ -15,24 +16,14 @@ public sealed class LogicModuleCatalogService(
         RegisterLogicModuleCommand command,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(command);
-
-        var manifest = DeserializeManifest(command.ManifestJson);
-        LogicModuleManifestValidator.Validate(manifest);
-
-        var checksum = NormalizeSha256(command.PackageSha256);
-        ValidateTrustStatus(command.TrustStatus);
-
-        var existing = await repository.GetAsync(
-            manifest.ModuleId,
-            manifest.Version,
-            cancellationToken);
+        var module = BuildModule(command);
+        var existing = await repository.GetAsync(module.ModuleId, module.Version, cancellationToken);
 
         if (existing is not null)
         {
             if (string.Equals(
                     existing.PackageSha256,
-                    checksum,
+                    module.PackageSha256,
                     StringComparison.OrdinalIgnoreCase))
             {
                 return existing;
@@ -41,10 +32,29 @@ public sealed class LogicModuleCatalogService(
             throw new WellSiteAutoPilotException(
                 "MODULE_VERSION_IMMUTABLE",
                 FailureKind.Conflict,
-                $"Logic Module '{manifest.ModuleId}' version '{manifest.Version}' is already installed with different package content.");
+                $"Logic Module '{module.ModuleId}' version '{module.Version}' is already installed with different package content.");
         }
 
-        var module = new InstalledLogicModule(
+        await repository.AddAsync(module, cancellationToken);
+        return module;
+    }
+
+    public Task<InstalledLogicModule> RegisterAuthorizedAsync(RegisterLogicModuleCommand command, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(actor);
+        return repository.RegisterAuthorizedAsync(BuildModule(command), subject, actor, cancellationToken);
+    }
+
+    private InstalledLogicModule BuildModule(RegisterLogicModuleCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var manifest = DeserializeManifest(command.ManifestJson);
+        LogicModuleManifestValidator.Validate(manifest);
+        var checksum = NormalizeSha256(command.PackageSha256);
+        ValidateTrustStatus(command.TrustStatus);
+        return new InstalledLogicModule(
             Guid.NewGuid(),
             manifest.ModuleId,
             manifest.Version,
@@ -60,8 +70,6 @@ public sealed class LogicModuleCatalogService(
                 LogicModuleTrustStatus.CustomerApproved,
             timeProvider.GetUtcNow());
 
-        await repository.AddAsync(module, cancellationToken);
-        return module;
     }
 
     public async Task<InstalledLogicModule> GetRequiredAsync(

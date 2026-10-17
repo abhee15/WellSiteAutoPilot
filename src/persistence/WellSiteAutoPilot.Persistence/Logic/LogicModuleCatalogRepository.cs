@@ -4,8 +4,8 @@ using WellSiteAutoPilot.Domain.Logic;
 
 namespace WellSiteAutoPilot.Persistence.Logic;
 
-public sealed class LogicModuleCatalogRepository(
-    WellSiteAutoPilotDbContext dbContext) : ILogicModuleCatalogRepository
+public sealed partial class LogicModuleCatalogRepository(
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : ILogicModuleCatalogRepository
 {
     public async Task<InstalledLogicModule?> GetAsync(
         string moduleId,
