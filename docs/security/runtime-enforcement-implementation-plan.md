@@ -379,6 +379,34 @@ active revisions, explicit/malformed AllAssets, missing read authority, expired
 group proof, disabled users and invalid/empty/oversized pages. New-head CI must
 execute these cases; the earlier host-policy result does not validate them.
 
+Capability head `96dfceba0fe48d47a330284f21c2262cfa7a099c` passed PostgreSQL
+integration and five other jobs in run `38988794326` at the recorded checkpoint.
+The Windows foundation/installer job was still running.
+
+## Prepared protected administration directory
+
+`ISecurityDirectoryRepository` lists identity-only user metadata, hydrated
+roles/permissions and complete user/group assignment records under current
+protected-administrator authority. Custom roles containing security.manage
+cannot cross that privilege-class boundary. A group assignment target is not
+proof of the requesting administrator's membership. Disabled identities and
+retired assignments remain inspectable without invoking legacy role parsing.
+
+The authority check and all hydration share RepeatableRead or Serializable
+state. Weak caller transactions are refused. A concurrent role/permission change
+cannot mix newer details into an older authorized directory response. The group
+observation is checked again after hydration, and a fresh request checks current
+grants rather than inheriting an earlier successful authorization. Existing
+bounded directory ordering and complete-assignment overflow checks are reused.
+
+PostgreSQL cases cover direct/group protected administrators, custom legacy role
+labels, inactive identities, user/group targets, missing subjects, validation,
+custom-role/expired-proof denial, grant revocation, weak transaction refusal,
+proof expiry during hydration, retired assignment inspection and an observed
+concurrent role hydration/revocation snapshot. These prepared
+reads await new-head CI and published API integration together with the other
+grant-runtime boundaries; no live legacy route has been switched individually.
+
 ## Remaining atomic runtime integration
 
 - Bind identity-only provisioning, explicit grant bootstrap, RequestAccessContext,
@@ -392,6 +420,9 @@ execute these cases; the earlier host-policy result does not validate them.
 - Return server-calculated per-resource action capabilities (configuration
   management/run and recommendation decisions in particular), using paired
   permissions for the actual targets. Never infer them from coarse menu hints.
+  Revalidate selected detail/edit views when resource scope changes even if
+  coarse permission strings stay the same. Remove the session Asset-ID union;
+  it must not become an authorization source or the only cache-invalidation key.
 - Use identity-only directory records and protected grant administration for
   user/group assignments and custom roles. Remove fixed-role access editing and
   migration-only APIs/UI, then regenerate the client and update route/E2E tests

@@ -1,0 +1,81 @@
+using System.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.Security;
+using WellSiteAutoPilot.Failures;
+
+namespace WellSiteAutoPilot.Persistence.Security;
+
+public sealed class SecurityDirectoryRepository(WellSiteAutoPilotDbContext db, TimeProvider clock)
+    : ISecurityDirectoryRepository
+{
+    public Task<IReadOnlyCollection<UserIdentity>> ListUsersAuthorizedAsync(AccessSubject administrator, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateLimit(limit);
+        return ReadAsync(administrator, () => new UserAccessRepository(db).ListIdentitiesAsync(limit, cancellationToken), cancellationToken);
+    }
+
+    public Task<IReadOnlyCollection<RoleDefinition>> ListRolesAuthorizedAsync(AccessSubject administrator, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateLimit(limit);
+        return ReadAsync(administrator, () => new RoleCatalogRepository(db, clock).ListAsync(limit, cancellationToken), cancellationToken);
+    }
+
+    public Task<RoleDefinition?> GetRoleAuthorizedAsync(AccessSubject administrator, Guid roleId,
+        CancellationToken cancellationToken = default) =>
+        ReadAsync(administrator, () => new RoleCatalogRepository(db, clock).GetAsync(roleId, cancellationToken), cancellationToken);
+
+    public Task<IReadOnlyCollection<AccessGrant>> ListGrantsAuthorizedAsync(AccessSubject administrator, AccessGrantSubject target,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return ReadAsync(administrator, async () =>
+        {
+            // Disabled users and retired assignments remain inspectable by
+            // administrators. No legacy role parsing or group discovery occurs.
+            if (target.UserId is { } id && !await db.Users.AsNoTracking().AnyAsync(user => user.Id == id, cancellationToken))
+                throw new WellSiteAutoPilotException("SECURITY_USER_NOT_FOUND", FailureKind.NotFound, "The requested user was not found.");
+            return await new AccessGrantRepository(db, clock).ListAsync(target, cancellationToken);
+        }, cancellationToken);
+    }
+
+    private async Task<T> ReadAsync<T>(AccessSubject administrator, Func<Task<T>> read, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(administrator);
+        await using var transaction = await BeginReadAsync(cancellationToken);
+        var access = new RequestAccessRepository(db, clock);
+        await RequireAdministratorAsync();
+        var result = await read();
+        // Database state belongs to one stable snapshot, while a Windows
+        // observation must still be fresh after potentially slow hydration.
+        await RequireAdministratorAsync();
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        return result;
+
+        async Task RequireAdministratorAsync()
+        {
+            if (!await access.HasAdministratorAsync(administrator, cancellationToken))
+                throw new WellSiteAutoPilotException("SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
+                    "A current protected administrator assignment is required.");
+        }
+    }
+
+    private async Task<IDbContextTransaction?> BeginReadAsync(CancellationToken cancellationToken)
+    {
+        if (db.Database.CurrentTransaction is not { } current)
+            return await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
+        if (current.GetDbTransaction().IsolationLevel is not (IsolationLevel.RepeatableRead or IsolationLevel.Serializable))
+            throw new InvalidOperationException("Authorized security directory reads require a stable database snapshot.");
+        return null;
+    }
+
+    private static void ValidateLimit(int limit)
+    {
+        if (limit is < 1 or > 500)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Security directory list limit must be between 1 and 500.");
+    }
+}
