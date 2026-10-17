@@ -8,7 +8,8 @@ import type {
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
-import { formatTimestamp, shortId } from '../format';
+import { formatTimestamp } from '../format';
+import { profileLabel, trustLabel } from '../words';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { LogicCatalogControls } from './LogicCatalogControls';
@@ -97,8 +98,8 @@ export function LogicPage({
                   </td>
                   <td>{module.publisher}</td>
                   <td>{module.runtime}</td>
-                  <td>{module.executionProfile}</td>
-                  <td><StatusPill value={module.trustStatus} /></td>
+                  <td>{profileLabel(module.executionProfile)}</td>
+                  <td><StatusPill value={module.trustStatus} label={trustLabel(module.trustStatus)} /></td>
                   <td>{formatTimestamp(module.installedAtUtc)}</td>
                 </tr>
               ))}
@@ -142,7 +143,7 @@ export function LogicPage({
                 return (
                   <tr key={item.id}>
                     <td><strong>{item.name}</strong></td>
-                    <td>{item.activeRevisionId ? shortId(item.activeRevisionId) : '—'}</td>
+                    <td>{activeRevisionLabel(item)}</td>
                     <td>{item.revisions?.length ?? 0}</td>
                     <td><StatusPill value={latest?.status ?? 'Draft'} /></td>
                     <td>{formatTimestamp(item.createdAtUtc)}</td>
@@ -186,4 +187,10 @@ export function LogicPage({
       </section>}
     </>
   );
+}
+
+function activeRevisionLabel(item: ConfiguredLogicResponse): string {
+  if (!item.activeRevisionId) return '—';
+  const active = item.revisions?.find(revision => revision.id === item.activeRevisionId);
+  return active?.revisionNumber ? t('setup.revision', { number: active.revisionNumber }) : '—';
 }

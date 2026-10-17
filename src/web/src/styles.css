@@ -21,7 +21,7 @@ a {
 }
 
 button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.65;
 }
 
@@ -948,4 +948,34 @@ button:disabled {
 @media (max-width: 650px) {
   .administration-tabs button,
   .role-actions button { flex: 1; }
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--space-8);
+  top: var(--space-8);
+  z-index: 10;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-6);
+  background: var(--color-surface-panel);
+  color: var(--color-text-link);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+.content:focus {
+  outline: none;
+}
+
+/* Touch screens (industrial tablets): comfortable targets for controls. */
+@media (pointer: coarse) {
+  button,
+  select,
+  input:not([type='checkbox']):not([type='radio']),
+  .navigation a {
+    min-height: 44px;
+  }
 }
