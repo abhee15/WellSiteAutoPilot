@@ -112,6 +112,10 @@ mapping, multiple memberships, revocation followed by a fresh logon, and the
 separate domain AD/SPN/Kerberos matrix remain follow-up coverage. Local VM success
 cannot close the domain gate.
 
+## Unprovisioned Windows user
+
+The fixture also logs on a second fresh local user who is not the bootstrap administrator and belongs to no fixture group. It must authenticate through Negotiate (not 401) and then receive 403 from the grant runtime. The result is reported as `UnprovisionedUser` in `fixture.json` and the job summary, and as `unprovisioned-session.json`. It is advisory in this first increment: it does not change `LocalCoverage`, so the browser-policy evidence stays unambiguous. Group-scoped positive cases and nested groups follow.
+
 ## Primary references
 
 - [Edge AuthServerAllowlist policy](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/AuthServerAllowlist)

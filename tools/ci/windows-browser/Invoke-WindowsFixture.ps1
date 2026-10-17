@@ -17,6 +17,7 @@ $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 10)
 $userName = 'wsa_' + $suffix
+$otherUserName = 'wsa_o_' + $suffix
 $groupName = 'wsa_g_' + $suffix
 $database = 'wsa_windows_' + $suffix
 $root = Join-Path $env:PUBLIC ('wsa-diag-' + $suffix)
@@ -24,10 +25,10 @@ $childOutput = Join-Path $root 'reports'
 $report = [ordered]@{
     SchemaVersion = 1; Commit = $env:GITHUB_SHA; Topology = 'NOT EXECUTED'; AuthenticationMode = 'NOT EXECUTED'
     WindowsVersion = [Environment]::OSVersion.Version.ToString(); NativeSession = $null
-    DomainCoverage = 'NOT EXECUTED'; LocalCoverage = 'NOT EXECUTED'; FailureStage = 'Preflight'; FailureType = $null
+    DomainCoverage = 'NOT EXECUTED'; LocalCoverage = 'NOT EXECUTED'; UnprovisionedUser = 'NOT EXECUTED'; FailureStage = 'Preflight'; FailureType = $null
     ServerObservations = @(); BrowserCorrelationMatches = @(); ConnectionEvidence = 'NOT CAPTURED'; Cleanup = 'PENDING'
 }
-$user = $null; $group = $null; $server = $null; $nats = $null; $child = $null
+$user = $null; $otherUser = $null; $group = $null; $server = $null; $nats = $null; $child = $null
 $databaseCreated = $false; $startedPostgres = $false; $startedSecondaryLogon = $false
 $postgresStartup = $null; $secondaryLogonStartup = $null
 $oldEnvironment = @{}
@@ -81,17 +82,21 @@ try {
     # This password is never a command-line argument, environment variable or file.
     $password = ConvertTo-SecureString ('Wsa!9a' + [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(36))) -AsPlainText -Force
     $user = New-LocalUser -Name $userName -Password $password -AccountNeverExpires -PasswordNeverExpires
+    $otherUser = New-LocalUser -Name $otherUserName -Password $password -AccountNeverExpires -PasswordNeverExpires
     $group = New-LocalGroup -Name $groupName
     Add-LocalGroupMember -Group $groupName -Member $userName
     # Explicit ordinary local logon rights; never make the fixture user an OS admin.
     Add-LocalGroupMember -SID ([Security.Principal.SecurityIdentifier]::new('S-1-5-32-545')) -Member $userName
+    Add-LocalGroupMember -SID ([Security.Principal.SecurityIdentifier]::new('S-1-5-32-545')) -Member $otherUserName
     $credential = [Management.Automation.PSCredential]::new("$env:COMPUTERNAME\$userName", $password)
     Copy-Item (Join-Path $PSScriptRoot 'Invoke-NativeSession.ps1') $root
     Copy-Item (Join-Path $PSScriptRoot 'Invoke-BrowserProbe.ps1') $root
+    Copy-Item (Join-Path $PSScriptRoot 'Invoke-UnprovisionedSession.ps1') $root
     Copy-Item (Join-Path $PSScriptRoot '../verify-windows-negotiate.ps1') $root
     $acl = Get-Acl -LiteralPath $root
     $rule = [Security.AccessControl.FileSystemAccessRule]::new($user.SID, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
     $acl.AddAccessRule($rule)
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($otherUser.SID, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
     Set-Acl -LiteralPath $root -AclObject $acl
     $report.FailureStage = 'ServerStartup'
     $nats = Start-Process -FilePath $NatsPath -ArgumentList @('-js', '-sd', (Join-Path $root 'nats')) -PassThru -WindowStyle Hidden `
@@ -132,6 +137,23 @@ try {
     if (Test-Path -LiteralPath $nativeReport) {
         $report.NativeSession = Get-Content -LiteralPath $nativeReport -Raw | ConvertFrom-Json
     }
+    # Second real logon: authenticated by Windows, but neither bootstrap administrator nor
+    # in the fixture group. Reported separately; it does not alter the browser-policy verdict.
+    $report.FailureStage = 'UnprovisionedSession'
+    $otherCredential = [Management.Automation.PSCredential]::new("$env:COMPUTERNAME\$otherUserName", $password)
+    $otherArguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', "`"$(Join-Path $root 'Invoke-UnprovisionedSession.ps1')`"",
+        '-ExpectedUserSid', $otherUser.SID.Value, '-ForbiddenGroupSid', $group.SID.Value, '-OutputDirectory', "`"$childOutput`"")
+    $other = Start-Process -FilePath $pwsh -Credential $otherCredential -LoadUserProfile -WorkingDirectory $root `
+        -ArgumentList $otherArguments -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path $root 'other.stdout') -RedirectStandardError (Join-Path $root 'other.stderr')
+    if (-not $other.WaitForExit(120000)) { Stop-OwnedTree $other; $report.UnprovisionedUser = 'FAILED' }
+    else {
+        $otherReport = Join-Path $childOutput 'unprovisioned-session.json'
+        if ($other.ExitCode -eq 0 -and (Test-Path -LiteralPath $otherReport)) { $report.UnprovisionedUser = 'PASSED' }
+        else { $report.UnprovisionedUser = 'FAILED' }
+        if (Test-Path -LiteralPath $otherReport) { Copy-Item -LiteralPath $otherReport -Destination $OutputDirectory }
+    }
+    $report.FailureStage = 'NativeSession'
     # These files are produced exclusively by our checked-in sanitized reporters.
     foreach ($policy in @('Default', 'OriginAllowlist')) {
         $path = Join-Path $childOutput ($policy + '.json')
@@ -205,13 +227,17 @@ try {
             # Scope orphan cleanup to this fixture's unique native account SID.
             foreach ($process in Get-CimInstance Win32_Process) {
                 $owner = Invoke-CimMethod -InputObject $process -MethodName GetOwnerSid -ErrorAction SilentlyContinue
-                if ($owner -and $owner.Sid -eq $user.SID.Value) {
+                if ($owner -and ($owner.Sid -eq $user.SID.Value -or ($otherUser -and $owner.Sid -eq $otherUser.SID.Value))) {
                     Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
                 }
             }
             # Remove only this fixture's loaded profile and account.
             Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $user.SID.Value } | Remove-CimInstance
             Remove-LocalUser -SID $user.SID
+            if ($otherUser) {
+                Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $otherUser.SID.Value } | Remove-CimInstance
+                Remove-LocalUser -SID $otherUser.SID
+            }
         } catch { $cleanupPassed = $false }
     }
     if ($group) { try { Remove-LocalGroup -SID $group.SID } catch { $cleanupPassed = $false } }

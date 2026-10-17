@@ -98,5 +98,6 @@ jobs:
             artifacts/windows-browser-reports/fixture.json
             artifacts/windows-browser-reports/Default.json
             artifacts/windows-browser-reports/OriginAllowlist.json
+            artifacts/windows-browser-reports/unprovisioned-session.json
           if-no-files-found: warn
           retention-days: 7

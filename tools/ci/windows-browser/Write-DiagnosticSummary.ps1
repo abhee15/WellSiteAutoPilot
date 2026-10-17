@@ -40,7 +40,8 @@ try {
         $coverage = ConvertTo-SafeToken $fixture.LocalCoverage
         $cleanup = ConvertTo-SafeToken $fixture.Cleanup
         $evidence = ConvertTo-SafeToken $fixture.ConnectionEvidence
-        $summary = "LocalCoverage=$coverage FailureStage=$stage FailureType=$type ConnectionEvidence=$evidence Cleanup=$cleanup"
+        $unprovisioned = ConvertTo-SafeToken $fixture.UnprovisionedUser
+        $summary = "LocalCoverage=$coverage FailureStage=$stage FailureType=$type ConnectionEvidence=$evidence Cleanup=$cleanup UnprovisionedUser=$unprovisioned"
         if ($fixture.LocalCoverage -eq 'PASSED') { Write-Host "::notice title=Native Windows diagnostic::$summary" }
         else { Write-Host "::error title=Native Windows diagnostic::$summary" }
 
