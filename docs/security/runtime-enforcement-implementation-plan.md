@@ -225,6 +225,34 @@ the seven-job result above applies only to the prior checkpoint. Manual Shadow
 request/replay and deployment-wide catalog/security mutation fences remain
 before the unified middleware/API/frontend cutover and legacy removal.
 
+Manual configured Shadow requests now have a grant-authorized preparation/write
+path. It derives the request ID from the authenticated user, locks the request
+and configuration dispatch keys, resolves the complete configuration from
+persistence, and retains configuration-read / execution-request authority and
+active revision/module/type dependencies through execution/outbox/audit commit.
+It never accepts an execution snapshot supplied by an HTTP request. Existing
+request receipts recheck current configuration-read and persisted execution
+scope/request authority; V2 payload identity and complete scope must match.
+Replay returns only the six-field receipt, including for completed requests;
+status, payload and output stay behind the separate execution-read endpoint.
+An authorized historical receipt can be replayed after module retirement, but
+a new request cannot dispatch against that retired module. Concurrent database
+conflicts fail closed without blind retries; a fresh explicit replay can obtain
+the existing receipt. No live route has switched yet.
+
+Manual-request PostgreSQL tests cover request-only callers, direct/group grant
+checks, actor-bound request identity, duplicate replay, overlap/key conflicts,
+malformed persisted scopes/snapshots, module retirement, post-save rollback of
+execution/outbox/audit, and a real request-grant revocation wait before commit
+followed by fresh request/replay denial. These require CI on the new head.
+
+Lifecycle checkpoint `b5a5b16ec5406300f93c91e14ca7d81a59b1fff4` passed
+PostgreSQL integration and five other jobs in run `38984995900`; the Windows
+installer remained in progress at that observation. The manual-request changes
+pass local full-solution compilation with zero warnings/errors, identity/pure
+grant checks, Npgsql translation, 14 convention tests and convention validation.
+None of those local checks substitutes for new-head PostgreSQL execution.
+
 Do not introduce a Legacy/Observe/Enforce state machine or a production
 migration campaign for this unreleased baseline. Do not enable a partial mixed
 legacy/grant runtime merely because an individual repository or UI test passes.

@@ -10,6 +10,14 @@ namespace WellSiteAutoPilot.Application.Executions;
 public sealed class ManualShadowRequestService(
     IExecutionRepository repository, ConfiguredLogicService configuredLogicService, TimeProvider timeProvider)
 {
+    public Task<ManualShadowRequestReceipt> RequestAuthorizedAsync(Guid configurationId, Guid revisionId,
+        Guid requestId, AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(actor);
+        return repository.RequestManualShadowAuthorizedAsync(configurationId, revisionId, requestId, subject, actor, cancellationToken);
+    }
+
     public async Task<ExecutionRecord> RequestAsync(Guid configurationId, Guid revisionId,
         Guid requestId, SecurityActorContext actor, CancellationToken cancellationToken = default)
     {
@@ -43,3 +51,8 @@ public sealed class ManualShadowRequestService(
         return previous;
     }
 }
+
+// A request-only caller receives a receipt, including on idempotent replay.
+// Execution status, payload and output remain behind executions.read.
+public sealed record ManualShadowRequestReceipt(Guid ExecutionId, Guid ConfiguredLogicId, Guid ConfigurationRevisionId,
+    int ContractVersion, ExecutionMode Mode, ExecutionTriggerKind Trigger);

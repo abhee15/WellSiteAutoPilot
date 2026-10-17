@@ -60,7 +60,7 @@ public sealed class ExecutionService(
         return execution;
     }
 
-    internal static ExecutionRecord CreateConfiguredRequest(
+    public static ExecutionRecord CreateConfiguredRequest(
         ConfiguredShadowExecutionCommand command, string correlationId,
         DateTimeOffset requestedAtUtc, Guid executionId)
     {

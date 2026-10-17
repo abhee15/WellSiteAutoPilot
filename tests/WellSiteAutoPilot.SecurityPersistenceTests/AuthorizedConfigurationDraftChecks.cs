@@ -85,6 +85,8 @@ internal static class AuthorizedConfigurationDraftChecks
             await ExpectAsync(() => service.CreateAuthorizedAsync(draftCommand with { ParametersJson = "[]" }, subject, actor), FailureKind.Validation);
             var lifecycleAuditCount = await AuthorizedConfigurationLifecycleChecks.RunAsync(options, applicationDraft.Id,
                 subject, actor, grant, readGrant, assetB, assetTypeId, name);
+            var requestAuditCount = await AuthorizedManualShadowRequestChecks.RunAsync(options, applicationDraft.Id,
+                subject, actor, role, grant, readGrant, assetB, name);
             var config = Guid.NewGuid();
             var first = Draft(config, 1, assetA);
             await WriteAsync(repository => repository.AddAuthorizedAsync(Definition(first), subject, actor));
@@ -167,7 +169,7 @@ internal static class AuthorizedConfigurationDraftChecks
                 Draft(config, 4, assetA), subject, actor)), FailureKind.Authorization);
             if (await setup.ConfiguredLogicRevisions.CountAsync(item => item.ConfiguredLogicId == config) != 3 ||
                 await setup.ConfiguredLogicRevisions.CountAsync(item => item.ConfiguredLogicId == foreign.ConfiguredLogicId) != 1 ||
-                await setup.AuditEvents.CountAsync(item => item.CorrelationId == actor.CorrelationId && item.ActorUserId == user) != 5 + lifecycleAuditCount)
+                await setup.AuditEvents.CountAsync(item => item.CorrelationId == actor.CorrelationId && item.ActorUserId == user) != 5 + lifecycleAuditCount + requestAuditCount)
                 throw new InvalidOperationException("A denied draft write changed persisted configuration or audit state.");
             await setup.ConfiguredLogicDefinitions.Where(item => item.Id == config || item.Id == foreign.ConfiguredLogicId || item.Id == applicationDraft.Id).ExecuteDeleteAsync();
             await setup.LogicModules.Where(item => item.ModuleId == name).ExecuteDeleteAsync();

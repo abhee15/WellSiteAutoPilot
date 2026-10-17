@@ -5,6 +5,9 @@ namespace WellSiteAutoPilot.Application.Executions;
 
 public interface IExecutionRepository
 {
+    Task<ManualShadowRequestReceipt> RequestManualShadowAuthorizedAsync(Guid configurationId, Guid revisionId,
+        Guid requestId, AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default);
+
     Task<ExecutionRecord?> GetAuthorizedAsync(AccessSubject subject, Guid id,
         CancellationToken cancellationToken = default);
 

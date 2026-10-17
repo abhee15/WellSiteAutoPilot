@@ -1,18 +1,52 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Data;
+using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence.ConfiguredLogic;
 
 public sealed partial class ConfiguredLogicRepository
 {
     private static readonly JsonSerializerOptions LifecycleManifestOptions = CreateLifecycleManifestOptions();
+
+    internal async Task<ConfiguredLogicDefinition> LockForManualRequestAsync(Guid id, AccessSubject subject,
+        CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.Serializable)
+            throw new InvalidOperationException("Manual request preparation requires a serializable transaction.");
+        var definition = await LockConfigurationAsync(id, cancellationToken);
+        await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ConfiguredLogicRead,
+            definition.Revisions.SelectMany(DraftAssets).Distinct().Order().ToArray(), clock ?? TimeProvider.System, cancellationToken);
+        return definition;
+    }
+
+    internal async Task<ConfiguredShadowExecutionCommand> PrepareLockedManualRequestAsync(ConfiguredLogicDefinition definition,
+        Guid revisionId, AccessSubject subject, CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.Serializable)
+            throw new InvalidOperationException("Manual request preparation requires a serializable transaction.");
+        var revision = definition.Revisions.SingleOrDefault(item => item.Id == revisionId);
+        if (revision is null || definition.ActiveRevisionId != revisionId ||
+            revision.Status != ConfiguredLogicRevisionStatus.Active || revision.Mode != ExecutionMode.Shadow) throw Conflict();
+        var time = clock ?? TimeProvider.System;
+        await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ExecutionsRequest,
+            DraftAssets(revision), time, cancellationToken);
+        await HoldRevisionDependenciesAsync(revision, cancellationToken);
+        await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ConfiguredLogicRead,
+            definition.Revisions.SelectMany(DraftAssets).Distinct().Order().ToArray(), time, cancellationToken);
+        await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ExecutionsRequest,
+            DraftAssets(revision), time, cancellationToken);
+        return ConfiguredExecutionSnapshot.Create(definition, revision, ExecutionTriggerKind.Manual, null);
+    }
     public Task SetRevisionValidatedAuthorizedAsync(ConfiguredLogicRevision reviewedRevision, AccessSubject subject,
         SecurityActorContext actor, CancellationToken cancellationToken = default) =>
         ChangeRevisionAuthorizedAsync(reviewedRevision, null, false, subject, actor, cancellationToken);
