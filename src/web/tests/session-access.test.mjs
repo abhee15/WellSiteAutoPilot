@@ -89,3 +89,11 @@ test('non-object resource records are discarded rather than passed into UI compo
   assert.equal(snapshot.incomplete, true);
   assert.deepEqual(snapshot.assets, []); assert.deepEqual(snapshot.assetTypes, []);
 });
+
+test('an active user without effective permissions is awaiting access', () => {
+  const user = (isActive, permissions) => ({ userId: 'u', identityName: 'FIELD\\new', isActive, permissions });
+  assert.equal(access.isAwaitingAccess(user(true, [])), true);
+  assert.equal(access.isAwaitingAccess(user(true, ['assets.read'])), false);
+  assert.equal(access.isAwaitingAccess(user(false, [])), false);
+  assert.equal(access.isAwaitingAccess(null), false);
+});

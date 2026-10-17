@@ -17,6 +17,11 @@ export class SessionAccessError extends Error {
 export function isSignInRequired(reason: unknown): boolean {
   return reason instanceof SessionAccessError && reason.status === 401;
 }
+/** An authenticated, active user with no effective permissions is waiting for an administrator to grant access. */
+export function isAwaitingAccess(user: CurrentUserResponse | null | undefined): boolean {
+  return user?.isActive === true && (user.permissions?.length ?? 0) === 0;
+}
+
 export function hasPermission(user: CurrentUserResponse | null | undefined, permission: string): boolean {
   return user?.isActive === true && Array.isArray(user.permissions) && user.permissions.includes(permission);
 }
