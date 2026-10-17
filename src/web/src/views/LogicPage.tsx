@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetResponse,
   AssetTypeResponse,
@@ -38,16 +39,13 @@ export function LogicPage({
   const [configuredCriteria, setConfiguredCriteria] = useState<ConfiguredLogicCriteria>(
     DEFAULT_CONFIGURED_LOGIC_CRITERIA,
   );
-  const [selectedConfiguredId, setSelectedConfiguredId] = useState<string | null>(null);
+  const [selectedConfiguredId, setSelectedConfiguredId] = useHashDetail('logic');
   const [creating, setCreating] = useState(false);
   const canManage = mayManage && canReadConfigurations;
   const canCreate = canManage && assets.some(asset => asset.isActive);
   useEffect(() => { if (!canCreate) setCreating(false); }, [canCreate]);
   const selectedConfiguration = configuredLogic.find(item => item.id === selectedConfiguredId);
-  useEffect(() => {
-    if (selectedConfiguredId && !configuredLogic.some(item => item.id === selectedConfiguredId))
-      setSelectedConfiguredId(null);
-  }, [configuredLogic, selectedConfiguredId]);
+  useForgetVanishedSelection(selectedConfiguredId, Boolean(selectedConfiguration), () => setSelectedConfiguredId(null));
   const visibleConfigurations = useMemo(
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],

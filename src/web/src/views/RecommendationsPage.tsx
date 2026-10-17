@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useHashDetail } from '../routing';
 import type { RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
@@ -112,7 +113,7 @@ export function RecommendationsPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<InboxError | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [selectedReviewId, setSelectedReviewId] = useHashDetail('recommendations');
   const [reviewNotice, setReviewNotice] = useState<string | null>(null);
   const canDecide = Boolean(userId && permissions?.includes('recommendations.decide'));
   const activeRefresh = useRef<AbortController | null>(null);
@@ -168,12 +169,12 @@ export function RecommendationsPage({
   const nowUtc = Date.now();
   const selectedRecommendation = items.find(item => item.id === selectedReviewId && item.canDecide === true);
   useEffect(() => {
-    if (selectedReviewId && (!canDecide || !selectedRecommendation ||
+    if (lastUpdated && selectedReviewId && (!canDecide || !selectedRecommendation ||
       !recommendationIsAwaiting(selectedRecommendation, Date.now()))) {
       setSelectedReviewId(null);
       setReviewNotice(t(canDecide ? 'decision.outdated' : 'decision.accessDenied'));
     }
-  }, [selectedReviewId, selectedRecommendation, canDecide]);
+  }, [lastUpdated, selectedReviewId, selectedRecommendation, canDecide, setSelectedReviewId]);
   const counts = inboxCounts(items, nowUtc);
   const visible = useMemo(
     () => filterRecommendationInbox(items, criteria, nowUtc),
