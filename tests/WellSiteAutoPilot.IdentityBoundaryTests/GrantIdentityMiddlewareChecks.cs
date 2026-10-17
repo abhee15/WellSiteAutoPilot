@@ -58,7 +58,33 @@ internal static class GrantIdentityMiddlewareChecks
         await InvokeAsync(repeated, new RequestAccessContext(principals, groups));
         Require(nextCalls == 4 && bootstrap.Calls == 2,
             "An initialized deployment did not continue without implicit regrant.");
+        // Identity and bootstrap persistence errors must abort the request, never
+        // fall through to downstream endpoints with a partially bound subject.
+        identity.ThrowOnUpsert = true;
+        var failedIdentity = Context("CORP\\Operator");
+        await RequireFailureAsync(() => InvokeAsync(failedIdentity,
+            new RequestAccessContext(principals, groups)), "Identity provisioning failure");
+        Require(nextCalls == 4 && bootstrap.Calls == 2,
+            "Identity persistence failure allowed a request or attempted bootstrap.");
+        identity.ThrowOnUpsert = false;
+
+        bootstrap.ThrowOnAttempt = true;
+        var failedBootstrap = Context("CORP\\Bootstrap");
+        var failedBootstrapAccess = new RequestAccessContext(principals, groups);
+        await RequireFailureAsync(() => InvokeAsync(failedBootstrap, failedBootstrapAccess),
+            "Administrator bootstrap failure");
+        Require(nextCalls == 4 && bootstrap.Calls == 3 &&
+            failedBootstrapAccess.Subject.UserId == identity.UserId,
+            "Bootstrap persistence failure allowed downstream execution or lost bound identity.");
+        bootstrap.ThrowOnAttempt = false;
         Console.WriteLine("Grant identity middleware separates anonymous, inactive, ordinary and explicitly allowlisted identities without issuing authority claims.");
+
+        static async Task RequireFailureAsync(Func<Task> action, string label)
+        {
+            try { await action(); }
+            catch (InvalidOperationException) { return; }
+            throw new InvalidOperationException(label + " unexpectedly succeeded.");
+        }
 
         Task InvokeAsync(HttpContext http, RequestAccessContext access) => middleware.InvokeAsync(http,
             new UserIdentityService(identity, TimeProvider.System), principals, access, bootstrap, options, TimeProvider.System);
@@ -84,12 +110,14 @@ internal static class GrantIdentityMiddlewareChecks
     private sealed class Bootstrap : IGrantBootstrapRepository
     {
         public int Calls { get; private set; }
+        public bool ThrowOnAttempt { get; set; }
         public Guid LastUserId { get; private set; }
         public CancellationToken LastCancellation { get; private set; }
         public Task<bool> TryInitializeAdministratorAsync(Guid userId, DateTimeOffset occurredAtUtc,
             CancellationToken cancellationToken = default)
         {
             Calls++;
+            if (ThrowOnAttempt) throw new InvalidOperationException("Injected bootstrap persistence failure.");
             LastUserId = userId;
             LastCancellation = cancellationToken;
             return Task.FromResult(Calls == 1);
@@ -100,6 +128,7 @@ internal static class GrantIdentityMiddlewareChecks
     {
         public Guid UserId { get; } = Guid.NewGuid();
         public bool Active { get; set; } = true;
+        public bool ThrowOnUpsert { get; set; }
         public int Calls { get; private set; }
         public string? LastKey { get; private set; }
         public string? LastNormalizedName { get; private set; }
@@ -108,6 +137,7 @@ internal static class GrantIdentityMiddlewareChecks
             string? displayName, DateTimeOffset seenAtUtc, CancellationToken cancellationToken = default)
         {
             Calls++;
+            if (ThrowOnUpsert) throw new InvalidOperationException("Injected identity persistence failure.");
             LastKey = identityKey;
             LastNormalizedName = normalizedIdentityName;
             LastCancellation = cancellationToken;
