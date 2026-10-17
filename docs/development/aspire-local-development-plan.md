@@ -1,6 +1,6 @@
 # Aspire local development plan (proposed)
 
-Status: proposed 2026-10-17, revised the same day after user feedback; awaiting confirmation of scope. Aspire is a
+Status: in progress 2026-10-17 (scope revised after user feedback). Aspire is a
 development convenience only (see the architecture baseline); production stays
 NSIS plus the WellSite AutoPilot bootstrapper.
 
@@ -119,6 +119,14 @@ diagnostic and test jobs are unaffected.
    Development.
 4. Replace the manual steps in `frontend-authentication.md`; optionally add an
    AppHost-based integration smoke in CI.
+
+## Delivery and testing
+
+One feature branch and one pull request for the whole AppHost: all increments
+land on the same branch and the PR is marked ready only when the feature is
+complete, tested and reviewed. The installer is deliberately not part of the
+AppHost; Aspire runs the services for development, while the NSIS installer and
+its smoke test stay validated by CI on a Windows runner.
 
 ## Out of scope
 
