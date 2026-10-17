@@ -33,7 +33,7 @@ an enforcement switch based solely on this document or passing migration CI.**
 | POST configured-logic revision | configured-logic.manage | Authorize existing revision Assets AND requested new Assets; forbid changing from an authorized revision to an unauthorized one |
 | Validate/activate a revision | configured-logic.manage | Re-resolve all revision bindings from persistence at action time; no stale client-supplied Asset list |
 | GET /executions and /executions/{id} | executions.read | Filter before pagination; include all V1 Asset and V2 execution Asset scopes |
-| POST /executions/shadow | executions.request | Authorize the target Asset before writing an execution/outbox request; no cross-scope execution |
+| POST configured-logic revision Shadow | executions.request + configured-logic.read | Build the snapshot from the persisted Active Shadow revision; retain complete read/request scope through execution/outbox/audit commit and recheck receipt replay |
 | GET /recommendations and /recommendations/{id} | recommendations.read | Filter by persisted target Asset before paging or materializing a response |
 | POST /recommendations/{id}/decision | recommendations.decide | Resolve target Asset authoritatively and enforce permission before any status mutation |
 | /logic-modules catalog | logic.read / logic.manage | SQL-backed **deployment-wide** permission; do not satisfy using AllAssets grants |

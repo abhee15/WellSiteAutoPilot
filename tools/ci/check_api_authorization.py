@@ -53,7 +53,6 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("POST", "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/activate"): ("ActivateConfiguredLogicRevision", "ConfiguredLogicManage"),
     ("POST", "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/shadow"): ("RequestConfiguredShadowExecution", "ExecutionsRequest"),
     ("GET", "/executions"): ("ListExecutions", "ExecutionsRead"),
-    ("POST", "/executions/shadow"): ("RequestShadowExecution", "ExecutionsRequest"),
     ("GET", "/executions/{executionId:guid}"): ("GetExecution", "ExecutionsRead"),
     ("POST", "/logic-modules"): ("RegisterLogicModule", "LogicManage"),
     ("GET", "/logic-modules"): ("ListLogicModules", "LogicRead"),

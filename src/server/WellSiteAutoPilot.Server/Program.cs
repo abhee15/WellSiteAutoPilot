@@ -1284,45 +1284,6 @@ v1.MapGet(
         StatusCodes.Status400BadRequest,
         "application/problem+json");
 
-v1.MapPost(
-    "/executions/shadow",
-    async (
-        RequestShadowExecutionRequest request,
-        ExecutionService executionService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        assetScopeAuthorizer.RequireAsset(
-            httpContext.User,
-            request.AssetId);
-
-        var execution = await executionService.RequestShadowAsync(
-            new ShadowExecutionCommand(
-                request.LogicInstanceId,
-                request.ModuleId,
-                request.ModuleVersion,
-                request.ConfigurationRevisionId,
-                request.AssetId,
-                request.AssetExternalId,
-                request.Quantity),
-            CorrelationContext.GetCorrelationId(httpContext),
-            cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/executions/{execution.Id}",
-            ToResponse(execution));
-    })
-    .WithName("RequestShadowExecution")
-    .RequireAuthorization(WellSitePolicies.ExecutionsRequest)
-    .Produces<ExecutionResponse>(StatusCodes.Status201Created)
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status400BadRequest,
-        "application/problem+json")
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status500InternalServerError,
-        "application/problem+json");
-
 v1.MapGet(
     "/executions/{executionId:guid}",
     async (

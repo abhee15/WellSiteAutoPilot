@@ -189,7 +189,7 @@ jobs:
               "/api/v1/configured-logic/{configuredLogicId}/revisions",
               "/api/v1/configured-logic/{configuredLogicId}/revisions/{revisionId}/validate",
               "/api/v1/configured-logic/{configuredLogicId}/revisions/{revisionId}/activate",
-              "/api/v1/executions/shadow",
+              "/api/v1/configured-logic/{configuredLogicId}/revisions/{revisionId}/shadow",
               "/api/v1/executions/{executionId}"
             )
 
@@ -199,6 +199,10 @@ jobs:
                 $paths | Sort-Object | ForEach-Object { Write-Host "  $_" }
                 throw "OpenAPI v1 did not contain expected route: $requiredPath"
               }
+            }
+
+            if ($paths -contains "/api/v1/executions/shadow") {
+              throw "Retired raw dispatch must not be published in OpenAPI."
             }
 
             if ($paths | Where-Object { $_ -match 'v\\{version' }) {
@@ -879,7 +883,7 @@ jobs:
           Runtime__IntegrationGatewayUrl=http://127.0.0.1:5081             dotnet run --project src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --urls http://127.0.0.1:5082 > worker.log 2>&1 &
           echo $! > worker.pid
 
-          ASPNETCORE_ENVIRONMENT=CI Security__AuthenticationMode=TestHeader Security__BootstrapAdministrators__0='CI\wsa-admin' ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
+          ASPNETCORE_ENVIRONMENT=CI Swagger__Enabled=true Security__AuthenticationMode=TestHeader Security__BootstrapAdministrators__0='CI\wsa-admin' ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
           echo $! > server.pid
 
           for attempt in {1..45}; do
@@ -1029,34 +1033,15 @@ jobs:
       - name: Verify audit-only grant administration HTTP boundaries
         run: python3 tools/ci/verify_grant_administration.py
 
-      - name: Request and verify Shadow execution
+      - name: Verify retired raw dispatch and V1 messaging compatibility
         shell: bash
         run: |
-          request=$(python - <<'PY'
-          import json, uuid
-          print(json.dumps({
-              "logicInstanceId": str(uuid.uuid4()),
-              "moduleId": "weatherford.sample-shadow-read",
-              "moduleVersion": "1.0.0",
-              "configurationRevisionId": str(uuid.uuid4()),
-              "assetId": str(uuid.uuid4()),
-              "assetExternalId": "WELL-101",
-              "quantity": "PumpFillage"
-          }))
-          PY
-          )
-
-          response=$(curl --fail --silent             -H "Content-Type: application/json"             -H "X-Correlation-ID: ci-shadow-e2e"             -H 'X-WSA-Test-Identity: CI\wsa-admin'             -d "$request"             http://127.0.0.1:5080/api/v1/executions/shadow)
-
-          echo "$response"
-
+          # Inject V1 through a test-only persistence fixture, never a product
+          # HTTP endpoint accepting caller-supplied provider mappings.
+          response=$(dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj --configuration Release --no-build -- --v1-fixture)
           execution_id=$(RESPONSE="$response" python - <<'PY'
           import json, os
-          data=json.loads(os.environ["RESPONSE"])
-          assert data["mode"] == "Shadow"
-          assert data["status"] == "Requested"
-          assert data["correlationId"] == "ci-shadow-e2e"
-          print(data["executionId"])
+          print(json.loads(os.environ["RESPONSE"])["executionId"])
           PY
           )
 
@@ -1092,6 +1077,9 @@ jobs:
           STATE="$completed" python - <<'PY'
           import json, os
           execution=json.loads(os.environ["STATE"])
+          assert execution["requestContractVersion"] == 1
+          assert execution["mode"] == "Shadow"
+          assert execution["correlationId"] == "ci-shadow-e2e"
           assert execution["resultCode"] == "SHADOW_MODULE_COMPLETED"
           output=json.loads(execution["outputJson"])
           result=output["engineeringResults"][0]

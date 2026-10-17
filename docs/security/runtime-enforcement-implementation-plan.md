@@ -413,10 +413,9 @@ grant-runtime boundaries; no live legacy route has been switched individually.
   dynamic SQL-backed permission policies and /security/me to one grant source.
   Do not copy authority or Asset wildcards from legacy claims.
 - Convert every published resource/global/admin route to its prepared entry
-  points. Check the raw V1 /executions/shadow route explicitly: its existing
-  pre-transaction scope check is not a mutation fence, and caller-supplied
-  external mappings must not bypass persisted Asset authority. Preserve V1/V2
-  messaging compatibility while resolving that HTTP boundary before activation.
+  points. The raw V1 /executions/shadow HTTP route has been removed; keep it
+  absent from the published API. Configured Shadow requests use persisted
+  mappings and transactional authority. Preserve V1/V2 messaging compatibility.
 - Return server-calculated per-resource action capabilities (configuration
   management/run and recommendation decisions in particular), using paired
   permissions for the actual targets. Never infer them from coarse menu hints.
@@ -437,3 +436,24 @@ legacy/grant runtime merely because an individual repository or UI test passes.
 User observations and the deferred enum-generation decision remain recorded in
 `docs/development/decision-followups.md`; they do not automatically change the
 active enterprise RBAC priority.
+
+## Raw HTTP dispatch retirement — 2026-10-17
+
+Removed POST /executions/shadow and its request DTO. No frontend consumer used
+this route; its only HTTP caller was the CI V1 worker journey. A caller-authored
+external provider mapping paired with an unrelated Asset ID cannot establish
+persisted resource authority, even for an otherwise authorized caller. Do not
+add a permissive compatibility route around the configured request boundary.
+
+HTTP execution submission uses the existing configured revision Shadow route,
+whose body contains only a request ID. Its prepared grant-authorized service
+must still be wired during the atomic runtime switch. This removal does not
+activate grant runtime authority or change the current configured-route checks.
+
+The test executable now seeds a V1 outbox fixture directly for the existing real
+worker/gateway/simulator completion journey. V1/V2 message contracts, consumers,
+internal persistence methods and historical reads remain compatible. Regression
+coverage checks raw HTTP refusal for administrator, Operator, unprivileged and
+anonymous callers, unchanged execution/outbox counts and absence from OpenAPI.
+The API inventory rejects accidental reintroduction even with a coarse policy.
+New-head CI must validate this change before any merge claim.
