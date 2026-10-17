@@ -17,7 +17,8 @@ import { UserMenu } from './components/UserMenu';
 import { NavigationLink } from './components/NavigationLink';
 import type { Section } from './components/NavigationLink';
 import { PageHeader } from './components/PageHeader';
-import { sectionFromHash } from './routing';
+import { NavigationGroup } from './components/NavigationGroup';
+import { firstOpenableSection, hasExplicitSection, sectionFromHash } from './routing';
 
 // Compatibility with existing consumers; new components live in their own files.
 export { UserMenu, NavigationLink };
@@ -53,6 +54,14 @@ export function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  // The default landing page moves to the first section this user may open; an explicit
+  // address is respected and answered with the "not allowed" message instead.
+  useEffect(() => {
+    if (!currentUser || isAwaitingAccess(currentUser) || hasExplicitSection()) return;
+    const landing = firstOpenableSection(currentUser);
+    if (landing && landing !== 'operations') window.location.replace('#' + landing);
+  }, [currentUser]);
 
   const refresh = useCallback(async () => {
     // Only the latest refresh may update the view.
@@ -120,10 +129,17 @@ export function App() {
           <strong>WellSite AutoPilot</strong>
         </div>
         <nav aria-label="Primary">
-          {canOpenSection(currentUser, 'operations') && <NavigationLink section="operations" current={section}>{t('nav.operations')}</NavigationLink>}
-          {canOpenSection(currentUser, 'recommendations') && <NavigationLink section="recommendations" current={section}>{t('nav.recommendations')}</NavigationLink>}
-          {canOpenSection(currentUser, 'assets') && <NavigationLink section="assets" current={section}>{t('nav.assets')}</NavigationLink>}
-          {canOpenSection(currentUser, 'logic') && <NavigationLink section="logic" current={section}>{t('nav.logic')}</NavigationLink>}
+          <NavigationGroup id="nav-group-operate" label={t('nav.groupOperate')}>
+            {[canOpenSection(currentUser, 'operations') && <NavigationLink key="operations" section="operations" current={section}>{t('nav.operations')}</NavigationLink>,
+              canOpenSection(currentUser, 'recommendations') && <NavigationLink key="recommendations" section="recommendations" current={section}>{t('nav.recommendations')}</NavigationLink>]}
+          </NavigationGroup>
+          <NavigationGroup id="nav-group-understand" label={t('nav.groupUnderstand')}>
+            {[canOpenSection(currentUser, 'assets') && <NavigationLink key="assets" section="assets" current={section}>{t('nav.assets')}</NavigationLink>,
+              canOpenSection(currentUser, 'logic') && <NavigationLink key="logic" section="logic" current={section}>{t('nav.logic')}</NavigationLink>]}
+          </NavigationGroup>
+          <NavigationGroup id="nav-group-administer" label={t('nav.groupAdminister')}>
+            {[canOpenSection(currentUser, 'access') && <NavigationLink key="access" section="access" current={section}>{t('nav.access')}</NavigationLink>]}
+          </NavigationGroup>
         </nav>
         <UserMenu user={currentUser} isLoading={isRefreshing} />
       </aside>
