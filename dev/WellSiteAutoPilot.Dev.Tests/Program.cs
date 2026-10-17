@@ -42,7 +42,8 @@ Check("mode parsed", DatabaseSettings.ParseMode("fromtemplate") == DatabaseMode.
 Throws("bad mode", () => DatabaseSettings.ParseMode("Wipe"), "not valid");
 Throws("numeric mode", () => DatabaseSettings.ParseMode("7"), "not valid");
 Throws("name without prefix", () => DatabaseSettings.Parse("Host=localhost;Database=production", null, null), "must be");
-Throws("name with quote", () => DatabaseSettings.Parse("Host=localhost;Database=wsa_x\";drop", null, null), "must be");
+Throws("name with punctuation", () => DatabaseSettings.Parse("Host=localhost;Database=wsa_dev-x", null, null), "must be");
+Throws("uppercase name", () => DatabaseSettings.Parse("Host=localhost;Database=WSA_Dev", null, null), "must be");
 Throws("bad template", () => DatabaseSettings.Parse("Host=localhost;Database=wsa_dev", "Bad Name", null), "must be");
 Throws("missing database", () => DatabaseSettings.Parse("Host=localhost", null, null), "Database name");
 var synonym = DatabaseSettings.Parse("Server=localhost;Initial Catalog=wsa_dev", null, null);
@@ -103,6 +104,8 @@ if (failures.Count > 0)
     foreach (var failure in failures)
     {
         Console.Error.WriteLine("FAILED: " + failure);
+        // Surfaces in the GitHub job summary even when job logs cannot be opened.
+        Console.Error.WriteLine("::error title=Dev tooling check::" + failure.Replace("\r", " ").Replace("\n", " "));
     }
 
     return 1;
