@@ -36,6 +36,7 @@ export function App() {
   const [section, setSection] = useState<Section>(() => sectionFromHash());
   const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
   const activeRefresh = useRef<AbortController | null>(null);
   const accessKey = useRef<string | null>(null);
   // A 401 means the browser sent no Windows credentials; polling would only repeat prompts.
@@ -57,6 +58,10 @@ export function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  useEffect(() => {
+    document.title = `${t(('nav.' + section) as 'nav.operations')} · WellSite AutoPilot`;
+  }, [section]);
 
   // The default landing page moves to the first section this user may open; an explicit
   // address is respected and answered with the "not allowed" message instead.
@@ -133,6 +138,11 @@ export function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content" onClick={event => {
+        // The address is the app's router, so move focus instead of changing it.
+        event.preventDefault();
+        mainRef.current?.focus();
+      }}>{t('page.skipToContent')}</a>
       <aside className="navigation">
         <div className="product-mark">
           <span className="product-kicker">Weatherford</span>
@@ -154,7 +164,7 @@ export function App() {
         <UserMenu user={currentUser} isLoading={isRefreshing} />
       </aside>
 
-      <main className="content">
+      <main className="content" id="main-content" tabIndex={-1} ref={mainRef}>
         <PageHeader
           section={section}
           isRefreshing={section === 'recommendations' || section === 'access' ? false : isRefreshing}

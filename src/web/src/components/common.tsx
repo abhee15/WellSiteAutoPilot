@@ -1,4 +1,5 @@
 import { toCssToken } from '../format';
+import { statusLabel } from '../words';
 
 export function SummaryCard({
   label,
@@ -38,10 +39,10 @@ export function PanelHeader({
   );
 }
 
-export function StatusPill({ value }: { value?: string | null }) {
+export function StatusPill({ value, label }: { value?: string | null; label?: string }) {
   return (
     <span className={`status-pill status-${toCssToken(value)}`}>
-      {value ?? 'Unknown'}
+      {label ?? statusLabel(value)}
     </span>
   );
 }

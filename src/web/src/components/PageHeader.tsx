@@ -1,5 +1,6 @@
 import type { Section } from './NavigationLink';
 import { t } from '../localization';
+import { formatClock } from '../format';
 
 export function PageHeader({
   section,
@@ -14,9 +15,9 @@ export function PageHeader({
 }) {
   const copy = {
     operations: {
-      eyebrow: 'Operations',
-      title: 'Runtime activity',
-      description: 'Recent Logic execution and runtime readiness on this Runtime Node.',
+      eyebrow: t('nav.operations'),
+      title: t('page.operationsTitle'),
+      description: t('page.operationsDescription'),
     },
     recommendations: {
       eyebrow: t('nav.recommendations'),
@@ -24,14 +25,14 @@ export function PageHeader({
       description: t('inbox.pageDescription'),
     },
     assets: {
-      eyebrow: 'Assets',
-      title: 'Asset inventory',
-      description: 'Provider-neutral Assets and Asset Types available to configured Logic.',
+      eyebrow: t('nav.assets'),
+      title: t('page.assetsTitle'),
+      description: t('page.assetsDescription'),
     },
     logic: {
-      eyebrow: 'Logic',
-      title: 'Logic workspace',
-      description: 'Installed Logic Modules and customer-specific configured Logic revisions.',
+      eyebrow: t('nav.logic'),
+      title: t('page.logicTitle'),
+      description: t('page.logicDescription'),
     },
     access: {
       eyebrow: t('access.eyebrow'),
@@ -50,7 +51,7 @@ export function PageHeader({
       <div className="header-actions">
         {lastUpdated && (
           <span className="last-updated">
-            Updated {lastUpdated.toLocaleTimeString()}
+            {t('page.updated')} {formatClock(lastUpdated)}
           </span>
         )}
         {onRefresh && (
@@ -60,7 +61,7 @@ export function PageHeader({
             disabled={isRefreshing}
             onClick={onRefresh}
           >
-            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+            {isRefreshing ? t('page.refreshing') : t('page.refresh')}
           </button>
         )}
       </div>

@@ -4,6 +4,7 @@ import type { ExecutionResponse, SystemInfoResponse } from '../api/generated/v1/
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
 import { formatTimestamp, shortId, toCssToken } from '../format';
+import { outcomeLabel } from '../words';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { OperationsViewControls } from './OperationsViewControls';
 import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './operationsViews';
@@ -107,8 +108,8 @@ export function OperationsPage({
                     <StatusPill value={execution.status} />
                   </td>
                   <td>
-                    <strong>{execution.assetExternalId}</strong>
-                    <small>{execution.quantity}</small>
+                    <strong>{execution.assetExternalId ?? (execution.assetId ? shortId(execution.assetId) : '—')}</strong>
+                    {execution.quantity && <small>{execution.quantity}</small>}
                   </td>
                   <td>
                     <strong>{execution.moduleId}</strong>
@@ -117,11 +118,7 @@ export function OperationsPage({
                   <td>{execution.mode}</td>
                   <td>{formatTimestamp(execution.requestedAtUtc)}</td>
                   <td>
-                    {execution.failureCode ??
-                      execution.resultCode ??
-                      (execution.status === 'Requested'
-                        ? 'Queued for runtime'
-                        : 'In progress')}
+                    <OutcomeCell execution={execution} />
                   </td>
                   <td>
                     <button
@@ -183,4 +180,13 @@ export function OperationsPage({
       </section>
     </>
   );
+}
+
+function OutcomeCell({ execution }: { execution: ExecutionResponse }) {
+  const code = execution.failureCode ?? execution.resultCode;
+  if (!code) {
+    return <>{execution.status === 'Requested' ? 'Queued for runtime' : 'In progress'}</>;
+  }
+  const outcome = outcomeLabel(code);
+  return <span title={outcome.code ?? undefined}>{outcome.text}</span>;
 }
