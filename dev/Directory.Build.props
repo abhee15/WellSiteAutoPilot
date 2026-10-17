@@ -1,0 +1,10 @@
+<Project>
+  <!-- Isolated from the product build on purpose: the Aspire AppHost is developer
+       tooling and must not change how the shipped projects restore or compile. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>

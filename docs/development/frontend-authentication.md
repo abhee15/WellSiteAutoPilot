@@ -71,6 +71,13 @@ Vite's TestHeader path **does not verify Windows/Kerberos/NTLM login,
 credential freshness, browser intranet-policy settings, or reverse proxy
 connection affinity**.
 
+For a real Windows test, the easiest route is the Aspire AppHost: run it with
+the `Windows` launch profile (see `dev/README.md`). It starts the services, builds the
+API client, serves `src/web/dist` straight from the Server in Development (no copy to
+`wwwroot`) and keeps it current with a watch build. Open the Server address it prints,
+using your machine name rather than an IP address, and make sure that host is in
+your browser's integrated-authentication allowlist. The manual steps follow.
+
 For a real Windows test:
 
 1. Build the React app and deploy/copy its `dist` assets to the ASP.NET

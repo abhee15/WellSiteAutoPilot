@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WellSiteAutoPilot.Dev.Core\WellSiteAutoPilot.Dev.Core.csproj" />
+    <ProjectReference Include="..\..\src\server\WellSiteAutoPilot.Server\WellSiteAutoPilot.Server.csproj" />
+  </ItemGroup>
+</Project>

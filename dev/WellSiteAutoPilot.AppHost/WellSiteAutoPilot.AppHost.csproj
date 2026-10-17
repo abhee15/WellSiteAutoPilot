@@ -1,0 +1,18 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.0.0">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>wellsiteautopilot-apphost-dev</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.0.0" />
+    <PackageReference Include="Npgsql" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WellSiteAutoPilot.Dev.Core\WellSiteAutoPilot.Dev.Core.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="..\..\src\server\WellSiteAutoPilot.Server\WellSiteAutoPilot.Server.csproj" />
+    <ProjectReference Include="..\..\src\integration\WellSiteAutoPilot.IntegrationGateway\WellSiteAutoPilot.IntegrationGateway.csproj" />
+    <ProjectReference Include="..\..\src\workers\WellSiteAutoPilot.Worker.DotNet\WellSiteAutoPilot.Worker.DotNet.csproj" />
+    <ProjectReference Include="..\..\src\simulators\WellSiteAutoPilot.ProviderSimulator\WellSiteAutoPilot.ProviderSimulator.csproj" />
+    <ProjectReference Include="..\..\tools\WellSiteAutoPilot.DatabaseMigrator\WellSiteAutoPilot.DatabaseMigrator.csproj" />
+  </ItemGroup>
+</Project>
