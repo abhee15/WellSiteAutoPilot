@@ -678,8 +678,10 @@ v1.MapPost(
 
 v1.MapGet(
     "/executions",
-    async (string? status, int? limit, IExecutionRepository executions, RequestAccessContext access, CancellationToken cancellationToken) =>
-        (await executions.ListAuthorizedAsync(access.Subject, ParseFilter<ExecutionStatus>(status), PageLimit(limit ?? 50), cancellationToken))
+    async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, IExecutionRepository executions,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await executions.ListAuthorizedAsync(access.Subject, ParseFilter<ExecutionStatus>(status), PageLimit(limit ?? 50),
+            configuredLogicId, assetId, cancellationToken))
             .Select(ToResponse).ToArray())
     .WithName("ListExecutions")
     .RequireAuthorization(WellSitePolicies.ExecutionsRead)
@@ -757,10 +759,11 @@ v1.MapGet(
 
 v1.MapGet(
     "/recommendations",
-    async (string? status, int? limit, IRecommendationRepository recommendations, IResourceActionRepository actions,
-        RequestAccessContext access, CancellationToken cancellationToken) =>
+    async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, IRecommendationRepository recommendations,
+        IResourceActionRepository actions, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var items = await recommendations.ListAuthorizedAsync(access.Subject, ParseFilter<RecommendationStatus>(status), PageLimit(limit ?? 50, 100), cancellationToken);
+        var items = await recommendations.ListAuthorizedAsync(access.Subject, ParseFilter<RecommendationStatus>(status),
+            PageLimit(limit ?? 50, 100), configuredLogicId, assetId, cancellationToken);
         var capabilities = (await actions.GetRecommendationActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
         return items.Select(item => ToRecommendationSummaryResponse(item) with { CanDecide = capabilities.GetValueOrDefault(item.Id)?.CanDecide == true }).ToArray();
