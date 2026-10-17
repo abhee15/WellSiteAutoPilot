@@ -7,18 +7,6 @@ const root = resolve(import.meta.dirname, '..', 'src');
 const tokens = readFileSync(resolve(root, 'tokens.css'), 'utf8');
 const css = readFileSync(resolve(root, 'styles.css'), 'utf8');
 
-// Migration parity checksum from the reviewed pre-token stylesheet.
-// Resolve EVERY token reference, including the semantic -> palette chain,
-// then verify there was no computed CSS declaration or layout change.
-const originalStyleSignature = '849da537';
-function signature(input) {
-  let hash = 2166136261;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
 function definitions(text) {
   const vars = new Map();
   for (const match of text.matchAll(/^\s*(--[\w-]+):\s*(.+);$/gm)) {
@@ -48,10 +36,54 @@ function frontendCss(dir) {
   });
 }
 
-test('token values reproduce reviewed existing visual CSS without declaration changes', () => {
-  // Git on Windows may check out CSS with CRLF. Normalize only line endings;
-  // declarations, selector order, whitespace and token values must still match.
-  assert.equal(signature(expand(css).replace(/\r\n/g, '\n')), originalStyleSignature);
+// WCAG 2.x contrast ratio (luminance is defined below).
+function contrast(foreground, background) {
+  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+const color = name => {
+  const value = expand('var(' + name + ')');
+  assert.match(value, /^#[0-9a-f]{6}$/i, name + ' must resolve to an opaque #rrggbb color');
+  return value;
+};
+
+test('text meets 4.5:1 on every surface it is drawn on', () => {
+  const surfaces = ['canvas', 'panel', 'input', 'detail', 'table-head', 'row-hover', 'navigation-active',
+    'secondary-hover', 'control-hover', 'code'].map(name => '--color-surface-' + name);
+  const text = ['primary', 'muted', 'secondary', 'subtle', 'tertiary', 'detail-label', 'permission-hint',
+    'navigation', 'control', 'link', 'selected', 'warning', 'warning-strong'].map(name => '--color-text-' + name);
+  for (const surface of surfaces) {
+    for (const foreground of text) {
+      // Muted/hint text is not drawn on the hover/active fills of controls.
+      const decorativePair = /secondary-hover|control-hover/.test(surface) &&
+        /muted|tertiary|subtle|detail-label|permission-hint|navigation|warning|link|selected/.test(foreground);
+      if (decorativePair) continue;
+      assert.ok(contrast(color(foreground), color(surface)) >= 4.5,
+        foreground + ' on ' + surface + ' is below 4.5:1');
+    }
+  }
+});
+
+test('status text meets 4.5:1 on its own status surface', () => {
+  for (const status of ['success', 'error', 'warning', 'info']) {
+    const ratio = contrast(color('--color-text-status-' + status), color('--color-surface-status-' + status));
+    assert.ok(ratio >= 4.5, status + ' status text is ' + ratio.toFixed(2) + ':1');
+  }
+  assert.ok(contrast(color('--color-text-warning-strong'), color('--color-surface-status-warning')) >= 4.5);
+  assert.ok(contrast(color('--color-text-selected'), color('--color-surface-panel')) >= 4.5);
+  for (const fill of ['accent', 'accent-hover']) {
+    assert.ok(contrast(color('--color-text-on-accent'), color('--color-surface-' + fill)) >= 4.5,
+      'Text on the ' + fill + ' button fill is below 4.5:1');
+  }
+});
+
+test('control, focus and selection boundaries meet 3:1 on the surfaces they sit on', () => {
+  for (const surface of ['panel', 'canvas', 'input']) {
+    for (const boundary of ['--color-border-control', '--color-focus-ring', '--color-border-selected']) {
+      assert.ok(contrast(color(boundary), color('--color-surface-' + surface)) >= 3,
+        boundary + ' on ' + surface + ' is below 3:1');
+    }
+  }
 });
 
 test('semantic references only resolve through declared palette or foundational tokens', () => {
@@ -87,7 +119,7 @@ function luminance(hex) {
   return red * 0.2126 + green * 0.7152 + blue * 0.0722;
 }
 
-test('critical text states retain WCAG AA contrast in the current dark palette', () => {
+test('critical text states retain WCAG AA contrast in the light palette', () => {
   // Compare actual resolved semantic tokens, not duplicated hard-coded RGB.
   const pairs = [
     ['text-primary', 'surface-canvas'],

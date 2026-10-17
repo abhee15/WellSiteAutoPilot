@@ -1,104 +1,96 @@
 /**
- * WellSite AutoPilot V1 design tokens.
+ * WellSite AutoPilot design tokens.
  * Palette values are the only raw UI colors. Components consume --color-*
  * semantic aliases, never --palette-* directly, to allow themes later.
- * This migration deliberately preserves current dark-mode pixel values.
+ *
+ * Light "engineering workstation" palette from the agreed ACL prototype
+ * (acl/src/styles/app.css, see docs/development/design-tokens.md): a neutral slate
+ * canvas, white surfaces, hairline borders and one restrained blue accent. Red, amber
+ * and green are reserved for operational state and always appear with a text label.
+ * Control and focus colors are deliberately darker than the prototype's hairlines so
+ * input boundaries meet the 3:1 non-text contrast guideline; tests/style-tokens.test.mjs
+ * enforces the contrast of every text/surface pair below.
  * Do not introduce runtime theme switching or CSS-in-JS here.
  */
 :root {
   /* Palette primitives (the only raw color values allowed in frontend CSS). */
-  --palette-shadow: #0008;
-  --palette-white: #fff;
-  --palette-neutral-990: #0b1218;
-  --palette-neutral-980: #0f1419;
-  --palette-neutral-970: #111a23;
-  --palette-neutral-960: #12181e;
-  --palette-neutral-950: #151b21;
-  --palette-neutral-940: #182129;
-  --palette-neutral-930: #1b232b;
-  --palette-neutral-920: #202a33;
-  --palette-neutral-910: #242e37;
-  --palette-neutral-900: #26313b;
-  --palette-neutral-890: #27313a;
-  --palette-neutral-880: #29343e;
-  --palette-neutral-870: #2b3b47;
-  --palette-neutral-860: #33404b;
-  --palette-neutral-850: #344452;
-  --palette-neutral-800: #46535f;
-  --palette-neutral-790: #465663;
-  --palette-neutral-780: #53616e;
-  --palette-neutral-650: #8997a4;
-  --palette-neutral-600: #9facb8;
-  --palette-neutral-530: #afbfca;
-  --palette-neutral-520: #aebdc9;
-  --palette-neutral-550: #b4c1cc;
-  --palette-neutral-540: #b5c0ca;
-  --palette-neutral-300: #d5dee6;
-  --palette-neutral-250: #dce5ec;
-  --palette-neutral-200: #e7edf3;
-  --palette-neutral-170: #eaf6ff;
-  --palette-blue-300: #b6d7f0;
-  --palette-blue-400: #9bb8d0;
-  --palette-blue-450: #74b8ec;
-  --palette-blue-750: #455f76;
-  --palette-blue-960: #192632;
-  --palette-amber-700: #6d6240;
-  --palette-amber-950: #2a2619;
-  --palette-amber-350: #e5cf91;
-  --palette-amber-300: #ebd9a4;
-  --palette-green-700: #406552;
-  --palette-green-950: #18271f;
-  --palette-red-750: #6a3e3e;
-  --palette-red-950: #291b1b;
-  --palette-red-700: #704646;
-  --palette-red-940: #2b1c1c;
+  --palette-white: #ffffff;
+  --palette-slate-50: #f7f8fa;
+  --palette-slate-100: #f3f5f7;
+  --palette-slate-150: #eef1f4;
+  --palette-slate-200: #e3e7eb;
+  --palette-slate-300: #cfd5dc;
+  --palette-slate-450: #7b8696;
+  --palette-slate-500: #5b6676;
+  --palette-slate-600: #465163;
+  --palette-slate-900: #0f172a;
+  --palette-accent-50: #eaf0fd;
+  --palette-accent-200: #b9ccf5;
+  --palette-accent-600: #2557d6;
+  --palette-accent-700: #1d46ad;
+  --palette-green-50: #e8f5ee;
+  --palette-green-300: #a3d4bb;
+  --palette-green-700: #16794a;
+  --palette-amber-50: #fdf3e2;
+  --palette-amber-300: #e6c387;
+  --palette-amber-700: #9a5800;
+  --palette-red-50: #fdecec;
+  --palette-red-300: #eba9ac;
+  --palette-red-700: #c0262d;
+  --palette-shadow: #0f172a2e;
 
   /* Semantic colors: these are the stable UI contracts used by components. */
-  --color-surface-canvas: var(--palette-neutral-980);
-  --color-text-primary: var(--palette-neutral-200);
-  --color-border-shell: var(--palette-neutral-890);
-  --color-surface-panel: var(--palette-neutral-950);
-  --color-text-muted: var(--palette-neutral-600);
-  --color-text-navigation: var(--palette-neutral-300);
-  --color-surface-navigation-active: var(--palette-neutral-920);
-  --color-surface-avatar: var(--palette-neutral-850);
-  --color-text-inverse: var(--palette-white);
-  --color-border-control: var(--palette-neutral-780);
+  --color-surface-canvas: var(--palette-slate-100);
+  --color-text-primary: var(--palette-slate-900);
+  --color-border-shell: var(--palette-slate-200);
+  --color-surface-panel: var(--palette-white);
+  --color-text-muted: var(--palette-slate-500);
+  --color-text-navigation: var(--palette-slate-500);
+  --color-surface-navigation-active: var(--palette-slate-150);
+  --color-surface-avatar: var(--palette-slate-200);
+  --color-border-control: var(--palette-slate-450);
   --color-shadow-color: var(--palette-shadow);
-  --color-text-secondary: var(--palette-neutral-550);
-  --color-surface-input: var(--palette-neutral-930);
-  --color-text-control: var(--palette-neutral-250);
-  --color-surface-secondary-hover: var(--palette-neutral-900);
-  --color-border-error: var(--palette-red-750);
-  --color-surface-error: var(--palette-red-950);
-  --color-border-subtle: var(--palette-neutral-880);
-  --color-text-subtle: var(--palette-neutral-540);
-  --color-surface-control-hover: var(--palette-neutral-870);
-  --color-text-warning: var(--palette-amber-350);
-  --color-border-row: var(--palette-neutral-910);
-  --color-surface-table-head: var(--palette-neutral-960);
-  --color-text-tertiary: var(--palette-neutral-650);
-  --color-surface-row-hover: var(--palette-neutral-940);
-  --color-border-status-neutral: var(--palette-neutral-800);
-  --color-border-status-success: var(--palette-green-700);
-  --color-surface-status-success: var(--palette-green-950);
-  --color-border-status-error: var(--palette-red-700);
-  --color-surface-status-error: var(--palette-red-940);
-  --color-border-status-warning: var(--palette-amber-700);
-  --color-surface-status-warning: var(--palette-amber-950);
-  --color-border-status-info: var(--palette-blue-750);
-  --color-surface-status-info: var(--palette-blue-960);
-  --color-focus-ring: var(--palette-blue-400);
-  --color-surface-detail: var(--palette-neutral-970);
-  --color-text-detail-label: var(--palette-neutral-520);
-  --color-text-warning-strong: var(--palette-amber-300);
-  --color-surface-code: var(--palette-neutral-990);
-  --color-text-link: var(--palette-blue-300);
-  --color-border-review: var(--palette-neutral-790);
-  --color-border-selected: var(--palette-blue-450);
-  --color-text-selected: var(--palette-neutral-170);
-  --color-border-permission-group: var(--palette-neutral-860);
-  --color-text-permission-hint: var(--palette-neutral-530);
+  --color-text-secondary: var(--palette-slate-600);
+  --color-surface-input: var(--palette-white);
+  --color-text-control: var(--palette-slate-900);
+  --color-surface-secondary-hover: var(--palette-slate-150);
+  --color-border-error: var(--palette-red-300);
+  --color-surface-error: var(--palette-red-50);
+  --color-border-subtle: var(--palette-slate-200);
+  --color-text-subtle: var(--palette-slate-500);
+  --color-surface-control-hover: var(--palette-slate-150);
+  --color-text-warning: var(--palette-amber-700);
+  --color-border-row: var(--palette-slate-200);
+  --color-surface-table-head: var(--palette-slate-50);
+  --color-text-tertiary: var(--palette-slate-500);
+  --color-surface-row-hover: var(--palette-slate-50);
+  --color-border-status-neutral: var(--palette-slate-300);
+  --color-border-status-success: var(--palette-green-300);
+  --color-surface-status-success: var(--palette-green-50);
+  --color-text-status-success: var(--palette-green-700);
+  --color-border-status-error: var(--palette-red-300);
+  --color-surface-status-error: var(--palette-red-50);
+  --color-text-status-error: var(--palette-red-700);
+  --color-border-status-warning: var(--palette-amber-300);
+  --color-surface-status-warning: var(--palette-amber-50);
+  --color-text-status-warning: var(--palette-amber-700);
+  --color-border-status-info: var(--palette-accent-200);
+  --color-surface-status-info: var(--palette-accent-50);
+  --color-text-status-info: var(--palette-accent-700);
+  --color-surface-accent: var(--palette-accent-600);
+  --color-surface-accent-hover: var(--palette-accent-700);
+  --color-text-on-accent: var(--palette-white);
+  --color-focus-ring: var(--palette-accent-600);
+  --color-surface-detail: var(--palette-slate-50);
+  --color-text-detail-label: var(--palette-slate-500);
+  --color-text-warning-strong: var(--palette-amber-700);
+  --color-surface-code: var(--palette-slate-150);
+  --color-text-link: var(--palette-accent-600);
+  --color-border-review: var(--palette-slate-300);
+  --color-border-selected: var(--palette-accent-600);
+  --color-text-selected: var(--palette-accent-700);
+  --color-border-permission-group: var(--palette-slate-200);
+  --color-text-permission-hint: var(--palette-slate-500);
 
   /* Spacing, shape, typography, and elevation primitives. */
   --space-4: 4px;

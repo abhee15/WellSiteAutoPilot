@@ -74,10 +74,18 @@ The verified visual and layout direction is:
   selection, sort, filters and scroll during live updates. Show quality,
   freshness, timestamps and connection state wherever they affect a decision.
 
-The current dark CSS is an implementation gap, **not the approved palette**.
-Its regression checks preserve existing declarations; they do not establish
-conformance to this design. Align styling in a focused change using the recovered
-prototype source and rendered comparison, without blocking backend authorization.
+### Implementation status — 2026-10-17 (design foundation)
+
+The dark migration palette has been replaced by the prototype's light slate palette
+in `tokens.css` (canvas `#f3f5f7`, white panels, hairline borders, blue accent). Component
+CSS is unchanged apart from three additions: status chips carry the semantic text colour
+(`--color-text-status-*`, always alongside the label), buttons without a class use the secondary look,
+and `.primary-button` is the single accent action (`--color-surface-accent`). Control borders
+and focus rings are deliberately darker than the prototype's hairlines so they meet 3:1.
+The migration-only checksum test is replaced by contrast guards (4.5:1 text, 3:1 boundaries) in
+`tests/style-tokens.test.mjs`. Not yet done: IBM Plex typography, the grouped navigation and
+inline account area, density, and the Operations/Logic/Asset layouts; those follow in their own
+increments. `tools/design-preview` renders the UI against mock data for before/after review.
 
 ## The two token layers
 

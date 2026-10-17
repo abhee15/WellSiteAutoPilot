@@ -1,0 +1,6 @@
+.access-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: var(--space-12) var(--space-18) var(--space-16);
+}

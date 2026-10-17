@@ -683,7 +683,7 @@ function LogicPage({
       {canReadConfigurations && <section className="panel">
         <PanelHeader eyebrow="Configuration" title="Configured Logic"
           count={visibleConfigurations.length} />
-        {canCreate && !creating && !selectedConfiguredId && <button type="button"
+        {canCreate && !creating && !selectedConfiguredId && <button type="button" className="primary-button"
           onClick={() => setCreating(true)}>{t('setup.heading')}</button>}
         <ConfiguredLogicControls
           criteria={configuredCriteria}

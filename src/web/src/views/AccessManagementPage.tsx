@@ -3,6 +3,7 @@ import { loadSecurityUsers } from './accessManagement';
 import type { VerifiedSecurityUser } from './accessManagement';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
+import './accessManagement.css';
 
 interface AccessManagementPageProps {
   currentUserId: string;
@@ -37,10 +38,10 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
       <button type="button" className="secondary-button" disabled={loading} onClick={() => void reload()}>{t('access.refresh')}</button></div>
     <p className="access-intro">{t('access.identityDirectoryNote')}</p>
     <p className="access-intro">{t('access.groupNote')}</p>
-    <label className="access-intro">
+    <label className="access-filter">
       <input type="checkbox" checked={awaitingOnly} disabled={loading}
         onChange={event => setAwaitingOnly(event.target.checked)} />
-      {' '}{t('access.awaitingOnly')}
+      {t('access.awaitingOnly')}
     </label>
     {loading && <p role="status">{t('access.loading')}</p>}
     {failed && <p role="alert">{t('access.denied')}</p>}
@@ -50,7 +51,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
       <thead><tr><th>{t('access.identity')}</th><th>{t('access.directRoles')}</th><th>{t('session.account')}</th>
         <th>{t('access.lastSeen')}</th><th>{t('access.actions')}</th></tr></thead>
       <tbody>{users.map(user => <tr key={user.userId}>
-        <td><strong>{user.displayName || user.identityName}</strong><small>{user.identityName}</small></td>
+        <td><strong>{user.displayName || user.identityName}</strong>{user.displayName && <small>{user.identityName}</small>}</td>
         <td>{user.activeDirectGrantCount > 0 ? user.activeDirectGrantCount : t('access.noDirectRole')}</td>
         <td>{user.isActive ? t('session.active') : t('session.inactive')}</td>
         <td>{formatDetailTimestamp(user.lastSeenAtUtc)}</td>
