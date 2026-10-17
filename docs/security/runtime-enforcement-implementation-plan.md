@@ -316,6 +316,36 @@ state, never changes approval or re-enables a retired module. A caller's initial
 Untrusted classification does not conflict with an already approved copy.
 Regression cases cover both approval preservation and disabled-state replay.
 
+## Prepared host identity and grant policies
+
+`GrantIdentityMiddleware` provisions only identity metadata, rejects disabled
+users, binds the trusted request subject and invokes the separate bootstrap
+repository only after matching the configured normalized account allowlist.
+It never issues user, role, permission or Asset wildcard claims. A declined
+one-time bootstrap result does not invoke legacy provisioning or recovery.
+
+`GrantPermissionHandler` uses the exact principal bound by RequestAccessContext.
+It queries current resource permission prerequisites, DeploymentWide authority
+for the module catalog, and protected administrator classification for security
+administration. Unknown permissions, missing identity binding, anonymous users
+and replacement principals fail closed. Each authorization evaluation queries
+again; injected claims and earlier successful results do not supply authority.
+Resource predicates and transactional mutation fences remain mandatory.
+
+The host deliberately continues to register the existing middleware/policies
+until the complete route/client replacement is ready. These prepared components
+introduce no selectable runtime mode. Framework authorization checks cover all
+product permissions, spoofed claims, revocation, principal replacement and group
+subject/cancellation propagation. Middleware checks cover anonymous, inactive,
+ordinary and explicitly allowlisted identities, no authority claims, TestHeader
+group separation and a declined repeat bootstrap. Local targeted build passed
+with zero warnings/errors; identity boundary and 14 CI convention checks passed.
+
+Identity-directory head `a7d0413781849e800aec4e5518e16fdcaf0f8dc4` passed
+PostgreSQL integration and five other jobs in run `38987267817` at this
+checkpoint; the Windows foundation/installer job remained in progress.
+These results do not validate subsequent host-policy changes.
+
 ## Remaining atomic runtime integration
 
 - Bind identity-only provisioning, explicit grant bootstrap, RequestAccessContext,

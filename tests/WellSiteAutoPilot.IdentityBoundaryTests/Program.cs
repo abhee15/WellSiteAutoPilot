@@ -6,6 +6,8 @@ using WellSiteAutoPilot.Server.Security;
 WindowsGroupResolverChecks.Run();
 SecurityActorFactoryChecks.Run();
 RequestAccessContextChecks.Run();
+await GrantPermissionChecks.RunAsync();
+await GrantIdentityMiddlewareChecks.RunAsync();
 
 var windows = new ConfiguredPrincipalResolver(
     SecurityOptions.NegotiateAuthenticationMode);

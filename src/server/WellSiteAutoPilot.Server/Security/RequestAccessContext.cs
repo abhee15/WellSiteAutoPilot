@@ -19,6 +19,14 @@ public sealed class RequestAccessContext(IAuthenticatedPrincipalResolver princip
 
     public AccessSubject Subject => subject ?? throw Denied();
 
+    public bool TryGetSubject(ClaimsPrincipal authenticatedPrincipal,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AccessSubject? boundSubject)
+    {
+        boundSubject = ReferenceEquals(principal, authenticatedPrincipal) &&
+            authenticatedPrincipal.Identity?.IsAuthenticated == true ? subject : null;
+        return boundSubject is not null;
+    }
+
     public void Initialize(ClaimsPrincipal authenticatedPrincipal, UserAccessProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);

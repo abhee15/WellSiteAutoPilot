@@ -17,6 +17,16 @@ public static class WellSitePolicies
     public const string RecommendationsDecide = WellSitePermissions.RecommendationsDecide;
     public const string SecurityManage = WellSitePermissions.SecurityManage;
 
+    // Prepared for the atomic middleware/route/client cutover. The live host
+    // continues using AddPolicies until every resource boundary is converted.
+    public static void AddGrantPolicies(AuthorizationOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        foreach (var permission in WellSitePermissions.All)
+            options.AddPolicy(permission, policy => policy.RequireAuthenticatedUser()
+                .AddRequirements(new GrantPermissionRequirement(permission)));
+    }
+
     public static void AddPolicies(AuthorizationOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
