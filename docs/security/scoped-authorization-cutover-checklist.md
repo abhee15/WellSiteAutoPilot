@@ -1,8 +1,8 @@
 # Scoped authorization cutover checklist
 
-**Status:** unified grant API/frontend integration implemented on draft PR #127;
-final integration CI and review are required before merging. Historical migration
-checks alone do not validate the active runtime.
+**Status:** unified grant API/frontend integration merged via PR #127 as d23ef0d
+after all seven jobs passed head 1a13a4d in run 39004825569. Real Windows browser
+and domain validation remain release gate #92.
 
 ## Baseline and constraints
 

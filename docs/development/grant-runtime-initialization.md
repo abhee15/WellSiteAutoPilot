@@ -1,8 +1,9 @@
 # Grant runtime development initialization
 
-Implementation status: part of draft PR #127. The host still uses legacy
-authority until the complete runtime replacement is integrated and validated.
-Do not interpret the bootstrap repository's presence as runtime activation.
+The grant runtime introduced by PR #127 binds identity-only provisioning,
+explicit bootstrap and paired-grant authorization. Identity provisioning alone
+does not grant access; the allowlist and one-time initialization rules below
+remain mandatory.
 
 ## Fresh deployment
 
