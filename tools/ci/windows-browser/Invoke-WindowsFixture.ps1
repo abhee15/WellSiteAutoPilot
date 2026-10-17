@@ -22,10 +22,10 @@ $database = 'wsa_windows_' + $suffix
 $root = Join-Path $env:PUBLIC ('wsa-diag-' + $suffix)
 $childOutput = Join-Path $root 'reports'
 $report = [ordered]@{
-    SchemaVersion = 1; Commit = $env:GITHUB_SHA; Topology = 'DirectKestrel'; AuthenticationMode = 'Negotiate'
+    SchemaVersion = 1; Commit = $env:GITHUB_SHA; Topology = 'NOT EXECUTED'; AuthenticationMode = 'NOT EXECUTED'
     WindowsVersion = [Environment]::OSVersion.Version.ToString(); NativeSession = $null
     DomainCoverage = 'NOT EXECUTED'; LocalCoverage = 'NOT EXECUTED'; FailureStage = 'Preflight'
-    ServerObservations = @(); ConnectionEvidence = 'NOT CAPTURED'; Cleanup = 'PENDING'
+    ServerObservations = @(); BrowserCorrelationMatches = @(); ConnectionEvidence = 'NOT CAPTURED'; Cleanup = 'PENDING'
 }
 $user = $null; $group = $null; $server = $null; $nats = $null; $child = $null
 $databaseCreated = $false; $startedPostgres = $false; $startedSecondaryLogon = $false
@@ -68,6 +68,8 @@ try {
     $user = New-LocalUser -Name $userName -Password $password -AccountNeverExpires -PasswordNeverExpires
     $group = New-LocalGroup -Name $groupName
     Add-LocalGroupMember -Group $groupName -Member $userName
+    # Explicit ordinary local logon rights; never make the fixture user an OS admin.
+    Add-LocalGroupMember -SID ([Security.Principal.SecurityIdentifier]::new('S-1-5-32-545')) -Member $userName
     $credential = [Management.Automation.PSCredential]::new("$env:COMPUTERNAME\$userName", $password)
     Copy-Item (Join-Path $PSScriptRoot 'Invoke-NativeSession.ps1') $root
     Copy-Item (Join-Path $PSScriptRoot 'Invoke-BrowserProbe.ps1') $root
@@ -98,6 +100,8 @@ try {
         catch { Start-Sleep -Milliseconds 500 }
     }
     if (-not $ready) { throw 'Direct Kestrel did not become ready.' }
+    $report.Topology = 'DirectKestrel'
+    $report.AuthenticationMode = 'Negotiate'
     $report.FailureStage = 'NativeSession'
     $pwsh = (Get-Command pwsh.exe).Source
     # Only SID expectations, script paths and driver path appear on the command line.
@@ -144,7 +148,34 @@ try {
         $hasSuccess = @($observations | Where-Object { $_.Status -eq 200 -and $_.Authenticated }).Count -gt 0
         if ($hasChallenge -and $hasSuccess) { $report.ConnectionEvidence = 'CAPTURED' }
     }
-    if ($report.ConnectionEvidence -ne 'CAPTURED') { $report.LocalCoverage = 'FAILED' }
+    # Browser calls must link to their own final server observation; baseline
+    # traffic alone cannot satisfy browser connection evidence.
+    $allBrowserCallsMatched = $true
+    foreach ($policy in @('Default', 'OriginAllowlist')) {
+        $path = Join-Path $OutputDirectory ($policy + '.json')
+        if (-not (Test-Path -LiteralPath $path)) { $allBrowserCallsMatched = $false; continue }
+        try {
+            $probe = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+            foreach ($scenario in $probe.Scenarios) {
+                if ($scenario.Name -eq 'IdentityNavigation') { continue }
+                $matched = 0
+                foreach ($call in $scenario.Observations) {
+                    if ($call.correlationId -and @($report.ServerObservations | Where-Object {
+                        $_.CorrelationId -eq $call.correlationId -and $_.Status -eq $call.status -and $_.ConnectionId
+                    }).Count -gt 0) { $matched++ }
+                }
+                $report.BrowserCorrelationMatches += @{
+                    Policy = $policy; Scenario = $scenario.Name; MatchedCalls = $matched
+                    ExpectedCalls = @($scenario.Observations).Count
+                }
+                if ($matched -ne 7 -or $matched -ne @($scenario.Observations).Count) { $allBrowserCallsMatched = $false }
+            }
+        } catch { $allBrowserCallsMatched = $false }
+    }
+    if ($report.ConnectionEvidence -ne 'CAPTURED' -or -not $allBrowserCallsMatched) {
+        if ($report.LocalCoverage -eq 'PASSED') { $report.FailureStage = 'ConnectionEvidence' }
+        $report.LocalCoverage = 'FAILED'
+    }
     $cleanupPassed = $true
     if ($databaseCreated) {
         try {
@@ -173,7 +204,12 @@ try {
     foreach ($key in $environmentKeys) { [Environment]::SetEnvironmentVariable($key, $oldEnvironment[$key], 'Process') }
     try { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force } } catch { $cleanupPassed = $false }
     $report.Cleanup = if ($cleanupPassed) { 'PASSED' } else { 'FAILED' }
-    if (-not $cleanupPassed) { $report.LocalCoverage = 'FAILED' }
+    if (-not $cleanupPassed) {
+        if ($report.LocalCoverage -eq 'PASSED') { $report.FailureStage = 'Cleanup' }
+        $report.LocalCoverage = 'FAILED'
+    }
+    $credential = $null
+    if (Get-Variable password -ErrorAction SilentlyContinue) { $password.Dispose() }
     if ($report.LocalCoverage -eq 'PASSED') { $report.FailureStage = $null }
     $report | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'fixture.json') -Encoding utf8
 }

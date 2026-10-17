@@ -86,7 +86,8 @@ correlation/connection observations, cleanup status and a distinct domain
 NOT EXECUTED result. The standalone browser reports retain their explicit
 caller-unverified topology/connection labels; use the fixture report for the
 combined evidence. A successful native workflow requires both policies and all
-scenarios, a 401 Negotiate challenge, an authenticated 200, and successful cleanup.
+scenarios, a 401 Negotiate challenge, an authenticated 200, a matching final
+server observation for every reported browser fetch, and successful cleanup.
 A failed default policy remains a failed result even when an explicit allowlist
 works. Inspect per-call correlation IDs alongside server observations to compare
 challenge progression and connection reuse; the presence of observations alone

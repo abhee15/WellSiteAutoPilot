@@ -9,7 +9,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $report = [ordered]@{
     SchemaVersion = 1; NativeUserMatches = $false; EnabledGroupMatches = $false
-    Baseline = 'NOT EXECUTED'; Policies = @(); Status = 'FAILED'; DomainCoverage = 'NOT EXECUTED'
+    Baseline = 'NOT EXECUTED'; Policies = @(); Status = 'FAILED'; FailureStage = 'TokenVerification'; DomainCoverage = 'NOT EXECUTED'
 }
 $native = $null
 try {
@@ -18,11 +18,22 @@ try {
     $principal = [Security.Principal.WindowsPrincipal]::new($native)
     $report.EnabledGroupMatches = $principal.IsInRole([Security.Principal.SecurityIdentifier]::new($ExpectedGroupSid))
     if (-not $report.NativeUserMatches -or -not $report.EnabledGroupMatches) { throw 'Fresh native logon verification failed.' }
+    # Alternate-credential process creation inherits the parent's environment.
+    # Use this logon's known folders and fixture-owned temp, never runneradmin's profile.
+    $env:USERPROFILE = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+    $env:LOCALAPPDATA = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    $env:APPDATA = [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData)
+    $env:TEMP = Join-Path (Split-Path -Parent $OutputDirectory) 'temp'
+    $env:TMP = $env:TEMP
+    New-Item -ItemType Directory -Path $env:TEMP -Force | Out-Null
+    $report.FailureStage = 'PowerShellBaseline'
     & (Join-Path $PSScriptRoot 'verify-windows-negotiate.ps1') -BaseUrl 'http://localhost:5080' *> $null
     # Verify the resolved identity, not only that some database user was returned.
+    $report.FailureStage = 'NativeIdentityMatch'
     $me = Invoke-RestMethod 'http://localhost:5080/api/v1/security/me' -UseDefaultCredentials -TimeoutSec 30
     if ($me.identityName -ine $native.Name) { throw 'Native baseline identity did not match.' }
     $report.Baseline = 'PASSED'
+    $report.FailureStage = 'BrowserPolicies'
     foreach ($policy in @('Default', 'OriginAllowlist')) {
         $path = Join-Path $OutputDirectory ($policy + '.json')
         try {
@@ -37,7 +48,7 @@ try {
     }
     if ($report.Policies.Count -eq 2 -and @($report.Policies | Where-Object {
         $_.Status -ne 'BROWSER SCENARIOS PASSED; CONNECTION EVIDENCE REQUIRED'
-    }).Count -eq 0) { $report.Status = 'PASSED' }
+    }).Count -eq 0) { $report.Status = 'PASSED'; $report.FailureStage = $null }
 } catch { } # Never export exception messages, usernames, SID values or credentials.
 finally {
     if ($native) { $native.Dispose() }

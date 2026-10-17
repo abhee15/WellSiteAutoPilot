@@ -81,7 +81,7 @@ try {
     $paths = @('/api/v1/security/me', '/api/v1/system/info', '/api/v1/assets', '/api/v1/executions',
         '/api/v1/asset-types', '/api/v1/logic-modules', '/api/v1/configured-logic')
     foreach ($scenario in @('IdentityNavigation', 'Sequential', 'ColdConcurrent', 'WarmConcurrent', 'Spa')) {
-        $case = [ordered]@{ Name = $scenario; Status = 'FAILED'; Observations = @(); IdentityMatches = $false; BrowserVersion = '' }
+        $case = [ordered]@{ Name = $scenario; Status = 'FAILED'; FailureStage = 'DriverSession'; Observations = @(); IdentityMatches = $false; BrowserVersion = '' }
         try {
             $profile = Join-Path $runRoot $scenario
             $arguments = @('--headless=new', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$profile")
@@ -92,8 +92,10 @@ try {
             $session = $created.sessionId
             $case.BrowserVersion = $created.capabilities.browserVersion
             Invoke-Driver 'POST' "/session/$session/timeouts" @{ pageLoad = 20000; script = 25000 } | Out-Null
+            $case.FailureStage = 'Navigation'
             if ($scenario -in @('IdentityNavigation', 'WarmConcurrent')) {
                 Navigate '/api/v1/security/me'
+                $case.FailureStage = 'IdentityMatch'
                 $identity = Invoke-Driver 'POST' "/session/$session/execute/sync" @{
                     script = 'try { const b = JSON.parse(document.body.innerText); return typeof b.identityName === "string" && b.identityName.toUpperCase() === arguments[0].toUpperCase(); } catch { return false; }'
                     args = @($native.Name)
@@ -104,6 +106,7 @@ try {
             if ($scenario -eq 'IdentityNavigation') { $case.Status = 'PASSED' }
             else {
                 if ($scenario -eq 'Spa') {
+                    $case.FailureStage = 'SpaReadiness'
                     Navigate '/'
                     $loaded = $false
                     for ($attempt = 0; $attempt -lt 50; $attempt++) {
@@ -116,6 +119,7 @@ try {
                     }
                     if (-not $loaded) { throw 'The server-hosted SPA did not load an authorized workspace.' }
                 }
+                $case.FailureStage = 'ApiFetch'
                 $observations = @(Invoke-BrowserFetch $paths ($scenario -in @('ColdConcurrent', 'WarmConcurrent', 'Spa')))
                 $case.Observations = $observations
                 $case.IdentityMatches = @($observations | Where-Object { $_.path -eq '/api/v1/security/me' -and $_.identityMatches -eq $true }).Count -eq 1
@@ -128,6 +132,7 @@ try {
         } finally {
             if ($session) { try { Invoke-Driver 'DELETE' "/session/$session" | Out-Null } catch {}; $session = $null }
         }
+        if ($case.Status -eq 'PASSED') { $case.FailureStage = $null }
         $report.Scenarios += $case
     }
     if (@($report.Scenarios | Where-Object { $_.Status -ne 'PASSED' }).Count -eq 0) {
