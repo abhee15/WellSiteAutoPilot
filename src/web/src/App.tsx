@@ -1,4 +1,5 @@
-import { canOpenSection, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
+import { canOpenSection, isAwaitingAccess, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
+import { AwaitingAccessNotice } from './components/AwaitingAccessNotice';
 import { loadWorkspaceSnapshot } from './views/workspaceSnapshot';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
@@ -151,7 +152,8 @@ export function App() {
           </div>
         )}
 
-        {currentUser && section !== 'access' && !canOpenSection(currentUser, section) && (
+        {isAwaitingAccess(currentUser) && currentUser && <AwaitingAccessNotice user={currentUser} />}
+        {currentUser && !isAwaitingAccess(currentUser) && section !== 'access' && !canOpenSection(currentUser, section) && (
           <div className="status-error" role="alert">{t('session.sectionDenied')}</div>
         )}
         {section === 'operations' && canOpenSection(currentUser, section) && (

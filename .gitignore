@@ -52,3 +52,6 @@ diagnostics/
 # OS
 .DS_Store
 Thumbs.db
+
+# Per-developer Aspire settings
+dev/**/appsettings.Local.json

@@ -48,7 +48,7 @@ it('permission loss removes the page and clears old asset data even when the rol
   const user = userEvent.setup(); render(<App />);
   await screen.findByRole('button', { name: 'Select Asset Confidential Asset' });
   revoked = true; await user.click(screen.getByRole('button', { name: 'Refresh' }));
-  await screen.findByText('Your current permissions do not allow this section.');
+  await screen.findByRole('heading', { name: 'Waiting for access' });
   expect(screen.queryByText('Confidential Asset')).toBeNull();
   expect(screen.queryByRole('link', { name: 'Assets' })).toBeNull();
 });
@@ -107,4 +107,16 @@ it('non-401 session failures keep the generic message and automatic refresh', as
     await vi.advanceTimersByTimeAsync(10_000);
     expect(http.mock.calls.length).toBeGreaterThan(first);
   } finally { vi.useRealTimers(); }
+});
+
+it('shows the waiting-for-access page with the sign-in name when the user has no permissions', async () => {
+  window.location.hash = '#assets';
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url === '/api/v1/security/me'
+    ? response({ userId, identityName: 'FIELD\\newcomer', isActive: true, permissions: [] })
+    : response([])));
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: 'Waiting for access' })).toBeTruthy();
+  expect(screen.getByText('FIELD\\newcomer', { selector: 'code' })).toBeTruthy();
+  expect(screen.queryByText(/not available for this session|sectionDenied/i)).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Assets' })).toBeNull();
 });
