@@ -34,6 +34,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IUserAccessRepository, UserAccessRepository>();
         services.AddScoped<IUserIdentityRepository, UserAccessRepository>();
         services.AddScoped<IRequestAccessRepository, RequestAccessRepository>();
+        services.AddScoped<IResourceActionRepository, ResourceActionRepository>();
         services.AddScoped<IGrantBootstrapRepository, GrantBootstrapRepository>();
         services.AddScoped<IRoleCatalogRepository, RoleCatalogRepository>();
         services.AddScoped<IAccessGrantRepository, AccessGrantRepository>();

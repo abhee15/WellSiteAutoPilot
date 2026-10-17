@@ -13,7 +13,7 @@ namespace WellSiteAutoPilot.Persistence.Security;
 /// after these predicates. This is query preparation for #76, not a runtime
 /// authority switch or a transaction boundary for authorizing mutations.
 /// </summary>
-public static class ScopedAccessQueries
+public static partial class ScopedAccessQueries
 {
     public static IQueryable<AssetEntity> Assets(
         WellSiteAutoPilotDbContext db, Guid userId, string permission,

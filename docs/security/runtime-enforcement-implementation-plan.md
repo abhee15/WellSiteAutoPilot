@@ -346,6 +346,39 @@ PostgreSQL integration and five other jobs in run `38987267817` at this
 checkpoint; the Windows foundation/installer job remained in progress.
 These results do not validate subsequent host-policy changes.
 
+All seven jobs subsequently passed host-policy head
+`c6ded4432b1818fa3a7eaac8e91c01905e9a83c7` in run `38987529325`, including
+the Windows foundation/installer. The live runtime remains unchanged.
+
+## Prepared per-resource action capabilities
+
+`IResourceActionRepository` batches a page of up to 500 distinct IDs into one
+SQL statement per resource family. It returns capability records only for
+currently readable configurations/recommendations, with current active user,
+role, grant, Asset and verified Windows-group conditions. An absent row grants
+no action. Empty pages return empty results rather than a full directory.
+
+Configuration management covers every historical target and input. Shadow run
+requires the definition's own active Shadow revision and request permission on
+all of that revision's targets and inputs, separately from read and management
+permissions. Recommendation decision authority is paired to that recommendation's
+persisted Asset. DeploymentWide assignments never imply resource actions;
+explicit valid AllAssets assignments do. These are current action prerequisites,
+not a reservation: mutation fences and business/dependency checks still run.
+Recommendation state, expiry and approval provenance remain decision checks.
+
+Prepared queries are not exposed by the published legacy routes. At the atomic
+cutover, include capabilities with authorized list/detail responses and default
+missing/revoked capability records to false. Never promote coarse page hints to
+per-resource management/run/decision authority or cache a previous success.
+
+Npgsql translation checks cover both batch projections. PostgreSQL cases cover
+direct/group scope, permission separation/revocation, unreadable rows, input-only
+Assets, all-history management versus active-only dispatch, foreign/non-Shadow
+active revisions, explicit/malformed AllAssets, missing read authority, expired
+group proof, disabled users and invalid/empty/oversized pages. New-head CI must
+execute these cases; the earlier host-policy result does not validate them.
+
 ## Remaining atomic runtime integration
 
 - Bind identity-only provisioning, explicit grant bootstrap, RequestAccessContext,
