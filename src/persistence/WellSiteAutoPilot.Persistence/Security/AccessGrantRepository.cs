@@ -10,7 +10,7 @@ using WellSiteAutoPilot.Persistence.Audit;
 namespace WellSiteAutoPilot.Persistence.Security;
 
 /// <summary>Explicit user and Windows-group entitlements, currently audit-only until cutover.</summary>
-public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
+public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null)
     : IAccessGrantRepository
 {
     private static readonly JsonSerializerOptions AuditOptions =
@@ -50,25 +50,53 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 .Select(binding => binding.AssetId))).ToArray();
     }
 
-    public async Task<AccessGrant> CreateAsync(
+    public Task<AccessGrant> CreateAuthorizedAsync(AccessGrantSubject subject, CreateAccessGrantCommand command,
+        AccessSubject administrator, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+        GrantAdministrationActor.ExecuteAsync(() => CreateCoreAsync(subject, command,
+            GrantAdministrationActor.Bind(administrator, actor), nowUtc, administrator, cancellationToken));
+
+    public Task<AccessGrant> DeactivateAuthorizedAsync(AccessGrantSubject subject, Guid grantId, long expectedRevision,
+        AccessSubject administrator, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+        GrantAdministrationActor.ExecuteAsync(() => DeactivateCoreAsync(subject, grantId, expectedRevision,
+            GrantAdministrationActor.Bind(administrator, actor), nowUtc, administrator, cancellationToken));
+
+    public Task<AccessGrant> CreateAsync(
         AccessGrantSubject subject, CreateAccessGrantCommand command,
         SecurityActorContext actor, DateTimeOffset nowUtc,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) => CreateCoreAsync(subject, command, actor, nowUtc, null, cancellationToken);
+
+    private async Task<AccessGrant> CreateCoreAsync(AccessGrantSubject subject, CreateAccessGrantCommand command,
+        SecurityActorContext actor, DateTimeOffset nowUtc, AccessSubject? administrator, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(command.AssetIds);
         ArgumentNullException.ThrowIfNull(actor);
         nowUtc = nowUtc.ToUniversalTime();
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
 
+        if (administrator is not null)
+        {
+            await RequireAdministrationAsync(administrator, actor, cancellationToken);
+            await dbContext.RoleDefinitions.FromSqlInterpolated($"""
+                SELECT r.* FROM security.role_definitions AS r WHERE r."Id" = {command.RoleId} FOR SHARE OF r
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
+            if (subject.UserId is { } targetUser)
+                await dbContext.Users.FromSqlInterpolated($"""
+                    SELECT u.* FROM security.users AS u WHERE u."Id" = {targetUser} FOR SHARE OF u
+                    """).AsNoTracking().ToArrayAsync(cancellationToken);
+            nowUtc = (clock ?? TimeProvider.System).GetUtcNow();
+        }
+
         var targetActive = subject.Kind == AccessGrantSubjectKind.WindowsGroup ||
             await dbContext.Users.AsNoTracking().AnyAsync(
                 item => item.Id == subject.UserId && item.IsActive, cancellationToken);
-        var admin = await dbContext.Users.AsNoTracking()
+        var admin = administrator is not null || await dbContext.Users.AsNoTracking()
             .AnyAsync(item => item.Id == actor.UserId && item.IsActive,
                 cancellationToken);
-        var isAdmin = await dbContext.UserRoles.AsNoTracking()
+        var isAdmin = administrator is not null || await dbContext.UserRoles.AsNoTracking()
             .AnyAsync(item => item.UserId == actor.UserId && item.Role == "Admin",
                 cancellationToken);
         var role = await dbContext.RoleDefinitions.AsNoTracking()
@@ -91,7 +119,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 "Role changed since review. Reload and review its permissions again.");
         }
 
-        await LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken);
+        await RequireAdministrationAsync(administrator, actor, cancellationToken);
         if (subject.GroupSid is { } groupSid)
             SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, nowUtc);
 
@@ -112,6 +140,10 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
 
         if (scopeIds.Length > 0)
         {
+            if (administrator is not null)
+                await dbContext.Assets.FromSqlInterpolated($"""
+                    SELECT a.* FROM assets.assets AS a WHERE a."Id" = ANY({scopeIds}) ORDER BY a."Id" FOR SHARE OF a
+                    """).AsNoTracking().ToArrayAsync(cancellationToken);
             var count = await dbContext.Assets.AsNoTracking()
                 .CountAsync(item => scopeIds.Contains(item.Id) && item.IsActive,
                     cancellationToken);
@@ -126,6 +158,10 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
 
         // Recheck role permission/scope compatibility transactionally. This
         // protects against concurrent role deactivation or content changes.
+        if (administrator is not null)
+            await dbContext.RolePermissions.FromSqlInterpolated($"""
+                SELECT p.* FROM security.role_permissions AS p WHERE p."RoleId" = {command.RoleId} ORDER BY p."Permission" FOR SHARE OF p
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
         var scopes = await dbContext.RolePermissions.AsNoTracking()
             .Where(item => item.RoleId == command.RoleId)
             .Select(item => item.Permission)
@@ -194,12 +230,15 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                 subjectKind = subject.Kind.ToString(), userId = subject.UserId, groupSid = subject.GroupSid, roleId = role.Id, roleRevision = role.Revision,
                 scopeKind = command.ScopeKind.ToString(),
                 assetIds = scopeIds,
-                liveAuthorizationUnchanged = true
+                liveAuthorizationUnchanged = administrator is null
             }, AuditOptions)
         });
 
         try
         {
+            await RequireAdministrationAsync(administrator, actor, cancellationToken);
+            if (administrator is not null && subject.GroupSid is { } checkedGroup)
+                SecurityActorGroupGuard.RequireOtherGroup(actor, checkedGroup, (clock ?? TimeProvider.System).GetUtcNow());
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -215,30 +254,51 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
             subject.UserId, subject.GroupSid, role.Id, command.ScopeKind, scopeIds, true, 1);
     }
 
-    public async Task<AccessGrant> DeactivateAsync(
+    public Task<AccessGrant> DeactivateAsync(
         AccessGrantSubject subject, Guid grantId, long expectedRevision,
         SecurityActorContext actor, DateTimeOffset nowUtc,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        DeactivateCoreAsync(subject, grantId, expectedRevision, actor, nowUtc, null, cancellationToken);
+
+    private async Task<AccessGrant> DeactivateCoreAsync(AccessGrantSubject subject, Guid grantId, long expectedRevision,
+        SecurityActorContext actor, DateTimeOffset nowUtc, AccessSubject? administrator, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(actor);
         nowUtc = nowUtc.ToUniversalTime();
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
+        if (administrator is not null)
+        {
+            await RequireAdministrationAsync(administrator, actor, cancellationToken);
+            nowUtc = (clock ?? TimeProvider.System).GetUtcNow();
+        }
         var authorized = actor.UserId is { } adminId && adminId != subject.UserId &&
+            (administrator is not null || (
             await dbContext.Users.AsNoTracking().AnyAsync(
                 user => user.Id == adminId && user.IsActive, cancellationToken) &&
             await dbContext.UserRoles.AsNoTracking().AnyAsync(
                 role => role.UserId == adminId && role.Role == "Admin",
-                cancellationToken);
+                cancellationToken)));
         if (!authorized)
         {
             throw new WellSiteAutoPilotException(
                 "SECURITY_ADMIN_REQUIRED", FailureKind.Authorization,
                 "An active, distinct administrator is required.");
         }
-        await LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken);
+        await RequireAdministrationAsync(administrator, actor, cancellationToken);
         if (subject.GroupSid is { } groupSid)
             SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, nowUtc);
+        if (administrator is not null)
+        {
+            if (subject.UserId is { } targetUser)
+                await dbContext.Users.FromSqlInterpolated($"""
+                    SELECT u.* FROM security.users AS u WHERE u."Id" = {targetUser} FOR SHARE OF u
+                    """).AsNoTracking().ToArrayAsync(cancellationToken);
+            await dbContext.AccessGrants.FromSqlInterpolated($"""
+                SELECT g.* FROM security.access_grants AS g WHERE g."Id" = {grantId} FOR UPDATE OF g
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
+        }
         if (subject.UserId is { } userId && !await dbContext.Users.AsNoTracking().AnyAsync(
             user => user.Id == userId && user.IsActive, cancellationToken))
         {
@@ -313,9 +373,12 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
                     scopeKind = current.ScopeKind,
                     previousRevision = expectedRevision,
                     newRevision = expectedRevision + 1,
-                    liveAuthorizationUnchanged = true
+                    liveAuthorizationUnchanged = administrator is null
                 }, AuditOptions)
             });
+            await RequireAdministrationAsync(administrator, actor, cancellationToken);
+            if (administrator is not null && subject.GroupSid is { } checkedGroup)
+                SecurityActorGroupGuard.RequireOtherGroup(actor, checkedGroup, (clock ?? TimeProvider.System).GetUtcNow());
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -359,6 +422,10 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext)
 
     public Task<AccessGrant> DeactivateForUserAsync(Guid userId, Guid grantId, long expectedRevision, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
         DeactivateAsync(AccessGrantSubject.ForUser(userId), grantId, expectedRevision, actor, nowUtc, cancellationToken);
+
+    private Task RequireAdministrationAsync(AccessSubject? administrator, SecurityActorContext actor, CancellationToken cancellationToken) =>
+        administrator is null ? LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken)
+            : GrantWriteGuard.RequireAdministratorAsync(dbContext, administrator, clock ?? TimeProvider.System, cancellationToken);
 
     // SaveChanges may wrap a PostgreSQL serialization/deadlock error first in
     // DbUpdateException, then in Npgsql's transient InvalidOperationException.

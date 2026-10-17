@@ -125,6 +125,8 @@ internal static class GrantBootstrapChecks
                 throw new InvalidOperationException("Verified protected-administrator group grant was ignored.");
             await DemandAdministratorAsync(groupSubject);
             await ExpectAdministratorDeniedAsync(new AccessSubject(other, new(other, ["S-1-5-21-915-1"], now.AddMinutes(-2))));
+            await AuthorizedRoleAdministrationChecks.RunAsync(options, winner, groupSubject, grants.Single(grant => grant.ScopeKind == "DeploymentWide").Id, grants[0].RoleId);
+            await AuthorizedGrantAdministrationChecks.RunAsync(options, winner, groupSubject, grants.Single(grant => grant.ScopeKind == "DeploymentWide").Id);
             await setup.AccessGrants.Where(grant => grant.Id == customGrant || grant.Id == groupGrant).ExecuteDeleteAsync();
             await setup.RolePermissions.Where(item => item.RoleId == customRole).ExecuteDeleteAsync();
             await setup.RoleDefinitions.Where(role => role.Id == customRole).ExecuteDeleteAsync();

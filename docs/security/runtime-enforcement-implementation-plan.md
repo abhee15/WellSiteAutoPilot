@@ -269,6 +269,31 @@ cover direct/group global grants, resource-vs-global isolation, missing proof,
 idempotency after permission loss, immutable content, post-save rollback and an
 actual revocation wait. This boundary requires validation on its own new head.
 
+Catalog checkpoint `d0cb0a8091a9228946b04af6d528efa4e7c16944` passed
+all seven jobs, including Windows installer smoke, in run `38985779631`.
+New administration code below is not covered by that checkpoint.
+
+Protected-grant role and assignment authoring is now prepared in separate
+authorized application/repository entry points. It does not query legacy Admin
+roles or parse fixed role labels for the acting administrator. Actor group
+protections bind to the same trusted AccessSubject observation as authority.
+Role writes retain the protected administrator, lock target roles against new
+assignments, and preserve system-role immutability, revision, assigned-role
+permission changes and own-role/group restrictions. Assignment writes retain
+target role/permissions, active users and exact Assets through audit commit;
+retirement retains the target assignment and preserves the existing last-direct
+recovery guard. Authority/proof freshness is checked after blocking operations;
+serialization/deadlock conflicts fail closed without retries. Legacy entry
+points remain solely for the unconverted runtime and existing compatibility
+tests until the complete switch/removal.
+
+New isolated bootstrap-database tests exercise direct and verified-group Admin
+role/assignment authoring with no legacy UserRoles, custom security.manage
+denial, system/own-role and own-group changes, assigned-role permission edits,
+stale revisions, duplicate/invalid scopes, last-direct recovery refusal,
+post-save rollback, actual administrator revocation and target-role retirement
+lock waits. This batch requires current-head CI before a validation claim.
+
 Do not introduce a Legacy/Observe/Enforce state machine or a production
 migration campaign for this unreleased baseline. Do not enable a partial mixed
 legacy/grant runtime merely because an individual repository or UI test passes.

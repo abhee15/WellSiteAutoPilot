@@ -8,6 +8,26 @@ public sealed class AccessGrantAdministrationService(
     IRoleCatalogRepository roles,
     TimeProvider clock)
 {
+    public Task<AccessGrant> CreateAuthorizedAsync(AccessGrantSubject subject, CreateAccessGrantCommand command,
+        AccessSubject administrator, SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(command.AssetIds);
+        if (command.ExpectedRoleRevision < 1)
+            throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException("SECURITY_GRANT_ROLE_REVISION_REQUIRED",
+                WellSiteAutoPilot.Failures.FailureKind.Validation, "The reviewed role revision is required.");
+        return grants.CreateAuthorizedAsync(subject, command, administrator, actor, clock.GetUtcNow(), cancellationToken);
+    }
+
+    public Task<AccessGrant> DeactivateAuthorizedAsync(AccessGrantSubject subject, Guid grantId, long expectedRevision,
+        AccessSubject administrator, SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        if (grantId == Guid.Empty || expectedRevision < 1)
+            throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException("SECURITY_GRANT_REVISION_INVALID",
+                WellSiteAutoPilot.Failures.FailureKind.Validation, "A valid grant and positive revision are required.");
+        return grants.DeactivateAuthorizedAsync(subject, grantId, expectedRevision, administrator, actor, clock.GetUtcNow(), cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<AccessGrant>> ListAsync(
         AccessGrantSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default)

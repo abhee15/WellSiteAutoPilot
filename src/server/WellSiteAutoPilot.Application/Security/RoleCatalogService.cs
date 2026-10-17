@@ -80,10 +80,28 @@ public sealed class RoleCatalogService(
         CancellationToken cancellationToken = default)
     {
         await RequireAdministratorAsync(actor, cancellationToken);
+        return await repository.CreateAsync(BuildRole(command), actor, cancellationToken);
+    }
+
+    public Task<RoleDefinition> CreateAuthorizedAsync(RoleMutationCommand command, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default) =>
+        repository.CreateAuthorizedAsync(BuildRole(command), subject, actor, cancellationToken);
+
+    public Task<RoleDefinition> UpdateAuthorizedAsync(Guid roleId, long expectedRevision, RoleMutationCommand command,
+        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        if (expectedRevision < 1)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Expected role revision must be positive.");
+        return repository.UpdateAuthorizedAsync(roleId, expectedRevision, NormalizeCommand(command), subject, actor,
+            timeProvider.GetUtcNow(), cancellationToken);
+    }
+
+    private RoleDefinition BuildRole(RoleMutationCommand command)
+    {
         var normalized = NormalizeCommand(command);
         var now = timeProvider.GetUtcNow();
-        return await repository.CreateAsync(
-            new RoleDefinition(
+        return new RoleDefinition(
                 Guid.NewGuid(),
                 $"custom-{Guid.NewGuid():N}",
                 normalized.Name,
@@ -93,8 +111,7 @@ public sealed class RoleCatalogService(
                 1,
                 now,
                 now,
-                normalized.Permissions),
-            actor, cancellationToken);
+                normalized.Permissions);
     }
 
     public async Task<RoleDefinition> UpdateAsync(
