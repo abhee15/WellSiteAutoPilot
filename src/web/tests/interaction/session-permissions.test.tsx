@@ -63,3 +63,48 @@ it('catalog-only access does not load configuration capabilities or expose confi
   expect(screen.queryByText('Configured Logic')).toBeNull();
   expect(http.mock.calls.some(([url]) => url.includes('/configured-logic'))).toBe(false);
 });
+
+it('a 401 pauses automatic refresh and explains sign-in; manual Refresh retries and recovery resumes polling', async () => {
+  window.location.hash = '#assets'; let authenticated = false;
+  const sessionCalls = () => http.mock.calls.filter(([url]) => url === '/api/v1/security/me').length;
+  const http = vi.fn(async (url: string) => url === '/api/v1/security/me'
+    ? (authenticated ? response({ userId, identityName: 'FIELD\\reader', isActive: true, roles: [], permissions: ['assets.read'], assetScopeIds: [] })
+      : response({}, 401))
+    : response(url.includes('system/info') ? {} : url.includes('capabilities')
+      ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false } : []));
+  vi.stubGlobal('fetch', http);
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<App />);
+    await screen.findByText(/Windows sign-in is required/);
+    expect(sessionCalls()).toBe(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sessionCalls()).toBe(1);
+    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    await vi.waitFor(() => expect(sessionCalls()).toBe(2));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sessionCalls()).toBe(2);
+    authenticated = true;
+    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    await screen.findByRole('link', { name: 'Assets' });
+    const afterRecovery = sessionCalls();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sessionCalls()).toBeGreaterThan(afterRecovery);
+  } finally { vi.useRealTimers(); }
+});
+
+it('non-401 session failures keep the generic message and automatic refresh', async () => {
+  window.location.hash = '#assets';
+  const http = vi.fn(async () => response({}, 500));
+  vi.stubGlobal('fetch', http);
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    render(<App />);
+    await screen.findByText(/session/i);
+    expect(screen.queryByText(/Windows sign-in is required/)).toBeNull();
+    const first = http.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(http.mock.calls.length).toBeGreaterThan(first);
+  } finally { vi.useRealTimers(); }
+});
