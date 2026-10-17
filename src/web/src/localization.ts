@@ -521,7 +521,8 @@ export const englishMessages = {
   'awaitingAccess.copy': 'Copy sign-in name',
   'awaitingAccess.copied': 'Copied',
   'refresh.signInRequired': 'Windows sign-in is required. Your browser did not provide Windows credentials for this address, so automatic refresh is paused. Open the application from an address your browser trusts for Windows sign-in, then choose Refresh.',
-  'refresh.partial': 'Some sections could not be refreshed. Refresh to try again.',
+  'refresh.partial': 'Some information could not be refreshed, so what you see may be out of date. Refresh to try again.',
+  'views.loading': 'Loading…',
   'session.sectionDenied': 'Your current permissions do not allow this section.',
   'refresh.sessionUnavailable':
     'Session access is unavailable. Sign in with an authorized account.',

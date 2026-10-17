@@ -19,12 +19,14 @@ export function AssetsPage({
   userId,
   capabilities,
   onRefresh,
+  isLoaded = true,
 }: {
   assetTypes: AssetTypeResponse[];
   assets: AssetResponse[];
   userId: string | null | undefined;
   capabilities: AssetCreationCapabilitiesResponse | null;
   onRefresh: () => Promise<void>;
+  isLoaded?: boolean;
 }) {
   const [selectedId, setSelectedId] = useHashDetail('assets');
   const selectedAuthorized = assets.find(asset => asset.id === selectedId);
@@ -98,7 +100,7 @@ export function AssetsPage({
               ))}
               {visibleAssets.length === 0 && (
                 <EmptyRow columns={5}>
-                  {assets.length === 0 ? t('assets.none') : t('assets.noMatches')}
+                  {!isLoaded ? t('views.loading') : assets.length === 0 ? t('assets.none') : t('assets.noMatches')}
                 </EmptyRow>
               )}
             </tbody>
