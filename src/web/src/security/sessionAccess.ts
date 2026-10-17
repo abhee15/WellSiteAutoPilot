@@ -6,7 +6,17 @@ export type VerifiedSession = CurrentUserResponse & {
   userId: string; identityName: string; isActive: boolean;
   permissions: string[];
 };
-export class SessionAccessError extends Error {}
+export class SessionAccessError extends Error {
+  readonly status: number | undefined;
+  constructor(message: string, status?: number) { super(message); this.status = status; }
+}
+/**
+ * True when the server challenged for Windows credentials and the browser did not
+ * supply them. Retrying on a timer cannot fix this and can repeat browser prompts.
+ */
+export function isSignInRequired(reason: unknown): boolean {
+  return reason instanceof SessionAccessError && reason.status === 401;
+}
 export function hasPermission(user: CurrentUserResponse | null | undefined, permission: string): boolean {
   return user?.isActive === true && Array.isArray(user.permissions) && user.permissions.includes(permission);
 }
@@ -21,7 +31,7 @@ export function sessionAccessKey(user: VerifiedSession): string {
 }
 export async function loadSession(signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<VerifiedSession> {
   const response = await fetcher('/api/v1/security/me', { signal, credentials: 'same-origin', cache: 'no-store' });
-  if (!response.ok) throw new SessionAccessError('Session unavailable');
+  if (!response.ok) throw new SessionAccessError('Session unavailable', response.status);
   const body: unknown = await response.json();
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new SessionAccessError('Invalid session');
   const user = body as Partial<VerifiedSession>;

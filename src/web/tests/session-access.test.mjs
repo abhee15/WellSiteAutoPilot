@@ -38,6 +38,18 @@ test('missing or malformed permission/session data fails closed', async () => {
   for (const status of [401, 403, 500]) await assert.rejects(access.loadSession(signal(), async () => new Response('', { status })));
 });
 
+test('only a 401 is classified as sign-in required; other failures stay generic', async () => {
+  for (const [status, signInRequired] of [[401, true], [403, false], [500, false]]) {
+    const failure = await access.loadSession(signal(), async () => new Response('', { status })).catch(reason => reason);
+    assert.ok(failure instanceof access.SessionAccessError);
+    assert.equal(failure.status, status);
+    assert.equal(access.isSignInRequired(failure), signInRequired);
+  }
+  assert.equal(access.isSignInRequired(new Error('network')), false);
+  assert.equal(access.isSignInRequired(new access.SessionAccessError('Invalid session')), false);
+  assert.equal(access.isSignInRequired(undefined), false);
+});
+
 test('workspace does not request APIs outside the current permissions', async () => {
   const urls = [];
   const snapshot = await workspace.loadWorkspaceSnapshot(session, signal(), async (url, init) => {
