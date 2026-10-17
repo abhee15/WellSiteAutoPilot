@@ -89,6 +89,7 @@ try {
         $lines.Add("### $policy browser policy: $(ConvertTo-SafeToken $probe.LocalCoverage)")
         $lines.Add('| Scenario | Status | Failure stage | Calls | Identity match |')
         $lines.Add('| --- | --- | --- | --- | --- |')
+        $overview = New-Object System.Collections.Generic.List[string]
         foreach ($scenario in @($probe.Scenarios)) {
             $name = ConvertTo-SafeToken $scenario.Name
             $status = ConvertTo-SafeToken $scenario.Status
@@ -97,10 +98,13 @@ try {
             $codes = ($calls | ForEach-Object { ConvertTo-SafeToken $_.status } | Group-Object | Sort-Object Name |
                 ForEach-Object { "$($_.Name)x$($_.Count)" }) -join ','
             $lines.Add("| $name | $status | $failed | $($calls.Count) ($codes) | $(ConvertTo-SafeToken $scenario.IdentityMatches) |")
+            $overview.Add("$name=$status($codes)")
             if ($scenario.Status -ne 'PASSED') {
                 Write-Host "::error title=Browser $policy $name::Status=$status FailureStage=$failed Calls=$($calls.Count) Statuses=$codes"
             }
         }
+        # Passing scenarios must be visible too, not only failures.
+        Write-Host "::notice title=Browser policy $policy::LocalCoverage=$(ConvertTo-SafeToken $probe.LocalCoverage) Scenarios $($overview -join ' ')"
     }
 }
 catch {
