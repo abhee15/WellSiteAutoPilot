@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetCreationCapabilitiesResponse,
   AssetResponse,
@@ -25,11 +26,9 @@ export function AssetsPage({
   capabilities: AssetCreationCapabilitiesResponse | null;
   onRefresh: () => Promise<void>;
 }) {
-  const [selected, setSelected] = useState<AssetResponse | null>(null);
-  const selectedAuthorized = assets.find(asset => asset.id === selected?.id);
-  useEffect(() => {
-    if (selected && !assets.some(asset => asset.id === selected.id)) setSelected(null);
-  }, [assets, selected]);
+  const [selectedId, setSelectedId] = useHashDetail('assets');
+  const selectedAuthorized = assets.find(asset => asset.id === selectedId);
+  useForgetVanishedSelection(selectedId, Boolean(selectedAuthorized), () => setSelectedId(null));
   const typeNames = useMemo(
     () => new Map(assetTypes.map(type => [type.id, type.displayName])),
     [assetTypes],
@@ -58,7 +57,7 @@ export function AssetsPage({
         assets={assets}
         capabilities={capabilities}
         onCreated={async created => {
-          setSelected(created);
+          setSelectedId(created.id ?? null);
           await onRefresh();
         }}
         onRefresh={onRefresh}
@@ -87,7 +86,7 @@ export function AssetsPage({
               {visibleAssets.map(asset => (
                 <tr key={asset.id}>
                   <td><button type="button" className="asset-select"
-                    onClick={() => setSelected(asset)}
+                    onClick={() => setSelectedId(asset.id ?? null)}
                     aria-label={t('assets.selectNamed', { name: asset.name ?? t('assets.unnamed') })}>
                     {asset.name}
                   </button></td>
@@ -112,7 +111,7 @@ export function AssetsPage({
             typeNames.get(selectedAuthorized.assetTypeId) ?? selectedAuthorized.assetTypeId ?? t('assets.unknownType') })}</p>
           <code>{selectedAuthorized.id}</code>
           <button type="button" className="secondary-button"
-            onClick={() => setSelected(null)}>{t('assets.clearSelection')}</button>
+            onClick={() => setSelectedId(null)}>{t('assets.clearSelection')}</button>
         </div>}
       </section>
 

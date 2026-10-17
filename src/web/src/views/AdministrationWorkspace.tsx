@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useHashDetail } from '../routing';
 import { t } from '../localization';
 import { AccessManagementPage } from './AccessManagementPage';
 import { RoleCatalogPage } from './RoleCatalogPage';
@@ -8,7 +9,9 @@ type Tab = 'users' | 'roles' | 'grants';
 
 /** Keep Administration in the user menu, not the industrial primary navigation. */
 export function AdministrationWorkspace({ currentUserId }: { currentUserId: string }) {
-  const [tab, setTab] = useState<Tab>('users');
+  const [detail, setDetail] = useHashDetail('access');
+  const tab: Tab = detail === 'roles' || detail === 'grants' ? detail : 'users';
+  const setTab = (next: Tab) => setDetail(next === 'users' ? null : next);
   // The user chosen by "Assign role" on the Users tab; only the next Grants view consumes it.
   const [assignUserId, setAssignUserId] = useState('');
   return (

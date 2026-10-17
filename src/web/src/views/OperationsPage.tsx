@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useForgetVanishedSelection, useHashDetail } from '../routing';
 import type { ExecutionResponse, SystemInfoResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
@@ -18,15 +19,10 @@ export function OperationsPage({
   userId: string | null | undefined;
 }) {
   const [viewCriteria, setViewCriteria] = useState<OperationsViewCriteria>(DEFAULT_OPERATIONS_VIEW);
-  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const [selectedExecutionId, setSelectedExecutionId] = useHashDetail('operations');
   const selectedIdStillAuthorized = selectedExecutionId !== null &&
     executions.some(execution => execution.executionId === selectedExecutionId);
-  // Forget a selection as soon as it disappears from the authorized list.
-  useEffect(() => {
-    if (selectedExecutionId && !selectedIdStillAuthorized) {
-      setSelectedExecutionId(null);
-    }
-  }, [selectedExecutionId, selectedIdStillAuthorized]);
+  useForgetVanishedSelection(selectedExecutionId, selectedIdStillAuthorized, () => setSelectedExecutionId(null));
   const visibleExecutions = useMemo(
     () => filterOperations(executions, viewCriteria),
     [executions, viewCriteria],

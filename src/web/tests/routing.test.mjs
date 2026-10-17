@@ -19,3 +19,13 @@ test('landing priority follows section order and permissions', () => {
   assert.equal(routing.firstOpenableSection(user([])), null);
   assert.equal(routing.firstOpenableSection(null), null);
 });
+
+test('addresses carry a section and an optional encoded detail', () => {
+  assert.deepEqual(routing.parseHash('#assets'), { section: 'assets', detail: null });
+  assert.deepEqual(routing.parseHash('#Assets/abc%2F1'), { section: 'assets', detail: 'abc/1' });
+  assert.deepEqual(routing.parseHash('#logic/'), { section: 'logic', detail: null });
+  assert.deepEqual(routing.parseHash('#assets/%E0%A4%A'), { section: 'assets', detail: null });
+  assert.deepEqual(routing.parseHash(''), { section: '', detail: null });
+  assert.equal(routing.hashFor('assets', 'a b'), '#assets/a%20b');
+  assert.equal(routing.hashFor('assets', null), '#assets');
+});

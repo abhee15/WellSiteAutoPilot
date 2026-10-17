@@ -38,7 +38,7 @@ beforeEach(() => {
   vi.mocked(loadGrantAssetDirectory).mockResolvedValue([]);
   vi.mocked(loadGrants).mockResolvedValue([]);
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); window.location.hash = ''; });
 
 describe('waiting-for-access queue', () => {
   it('shows direct role counts and offers assignment only for other active users', async () => {
