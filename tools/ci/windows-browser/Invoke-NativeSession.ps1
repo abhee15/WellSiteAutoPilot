@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $report = [ordered]@{
     SchemaVersion = 1; NativeUserMatches = $false; EnabledGroupMatches = $false
     Baseline = 'NOT EXECUTED'; Policies = @(); Status = 'FAILED'; FailureStage = 'TokenVerification'; DomainCoverage = 'NOT EXECUTED'
-    IdentityRequestStatus = $null; IdentityRequestFailure = $null; IdentityMatches = $null
+    IdentityRequestStatus = $null; IdentityRequestFailure = $null; IdentityRequestErrorId = $null; IdentityMatches = $null
 }
 $native = $null
 try {
@@ -33,14 +33,25 @@ try {
     # The request and the comparison are separate stages so a failure says which one broke.
     # Only an HTTP status code, an exception type name and a boolean are recorded.
     $report.FailureStage = 'NativeIdentityRequest'
+    # Use the same HttpClient path as verify-windows-negotiate.ps1; Invoke-RestMethod threw a
+    # client-side ValidationMetadataException here before any request reached the server.
+    Add-Type -AssemblyName System.Net.Http
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $handler.UseDefaultCredentials = $true
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    $client.Timeout = [TimeSpan]::FromSeconds(30)
     try {
-        $me = Invoke-RestMethod 'http://localhost:5080/api/v1/security/me' -UseDefaultCredentials -TimeoutSec 30
-        $report.IdentityRequestStatus = 200
+        $response = $client.GetAsync([Uri]'http://localhost:5080/api/v1/security/me').GetAwaiter().GetResult()
+        try {
+            $report.IdentityRequestStatus = [int]$response.StatusCode
+            if (-not $response.IsSuccessStatusCode) { throw 'Native identity request did not succeed.' }
+            $me = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+        } finally { $response.Dispose() }
     } catch {
         $report.IdentityRequestFailure = $_.Exception.GetType().Name
-        if ($_.Exception.Response) { $report.IdentityRequestStatus = [int]$_.Exception.Response.StatusCode }
+        $report.IdentityRequestErrorId = $_.FullyQualifiedErrorId
         throw
-    }
+    } finally { $client.Dispose() }
     $report.FailureStage = 'NativeIdentityMatch'
     $report.IdentityMatches = ($me.identityName -ieq $native.Name)
     if (-not $report.IdentityMatches) { throw 'Native baseline identity did not match.' }
