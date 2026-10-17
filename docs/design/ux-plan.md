@@ -437,6 +437,12 @@ These do not block Phase 1. Defaults are what the plan assumes.
     generated code a non-programmer must be able to see.
 13. **Personas.** Confirm section 3.
 14. **Languages and units.** English only for now; US-oilfield/SI units are a preference decision.
+15. **Sticky status footer.** Passive status always in view (connection, "Updated hh:mm zone", time
+    zone, units, user), with Refresh beside the freshness it refreshes, is common in control-room tools
+    and is in the prototype. Page actions and decisions stay beside the thing they act on, never in a
+    global footer. To test before building: vertical space on tablets, focus not obscured at high zoom
+    (WCAG 2.2), landmark and focus order, coexistence with the sign-in banner, and whether live updates
+    (B10) make the Refresh button unnecessary. *Default: no footer until the research supports it.*
 
 ## 14. How we will know it works
 
