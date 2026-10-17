@@ -70,7 +70,23 @@ internal static class GrantPermissionChecks
         Require(!(await authorization.AuthorizeAsync(principal, http,
             [new GrantPermissionRequirement("unknown.permission")])).Succeeded, "Unknown permission was accepted.");
         Require(repository.Calls == calls, "Invalid principals or permissions reached grant queries.");
+        // A repository failure is never interpreted as authorization success.
+        // In particular, a previous successful request cannot be reused.
+        repository.ThrowOnQuery = true;
+        await RequireFailureAsync(() => authorization.AuthorizeAsync(principal, http,
+            WellSitePermissions.AssetsRead), "Resource permission repository failure");
+        await RequireFailureAsync(() => authorization.AuthorizeAsync(principal, http,
+            WellSitePermissions.SecurityManage), "Protected administrator repository failure");
+        repository.ThrowOnQuery = false;
+        await ExpectAsync(WellSitePermissions.SecurityManage, false);
         Console.WriteLine("Grant policies reject spoofed claims, require bound identity, distinguish protected/global/resource checks and requery after revocation.");
+
+        static async Task RequireFailureAsync(Func<Task<AuthorizationResult>> action, string label)
+        {
+            try { await action(); }
+            catch (InvalidOperationException) { return; }
+            throw new InvalidOperationException(label + " unexpectedly succeeded.");
+        }
 
         async Task ExpectAsync(string permission, bool allowed) =>
             Require((await authorization.AuthorizeAsync(principal, http, permission)).Succeeded == allowed,
@@ -91,6 +107,7 @@ internal static class GrantPermissionChecks
     private sealed class Repository : IRequestAccessRepository
     {
         public IReadOnlyCollection<string> Hints { get; set; } = [];
+        public bool ThrowOnQuery { get; set; }
         public bool Administrator { get; set; }
         public bool DeploymentAllowed { get; set; }
         public int Calls { get; private set; }
@@ -129,6 +146,7 @@ internal static class GrantPermissionChecks
         private void Observe(AccessSubject subject, CancellationToken cancellationToken)
         {
             Calls++;
+            if (ThrowOnQuery) throw new InvalidOperationException("Injected grant repository failure.");
             LastSubject = subject;
             LastCancellation = cancellationToken;
         }
