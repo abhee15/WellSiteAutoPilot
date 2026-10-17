@@ -1,0 +1,23 @@
+.nav-group {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.nav-group + .nav-group {
+  margin-top: var(--space-12);
+}
+
+.nav-group-label {
+  margin: 0 0 var(--space-4);
+  padding: 0 var(--space-12);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 760px) {
+  .nav-group-label {
+    display: none;
+  }
+}
