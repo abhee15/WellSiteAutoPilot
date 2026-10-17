@@ -519,10 +519,24 @@ internal static class ScopedResourceQueryChecks
                 await executionRepository.GetAuthorizedAsync(request, deniedExecution) is not null ||
                 (await executionRepository.GetAuthorizedAsync(request, v1Execution))?.Id != v1Execution)
                 throw new InvalidOperationException("Execution repository lost V1/V2 authorized snapshot semantics.");
+            // Optional filters narrow only what is already authorized; scope is applied first.
+            var byLogic = await executionRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: allowed.Id);
+            var byAssetB = await executionRepository.ListAuthorizedAsync(request, null, 100, assetId: assetB);
+            if (!byLogic.Select(item => item.Id).ToHashSet().SetEquals([allowedExecution, v1Execution]) ||
+                !byAssetB.Select(item => item.Id).ToHashSet().SetEquals([mixedExecution]) ||
+                (await executionRepository.ListAuthorizedAsync(request, null, 100, assetId: assetC)).Count != 0 ||
+                (await executionRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: denied.Id)).Count != 0 ||
+                (await executionRepository.ListAuthorizedAsync(request, null, 1, assetId: assetA)).Count != 1)
+                throw new InvalidOperationException("Execution filters disclosed or displaced unauthorized executions.");
             if ((await recommendationRepository.ListAuthorizedAsync(request, null, 1)).Single().Id != recommendationA ||
                 await recommendationRepository.GetAuthorizedAsync(request, recommendationC) is not null ||
                 (await recommendationRepository.GetAuthorizedAsync(request, recommendationB))?.Id != recommendationB)
                 throw new InvalidOperationException("Recommendation repository lost authorized detail/page semantics.");
+            if ((await recommendationRepository.ListAuthorizedAsync(request, null, 100, assetId: assetB)).Single().Id != recommendationB ||
+                (await recommendationRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: allowed.Id)).Single().Id != recommendationA ||
+                (await recommendationRepository.ListAuthorizedAsync(request, null, 100, assetId: assetC)).Count != 0 ||
+                (await recommendationRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: denied.Id)).Count != 0)
+                throw new InvalidOperationException("Recommendation filters disclosed or displaced unauthorized recommendations.");
         }
 
         async Task AssertEmptyAsync(Guid subject, string? permission = null,

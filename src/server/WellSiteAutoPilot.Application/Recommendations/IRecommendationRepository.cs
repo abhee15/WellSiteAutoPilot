@@ -12,8 +12,12 @@ public interface IRecommendationRepository
     Task<RecommendationRecord?> GetAuthorizedAsync(AccessSubject subject, Guid id,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists authorized recommendations, newest first. Scope is applied before the optional configured
+    /// Logic and Asset filters and before the limit.
+    /// </summary>
     Task<IReadOnlyCollection<RecommendationRecord>> ListAuthorizedAsync(AccessSubject subject, RecommendationStatus? status, int limit,
-        CancellationToken cancellationToken = default);
+        Guid? configuredLogicId = null, Guid? assetId = null, CancellationToken cancellationToken = default);
 
     Task<int> AddMissingAsync(
         IReadOnlyCollection<RecommendationRecord> recommendations,

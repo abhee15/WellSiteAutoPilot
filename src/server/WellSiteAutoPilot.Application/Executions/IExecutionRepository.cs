@@ -11,8 +11,13 @@ public interface IExecutionRepository
     Task<ExecutionRecord?> GetAuthorizedAsync(AccessSubject subject, Guid id,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists authorized executions, newest first. Authorization scope is applied before the optional
+    /// configured Logic and Asset filters and before the limit, so a filter can never reveal or
+    /// displace anything outside the caller's scope.
+    /// </summary>
     Task<IReadOnlyCollection<ExecutionRecord>> ListAuthorizedAsync(AccessSubject subject, ExecutionStatus? status, int limit,
-        CancellationToken cancellationToken = default);
+        Guid? configuredLogicId = null, Guid? assetId = null, CancellationToken cancellationToken = default);
 
     Task AddRequestedAsync(
         ExecutionRecord execution,
