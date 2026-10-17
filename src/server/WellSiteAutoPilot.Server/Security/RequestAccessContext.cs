@@ -21,19 +21,30 @@ public sealed class RequestAccessContext(IAuthenticatedPrincipalResolver princip
 
     public void Initialize(ClaimsPrincipal authenticatedPrincipal, UserAccessProfile profile)
     {
-        ArgumentNullException.ThrowIfNull(authenticatedPrincipal);
         ArgumentNullException.ThrowIfNull(profile);
-        if (subject is not null || !profile.IsActive || profile.Id == Guid.Empty) throw Denied();
+        InitializeCore(authenticatedPrincipal, profile.Id, profile.IdentityKey, profile.IsActive);
+    }
+
+    public void Initialize(ClaimsPrincipal authenticatedPrincipal, UserIdentity profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        InitializeCore(authenticatedPrincipal, profile.Id, profile.IdentityKey, profile.IsActive);
+    }
+
+    private void InitializeCore(ClaimsPrincipal authenticatedPrincipal, Guid userId, string identityKey, bool active)
+    {
+        ArgumentNullException.ThrowIfNull(authenticatedPrincipal);
+        if (subject is not null || !active || userId == Guid.Empty) throw Denied();
         var identity = principals.Resolve(authenticatedPrincipal);
-        if (!string.Equals(identity.PersistedIdentityKey, profile.IdentityKey, StringComparison.Ordinal)) throw Denied();
+        if (!string.Equals(identity.PersistedIdentityKey, identityKey, StringComparison.Ordinal)) throw Denied();
         // TestHeader is simulated authentication and can never carry native
         // Windows-group authority, even if a resolver is accidentally supplied.
         var membership = identity.ProviderId == "windows"
-            ? groups.Resolve(authenticatedPrincipal, identity, profile.Id) : null;
-        if (membership is not null && membership.UserId != profile.Id)
+            ? groups.Resolve(authenticatedPrincipal, identity, userId) : null;
+        if (membership is not null && membership.UserId != userId)
             throw new WellSiteAutoPilotException("SECURITY_GROUP_SUBJECT_MISMATCH", FailureKind.Authorization,
                 "The group token does not match the resolved user identity.");
-        subject = new AccessSubject(profile.Id, membership);
+        subject = new AccessSubject(userId, membership);
         principal = authenticatedPrincipal;
         external = identity;
     }

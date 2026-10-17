@@ -144,6 +144,7 @@ builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddScoped<UserAccessService>();
+builder.Services.AddScoped<UserIdentityService>();
 builder.Services.AddScoped<RoleCatalogService>();
 builder.Services.AddScoped<AccessGrantAdministrationService>();
 builder.Services.AddScoped<ScopedAccessInspectionService>();

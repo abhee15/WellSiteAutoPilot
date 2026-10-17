@@ -43,9 +43,12 @@ public sealed partial class LogicModuleCatalogRepository
             {
                 var current = ToDomain(existing[0]);
                 if (!string.Equals(current.PackageSha256, logicModule.PackageSha256, StringComparison.OrdinalIgnoreCase) ||
-                    current.ManifestJson != logicModule.ManifestJson || current.TrustStatus != logicModule.TrustStatus || current.IsEnabled != logicModule.IsEnabled)
+                    current.ManifestJson != logicModule.ManifestJson)
                     throw new WellSiteAutoPilotException("MODULE_VERSION_IMMUTABLE", FailureKind.Conflict,
-                        "This module version is already installed with different content or trust metadata.");
+                        "This module version is already installed with different content.");
+                // Registration never changes an installed version's approval
+                // or retirement state, even if its caller proposes a different
+                // initial trust classification for the same immutable content.
                 await transaction.CommitAsync(cancellationToken);
                 return current;
             }

@@ -294,6 +294,49 @@ stale revisions, duplicate/invalid scopes, last-direct recovery refusal,
 post-save rollback, actual administrator revocation and target-role retirement
 lock waits. This batch requires current-head CI before a validation claim.
 
+Administration head `872f7f1d3838b51a5f5e3a5a2a1edf3b64c6469e` passed
+all seven jobs in run `38986483093`, including the Windows installer. Its new protected-grant role/assignment
+cases executed in the isolated bootstrap database. No runtime authority switch
+has occurred.
+
+Identity-only provisioning and directory reads are now prepared with a
+UserIdentity record and IUserIdentityRepository/UserIdentityService. They reuse
+the existing atomic user/audit upsert without loading or parsing legacy role or
+Asset-scope tables. First login adds no grants or legacy roles; bootstrap stays
+a separate explicit grant initializer. RequestAccessContext accepts this
+identity-only profile and binds the same trusted provider/group observation.
+Services are registered but live middleware still uses the old path until the
+complete switch. Added database cases cover concurrent same-identity creation,
+one provisioning audit, custom labels in the old table, metadata refresh and
+disabled identities. New-head CI is required.
+
+Catalog review also preserves idempotent registration across approval-state
+changes: identical immutable content returns the current installed trust/enabled
+state, never changes approval or re-enables a retired module. A caller's initial
+Untrusted classification does not conflict with an already approved copy.
+Regression cases cover both approval preservation and disabled-state replay.
+
+## Remaining atomic runtime integration
+
+- Bind identity-only provisioning, explicit grant bootstrap, RequestAccessContext,
+  dynamic SQL-backed permission policies and /security/me to one grant source.
+  Do not copy authority or Asset wildcards from legacy claims.
+- Convert every published resource/global/admin route to its prepared entry
+  points. Check the raw V1 /executions/shadow route explicitly: its existing
+  pre-transaction scope check is not a mutation fence, and caller-supplied
+  external mappings must not bypass persisted Asset authority. Preserve V1/V2
+  messaging compatibility while resolving that HTTP boundary before activation.
+- Return server-calculated per-resource action capabilities (configuration
+  management/run and recommendation decisions in particular), using paired
+  permissions for the actual targets. Never infer them from coarse menu hints.
+- Use identity-only directory records and protected grant administration for
+  user/group assignments and custom roles. Remove fixed-role access editing and
+  migration-only APIs/UI, then regenerate the client and update route/E2E tests
+  together. Leave no published path that still requires legacy Admin claims.
+- Run the complete direct/group scope/permission, revocation, frontend loss-of-
+  access and seven-job matrix on the final reviewed head and unchanged merge
+  tree before merging. Keep #92 the next Phase 1 task after this runtime work.
+
 Do not introduce a Legacy/Observe/Enforce state machine or a production
 migration campaign for this unreleased baseline. Do not enable a partial mixed
 legacy/grant runtime merely because an individual repository or UI test passes.

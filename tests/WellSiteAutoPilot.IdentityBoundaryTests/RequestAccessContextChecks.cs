@@ -52,6 +52,11 @@ internal static class RequestAccessContextChecks
         direct.Initialize(http.User, profile);
         if (direct.Subject.WindowsGroups is not null || !direct.CreateActor(http).RequiresWindowsGroupProof)
             throw new InvalidOperationException("Missing Windows proof was represented as a verified empty token.");
+        var identityGroups = new CountingGroups(membership);
+        var identityAccess = new RequestAccessContext(new ConfiguredPrincipalResolver("Negotiate"), identityGroups);
+        identityAccess.Initialize(http.User, new UserIdentity(userId, profile.IdentityKey, profile.IdentityName, null, true, now, now));
+        if (identityAccess.Subject.UserId != userId || !ReferenceEquals(identityAccess.Subject.WindowsGroups, membership) || identityGroups.Calls != 1)
+            throw new InvalidOperationException("Identity-only request binding lost its trusted subject observation.");
         Console.WriteLine("Request identity binding, one observation, TestHeader separation, missing/mismatched proof and inactive/foreign user refusal passed.");
     }
 

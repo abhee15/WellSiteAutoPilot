@@ -25,6 +25,7 @@ internal static class GrantBootstrapChecks
                 .UseNpgsql(isolated.ConnectionString).Options;
             await using var setup = new WellSiteAutoPilotDbContext(options);
             await setup.Database.MigrateAsync();
+            await UserIdentityDirectoryChecks.RunAsync(options);
             var now = DateTimeOffset.UtcNow;
             var first = await AddUserAsync();
             var second = await AddUserAsync();

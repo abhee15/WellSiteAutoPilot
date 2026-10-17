@@ -43,6 +43,13 @@ internal static class AuthorizedModuleCatalogChecks
         var first = await RegisterAsync(command);
         if (!first.IsEnabled || (await RegisterAsync(command)).Id != first.Id)
             throw new InvalidOperationException("Authorized registration or idempotent catalog result was incorrect.");
+        var unchangedTrust = await RegisterAsync(command with { TrustStatus = LogicModuleTrustStatus.Untrusted });
+        if (unchangedTrust.Id != first.Id || unchangedTrust.TrustStatus != first.TrustStatus || !unchangedTrust.IsEnabled)
+            throw new InvalidOperationException("Idempotent registration changed installed approval state.");
+        await setup.LogicModules.Where(item => item.Id == first.Id).ExecuteUpdateAsync(set => set.SetProperty(item => item.IsEnabled, false));
+        if ((await RegisterAsync(command)).IsEnabled)
+            throw new InvalidOperationException("Idempotent registration re-enabled a retired module.");
+        await setup.LogicModules.Where(item => item.Id == first.Id).ExecuteUpdateAsync(set => set.SetProperty(item => item.IsEnabled, true));
         await ExpectAsync(() => RegisterAsync(command with { PackageSha256 = new string('3', 64) }), FailureKind.Conflict);
         var changed = JsonNode.Parse(command.ManifestJson)!.AsObject();
         changed["displayName"] = "Changed content";
