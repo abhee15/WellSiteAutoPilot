@@ -239,8 +239,10 @@ v1.MapGet(
 
 v1.MapGet(
     "/security/users",
-    async (int? limit, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
-        (await directory.ListUsersAuthorizedAsync(access.Subject, limit ?? 100, cancellationToken)).Select(ToSecurityUserResponse).ToArray())
+    async (int? limit, bool? awaitingAccess, ISecurityDirectoryRepository directory, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+        (await directory.ListUsersAuthorizedAsync(access.Subject, limit ?? 100, awaitingAccess ?? false, cancellationToken))
+            .Select(ToSecurityUserResponse).ToArray())
     .WithName("ListSecurityUsers")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<SecurityUserResponse[]>(StatusCodes.Status200OK)
@@ -942,13 +944,14 @@ static RoleDefinitionResponse ToRoleResponse(
     role.Permissions.ToArray());
 
 static SecurityUserResponse ToSecurityUserResponse(
-    WellSiteAutoPilot.Domain.Security.UserIdentity user) => new(
-    user.Id,
-    user.IdentityName,
-    user.DisplayName,
-    user.IsActive,
-    user.CreatedAtUtc,
-    user.LastSeenAtUtc);
+    WellSiteAutoPilot.Application.Security.SecurityUserDirectoryEntry entry) => new(
+    entry.User.Id,
+    entry.User.IdentityName,
+    entry.User.DisplayName,
+    entry.User.IsActive,
+    entry.User.CreatedAtUtc,
+    entry.User.LastSeenAtUtc,
+    entry.ActiveDirectGrantCount);
 
 static T RequireFound<T>(T? value, string code) where T : class => value ??
     throw new WellSiteAutoPilotException(code, FailureKind.NotFound, "The requested resource was not found.");

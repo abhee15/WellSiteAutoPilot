@@ -27,7 +27,9 @@ function mutationError(cause: unknown): string {
   return t('grants.saveUncertain');
 }
 
-export function GrantAdministrationPage({ currentUserId }: { currentUserId: string }) {
+export function GrantAdministrationPage(
+  { currentUserId, initialUserId = '' }: { currentUserId: string; initialUserId?: string },
+) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [permissions, setPermissions] = useState<PermissionDefinition[]>([]);
@@ -116,6 +118,17 @@ export function GrantAdministrationPage({ currentUserId }: { currentUserId: stri
       }
     }
   };
+
+  // Preselect the user handed over from the Users tab once, after the directory has loaded.
+  const preselect = useRef(initialUserId);
+  useEffect(() => {
+    const wanted = preselect.current;
+    if (!wanted || isLoading || users.length === 0) return;
+    preselect.current = '';
+    if (users.some(user => user.userId === wanted && user.isActive &&
+      user.userId.toLowerCase() !== currentUserId.toLowerCase())) void pickUser(wanted);
+  // pickUser is recreated on every render; the ref makes this run once.
+  }, [isLoading, users, currentUserId]);
 
   const save = async () => {
     if (!pending || !preview || saving || grantsLoading || mutationRef.current || retiring ||
