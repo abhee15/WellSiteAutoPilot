@@ -55,6 +55,16 @@ try {
         $lines.Add("| Topology | $(ConvertTo-SafeToken $fixture.Topology) |")
         $lines.Add("| Authentication mode | $(ConvertTo-SafeToken $fixture.AuthenticationMode) |")
 
+        $other = $fixture.UnprovisionedSession
+        $otherText = "Result=$unprovisioned Exit=$(ConvertTo-SafeToken $fixture.UnprovisionedExit)"
+        if ($other) {
+            $otherText += " Status=$(ConvertTo-SafeToken $other.Status) FailureStage=$(ConvertTo-SafeToken $other.FailureStage) " +
+                "UserMatches=$(ConvertTo-SafeToken $other.NativeUserMatches) InFixtureGroup=$(ConvertTo-SafeToken $other.InFixtureGroup) " +
+                "IdentityRequestStatus=$(ConvertTo-SafeToken $other.IdentityRequestStatus) Expected=$(ConvertTo-SafeToken $other.Expected)"
+        }
+        Write-Host "::notice title=Unprovisioned user::$otherText"
+        $lines.Add("| Unprovisioned user | $otherText |")
+
         $native = $fixture.NativeSession
         if ($native) {
             $nativeText = "Status=$(ConvertTo-SafeToken $native.Status) FailureStage=$(ConvertTo-SafeToken $native.FailureStage) " +

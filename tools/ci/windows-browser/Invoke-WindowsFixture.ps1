@@ -25,7 +25,7 @@ $childOutput = Join-Path $root 'reports'
 $report = [ordered]@{
     SchemaVersion = 1; Commit = $env:GITHUB_SHA; Topology = 'NOT EXECUTED'; AuthenticationMode = 'NOT EXECUTED'
     WindowsVersion = [Environment]::OSVersion.Version.ToString(); NativeSession = $null
-    DomainCoverage = 'NOT EXECUTED'; LocalCoverage = 'NOT EXECUTED'; UnprovisionedUser = 'NOT EXECUTED'; FailureStage = 'Preflight'; FailureType = $null
+    DomainCoverage = 'NOT EXECUTED'; LocalCoverage = 'NOT EXECUTED'; UnprovisionedUser = 'NOT EXECUTED'; UnprovisionedSession = $null; UnprovisionedExit = $null; FailureStage = 'Preflight'; FailureType = $null
     ServerObservations = @(); BrowserCorrelationMatches = @(); ConnectionEvidence = 'NOT CAPTURED'; Cleanup = 'PENDING'
 }
 $user = $null; $otherUser = $null; $group = $null; $server = $null; $nats = $null; $child = $null
@@ -151,7 +151,11 @@ try {
         $otherReport = Join-Path $childOutput 'unprovisioned-session.json'
         if ($other.ExitCode -eq 0 -and (Test-Path -LiteralPath $otherReport)) { $report.UnprovisionedUser = 'PASSED' }
         else { $report.UnprovisionedUser = 'FAILED' }
-        if (Test-Path -LiteralPath $otherReport) { Copy-Item -LiteralPath $otherReport -Destination $OutputDirectory }
+        $report.UnprovisionedExit = $other.ExitCode
+        if (Test-Path -LiteralPath $otherReport) {
+            Copy-Item -LiteralPath $otherReport -Destination $OutputDirectory
+            $report.UnprovisionedSession = Get-Content -LiteralPath $otherReport -Raw | ConvertFrom-Json
+        }
     }
     $report.FailureStage = 'NativeSession'
     # These files are produced exclusively by our checked-in sanitized reporters.
