@@ -1,6 +1,7 @@
 // Developer tooling only (see docs/development/aspire-local-development-plan.md).
 // Increment 1a: NATS (your own nats-server), the Server and the React frontend.
 using Aspire.Hosting;
+using Microsoft.Extensions.Configuration;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
