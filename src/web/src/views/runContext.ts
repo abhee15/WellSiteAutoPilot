@@ -24,8 +24,8 @@ export function describeRunContext(
   const revision = configuration?.revisions?.find(item => item.id === execution.configurationRevisionId);
   const assetIds = execution.assetId
     ? [execution.assetId]
-    : [...new Set((revision?.assetBindings ?? []).map(binding => binding.assetId))];
-  const names = new Map(assets.map(asset => [asset.id, asset.name ?? '']));
+    : [...new Set((revision?.assetBindings ?? []).flatMap(binding => (binding.assetId ? [binding.assetId] : [])))];
+  const names = new Map(assets.flatMap(asset => (asset.id ? [[asset.id, asset.name ?? ''] as const] : [])));
   return {
     logicName: configuration?.name ?? null,
     revisionNumber: revision?.revisionNumber ?? null,
