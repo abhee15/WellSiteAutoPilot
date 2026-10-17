@@ -66,11 +66,12 @@ internal static class AuthorizedConfigurationDraftChecks
             await setup.SaveChangesAsync();
             var subject = new AccessSubject(user, group ? new(user, [sid], now) : null);
             var actor = new SecurityActorContext(user, name, "draft-probe");
+            var typeKey = await setup.AssetTypes.Where(item => item.Id == assetTypeId).Select(item => item.Key).SingleAsync();
             var manifest = $$"""
                 {"manifestVersion":1,"moduleId":"{{name}}","version":"1.0.0","displayName":"Draft probe",
                  "publisher":"Test","runtime":"DotNet","executionProfile":"ScheduledOneShot",
                  "entryPoint":"Test.EntryPoint","minimumSdkVersion":"1.0.0",
-                 "assetRequirements":[{"role":"target","minimumCount":1,"maximumCount":1,"requiredTraits":[]}],
+                 "assetRequirements":[{"role":"target","minimumCount":1,"maximumCount":1,"requiredAssetTypeKey":"{{typeKey}}","requiredTraits":[]}],
                  "dataRequirements":[],"commandRequirements":[]}
                 """;
             var catalog = new LogicModuleCatalogRepository(setup);
@@ -82,6 +83,8 @@ internal static class AuthorizedConfigurationDraftChecks
             await service.CreateRevisionAuthorizedAsync(applicationDraft.Id,
                 new(manifest, "{}", draftCommand.AssetBindings, [], null), subject, actor);
             await ExpectAsync(() => service.CreateAuthorizedAsync(draftCommand with { ParametersJson = "[]" }, subject, actor), FailureKind.Validation);
+            var lifecycleAuditCount = await AuthorizedConfigurationLifecycleChecks.RunAsync(options, applicationDraft.Id,
+                subject, actor, grant, readGrant, assetB, assetTypeId, name);
             var config = Guid.NewGuid();
             var first = Draft(config, 1, assetA);
             await WriteAsync(repository => repository.AddAuthorizedAsync(Definition(first), subject, actor));
@@ -164,7 +167,7 @@ internal static class AuthorizedConfigurationDraftChecks
                 Draft(config, 4, assetA), subject, actor)), FailureKind.Authorization);
             if (await setup.ConfiguredLogicRevisions.CountAsync(item => item.ConfiguredLogicId == config) != 3 ||
                 await setup.ConfiguredLogicRevisions.CountAsync(item => item.ConfiguredLogicId == foreign.ConfiguredLogicId) != 1 ||
-                await setup.AuditEvents.CountAsync(item => item.CorrelationId == actor.CorrelationId && item.ActorUserId == user) != 5)
+                await setup.AuditEvents.CountAsync(item => item.CorrelationId == actor.CorrelationId && item.ActorUserId == user) != 5 + lifecycleAuditCount)
                 throw new InvalidOperationException("A denied draft write changed persisted configuration or audit state.");
             await setup.ConfiguredLogicDefinitions.Where(item => item.Id == config || item.Id == foreign.ConfiguredLogicId || item.Id == applicationDraft.Id).ExecuteDeleteAsync();
             await setup.LogicModules.Where(item => item.ModuleId == name).ExecuteDeleteAsync();

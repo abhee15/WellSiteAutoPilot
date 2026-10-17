@@ -204,6 +204,27 @@ with a separate manually triggered Windows browser diagnostic PR, then grow
 real local user/group coverage and relevant-change regression gating. Keep
 domain-connected AD/Kerberos validation distinct from local Windows coverage.
 
+All seven jobs passed application-authoring head
+`540797a9d1c4c9a7c50ef5b64a806f2419618158` in run `38982870375`.
+The next checkpoint adds grant-authorized validation/activation application and
+repository entry points. They compare the complete reviewed revision with the
+locked persisted snapshot, retain complete configuration read/manage scope,
+and retain/recheck the enabled installed module/manifest and required Asset
+types through the atomic status/active-pointer/audit commit. Proof freshness is
+rechecked after dependency locks. Activation requires the reviewed active token;
+stale snapshots/tokens and dependency/serialization conflicts fail closed.
+The existing legacy entry points remain until the complete route switch.
+
+New lifecycle PostgreSQL cases cover separate read/manage grants, missing group
+proof, out-of-scope inputs on an older revision, changed reviewed metadata,
+module/type retirement between review and persistence, rollback after saved
+status/audit SQL, missing/stale activation tokens, superseding active revisions,
+duplicate activation and an observed module-retirement lock wait. After that
+retirement a fresh draft cannot be validated. These cases require new-head CI;
+the seven-job result above applies only to the prior checkpoint. Manual Shadow
+request/replay and deployment-wide catalog/security mutation fences remain
+before the unified middleware/API/frontend cutover and legacy removal.
+
 Do not introduce a Legacy/Observe/Enforce state machine or a production
 migration campaign for this unreleased baseline. Do not enable a partial mixed
 legacy/grant runtime merely because an individual repository or UI test passes.

@@ -22,9 +22,9 @@ public sealed partial class ConfiguredLogicRepository
         var revision = definition.Revisions.Single();
         ValidateDraft(revision);
         if (revision.ConfiguredLogicId != definition.Id || revision.RevisionNumber != 1) throw InvalidDraft();
-        return WriteDraftAuthorizedAsync(subject, actor, async () =>
+        return WriteConfigurationAuthorizedAsync(subject, actor, async () =>
         {
-            await RequireDraftAssetsAsync(subject, DraftAssets(revision), cancellationToken);
+            await RequireConfigurationAssetsAsync(subject, DraftAssets(revision), cancellationToken);
             dbContext.ConfiguredLogicDefinitions.Add(new ConfiguredLogicEntity
             {
                 Id = definition.Id, Name = definition.Name, CreatedAtUtc = definition.CreatedAtUtc
@@ -39,40 +39,48 @@ public sealed partial class ConfiguredLogicRepository
     {
         ArgumentNullException.ThrowIfNull(revision);
         ValidateDraft(revision);
-        return WriteDraftAuthorizedAsync(subject, actor, async () =>
+        return WriteConfigurationAuthorizedAsync(subject, actor, async () =>
         {
             // Resolve the full persisted configuration under the same lock used
             // by lifecycle writes. The client cannot replace its old scope with
             // an authorized incoming binding to acquire a foreign configuration.
-            var definitions = await dbContext.ConfiguredLogicDefinitions.FromSqlInterpolated($"""
-                SELECT c.* FROM logic.configured_logic AS c WHERE c."Id" = {revision.ConfiguredLogicId} FOR UPDATE OF c
-                """).AsNoTracking().ToArrayAsync(cancellationToken);
-            if (definitions.Length != 1) throw DraftDenied();
-            var revisions = await dbContext.ConfiguredLogicRevisions.FromSqlInterpolated($"""
-                SELECT r.* FROM logic.configured_logic_revisions AS r
-                WHERE r."ConfiguredLogicId" = {revision.ConfiguredLogicId} ORDER BY r."Id" FOR UPDATE OF r
-                """).AsNoTracking().ToArrayAsync(cancellationToken);
-            var ids = revisions.Select(item => item.Id).ToArray();
-            var assets = await dbContext.ConfiguredLogicAssetBindings.FromSqlInterpolated($"""
-                SELECT b.* FROM logic.configured_logic_asset_bindings AS b
-                WHERE b."RevisionId" = ANY({ids}) ORDER BY b."RevisionId", b."Role", b."AssetId" FOR SHARE OF b
-                """).AsNoTracking().ToArrayAsync(cancellationToken);
-            var inputs = await dbContext.ConfiguredLogicDataBindings.FromSqlInterpolated($"""
-                SELECT b.* FROM logic.configured_logic_data_bindings AS b
-                WHERE b."RevisionId" = ANY({ids}) ORDER BY b."RevisionId", b."RequirementId", b."AssetId" FOR SHARE OF b
-                """).AsNoTracking().ToArrayAsync(cancellationToken);
-            if (revisions.Length == 0 || revisions.Any(item => !assets.Any(binding => binding.RevisionId == item.Id)))
-                throw DraftDenied();
-            var targets = assets.Select(item => item.AssetId).Concat(inputs.Select(item => item.AssetId))
+            var definition = await LockConfigurationAsync(revision.ConfiguredLogicId, cancellationToken);
+            var targets = definition.Revisions.SelectMany(DraftAssets)
                 .Concat(DraftAssets(revision)).Distinct().Order().ToArray();
-            await RequireDraftAssetsAsync(subject, targets, cancellationToken);
-            if (revision.RevisionNumber != revisions.Max(item => item.RevisionNumber) + 1) throw Conflict();
+            await RequireConfigurationAssetsAsync(subject, targets, cancellationToken);
+            if (revision.RevisionNumber != definition.Revisions.Max(item => item.RevisionNumber) + 1) throw Conflict();
             AddRevision(revision);
             Audit(revision, "CONFIGURED_LOGIC_REVISION_CREATED", actor, (clock ?? TimeProvider.System).GetUtcNow());
         }, cancellationToken);
     }
 
-    private async Task RequireDraftAssetsAsync(AccessSubject subject, Guid[] targets, CancellationToken cancellationToken)
+    private async Task<ConfiguredLogicDefinition> LockConfigurationAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var definitions = await dbContext.ConfiguredLogicDefinitions.FromSqlInterpolated($"""
+            SELECT c.* FROM logic.configured_logic AS c WHERE c."Id" = {id} FOR UPDATE OF c
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        if (definitions.Length != 1) throw DraftDenied();
+        var revisions = await dbContext.ConfiguredLogicRevisions.FromSqlInterpolated($"""
+            SELECT r.* FROM logic.configured_logic_revisions AS r
+            WHERE r."ConfiguredLogicId" = {id} ORDER BY r."Id" FOR UPDATE OF r
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        var ids = revisions.Select(item => item.Id).ToArray();
+        var assets = await dbContext.ConfiguredLogicAssetBindings.FromSqlInterpolated($"""
+            SELECT b.* FROM logic.configured_logic_asset_bindings AS b
+            WHERE b."RevisionId" = ANY({ids}) ORDER BY b."RevisionId", b."Role", b."AssetId" FOR SHARE OF b
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        var inputs = await dbContext.ConfiguredLogicDataBindings.FromSqlInterpolated($"""
+            SELECT b.* FROM logic.configured_logic_data_bindings AS b
+            WHERE b."RevisionId" = ANY({ids}) ORDER BY b."RevisionId", b."RequirementId", b."AssetId" FOR SHARE OF b
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        if (revisions.Length == 0 || revisions.Any(item => !assets.Any(binding => binding.RevisionId == item.Id)))
+            throw DraftDenied();
+        return ToDomain(definitions[0], revisions.OrderBy(item => item.RevisionNumber).Select(item => ToDomain(item,
+            assets.Where(binding => binding.RevisionId == item.Id).Select(ToDomain).ToArray(),
+            inputs.Where(binding => binding.RevisionId == item.Id).Select(ToDomain).ToArray())).ToArray());
+    }
+
+    private async Task RequireConfigurationAssetsAsync(AccessSubject subject, Guid[] targets, CancellationToken cancellationToken)
     {
         var time = clock ?? TimeProvider.System;
         await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ConfiguredLogicRead, targets, time, cancellationToken);
@@ -81,7 +89,7 @@ public sealed partial class ConfiguredLogicRepository
         await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ConfiguredLogicRead, targets, time, cancellationToken);
     }
 
-    private async Task WriteDraftAuthorizedAsync(AccessSubject subject, SecurityActorContext actor, Func<Task> stage,
+    private async Task WriteConfigurationAuthorizedAsync(AccessSubject subject, SecurityActorContext actor, Func<Task> stage,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(subject);
