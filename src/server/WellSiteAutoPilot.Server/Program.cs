@@ -91,10 +91,11 @@ else
 
 builder.Services.AddSingleton<IAuthenticatedPrincipalResolver>(
     new ConfiguredPrincipalResolver(authenticationMode));
-builder.Services.AddAuthorization(WellSitePolicies.AddPolicies);
+builder.Services.AddAuthorization(WellSitePolicies.AddGrantPolicies);
 builder.Services.AddSingleton<IIdentityGroupResolver>(services =>
     new WindowsTokenGroupResolver(authenticationMode, services.GetRequiredService<TimeProvider>()));
-builder.Services.AddScoped<SecurityActorFactory>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, GrantPermissionHandler>();
+builder.Services.AddScoped<RequestAccessContext>();
 
 builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
@@ -142,15 +143,9 @@ builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
-builder.Services.AddScoped<UserAccessService>();
+builder.Services.AddScoped<UserIdentityService>();
 builder.Services.AddScoped<RoleCatalogService>();
 builder.Services.AddScoped<AccessGrantAdministrationService>();
-builder.Services.AddScoped<ScopedAccessInspectionService>();
-builder.Services.AddScoped<ProposedAssetAccessService>();
-builder.Services.AddScoped<LegacyMigrationPreflightService>();
-builder.Services.AddScoped<DeploymentMigrationPreflightService>();
-builder.Services.AddScoped<LegacyGrantMigrationService>();
-builder.Services.AddScoped<AssetScopeAuthorizer>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
 builder.Services.AddScoped<OutboxPublisher>();
@@ -189,7 +184,7 @@ if (swaggerEnabled)
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
-app.UseMiddleware<UserAccessClaimsMiddleware>();
+app.UseMiddleware<GrantIdentityMiddleware>();
 app.UseAuthorization();
 
 var productApi = app.NewVersionedApi("WellSite AutoPilot API");
@@ -221,25 +216,12 @@ v1.MapGet(
 
 v1.MapGet(
     "/security/me",
-    async (
-        HttpContext httpContext,
-        UserAccessService userAccessService,
+    async (UserIdentityService identities, IRequestAccessRepository grants, RequestAccessContext access,
         CancellationToken cancellationToken) =>
     {
-        var user = await userAccessService.GetRequiredAsync(
-            GetCurrentUserId(httpContext.User),
-            cancellationToken);
-
-        return new CurrentUserResponse(
-            user.Id,
-            user.IdentityName,
-            user.DisplayName,
-            user.IsActive,
-            user.Roles.Select(item => item.ToString()).ToArray(),
-            user.AssetScopeIds.ToArray(),
-            WellSitePermissions.All.Where(permission => user.IsActive &&
-                RolePermissionMap.HasPermission(user.Roles, permission))
-                .OrderBy(permission => permission, StringComparer.Ordinal).ToArray());
+        var user = await identities.GetRequiredAsync(access.Subject.UserId, cancellationToken);
+        var permissions = await grants.GetPermissionHintsAsync(access.Subject, cancellationToken);
+        return new CurrentUserResponse(user.Id, user.IdentityName, user.DisplayName, user.IsActive, permissions);
     })
     .WithName("GetCurrentUser")
     .Produces<CurrentUserResponse>(StatusCodes.Status200OK)
@@ -247,59 +229,13 @@ v1.MapGet(
 
 v1.MapGet(
     "/security/users",
-    async (
-        int? limit,
-        UserAccessService userAccessService,
-        CancellationToken cancellationToken) =>
-        (await userAccessService.ListAsync(
-            limit ?? 100,
-            cancellationToken))
-        .Select(ToSecurityUserResponse)
-        .ToArray())
+    async (int? limit, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await directory.ListUsersAuthorizedAsync(access.Subject, limit ?? 100, cancellationToken)).Select(ToSecurityUserResponse).ToArray())
     .WithName("ListSecurityUsers")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<SecurityUserResponse[]>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status403Forbidden);
 
-v1.MapPut(
-    "/security/users/{userId:guid}/access",
-    async (
-        Guid userId,
-        ReplaceUserAccessRequest request,
-        UserAccessService userAccessService,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        var roles = ParseApplicationRoles(request.Roles);
-        var updated = await userAccessService.ReplaceAccessAsync(
-            userId,
-            roles,
-            request.AssetScopeIds ?? [],
-            new SecurityActorContext(
-                GetCurrentUserId(httpContext.User),
-                httpContext.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(httpContext)),
-            cancellationToken);
-
-        return ToSecurityUserResponse(updated);
-    })
-    .WithName("ReplaceSecurityUserAccess")
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<SecurityUserResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status400BadRequest,
-        "application/problem+json")
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status404NotFound,
-        "application/problem+json")
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status409Conflict,
-        "application/problem+json")
-    .Produces(StatusCodes.Status403Forbidden);
-
-// Role authoring is Admin-only until scoped authorization and constrained
-// security delegation are implemented. New custom roles have no live access
-// effect until a reviewed assignment is created in the entitlement model.
 v1.MapGet(
     "/security/role-permissions",
     () => ProductPermissionCatalog.Definitions
@@ -313,9 +249,8 @@ v1.MapGet(
 
 v1.MapGet(
     "/security/roles",
-    async (int? limit, RoleCatalogService catalog, CancellationToken cancellationToken) =>
-        (await catalog.ListAsync(limit ?? 100, cancellationToken))
-        .Select(ToRoleResponse).ToArray())
+    async (int? limit, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await directory.ListRolesAuthorizedAsync(access.Subject, limit ?? 100, cancellationToken)).Select(ToRoleResponse).ToArray())
     .WithName("ListSecurityRoles")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<RoleDefinitionResponse[]>(StatusCodes.Status200OK)
@@ -323,8 +258,8 @@ v1.MapGet(
 
 v1.MapGet(
     "/security/roles/{roleId:guid}",
-    async (Guid roleId, RoleCatalogService catalog, CancellationToken cancellationToken) =>
-        ToRoleResponse(await catalog.GetRequiredAsync(roleId, cancellationToken)))
+    async (Guid roleId, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+        ToRoleResponse(RequireFound(await directory.GetRoleAuthorizedAsync(access.Subject, roleId, cancellationToken), "SECURITY_ROLE_NOT_FOUND")))
     .WithName("GetSecurityRole")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<RoleDefinitionResponse>(StatusCodes.Status200OK)
@@ -332,24 +267,13 @@ v1.MapGet(
 
 v1.MapPost(
     "/security/roles",
-    async (
-        CreateSecurityRoleRequest request,
-        RoleCatalogService catalog,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
+    async (CreateSecurityRoleRequest request, RoleCatalogService catalog,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        var role = await catalog.CreateAsync(
-            new RoleMutationCommand(request.Name, request.Description,
-                request.Permissions, true),
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/security/roles/{role.Id}",
-            ToRoleResponse(role));
+        var role = await catalog.CreateAuthorizedAsync(
+            new RoleMutationCommand(request.Name, request.Description, request.Permissions, true),
+            access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Created($"/api/v1/security/roles/{role.Id}", ToRoleResponse(role));
     })
     .WithName("CreateSecurityRole")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
@@ -360,22 +284,13 @@ v1.MapPost(
 
 v1.MapPut(
     "/security/roles/{roleId:guid}",
-    async (
-        Guid roleId,
-        UpdateSecurityRoleRequest request,
-        RoleCatalogService catalog,
-        HttpContext context,
-        SecurityActorFactory actors,
-        CancellationToken cancellationToken) =>
+    async (Guid roleId, UpdateSecurityRoleRequest request, RoleCatalogService catalog,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        var role = await catalog.UpdateAsync(
-            roleId,
-            request.ExpectedRevision,
-            new RoleMutationCommand(request.Name, request.Description,
-                request.Permissions, request.IsActive),
-            actors.Create(context, GetCurrentUserId(context.User)),
-            cancellationToken);
-        return ToRoleResponse(role);
+        var role = await catalog.UpdateAuthorizedAsync(roleId, request.ExpectedRevision,
+            new RoleMutationCommand(request.Name, request.Description, request.Permissions, request.IsActive),
+            access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Ok(ToRoleResponse(role));
     })
     .WithName("UpdateSecurityRole")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
@@ -384,234 +299,10 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
-// Administrator-only rollback of grants created by a legacy migration.
-// Only server-audited migration-origin rows are affected, never customer
-// assignments, compiled legacy RBAC or production runtime permissions.
-v1.MapPost(
-    "/security/rollback-legacy-grants",
-    async (
-        RollbackLegacyGrantsRequest request,
-        LegacyGrantMigrationService migration,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-    {
-        var result = await migration.RollbackAsync(
-            request.Confirmed,
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-        return new RollbackLegacyGrantsResponse(
-            result.MigratedGrantsInspected, result.GrantsDeactivated,
-            result.LiveAuthorizationUnchanged);
-    })
-    .WithName("RollbackLegacyAccessGrants")
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<RollbackLegacyGrantsResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status409Conflict, "application/problem+json")
-    .Produces(StatusCodes.Status403Forbidden);
-
-// Explicit, audited grant materialization from the current legacy model.
-// Performs complete serializable transaction parity validation and declines
-// conflicting active grants. It NEVER changes LIVE authorization policies.
-v1.MapPost(
-    "/security/materialize-legacy-grants",
-    async (
-        MaterializeLegacyGrantsRequest request,
-        LegacyGrantMigrationService migration,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-    {
-        var result = await migration.MigrateAsync(
-            request.Confirmed,
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-        return new MaterializeLegacyGrantsResponse(
-            result.ActiveUsersInspected, result.ActiveAssetsInspected,
-            result.GrantsCreated, result.UsersAlreadyMatching,
-            result.RecordedGrantsMatchLegacy,
-            result.LiveAuthorizationUnchanged);
-    })
-    .WithName("MaterializeLegacyAccessGrants")
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<MaterializeLegacyGrantsResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status409Conflict, "application/problem+json")
-    .Produces(StatusCodes.Status403Forbidden);
-
-// Complete bounded deployment parity preview, using one consistent
-// database snapshot across ALL users, roles, grants and Assets. Admin-only,
-// read-only, and never authorization cutover approval.
-v1.MapGet(
-    "/security/migration-preflight",
-    async (
-        DeploymentMigrationPreflightService preflight,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-    {
-        var result = await preflight.InspectAsync(
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-        return new DeploymentMigrationPreflightResponse(
-            result.ActiveUserCount, result.ActiveAssetCount,
-            result.MatchingUserCount, result.ExpansionCount,
-            result.ReductionCount,
-            result.Users.Select(item => new DeploymentMigrationUserResponse(
-                item.UserId, item.ExpectedLegacyGrantCount,
-                item.RecordedGrantCount, item.ExpansionCount,
-                item.ReductionCount, item.RecordedGrantsMatchLegacy)).ToArray(),
-            result.AllActiveUsersMatchRecordedGrants,
-            result.IsDiagnosticOnly);
-    })
-    .WithName("InspectDeploymentLegacyMigration")
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<DeploymentMigrationPreflightResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
-    .Produces(StatusCodes.Status403Forbidden);
-
-// Migration preflight captures roles, direct grants, the user and the full
-// bounded active Asset inventory under a single PostgreSQL snapshot. It is
-// read-only, one user at a time, and NEVER enables authorization cutover.
-v1.MapGet(
-    "/security/users/{userId:guid}/migration-preflight",
-    async (
-        Guid userId,
-        LegacyMigrationPreflightService preflight,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-    {
-        var result = await preflight.InspectAsync(
-            userId,
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-        return new LegacyMigrationPreflightResponse(
-            result.UserId, result.ActiveAssetCount,
-            result.ExpectedLegacyGrantCount, result.RecordedGrantCount,
-            result.ExpansionCount, result.ReductionCount,
-            result.DifferenceSamples.Select(item =>
-                new LegacyMigrationDifferenceResponse(
-                    item.AssetId, item.Permission,
-                    item.LegacyAllowed, item.RecordedGrantAllowed)).ToArray(),
-            result.RecordedGrantsMatchLegacy, result.IsDiagnosticOnly);
-    })
-    .WithName("InspectLegacyGrantMigration")
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<LegacyMigrationPreflightResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
-    .Produces(StatusCodes.Status403Forbidden);
-
-// Proposed resource preview uses one database query that restricts Assets
-// by the same grant's active role and scope BEFORE Skip/Take. It never
-// authorizes live requests or changes existing user access.
-v1.MapGet(
-    "/security/users/{userId:guid}/proposed-assets",
-    async (
-        Guid userId,
-        string permission,
-        int? offset,
-        int? limit,
-        ProposedAssetAccessService preview,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-    {
-        var result = await preview.ListAsync(
-            userId, permission, offset ?? 0, limit ?? 100,
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-        return new ProposedAssetAccessResponse(
-            result.UserId, result.Permission, result.Offset, result.Limit,
-            result.Assets.Select(item =>
-                new ProposedAuthorizedAssetResponse(item.Id, item.Name)).ToArray(),
-            result.IsDiagnosticOnly);
-    })
-    .WithName("ListProposedAuthorizedAssets")
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<ProposedAssetAccessResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
-    .Produces(StatusCodes.Status403Forbidden);
-
-// Read-only diagnostic: evaluate every registered permission against
-// legacy live RBAC and the stored, inactive-for-runtime scoped-grant model.
-// A single Asset inspection never certifies whole-deployment migration parity.
-v1.MapGet(
-    "/security/users/{userId:guid}/effective-access",
-    async (
-        Guid userId,
-        Guid? assetId,
-        ScopedAccessInspectionService inspector,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-    {
-        var inspection = await inspector.InspectAsync(
-            userId, assetId,
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-        return new ScopedAccessInspectionResponse(
-            inspection.UserId,
-            inspection.AssetId,
-            inspection.AssetName,
-            inspection.Permissions.Select(item =>
-                new PermissionAccessComparisonResponse(
-                    item.Permission, item.ScopeKind,
-                    item.LegacyAllowed, item.ProposedAllowed,
-                    item.ProposedReasonCode, item.ProposedGrantId)).ToArray(),
-            inspection.WideningCount, inspection.ReductionCount,
-            inspection.IsDiagnosticOnly);
-    })
-    .WithName("InspectUserEffectiveAccess")
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<ScopedAccessInspectionResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status404NotFound, "application/problem+json")
-    .Produces(StatusCodes.Status403Forbidden);
-
-// Additive grants are recorded and audited but do not alter legacy
-// authorization until the parity-verified entitlement cutover is complete.
 v1.MapGet(
     "/security/users/{userId:guid}/grants",
-    async (
-        Guid userId,
-        AccessGrantAdministrationService grants,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-        (await grants.ListForUserAsync(
-            userId,
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken))
-        .Select(ToAccessGrantResponse).ToArray())
+    async (Guid userId, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await directory.ListGrantsAuthorizedAsync(access.Subject, AccessGrantSubject.ForUser(userId), cancellationToken)).Select(ToAccessGrantResponse).ToArray())
     .WithName("ListUserAccessGrants")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse[]>(StatusCodes.Status200OK)
@@ -619,35 +310,14 @@ v1.MapGet(
 
 v1.MapPost(
     "/security/users/{userId:guid}/grants",
-    async (
-        Guid userId,
-        CreateAccessGrantRequest request,
-        AccessGrantAdministrationService grants,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
+    async (Guid userId, CreateAccessGrantRequest request, AccessGrantAdministrationService grants,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        if (!Enum.TryParse<AccessGrantScopeKind>(
-                request.ScopeKind, ignoreCase: false, out var scope) ||
-            !Enum.IsDefined(scope))
-        {
-            throw new WellSiteAutoPilotException(
-                FailureCodes.ValidationFailed, FailureKind.Validation,
-                "An explicit supported grant scope kind is required.");
-        }
-
-        var result = await grants.CreateForUserAsync(
-            userId,
-            new CreateAccessGrantCommand(
-                request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/security/users/{userId}/grants",
-            ToAccessGrantResponse(result));
+        var scope = ParseRequired<AccessGrantScopeKind>(request.ScopeKind);
+        var grant = await grants.CreateAuthorizedAsync(AccessGrantSubject.ForUser(userId),
+            new CreateAccessGrantCommand(request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
+            access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Created(context.Request.Path.ToString(), ToAccessGrantResponse(grant));
     })
     .WithName("CreateUserAccessGrant")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
@@ -660,20 +330,10 @@ v1.MapPost(
 
 v1.MapPut(
     "/security/users/{userId:guid}/grants/{grantId:guid}/deactivate",
-    async (
-        Guid userId,
-        Guid grantId,
-        DeactivateAccessGrantRequest request,
-        AccessGrantAdministrationService grants,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-        ToAccessGrantResponse(await grants.DeactivateForUserAsync(
-            userId, grantId, request.ExpectedRevision,
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken)))
+    async (Guid userId, Guid grantId, DeactivateAccessGrantRequest request, AccessGrantAdministrationService grants,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToAccessGrantResponse(await grants.DeactivateAuthorizedAsync(AccessGrantSubject.ForUser(userId), grantId, request.ExpectedRevision,
+            access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("DeactivateUserAccessGrant")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse>(StatusCodes.Status200OK)
@@ -684,19 +344,8 @@ v1.MapPut(
 
 v1.MapGet(
     "/security/windows-groups/{groupSid}/grants",
-    async (
-        string groupSid,
-        AccessGrantAdministrationService grants,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-        (await grants.ListAsync(
-            AccessGrantSubject.ForWindowsGroup(groupSid),
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken))
-        .Select(ToAccessGrantResponse).ToArray())
+    async (string groupSid, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await directory.ListGrantsAuthorizedAsync(access.Subject, AccessGrantSubject.ForWindowsGroup(groupSid), cancellationToken)).Select(ToAccessGrantResponse).ToArray())
     .WithName("ListWindowsGroupAccessGrants")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse[]>(StatusCodes.Status200OK)
@@ -705,33 +354,14 @@ v1.MapGet(
 
 v1.MapPost(
     "/security/windows-groups/{groupSid}/grants",
-    async (
-        string groupSid,
-        CreateAccessGrantRequest request,
-        AccessGrantAdministrationService grants,
-        HttpContext context,
-        SecurityActorFactory actors,
-        CancellationToken cancellationToken) =>
+    async (string groupSid, CreateAccessGrantRequest request, AccessGrantAdministrationService grants,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        if (!Enum.TryParse<AccessGrantScopeKind>(
-                request.ScopeKind, ignoreCase: false, out var scope) ||
-            !Enum.IsDefined(scope))
-        {
-            throw new WellSiteAutoPilotException(
-                FailureCodes.ValidationFailed, FailureKind.Validation,
-                "An explicit supported grant scope kind is required.");
-        }
-
-        var result = await grants.CreateAsync(
-            AccessGrantSubject.ForWindowsGroup(groupSid),
-            new CreateAccessGrantCommand(
-                request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
-            actors.Create(context, GetCurrentUserId(context.User)),
-            cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/security/windows-groups/{Uri.EscapeDataString(result.GroupSid!)}/grants",
-            ToAccessGrantResponse(result));
+        var scope = ParseRequired<AccessGrantScopeKind>(request.ScopeKind);
+        var grant = await grants.CreateAuthorizedAsync(AccessGrantSubject.ForWindowsGroup(groupSid),
+            new CreateAccessGrantCommand(request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
+            access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Created(context.Request.Path.ToString(), ToAccessGrantResponse(grant));
     })
     .WithName("CreateWindowsGroupAccessGrant")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
@@ -744,18 +374,10 @@ v1.MapPost(
 
 v1.MapPut(
     "/security/windows-groups/{groupSid}/grants/{grantId:guid}/deactivate",
-    async (
-        string groupSid,
-        Guid grantId,
-        DeactivateAccessGrantRequest request,
-        AccessGrantAdministrationService grants,
-        HttpContext context,
-        SecurityActorFactory actors,
-        CancellationToken cancellationToken) =>
-        ToAccessGrantResponse(await grants.DeactivateAsync(
-            AccessGrantSubject.ForWindowsGroup(groupSid), grantId, request.ExpectedRevision,
-            actors.Create(context, GetCurrentUserId(context.User)),
-            cancellationToken)))
+    async (string groupSid, Guid grantId, DeactivateAccessGrantRequest request, AccessGrantAdministrationService grants,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToAccessGrantResponse(await grants.DeactivateAuthorizedAsync(AccessGrantSubject.ForWindowsGroup(groupSid), grantId, request.ExpectedRevision,
+            access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("DeactivateWindowsGroupAccessGrant")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse>(StatusCodes.Status200OK)
@@ -766,21 +388,12 @@ v1.MapPut(
 
 v1.MapPost(
     "/asset-types",
-    async (
-        CreateAssetTypeRequest request,
-        AssetService assetService,
-        CancellationToken cancellationToken) =>
+    async (CreateAssetTypeRequest request, AssetService service, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
     {
-        var assetType = await assetService.CreateAssetTypeAsync(
-            new CreateAssetTypeCommand(
-                request.Key,
-                request.DisplayName,
-                request.AttributeSchemaJson),
-            cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/asset-types/{assetType.Id}",
-            ToAssetTypeResponse(assetType));
+        var item = await service.CreateAssetTypeAuthorizedAsync(new CreateAssetTypeCommand(request.Key,
+            request.DisplayName, request.AttributeSchemaJson), access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Created($"/api/v1/asset-types/{item.Id}", ToAssetTypeResponse(item));
     })
     .WithName("CreateAssetType")
     .RequireAuthorization(WellSitePolicies.AssetsManage)
@@ -790,8 +403,8 @@ v1.MapPost(
 
 v1.MapGet(
     "/asset-types",
-    async (AssetService assetService, CancellationToken cancellationToken) =>
-        (await assetService.ListAssetTypesAsync(cancellationToken))
+    async (IAssetRepository assets, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await assets.ListAssetTypesAuthorizedAsync(access.Subject, cancellationToken))
             .Select(ToAssetTypeResponse)
             .ToArray())
     .WithName("ListAssetTypes")
@@ -800,12 +413,8 @@ v1.MapGet(
 
 v1.MapGet(
     "/asset-types/{assetTypeId:guid}",
-    async (
-        Guid assetTypeId,
-        AssetService assetService,
-        CancellationToken cancellationToken) =>
-        ToAssetTypeResponse(
-            await assetService.GetRequiredAssetTypeAsync(assetTypeId, cancellationToken)))
+    async (Guid assetTypeId, IAssetRepository assets, RequestAccessContext access, CancellationToken cancellationToken) =>
+        ToAssetTypeResponse(RequireFound(await assets.GetAssetTypeAuthorizedAsync(access.Subject, assetTypeId, cancellationToken), "ASSET_TYPE_NOT_FOUND")))
     .WithName("GetAssetType")
     .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetTypeResponse>(StatusCodes.Status200OK)
@@ -813,16 +422,12 @@ v1.MapGet(
 
 v1.MapGet(
     "/assets/capabilities",
-    (HttpContext context, AssetScopeAuthorizer assetScopeAuthorizer) =>
+    async (IRequestAccessRepository grants, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var principal = context.User;
-        var canManage = principal.HasClaim(
-            SecurityClaimTypes.Permission, WellSitePermissions.AssetsManage);
-        var scope = assetScopeAuthorizer.GetAllowedAssetIds(principal);
-        var rootAllowed = canManage && principal.HasClaim(
-            SecurityClaimTypes.Role, "Admin");
-        return new AssetCreationCapabilitiesResponse(
-            rootAllowed, canManage && (scope is null || scope.Count > 0));
+        var hints = await grants.GetPermissionHintsAsync(access.Subject, cancellationToken);
+        var root = await grants.HasAdministratorAsync(access.Subject, cancellationToken) &&
+            await grants.HasAllAssetPermissionAsync(access.Subject, WellSitePermissions.AssetsManage, cancellationToken);
+        return new AssetCreationCapabilitiesResponse(root, hints.Contains(WellSitePermissions.AssetsManage));
     })
     .WithName("GetAssetCreationCapabilities")
     .RequireAuthorization(WellSitePolicies.AssetsRead)
@@ -830,35 +435,12 @@ v1.MapGet(
 
 v1.MapPost(
     "/assets",
-    async (
-        CreateAssetRequest request,
-        AssetService assetService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
+    async (CreateAssetRequest request, AssetService service, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
     {
-        if (request.ParentAssetId is Guid parentAssetId)
-        {
-            assetScopeAuthorizer.RequireAsset(
-                httpContext.User,
-                parentAssetId);
-        }
-        else
-        {
-            assetScopeAuthorizer.RequireAdministrator(httpContext.User);
-        }
-
-        var asset = await assetService.CreateAssetAsync(
-            new CreateAssetCommand(
-                request.AssetTypeId,
-                request.Name,
-                request.ParentAssetId,
-                request.AttributeValuesJson),
-            cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/assets/{asset.Id}",
-            ToAssetResponse(asset));
+        var item = await service.CreateAssetAuthorizedAsync(new CreateAssetCommand(request.AssetTypeId, request.Name,
+            request.ParentAssetId, request.AttributeValuesJson), access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Created($"/api/v1/assets/{item.Id}", ToAssetResponse(item));
     })
     .WithName("CreateAsset")
     .RequireAuthorization(WellSitePolicies.AssetsManage)
@@ -868,29 +450,9 @@ v1.MapPost(
 
 v1.MapGet(
     "/security/assets/directory",
-    async (
-        int? offset,
-        int? limit,
-        AssetService assetService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        AccessGrantAdministrationService grants,
-        HttpContext context,
-        CancellationToken cancellationToken) =>
-    {
-        assetScopeAuthorizer.RequireAdministrator(context.User);
-        // Recheck current persisted administrator status on every full-directory
-        // read; a stale identity claim must not survive role revocation.
-        await grants.RequireAdministratorAsync(
-            new SecurityActorContext(
-                GetCurrentUserId(context.User),
-                context.User.Identity?.Name ?? "unknown",
-                CorrelationContext.GetCorrelationId(context)),
-            cancellationToken);
-        var assets = await assetService.ListAssetDirectoryPageAsync(
-            offset ?? 0, limit ?? 200, cancellationToken);
-        return assets.Select(asset => new AssetDirectoryEntryResponse(
-            asset.Id, asset.Name, asset.IsActive)).ToArray();
-    })
+    async (int? offset, int? limit, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await directory.ListAssetsAuthorizedAsync(access.Subject, offset ?? 0, limit ?? 200, cancellationToken))
+            .Select(asset => new AssetDirectoryEntryResponse(asset.Id, asset.Name, asset.IsActive)).ToArray())
     .WithName("ListSecurityAssetDirectory")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AssetDirectoryEntryResponse[]>(StatusCodes.Status200OK)
@@ -900,75 +462,29 @@ v1.MapGet(
 
 v1.MapGet(
     "/assets",
-    async (
-        Guid? assetTypeId,
-        Guid? parentAssetId,
-        int? limit,
-        AssetService assetService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        var assets = allowedAssetIds is null
-            ? await assetService.ListAssetsAsync(
-                assetTypeId,
-                parentAssetId,
-                limit ?? 100,
-                cancellationToken)
-            : await assetService.ListAssetsInScopeAsync(
-                assetTypeId,
-                parentAssetId,
-                limit ?? 100,
-                allowedAssetIds,
-                cancellationToken);
-
-        return assets.Select(ToAssetResponse).ToArray();
-    })
+    async (Guid? assetTypeId, Guid? parentAssetId, int? limit, IAssetRepository assets,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await assets.ListAuthorizedAsync(access.Subject, assetTypeId, parentAssetId, PageLimit(limit ?? 100), cancellationToken))
+            .Select(ToAssetResponse).ToArray())
     .WithName("ListAssets")
     .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
     "/assets/{assetId:guid}",
-    async (
-        Guid assetId,
-        AssetService assetService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        assetScopeAuthorizer.RequireAsset(
-            httpContext.User,
-            assetId);
-
-        return ToAssetResponse(
-            await assetService.GetRequiredAssetAsync(
-                assetId,
-                cancellationToken));
-    })
+    async (Guid assetId, IAssetRepository assets, RequestAccessContext access, CancellationToken cancellationToken) =>
+        ToAssetResponse(RequireFound(await assets.GetAuthorizedAsync(access.Subject, assetId, cancellationToken), "ASSET_NOT_FOUND")))
     .WithName("GetAsset")
     .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
-
-v1.MapGet(
-    "/configured-logic/capabilities",
-    (HttpContext context) => new ConfiguredLogicCapabilitiesResponse(
-        context.User.HasClaim(SecurityClaimTypes.Permission, WellSitePermissions.ConfiguredLogicManage),
-        context.User.HasClaim(SecurityClaimTypes.Permission, WellSitePermissions.ExecutionsRequest)))
-    .WithName("GetConfiguredLogicCapabilities")
-    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
-    .Produces<ConfiguredLogicCapabilitiesResponse>(StatusCodes.Status200OK);
 
 v1.MapPost(
     "/configured-logic",
     async (
         CreateConfiguredLogicRequest request,
         ConfiguredLogicService service,
-        AssetScopeAuthorizer assetScopeAuthorizer,
+        RequestAccessContext access,
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
@@ -977,11 +493,7 @@ v1.MapPost(
             request.DataBindings.Any(binding => binding is null))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
                 "Asset and data bindings are required.");
-        assetScopeAuthorizer.RequireAssets(
-            httpContext.User,
-            request.AssetBindings.Select(binding => binding.AssetId));
-
-        var created = await service.CreateAsync(
+        var created = await service.CreateAuthorizedAsync(
             new CreateConfiguredLogicCommand(
                 request.Name,
                 request.ModuleManifestJson,
@@ -1007,8 +519,7 @@ v1.MapPost(
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
                         request.Schedule.TimeZoneId)),
-            new SecurityActorContext(GetCurrentUserId(httpContext.User),
-                httpContext.User.Identity?.Name ?? "", CorrelationContext.GetCorrelationId(httpContext)), cancellationToken);
+            access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
             $"/api/v1/configured-logic/{created.Id}",
@@ -1022,28 +533,13 @@ v1.MapPost(
 
 v1.MapGet(
     "/configured-logic",
-    async (
-        int? limit,
-        ConfiguredLogicService service,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
+    async (int? limit, IConfiguredLogicRepository configurations, IResourceActionRepository actions,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        var configuredLogic = allowedAssetIds is null
-            ? await service.ListAsync(
-                limit ?? 100,
-                cancellationToken)
-            : await service.ListInScopeAsync(
-                limit ?? 100,
-                allowedAssetIds,
-                cancellationToken);
-
-        return configuredLogic
-            .Select(ToConfiguredLogicResponse)
-            .ToArray();
+        var items = await configurations.ListAuthorizedAsync(access.Subject, PageLimit(limit ?? 100), cancellationToken);
+        var capabilities = (await actions.GetConfiguredLogicActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
+            .ToDictionary(item => item.Id);
+        return items.Select(item => WithConfigurationActions(item, capabilities.GetValueOrDefault(item.Id))).ToArray();
     })
     .WithName("ListConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -1052,26 +548,12 @@ v1.MapGet(
 
 v1.MapGet(
     "/configured-logic/{configuredLogicId:guid}",
-    async (
-        Guid configuredLogicId,
-        ConfiguredLogicService service,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
+    async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IResourceActionRepository actions,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        var configuredLogic = allowedAssetIds is null
-            ? await service.GetRequiredAsync(
-                configuredLogicId,
-                cancellationToken)
-            : await service.GetRequiredInScopeAsync(
-                configuredLogicId,
-                allowedAssetIds,
-                cancellationToken);
-
-        return ToConfiguredLogicResponse(configuredLogic);
+        var item = RequireFound(await configurations.GetAuthorizedAsync(access.Subject, configuredLogicId, cancellationToken), "CONFIGURED_LOGIC_NOT_FOUND");
+        var capability = (await actions.GetConfiguredLogicActionsAsync(access.Subject, [item.Id], cancellationToken)).SingleOrDefault();
+        return WithConfigurationActions(item, capability);
     })
     .WithName("GetConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -1084,7 +566,7 @@ v1.MapPost(
         Guid configuredLogicId,
         CreateConfiguredLogicRevisionRequest request,
         ConfiguredLogicService service,
-        AssetScopeAuthorizer assetScopeAuthorizer,
+        RequestAccessContext access,
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
@@ -1093,22 +575,7 @@ v1.MapPost(
             request.DataBindings.Any(binding => binding is null))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
                 "Asset and data bindings are required.");
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        if (allowedAssetIds is not null)
-        {
-            _ = await service.GetRequiredInScopeAsync(
-                configuredLogicId,
-                allowedAssetIds,
-                cancellationToken);
-
-            assetScopeAuthorizer.RequireAssets(
-                httpContext.User,
-                request.AssetBindings.Select(binding => binding.AssetId));
-        }
-
-        var revision = await service.CreateRevisionAsync(
+        var revision = await service.CreateRevisionAuthorizedAsync(
             configuredLogicId,
             new CreateConfiguredLogicRevisionCommand(
                 request.ModuleManifestJson,
@@ -1134,8 +601,7 @@ v1.MapPost(
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
                         request.Schedule.TimeZoneId)),
-            new SecurityActorContext(GetCurrentUserId(httpContext.User),
-                httpContext.User.Identity?.Name ?? "", CorrelationContext.GetCorrelationId(httpContext)), cancellationToken);
+            access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
             $"/api/v1/configured-logic/{configuredLogicId}/revisions/{revision.Id}",
@@ -1150,32 +616,10 @@ v1.MapPost(
 
 v1.MapPost(
     "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/validate",
-    async (
-        Guid configuredLogicId,
-        Guid revisionId,
-        ConfiguredLogicService service,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        if (allowedAssetIds is not null)
-        {
-            _ = await service.GetRequiredInScopeAsync(
-                configuredLogicId,
-                allowedAssetIds,
-                cancellationToken);
-        }
-
-        return ToConfiguredLogicRevisionResponse(
-            await service.ValidateRevisionAsync(
-                configuredLogicId,
-                revisionId,
-                new SecurityActorContext(GetCurrentUserId(httpContext.User),
-                    httpContext.User.Identity?.Name ?? "", CorrelationContext.GetCorrelationId(httpContext)), cancellationToken: cancellationToken));
-    })
+    async (Guid configuredLogicId, Guid revisionId, ConfiguredLogicService service,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToConfiguredLogicRevisionResponse(await service.ValidateRevisionAuthorizedAsync(configuredLogicId, revisionId,
+            access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("ValidateConfiguredLogicRevision")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
@@ -1185,34 +629,11 @@ v1.MapPost(
 
 v1.MapPost(
     "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/activate",
-    async (
-        Guid configuredLogicId,
-        Guid revisionId,
-        [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+    async (Guid configuredLogicId, Guid revisionId, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
         ConfiguredLogicService service,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        if (allowedAssetIds is not null)
-        {
-            _ = await service.GetRequiredInScopeAsync(
-                configuredLogicId,
-                allowedAssetIds,
-                cancellationToken);
-        }
-
-        return ToConfiguredLogicRevisionResponse(
-            await service.ActivateRevisionAsync(
-                configuredLogicId,
-                revisionId,
-                new SecurityActorContext(GetCurrentUserId(httpContext.User),
-                    httpContext.User.Identity?.Name ?? "", CorrelationContext.GetCorrelationId(httpContext)),
-                ifMatch?.Trim('"'), cancellationToken));
-    })
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToConfiguredLogicRevisionResponse(await service.ActivateRevisionAuthorizedAsync(configuredLogicId, revisionId,
+            ifMatch?.Trim('"') ?? "", access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("ActivateConfiguredLogicRevision")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
@@ -1223,23 +644,12 @@ v1.MapPost(
 v1.MapPost(
     "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/shadow",
     async (Guid configuredLogicId, Guid revisionId, RequestConfiguredShadowRequest request,
-        ConfiguredLogicService configuredLogic, ManualShadowRequestService requests,
-        IExecutionRepository executionRepository,
-        AssetScopeAuthorizer scope, HttpContext context, CancellationToken cancellationToken) =>
+        ManualShadowRequestService requests, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        var allowed = scope.GetAllowedAssetIds(context.User);
-        if (allowed is not null)
-            _ = await configuredLogic.GetRequiredInScopeAsync(configuredLogicId, allowed, cancellationToken);
-        var execution = await requests.RequestAsync(configuredLogicId, revisionId, request.RequestId,
-            new SecurityActorContext(GetCurrentUserId(context.User), context.User.Identity?.Name ?? "",
-                CorrelationContext.GetCorrelationId(context)), cancellationToken);
-        scope.RequireAssets(context.User,
-            await executionRepository.GetAssetScopeAsync(execution.Id, cancellationToken));
-        // A replay must not bypass the separate execution-read policy by
-        // returning a completed result through a request-only endpoint.
-        return Results.Ok(new ConfiguredShadowReceiptResponse(execution.Id,
-            execution.LogicInstanceId, execution.ConfigurationRevisionId,
-            execution.RequestContractVersion, execution.Mode.ToString(), execution.Trigger.ToString()));
+        var receipt = await requests.RequestAuthorizedAsync(configuredLogicId, revisionId, request.RequestId,
+            access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Ok(new ConfiguredShadowReceiptResponse(receipt.ExecutionId, receipt.ConfiguredLogicId,
+            receipt.ConfigurationRevisionId, receipt.ContractVersion, receipt.Mode.ToString(), receipt.Trigger.ToString()));
     })
     .WithName("RequestConfiguredShadowExecution")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")
@@ -1251,30 +661,9 @@ v1.MapPost(
 
 v1.MapGet(
     "/executions",
-    async (
-        string? status,
-        int? limit,
-        ExecutionService executionService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        var executions = allowedAssetIds is null
-            ? await executionService.ListAsync(
-                status,
-                limit ?? 50,
-                cancellationToken)
-            : await executionService.ListInScopeAsync(
-                status,
-                limit ?? 50,
-                allowedAssetIds,
-                cancellationToken);
-
-        return executions.Select(ToResponse).ToArray();
-    })
+    async (string? status, int? limit, IExecutionRepository executions, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await executions.ListAuthorizedAsync(access.Subject, ParseFilter<ExecutionStatus>(status), PageLimit(limit ?? 50), cancellationToken))
+            .Select(ToResponse).ToArray())
     .WithName("ListExecutions")
     .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse[]>(StatusCodes.Status200OK)
@@ -1282,68 +671,10 @@ v1.MapGet(
         StatusCodes.Status400BadRequest,
         "application/problem+json");
 
-v1.MapPost(
-    "/executions/shadow",
-    async (
-        RequestShadowExecutionRequest request,
-        ExecutionService executionService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        assetScopeAuthorizer.RequireAsset(
-            httpContext.User,
-            request.AssetId);
-
-        var execution = await executionService.RequestShadowAsync(
-            new ShadowExecutionCommand(
-                request.LogicInstanceId,
-                request.ModuleId,
-                request.ModuleVersion,
-                request.ConfigurationRevisionId,
-                request.AssetId,
-                request.AssetExternalId,
-                request.Quantity),
-            CorrelationContext.GetCorrelationId(httpContext),
-            cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/executions/{execution.Id}",
-            ToResponse(execution));
-    })
-    .WithName("RequestShadowExecution")
-    .RequireAuthorization(WellSitePolicies.ExecutionsRequest)
-    .Produces<ExecutionResponse>(StatusCodes.Status201Created)
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status400BadRequest,
-        "application/problem+json")
-    .Produces<WellSiteProblemDetails>(
-        StatusCodes.Status500InternalServerError,
-        "application/problem+json");
-
 v1.MapGet(
     "/executions/{executionId:guid}",
-    async (
-        Guid executionId,
-        ExecutionService executionService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
-    {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        var execution = allowedAssetIds is null
-            ? await executionService.GetRequiredAsync(
-                executionId,
-                cancellationToken)
-            : await executionService.GetRequiredInScopeAsync(
-                executionId,
-                allowedAssetIds,
-                cancellationToken);
-
-        return ToResponse(execution);
-    })
+    async (Guid executionId, IExecutionRepository executions, RequestAccessContext access, CancellationToken cancellationToken) =>
+        ToResponse(RequireFound(await executions.GetAuthorizedAsync(access.Subject, executionId, cancellationToken), "EXECUTION_NOT_FOUND")))
     .WithName("GetExecution")
     .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse>(StatusCodes.Status200OK)
@@ -1359,14 +690,15 @@ v1.MapPost(
     async (
         RegisterLogicModuleRequest request,
         LogicModuleCatalogService catalog,
+        RequestAccessContext access, HttpContext context,
         CancellationToken cancellationToken) =>
     {
-        var module = await catalog.RegisterAsync(
+        var module = await catalog.RegisterAuthorizedAsync(
             new RegisterLogicModuleCommand(
                 request.ManifestJson,
                 request.PackageSha256,
                 WellSiteAutoPilot.Domain.Logic.LogicModuleTrustStatus.Untrusted),
-            cancellationToken);
+            access.Subject, access.CreateActor(context), cancellationToken);
 
         return Results.Created(
             $"/api/v1/logic-modules/{Uri.EscapeDataString(module.ModuleId)}/{Uri.EscapeDataString(module.Version)}",
@@ -1408,24 +740,13 @@ v1.MapGet(
 
 v1.MapGet(
     "/recommendations",
-    async (
-        string? status,
-        int? limit,
-        RecommendationQueryService queryService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
+    async (string? status, int? limit, IRecommendationRepository recommendations, IResourceActionRepository actions,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        var recommendations = await queryService.ListAsync(
-            status,
-            limit ?? 50,
-            allowedAssetIds,
-            cancellationToken);
-
-        return recommendations.Select(ToRecommendationSummaryResponse).ToArray();
+        var items = await recommendations.ListAuthorizedAsync(access.Subject, ParseFilter<RecommendationStatus>(status), PageLimit(limit ?? 50, 100), cancellationToken);
+        var capabilities = (await actions.GetRecommendationActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
+            .ToDictionary(item => item.Id);
+        return items.Select(item => ToRecommendationSummaryResponse(item) with { CanDecide = capabilities.GetValueOrDefault(item.Id)?.CanDecide == true }).ToArray();
     })
     .WithName("ListRecommendations")
     .RequireAuthorization(WellSitePolicies.RecommendationsRead)
@@ -1435,22 +756,12 @@ v1.MapGet(
 
 v1.MapGet(
     "/recommendations/{recommendationId:guid}",
-    async (
-        Guid recommendationId,
-        RecommendationQueryService queryService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
+    async (Guid recommendationId, IRecommendationRepository recommendations, IResourceActionRepository actions,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var allowedAssetIds =
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User);
-
-        var recommendation = await queryService.GetRequiredAsync(
-            recommendationId,
-            allowedAssetIds,
-            cancellationToken);
-
-        return ToRecommendationSummaryResponse(recommendation);
+        var item = RequireFound(await recommendations.GetAuthorizedAsync(access.Subject, recommendationId, cancellationToken), "RECOMMENDATION_NOT_FOUND");
+        var capability = (await actions.GetRecommendationActionsAsync(access.Subject, [item.Id], cancellationToken)).SingleOrDefault();
+        return ToRecommendationSummaryResponse(item) with { CanDecide = capability?.CanDecide == true };
     })
     .WithName("GetRecommendation")
     .RequireAuthorization(WellSitePolicies.RecommendationsRead)
@@ -1460,36 +771,13 @@ v1.MapGet(
 
 v1.MapPost(
     "/recommendations/{recommendationId:guid}/decision",
-    async (
-        Guid recommendationId,
-        RecommendationDecisionRequest request,
-        RecommendationDecisionService decisionService,
-        AssetScopeAuthorizer assetScopeAuthorizer,
-        HttpContext httpContext,
-        CancellationToken cancellationToken) =>
+    async (Guid recommendationId, RecommendationDecisionRequest request, IRecommendationRepository recommendations,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        if (!Enum.TryParse<RecommendationStatus>(request.Decision, true, out var decision) ||
-            decision is not (RecommendationStatus.Approved or RecommendationStatus.Rejected))
-        {
-            throw new WellSiteAutoPilotException(
-                "RECOMMENDATION_DECISION_INVALID", FailureKind.Validation,
-                "Decision must be Approved or Rejected.");
-        }
-
-        var recommendation = await decisionService.DecideAsync(
-            recommendationId,
-            decision,
-            httpContext.User.Identity?.Name ?? string.Empty,
-            request.Reason,
-            assetScopeAuthorizer.GetAllowedAssetIds(httpContext.User),
-            cancellationToken);
-
-        return new RecommendationDecisionResponse(
-            recommendation.Id,
-            recommendation.Status.ToString(),
-            recommendation.DecisionBy,
-            recommendation.DecisionAtUtc,
-            recommendation.DecisionReason);
+        var decision = ParseRequired<RecommendationStatus>(request.Decision);
+        var item = await recommendations.DecideAuthorizedAsync(access.Subject, recommendationId, decision,
+            access.CreateActor(context), request.Reason, cancellationToken);
+        return new RecommendationDecisionResponse(item.Id, item.Status.ToString(), item.DecisionBy, item.DecisionAtUtc, item.DecisionReason);
     })
     .WithName("DecideRecommendation")
     .RequireAuthorization(WellSitePolicies.RecommendationsDecide)
@@ -1644,62 +932,30 @@ static RoleDefinitionResponse ToRoleResponse(
     role.Permissions.ToArray());
 
 static SecurityUserResponse ToSecurityUserResponse(
-    WellSiteAutoPilot.Domain.Security.UserAccessProfile user) => new(
+    WellSiteAutoPilot.Domain.Security.UserIdentity user) => new(
     user.Id,
     user.IdentityName,
     user.DisplayName,
     user.IsActive,
     user.CreatedAtUtc,
-    user.LastSeenAtUtc,
-    user.Roles.Select(item => item.ToString()).ToArray(),
-    user.AssetScopeIds.ToArray());
+    user.LastSeenAtUtc);
 
-static Guid GetCurrentUserId(System.Security.Claims.ClaimsPrincipal user)
-{
-    var value = user.FindFirst(SecurityClaimTypes.UserId)?.Value;
+static T RequireFound<T>(T? value, string code) where T : class => value ??
+    throw new WellSiteAutoPilotException(code, FailureKind.NotFound, "The requested resource was not found.");
 
-    if (!Guid.TryParse(value, out var userId))
-    {
-        throw new WellSiteAutoPilotException(
-            "SECURITY_USER_CONTEXT_REQUIRED",
-            FailureKind.Authorization,
-            "The authenticated WellSite AutoPilot user context is unavailable.");
-    }
+static int PageLimit(int limit, int maximum = 500) => limit >= 1 && limit <= maximum ? limit :
+    throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested page limit is invalid.");
 
-    return userId;
-}
+static T ParseRequired<T>(string? raw) where T : struct, Enum =>
+    Enum.TryParse<T>(raw, ignoreCase: false, out var value) && Enum.IsDefined(value) && raw == value.ToString() ? value :
+        throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "An explicit supported value is required.");
 
-static IReadOnlyCollection<ApplicationRole> ParseApplicationRoles(
-    IReadOnlyCollection<string>? roleNames)
-{
-    if (roleNames is null)
-    {
-        throw new WellSiteAutoPilotException(
-            FailureCodes.ValidationFailed,
-            FailureKind.Validation,
-            "Roles are required.");
-    }
+static T? ParseFilter<T>(string? raw) where T : struct, Enum => raw is null ? null :
+    Enum.TryParse<T>(raw, ignoreCase: true, out var value) && Enum.IsDefined(value) ? value :
+        throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested status filter is invalid.");
 
-    var roles = new List<ApplicationRole>();
-
-    foreach (var roleName in roleNames)
-    {
-        if (!Enum.TryParse<ApplicationRole>(
-                roleName,
-                ignoreCase: true,
-                out var role))
-        {
-            throw new WellSiteAutoPilotException(
-                FailureCodes.ValidationFailed,
-                FailureKind.Validation,
-                $"Unknown application role '{roleName}'.");
-        }
-
-        roles.Add(role);
-    }
-
-    return roles.Distinct().OrderBy(item => item).ToArray();
-}
+static ConfiguredLogicResponse WithConfigurationActions(ConfiguredLogicDefinition item, ConfiguredLogicActions? capability) =>
+    ToConfiguredLogicResponse(item) with { CanManage = capability?.CanManage == true, CanRequestShadow = capability?.CanRequestShadow == true };
 
 static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>
     new(grant.Id, grant.SubjectKind.ToString(), grant.UserId,

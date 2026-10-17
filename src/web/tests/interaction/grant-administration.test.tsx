@@ -7,11 +7,6 @@ import { loadRoleCatalog } from '../../src/views/roleCatalog';
 import { loadGrantAssetDirectory } from '../../src/views/grantAssetDirectory';
 import { createGrant, deactivateGrant, loadGrants } from '../../src/views/grantAdministration';
 
-import { loadDeploymentParity } from '../../src/views/deploymentMigrationPreflight';
-import { materializeLegacyGrants } from '../../src/views/materializeLegacyGrants';
-vi.mock('../../src/views/deploymentMigrationPreflight', () => ({ loadDeploymentParity: vi.fn() }));
-vi.mock('../../src/views/materializeLegacyGrants', () => ({ materializeLegacyGrants: vi.fn() }));
-
 vi.mock('../../src/views/accessManagement', () => ({ loadSecurityUsers: vi.fn() }));
 vi.mock('../../src/views/roleCatalog', () => ({ loadRoleCatalog: vi.fn() }));
 vi.mock('../../src/views/grantAssetDirectory', async importOriginal => ({
@@ -36,8 +31,8 @@ const row = {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(loadSecurityUsers).mockResolvedValue([
-    { userId: adminId, identityName: 'FIELD\\admin', isActive: true, roles: ['Admin'], assetScopeIds: [] },
-    { userId, identityName: 'FIELD\\operator', isActive: true, roles: ['Operator'], assetScopeIds: [] },
+    { userId: adminId, identityName: 'FIELD\\admin', isActive: true },
+    { userId, identityName: 'FIELD\\operator', isActive: true },
   ]);
   vi.mocked(loadRoleCatalog).mockResolvedValue({
     roles: [{ roleId, key: 'supervisor', name: 'Field Supervisor', description: '',
@@ -73,8 +68,8 @@ describe('audited grant administration interaction', () => {
   it('requires review and a matching server read before reporting one successful write', async () => {
     vi.mocked(loadGrants).mockResolvedValueOnce([]).mockResolvedValueOnce([row]);
     const user = await prepareGrant();
-    await user.click(screen.getByRole('button', { name: 'Record and audit grant' }));
-    await screen.findByText('Grant recorded, audited, and verified. Live user access remains unchanged.');
+    await user.click(screen.getByRole('button', { name: 'Save assignment' }));
+    await screen.findByText('Assignment saved and verified. Access is evaluated from current assignments.');
     expect(createGrant).toHaveBeenCalledTimes(1);
     expect(loadGrants).toHaveBeenCalledTimes(2);
   });
@@ -82,11 +77,11 @@ describe('audited grant administration interaction', () => {
   it('blocks a mismatched readback and never retries an uncertain write', async () => {
     vi.mocked(loadGrants).mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...row, revision: 2 }]);
     const user = await prepareGrant();
-    await user.click(screen.getByRole('button', { name: 'Record and audit grant' }));
+    await user.click(screen.getByRole('button', { name: 'Save assignment' }));
     expect((await screen.findByRole('alert')).textContent).toContain('could not be verified');
     expect(createGrant).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: 'Record and audit grant' })).toBeNull();
-    expect(screen.queryByText('Grant recorded, audited, and verified. Live user access remains unchanged.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save assignment' })).toBeNull();
+    expect(screen.queryByText('Assignment saved and verified. Access is evaluated from current assignments.')).toBeNull();
   });
 
   it('requires a separate confirmation before retiring the observed grant revision', async () => {
@@ -103,43 +98,11 @@ describe('audited grant administration interaction', () => {
     expect(deactivateGrant).not.toHaveBeenCalled();
     await user.click(within(review).getByRole('checkbox'));
     await user.click(submit);
-    await screen.findByText('Grant deactivated and verified. Current live user access remains unchanged.');
+    await screen.findByText('Grant deactivated and verified. Other active assignments may still provide access.');
     expect(deactivateGrant).toHaveBeenCalledExactlyOnceWith(row, true, expect.any(AbortSignal));
   });
 });
 
-
-it('clears selected-user grants and blocks administration while a deployment write is uncertain', async () => {
-  vi.mocked(loadGrants).mockResolvedValue([row]);
-  vi.mocked(loadDeploymentParity).mockResolvedValue({ activeUserCount: 1, activeAssetCount: 1,
-    matchingUserCount: 0, expansionCount: 0, reductionCount: 1, users: [{ userId,
-      expectedLegacyGrantCount: 1, recordedGrantCount: 0, expansionCount: 0, reductionCount: 1,
-      recordedGrantsMatchLegacy: false }], allActiveUsersMatchRecordedGrants: false, isDiagnosticOnly: true });
-  let reject!: (reason: Error) => void;
-  vi.mocked(materializeLegacyGrants).mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
-  const user = userEvent.setup();
-  render(<GrantAdministrationPage currentUserId={adminId} />);
-  const picker = await screen.findByRole('combobox', { name: 'User to administer' });
-  await user.selectOptions(picker, userId);
-  await screen.findByRole('button', { name: 'Deactivate grant' });
-  await user.click(screen.getByRole('button', { name: 'Check deployment parity' }));
-  await user.click(await screen.findByRole('checkbox', { name: /records grants for all active users/ }));
-  await user.type(screen.getByRole('textbox', { name: /Type RECORD LEGACY GRANTS/ }), 'RECORD LEGACY GRANTS');
-  await user.click(screen.getByRole('button', { name: 'Record legacy grants' }));
-  expect(screen.queryByRole('button', { name: 'Deactivate grant' })).toBeNull();
-  expect((picker as HTMLSelectElement).value).toBe('');
-  expect((picker as HTMLSelectElement).disabled).toBe(true);
-  expect((screen.getByRole('button', { name: 'Reload users' }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.queryByRole('button', { name: 'Compare access' })).toBeNull();
-  reject(new Error('write may have committed'));
-  await screen.findByRole('alert');
-  expect((picker as HTMLSelectElement).disabled).toBe(false);
-  expect(screen.queryByRole('button', { name: 'Deactivate grant' })).toBeNull();
-  await user.selectOptions(picker, userId);
-  await screen.findByRole('button', { name: 'Deactivate grant' });
-  expect(loadGrants).toHaveBeenCalledTimes(2);
-  expect(materializeLegacyGrants).toHaveBeenCalledTimes(1);
-});
 
 it('records and retires a Windows group custom-role assignment through the shared reviewed workflow', async () => {
   const sid = 'S-1-5-21-100-200-300-400';
@@ -168,15 +131,15 @@ it('records and retires a Windows group custom-role assignment through the share
   await user.click(screen.getByRole('checkbox', { name: 'I reviewed the role, permissions, and Asset boundaries.' }));
   await user.click(screen.getByRole('button', { name: 'Continue to final review' }));
   expect(createGrant).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('button', { name: 'Record and audit grant' }));
-  await screen.findByText('Grant recorded, audited, and verified. Live user access remains unchanged.');
+  await user.click(screen.getByRole('button', { name: 'Save assignment' }));
+  await screen.findByText('Assignment saved and verified. Access is evaluated from current assignments.');
   expect(createGrant).toHaveBeenCalledExactlyOnceWith({ subjectKind: 'WindowsGroup', userId: '', groupSid: sid,
     roleId, scopeKind: 'ExactAssets', assetIds: [assetId], expectedRoleRevision: 1 }, true, expect.any(AbortSignal));
   await user.click(screen.getByRole('button', { name: 'Deactivate grant' }));
   const review = screen.getByRole('region', { name: 'Review grant deactivation' });
   await user.click(within(review).getByRole('checkbox'));
   await user.click(within(review).getByRole('button', { name: 'Deactivate grant' }));
-  await screen.findByText('Grant deactivated and verified. Current live user access remains unchanged.');
+  await screen.findByText('Grant deactivated and verified. Other active assignments may still provide access.');
   expect(deactivateGrant).toHaveBeenCalledExactlyOnceWith(groupRow, true, expect.any(AbortSignal));
 });
 

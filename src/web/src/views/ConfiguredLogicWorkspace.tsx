@@ -26,6 +26,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const mayManage = canManage && (!selectedId || detail?.canManage === true);
   const request = useRef<AbortController | null>(null);
   const pending = useRef(false);
   useEffect(() => {
@@ -61,7 +62,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     } finally { pending.current = false; if (!c.signal.aborted) setBusy(false); }
   }
   async function transition(revision: ConfiguredLogicRevisionResponse, action: 'validate' | 'activate') {
-    if (!detail || !revision.id || !canManage || busy || blocked || pending.current) return;
+    if (!detail || !revision.id || !mayManage || busy || blocked || pending.current) return;
     const snapshot = detail;
     pending.current = true; setBusy(true); setError(null); setNotice(null);
     const c = new AbortController(); request.current?.abort(); request.current = c;
@@ -103,7 +104,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         <strong>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</strong>
         <p>{t('setup.exactScope', { assets: r.assetBindings?.map(b =>
           assets.find(a => a.id === b.assetId)?.name ?? b.assetId).join(', ') ?? '' })}</p>
-        {canManage && !editing && <div className="setup-actions">
+        {mayManage && !editing && <div className="setup-actions">
           <button type="button" disabled={busy || blocked} onClick={() => {
             setSource(r); setEditing(true); setConfirmId(null);
           }}>{t('setup.copyRevision', { number: r.revisionNumber ?? '—' })}</button>
@@ -119,12 +120,12 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         </div>}
         {userId && r.status === 'Active' && r.id === detail.activeRevisionId && !editing && <ConfiguredShadowPanel
           key={r.id} userId={userId} configurationId={detail.id} revision={r}
-          canRequest={canRequestShadow === true} disabled={busy || blocked} />}
+          canRequest={canRequestShadow === true && detail.canRequestShadow === true} disabled={busy || blocked} />}
       </li>)}</ul>
     </>}
     {(detail || selectedId) && !editing && <button type="button" disabled={busy}
       onClick={() => void reload()}>{t('setup.reload')}</button>}
-    {editing && canManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
+    {editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
       modules={modules} assets={assets} assetTypes={assetTypes}
       configuration={detail ?? undefined} revision={source}
       onSaved={value => { setDetail(value); setEditing(false); setSource(undefined);

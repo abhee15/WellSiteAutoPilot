@@ -40,13 +40,20 @@ internal static class ConfiguredShadowE2e
         var revision = definition.GetProperty("revisions")[0].GetProperty("id").GetGuid();
         var path = $"/api/v1/configured-logic/{id}/revisions/{revision}";
         await Read(await client.PostAsync(path + "/validate", null), HttpStatusCode.OK);
-        await Read(await client.PostAsync(path + "/activate", null), HttpStatusCode.OK);
+        await Activate(client, path + "/activate", "none");
         var requestId = Guid.NewGuid();
-        var receipts = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ =>
-            Send(client, path + "/shadow", requestId)));
-        var executionId = receipts[0].GetProperty("executionId").GetGuid();
-        if (receipts.Any(r => r.GetProperty("executionId").GetGuid() != executionId))
-            throw new InvalidOperationException("Concurrent request recovery created multiple executions.");
+        var receipts = await Task.WhenAll(Enumerable.Range(0, 4).Select(async _ =>
+        {
+            using var response = await client.PostAsJsonAsync(path + "/shadow", new { requestId });
+            if (response.StatusCode == HttpStatusCode.Conflict) return (Guid?)null;
+            return (await Read(response, HttpStatusCode.OK)).GetProperty("executionId").GetGuid();
+        }));
+        var committedIds = receipts.Where(id => id is not null).Select(id => id!.Value).ToArray();
+        if (committedIds.Length == 0 || committedIds.Distinct().Count() != 1)
+            throw new InvalidOperationException("Concurrent requests lost a receipt or created multiple executions.");
+        var executionId = committedIds[0];
+        if ((await Send(client, path + "/shadow", requestId)).GetProperty("executionId").GetGuid() != executionId)
+            throw new InvalidOperationException("Explicit replay did not recover the committed execution.");
         var completed = await AwaitTerminal(client, executionId);
         if (completed.GetProperty("status").GetString() != "Completed" || completed.GetProperty("mode").GetString() != "Shadow")
             throw new InvalidOperationException("Configured V2 Shadow execution failed: " + completed);
@@ -68,7 +75,7 @@ internal static class ConfiguredShadowE2e
         var failedId = failedRevision.GetProperty("id").GetGuid();
         var failedPath = $"/api/v1/configured-logic/{id}/revisions/{failedId}";
         await Read(await client.PostAsync(failedPath + "/validate", null), HttpStatusCode.OK);
-        await Read(await client.PostAsync(failedPath + "/activate", null), HttpStatusCode.OK);
+        await Activate(client, failedPath + "/activate", revision.ToString());
         var recovered = await Send(client, path + "/shadow", requestId);
         if (recovered.GetProperty("executionId").GetGuid() != executionId)
             throw new InvalidOperationException("Recovery after revision drift did not return canonical execution.");
@@ -79,6 +86,12 @@ internal static class ConfiguredShadowE2e
         if (failed.GetProperty("status").GetString() != "Failed" || string.IsNullOrEmpty(failed.GetProperty("failureCode").GetString()))
             throw new InvalidOperationException("Provider failure was not durably inspectable.");
         Console.WriteLine("Configured Shadow V2 real HTTP/PostgreSQL/JetStream/simulator journey, request recovery, provenance and failure checks passed.");
+    }
+    private static async Task Activate(HttpClient client, string path, string reviewedActiveRevision)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, path);
+        message.Headers.TryAddWithoutValidation("If-Match", "\"" + reviewedActiveRevision + "\"");
+        await Read(await client.SendAsync(message), HttpStatusCode.OK);
     }
     private static async Task<JsonElement> Send(HttpClient client, string path, Guid requestId) =>
         await Read(await client.PostAsJsonAsync(path, new { requestId }), HttpStatusCode.OK);

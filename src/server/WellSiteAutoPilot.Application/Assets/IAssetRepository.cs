@@ -1,9 +1,28 @@
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Assets;
 
 namespace WellSiteAutoPilot.Application.Assets;
 
 public interface IAssetRepository
 {
+    Task<AssetTypeDefinition?> GetAssetTypeAuthorizedAsync(AccessSubject subject, Guid id,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<AssetTypeDefinition>> ListAssetTypesAuthorizedAsync(AccessSubject subject,
+        CancellationToken cancellationToken = default);
+
+    Task AddAssetTypeAuthorizedAsync(AssetTypeDefinition assetType, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default);
+
+    Task AddAssetAuthorizedAsync(Asset asset, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default);
+
+    Task<Asset?> GetAuthorizedAsync(AccessSubject subject, Guid id,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<Asset>> ListAuthorizedAsync(AccessSubject subject, Guid? assetTypeId, Guid? parentAssetId, int limit,
+        CancellationToken cancellationToken = default);
+
     Task<bool> AssetTypeKeyExistsAsync(
         string key,
         CancellationToken cancellationToken = default);

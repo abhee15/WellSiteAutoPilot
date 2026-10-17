@@ -1,12 +1,14 @@
 # Scoped authorization cutover checklist
 
-**Status:** planning and diagnostic implementation only. **Do not enable or merge
-an enforcement switch based solely on this document or passing migration CI.**
+**Status:** unified grant API/frontend integration implemented on draft PR #127;
+final integration CI and review are required before merging. Historical migration
+checks alone do not validate the active runtime.
 
 ## Baseline and constraints
 
-- Legacy Windows identity, persisted legacy roles, permission claims, and Asset
-  scopes remain the live authorization source until the complete grant-based replacement is validated.
+- The API binds a persisted identity to a trusted request context and uses paired
+  grants for policies, resource reads and transactionally fenced mutations. Legacy
+  roles, permission claims and Asset wildcard unions do not authorize HTTP routes.
 - The new grant/role SQL queries are diagnostic and must agree with the pure
   scoped-grant evaluator. Any SQL/domain disagreement blocks cutover.
 - Every resource decision must use a **single active direct-user or verified Windows-group role grant**
@@ -27,13 +29,13 @@ an enforcement switch based solely on this document or passing migration CI.**
 | GET /assets and /assets/{id} | assets.read | Filter at SQL source before pagination; exact Asset checks for detail |
 | POST /assets with parent | assets.manage | Check parent Asset under the same resource permission before creating |
 | POST /assets at root | assets.manage + explicit admin rule | Do not infer universal rights from one scoped asset |
-| POST /asset-types; GET /asset-types | current assets.manage / assets.read | **Design decision required:** type catalog is deployment-wide without an Asset. Keep a strict admin-only bridge until a dedicated global catalog permission is introduced; never infer a universal scope |
+| POST /asset-types; GET /asset-types | assets.manage / assets.read | Create requires protected administration plus explicit AllAssets management. Full catalog reads require protected administration plus AllAssets read; scoped readers see only types used by readable Assets |
 | GET /configured-logic and /configured-logic/{id} | configured-logic.read | Filter by **every bound Asset in every disclosed revision** before limit/response |
 | POST /configured-logic | configured-logic.manage | Verify all distinct Asset bindings and associated data-binding Assets; reject empty/unproven scopes |
 | POST configured-logic revision | configured-logic.manage | Authorize existing revision Assets AND requested new Assets; forbid changing from an authorized revision to an unauthorized one |
 | Validate/activate a revision | configured-logic.manage | Re-resolve all revision bindings from persistence at action time; no stale client-supplied Asset list |
 | GET /executions and /executions/{id} | executions.read | Filter before pagination; include all V1 Asset and V2 execution Asset scopes |
-| POST /executions/shadow | executions.request | Authorize the target Asset before writing an execution/outbox request; no cross-scope execution |
+| POST configured-logic revision Shadow | executions.request + configured-logic.read | Build the snapshot from the persisted Active Shadow revision; retain complete read/request scope through execution/outbox/audit commit and recheck receipt replay |
 | GET /recommendations and /recommendations/{id} | recommendations.read | Filter by persisted target Asset before paging or materializing a response |
 | POST /recommendations/{id}/decision | recommendations.decide | Resolve target Asset authoritatively and enforce permission before any status mutation |
 | /logic-modules catalog | logic.read / logic.manage | SQL-backed **deployment-wide** permission; do not satisfy using AllAssets grants |
@@ -63,9 +65,9 @@ seeds are acceptable; never reset a database automatically.
    Real Windows authentication remains release-readiness issue #92, not proof
    supplied by TestHeader or installer smoke.
 
-Legacy remains authoritative in the current code. This document changes the
-implementation plan, not live permission decisions. Route families may be
-implemented in small PRs, but do not expose an incomplete mixed authority.
+The coordinated runtime replacement is implemented on the working branch.
+Validate its full route, permission, direct/group and frontend revocation matrix
+before merging; no mixed legacy/grant runtime mode is introduced.
 
 ## Required negative tests before enforcement merge
 

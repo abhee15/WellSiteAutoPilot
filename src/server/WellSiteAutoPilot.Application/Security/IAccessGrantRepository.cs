@@ -13,6 +13,12 @@ public sealed record CreateAccessGrantCommand(
 
 public interface IAccessGrantRepository
 {
+    Task<AccessGrant> CreateAuthorizedAsync(AccessGrantSubject subject, CreateAccessGrantCommand command,
+        AccessSubject administrator, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
+
+    Task<AccessGrant> DeactivateAuthorizedAsync(AccessGrantSubject subject, Guid grantId, long expectedRevision,
+        AccessSubject administrator, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<AccessGrant>> ListAsync(AccessGrantSubject subject, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<AccessGrant>> ListForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>

@@ -9,4 +9,4 @@ v1/
   ...
 ```
 
-Generated files must never be hand-edited. Breaking API changes require a new major API version and a separate generated client folder.
+Generated files must never be hand-edited. The unreleased v1 baseline may evolve with coordinated server/client updates. After release, breaking API changes require a new major API version and a separate generated client folder.

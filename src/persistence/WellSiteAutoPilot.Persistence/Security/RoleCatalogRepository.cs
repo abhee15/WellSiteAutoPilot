@@ -10,7 +10,7 @@ using WellSiteAutoPilot.Persistence.Audit;
 namespace WellSiteAutoPilot.Persistence.Security;
 
 /// <summary>Role definitions are not active grants until scoped entitlement cutover.</summary>
-public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
+public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null)
     : IRoleCatalogRepository
 {
     private static readonly JsonSerializerOptions AuditJsonOptions =
@@ -55,16 +55,28 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
         return ToDomain(row, permissions);
     }
 
-    public async Task<RoleDefinition> CreateAsync(
+    public Task<RoleDefinition> CreateAuthorizedAsync(RoleDefinition role, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default) => GrantAdministrationActor.ExecuteAsync(() =>
+            CreateCoreAsync(role, GrantAdministrationActor.Bind(subject, actor), subject, cancellationToken));
+
+    public Task<RoleDefinition> UpdateAuthorizedAsync(Guid roleId, long expectedRevision, RoleMutationCommand mutation,
+        AccessSubject subject, SecurityActorContext actor, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+        GrantAdministrationActor.ExecuteAsync(() => UpdateCoreAsync(roleId, expectedRevision, mutation,
+            GrantAdministrationActor.Bind(subject, actor), nowUtc, subject, cancellationToken));
+
+    public Task<RoleDefinition> CreateAsync(
         RoleDefinition role, SecurityActorContext actor,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) => CreateCoreAsync(role, actor, null, cancellationToken);
+
+    private async Task<RoleDefinition> CreateCoreAsync(RoleDefinition role, SecurityActorContext actor,
+        AccessSubject? subject, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(role);
         ArgumentNullException.ThrowIfNull(actor);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
-        await LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken);
+        await RequireAdministrationAsync(subject, actor, cancellationToken);
         var normalizedName = NormalizeName(role.Name);
 
         dbContext.RoleDefinitions.Add(new RoleDefinitionEntity
@@ -99,6 +111,7 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
 
         try
         {
+            await RequireAdministrationAsync(subject, actor, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -113,10 +126,14 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
             throw new InvalidOperationException("Created role was not persisted.");
     }
 
-    public async Task<RoleDefinition> UpdateAsync(
+    public Task<RoleDefinition> UpdateAsync(
         Guid roleId, long expectedRevision, RoleMutationCommand mutation,
         SecurityActorContext actor, DateTimeOffset nowUtc,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        UpdateCoreAsync(roleId, expectedRevision, mutation, actor, nowUtc, null, cancellationToken);
+
+    private async Task<RoleDefinition> UpdateCoreAsync(Guid roleId, long expectedRevision, RoleMutationCommand mutation,
+        SecurityActorContext actor, DateTimeOffset nowUtc, AccessSubject? subject, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mutation);
         ArgumentNullException.ThrowIfNull(actor);
@@ -125,7 +142,13 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
         {
             await using var transaction = await dbContext.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable, cancellationToken);
-            await LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken);
+            await RequireAdministrationAsync(subject, actor, cancellationToken);
+            // Prevent new FK-backed assignments while deciding whether this
+            // role's permissions/state may change. Reads and updates share it.
+            await dbContext.RoleDefinitions.FromSqlInterpolated($"""
+                SELECT r.* FROM security.role_definitions AS r WHERE r."Id" = {roleId} FOR UPDATE OF r
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
+            if (subject is not null) nowUtc = (clock ?? TimeProvider.System).GetUtcNow();
 
             var current = await GetAsync(roleId, cancellationToken) ??
                 throw new WellSiteAutoPilotException(
@@ -234,6 +257,7 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
                     mutation.IsActive
                 }));
 
+            await RequireAdministrationAsync(subject, actor, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -272,6 +296,10 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext)
         string reason, Exception? inner = null) =>
         new("SECURITY_ROLE_CONFLICT", FailureKind.Conflict, reason,
             innerException: inner);
+
+    private Task RequireAdministrationAsync(AccessSubject? subject, SecurityActorContext actor, CancellationToken cancellationToken) =>
+        subject is null ? LegacyAdministratorWriteGuard.RequireAsync(dbContext, actor, cancellationToken)
+            : GrantWriteGuard.RequireAdministratorAsync(dbContext, subject, clock ?? TimeProvider.System, cancellationToken);
 
     private static string NormalizeName(string name) =>
         name.Trim().ToUpperInvariant();

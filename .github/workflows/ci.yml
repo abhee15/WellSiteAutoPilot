@@ -176,7 +176,6 @@ jobs:
               "/api/v1/system/info",
               "/api/v1/security/me",
               "/api/v1/security/users",
-              "/api/v1/security/users/{userId}/access",
               "/api/v1/logic-modules",
               "/api/v1/logic-modules/{moduleId}/{moduleVersion}",
               "/api/v1/executions",
@@ -189,7 +188,7 @@ jobs:
               "/api/v1/configured-logic/{configuredLogicId}/revisions",
               "/api/v1/configured-logic/{configuredLogicId}/revisions/{revisionId}/validate",
               "/api/v1/configured-logic/{configuredLogicId}/revisions/{revisionId}/activate",
-              "/api/v1/executions/shadow",
+              "/api/v1/configured-logic/{configuredLogicId}/revisions/{revisionId}/shadow",
               "/api/v1/executions/{executionId}"
             )
 
@@ -199,6 +198,10 @@ jobs:
                 $paths | Sort-Object | ForEach-Object { Write-Host "  $_" }
                 throw "OpenAPI v1 did not contain expected route: $requiredPath"
               }
+            }
+
+            if ($paths -contains "/api/v1/executions/shadow") {
+              throw "Retired raw dispatch must not be published in OpenAPI."
             }
 
             if ($paths | Where-Object { $_ -match 'v\\{version' }) {
@@ -879,7 +882,7 @@ jobs:
           Runtime__IntegrationGatewayUrl=http://127.0.0.1:5081             dotnet run --project src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --urls http://127.0.0.1:5082 > worker.log 2>&1 &
           echo $! > worker.pid
 
-          ASPNETCORE_ENVIRONMENT=CI Security__AuthenticationMode=TestHeader Security__BootstrapAdministrators__0='CI\wsa-admin' ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
+          ASPNETCORE_ENVIRONMENT=CI Swagger__Enabled=true Security__AuthenticationMode=TestHeader Security__BootstrapAdministrators__0='CI\wsa-admin' ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
           echo $! > server.pid
 
           for attempt in {1..45}; do
@@ -898,165 +901,18 @@ jobs:
           cat server.log || true
           exit 1
 
-      - name: Verify API authentication and RBAC boundary
-        shell: bash
-        run: |
-          status=$(curl --silent --output /dev/null --write-out "%{http_code}"             "http://127.0.0.1:5080/api/v1/executions?limit=1")
-          if [ "$status" != "401" ]; then
-            echo "Expected anonymous API request to return 401, got $status"
-            exit 1
-          fi
-
-          status=$(curl --silent --output /dev/null --write-out "%{http_code}"             -H 'X-WSA-Test-Identity: CI\unprivileged'             "http://127.0.0.1:5080/api/v1/executions?limit=1")
-          if [ "$status" != "403" ]; then
-            echo "Expected authenticated user without roles to return 403, got $status"
-            exit 1
-          fi
-
-          me=$(curl --fail --silent             -H 'X-WSA-Test-Identity: CI\wsa-admin'             "http://127.0.0.1:5080/api/v1/security/me")
-          ME="$me" python - <<'PY'
-          import json, os
-          current=json.loads(os.environ["ME"])
-          assert "Admin" in current["roles"]
-          assert current["identityName"].lower() == r"ci\wsa-admin".lower()
-          PY
-
-          admin_id=$(ME="$me" python - <<'PY'
-          import json, os
-          print(json.loads(os.environ["ME"])["userId"])
-          PY
-          )
-          status=$(curl --silent --output /dev/null --write-out "%{http_code}" \
-            -X PUT \
-            -H "Content-Type: application/json" \
-            -H 'X-WSA-Test-Identity: CI\\wsa-admin' \
-            -d '{"roles":["Admin"],"assetScopeIds":[]}' \
-            "http://127.0.0.1:5080/api/v1/security/users/$admin_id/access")
-          if [ "$status" != "403" ]; then
-            echo "Expected administrator self-access mutation to return 403, got $status"
-            exit 1
-          fi
-
-          asset_type_request=$(python - <<'PY'
-          import json
-          print(json.dumps({
-              "key": "ci-security-well",
-              "displayName": "CI Security Well",
-              "attributeSchemaJson": '{"type":"object"}'
-          }))
-          PY
-          )
-
-          asset_type=$(curl --fail --silent             -H "Content-Type: application/json"             -H 'X-WSA-Test-Identity: CI\wsa-admin'             -d "$asset_type_request"             http://127.0.0.1:5080/api/v1/asset-types)
-
-          asset_type_id=$(RESPONSE="$asset_type" python - <<'PY'
-          import json, os
-          print(json.loads(os.environ["RESPONSE"])["id"])
-          PY
-          )
-
-          create_asset() {
-            local name="$1"
-            request=$(ASSET_TYPE_ID="$asset_type_id" ASSET_NAME="$name" python - <<'PY'
-          import json, os
-          print(json.dumps({
-              "assetTypeId": os.environ["ASSET_TYPE_ID"],
-              "name": os.environ["ASSET_NAME"],
-              "parentAssetId": None,
-              "attributeValuesJson": "{}"
-          }))
-          PY
-            )
-            curl --fail --silent               -H "Content-Type: application/json"               -H 'X-WSA-Test-Identity: CI\wsa-admin'               -d "$request"               http://127.0.0.1:5080/api/v1/assets
-          }
-
-          asset_one=$(create_asset "Security Well 101")
-          asset_two=$(create_asset "Security Well 202")
-
-          asset_one_id=$(RESPONSE="$asset_one" python - <<'PY'
-          import json, os
-          print(json.loads(os.environ["RESPONSE"])["id"])
-          PY
-          )
-          asset_two_id=$(RESPONSE="$asset_two" python - <<'PY'
-          import json, os
-          print(json.loads(os.environ["RESPONSE"])["id"])
-          PY
-          )
-
-          operator_me=$(curl --fail --silent             -H 'X-WSA-Test-Identity: CI\operator-one'             http://127.0.0.1:5080/api/v1/security/me)
-
-          operator_id=$(RESPONSE="$operator_me" python - <<'PY'
-          import json, os
-          current=json.loads(os.environ["RESPONSE"])
-          assert current["roles"] == []
-          print(current["userId"])
-          PY
-          )
-
-          access_request=$(ASSET_ID="$asset_one_id" python - <<'PY'
-          import json, os
-          print(json.dumps({
-              "roles": ["Operator"],
-              "assetScopeIds": [os.environ["ASSET_ID"]]
-          }))
-          PY
-          )
-
-          curl --fail --silent             -X PUT             -H "Content-Type: application/json"             -H "X-Correlation-ID: ci-security-operator-access"             -H 'X-WSA-Test-Identity: CI\wsa-admin'             -d "$access_request"             "http://127.0.0.1:5080/api/v1/security/users/$operator_id/access"             >/dev/null
-
-          scoped_assets=$(curl --fail --silent             -H 'X-WSA-Test-Identity: CI\operator-one'             http://127.0.0.1:5080/api/v1/assets)
-
-          SCOPED_ASSETS="$scoped_assets" ASSET_ONE_ID="$asset_one_id" python - <<'PY'
-          import json, os
-          assets=json.loads(os.environ["SCOPED_ASSETS"])
-          assert len(assets) == 1
-          assert assets[0]["id"] == os.environ["ASSET_ONE_ID"]
-          PY
-
-          status=$(curl --silent --output /dev/null --write-out "%{http_code}"             -H 'X-WSA-Test-Identity: CI\operator-one'             "http://127.0.0.1:5080/api/v1/assets/$asset_two_id")
-          if [ "$status" != "403" ]; then
-            echo "Expected out-of-scope Asset request to return 403, got $status"
-            exit 1
-          fi
-
-          status=$(curl --silent --output /dev/null --write-out "%{http_code}"             -H "Content-Type: application/json"             -H 'X-WSA-Test-Identity: CI\operator-one'             -d '{}'             http://127.0.0.1:5080/api/v1/assets)
-          if [ "$status" != "403" ]; then
-            echo "Expected Operator Asset mutation to return 403, got $status"
-            exit 1
-          fi
-
-      - name: Verify audit-only grant administration HTTP boundaries
+      - name: Verify paired grant runtime HTTP boundaries
         run: python3 tools/ci/verify_grant_administration.py
 
-      - name: Request and verify Shadow execution
+      - name: Verify retired raw dispatch and V1 messaging compatibility
         shell: bash
         run: |
-          request=$(python - <<'PY'
-          import json, uuid
-          print(json.dumps({
-              "logicInstanceId": str(uuid.uuid4()),
-              "moduleId": "weatherford.sample-shadow-read",
-              "moduleVersion": "1.0.0",
-              "configurationRevisionId": str(uuid.uuid4()),
-              "assetId": str(uuid.uuid4()),
-              "assetExternalId": "WELL-101",
-              "quantity": "PumpFillage"
-          }))
-          PY
-          )
-
-          response=$(curl --fail --silent             -H "Content-Type: application/json"             -H "X-Correlation-ID: ci-shadow-e2e"             -H 'X-WSA-Test-Identity: CI\wsa-admin'             -d "$request"             http://127.0.0.1:5080/api/v1/executions/shadow)
-
-          echo "$response"
-
+          # Inject V1 through a test-only persistence fixture, never a product
+          # HTTP endpoint accepting caller-supplied provider mappings.
+          response=$(dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj --configuration Release --no-build -- --v1-fixture)
           execution_id=$(RESPONSE="$response" python - <<'PY'
           import json, os
-          data=json.loads(os.environ["RESPONSE"])
-          assert data["mode"] == "Shadow"
-          assert data["status"] == "Requested"
-          assert data["correlationId"] == "ci-shadow-e2e"
-          print(data["executionId"])
+          print(json.loads(os.environ["RESPONSE"])["executionId"])
           PY
           )
 
@@ -1092,6 +948,9 @@ jobs:
           STATE="$completed" python - <<'PY'
           import json, os
           execution=json.loads(os.environ["STATE"])
+          assert execution["requestContractVersion"] == 1
+          assert execution["mode"] == "Shadow"
+          assert execution["correlationId"] == "ci-shadow-e2e"
           assert execution["resultCode"] == "SHADOW_MODULE_COMPLETED"
           output=json.loads(execution["outputJson"])
           result=output["engineeringResults"][0]

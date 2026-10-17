@@ -9,6 +9,12 @@ using WellSiteAutoPilot.Persistence.Security;
 
 internal static class ScopedResourceQueryChecks
 {
+    private sealed class AdjustableTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
     public static void VerifyTranslation()
     {
         var options = new DbContextOptionsBuilder<WellSiteAutoPilotDbContext>()
@@ -20,6 +26,8 @@ internal static class ScopedResourceQueryChecks
         [
             ScopedAccessQueries.Assets(db, user, WellSitePermissions.AssetsRead)
                 .OrderBy(asset => asset.Name).Skip(1).Take(1),
+            ScopedAccessQueries.AssetTypes(db, new AccessSubject(user), DateTimeOffset.UtcNow)
+                .OrderBy(type => type.DisplayName).Skip(1).Take(1),
             ScopedAccessQueries.ConfiguredLogic(db, user, WellSitePermissions.ConfiguredLogicRead)
                 .OrderBy(definition => definition.Name).Skip(1).Take(1),
             ScopedAccessQueries.Executions(db, user, WellSitePermissions.ExecutionsRead)
@@ -37,17 +45,34 @@ internal static class ScopedResourceQueryChecks
                 !sql.Contains("OFFSET", StringComparison.Ordinal))
                 throw new InvalidOperationException("Resource scope/paging did not translate to PostgreSQL.");
         }
-        Console.WriteLine("All four composed grant/resource queries translated with Npgsql.");
+        foreach (var query in new IQueryable[]
+        {
+            ScopedAccessQueries.Permissions(db, user),
+            ScopedAccessQueries.ResourceGrants(db, user, WellSitePermissions.AssetsManage),
+            ScopedAccessQueries.DeploymentGrants(db, user, WellSitePermissions.SecurityManage),
+            ScopedAccessQueries.AdministratorGrants(db, user),
+            ScopedAccessQueries.ConfiguredLogicActions(db, new AccessSubject(user), [Guid.NewGuid()], DateTimeOffset.UtcNow),
+            ScopedAccessQueries.RecommendationActions(db, new AccessSubject(user), [Guid.NewGuid()], DateTimeOffset.UtcNow)
+        })
+            if (!query.ToQueryString().Contains("EXISTS", StringComparison.Ordinal))
+                throw new InvalidOperationException("Grant authority did not translate to PostgreSQL.");
+        Console.WriteLine("Composed grant/resource/type queries and batch action capabilities translated with Npgsql.");
     }
 
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options,
         Guid assetTypeId)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
-        await using var transaction = await db.Database.BeginTransactionAsync();
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         var now = DateTimeOffset.UtcNow;
         var userId = Guid.NewGuid();
         var identity = $"grant-query-{userId:N}";
+        var unusedTypeId = Guid.NewGuid();
+        db.AssetTypes.Add(new AssetTypeEntity
+        {
+            Id = unusedTypeId, Key = unusedTypeId.ToString("N"), DisplayName = "Unassigned scoped-query type",
+            SchemaVersion = 1, IsActive = true, CreatedAtUtc = now
+        });
         db.Users.Add(new UserEntity
         {
             Id = userId, IdentityKey = identity, IdentityName = identity,
@@ -122,13 +147,32 @@ internal static class ScopedResourceQueryChecks
         Execution(allowed.Id, allowed.Revision, 2, null); // Missing immutable scope.
         Execution(allowed.Id, allowed.Revision, 2, null, assetA, Guid.NewGuid()); // Missing Asset.
         Execution(allowed.Id, allowed.Revision, 3, null, assetA); // Unknown contract.
-        Recommendation(denied, deniedExecution, assetC, now.AddMinutes(2));
+        var recommendationC = Recommendation(denied, deniedExecution, assetC, now.AddMinutes(2));
         var recommendationA = Recommendation(allowed, allowedExecution, assetA, now);
         var recommendationB = Recommendation(mixed, mixedExecution, assetB, now.AddMinutes(-1));
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
         await AssertVisibleAsync();
+        var accessClock = new AdjustableTimeProvider(now);
+        var access = new RequestAccessRepository(db, accessClock);
+        var directSubject = new AccessSubject(userId);
+        await AssertActionCapabilitiesAsync(directSubject);
+        var expectedHints = readPermissions.Concat(new[]
+        {
+            WellSitePermissions.LogicRead, WellSitePermissions.AssetsManage,
+            WellSitePermissions.ConfiguredLogicManage, WellSitePermissions.ExecutionsRequest,
+            WellSitePermissions.RecommendationsDecide
+        }).ToHashSet(StringComparer.Ordinal);
+        if (!(await access.GetPermissionHintsAsync(directSubject)).ToHashSet().SetEquals(expectedHints) ||
+            !await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.AssetsManage, [assetA]) ||
+            await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.AssetsManage, [assetA, assetB]) ||
+            await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.AssetsRead, []) ||
+            await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.AssetsRead, [assetA, Guid.Empty]) ||
+            await access.HasAssetPermissionAsync(directSubject, WellSitePermissions.LogicRead, [assetA]) ||
+            await access.HasDeploymentPermissionAsync(directSubject, WellSitePermissions.AssetsRead) ||
+            !await access.HasDeploymentPermissionAsync(directSubject, WellSitePermissions.LogicRead))
+            throw new InvalidOperationException("Request permission hints/resource checks lost paired-grant semantics.");
         var groupUser = Guid.NewGuid();
         var groupIdentity = $"group-query-{groupUser:N}";
         db.Users.Add(new UserEntity
@@ -145,6 +189,20 @@ internal static class ScopedResourceQueryChecks
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         var membership = new VerifiedWindowsGroupMembership(groupUser, [groupA, groupB], now);
+        var groupSubject = new AccessSubject(groupUser, membership);
+        await AssertActionCapabilitiesAsync(groupSubject);
+        if (!(await access.GetPermissionHintsAsync(groupSubject)).ToHashSet().SetEquals(expectedHints))
+            throw new InvalidOperationException("Multiple verified groups did not compose permission hints.");
+        accessClock.Now = now.Add(VerifiedWindowsGroupMembership.MaximumAge).AddTicks(1);
+        if ((await access.GetPermissionHintsAsync(groupSubject)).Count != 0)
+            throw new InvalidOperationException("Request authority cached expired group permission hints.");
+        if ((await new ResourceActionRepository(db, accessClock).GetConfiguredLogicActionsAsync(groupSubject, [allowed.Id])).Count != 0 ||
+            (await new ResourceActionRepository(db, accessClock).GetRecommendationActionsAsync(groupSubject, [recommendationA])).Count != 0)
+            throw new InvalidOperationException("Expired group proof retained action capabilities.");
+        accessClock.Now = now.AddTicks(-1);
+        if ((await access.GetPermissionHintsAsync(groupSubject)).Count != 0)
+            throw new InvalidOperationException("Future group proof authorized coarse permissions.");
+        accessClock.Now = now;
         await AssertEmptyAsync(groupUser); // Stored group assignments alone prove nothing.
         await AssertVisibleAsync(groupUser, membership, now);
         if (!await ScopedAccessQueries.DeploymentGrants(db, groupUser, WellSitePermissions.LogicRead,
@@ -176,9 +234,18 @@ internal static class ScopedResourceQueryChecks
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         await AssertVisibleAsync(groupUser, oneGroup, now); // Direct B + group A.
+        accessClock.Now = now.AddMinutes(2);
+        if (!(await access.GetPermissionHintsAsync(groupSubject)).ToHashSet().SetEquals(readPermissions) ||
+            !await access.HasAssetPermissionAsync(groupSubject, WellSitePermissions.AssetsRead, [assetB]) ||
+            await access.HasAssetPermissionAsync(groupSubject, WellSitePermissions.AssetsManage, [assetA]))
+            throw new InvalidOperationException("Expired groups suppressed valid direct access or retained group authority.");
+        accessClock.Now = now;
         await db.Users.Where(user => user.Id == groupUser)
             .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsActive, false));
         await AssertEmptyAsync(groupUser, membership: membership, at: now);
+        if ((await new ResourceActionRepository(db, accessClock).GetConfiguredLogicActionsAsync(groupSubject, [allowed.Id])).Count != 0 ||
+            (await new ResourceActionRepository(db, accessClock).GetRecommendationActionsAsync(groupSubject, [recommendationA])).Count != 0)
+            throw new InvalidOperationException("Inactive user retained action capabilities.");
 
         // A known permission from a different family must not authorize a query.
         if (await ScopedAccessQueries.ConfiguredLogic(db, userId, WellSitePermissions.AssetsRead).AnyAsync() ||
@@ -228,6 +295,8 @@ internal static class ScopedResourceQueryChecks
             await db.RoleDefinitions.Where(role => role.Id == engineer || role.Id == reader)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(role => role.Revision, invalidRevision));
             await AssertEmptyAsync(userId);
+            if ((await access.GetPermissionHintsAsync(directSubject)).Count != 0)
+                throw new InvalidOperationException("Invalid role revision authorized coarse permissions.");
             if (await ScopedAccessQueries.DeploymentGrants(db, userId, WellSitePermissions.LogicRead).AnyAsync())
                 throw new InvalidOperationException("Invalid role revision authorized a deployment permission.");
         }
@@ -237,11 +306,160 @@ internal static class ScopedResourceQueryChecks
         await db.Users.Where(user => user.Id == userId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsActive, false));
         await AssertEmptyAsync(userId);
+        if ((await access.GetPermissionHintsAsync(directSubject)).Count != 0)
+            throw new InvalidOperationException("Inactive user retained coarse permission hints.");
         await db.Users.Where(user => user.Id == userId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.IsActive, true));
         await AssertVisibleAsync();
+        // An explicit AllAssets grant remains a usable coarse prerequisite
+        // before the first active Asset exists. It still cannot confer global
+        // capabilities, and a malformed binding must invalidate the grant.
+        var initialRole = Role([WellSitePermissions.AssetsManage, WellSitePermissions.SecurityManage, "future.unknown"]);
+        var initialGrant = Grant(initialRole, "AllAssets");
+        await db.SaveChangesAsync();
+        await db.Assets.ExecuteUpdateAsync(setters => setters.SetProperty(asset => asset.IsActive, false));
+        var emptyHints = await access.GetPermissionHintsAsync(directSubject);
+        if (!emptyHints.Contains(WellSitePermissions.AssetsManage) ||
+            emptyHints.Contains(WellSitePermissions.SecurityManage) || emptyHints.Contains("future.unknown") ||
+            await ScopedAccessQueries.Assets(db, userId, WellSitePermissions.AssetsManage).AnyAsync() ||
+            !await ScopedAccessQueries.ResourceGrants(db, userId, WellSitePermissions.AssetsManage).AnyAsync())
+            throw new InvalidOperationException("Empty deployment lost explicit AllAssets authority or implied global access.");
+        db.AccessGrantAssets.Add(new AccessGrantAssetEntity { GrantId = initialGrant, AssetId = assetA });
+        await db.SaveChangesAsync();
+        if ((await access.GetPermissionHintsAsync(directSubject)).Contains(WellSitePermissions.AssetsManage))
+            throw new InvalidOperationException("Malformed AllAssets binding retained coarse permission hints.");
         await transaction.RollbackAsync();
         Console.WriteLine("Grant-scoped resource SQL: paired permission, all revisions/inputs, V1/V2 scope, pagination and revocation passed.");
+
+        async Task AssertActionCapabilitiesAsync(AccessSubject subject)
+        {
+            var actions = new ResourceActionRepository(db, new AdjustableTimeProvider(now));
+            var configurationIds = new[] { allowed.Id, mixed.Id, denied.Id, history.Id, inputLeak.Id, Guid.NewGuid() };
+            var recommendationIds = new[] { recommendationA, recommendationB, recommendationC, Guid.NewGuid() };
+            var initial = await ConfigurationsAsync();
+            if (initial.Count != 2 || initial[allowed.Id] != new ConfiguredLogicActions(allowed.Id, true, false) ||
+                initial[mixed.Id] != new ConfiguredLogicActions(mixed.Id, false, false))
+                throw new InvalidOperationException("Draft/read-only configurations received another resource's action authority.");
+            var decisions = await actions.GetRecommendationActionsAsync(subject, recommendationIds);
+            if (decisions.Count != 2 || !decisions.Single(item => item.Id == recommendationA).CanDecide ||
+                decisions.Single(item => item.Id == recommendationB).CanDecide)
+                throw new InvalidOperationException("Recommendation action authority crossed scope or disclosed an unreadable row.");
+            if ((await actions.GetConfiguredLogicActionsAsync(subject, [])).Count != 0 ||
+                (await actions.GetRecommendationActionsAsync(subject, [])).Count != 0)
+                throw new InvalidOperationException("An empty action page widened into a full directory.");
+            foreach (var invalid in new IReadOnlyCollection<Guid>[] { [Guid.Empty], [allowed.Id, allowed.Id],
+                Enumerable.Range(0, 501).Select(_ => Guid.NewGuid()).ToArray() })
+            {
+                await InvalidAsync(() => actions.GetConfiguredLogicActionsAsync(subject, invalid));
+                await InvalidAsync(() => actions.GetRecommendationActionsAsync(subject, invalid));
+            }
+
+            await db.ConfiguredLogicDefinitions.Where(item => item.Id == allowed.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, (Guid?)allowed.Revision));
+            await db.ConfiguredLogicDefinitions.Where(item => item.Id == mixed.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, (Guid?)mixed.Revision));
+            await db.ConfiguredLogicRevisions.Where(item => item.Id == allowed.Revision || item.Id == mixed.Revision)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.Status, "Active"));
+            var active = await ConfigurationsAsync();
+            if (!active[allowed.Id].CanRequestShadow || active[mixed.Id].CanRequestShadow)
+                throw new InvalidOperationException("Shadow action permission crossed between target grants.");
+            var allAssets = Guid.NewGuid();
+            db.AccessGrants.Add(new AccessGrantEntity
+            {
+                Id = allAssets, UserId = subject.UserId, RoleId = engineer, ScopeKind = "AllAssets",
+                IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
+            });
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            var broad = (await ConfigurationsAsync())[mixed.Id];
+            if (!broad.CanManage || !broad.CanRequestShadow ||
+                (await actions.GetRecommendationActionsAsync(subject, recommendationIds)).Any(item => !item.CanDecide))
+                throw new InvalidOperationException("Explicit AllAssets assignment did not confer action authority.");
+            db.AccessGrantAssets.Add(new AccessGrantAssetEntity { GrantId = allAssets, AssetId = assetA });
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            var malformed = (await ConfigurationsAsync())[mixed.Id];
+            if (malformed.CanManage || malformed.CanRequestShadow)
+                throw new InvalidOperationException("Malformed AllAssets assignment conferred action authority.");
+            await db.AccessGrants.Where(item => item.Id == allAssets).ExecuteDeleteAsync();
+
+            foreach (var permission in new[] { WellSitePermissions.ExecutionsRequest, WellSitePermissions.ConfiguredLogicManage })
+            {
+                await db.RolePermissions.Where(item => item.RoleId == engineer && item.Permission == permission).ExecuteDeleteAsync();
+                var revoked = (await ConfigurationsAsync())[allowed.Id];
+                if (revoked.CanManage != (permission != WellSitePermissions.ConfiguredLogicManage) ||
+                    revoked.CanRequestShadow != (permission != WellSitePermissions.ExecutionsRequest))
+                    throw new InvalidOperationException("Management and request action authority were combined or cached.");
+                db.RolePermissions.Add(new RolePermissionEntity { RoleId = engineer, Permission = permission });
+                await db.SaveChangesAsync();
+                db.ChangeTracker.Clear();
+            }
+            await db.RolePermissions.Where(item => item.RoleId == engineer &&
+                (item.Permission == WellSitePermissions.ConfiguredLogicRead || item.Permission == WellSitePermissions.RecommendationsRead))
+                .ExecuteDeleteAsync();
+            if ((await ConfigurationsAsync()).Count != 0 ||
+                (await actions.GetRecommendationActionsAsync(subject, recommendationIds)).Any(item => item.Id == recommendationA))
+                throw new InvalidOperationException("Action permissions disclosed metadata without current read authority.");
+            foreach (var permission in new[] { WellSitePermissions.ConfiguredLogicRead, WellSitePermissions.RecommendationsRead })
+                db.RolePermissions.Add(new RolePermissionEntity { RoleId = engineer, Permission = permission });
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            db.ConfiguredLogicDataBindings.Add(new ConfiguredLogicDataBindingEntity
+            {
+                RevisionId = allowed.Revision, RequirementId = "action-scope-input", AssetId = assetB,
+                ProviderId = "simulator", ProviderAssetExternalId = "input-only"
+            });
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            var input = (await ConfigurationsAsync())[allowed.Id];
+            if (input.CanManage || input.CanRequestShadow)
+                throw new InvalidOperationException("Input-only Asset escaped management/run action scope.");
+            await db.ConfiguredLogicDataBindings.Where(item => item.RevisionId == allowed.Revision &&
+                item.RequirementId == "action-scope-input").ExecuteDeleteAsync();
+            var past = Revision(allowed.Id, 2, assetB);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            var historical = (await ConfigurationsAsync())[allowed.Id];
+            if (historical.CanManage || !historical.CanRequestShadow)
+                throw new InvalidOperationException("Management history was confused with active-revision dispatch scope.");
+            await db.ConfiguredLogicAssetBindings.Where(item => item.RevisionId == past)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.AssetId, assetC));
+            if ((await ConfigurationsAsync()).ContainsKey(allowed.Id))
+                throw new InvalidOperationException("Unreadable history disclosed configuration action metadata.");
+            await db.ConfiguredLogicRevisions.Where(item => item.Id == past).ExecuteDeleteAsync();
+
+            await db.ConfiguredLogicDefinitions.Where(item => item.Id == allowed.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, (Guid?)mixed.Revision));
+            if ((await ConfigurationsAsync())[allowed.Id].CanRequestShadow)
+                throw new InvalidOperationException("Foreign active revision conferred run authority.");
+            await db.ConfiguredLogicDefinitions.Where(item => item.Id == allowed.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, (Guid?)allowed.Revision));
+            await db.ConfiguredLogicRevisions.Where(item => item.Id == allowed.Revision)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, "Recommendation"));
+            if ((await ConfigurationsAsync())[allowed.Id].CanRequestShadow)
+                throw new InvalidOperationException("Non-Shadow revision conferred Shadow action authority.");
+            await db.RolePermissions.Where(item => item.RoleId == engineer && item.Permission == WellSitePermissions.RecommendationsDecide)
+                .ExecuteDeleteAsync();
+            if ((await actions.GetRecommendationActionsAsync(subject, recommendationIds)).Any(item => item.CanDecide))
+                throw new InvalidOperationException("Revoked decision permission was cached in action capabilities.");
+            db.RolePermissions.Add(new RolePermissionEntity { RoleId = engineer, Permission = WellSitePermissions.RecommendationsDecide });
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            await db.ConfiguredLogicDefinitions.Where(item => item.Id == allowed.Id || item.Id == mixed.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, (Guid?)null));
+            await db.ConfiguredLogicRevisions.Where(item => item.Id == allowed.Revision || item.Id == mixed.Revision)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.Status, "Draft").SetProperty(item => item.Mode, "Shadow"));
+            Console.WriteLine("Batch action scope: paired target/input authority, history versus active revision, hidden rows, bounds and permission revocation passed.");
+
+            async Task<Dictionary<Guid, ConfiguredLogicActions>> ConfigurationsAsync() =>
+                (await actions.GetConfiguredLogicActionsAsync(subject, configurationIds)).ToDictionary(item => item.Id);
+            static async Task InvalidAsync(Func<Task> action)
+            {
+                try { await action(); throw new InvalidOperationException("Invalid action page was accepted."); }
+                catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception)
+                    when (exception.Kind == WellSiteAutoPilot.Failures.FailureKind.Validation) { }
+            }
+        }
 
         async Task AssertVisibleAsync(Guid? subjectId = null,
             VerifiedWindowsGroupMembership? membership = null, DateTimeOffset? at = null)
@@ -275,6 +493,36 @@ internal static class ScopedResourceQueryChecks
                 (await ScopedAccessQueries.Recommendations(db, subject, WellSitePermissions.RecommendationsDecide, membership, at)
                     .Select(item => item.Id).SingleAsync()) != recommendationA)
                 throw new InvalidOperationException("Recommendation pagination or paired decision scope failed.");
+
+            var request = new AccessSubject(subject, membership);
+            var requestClock = new AdjustableTimeProvider(at ?? now);
+            var assetRepository = new AssetRepository(db, requestClock);
+            var configuredRepository = new ConfiguredLogicRepository(db, requestClock);
+            var executionRepository = new ExecutionRepository(db, requestClock);
+            var recommendationRepository = new RecommendationRepository(db, requestClock);
+            if ((await assetRepository.ListAuthorizedAsync(request, null, null, 1)).Single().Id != assetA ||
+                await assetRepository.GetAuthorizedAsync(request, assetC) is not null ||
+                (await assetRepository.GetAuthorizedAsync(request, assetB))?.Id != assetB)
+                throw new InvalidOperationException("Asset repository lost authorized detail/page semantics.");
+            if (!(await assetRepository.ListAssetTypesAuthorizedAsync(request)).Select(type => type.Id)
+                    .ToHashSet().SetEquals([assetTypeId]) ||
+                (await assetRepository.GetAssetTypeAuthorizedAsync(request, assetTypeId))?.Id != assetTypeId ||
+                await assetRepository.GetAssetTypeAuthorizedAsync(request, unusedTypeId) is not null)
+                throw new InvalidOperationException("Scoped type metadata disclosed an unused catalog type or lost a readable Asset's type.");
+            if ((await configuredRepository.ListAuthorizedAsync(request, 1)).Single().Id != allowed.Id ||
+                await configuredRepository.GetAuthorizedAsync(request, history.Id) is not null ||
+                await configuredRepository.GetAuthorizedAsync(request, inputLeak.Id) is not null ||
+                (await configuredRepository.GetAuthorizedAsync(request, mixed.Id))?.Revisions.Count != 1)
+                throw new InvalidOperationException("Configured Logic repository disclosed unchecked revisions or displaced an authorized page.");
+            if (!(await executionRepository.ListAuthorizedAsync(request, null, 100)).Select(item => item.Id)
+                    .ToHashSet().SetEquals([allowedExecution, mixedExecution, v1Execution]) ||
+                await executionRepository.GetAuthorizedAsync(request, deniedExecution) is not null ||
+                (await executionRepository.GetAuthorizedAsync(request, v1Execution))?.Id != v1Execution)
+                throw new InvalidOperationException("Execution repository lost V1/V2 authorized snapshot semantics.");
+            if ((await recommendationRepository.ListAuthorizedAsync(request, null, 1)).Single().Id != recommendationA ||
+                await recommendationRepository.GetAuthorizedAsync(request, recommendationC) is not null ||
+                (await recommendationRepository.GetAuthorizedAsync(request, recommendationB))?.Id != recommendationB)
+                throw new InvalidOperationException("Recommendation repository lost authorized detail/page semantics.");
         }
 
         async Task AssertEmptyAsync(Guid subject, string? permission = null,
@@ -285,6 +533,19 @@ internal static class ScopedResourceQueryChecks
                 await ScopedAccessQueries.Executions(db, subject, permission ?? WellSitePermissions.ExecutionsRead, membership, at).AnyAsync() ||
                 await ScopedAccessQueries.Recommendations(db, subject, permission ?? WellSitePermissions.RecommendationsRead, membership, at).AnyAsync())
                 throw new InvalidOperationException("Invalid/inactive identity or permission authorized a resource.");
+            if (permission is null)
+            {
+                // Do not construct a trusted subject with a mismatched proof;
+                // the host rejects that before any repository is called.
+                if (subject == Guid.Empty || (membership is not null && membership.UserId != subject)) return;
+                var request = new AccessSubject(subject, membership);
+                var requestClock = new AdjustableTimeProvider(at ?? now);
+                if ((await new AssetRepository(db, requestClock).ListAuthorizedAsync(request, null, null, 100)).Count != 0 ||
+                    (await new ConfiguredLogicRepository(db, requestClock).ListAuthorizedAsync(request, 100)).Count != 0 ||
+                    (await new ExecutionRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0 ||
+                    (await new RecommendationRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0)
+                    throw new InvalidOperationException("Invalid/inactive subject was disclosed by a resource repository.");
+            }
         }
 
         Guid Role(string[] permissions)

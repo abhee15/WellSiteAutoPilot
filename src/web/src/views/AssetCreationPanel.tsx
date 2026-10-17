@@ -70,6 +70,14 @@ export function AssetCreationPanel({
     ? canCreateRoot
     : parents.some(asset => asset.id === parentId);
 
+  useEffect(() => {
+    if (!hasOptions || parentId && !selectedParentValid) {
+      request.current?.abort(); pending.current = false; setIsSubmitting(false);
+      setParentId(''); setTypeId(''); setName(''); setAttributes('{}');
+      setNotice(null); setError(null);
+    }
+  }, [hasOptions, parentId, selectedParentValid]);
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const assetTypeId = selectedType?.id;

@@ -24,6 +24,23 @@ public sealed class ConfiguredLogicService(
         SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default)
     {
+        var definition = await BuildDefinitionAsync(command, cancellationToken);
+        await repository.AddAsync(definition, actor, cancellationToken);
+        return definition;
+    }
+
+    public async Task<ConfiguredLogicDefinition> CreateAuthorizedAsync(
+        CreateConfiguredLogicCommand command, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        var definition = await BuildDefinitionAsync(command, cancellationToken);
+        await repository.AddAuthorizedAsync(definition, subject, actor, cancellationToken);
+        return definition;
+    }
+
+    private async Task<ConfiguredLogicDefinition> BuildDefinitionAsync(
+        CreateConfiguredLogicCommand command, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(command);
 
         var name = RequireText(command.Name, "Configured Logic name is required.");
@@ -75,7 +92,6 @@ public sealed class ConfiguredLogicService(
             now,
             [revision]);
 
-        await repository.AddAsync(configuredLogic, actor, cancellationToken);
         return configuredLogic;
     }
 
@@ -86,8 +102,31 @@ public sealed class ConfiguredLogicService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-
         var existing = await GetRequiredAsync(configuredLogicId, cancellationToken);
+        var revision = await BuildRevisionAsync(existing, command, cancellationToken);
+        await repository.AddRevisionAsync(revision, actor, cancellationToken);
+        return revision;
+    }
+
+    public async Task<ConfiguredLogicRevision> CreateRevisionAuthorizedAsync(
+        Guid configuredLogicId, CreateConfiguredLogicRevisionCommand command, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(actor);
+        var existing = await repository.GetAuthorizedAsync(subject, configuredLogicId, cancellationToken) ??
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_NOT_FOUND", FailureKind.NotFound,
+                "The requested Configured Logic was not found.");
+        var revision = await BuildRevisionAsync(existing, command, cancellationToken);
+        await repository.AddRevisionAuthorizedAsync(revision, subject, actor, cancellationToken);
+        return revision;
+    }
+
+    private async Task<ConfiguredLogicRevision> BuildRevisionAsync(ConfiguredLogicDefinition existing,
+        CreateConfiguredLogicRevisionCommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
         var requestedManifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
         var installedModule = await GetInstalledModuleAsync(
             requestedManifest.ModuleId,
@@ -109,7 +148,7 @@ public sealed class ConfiguredLogicService(
 
         var revision = new ConfiguredLogicRevision(
             Guid.NewGuid(),
-            configuredLogicId,
+            existing.Id,
             existing.Revisions.Count == 0
                 ? 1
                 : existing.Revisions.Max(item => item.RevisionNumber) + 1,
@@ -126,17 +165,28 @@ public sealed class ConfiguredLogicService(
             assetBindings,
             dataBindings);
 
-        await repository.AddRevisionAsync(revision, actor, cancellationToken);
         return revision;
     }
 
-    public async Task<ConfiguredLogicRevision> ValidateRevisionAsync(
+    public Task<ConfiguredLogicRevision> ValidateRevisionAsync(
         Guid configuredLogicId,
         Guid revisionId,
         SecurityActorContext? actor = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ValidateRevisionCoreAsync(configuredLogicId, revisionId, actor, null, cancellationToken);
+
+    public Task<ConfiguredLogicRevision> ValidateRevisionAuthorizedAsync(Guid configuredLogicId, Guid revisionId,
+        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
     {
-        var configuredLogic = await GetRequiredAsync(configuredLogicId, cancellationToken);
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(actor);
+        return ValidateRevisionCoreAsync(configuredLogicId, revisionId, actor, subject, cancellationToken);
+    }
+
+    private async Task<ConfiguredLogicRevision> ValidateRevisionCoreAsync(Guid configuredLogicId, Guid revisionId,
+        SecurityActorContext? actor, AccessSubject? subject, CancellationToken cancellationToken)
+    {
+        var configuredLogic = await ReadForLifecycleAsync(configuredLogicId, subject, cancellationToken);
         var revision = GetRequiredRevision(configuredLogic, revisionId);
 
         if (revision.Status != ConfiguredLogicRevisionStatus.Draft)
@@ -153,6 +203,7 @@ public sealed class ConfiguredLogicService(
             cancellationToken);
         EnsureModuleEnabled(installedModule);
         EnsureManifestMatchesInstalled(revision.ModuleManifestJson, installedModule);
+        ValidateParameterObject(revision.ParametersJson);
         var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
@@ -186,24 +237,39 @@ public sealed class ConfiguredLogicService(
                     revision.Schedule.StartAtUtc,
                     revision.Schedule.TimeZoneId));
 
-        await repository.SetRevisionValidatedAsync(
-            configuredLogicId,
-            revisionId,
-            timeProvider.GetUtcNow(),
-            actor, cancellationToken);
+        if (subject is not null)
+            await repository.SetRevisionValidatedAuthorizedAsync(revision, subject, actor!, cancellationToken);
+        else
+            await repository.SetRevisionValidatedAsync(configuredLogicId, revisionId, timeProvider.GetUtcNow(), actor, cancellationToken);
 
-        var updated = await GetRequiredAsync(configuredLogicId, cancellationToken);
+        var updated = await ReadForLifecycleAsync(configuredLogicId, subject, cancellationToken);
         return GetRequiredRevision(updated, revisionId);
     }
 
-    public async Task<ConfiguredLogicRevision> ActivateRevisionAsync(
+    public Task<ConfiguredLogicRevision> ActivateRevisionAsync(
         Guid configuredLogicId,
         Guid revisionId,
         SecurityActorContext? actor = null,
         string? expectedActivationToken = null,
+        CancellationToken cancellationToken = default) =>
+        ActivateRevisionCoreAsync(configuredLogicId, revisionId, actor, expectedActivationToken, null, cancellationToken);
+
+    public Task<ConfiguredLogicRevision> ActivateRevisionAuthorizedAsync(Guid configuredLogicId, Guid revisionId,
+        string expectedActivationToken, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default)
     {
-        var configuredLogic = await GetRequiredAsync(configuredLogicId, cancellationToken);
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(actor);
+        if (string.IsNullOrWhiteSpace(expectedActivationToken))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "The reviewed active revision token is required.");
+        return ActivateRevisionCoreAsync(configuredLogicId, revisionId, actor, expectedActivationToken, subject, cancellationToken);
+    }
+
+    private async Task<ConfiguredLogicRevision> ActivateRevisionCoreAsync(Guid configuredLogicId, Guid revisionId,
+        SecurityActorContext? actor, string? expectedActivationToken, AccessSubject? subject, CancellationToken cancellationToken)
+    {
+        var configuredLogic = await ReadForLifecycleAsync(configuredLogicId, subject, cancellationToken);
         var revision = GetRequiredRevision(configuredLogic, revisionId);
 
         if (revision.Status != ConfiguredLogicRevisionStatus.Validated)
@@ -236,16 +302,22 @@ public sealed class ConfiguredLogicService(
             new ConfiguredLogicAssetBindingCommand(item.Role, item.AssetId,
                 item.ParameterOverridesJson)).ToArray(), cancellationToken);
 
-        await repository.ActivateRevisionAsync(
-            configuredLogicId,
-            revisionId,
-            timeProvider.GetUtcNow(),
-            configuredLogic.ActiveRevisionId,
-            actor, cancellationToken);
+        if (subject is not null)
+            await repository.ActivateRevisionAuthorizedAsync(revision, configuredLogic.ActiveRevisionId, subject, actor!, cancellationToken);
+        else
+            await repository.ActivateRevisionAsync(configuredLogicId, revisionId, timeProvider.GetUtcNow(),
+                configuredLogic.ActiveRevisionId, actor, cancellationToken);
 
-        var updated = await GetRequiredAsync(configuredLogicId, cancellationToken);
+        var updated = await ReadForLifecycleAsync(configuredLogicId, subject, cancellationToken);
         return GetRequiredRevision(updated, revisionId);
     }
+
+    private async Task<ConfiguredLogicDefinition> ReadForLifecycleAsync(Guid id, AccessSubject? subject,
+        CancellationToken cancellationToken) => subject is null
+        ? await GetRequiredAsync(id, cancellationToken)
+        : await repository.GetAuthorizedAsync(subject, id, cancellationToken) ??
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_NOT_FOUND", FailureKind.NotFound,
+                "The requested Configured Logic was not found.");
 
     public async Task<ConfiguredShadowExecutionCommand> PrepareManualShadowAsync(
         Guid configuredLogicId, Guid revisionId, CancellationToken cancellationToken = default)

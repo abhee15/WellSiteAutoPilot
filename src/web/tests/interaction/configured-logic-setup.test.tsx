@@ -18,7 +18,7 @@ const module: LogicModuleResponse = { id: 'module', moduleId: manifest.moduleId,
   displayName: 'Approved Sample', isEnabled: true, manifestJson: JSON.stringify(manifest) };
 const assets: AssetResponse[] = [{ id: assetId, assetTypeId: typeId, name: 'Well 101', isActive: true }];
 const types: AssetTypeResponse[] = [{ id: typeId, key: 'well', isActive: true }];
-const draft: VerifiedConfiguration = { id: configId, name: 'Observer', activeRevisionId: null,
+const draft: VerifiedConfiguration = { id: configId, name: 'Observer', activeRevisionId: null, canManage: true, canRequestShadow: false,
   revisions: [{ id: revisionId, revisionNumber: 1, moduleId: 'sample', moduleVersion: '1.0.0',
     moduleManifestJson: module.manifestJson, parametersJson: '{}', mode: 'Shadow', status: 'Draft',
     assetBindings: [{ role: 'well', assetId, parameterOverridesJson: '{}' }],
@@ -228,22 +228,25 @@ describe('Configured Logic setup journey', () => {
     window.location.hash = '';
   });
 
-  it('recovers capability loading on explicit refresh without requiring a new login', async () => {
+  it('uses resource capabilities after refresh without inferring them from coarse session hints', async () => {
     window.location.hash = '#logic'; let recover = false;
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === '/api/v1/configured-logic/capabilities') return response({ canManage: true }, recover ? 200 : 503);
-      return response(url === '/api/v1/security/me' ? { userId: otherRevisionId, identityName: 'FIELD\\engineer', isActive: true, roles: ['Engineer'], permissions: ['assets.read', 'logic.read', 'configured-logic.read', 'configured-logic.manage'], assetScopeIds: [assetId] }
-        : url.startsWith('/api/v1/logic-modules') ? [module]
-        : url.startsWith('/api/v1/asset-types') ? types
-        : url.startsWith('/api/v1/assets?') ? assets
-        : url.startsWith('/api/v1/system/info') || url.startsWith('/api/v1/assets/capabilities') ? {} : []);
-    }));
+    const http = vi.fn(async (url: string) => response(
+      url === '/api/v1/security/me' ? { userId: otherRevisionId, identityName: 'FIELD\\engineer', isActive: true,
+        permissions: ['assets.read', 'logic.read', 'configured-logic.read', 'configured-logic.manage'] }
+      : url.startsWith('/api/v1/configured-logic?') ? [{ ...draft, canManage: recover }]
+      : url === '/api/v1/configured-logic/' + configId ? { ...draft, canManage: recover }
+      : url.startsWith('/api/v1/logic-modules') ? [module]
+      : url.startsWith('/api/v1/asset-types') ? types
+      : url.startsWith('/api/v1/assets?') ? assets
+      : {}));
+    vi.stubGlobal('fetch', http);
     const user = userEvent.setup(); render(<App />);
-    await screen.findByText('Configuration capabilities are unavailable. Refresh before editing.');
-    expect(screen.queryByRole('button', { name: 'Configure Logic' })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Inspect revisions of Observer' }));
+    await screen.findByText('Revision 1 · Draft');
+    expect(screen.queryByRole('button', { name: 'Copy revision 1' })).toBeNull();
     recover = true; await user.click(screen.getByRole('button', { name: 'Refresh' }));
-    await screen.findByRole('button', { name: 'Configure Logic' });
-    expect(screen.queryByText('Configuration capabilities are unavailable. Refresh before editing.')).toBeNull();
+    await screen.findByRole('button', { name: 'Copy revision 1' });
+    expect(http.mock.calls.some(([url]) => url === '/api/v1/configured-logic/capabilities')).toBe(false);
     window.location.hash = '';
   });
 

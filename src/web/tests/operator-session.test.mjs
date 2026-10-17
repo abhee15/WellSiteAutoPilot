@@ -22,7 +22,7 @@ after(async () => {
   await vite?.close();
 });
 
-test('operator session renders server-provided identity, roles, and scope', () => {
+test('operator session renders identity and grant permission hints', () => {
   const markup = renderToStaticMarkup(
     createElement(components.UserMenu, {
       user: {
@@ -30,8 +30,7 @@ test('operator session renders server-provided identity, roles, and scope', () =
         identityName: 'SITE\\operator',
         displayName: 'Control Room Operator',
         isActive: true,
-        roles: ['Operator', 'Engineer'],
-        assetScopeIds: ['asset-a', 'asset-b'],
+        permissions: ['assets.read', 'executions.read'],
       },
       isLoading: false,
     }),
@@ -39,8 +38,7 @@ test('operator session renders server-provided identity, roles, and scope', () =
 
   assert.match(markup, /Control Room Operator/);
   assert.match(markup, /SITE\\operator/);
-  assert.match(markup, /Operator, Engineer/);
-  assert.match(markup, /2 assigned/);
+  assert.match(markup, /2 available capabilities/);
   assert.match(markup, /Server-side access rules remain authoritative/);
   assert.match(markup, /<details/);
   assert.match(markup, /<summary/);

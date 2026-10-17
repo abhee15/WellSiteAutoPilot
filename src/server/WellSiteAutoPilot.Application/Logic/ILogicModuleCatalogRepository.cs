@@ -1,9 +1,13 @@
 using WellSiteAutoPilot.Domain.Logic;
+using WellSiteAutoPilot.Application.Security;
 
 namespace WellSiteAutoPilot.Application.Logic;
 
 public interface ILogicModuleCatalogRepository
 {
+    Task<InstalledLogicModule> RegisterAuthorizedAsync(InstalledLogicModule logicModule, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default);
+
     Task<InstalledLogicModule?> GetAsync(
         string moduleId,
         string version,

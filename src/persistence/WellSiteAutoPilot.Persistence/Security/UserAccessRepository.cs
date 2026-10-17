@@ -9,7 +9,7 @@ using WellSiteAutoPilot.Persistence.Audit;
 namespace WellSiteAutoPilot.Persistence.Security;
 
 public sealed class UserAccessRepository(
-    WellSiteAutoPilotDbContext dbContext) : IUserAccessRepository
+    WellSiteAutoPilotDbContext dbContext) : IUserAccessRepository, IUserIdentityRepository
 {
     private static readonly TimeSpan LastSeenWriteInterval =
         TimeSpan.FromMinutes(5);
@@ -65,7 +65,38 @@ public sealed class UserAccessRepository(
             .ToArray();
     }
 
+    public async Task<UserIdentity?> GetIdentityAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await dbContext.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == userId, cancellationToken);
+        return user is null ? null : ToIdentity(user);
+    }
+
+    public async Task<IReadOnlyCollection<UserIdentity>> ListIdentitiesAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(limit));
+        return (await dbContext.Users.AsNoTracking().OrderBy(item => item.IdentityName).ThenBy(item => item.Id)
+            .Take(limit).ToArrayAsync(cancellationToken)).Select(ToIdentity).ToArray();
+    }
+
+    public async Task<UserIdentity> UpsertIdentityAsync(string identityKey, string identityName, string normalizedIdentityName,
+        string? displayName, DateTimeOffset seenAtUtc, CancellationToken cancellationToken = default)
+    {
+        var user = await UpsertIdentityEntityAsync(identityKey, identityName, normalizedIdentityName, displayName,
+            seenAtUtc, cancellationToken);
+        // Metadata provisioning can reuse a tracked entity in this unit of
+        // work. Its active flag is not evidence of the current persisted state.
+        // Never let a prior active instance hide a subsequent deactivation.
+        return await GetIdentityAsync(user.Id, cancellationToken) ??
+            throw new InvalidOperationException("The provisioned identity is no longer available.");
+    }
+
     public async Task<UserAccessProfile> UpsertAuthenticatedUserAsync(
+        string identityKey, string identityName, string normalizedIdentityName, string? displayName, DateTimeOffset seenAtUtc,
+        CancellationToken cancellationToken = default) =>
+        await LoadProfileAsync(await UpsertIdentityEntityAsync(identityKey, identityName, normalizedIdentityName, displayName,
+            seenAtUtc, cancellationToken), cancellationToken);
+
+    private async Task<UserEntity> UpsertIdentityEntityAsync(
         string identityKey,
         string identityName,
         string normalizedIdentityName,
@@ -172,8 +203,11 @@ public sealed class UserAccessRepository(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        return await LoadProfileAsync(user, cancellationToken);
+        return user;
     }
+
+    private static UserIdentity ToIdentity(UserEntity user) => new(user.Id, user.IdentityKey, user.IdentityName,
+        user.DisplayName, user.IsActive, user.CreatedAtUtc, user.LastSeenAtUtc);
 
     public async Task ReplaceAccessAsync(
         Guid userId,

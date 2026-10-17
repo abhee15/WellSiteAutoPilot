@@ -3,7 +3,59 @@
 Implementation checkpoint derived from ADR-006 and #76/#77, after PRs #121–#124.
 This is a work plan, not an authorization switch or a completion claim.
 
-## Verified baseline
+## Current working integration — 2026-10-17
+
+The working API now binds identity-only middleware, explicit bootstrap and
+GrantPermissionHandler to one RequestAccessContext. Every resource route uses
+the prepared scoped repository or transactional mutation boundary. Security
+administration uses protected grant authority and minimal snapshot directories;
+module writes use deployment-wide authority. No published route consumes legacy
+role, permission or wildcard claims. Fixed-role access editing, migration and
+diagnostic-only authorization APIs/UI and their wire DTOs are removed together.
+
+/security/me exposes identity metadata and current permission prerequisites,
+without a legacy role list or union of Asset IDs. Configurations and
+recommendations include per-resource action booleans. Missing/malformed hints
+cannot enable actions; the backend still reauthorizes every mutation. Selected
+configuration/recommendation reviews follow the authorized resource snapshot;
+unchanged refreshes retain drafts, while removal/capability loss/content drift
+clears stale state and cancels pending reads. Asset selection/drafts are cleared
+when their resource options disappear, without relying on session scope unions.
+
+Asset type metadata is SQL-filtered to types used by a caller's readable Assets.
+The complete catalog, including unused types, requires protected administration
+and explicit AllAssets assets.read. Type creation retains the stricter protected
+administrator plus AllAssets assets.manage fence. Ordinary scoped users can
+render their inventory and choose existing authorized types without gaining
+full type-catalog visibility.
+
+HTTP fixtures now author/retire paired grants through the public administration
+boundary. The runtime matrix covers read/write separation on A versus B, scoped
+paging/type metadata, no descendant auto-grant, deployment/resource separation,
+protected versus custom administration, untrusted TestHeader group claims,
+stale reviews, explicit scope names and fresh revocation. Configured requests
+hold persisted snapshots and expose only receipts. Concurrent serialization
+conflicts are explicit 409s; tests require one canonical execution and recover
+it through a fresh explicit replay, without automatic write retries. Activation
+tests supply the reviewed If-Match token.
+
+Verified pre-integration base: 518714685ef2f51f0c70141bf90291e294015898 passed
+all seven jobs in run 39003547790, including the protected Asset directory,
+retired-route refusal and V1/V2 worker journeys. That result does not validate
+the new integration. The earlier sections below describe historical preparation
+checkpoints. Current integration must pass all seven jobs on its own reviewed
+head and unchanged merge tree before merge. Windows browser/AD release gate
+#92 remains the next Phase 1 task after this runtime work.
+
+Local integration validation uses the same .NET SDK 10.0.402 observed in CI:
+full solution build is clean, identity/policy, pure direct/group grants, failure,
+manifest, SDK, provider and V2 worker contract checks pass, and all scoped/type
+queries translate with Npgsql. The regenerated client builds; 105 frontend unit
+checks, 69 DOM interactions, lint and 15 convention tests pass. The changed HTTP
+and PostgreSQL journeys require execution on the new CI head; no local DB or
+real Windows browser claim is made.
+
+## Historical foundation baseline
 
 - Windows token proof and pure/SQL paired direct/multiple-group evaluation exist.
 - User/group assignment authoring, custom roles, own-access protection and
@@ -57,11 +109,378 @@ This is a work plan, not an authorization switch or a completion claim.
    permission/scope loss and all seven jobs on the final reviewed commit and
    unchanged target/merge tree before switching the live authority.
 
-## Review limits
+## Working branch checkpoint — 2026-10-16
+
+PR #126 merged as `3517bc812bca701bf057b1a023503c954a2b9cfb` after all seven
+jobs passed exact head `67588522488302ad7f723c81f62a5f1562d6aa4b` in run
+`38948432885`. The reviewed merge tree matched the feature tree.
+
+`feature/unified-grant-runtime` adds an immutable authenticated subject, fresh
+request permission queries and a paired-grant transaction fence. Coarse
+permissions use the same eligible grants and scope validation as resource SQL;
+explicit AllAssets authority remains discoverable with zero active Assets.
+DeploymentWide never implies resource access. There is no permission cache.
+
+The fence requires a caller-owned transaction and holds the selected grant,
+user, role, permission, bindings and participating Assets until commit. It
+rechecks only held assignments and proof freshness after acquiring locks.
+Callers must still resolve and lock persisted business targets in that same
+transaction, commit mutation/audit atomically, and translate commit conflicts.
+This is not wired into live routes yet and does not activate mixed authority.
+
+Validation includes a 20-case PostgreSQL direct/group resource/global matrix
+that observes real revocation lock waits for user, grant, role, permission,
+binding and Asset changes, then checks post-revocation refusals. These tests
+must pass in CI before making any validation claim. Next implement bootstrap,
+request-host binding and resource repository/route integration, then remove
+obsolete editing/migration surfaces as listed above before runtime activation.
+
+The next checkpoint adds `GrantBootstrapRepository` and a scoped host
+`RequestAccessContext`. Bootstrap persists separate direct DeploymentWide and
+AllAssets grants with one audit and a cross-instance initialization lock. Any
+prior grant/bootstrap audit prevents automatic regrant. Its disposable-database
+tests cover simultaneous attempts, audit failure, invalid system role and a
+genuinely empty Asset store. Initialization/reset assumptions are documented in
+`docs/development/grant-runtime-initialization.md`. The context binds one
+persisted identity to one trusted provider observation and excludes TestHeader
+from Windows membership. These services are registered but not called by live
+middleware yet; request/route integration remains the next implementation step.
+
+The resource repositories now expose grant-authorized list/detail entry points
+for all four families. They compose the paired SQL predicates before filtering,
+ordering and limits. Configured Logic predicates and all revision/binding
+hydration share one repeatable-read snapshot; an existing weaker transaction is
+rejected. New deterministic PostgreSQL tests commit an out-of-scope revision
+between predicate execution and hydration, verify no disclosure, and verify
+that the following fresh read loses access. These entry points are not yet used
+by published routes. Route/application integration and mutation target fences
+remain required before activation.
+
+Recommendation decisions now have a grant-authorized repository entry point.
+It locks the persisted recommendation before resolving its target, retains
+paired authority through commit, checks group freshness after business-state
+locks, and commits the decision with its actor/correlation audit. Approval also
+holds/checks the current configuration, execution and target snapshot provenance.
+The new tests cover separate direct decision/group read scopes, expired or
+duplicate decisions, malformed source provenance, injected audit failure and
+actual concurrent grant-revocation waits. This entry point is not yet called
+by the live API; current-head PostgreSQL validation is required.
+
+Frontend integration must include resource-specific action capabilities, not
+just coarse menu permissions: e.g. a reader on Well B with decision authority
+only on Well A must not receive an enabled decision control for B. Calculate
+those hints from paired grants on the server, generate the changed client and
+test the denied/stale interaction. Backend transaction checks remain mandatory.
+
+Verified foundation CI checkpoint: head
+`2872da778555330abc4bf012809d49e00ee7c761`, run `38953414941`, passed the
+PostgreSQL job including all 20 revocation cases, fresh-database bootstrap and
+the existing security/migration suites. At that observation the Windows
+installer job was still running; this is not a seven-job or current-head claim.
+
+## Release limits
+
+Protected-administrator classification is now available for request checks and
+transaction fences. It requires a usable direct/verified-group DeploymentWide
+grant of the protected system Admin role. Coarse `security.manage` hints and
+request/transaction checks preserve that ADR-006 privilege-class restriction;
+a custom role's known permission string does not imply protected administration.
+Generic tuple evaluation remains separate from that additional product boundary.
+New bootstrap-fixture tests cover direct/group positives and missing/stale proof
+and custom-role negatives. Live administrator service/repository replacement
+still needs to use this authority in place of legacy roles.
+
+An explicit AllAssets transaction fence is also prepared for first/root Asset
+creation and privileged catalog workflows. It works without existing Assets;
+an empty target list is never accepted as its substitute. Tests remove only
+the bootstrap AllAssets grant and verify that the remaining protected global
+administrator cannot acquire a resource wildcard. Root/type-catalog integration
+must retain the protected-administrator prerequisite **and** explicit AllAssets
+`assets.manage` authority; ordinary child creation checks its persisted parent.
+
+Asset creation preparation now extends through application and persistence:
+`CreateAssetTypeAuthorizedAsync` / `CreateAssetAuthorizedAsync` build validated
+records, and their repository writes hold the current type schema and
+parent/grant authority in one serializable transaction with the creation audit.
+The repository revalidates attributes against its locked schema. Duplicate
+type keys become explicit conflicts; serialization/deadlock conflicts fail
+closed without retry. Exact parent access does not automatically grant access
+to the new child. `HasAllAssetPermissionAsync` supplies the corresponding
+capability prerequisite without enumerating deployment Assets.
+
+New tests in the isolated bootstrap database cover first type/root creation,
+direct child-management plus group read scope, cross-scope/type/root denial,
+noninheritance, changed-schema validation, atomic audit failure, duplicate keys
+and an actual grant-revocation wait during child creation. These methods remain
+unwired from live routes and require current-head CI. Next complete Configured
+Logic lifecycle and manual Shadow request/replay transaction fences, global
+catalog/security write authority, then the unified request/API/frontend switch.
 
 Genuine browser Negotiate, domain/nested groups, cross-domain trusts and token
 renewal/revocation latency remain release gate #92. TestHeader and injected
 proof fixtures do not establish those properties. Keep execution in Shadow.
+
+Configuration draft persistence now has grant-authorized create/revision entry
+points. Revision authoring locks the existing definition, revisions and both
+target/input binding sets, then retains paired read/manage authority for every
+persisted and incoming Asset through the write/audit commit. Incoming bindings
+cannot replace a foreign configuration's existing scope. Initial creation
+requires a single explicit Shadow draft; empty targets never imply a wildcard.
+Application manifest/binding validation still precedes these persistence calls;
+these entry points do not replace it and are not wired to live routes yet.
+Validation/activation dependency fencing and application integration remain next.
+
+Authorized application create/revision methods now reuse the existing bounded
+manifest, parameter, binding and schedule validation. Revision preparation uses
+the grant-filtered full configuration read; the persistence transaction still
+rechecks the persisted scope and revision number. PostgreSQL coverage also
+exercises both application entry points and malformed parameter refusal. Live
+route integration remains deferred until the remaining lifecycle is complete.
+
+Draft persistence checkpoint `15459c2a494a85299ca01def91c5e9173a781969`
+passed PostgreSQL integration in run `38982639874`, including the new rollback
+and observed revocation wait. At this observation six jobs passed and the
+Windows installer job remained in progress. Application-method changes require
+their own new-head validation; earlier-head CI does not validate them.
+
+The added PostgreSQL cases cover direct and verified-group manage authority
+paired with separate direct read authority, cross-scope revisions/data inputs,
+foreign-configuration takeover attempts, stale revision numbers, actor mismatch,
+missing group proof, an injected post-save rollback, and an observed grant
+revocation lock wait followed by fresh denial. Local compilation, Npgsql query
+translation and 14 convention checks pass; actual PostgreSQL execution must be
+verified on the new head in CI before claiming this checkpoint validated.
+
+User-approved next Phase 1 priority after completing #127 remains #92: start
+with a separate manually triggered Windows browser diagnostic PR, then grow
+real local user/group coverage and relevant-change regression gating. Keep
+domain-connected AD/Kerberos validation distinct from local Windows coverage.
+
+All seven jobs passed application-authoring head
+`540797a9d1c4c9a7c50ef5b64a806f2419618158` in run `38982870375`.
+The next checkpoint adds grant-authorized validation/activation application and
+repository entry points. They compare the complete reviewed revision with the
+locked persisted snapshot, retain complete configuration read/manage scope,
+and retain/recheck the enabled installed module/manifest and required Asset
+types through the atomic status/active-pointer/audit commit. Proof freshness is
+rechecked after dependency locks. Activation requires the reviewed active token;
+stale snapshots/tokens and dependency/serialization conflicts fail closed.
+The existing legacy entry points remain until the complete route switch.
+
+New lifecycle PostgreSQL cases cover separate read/manage grants, missing group
+proof, out-of-scope inputs on an older revision, changed reviewed metadata,
+module/type retirement between review and persistence, rollback after saved
+status/audit SQL, missing/stale activation tokens, superseding active revisions,
+duplicate activation and an observed module-retirement lock wait. After that
+retirement a fresh draft cannot be validated. These cases require new-head CI;
+the seven-job result above applies only to the prior checkpoint. Manual Shadow
+request/replay and deployment-wide catalog/security mutation fences remain
+before the unified middleware/API/frontend cutover and legacy removal.
+
+Manual configured Shadow requests now have a grant-authorized preparation/write
+path. It derives the request ID from the authenticated user, locks the request
+and configuration dispatch keys, resolves the complete configuration from
+persistence, and retains configuration-read / execution-request authority and
+active revision/module/type dependencies through execution/outbox/audit commit.
+It never accepts an execution snapshot supplied by an HTTP request. Existing
+request receipts recheck current configuration-read and persisted execution
+scope/request authority; V2 payload identity and complete scope must match.
+Replay returns only the six-field receipt, including for completed requests;
+status, payload and output stay behind the separate execution-read endpoint.
+An authorized historical receipt can be replayed after module retirement, but
+a new request cannot dispatch against that retired module. Concurrent database
+conflicts fail closed without blind retries; a fresh explicit replay can obtain
+the existing receipt. No live route has switched yet.
+
+Manual-request PostgreSQL tests cover request-only callers, direct/group grant
+checks, actor-bound request identity, duplicate replay, overlap/key conflicts,
+malformed persisted scopes/snapshots, module retirement, post-save rollback of
+execution/outbox/audit, and a real request-grant revocation wait before commit
+followed by fresh request/replay denial. These require CI on the new head.
+
+Lifecycle checkpoint `b5a5b16ec5406300f93c91e14ca7d81a59b1fff4` passed
+PostgreSQL integration and five other jobs in run `38984995900`; the Windows
+installer remained in progress at that observation. The manual-request changes
+pass local full-solution compilation with zero warnings/errors, identity/pure
+grant checks, Npgsql translation, 14 convention tests and convention validation.
+None of those local checks substitutes for new-head PostgreSQL execution.
+
+Manual-request head `3fab500fa6fc507e8ab60b779eed2e9b787da645` passed
+PostgreSQL integration in run `38985438569`, including the new request/replay,
+receipt integrity, rollback and observed grant-revocation cases. Five other jobs
+also passed; the Windows installer remained in progress at this observation.
+
+The next prepared boundary is module catalog registration. Its authorized
+application path reuses manifest/checksum/trust validation; the repository
+retains DeploymentWide logic.manage authority through module/audit commit and
+rechecks it for idempotent registrations too. ExactAssets/AllAssets never
+satisfy the global operation. Installed version content/trust remains immutable;
+concurrent writes/revocation surface conflicts without blind retry. Existing
+legacy/CLI methods remain until the complete route cutover. PostgreSQL tests
+cover direct/group global grants, resource-vs-global isolation, missing proof,
+idempotency after permission loss, immutable content, post-save rollback and an
+actual revocation wait. This boundary requires validation on its own new head.
+
+Catalog checkpoint `d0cb0a8091a9228946b04af6d528efa4e7c16944` passed
+all seven jobs, including Windows installer smoke, in run `38985779631`.
+New administration code below is not covered by that checkpoint.
+
+Protected-grant role and assignment authoring is now prepared in separate
+authorized application/repository entry points. It does not query legacy Admin
+roles or parse fixed role labels for the acting administrator. Actor group
+protections bind to the same trusted AccessSubject observation as authority.
+Role writes retain the protected administrator, lock target roles against new
+assignments, and preserve system-role immutability, revision, assigned-role
+permission changes and own-role/group restrictions. Assignment writes retain
+target role/permissions, active users and exact Assets through audit commit;
+retirement retains the target assignment and preserves the existing last-direct
+recovery guard. Authority/proof freshness is checked after blocking operations;
+serialization/deadlock conflicts fail closed without retries. Legacy entry
+points remain solely for the unconverted runtime and existing compatibility
+tests until the complete switch/removal.
+
+New isolated bootstrap-database tests exercise direct and verified-group Admin
+role/assignment authoring with no legacy UserRoles, custom security.manage
+denial, system/own-role and own-group changes, assigned-role permission edits,
+stale revisions, duplicate/invalid scopes, last-direct recovery refusal,
+post-save rollback, actual administrator revocation and target-role retirement
+lock waits. This batch requires current-head CI before a validation claim.
+
+Administration head `872f7f1d3838b51a5f5e3a5a2a1edf3b64c6469e` passed
+all seven jobs in run `38986483093`, including the Windows installer. Its new protected-grant role/assignment
+cases executed in the isolated bootstrap database. No runtime authority switch
+has occurred.
+
+Identity-only provisioning and directory reads are now prepared with a
+UserIdentity record and IUserIdentityRepository/UserIdentityService. They reuse
+the existing atomic user/audit upsert without loading or parsing legacy role or
+Asset-scope tables. First login adds no grants or legacy roles; bootstrap stays
+a separate explicit grant initializer. RequestAccessContext accepts this
+identity-only profile and binds the same trusted provider/group observation.
+Services are registered but live middleware still uses the old path until the
+complete switch. Added database cases cover concurrent same-identity creation,
+one provisioning audit, custom labels in the old table, metadata refresh and
+disabled identities. New-head CI is required.
+
+Catalog review also preserves idempotent registration across approval-state
+changes: identical immutable content returns the current installed trust/enabled
+state, never changes approval or re-enables a retired module. A caller's initial
+Untrusted classification does not conflict with an already approved copy.
+Regression cases cover both approval preservation and disabled-state replay.
+
+## Prepared host identity and grant policies
+
+`GrantIdentityMiddleware` provisions only identity metadata, rejects disabled
+users, binds the trusted request subject and invokes the separate bootstrap
+repository only after matching the configured normalized account allowlist.
+It never issues user, role, permission or Asset wildcard claims. A declined
+one-time bootstrap result does not invoke legacy provisioning or recovery.
+
+`GrantPermissionHandler` uses the exact principal bound by RequestAccessContext.
+It queries current resource permission prerequisites, DeploymentWide authority
+for the module catalog, and protected administrator classification for security
+administration. Unknown permissions, missing identity binding, anonymous users
+and replacement principals fail closed. Each authorization evaluation queries
+again; injected claims and earlier successful results do not supply authority.
+Resource predicates and transactional mutation fences remain mandatory.
+
+The host deliberately continues to register the existing middleware/policies
+until the complete route/client replacement is ready. These prepared components
+introduce no selectable runtime mode. Framework authorization checks cover all
+product permissions, spoofed claims, revocation, principal replacement and group
+subject/cancellation propagation. Middleware checks cover anonymous, inactive,
+ordinary and explicitly allowlisted identities, no authority claims, TestHeader
+group separation and a declined repeat bootstrap. Local targeted build passed
+with zero warnings/errors; identity boundary and 14 CI convention checks passed.
+
+Identity-directory head `a7d0413781849e800aec4e5518e16fdcaf0f8dc4` passed
+PostgreSQL integration and five other jobs in run `38987267817` at this
+checkpoint; the Windows foundation/installer job remained in progress.
+These results do not validate subsequent host-policy changes.
+
+All seven jobs subsequently passed host-policy head
+`c6ded4432b1818fa3a7eaac8e91c01905e9a83c7` in run `38987529325`, including
+the Windows foundation/installer. The live runtime remains unchanged.
+
+## Prepared per-resource action capabilities
+
+`IResourceActionRepository` batches a page of up to 500 distinct IDs into one
+SQL statement per resource family. It returns capability records only for
+currently readable configurations/recommendations, with current active user,
+role, grant, Asset and verified Windows-group conditions. An absent row grants
+no action. Empty pages return empty results rather than a full directory.
+
+Configuration management covers every historical target and input. Shadow run
+requires the definition's own active Shadow revision and request permission on
+all of that revision's targets and inputs, separately from read and management
+permissions. Recommendation decision authority is paired to that recommendation's
+persisted Asset. DeploymentWide assignments never imply resource actions;
+explicit valid AllAssets assignments do. These are current action prerequisites,
+not a reservation: mutation fences and business/dependency checks still run.
+Recommendation state, expiry and approval provenance remain decision checks.
+
+Prepared queries are not exposed by the published legacy routes. At the atomic
+cutover, include capabilities with authorized list/detail responses and default
+missing/revoked capability records to false. Never promote coarse page hints to
+per-resource management/run/decision authority or cache a previous success.
+
+Npgsql translation checks cover both batch projections. PostgreSQL cases cover
+direct/group scope, permission separation/revocation, unreadable rows, input-only
+Assets, all-history management versus active-only dispatch, foreign/non-Shadow
+active revisions, explicit/malformed AllAssets, missing read authority, expired
+group proof, disabled users and invalid/empty/oversized pages. New-head CI must
+execute these cases; the earlier host-policy result does not validate them.
+
+Capability head `96dfceba0fe48d47a330284f21c2262cfa7a099c` passed PostgreSQL
+integration and five other jobs in run `38988794326` at the recorded checkpoint.
+The Windows foundation/installer job was still running.
+
+## Prepared protected administration directory
+
+`ISecurityDirectoryRepository` lists identity-only user metadata, hydrated
+roles/permissions and complete user/group assignment records under current
+protected-administrator authority. Custom roles containing security.manage
+cannot cross that privilege-class boundary. A group assignment target is not
+proof of the requesting administrator's membership. Disabled identities and
+retired assignments remain inspectable without invoking legacy role parsing.
+
+The authority check and all hydration share RepeatableRead or Serializable
+state. Weak caller transactions are refused. A concurrent role/permission change
+cannot mix newer details into an older authorized directory response. The group
+observation is checked again after hydration, and a fresh request checks current
+grants rather than inheriting an earlier successful authorization. Existing
+bounded directory ordering and complete-assignment overflow checks are reused.
+
+PostgreSQL cases cover direct/group protected administrators, custom legacy role
+labels, inactive identities, user/group targets, missing subjects, validation,
+custom-role/expired-proof denial, grant revocation, weak transaction refusal,
+proof expiry during hydration, retired assignment inspection and an observed
+concurrent role hydration/revocation snapshot. These prepared
+reads await new-head CI and published API integration together with the other
+grant-runtime boundaries; no live legacy route has been switched individually.
+
+## Remaining atomic runtime integration
+
+- Bind identity-only provisioning, explicit grant bootstrap, RequestAccessContext,
+  dynamic SQL-backed permission policies and /security/me to one grant source.
+  Do not copy authority or Asset wildcards from legacy claims.
+- Convert every published resource/global/admin route to its prepared entry
+  points. The raw V1 /executions/shadow HTTP route has been removed; keep it
+  absent from the published API. Configured Shadow requests use persisted
+  mappings and transactional authority. Preserve V1/V2 messaging compatibility.
+- Return server-calculated per-resource action capabilities (configuration
+  management/run and recommendation decisions in particular), using paired
+  permissions for the actual targets. Never infer them from coarse menu hints.
+  Revalidate selected detail/edit views when resource scope changes even if
+  coarse permission strings stay the same. Remove the session Asset-ID union;
+  it must not become an authorization source or the only cache-invalidation key.
+- Use identity-only directory records and protected grant administration for
+  user/group assignments and custom roles. Remove fixed-role access editing and
+  migration-only APIs/UI, then regenerate the client and update route/E2E tests
+  together. Leave no published path that still requires legacy Admin claims.
+- Run the complete direct/group scope/permission, revocation, frontend loss-of-
+  access and seven-job matrix on the final reviewed head and unchanged merge
+  tree before merging. Keep #92 the next Phase 1 task after this runtime work.
 
 Do not introduce a Legacy/Observe/Enforce state machine or a production
 migration campaign for this unreleased baseline. Do not enable a partial mixed
@@ -69,3 +488,50 @@ legacy/grant runtime merely because an individual repository or UI test passes.
 User observations and the deferred enum-generation decision remain recorded in
 `docs/development/decision-followups.md`; they do not automatically change the
 active enterprise RBAC priority.
+
+## Raw HTTP dispatch retirement — 2026-10-17
+
+Removed POST /executions/shadow and its request DTO. No frontend consumer used
+this route; its only HTTP caller was the CI V1 worker journey. A caller-authored
+external provider mapping paired with an unrelated Asset ID cannot establish
+persisted resource authority, even for an otherwise authorized caller. Do not
+add a permissive compatibility route around the configured request boundary.
+
+HTTP execution submission uses the existing configured revision Shadow route,
+whose body contains only a request ID. Its prepared grant-authorized service
+must still be wired during the atomic runtime switch. This removal does not
+activate grant runtime authority or change the current configured-route checks.
+
+The test executable now seeds a V1 outbox fixture directly for the existing real
+worker/gateway/simulator completion journey. V1/V2 message contracts, consumers,
+internal persistence methods and historical reads remain compatible. Regression
+coverage checks raw HTTP refusal for administrator, Operator, unprivileged and
+anonymous callers, unchanged execution/outbox counts and absence from OpenAPI.
+The API inventory rejects accidental reintroduction even with a coarse policy.
+New-head CI must validate this change before any merge claim.
+
+## Protected Asset assignment directory
+
+The protected security directory now also projects bounded Asset assignment
+pages: Id, Name and IsActive only, with stable Name/Id ordering. It includes
+inactive Assets so existing assignments remain inspectable. Resource attributes,
+provider mappings and execution/configuration data are never part of this
+projection. Protected direct or verified-group administrator authority is required;
+ordinary Asset read/manage grants or custom security.manage roles do not qualify.
+The directory deliberately does not confer resource-read authority.
+
+Authority, paging and projection use the same RepeatableRead/Serializable
+snapshot, with proof freshness checked again after hydration. New PostgreSQL
+coverage exercises direct/group paging with duplicate names and inactive rows,
+invalid bounds, no implicit resource access, expiry during hydration, an observed
+pause between authority and Asset SQL with concurrent rename/revocation, fresh
+post-revocation denial and rejection of weaker caller transactions. These cases
+need current-head CI. The atomic route switch must use this entry point for
+/security/assets/directory instead of the legacy full-Asset service method.
+
+The raw-route refusal fixture accepts both 404 and 405: ASP.NET can retain
+GET route/fallback metadata after POST removal. Both are routing refusals; the
+no-execution/outbox-write checks and OpenAPI absence remain required. Run
+39003149982 passed PostgreSQL and four other jobs but exposed the fixture's
+incorrect 404-only assumption in Shadow end-to-end. The corrected fixture and
+new Asset-directory cases require a new head; no all-seven success is claimed.

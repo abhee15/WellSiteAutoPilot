@@ -32,6 +32,11 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<ILogicModuleCatalogRepository, LogicModuleCatalogRepository>();
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
         services.AddScoped<IUserAccessRepository, UserAccessRepository>();
+        services.AddScoped<IUserIdentityRepository, UserAccessRepository>();
+        services.AddScoped<IRequestAccessRepository, RequestAccessRepository>();
+        services.AddScoped<IResourceActionRepository, ResourceActionRepository>();
+        services.AddScoped<ISecurityDirectoryRepository, SecurityDirectoryRepository>();
+        services.AddScoped<IGrantBootstrapRepository, GrantBootstrapRepository>();
         services.AddScoped<IRoleCatalogRepository, RoleCatalogRepository>();
         services.AddScoped<IAccessGrantRepository, AccessGrantRepository>();
         services.AddScoped<IProposedAssetAccessRepository, ProposedAssetAccessRepository>();

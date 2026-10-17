@@ -15,7 +15,19 @@ PROGRAM = (ROOT / "src/server/WellSiteAutoPilot.Server/Program.cs").read_text(
 class ApiAuthorizationInventoryTests(unittest.TestCase):
     def test_current_api_matches_reviewed_inventory(self):
         self.assertEqual(api_authorization.validate_routes(PROGRAM), [])
-        self.assertEqual(len(api_authorization.EXPECTED_ENDPOINTS), 46)
+        self.assertEqual(len(api_authorization.EXPECTED_ENDPOINTS), 37)
+
+    def test_raw_execution_dispatch_cannot_be_reintroduced(self):
+        original = 'app.MapHealthChecks("/health/live"'
+        altered = PROGRAM.replace(
+            original,
+            'v1.MapPost("/executions/shadow", () => Results.Ok())'
+            '.WithName("RequestShadowExecution")'
+            '.RequireAuthorization(WellSitePolicies.ExecutionsRequest);\n' + original,
+            1,
+        )
+        self.assertIn("Unreviewed API route: POST /executions/shadow",
+                      "\n".join(api_authorization.validate_routes(altered)))
 
     def test_new_unreviewed_endpoint_is_rejected(self):
         original = 'app.MapHealthChecks("/health/live"'

@@ -4,8 +4,8 @@ using WellSiteAutoPilot.Domain.Assets;
 
 namespace WellSiteAutoPilot.Persistence.Assets;
 
-public sealed class AssetRepository(
-    WellSiteAutoPilotDbContext dbContext) : IAssetRepository
+public sealed partial class AssetRepository(
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IAssetRepository
 {
     public Task<bool> AssetTypeKeyExistsAsync(
         string key,
@@ -40,6 +40,13 @@ public sealed class AssetRepository(
     {
         ArgumentNullException.ThrowIfNull(assetType);
 
+        StageAssetType(assetType);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private void StageAssetType(AssetTypeDefinition assetType)
+    {
         dbContext.AssetTypes.Add(new AssetTypeEntity
         {
             Id = assetType.Id,
@@ -50,8 +57,6 @@ public sealed class AssetRepository(
             IsActive = assetType.IsActive,
             CreatedAtUtc = assetType.CreatedAtUtc
         });
-
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<Asset?> GetAssetAsync(
@@ -124,6 +129,7 @@ public sealed class AssetRepository(
 
         return (await baseQuery
             .OrderBy(item => item.Name)
+            .ThenBy(item => item.Id)
             .Take(limit)
             .ToArrayAsync(cancellationToken))
             .Select(ToDomain)
@@ -158,6 +164,13 @@ public sealed class AssetRepository(
     {
         ArgumentNullException.ThrowIfNull(asset);
 
+        StageAsset(asset);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private void StageAsset(Asset asset)
+    {
         dbContext.Assets.Add(new AssetEntity
         {
             Id = asset.Id,
@@ -168,8 +181,6 @@ public sealed class AssetRepository(
             IsActive = asset.IsActive,
             CreatedAtUtc = asset.CreatedAtUtc
         });
-
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static AssetTypeDefinition ToDomain(AssetTypeEntity entity) => new(

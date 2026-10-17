@@ -7,6 +7,14 @@ var clock = TimeProvider.System;
 // The new grant evaluator must never combine the roles from one assignment
 // with the Asset scope from another. This invariant is security-critical.
 var grantUserId = Guid.NewGuid();
+try { _ = new AccessSubject(Guid.Empty); throw new InvalidOperationException("Empty request subject accepted."); }
+catch (ArgumentException) { }
+try
+{
+    _ = new AccessSubject(grantUserId, new VerifiedWindowsGroupMembership(Guid.NewGuid(), [], clock.GetUtcNow()));
+    throw new InvalidOperationException("Mismatched request group subject accepted.");
+}
+catch (ArgumentException) { }
 var wellA = Guid.NewGuid();
 var wellB = Guid.NewGuid();
 var engineerRole = new RoleDefinition(

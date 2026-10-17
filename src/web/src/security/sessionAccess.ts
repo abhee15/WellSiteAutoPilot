@@ -4,7 +4,7 @@ import { isSecurityId } from './identifiers';
 
 export type VerifiedSession = CurrentUserResponse & {
   userId: string; identityName: string; isActive: boolean;
-  permissions: string[]; roles: string[]; assetScopeIds: string[];
+  permissions: string[];
 };
 export class SessionAccessError extends Error {}
 export function hasPermission(user: CurrentUserResponse | null | undefined, permission: string): boolean {
@@ -17,7 +17,7 @@ export function canOpenSection(user: CurrentUserResponse | null | undefined, sec
   return hasPermission(user, required[section]);
 }
 export function sessionAccessKey(user: VerifiedSession): string {
-  return JSON.stringify([user.userId, [...user.permissions].sort(), [...user.assetScopeIds].sort()]);
+  return JSON.stringify([user.userId, [...user.permissions].sort()]);
 }
 export async function loadSession(signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<VerifiedSession> {
   const response = await fetcher('/api/v1/security/me', { signal, credentials: 'same-origin', cache: 'no-store' });
@@ -29,9 +29,9 @@ export async function loadSession(signal: AbortSignal, fetcher: typeof fetch = f
     Array.isArray(values) && values.length <= maximum && values.every(x => typeof x === 'string' && x.length > 0) &&
     new Set(values).size === values.length;
   if (!isSecurityId(user.userId) || typeof user.identityName !== 'string' || !user.identityName.trim() ||
-    typeof user.isActive !== 'boolean' || !strings(user.roles, 100) || !strings(user.permissions, 200) ||
-    user.permissions.some(p => !/^[a-z][a-z0-9.-]{0,127}$/.test(p)) ||
-    !strings(user.assetScopeIds, 500) || user.assetScopeIds.some(id => !isSecurityId(id)))
+    typeof user.isActive !== 'boolean' || !strings(user.permissions, 200) ||
+    user.permissions.some(p => !/^[a-z][a-z0-9.-]{0,127}$/.test(p)))
     throw new SessionAccessError('Invalid session');
-  return user as VerifiedSession;
+  return { userId: user.userId, identityName: user.identityName, isActive: user.isActive,
+    permissions: [...user.permissions], displayName: typeof user.displayName === 'string' ? user.displayName : null };
 }

@@ -12,8 +12,8 @@ using WellSiteAutoPilot.Persistence.Messaging;
 
 namespace WellSiteAutoPilot.Persistence.Executions;
 
-public sealed class ExecutionRepository(
-    WellSiteAutoPilotDbContext dbContext) : IExecutionRepository
+public sealed partial class ExecutionRepository(
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IExecutionRepository
 {
     private const int ManualRequestLock = 1;
     private const int ConfigurationDispatchLock = 2;
