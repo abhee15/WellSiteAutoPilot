@@ -1,0 +1,10 @@
+/* Asset page: semantic tokens only. */
+.asset-page { padding: var(--space-16) var(--space-18); display: grid; gap: var(--space-16); }
+.asset-page-header { display: flex; justify-content: space-between; gap: var(--space-12); align-items: flex-start; }
+.asset-page-header h3 { margin: 0; }
+.asset-page-meta { margin: var(--space-4) 0 0; color: var(--color-text-subtle); }
+.asset-page h4 { margin: 0 0 var(--space-6); font-size: var(--font-size-body); }
+.asset-page-empty { margin: 0; color: var(--color-text-subtle); }
+.asset-page-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-6); }
+.asset-page-list li { display: flex; gap: var(--space-10); align-items: baseline; flex-wrap: wrap; }
+.asset-page-list small { color: var(--color-text-subtle); }
