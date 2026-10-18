@@ -1,7 +1,9 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using WellSiteAutoPilot.Application.Audit;
 using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.Audit;
 using WellSiteAutoPilot.Domain.Security;
 using WellSiteAutoPilot.Failures;
 
@@ -75,6 +77,43 @@ public sealed class SecurityDirectoryRepository(WellSiteAutoPilotDbContext db, T
             if (target.UserId is { } id && !await db.Users.AsNoTracking().AnyAsync(user => user.Id == id, cancellationToken))
                 throw new WellSiteAutoPilotException("SECURITY_USER_NOT_FOUND", FailureKind.NotFound, "The requested user was not found.");
             return await new AccessGrantRepository(db, clock).ListAsync(target, cancellationToken);
+        }, cancellationToken);
+    }
+
+    public Task<AuditEventPage> ListAuditEventsAuthorizedAsync(AccessSubject administrator, AuditEventQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        query.EnsureValid();
+        return ReadAsync(administrator, async () =>
+        {
+            var events = db.AuditEvents.AsNoTracking();
+            if (query.ActionPrefix is { } prefix)
+            {
+                // LIKE wildcards in the caller's text are literals, never patterns.
+                var pattern = prefix.Replace("\\", "\\\\", StringComparison.Ordinal)
+                    .Replace("%", "\\%", StringComparison.Ordinal)
+                    .Replace("_", "\\_", StringComparison.Ordinal) + "%";
+                events = events.Where(item => EF.Functions.Like(item.Action, pattern, "\\"));
+            }
+            if (query.TargetType is { } targetType) events = events.Where(item => item.TargetType == targetType);
+            if (query.ActorUserId is { } actor) events = events.Where(item => item.ActorUserId == actor);
+            if (query.AssetId is { } asset) events = events.Where(item => item.AssetId == asset);
+            if (query.FromUtc is { } from) events = events.Where(item => item.OccurredAtUtc >= from);
+            if (query.ToUtc is { } to) events = events.Where(item => item.OccurredAtUtc <= to);
+            if (query.After is { } after)
+                events = events.Where(item => item.OccurredAtUtc < after.OccurredAtUtc ||
+                    (item.OccurredAtUtc == after.OccurredAtUtc && item.Id.CompareTo(after.Id) < 0));
+
+            // One extra row tells whether another page exists without a second count query.
+            var rows = await events.OrderByDescending(item => item.OccurredAtUtc).ThenByDescending(item => item.Id)
+                .Take(query.Limit + 1).ToArrayAsync(cancellationToken);
+            var page = rows.Take(query.Limit).Select(item => new AuditEventRecord(
+                item.Id, item.OccurredAtUtc, item.ActorUserId, item.ActorIdentity, item.Action, item.TargetType,
+                item.TargetId, item.AssetId, item.CorrelationId, item.DetailsJson)).ToArray();
+            var next = rows.Length > query.Limit
+                ? new AuditEventCursor(page[^1].OccurredAtUtc, page[^1].Id) : null;
+            return new AuditEventPage(page, next);
         }, cancellationToken);
     }
 
