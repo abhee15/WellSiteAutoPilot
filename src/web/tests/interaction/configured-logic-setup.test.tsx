@@ -48,6 +48,24 @@ const schemaManifest = { ...manifest, description: 'Holds the pump near a target
     properties: { targetFillage: { type: 'number', minimum: 0, maximum: 100, title: 'Target fillage (%)' },
       mode: { type: 'string', enum: ['Hold', 'Trim'] } } } };
 const schemaModule: LogicModuleResponse = { ...module, manifestJson: JSON.stringify(schemaManifest) };
+describe('Revision settings summary', () => {
+  it('shows the saved settings of each revision with the module own labels', async () => {
+    const withSettings = { ...draft, revisions: [{ ...draft.revisions[0],
+      moduleManifestJson: schemaModule.manifestJson, parametersJson: '{"targetFillage":75,"mode":"Trim"}' }] };
+    vi.stubGlobal('fetch', vi.fn(async () => response(withSettings)));
+    workspace();
+    const list = await screen.findByLabelText('Settings used by this revision');
+    expect(list.textContent).toContain('Target fillage');
+    expect(list.textContent).toContain('75');
+    expect(list.textContent).toContain('Trim');
+  });
+  it('shows nothing when a revision has no settings', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response(draft)));
+    workspace();
+    await screen.findByText(/Exact Asset scope/);
+    expect(screen.queryByLabelText('Settings used by this revision')).toBeNull();
+  });
+});
 describe('Module settings form', () => {
   it('shows typed fields and the description, validates, and sends the built JSON', async () => {
     const user = userEvent.setup();

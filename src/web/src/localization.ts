@@ -67,6 +67,7 @@ export const englishMessages = {
   'setup.immutable': 'Revision content is immutable. Copy a revision to change parameters or bindings. Validation and activation are separate steps.',
   'setup.revision': 'Revision {number}',
   'setup.exactScope': 'Exact Asset scope: {assets}',
+  'setup.revisionSettings': 'Settings used by this revision',
   'setup.copyRevision': 'Copy revision {number}',
   'setup.validate': 'Validate revision {number}',
   'setup.reviewActivation': 'Review activation of revision {number}',

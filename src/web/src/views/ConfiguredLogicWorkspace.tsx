@@ -4,6 +4,7 @@ import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
 import { t } from '../localization';
 import { ConfiguredShadowPanel } from './ConfiguredShadowPanel';
 import { ConfiguredLogicSetupPanel } from './ConfiguredLogicSetupPanel';
+import { describeSettings } from './revisionSettings';
 import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOverview';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
 import type { VerifiedConfiguration } from './configuredLogicSetup';
@@ -104,6 +105,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         <strong>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</strong>
         <p>{t('setup.exactScope', { assets: r.assetBindings?.map(b =>
           assets.find(a => a.id === b.assetId)?.name ?? b.assetId).join(', ') ?? '' })}</p>
+        <RevisionSettings revision={r} />
         {mayManage && !editing && <div className="setup-actions">
           <button type="button" disabled={busy || blocked} onClick={() => {
             setSource(r); setEditing(true); setConfirmId(null);
@@ -135,4 +137,12 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       onCancel={() => { setEditing(false); setSource(undefined); if (!detail) onClose(); }} />}
     {!detail && <button type="button" disabled={busy} onClick={onClose}>{t('configured.close')}</button>}
   </section>;
+}
+
+function RevisionSettings({ revision }: { revision: ConfiguredLogicRevisionResponse }) {
+  const lines = describeSettings(revision.parametersJson, revision.moduleManifestJson);
+  if (!lines) return null;
+  return <dl className="revision-settings" aria-label={t('setup.revisionSettings')}>
+    {lines.map(line => <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>)}
+  </dl>;
 }
