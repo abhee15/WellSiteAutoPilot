@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHashDetail } from '../routing';
-import type { AssetResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
+import type { AssetResponse, ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { RecommendationInboxControls } from './RecommendationInboxControls';
@@ -106,11 +106,12 @@ export function RecommendationInboxTable({
 }
 
 export function RecommendationsPage({
-  userId, permissions, assets = [],
+  userId, permissions, assets = [], configuredLogic = [],
 }: {
   userId: string | null | undefined;
   permissions?: readonly string[] | null;
   assets?: readonly AssetResponse[];
+  configuredLogic?: readonly ConfiguredLogicResponse[];
 }) {
   const assetNames = useMemo(
     () => new Map(assets.flatMap(asset => (asset.id && asset.name ? [[asset.id, asset.name] as const] : []))),
@@ -262,6 +263,7 @@ export function RecommendationsPage({
               key={JSON.stringify(selectedRecommendation)}
               item={selectedRecommendation}
               assetName={assetNames.get(selectedRecommendation.assetId ?? '')}
+              configuredLogic={configuredLogic}
               onCancel={() => setSelectedReviewId(null)}
               onSaved={() => {
                 setSelectedReviewId(null);

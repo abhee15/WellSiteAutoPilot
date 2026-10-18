@@ -77,3 +77,21 @@ it('names the asset when assets are loaded and keeps the id beside it', async ()
   expect(await screen.findByText('North Well')).toBeTruthy();
   expect(screen.getByText('asset-1')).toBeTruthy();
 });
+
+it('the decision screen states the proposal, its context and that nothing is sent', async () => {
+  const runId = '44444444-4444-4444-8444-444444444444';
+  const configurationId = '55555555-5555-4555-8555-555555555555';
+  const revisionId = '66666666-6666-4666-8666-666666666666';
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([{ ...item, quantity: 'PumpSpeed',
+    executionId: runId, configuredLogicId: configurationId, configurationRevisionId: revisionId }]))));
+  render(<RecommendationsPage userId={userId} permissions={['recommendations.read', 'recommendations.decide']}
+    assets={[{ id: item.assetId, name: 'North Well', isActive: true } as never]}
+    configuredLogic={[{ id: configurationId, name: 'Pump watch', revisions: [{ id: revisionId, revisionNumber: 4 }] } as never]} />);
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'Review' }));
+  expect(await screen.findByText('Set pump speed to 82 % on North Well.')).toBeTruthy();
+  expect(screen.getByText('Approving records your decision. It does not send a command.')).toBeTruthy();
+  expect(screen.getByText('From Pump watch, revision 4')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'See the run that produced this' }).getAttribute('href')).toBe('#operations/' + runId);
+  expect(screen.getByRole('link', { name: 'North Well' }).getAttribute('href')).toBe('#assets/' + item.assetId);
+  expect(screen.getByText(/^Expires in/)).toBeTruthy();
+});

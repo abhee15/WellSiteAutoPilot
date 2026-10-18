@@ -212,6 +212,7 @@ export function App() {
             userId={currentUser?.userId}
             permissions={currentUser?.permissions}
             assets={assets}
+            configuredLogic={configuredLogic}
           />
         )}
         {section === 'access' && (
