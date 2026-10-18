@@ -16,17 +16,8 @@ public sealed class GrantPermissionHandler(RequestAccessContext access, IRequest
         GrantPermissionRequirement requirement)
     {
         if (!access.TryGetSubject(context.User, out var subject)) return;
-        var definition = ProductPermissionCatalog.Definitions
-            .SingleOrDefault(item => item.Key == requirement.Permission);
-        if (definition is null) return;
-
         var cancellation = context.Resource is HttpContext http ? http.RequestAborted : CancellationToken.None;
-        var allowed = requirement.Permission == WellSitePermissions.SecurityManage
-            ? await repository.HasAdministratorAsync(subject, cancellation)
-            : definition.ScopeKind == "DeploymentWide"
-                ? await repository.HasDeploymentPermissionAsync(subject, requirement.Permission, cancellation)
-                : (await repository.GetPermissionHintsAsync(subject, cancellation))
-                    .Contains(requirement.Permission, StringComparer.Ordinal);
-        if (allowed) context.Succeed(requirement);
+        var held = await GrantPermissionChecker.HeldAsync(repository, subject, [requirement.Permission], cancellation);
+        if (held.Contains(requirement.Permission)) context.Succeed(requirement);
     }
 }

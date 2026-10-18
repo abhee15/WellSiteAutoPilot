@@ -21,7 +21,7 @@ Not built, although the architecture or an agreed follow-up names it:
 | 2 | Python worker | `main.py` waits for a stop signal and consumes nothing |
 | 3 | Real providers | No CygNet or WAMI adapter; the Gateway has the simulator provider only |
 | 4 | Control path | Message types exist. No policy, readiness, ownership, ControlAction persistence or Gateway command execution. Shadow only |
-| 5 | SignalR | Named in the architecture baseline; no hub, package or client. The UX plan called it "server-sent events" (B10) |
+| 5 | SignalR | Server seam and hub built (`docs/architecture/live-update-signal.md`); browser client pending. Real-browser Negotiate behaviour is unverified (#92). The UX plan called it "server-sent events" (B10) |
 | 6 | OpenTelemetry | Architecture says "from the first slice"; no reference anywhere |
 | 7 | Maintenance and control inhibit | No code, although upgrades are meant to enter it |
 | 8 | Readiness, licensing, system health | Basic health endpoints only |

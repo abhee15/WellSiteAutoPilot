@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Scheduling;
 
 namespace WellSiteAutoPilot.Server.Scheduling;
@@ -15,6 +16,7 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
     IOptions<ScheduledShadowSchedulerOptions> options,
+    IChangeNotifier changes,
     ILogger<ScheduledShadowSchedulerHostedService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -56,6 +58,9 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
                     ScheduledShadowDispatchOutcome.ModuleDisabled or
                     ScheduledShadowDispatchOutcome.InvalidConfiguration or
                     ScheduledShadowDispatchOutcome.DispatchFailed);
+
+            // The dispatch committed its Execution requests before DispatchDueAsync returned.
+            if (dispatched > 0) changes.Notify(ChangeArea.Executions);
 
             if (dispatched > 0 || blocked > 0)
             {

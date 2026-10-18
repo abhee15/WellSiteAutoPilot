@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.JetStream.Models;
 using NATS.Client.Core;
 using NATS.Net;
+using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
@@ -17,6 +18,7 @@ public sealed partial class ExecutionResultConsumer(
     IServiceScopeFactory scopeFactory,
     INatsConnection connection,
     JetStreamConsumerSettings consumerSettings,
+    IChangeNotifier changes,
     ILogger<ExecutionResultConsumer> logger) : BackgroundService
 {
     public const string ConsumerName = "wsa-server-execution-results-v1";
@@ -123,6 +125,8 @@ public sealed partial class ExecutionResultConsumer(
         Guid executionId, Guid messageId, string incomingStatus)
     {
         ExecutionResultDiagnostics.Record(disposition, "v1", incomingStatus);
+        // The repository call that produced this disposition has already committed.
+        if (disposition == ExecutionResultDisposition.Applied) changes.Notify(ChangeArea.Executions);
         if (disposition == ExecutionResultDisposition.ConflictingTerminalResult)
         {
             LogTerminalConflict(logger, executionId, messageId, incomingStatus);

@@ -140,6 +140,8 @@ await CheckAsync(await admin.PostAsJsonAsync("/api/v1/asset-types", new
 
 await ConfiguredLogicApiChecks.RunAsync(admin, engineer, operatorUser, anonymous, fieldId, key);
 
+await ChangeSignalWireChecks.RunAsync(new Uri(origin), anonymous, admin, @"LOCAL\ci-asset-admin", @"LOCAL\ci-asset-operator");
+
 Console.WriteLine("Live Asset API create/capabilities/schema/scope checks passed.");
 return 0;
 
