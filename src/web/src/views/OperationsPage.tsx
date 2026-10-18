@@ -166,6 +166,8 @@ export function OperationsPage({
           <ExecutionDetailPanel
             key={selectedExecutionId}
             executionId={selectedExecutionId}
+            configuredLogic={configuredLogic}
+            assets={assets}
             onClose={() => setSelectedExecutionId(null)}
           />
         )}

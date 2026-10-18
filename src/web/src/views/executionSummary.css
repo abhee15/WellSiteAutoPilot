@@ -1,0 +1,4 @@
+/* Run summary at the top of the run details: semantic tokens only. */
+.execution-summary { margin: var(--space-12) 0; display: grid; gap: var(--space-6); }
+.execution-summary-lead { margin: 0; }
+.execution-summary-list { margin: 0; padding-left: var(--space-18); color: var(--color-text-subtle); }

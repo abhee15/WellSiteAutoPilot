@@ -17,14 +17,14 @@ const assets = [{ id: 'a1', name: 'North Well' }, { id: 'a2', name: 'South Well'
 
 test('a run is named from its configuration revision and the loaded assets', () => {
   const result = ctx.describeRunContext({ logicInstanceId: 'cfg', configurationRevisionId: 'rev2', assetId: null }, [configuration], assets);
-  assert.deepEqual(result, { logicName: 'ESP optimizer', revisionNumber: 2, assetLabels: ['North Well', 'South Well'] });
+  assert.deepEqual(result, { logicName: 'ESP optimizer', revisionNumber: 2, assetLabels: ['North Well', 'South Well'], assetIds: ['a1', 'a2'] });
 });
 
 test('a run that names its own asset uses it; unknown ids stay short rather than blank', () => {
   const own = ctx.describeRunContext({ logicInstanceId: 'cfg', configurationRevisionId: 'rev1', assetId: 'a2' }, [configuration], assets);
   assert.deepEqual(own.assetLabels, ['South Well']);
   const unknown = ctx.describeRunContext({ logicInstanceId: 'gone', configurationRevisionId: 'x', assetId: '123456789abcdef' }, [], []);
-  assert.deepEqual(unknown, { logicName: null, revisionNumber: null, assetLabels: ['12345678…'] });
+  assert.deepEqual(unknown, { logicName: null, revisionNumber: null, assetLabels: ['12345678…'], assetIds: ['123456789abcdef'] });
 });
 
 test('long asset lists are summarised', () => {
