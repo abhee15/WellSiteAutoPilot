@@ -23,12 +23,13 @@ type Activity = {
 
 /** One asset explained in words: where it sits, what is on it, what it has done. */
 export function AssetDetail({
-  asset, assets, typeName, configuredLogic, canReadRuns, canReadRecommendations, onSelect, onClose,
+  asset, assets, typeName, configuredLogic, canReadRuns, canReadRecommendations, canConfigureLogic, onSelect, onClose,
 }: {
   asset: AssetResponse;
   assets: readonly AssetResponse[];
   typeName: string;
   configuredLogic: readonly ConfiguredLogicResponse[];
+  canConfigureLogic?: boolean;
   canReadRuns: boolean;
   canReadRecommendations: boolean;
   onSelect: (assetId: string) => void;
@@ -99,6 +100,8 @@ export function AssetDetail({
             ))}
           </ul>
         )}
+        {canConfigureLogic && asset.isActive && <a className="secondary-button" href={hashFor('logic', 'new:' + assetId)}>
+          {t('assetPage.putLogic')}</a>}
       </section>
 
       {canReadRuns && <section aria-label={t('assetPage.runs')}>

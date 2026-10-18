@@ -124,6 +124,7 @@ export function AssetsPage({
           typeName={typeNames.get(selectedAuthorized.assetTypeId) ?? selectedAuthorized.assetTypeId ?? t('assets.unknownType')}
           configuredLogic={configuredLogic}
           canReadRuns={permissions.includes('executions.read')}
+          canConfigureLogic={permissions.includes('configured-logic.manage') && permissions.includes('configured-logic.read')}
           canReadRecommendations={permissions.includes('recommendations.read')}
           onSelect={setSelectedId}
           onClose={() => setSelectedId(null)}
