@@ -4,12 +4,14 @@ import type {
   AssetResponse,
   AssetTypeResponse,
   ConfiguredLogicResponse,
+  ExecutionResponse,
   LogicModuleResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
 import { formatTimestamp } from '../format';
-import { profileLabel, trustLabel } from '../words';
+import { profileLabel, statusLabel, trustLabel } from '../words';
+import { configurationAssetLabels, latestRunByConfiguration, summarizeAssetLabels } from './runContext';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { LogicCatalogControls } from './LogicCatalogControls';
@@ -21,7 +23,7 @@ import type { LogicCatalogCriteria } from './logicCatalog';
 export function LogicPage({
   modules,
   configuredLogic,
-  userId, assets, assetTypes, onRefresh, permissions, isLoaded = true,
+  userId, assets, assetTypes, onRefresh, permissions, isLoaded = true, executions = [],
 }: {
   modules: LogicModuleResponse[];
   configuredLogic: ConfiguredLogicResponse[];
@@ -30,10 +32,13 @@ export function LogicPage({
   assetTypes: AssetTypeResponse[];
   onRefresh: () => Promise<void>;
   permissions: readonly string[];
+  executions?: readonly ExecutionResponse[];
   isLoaded?: boolean;
 }) {
   const canReadCatalog = permissions.includes('logic.read');
   const canReadConfigurations = permissions.includes('configured-logic.read');
+  const canReadRuns = permissions.includes('executions.read');
+  const lastRuns = useMemo(() => latestRunByConfiguration(executions), [executions]);
   const mayManage = permissions.includes('configured-logic.manage');
   const [catalogCriteria, setCatalogCriteria] = useState<LogicCatalogCriteria>(
     DEFAULT_LOGIC_CATALOG_CRITERIA,
@@ -129,9 +134,11 @@ export function LogicPage({
             <thead>
               <tr>
                 <th>Name</th>
+                <th>{t('configured.assetsHeading')}</th>
                 <th>Active revision</th>
                 <th>Revisions</th>
                 <th>Latest status</th>
+                {canReadRuns && <th>{t('configured.lastRun')}</th>}
                 <th>Created</th>
                 <th>{t('configured.revisionsHeading')}</th>
               </tr>
@@ -143,9 +150,11 @@ export function LogicPage({
                 return (
                   <tr key={item.id}>
                     <td><strong>{item.name}</strong></td>
+                    <td>{summarizeAssetLabels(configurationAssetLabels(item, assets)) || '—'}</td>
                     <td>{activeRevisionLabel(item)}</td>
                     <td>{item.revisions?.length ?? 0}</td>
                     <td><StatusPill value={latest?.status ?? 'Draft'} /></td>
+                    {canReadRuns && <td>{lastRunText(lastRuns.get(item.id ?? ''))}</td>}
                     <td>{formatTimestamp(item.createdAtUtc)}</td>
                     <td>
                       <button
@@ -166,7 +175,7 @@ export function LogicPage({
                 );
               })}
               {visibleConfigurations.length === 0 && (
-                <EmptyRow columns={6}>
+                <EmptyRow columns={canReadRuns ? 8 : 7}>
                   {!isLoaded ? t('views.loading') : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
                 </EmptyRow>
               )}
@@ -193,4 +202,8 @@ function activeRevisionLabel(item: ConfiguredLogicResponse): string {
   if (!item.activeRevisionId) return '—';
   const active = item.revisions?.find(revision => revision.id === item.activeRevisionId);
   return active?.revisionNumber ? t('setup.revision', { number: active.revisionNumber }) : '—';
+}
+
+function lastRunText(run?: { requestedAtUtc: string; status: string | null }): string {
+  return run ? `${formatTimestamp(run.requestedAtUtc)} · ${statusLabel(run.status)}` : t('configured.noRecentRun');
 }

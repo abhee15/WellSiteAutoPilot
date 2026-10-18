@@ -31,3 +31,26 @@ test('long asset lists are summarised', () => {
   assert.equal(ctx.summarizeAssetLabels(['A', 'B']), 'A, B');
   assert.equal(ctx.summarizeAssetLabels(['A', 'B', 'C', 'D']), 'A, B +2 more');
 });
+
+import { configurationAssetLabels, latestRunByConfiguration } from '../src/views/runContext.ts';
+
+test('configuration asset labels cover every revision, once, by name', () => {
+  const config = { revisions: [
+    { assetBindings: [{ assetId: 'a1' }, { assetId: 'a2' }] },
+    { assetBindings: [{ assetId: 'a1' }, { assetId: 'a3-long-unknown-identifier' }] },
+  ] };
+  const assets = [{ id: 'a1', name: 'North' }, { id: 'a2', name: 'South' }];
+  assert.deepEqual(configurationAssetLabels(config, assets), ['North', 'South', 'a3-long-…']);
+  assert.deepEqual(configurationAssetLabels({}, assets), []);
+});
+
+test('latest run per configuration ignores undated or unlinked runs', () => {
+  const map = latestRunByConfiguration([
+    { logicInstanceId: 'c1', requestedAtUtc: '2026-10-01T00:00:00Z', status: 'Succeeded' },
+    { logicInstanceId: 'c1', requestedAtUtc: '2026-10-02T00:00:00Z', status: 'Failed' },
+    { logicInstanceId: 'c1', requestedAtUtc: 'not a date', status: 'Succeeded' },
+    { requestedAtUtc: '2026-10-03T00:00:00Z', status: 'Succeeded' },
+  ]);
+  assert.deepEqual([...map.keys()], ['c1']);
+  assert.equal(map.get('c1').status, 'Failed');
+});

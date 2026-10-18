@@ -38,3 +38,31 @@ export function summarizeAssetLabels(labels: readonly string[], maximum = 2): st
   if (labels.length <= maximum) return labels.join(', ');
   return `${labels.slice(0, maximum).join(', ')} +${labels.length - maximum} more`;
 }
+
+/** Names of every asset any saved revision of the configuration is set up for. */
+export function configurationAssetLabels(
+  configuration: ConfiguredLogicResponse,
+  assets: readonly AssetResponse[],
+): string[] {
+  const ids = [...new Set((configuration.revisions ?? []).flatMap(revision =>
+    (revision.assetBindings ?? []).flatMap(binding => (binding.assetId ? [binding.assetId] : []))))];
+  const names = new Map(assets.flatMap(asset => (asset.id ? [[asset.id, asset.name ?? ''] as const] : [])));
+  return ids.map(id => names.get(id) || shortId(id));
+}
+
+/** Newest recorded run per configuration, from whatever runs are already loaded. */
+export function latestRunByConfiguration(
+  executions: readonly Pick<ExecutionResponse, 'logicInstanceId' | 'requestedAtUtc' | 'status'>[],
+): Map<string, { requestedAtUtc: string; status: string | null }> {
+  const latest = new Map<string, { requestedAtUtc: string; status: string | null; time: number }>();
+  for (const run of executions) {
+    if (!run.logicInstanceId || !run.requestedAtUtc) continue;
+    const time = Date.parse(run.requestedAtUtc);
+    if (!Number.isFinite(time)) continue;
+    const current = latest.get(run.logicInstanceId);
+    if (!current || time > current.time) {
+      latest.set(run.logicInstanceId, { requestedAtUtc: run.requestedAtUtc, status: run.status ?? null, time });
+    }
+  }
+  return new Map([...latest].map(([id, { requestedAtUtc, status }]) => [id, { requestedAtUtc, status }]));
+}

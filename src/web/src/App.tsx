@@ -227,6 +227,7 @@ export function App() {
             onRefresh={refresh}
             modules={logicModules}
             configuredLogic={configuredLogic}
+            executions={executions}
             isLoaded={isLoaded}
             permissions={currentUser?.permissions ?? []}
           />
