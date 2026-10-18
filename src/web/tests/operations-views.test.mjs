@@ -179,3 +179,10 @@ test('view controls keep filtering available without claiming session storage', 
   assert.match(markup, /Execution view controls/);
   assert.match(markup, /role="group"/);
 });
+
+test('search also finds rows by the names shown on screen', () => {
+  const names = row => (row.executionId === 'exe-2' ? ['Pressure watch', 'North Well'] : []);
+  const criteria = { search: 'north well', status: 'all', sort: 'newest' };
+  assert.deepEqual(views.filterOperations(rows, criteria, names).map(row => row.executionId), ['exe-2']);
+  assert.deepEqual(views.filterOperations(rows, criteria).map(row => row.executionId), []);
+});

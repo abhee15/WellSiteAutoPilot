@@ -28,9 +28,14 @@ const allowedStatus = new Set<OperationsStatusFilter>(
 );
 const allowedSort = new Set<OperationsSort>(['newest', 'oldest']);
 
+/**
+ * `names` adds text a person can see for a row but the row itself does not carry, such as the
+ * customer's name for the logic or the asset, so searching for what is on screen finds it.
+ */
 export function filterOperations(
   recentExecutions: readonly ExecutionResponse[],
   criteria: OperationsViewCriteria,
+  names?: (row: ExecutionResponse) => readonly (string | null | undefined)[],
 ): ExecutionResponse[] {
   const query = criteria.search.trim().toLowerCase();
   return recentExecutions.filter(row => {
@@ -41,7 +46,7 @@ export function filterOperations(
     if (!query) return true;
     return [
       row.assetExternalId, row.quantity, row.moduleId, row.moduleVersion,
-      row.mode, row.status, row.resultCode, row.failureCode,
+      row.mode, row.status, row.resultCode, row.failureCode, ...(names?.(row) ?? []),
     ].some(value => (value ?? '').toLowerCase().includes(query));
   }).sort((left, right) => {
     const leftTime = Date.parse(left.requestedAtUtc ?? '') || 0;

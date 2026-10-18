@@ -170,7 +170,7 @@ export const englishMessages = {
   'execution.truncated': 'Preview limited to the first 4,096 characters.',
   'views.controls': 'Execution view controls',
   'views.search': 'Search',
-  'views.searchPlaceholder': 'Asset, module, outcome…',
+  'views.searchPlaceholder': 'Asset, logic, outcome…',
   'views.status': 'Status',
   'views.sort': 'Sort',
   'views.all': 'All statuses',
