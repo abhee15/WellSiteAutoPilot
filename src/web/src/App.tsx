@@ -198,6 +198,7 @@ export function App() {
             key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             userId={currentUser?.userId}
             permissions={currentUser?.permissions}
+            assets={assets}
           />
         )}
         {section === 'access' && (

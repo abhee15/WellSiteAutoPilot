@@ -17,10 +17,11 @@ type Props = {
   onCancel: () => void;
   onSaved: () => void;
   onConflict: () => void;
+  assetName?: string;
 };
 
 export function RecommendationDecisionReviewPanel({
-  item, onCancel, onSaved, onConflict,
+  item, onCancel, onSaved, onConflict, assetName,
 }: Props) {
   const [choice, setChoice] = useState<RecommendationDecision | null>(null);
   const [reason, setReason] = useState('');
@@ -95,7 +96,7 @@ export function RecommendationDecisionReviewPanel({
         </div>
       </div>
       <dl className="execution-detail-grid">
-        <div><dt>{t('decision.asset')}</dt><dd>{item.assetId ?? '—'}</dd></div>
+        <div><dt>{t('decision.asset')}</dt><dd>{assetName ? `${assetName} (${item.assetId})` : item.assetId ?? '—'}</dd></div>
         <div><dt>{t('decision.command')}</dt><dd>{item.command ?? item.code ?? '—'}</dd></div>
         <div><dt>{t('decision.suggestedValue')}</dt>
           <dd>{item.suggestedValue ?? '—'} {item.unit ?? ''}</dd></div>
