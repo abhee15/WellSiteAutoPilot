@@ -189,6 +189,7 @@ export function LogicPage({
             canManage={creating ? canManage : canManage && selectedConfiguration?.canManage === true}
             userId={userId} canRequestShadow={permissions.includes('executions.request') && selectedConfiguration?.canRequestShadow === true}
             modules={modules} assets={assets} assetTypes={assetTypes}
+            executions={canReadRuns ? executions : undefined}
             onChanged={onRefresh}
             onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
           />

@@ -255,6 +255,8 @@ export const englishMessages = {
   'assets.creating': 'Creating…',
   'assets.selectNamed': 'Select Asset {name}',
   'assets.unnamed': 'Unnamed Asset',
+  'logicSummary.recentRuns': 'Recent runs of this logic',
+  'logicSummary.noRuns': 'No recent runs are recorded for this logic.',
   'assetTree.label': 'Asset hierarchy',
   'assetTree.expand': 'Show children of {name}',
   'assetTree.collapse': 'Hide children of {name}',
