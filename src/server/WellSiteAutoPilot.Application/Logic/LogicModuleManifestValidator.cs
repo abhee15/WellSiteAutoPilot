@@ -46,6 +46,58 @@ public static partial class LogicModuleManifestValidator
         ValidateAssetRequirements(manifest.AssetRequirements);
         ValidateDataRequirements(manifest.AssetRequirements, manifest.DataRequirements);
         ValidateCommandRequirements(manifest.AssetRequirements, manifest.CommandRequirements);
+        ValidateDescription(manifest.Description);
+    }
+
+    /// <summary>Longest module description accepted; it is shown in lists and cards.</summary>
+    public const int MaximumDescriptionLength = 500;
+
+    /// <summary>
+    /// Checks the optional settings schema with the same rules Asset Type schemas use, so one
+    /// supported subset exists across the product. Absent or null means "no settings".
+    /// </summary>
+    public static async Task ValidateParameterSchemaAsync(
+        LogicModuleManifest manifest, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        if (manifest.ParameterSchema is not { } schema || schema.ValueKind == System.Text.Json.JsonValueKind.Null)
+        {
+            return;
+        }
+
+        if (schema.ValueKind != System.Text.Json.JsonValueKind.Object)
+        {
+            Fail("MODULE_PARAMETER_SCHEMA_INVALID", "The module settings schema must be a JSON object.");
+        }
+
+        try
+        {
+            await WellSiteAutoPilot.Application.Assets.AssetAttributeSchemaValidator.ValidateDefinitionAsync(
+                schema.GetRawText(), cancellationToken);
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Validation)
+        {
+            throw new WellSiteAutoPilotException(
+                "MODULE_PARAMETER_SCHEMA_INVALID",
+                FailureKind.Validation,
+                "The module settings schema is malformed or uses unsupported features.",
+                innerException: exception);
+        }
+    }
+
+    private static void ValidateDescription(string? description)
+    {
+        if (description is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(description) || description.Length > MaximumDescriptionLength)
+        {
+            Fail(
+                "MODULE_DESCRIPTION_INVALID",
+                $"A module description must be between 1 and {MaximumDescriptionLength} characters.");
+        }
     }
 
     private static void ValidateAssetRequirements(

@@ -16,7 +16,7 @@ public sealed class LogicModuleCatalogService(
         RegisterLogicModuleCommand command,
         CancellationToken cancellationToken = default)
     {
-        var module = BuildModule(command);
+        var module = await BuildModuleAsync(command, cancellationToken);
         var existing = await repository.GetAsync(module.ModuleId, module.Version, cancellationToken);
 
         if (existing is not null)
@@ -39,19 +39,22 @@ public sealed class LogicModuleCatalogService(
         return module;
     }
 
-    public Task<InstalledLogicModule> RegisterAuthorizedAsync(RegisterLogicModuleCommand command, AccessSubject subject,
+    public async Task<InstalledLogicModule> RegisterAuthorizedAsync(RegisterLogicModuleCommand command, AccessSubject subject,
         SecurityActorContext actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(actor);
-        return repository.RegisterAuthorizedAsync(BuildModule(command), subject, actor, cancellationToken);
+        return await repository.RegisterAuthorizedAsync(
+            await BuildModuleAsync(command, cancellationToken), subject, actor, cancellationToken);
     }
 
-    private InstalledLogicModule BuildModule(RegisterLogicModuleCommand command)
+    private async Task<InstalledLogicModule> BuildModuleAsync(
+        RegisterLogicModuleCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
         var manifest = DeserializeManifest(command.ManifestJson);
         LogicModuleManifestValidator.Validate(manifest);
+        await LogicModuleManifestValidator.ValidateParameterSchemaAsync(manifest, cancellationToken);
         var checksum = NormalizeSha256(command.PackageSha256);
         ValidateTrustStatus(command.TrustStatus);
         return new InstalledLogicModule(
