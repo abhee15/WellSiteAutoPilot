@@ -110,16 +110,24 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
     {approved.length === 0 && <p role="status">{t('setup.noModules')}</p>}
     <form className="setup-form" onSubmit={e => void submit(e)}>
       <fieldset disabled={busy || blocked}>
-        <label>{t('setup.name')}<input required maxLength={256} value={name}
-          disabled={!!configuration} onChange={e => setName(e.target.value)} /></label>
+        <h4 className="setup-step">{t('setupStep.logic')}</h4>
+        <p className="setup-step-hint">{t('setupStep.logicHint')}</p>
         <label>{t('setup.module')}<select required value={moduleKey} onChange={e => {
           setModuleKey(e.target.value); setBindings({}); setData({}); setOverrides({}); setUseSchedule(false);
         }}><option value="">{t('setup.choose')}</option>{approved.map(m =>
           <option key={m.id} value={JSON.stringify([m.moduleId, m.version])}>
             {m.displayName} · {m.version}</option>)}</select></label>
+        <h4 className="setup-step">{t('setupStep.name')}</h4>
+        <p className="setup-step-hint">{t('setupStep.nameHint')}</p>
+        <label>{t('setup.name')}<input required maxLength={256} value={name}
+          disabled={!!configuration} onChange={e => setName(e.target.value)} /></label>
+        <h4 className="setup-step">{t('setupStep.settings')}</h4>
+        <p className="setup-step-hint">{t('setupStep.settingsHint')}</p>
         <label>{t('setup.parameters')}<textarea required rows={4} maxLength={65536}
           value={parameters} onChange={e => setParameters(e.target.value)} /></label>
         <p>{t('setup.parametersHint')}</p>
+        {manifest && <><h4 className="setup-step">{t('setupStep.assets')}</h4>
+        <p className="setup-step-hint">{t('setupStep.assetsHint')}</p></>}
         {manifest?.assetRequirements.map(r => <fieldset key={r.role}>
           <legend>{t('setup.assetRole', { role: r.role, min: r.minimumCount, max: r.maximumCount })}</legend>
           <p>{t('setup.loadedAssets')}</p>
@@ -134,6 +142,8 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
               onChange={e => setOverrides({ ...overrides, [JSON.stringify([r.role, id])]: e.target.value })} />
           </label>)}
         </fieldset>)}
+        {manifest && manifest.dataRequirements.length > 0 && <><h4 className="setup-step">{t('setupStep.data')}</h4>
+        <p className="setup-step-hint">{t('setupStep.dataHint')}</p></>}
         {manifest?.dataRequirements.flatMap(r => (bindings[r.assetRole] ?? []).map(id => {
           const key = JSON.stringify([r.id, id]);
           const binding = data[key] ?? { providerId: '', providerAssetExternalId: '', providerMappingJson: '{}' };
@@ -148,6 +158,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
               </label>)}
           </fieldset>;
         }))}
+        {manifest?.executionProfile === 'ScheduledOneShot' && <h4 className="setup-step">{t('setupStep.schedule')}</h4>}
         {manifest?.executionProfile === 'ScheduledOneShot' && <details>
           <summary>{t('setup.schedule')}</summary>
           <label><input type="checkbox" checked={useSchedule}

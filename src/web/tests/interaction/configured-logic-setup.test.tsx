@@ -50,7 +50,8 @@ describe('Configured Logic setup journey', () => {
     vi.stubGlobal('fetch', http);
     render(<ConfiguredLogicSetupPanel {...props} />);
     await user.tab();
-    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Configuration name' }));
+    // Step 1 is choosing the logic, so it is first in keyboard order.
+    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Approved module version' }));
     await fill(user);
     await user.click(screen.getByRole('button', { name: 'Save Draft' }));
     await waitFor(() => expect(props.onSaved).toHaveBeenCalledWith(draft));
