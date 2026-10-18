@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import type { RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
+import type { ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import './decisionBrief.css';
 import { formatDetailTimestamp } from './executionDetail';
 import { recommendationIsAwaiting } from './recommendationInbox';
+import { proposalSentence, timeLeft } from './decisionBrief';
 import {
   RecommendationDecisionError,
   submitRecommendationDecision,
@@ -18,11 +20,16 @@ type Props = {
   onSaved: () => void;
   onConflict: () => void;
   assetName?: string;
+  /** Used to name the logic and revision behind the proposal, when loaded and readable. */
+  configuredLogic?: readonly ConfiguredLogicResponse[];
 };
 
 export function RecommendationDecisionReviewPanel({
-  item, onCancel, onSaved, onConflict, assetName,
+  item, onCancel, onSaved, onConflict, assetName, configuredLogic = [],
 }: Props) {
+  const logic = configuredLogic.find(candidate => candidate.id === item.configuredLogicId);
+  const revision = logic?.revisions?.find(candidate => candidate.id === item.configurationRevisionId);
+  const left = timeLeft(item.expiresAtUtc, Date.now());
   const [choice, setChoice] = useState<RecommendationDecision | null>(null);
   const [reason, setReason] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
@@ -94,6 +101,17 @@ export function RecommendationDecisionReviewPanel({
             {t('decision.cancel')}
           </button>
         </div>
+      </div>
+      <div className="decision-brief">
+        <p className="decision-brief-proposal">{proposalSentence(item, assetName)}</p>
+        <p>{t('decision.recordedNotice')}</p>
+        <ul>
+          {item.assetId && <li><a href={'#assets/' + item.assetId}>{assetName ?? t('decision.asset')}</a></li>}
+          {logic && <li>{t('decision.fromLogic', { name: logic.name ?? '—',
+            revision: revision?.revisionNumber ?? '—' })}</li>}
+          {item.executionId && <li><a href={'#operations/' + item.executionId}>{t('decision.fromRun')}</a></li>}
+          {left && <li>{left}</li>}
+        </ul>
       </div>
       <dl className="execution-detail-grid">
         <div><dt>{t('decision.asset')}</dt><dd>{assetName ? `${assetName} (${item.assetId})` : item.assetId ?? '—'}</dd></div>
