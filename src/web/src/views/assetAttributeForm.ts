@@ -95,3 +95,34 @@ export function buildAttributes(
   }
   return { json: JSON.stringify(out), errors };
 }
+
+/**
+ * Fills form values from saved JSON so an existing record can be edited in the form. Returns null
+ * when the JSON holds something the form cannot show faithfully (unknown names, wrong types), so
+ * the caller keeps the JSON editor rather than silently dropping data.
+ */
+export function attributeValues(
+  fields: readonly AttributeField[],
+  json: string,
+): AttributeValues | null {
+  let parsed: unknown;
+  try { parsed = JSON.parse(json); } catch { return null; }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const known = new Map(fields.map(field => [field.key, field]));
+  const values: AttributeValues = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    const field = known.get(key);
+    if (!field) return null;
+    if (field.kind === 'boolean') {
+      if (typeof value !== 'boolean') return null;
+      values[key] = value;
+    } else if (field.kind === 'integer' || field.kind === 'number') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      values[key] = String(value);
+    } else {
+      if (typeof value !== 'string') return null;
+      values[key] = value;
+    }
+  }
+  return values;
+}

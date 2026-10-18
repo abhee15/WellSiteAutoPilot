@@ -9,6 +9,7 @@ import type {
 import { t } from '../localization';
 import { isSecurityId } from '../security/identifiers';
 import { attributeFields, buildAttributes } from './assetAttributeForm';
+import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
 import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
 
 type Props = {
@@ -253,54 +254,20 @@ export function AssetCreationPanel({
               onChange={event => { setName(event.target.value); setError(null); }} />
           </label>
           {formMode && fields ? (
-            <fieldset className="asset-create-fields" disabled={isSubmitting}>
-              <legend>{t('assets.createDetails')}</legend>
-              {fields.map(field => {
-                const problem = fieldErrors[field.key];
-                const id = 'asset-attr-' + field.key;
-                const set = (value: string | boolean) => {
-                  setValues(current => ({ ...current, [field.key]: value }));
+            <div className="asset-create-fields">
+              <AttributeFieldsEditor fields={fields} values={values} errors={fieldErrors}
+                idPrefix="asset-attr-" legend={t('assets.createDetails')} disabled={isSubmitting}
+                onChange={(key, value) => {
+                  setValues(current => ({ ...current, [key]: value }));
                   setFieldErrors(current => Object.fromEntries(
-                    Object.entries(current).filter(([key]) => key !== field.key)));
+                    Object.entries(current).filter(([k]) => k !== key)));
                   setError(null);
-                };
-                const label = field.label + (field.required ? '' : ' ' + t('assets.createOptional'));
-                const common = { id, 'aria-invalid': problem ? true : undefined,
-                  'aria-describedby': problem ? id + '-error' : undefined } as const;
-                return <div className="asset-create-field" key={field.key}>
-                  {field.kind === 'boolean' ? (
-                    <label htmlFor={id}>
-                      <input {...common} type="checkbox" checked={values[field.key] === true}
-                        onChange={event => set(event.target.checked)} /> {label}
-                    </label>
-                  ) : (
-                    <>
-                      <label htmlFor={id}>{label}</label>
-                      {field.kind === 'choice' ? (
-                        <select {...common} value={String(values[field.key] ?? '')}
-                          onChange={event => set(event.target.value)}>
-                          <option value="">{t('assets.createChooseValue')}</option>
-                          {field.options?.map(option => <option key={option} value={option}>{option}</option>)}
-                        </select>
-                      ) : (
-                        <input {...common} type="text"
-                          inputMode={field.kind === 'text' ? undefined : 'decimal'}
-                          value={String(values[field.key] ?? '')}
-                          maxLength={field.maxLength}
-                          onChange={event => set(event.target.value)} />
-                      )}
-                    </>
-                  )}
-                  {field.description && <small>{field.description}</small>}
-                  {problem && <small id={id + '-error'} className="asset-create-error">
-                    {t(('assets.createField.' + problem) as 'assets.createField.required')}</small>}
-                </div>;
-              })}
-              <button type="button" className="secondary-button" onClick={() => {
-                const built = buildAttributes(fields, values);
-                setAttributes(built.json); setJsonMode(true); setFieldErrors({});
-              }}>{t('assets.createUseJson')}</button>
-            </fieldset>
+                }}
+                onUseJson={() => {
+                  const built = buildAttributes(fields, values);
+                  setAttributes(built.json); setJsonMode(true); setFieldErrors({});
+                }} />
+            </div>
           ) : (
           <label className="asset-create-attributes">
             <span>{t('assets.createAttributes')}</span>
