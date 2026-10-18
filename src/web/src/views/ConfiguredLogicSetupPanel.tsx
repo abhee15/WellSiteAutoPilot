@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
@@ -6,6 +6,9 @@ import { t } from '../localization';
 import { eligibleAssets, isJsonObject, readConfiguration, setupManifest,
   setupResponse, SetupApiError, verifiedConfiguration, matchesSetupRevision } from './configuredLogicSetup';
 import type { SetupRequest, VerifiedConfiguration } from './configuredLogicSetup';
+import { attributeFields, attributeValues, buildAttributes } from './assetAttributeForm';
+import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
+import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
 import './configuredLogicSetup.css';
 
 type Props = {
@@ -23,6 +26,16 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
   const manifest = module ? setupManifest(module) : null;
   const [name, setName] = useState(configuration?.name ?? '');
   const [parameters, setParameters] = useState(revision?.parametersJson ?? '{}');
+  // Modules that describe their settings get typed fields; anything the form cannot show stays JSON.
+  const paramFields = useMemo(() => manifest?.parameterSchema && typeof manifest.parameterSchema === 'object'
+    ? attributeFields(JSON.stringify(manifest.parameterSchema)) : null, [manifest]);
+  const [paramValues, setParamValues] = useState<AttributeValues | null>(null);
+  const [paramErrors, setParamErrors] = useState<Record<string, AttributeFieldError>>({});
+  const [paramJson, setParamJson] = useState(false);
+  const savedValues = useMemo(() => paramFields && revision ? attributeValues(paramFields, revision.parametersJson ?? '{}') : {},
+    [paramFields, revision]);
+  const formValues = paramValues ?? savedValues ?? {};
+  const settingsForm = paramFields !== null && !paramJson && (paramValues !== null || savedValues !== null);
   const [bindings, setBindings] = useState<Record<string, string[]>>(() => {
     const result: Record<string, string[]> = {};
     for (const b of revision?.assetBindings ?? [])
@@ -58,7 +71,13 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
     const dataBindings = manifest.dataRequirements.flatMap(r =>
       (bindings[r.assetRole] ?? []).map(assetId => ({ requirementId: r.id, assetId,
         ...(data[JSON.stringify([r.id, assetId])] ?? { providerId: '', providerAssetExternalId: '', providerMappingJson: '{}' }) })));
-    const valid = name.trim() && isJsonObject(parameters) &&
+    let parametersJson = parameters;
+    if (settingsForm && paramFields) {
+      const built = buildAttributes(paramFields, formValues);
+      if (Object.keys(built.errors).length > 0) { setParamErrors(built.errors); setError(t('assets.createFieldsInvalid')); return; }
+      parametersJson = built.json;
+    }
+    const valid = name.trim() && isJsonObject(parametersJson) &&
       manifest.assetRequirements.every(r => {
         const ids = bindings[r.role] ?? [];
         return ids.length >= r.minimumCount && ids.length <= r.maximumCount &&
@@ -70,7 +89,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
         /Z$|[+-]00:00$/.test(start) && Number.isFinite(Date.parse(start)) && zone.trim());
     if (!valid) { setError(t('setup.formInvalid')); return; }
     const body: SetupRequest = { name: name.trim(), moduleManifestJson: module.manifestJson,
-      parametersJson: parameters, assetBindings, dataBindings,
+      parametersJson, assetBindings, dataBindings,
       schedule: useSchedule ? { enabled: scheduleEnabled, cadenceSeconds: Number(cadence),
         startAtUtc: new Date(start).toISOString(), timeZoneId: zone.trim() } : undefined };
     pending.current = true; setBusy(true); setError(null);
@@ -114,6 +133,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
         <p className="setup-step-hint">{t('setupStep.logicHint')}</p>
         <label>{t('setup.module')}<select required value={moduleKey} onChange={e => {
           setModuleKey(e.target.value); setBindings({}); setData({}); setOverrides({}); setUseSchedule(false);
+          setParamValues(null); setParamErrors({}); setParamJson(false); setParameters('{}');
         }}><option value="">{t('setup.choose')}</option>{approved.map(m =>
           <option key={m.id} value={JSON.stringify([m.moduleId, m.version])}>
             {m.displayName} · {m.version}</option>)}</select></label>
@@ -122,10 +142,19 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
         <label>{t('setup.name')}<input required maxLength={256} value={name}
           disabled={!!configuration} onChange={e => setName(e.target.value)} /></label>
         <h4 className="setup-step">{t('setupStep.settings')}</h4>
-        <p className="setup-step-hint">{t('setupStep.settingsHint')}</p>
-        <label>{t('setup.parameters')}<textarea required rows={4} maxLength={65536}
+        {manifest?.description && <p>{t('setup.moduleDescription')}: {manifest.description}</p>}
+        <p className="setup-step-hint">{t(settingsForm ? 'setupStep.settingsFormHint' : 'setupStep.settingsHint')}</p>
+        {settingsForm && paramFields ? <AttributeFieldsEditor fields={paramFields} values={formValues}
+          errors={paramErrors} idPrefix="setup-param-" legend={t('setup.settingsLegend')}
+          onChange={(key, value) => {
+            setParamValues({ ...formValues, [key]: value });
+            setParamErrors(current => Object.fromEntries(Object.entries(current).filter(([k]) => k !== key)));
+            setError(null);
+          }}
+          onUseJson={() => { setParameters(buildAttributes(paramFields, formValues).json); setParamJson(true); setParamErrors({}); }} />
+        : <><label>{t('setup.parameters')}<textarea required rows={4} maxLength={65536}
           value={parameters} onChange={e => setParameters(e.target.value)} /></label>
-        <p>{t('setup.parametersHint')}</p>
+        <p>{t(manifest?.parameterSchema ? 'setup.parametersHintSchema' : 'setup.parametersHint')}</p></>}
         {manifest && <><h4 className="setup-step">{t('setupStep.assets')}</h4>
         <p className="setup-step-hint">{t('setupStep.assetsHint')}</p></>}
         {manifest?.assetRequirements.map(r => <fieldset key={r.role}>

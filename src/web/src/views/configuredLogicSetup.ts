@@ -11,6 +11,7 @@ export type AssetRequirement = {
 };
 export type DataRequirement = { id: string; assetRole: string; quantity: string };
 export type SetupManifest = {
+  description?: string; parameterSchema?: unknown;
   moduleId: string; version: string; executionProfile: string;
   assetRequirements: AssetRequirement[]; dataRequirements: DataRequirement[];
 };

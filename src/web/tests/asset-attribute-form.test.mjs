@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { attributeFields, buildAttributes } from '../src/views/assetAttributeForm.ts';
+import { attributeFields, attributeValues, buildAttributes } from '../src/views/assetAttributeForm.ts';
 
 const schema = JSON.stringify({ type: 'object', required: ['api_number', 'depthFt'], properties: {
   api_number: { type: 'string', maxLength: 5, description: 'Well API number' },
@@ -35,4 +35,15 @@ test('values are typed, empty optional fields are omitted, problems are named', 
   assert.equal(buildAttributes(fields, { api_number: 'a', depthFt: '-1' }).errors.depthFt, 'minimum');
   assert.equal(buildAttributes(fields, { api_number: 'a', depthFt: '99999' }).errors.depthFt, 'maximum');
   assert.equal(buildAttributes(fields, { api_number: 'a', depthFt: 'x' }).errors.depthFt, 'number');
+});
+
+test('saved JSON fills the form, or declines when the form could not show it faithfully', () => {
+  const fields = attributeFields(schema);
+  assert.deepEqual(attributeValues(fields, '{"api_number":"12345","depthFt":9000,"gasLift":true}'),
+    { api_number: '12345', depthFt: '9000', gasLift: true });
+  assert.deepEqual(attributeValues(fields, '{}'), {});
+  assert.equal(attributeValues(fields, '{"unknown":1}'), null);
+  assert.equal(attributeValues(fields, '{"depthFt":"deep"}'), null);
+  assert.equal(attributeValues(fields, '[]'), null);
+  assert.equal(attributeValues(fields, 'nope'), null);
 });

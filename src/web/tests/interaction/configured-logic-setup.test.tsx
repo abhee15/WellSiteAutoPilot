@@ -43,6 +43,45 @@ function workspace(canManage = true) {
   return render(<ConfiguredLogicWorkspace selectedId={configId} canManage={canManage}
     modules={[module]} assets={assets} assetTypes={types} onClose={vi.fn()} onChanged={async () => {}} />);
 }
+const schemaManifest = { ...manifest, description: 'Holds the pump near a target fillage.',
+  parameterSchema: { type: 'object', required: ['targetFillage'],
+    properties: { targetFillage: { type: 'number', minimum: 0, maximum: 100, title: 'Target fillage (%)' },
+      mode: { type: 'string', enum: ['Hold', 'Trim'] } } } };
+const schemaModule: LogicModuleResponse = { ...module, manifestJson: JSON.stringify(schemaManifest) };
+describe('Module settings form', () => {
+  it('shows typed fields and the description, validates, and sends the built JSON', async () => {
+    const user = userEvent.setup();
+    const http = vi.fn(async (_url: string, init?: RequestInit) => response(
+      { ...draft, revisions: [{ ...draft.revisions[0], moduleManifestJson: schemaModule.manifestJson,
+        parametersJson: '{"targetFillage":75,"mode":"Trim"}' }] }, init?.method === 'POST' ? 201 : 200));
+    vi.stubGlobal('fetch', http);
+    render(<ConfiguredLogicSetupPanel {...props} modules={[schemaModule]} />);
+    await fill(user);
+    expect(screen.queryByRole('textbox', { name: 'Parameters (JSON object)' })).toBeNull();
+    expect(screen.getByText(/Holds the pump near a target fillage/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    expect(screen.getByText('This detail is required.')).toBeTruthy();
+    expect(http).not.toHaveBeenCalled();
+    await user.type(screen.getByRole('textbox', { name: 'Target fillage (%)' }), '150');
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    expect(screen.getByText('This is above the allowed maximum.')).toBeTruthy();
+    await user.clear(screen.getByRole('textbox', { name: 'Target fillage (%)' }));
+    await user.type(screen.getByRole('textbox', { name: 'Target fillage (%)' }), '75');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Mode/ }), 'Trim');
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await waitFor(() => expect(http).toHaveBeenCalled());
+    expect(JSON.parse(http.mock.calls[0][1]?.body as string).parametersJson).toBe('{"targetFillage":75,"mode":"Trim"}');
+  });
+  it('lets the person switch to JSON, carrying their values across', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+    render(<ConfiguredLogicSetupPanel {...props} modules={[schemaModule]} />);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Approved module version' }), JSON.stringify(['sample', '1.0.0']));
+    await user.type(screen.getByRole('textbox', { name: 'Target fillage (%)' }), '60');
+    await user.click(screen.getByRole('button', { name: 'Edit these details as JSON instead' }));
+    expect((screen.getByRole('textbox', { name: 'Parameters (JSON object)' }) as HTMLTextAreaElement).value).toBe('{"targetFillage":60}');
+  });
+});
 describe('Configured Logic setup journey', () => {
   it('uses keyboard navigation, saves raw JSON once, verifies persistence and reports the Draft', async () => {
     const user = userEvent.setup();

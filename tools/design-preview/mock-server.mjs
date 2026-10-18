@@ -42,7 +42,12 @@ const responses = {
   '/api/v1/assets/capabilities': { canCreateRoot: true, canCreateUnderAuthorizedParents: true },
   '/api/v1/executions': executions,
   '/api/v1/logic-modules': [{ id: id(400), moduleId: 'esp-frequency-optimizer', version: '1.2.0', displayName: 'ESP frequency optimizer',
-    publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'Shadow', manifestJson: '{}', packageSha256: 'ab'.repeat(32),
+    publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'Shadow', manifestJson: JSON.stringify({ moduleId: 'esp-frequency-optimizer', version: '1.2.0',
+      executionProfile: 'ScheduledOneShot', description: 'Keeps an ESP near its best operating frequency.',
+      assetRequirements: [{ role: 'well', minimumCount: 1, maximumCount: 1, requiredAssetTypeKey: 'well' }], dataRequirements: [],
+      parameterSchema: { type: 'object', required: ['targetFrequencyHz'], properties: {
+        targetFrequencyHz: { type: 'number', minimum: 30, maximum: 70, title: 'Target frequency (Hz)', description: 'Where the optimizer aims.' },
+        mode: { type: 'string', enum: ['Hold', 'Trim'] }, allowIncrease: { type: 'boolean' } } } }), packageSha256: 'ab'.repeat(32),
     trustStatus: 'Trusted', isEnabled: true, installedAtUtc: iso(5000) }],
   '/api/v1/security/users': [
     { userId: id(900), identityName: 'FIELD\\10482267', displayName: 'Alex Rivera', isActive: true, createdAtUtc: iso(9000), lastSeenAtUtc: iso(1), activeDirectGrantCount: 2 },
