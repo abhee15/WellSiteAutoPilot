@@ -4,13 +4,14 @@ import { t } from '../localization';
 import { AccessManagementPage } from './AccessManagementPage';
 import { RoleCatalogPage } from './RoleCatalogPage';
 import { GrantAdministrationPage } from './GrantAdministrationPage';
+import { ActivityPage } from './ActivityPage';
 
-type Tab = 'users' | 'roles' | 'grants';
+type Tab = 'users' | 'roles' | 'grants' | 'activity';
 
 /** Keep Administration in the user menu, not the industrial primary navigation. */
 export function AdministrationWorkspace({ currentUserId }: { currentUserId: string }) {
   const [detail, setDetail] = useHashDetail('access');
-  const tab: Tab = detail === 'roles' || detail === 'grants' ? detail : 'users';
+  const tab: Tab = detail === 'roles' || detail === 'grants' || detail === 'activity' ? detail : 'users';
   const setTab = (next: Tab) => setDetail(next === 'users' ? null : next);
   // The user chosen by "Assign role" on the Users tab; only the next Grants view consumes it.
   const [assignUserId, setAssignUserId] = useState('');
@@ -26,15 +27,17 @@ export function AdministrationWorkspace({ currentUserId }: { currentUserId: stri
         <button type="button" role="tab" className="secondary-button"
           aria-selected={tab === 'grants'} id="admin-grants-tab" aria-controls="admin-grants"
           onClick={() => { setAssignUserId(''); setTab('grants'); }}>{t('grants.tab')}</button>
+        <button type="button" role="tab" className="secondary-button"
+          aria-selected={tab === 'activity'} id="admin-activity-tab" aria-controls="admin-activity"
+          onClick={() => setTab('activity')}>{t('activity.tab')}</button>
       </div>
-      <div role="tabpanel" id={tab === 'users' ? 'admin-users' : tab === 'roles' ? 'admin-roles' : 'admin-grants'}
-        aria-labelledby={tab === 'users' ? 'admin-users-tab' : tab === 'roles' ?
-          'admin-roles-tab' : 'admin-grants-tab'}>
+      <div role="tabpanel" id={`admin-${tab}`} aria-labelledby={`admin-${tab}-tab`}>
         {tab === 'users'
           ? <AccessManagementPage currentUserId={currentUserId}
             onAssignRole={userId => { setAssignUserId(userId); setTab('grants'); }} />
           : tab === 'roles' ? <RoleCatalogPage />
-            : <GrantAdministrationPage currentUserId={currentUserId} initialUserId={assignUserId} />}
+            : tab === 'activity' ? <ActivityPage />
+              : <GrantAdministrationPage currentUserId={currentUserId} initialUserId={assignUserId} />}
       </div>
     </div>
   );
