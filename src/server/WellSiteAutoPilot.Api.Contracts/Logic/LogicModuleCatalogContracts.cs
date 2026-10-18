@@ -4,6 +4,9 @@ public sealed record RegisterLogicModuleRequest(
     string ManifestJson,
     string PackageSha256);
 
+public sealed record ChangeLogicModuleApprovalRequest(
+    string Reason);
+
 public sealed record LogicModuleResponse(
     Guid Id,
     string ModuleId,

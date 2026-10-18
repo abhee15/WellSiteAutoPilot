@@ -38,7 +38,7 @@ and domain validation remain release gate #92.
 | POST configured-logic revision Shadow | executions.request + configured-logic.read | Build the snapshot from the persisted Active Shadow revision; retain complete read/request scope through execution/outbox/audit commit and recheck receipt replay |
 | GET /recommendations and /recommendations/{id} | recommendations.read | Filter by persisted target Asset before paging or materializing a response |
 | POST /recommendations/{id}/decision | recommendations.decide | Resolve target Asset authoritatively and enforce permission before any status mutation |
-| /logic-modules catalog | logic.read / logic.manage | SQL-backed **deployment-wide** permission; do not satisfy using AllAssets grants |
+| /logic-modules catalog, including approve and retire | logic.read / logic.manage | SQL-backed **deployment-wide** permission; do not satisfy using AllAssets grants. Approve and retire lock the module row, recheck authority after the lock, require a reason and write one audit event; a retired version is never approved again |
 | /security/** administration | security.manage | DB-revalidate an active administrator; no self elevation, last-admin removal or audit bypass |
 
 Map every published API route (including future ones) to a permission and
