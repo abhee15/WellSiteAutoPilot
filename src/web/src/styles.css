@@ -88,8 +88,45 @@ button:disabled {
   background: var(--color-surface-navigation-active);
 }
 
-.nav-short {
-  display: none;
+.nav-icon {
+  flex: none;
+}
+
+.navigation nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.product-mark {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.product-name {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.nav-toggle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--color-text-navigation);
+  cursor: pointer;
+}
+
+.nav-toggle:hover {
+  background: var(--color-surface-navigation-active);
 }
 
 .user-menu {
@@ -743,47 +780,41 @@ button:disabled {
   }
 }
 
+/* Icon rail: chosen with the toggle, and always used in narrow windows (see useNavCollapsed). */
+.app-shell.nav-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.nav-collapsed .navigation {
+  padding-inline: 8px;
+}
+
+.nav-collapsed .product-name,
+.nav-collapsed .nav-label,
+.nav-collapsed .nav-group-label,
+.nav-collapsed .user-label,
+.nav-collapsed .user-menu-chevron {
+  display: none;
+}
+
+.nav-collapsed .product-mark {
+  justify-content: center;
+}
+
+.nav-collapsed .navigation nav a,
+.nav-collapsed .user-menu > summary {
+  justify-content: center;
+  padding: var(--space-10) var(--space-4);
+}
+
+.nav-collapsed .user-panel {
+  position: fixed;
+  bottom: 12px;
+  left: 72px;
+  width: min(300px, calc(100vw - 90px));
+}
+
 @media (max-width: 760px) {
-  .app-shell {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
-
-  .navigation {
-    padding-inline: 8px;
-  }
-
-  .product-mark strong,
-  .product-kicker,
-  .nav-label,
-  .user-label,
-  .user-menu-chevron {
-    display: none;
-  }
-
-  .nav-short {
-    display: block;
-    font-size: var(--font-size-caption);
-    font-weight: 700;
-  }
-
-  .navigation nav a {
-    display: flex;
-    justify-content: center;
-    padding: var(--space-10) var(--space-4);
-  }
-
-  .user-menu > summary {
-    justify-content: center;
-    padding: var(--space-10) var(--space-4);
-  }
-
-  .user-panel {
-    position: fixed;
-    bottom: 12px;
-    left: 72px;
-    width: min(300px, calc(100vw - 90px));
-  }
-
   .content {
     padding: var(--space-18);
   }
