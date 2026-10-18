@@ -1,0 +1,11 @@
+/* Activity (audit) tab: filters above a scrollable table, newest first. */
+.activity-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; margin: 12px 18px; align-items: end; }
+.activity-filters label { display: grid; gap: 6px; }
+.activity-filters input { width: 100%; color: var(--color-text-primary); background: var(--color-surface-input); border: 1px solid var(--color-border-control); border-radius: 6px; padding: 9px; font: inherit; }
+.activity-filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.activity-event-details summary { cursor: pointer; }
+.activity-event-details dl { margin: 6px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; }
+.activity-event-details dt { color: var(--color-text-subtle); }
+.activity-event-details dd { margin: 0; overflow-wrap: anywhere; }
+.activity-cell-wrap { overflow-wrap: anywhere; }
+.activity-more { margin: 12px 18px 18px; }
