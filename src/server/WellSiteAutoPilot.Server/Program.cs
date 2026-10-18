@@ -11,6 +11,7 @@ using WellSiteAutoPilot.Api.Contracts.Recommendations;
 using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Api.Contracts.Security;
 using WellSiteAutoPilot.Application.Assets;
+using WellSiteAutoPilot.Application.Audit;
 using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
@@ -257,6 +258,33 @@ v1.MapGet(
     .WithName("ListSecurityUsers")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<SecurityUserResponse[]>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapGet(
+    "/security/audit-events",
+    async (int? limit, string? cursor, string? actionPrefix, string? targetType, Guid? actorUserId, Guid? assetId,
+        DateTimeOffset? fromUtc, DateTimeOffset? toUtc, ISecurityDirectoryRepository directory,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+    {
+        AuditEventCursor? after = null;
+        if (cursor is not null && !AuditEventCursor.TryDecode(cursor, out after))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "The audit event cursor is not valid.");
+        var page = await directory.ListAuditEventsAuthorizedAsync(
+            access.Subject,
+            new AuditEventQuery(limit ?? AuditEventQuery.DefaultLimit, after, actionPrefix, targetType,
+                actorUserId, assetId, fromUtc, toUtc),
+            cancellationToken);
+        return new AuditEventPageResponse(
+            page.Items.Select(item => new AuditEventResponse(
+                item.Id, item.OccurredAtUtc, item.ActorUserId, item.ActorIdentity, item.Action, item.TargetType,
+                item.TargetId, item.AssetId, item.CorrelationId, item.DetailsJson)).ToArray(),
+            page.Next?.Encode());
+    })
+    .WithName("ListAuditEvents")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<AuditEventPageResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status400BadRequest)
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapGet(

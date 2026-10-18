@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Application.Audit;
 using WellSiteAutoPilot.Domain.Security;
 
 namespace WellSiteAutoPilot.Application.Security;
@@ -24,5 +25,11 @@ public interface ISecurityDirectoryRepository
     Task<RoleDefinition?> GetRoleAuthorizedAsync(AccessSubject administrator, Guid roleId,
         CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<AccessGrant>> ListGrantsAuthorizedAsync(AccessSubject administrator, AccessGrantSubject target,
+        CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Newest-first, keyset-paged audit events for protected administrators. Filters run in SQL before
+    /// the page is cut. Reading the audit trail is not itself audited.
+    /// </summary>
+    Task<AuditEventPage> ListAuditEventsAuthorizedAsync(AccessSubject administrator, AuditEventQuery query,
         CancellationToken cancellationToken = default);
 }

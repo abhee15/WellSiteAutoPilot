@@ -18,6 +18,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/system/info"): ("GetSystemInformation", None),
     ("GET", "/security/me"): ("GetCurrentUser", None),
     ("GET", "/security/users"): ("ListSecurityUsers", "SecurityManage"),
+    ("GET", "/security/audit-events"): ("ListAuditEvents", "SecurityManage"),
     ("GET", "/security/role-permissions"): ("ListProductPermissions", "SecurityManage"),
     ("GET", "/security/roles"): ("ListSecurityRoles", "SecurityManage"),
     ("GET", "/security/roles/{roleId:guid}"): ("GetSecurityRole", "SecurityManage"),
