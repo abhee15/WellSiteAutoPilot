@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   AssetResponse,
   ConfiguredLogicResponse,
@@ -7,13 +7,12 @@ import type {
   SystemInfoResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { SummaryCard } from '../components/common';
 import { attentionItems } from './overview';
 import type { AttentionItem } from './overview';
 import { fetchRecommendationInbox } from './recommendationInbox';
 import './overview.css';
-
-const REFRESH_MS = 10_000;
 
 function attentionText(item: AttentionItem): string {
   switch (item.kind) {
@@ -39,6 +38,7 @@ export function OverviewPage({
   const canReadRecommendations = permissions.includes('recommendations.read');
   const [recommendations, setRecommendations] = useState<RecommendationSummaryResponse[]>([]);
   const [recommendationsLoaded, setRecommendationsLoaded] = useState(!canReadRecommendations);
+  const reload = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     if (!canReadRecommendations) return;
@@ -56,10 +56,12 @@ export function OverviewPage({
         if (!current.signal.aborted) setRecommendationsLoaded(true);
       });
     };
+    reload.current = load;
     load();
-    const timer = window.setInterval(load, REFRESH_MS);
-    return () => { window.clearInterval(timer); controller.abort(); };
+    return () => { reload.current = () => undefined; controller.abort(); };
   }, [canReadRecommendations]);
+  usePollingRefresh(() => reload.current(), canReadRecommendations);
+  useChangeRefresh(['recommendations'], () => reload.current());
 
   const items = attentionItems({
     permissions, executions, recommendations, assets, configuredLogic, nowUtc: Date.now(),

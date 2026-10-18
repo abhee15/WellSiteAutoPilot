@@ -21,6 +21,7 @@ import type { Section } from './components/NavigationLink';
 import { PageHeader } from './components/PageHeader';
 import { NavigationGroup } from './components/NavigationGroup';
 import { firstOpenableSection, hasExplicitSection, sectionFromHash } from './routing';
+import { useChangeRefresh, useLiveUpdates, usePollingRefresh } from './live/LiveUpdates';
 
 // Compatibility with existing consumers; new components live in their own files.
 export { UserMenu, NavigationLink };
@@ -30,8 +31,6 @@ import { OperationsPage } from './views/OperationsPage';
 import { OverviewPage } from './views/OverviewPage';
 import { AssetsPage } from './views/AssetsPage';
 import { LogicPage } from './views/LogicPage';
-
-const REFRESH_INTERVAL_MS = 10_000;
 
 
 export function App() {
@@ -129,15 +128,25 @@ export function App() {
 
   useEffect(() => {
     void refresh();
-    const interval = window.setInterval(() => {
-      if (!signInRequired.current) void refresh();
-    }, REFRESH_INTERVAL_MS);
     return () => {
-      window.clearInterval(interval);
       activeRefresh.current?.abort();
       activeRefresh.current = null;
     };
   }, [refresh]);
+
+  // Polling stays the fallback: every 10 s without a live connection, about once a minute with one.
+  usePollingRefresh(() => { if (!signInRequired.current) void refresh(); });
+  // The workspace snapshot covers these four areas; the Server names the one that changed.
+  useChangeRefresh(['executions', 'assets', 'configured-logic', 'modules'], () => {
+    if (!signInRequired.current) void refresh();
+  });
+  // Connect only with a verified session. A session that cannot be read disconnects, so a missing
+  // Windows sign-in is never retried through the hub.
+  const { setEnabled: setLiveEnabled } = useLiveUpdates();
+  const hasSession = currentUser !== null;
+  useEffect(() => {
+    setLiveEnabled(hasSession);
+  }, [hasSession, setLiveEnabled]);
 
   return (
     <div className={nav.collapsed ? 'app-shell nav-collapsed' : 'app-shell'}>

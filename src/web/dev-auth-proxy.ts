@@ -14,7 +14,7 @@ export type DevProxyEnvironment = Record<string, string | undefined>;
 
 /**
  * Browser requests never get to choose their authenticated development user.
- * Only the local Vite process creates the identity header, and only for /api.
+ * Only the local Vite process creates the identity header, and only for /api and /hubs.
  * No proxy is configured implicitly when the mode has not been selected.
  */
 export function buildDevelopmentProxy(
@@ -69,7 +69,10 @@ export function buildDevelopmentProxy(
     proxy: Parameters<NonNullable<ProxyOptions['configure']>>[0],
     includeIdentity: boolean
   ): void {
-    proxy.on('proxyReq', (proxyRequest) => {
+    const scrub = (proxyRequest: {
+      removeHeader(name: string): void;
+      setHeader(name: string, value: string): void;
+    }) => {
       // Remove any values supplied by the browser. In particular, do not
       // forward an arbitrary display-name assertion alongside our identity.
       proxyRequest.removeHeader(identityHeader);
@@ -81,13 +84,23 @@ export function buildDevelopmentProxy(
       if (includeIdentity) {
         proxyRequest.setHeader(identityHeader, identity);
       }
-    });
+    };
+    proxy.on('proxyReq', scrub);
+    // WebSocket upgrades (the live-update hub) take this path instead.
+    proxy.on('proxyReqWs', scrub);
   }
 
   return {
     '/api': {
       target: target.origin,
       changeOrigin: true,
+      configure: (proxy) => configureProxy(proxy, true)
+    },
+    // Live-update hub (ADR-008): the same synthetic identity, plus WebSocket upgrades.
+    '/hubs': {
+      target: target.origin,
+      changeOrigin: true,
+      ws: true,
       configure: (proxy) => configureProxy(proxy, true)
     },
     '/health': {

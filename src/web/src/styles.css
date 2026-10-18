@@ -239,6 +239,30 @@ button:disabled {
   font-size: var(--font-size-body-small);
 }
 
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-small);
+}
+
+.live-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border-status-neutral);
+}
+
+.live-status[data-state='connected'] .live-status-dot {
+  background: var(--color-text-status-success);
+}
+
+.live-status[data-state='connecting'] .live-status-dot,
+.live-status[data-state='reconnecting'] .live-status-dot {
+  background: var(--color-text-status-warning);
+}
+
 .header-actions {
   display: flex;
   align-items: center;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHashDetail } from '../routing';
+import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import type { AssetResponse, ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
@@ -15,7 +16,6 @@ import {
 } from './recommendationInbox';
 import type { RecommendationInboxCriteria } from './recommendationInbox';
 
-const INBOX_REFRESH_INTERVAL_MS = 10_000;
 type InboxError = 'accessDenied' | 'invalidResponse' | 'unavailable';
 
 function formatSuggestedValue(value?: number | null, unit?: string | null): string {
@@ -169,13 +169,13 @@ export function RecommendationsPage({
     }
 
     void refresh();
-    const interval = window.setInterval(() => void refresh(), INBOX_REFRESH_INTERVAL_MS);
     return () => {
-      window.clearInterval(interval);
       activeRefresh.current?.abort();
       activeRefresh.current = null;
     };
   }, [userId, refresh]);
+  usePollingRefresh(() => void refresh(), Boolean(userId));
+  useChangeRefresh(['recommendations'], () => { if (userId) void refresh(); });
 
   const nowUtc = Date.now();
   const selectedRecommendation = items.find(item => item.id === selectedReviewId && item.canDecide === true);

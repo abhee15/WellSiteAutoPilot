@@ -44,6 +44,11 @@ before(async () => {
       }));
       return;
     }
+    if (request.url?.startsWith('/hubs/changes/negotiate')) {
+      response.writeHead(200);
+      response.end(JSON.stringify({ identity: identity ?? null, displayName, method: request.method }));
+      return;
+    }
     if (request.url !== '/api/v1/security/me') {
       response.writeHead(404);
       response.end('{}');
@@ -130,6 +135,22 @@ test('synthetic identity proxy strips browser bearer and proxy authorization', a
     identity: developmentIdentity,
     authorization: null,
     proxyAuthorization: null
+  });
+});
+
+test('live-update hub negotiation is proxied with the synthetic identity, never a browser-supplied one', async () => {
+  const response = await fetch(frontendBase + '/hubs/changes/negotiate?negotiateVersion=1', {
+    method: 'POST',
+    headers: {
+      'X-WSA-Test-Identity': 'LOCAL\\attacker',
+      'X-WSA-Test-Display-Name': 'Forged Admin'
+    }
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    identity: developmentIdentity,
+    displayName: null,
+    method: 'POST'
   });
 });
 

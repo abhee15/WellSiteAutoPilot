@@ -1,6 +1,7 @@
 import type { Section } from './NavigationLink';
 import { t } from '../localization';
 import { formatClock } from '../format';
+import { LiveStatus } from './LiveStatus';
 
 export function PageHeader({
   section,
@@ -54,6 +55,7 @@ export function PageHeader({
         <p className="page-description">{copy.description}</p>
       </div>
       <div className="header-actions">
+        <LiveStatus />
         {lastUpdated && (
           <span className="last-updated">
             {t('page.updated')} {formatClock(lastUpdated)}
