@@ -78,7 +78,7 @@ export function ActivityPage() {
       <div className="panel-header">
         <h2>{t('activity.heading')}</h2>
         <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadFirst(applied)}>
-          {t('access.refresh')}
+          {t('activity.refresh')}
         </button>
       </div>
       <p className="access-note access-intro">{t('activity.intro')}</p>
@@ -97,7 +97,7 @@ export function ActivityPage() {
             onClick={() => apply(noFilters)}>{t('activity.reset')}</button>
         </div>
       </form>
-      {loading && <p role="status" className="access-intro">{t('access.loading')}</p>}
+      {loading && <p role="status" className="access-intro">{t('activity.loading')}</p>}
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
       {!loading && !error && events.length === 0 && <p className="access-note access-intro">{t('activity.empty')}</p>}
       {events.length > 0 && (
@@ -147,7 +147,7 @@ export function ActivityPage() {
       {nextCursor && !error && (
         <div className="activity-more">
           <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadOlder()}>
-            {loadingMore ? t('access.loading') : t('activity.loadOlder')}
+            {loadingMore ? t('activity.loading') : t('activity.loadOlder')}
           </button>
         </div>
       )}

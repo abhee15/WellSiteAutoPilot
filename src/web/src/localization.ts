@@ -475,6 +475,8 @@ export const englishMessages = {
   'roles.tab': 'Roles and permissions',
   'roles.usersTab': 'User assignments',
   'activity.tab': 'Activity',
+  'activity.refresh': 'Reload activity',
+  'activity.loading': 'Loading activity…',
   'activity.heading': 'Activity and audit',
   'activity.intro': 'Who changed what, newest first. Only protected administrators can read this record. Details are shown exactly as recorded.',
   'activity.actionFilter': 'Action starts with',
