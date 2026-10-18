@@ -34,8 +34,11 @@ export function OperationsPage({
     executions.some(execution => execution.executionId === selectedExecutionId);
   useForgetVanishedSelection(selectedExecutionId, selectedIdStillAuthorized, () => setSelectedExecutionId(null));
   const visibleExecutions = useMemo(
-    () => filterOperations(executions, viewCriteria),
-    [executions, viewCriteria],
+    () => filterOperations(executions, viewCriteria, row => {
+      const context = describeRunContext(row, configuredLogic, assets);
+      return [context.logicName, ...context.assetLabels];
+    }),
+    [executions, viewCriteria, configuredLogic, assets],
   );
   const components = systemInfo?.components ?? [];
   const unhealthyComponents = components.filter(
