@@ -35,3 +35,23 @@ it('the asset page explains where the asset sits, what runs on it and what it ha
   expect(await within(page).findByText(/No recommendations/)).toBeTruthy();
   expect(calls.some(url => url.startsWith(`/api/v1/executions?assetId=${assetId}`))).toBe(true);
 });
+
+it('the hierarchy tree shows children under their parent and opens an asset on click', async () => {
+  window.location.hash = '#assets';
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions: ['assets.read'], assetScopeIds: [] });
+    if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
+    if (url.includes('/asset-types')) return response([{ id: typeId, key: 'well', displayName: 'Well', schemaVersion: 1, isActive: true }]);
+    if (url.includes('/assets?')) return response([
+      { id: parentId, assetTypeId: typeId, name: 'Pad 7', isActive: true },
+      { id: assetId, assetTypeId: typeId, parentAssetId: parentId, name: 'North Well', isActive: true },
+    ]);
+    return response([]);
+  }));
+  render(<App />);
+  const tree = await screen.findByRole('navigation', { name: 'Asset hierarchy' });
+  expect(within(tree).getByText('1 below')).toBeTruthy();
+  within(tree).getByRole('button', { name: 'Open North Well from the hierarchy' }).click();
+  expect(await screen.findByText('Selected Asset')).toBeTruthy();
+  expect(window.location.hash).toBe('#assets/' + assetId);
+});

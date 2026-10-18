@@ -11,6 +11,7 @@ import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/co
 import { formatTimestamp } from '../format';
 import { AssetDetail } from './AssetDetail';
 import { AssetCreationPanel } from './AssetCreationPanel';
+import { AssetTree } from './AssetTree';
 import { AssetInventoryControls } from './AssetInventoryControls';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetInventory';
 import type { AssetInventoryCriteria } from './assetInventory';
@@ -70,6 +71,10 @@ export function AssetsPage({
         }}
         onRefresh={onRefresh}
       />
+      {assets.length > 0 && <section className="panel">
+        <PanelHeader eyebrow="Hierarchy" title="Where things are" count={assets.length} />
+        <AssetTree assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
+      </section>}
       <section className="panel">
         <PanelHeader eyebrow="Inventory" title="Assets" count={visibleAssets.length} />
         <AssetInventoryControls
