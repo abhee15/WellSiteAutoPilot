@@ -1,4 +1,4 @@
-export type Section = 'operations' | 'recommendations' | 'assets' | 'logic' | 'access';
+export type Section = 'overview' | 'operations' | 'recommendations' | 'assets' | 'logic' | 'access';
 
 export function NavigationLink({
   section,
@@ -9,7 +9,7 @@ export function NavigationLink({
   current: Section;
   children: string;
 }) {
-  const shortLabel = { operations: 'OP', recommendations: 'RC', assets: 'AS', logic: 'LG', access: 'AC' }[section];
+  const shortLabel = { overview: 'OV', operations: 'OP', recommendations: 'RC', assets: 'AS', logic: 'LG', access: 'AC' }[section];
 
   return (
     <a

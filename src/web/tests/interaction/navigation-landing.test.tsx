@@ -20,7 +20,7 @@ it('groups navigation by intent and shows only groups the user can use', async (
   const nav = await screen.findByRole('navigation', { name: 'Primary' });
   await within(nav).findByRole('link', { name: 'Assets' });
   expect(within(nav).getByRole('group', { name: 'Understand' })).not.toBeNull();
-  expect(within(nav).queryByRole('group', { name: 'Operate' })).toBeNull();
+  expect(within(nav).getByRole('group', { name: 'Operate' })).not.toBeNull();
   expect(within(nav).queryByRole('group', { name: 'Administer' })).toBeNull();
 });
 
@@ -34,12 +34,13 @@ it('shows Access in the navigation for administrators', async () => {
   expect(within(nav).getByRole('group', { name: 'Administer' })).not.toBeNull();
 });
 
-it('lands on the first permitted section when no section is addressed', async () => {
+it('lands on the Overview when no section is addressed', async () => {
   window.location.hash = '';
   signIn(['recommendations.read']);
   render(<App />);
-  await waitFor(() => expect(window.location.hash).toBe('#recommendations'));
-  expect((await screen.findByRole('link', { name: 'Recommendations' })).getAttribute('aria-current')).toBe('page');
+  // The Overview is the home page for anyone who can read something.
+  expect((await screen.findByRole('link', { name: 'Overview' })).getAttribute('aria-current')).toBe('page');
+  expect(window.location.hash).toBe('');
 });
 
 it('respects an explicit address to a section the user cannot open', async () => {
@@ -48,4 +49,12 @@ it('respects an explicit address to a section the user cannot open', async () =>
   render(<App />);
   await screen.findByText('Your current permissions do not allow this section.');
   expect(window.location.hash).toBe('#logic');
+});
+
+it('only offers the Access section when nothing else is readable', async () => {
+  window.location.hash = '';
+  signIn(['security.manage']);
+  render(<App />);
+  await waitFor(() => expect(window.location.hash).toBe('#access'));
+  expect(screen.queryByRole('link', { name: 'Overview' })).toBeNull();
 });

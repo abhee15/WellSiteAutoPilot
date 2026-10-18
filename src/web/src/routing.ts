@@ -4,7 +4,7 @@ import type { CurrentUserResponse } from './api/generated/v1/types.gen';
 import { canOpenSection } from './security/sessionAccess';
 
 /** Sections in landing priority order. */
-export const SECTION_ORDER: readonly Section[] = ['operations', 'recommendations', 'assets', 'logic', 'access'];
+export const SECTION_ORDER: readonly Section[] = ['overview', 'operations', 'recommendations', 'assets', 'logic', 'access'];
 
 /**
  * Addresses look like `#section` or `#section/detail` (a selected record or tab).
@@ -27,7 +27,7 @@ export function hashFor(section: Section, detail?: string | null): string {
 
 export function sectionFromHash(): Section {
   const { section } = parseHash();
-  return (SECTION_ORDER as readonly string[]).includes(section) ? section as Section : 'operations';
+  return (SECTION_ORDER as readonly string[]).includes(section) ? section as Section : 'overview';
 }
 
 /** True when the address names a section; false for an empty or unknown hash (the default landing). */
