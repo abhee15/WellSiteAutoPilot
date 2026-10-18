@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 
 namespace WellSiteAutoPilot.Http;
@@ -16,6 +17,7 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next)
             : Guid.NewGuid().ToString("N");
 
         context.Items[CorrelationContext.ItemKey] = correlationId;
+        Activity.Current?.SetTag("wsa.correlation_id", correlationId);
         context.Response.OnStarting(() =>
         {
             context.Response.Headers[CorrelationContext.HeaderName] = correlationId;

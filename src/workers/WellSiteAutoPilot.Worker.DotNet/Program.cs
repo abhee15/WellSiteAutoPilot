@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Telemetry;
 using WellSiteAutoPilot.Worker.DotNet.Execution;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -13,6 +14,7 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Worker.DotNet";
 });
 builder.Services.AddHealthChecks();
+builder.Services.AddWellSiteTelemetry(builder.Configuration, "wellsite-autopilot-worker-dotnet");
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddSingleton<ILogicModuleResolver, BuiltInLogicModuleResolver>();
 builder.Services.AddTransient<ModuleExecutionEngine>(services =>

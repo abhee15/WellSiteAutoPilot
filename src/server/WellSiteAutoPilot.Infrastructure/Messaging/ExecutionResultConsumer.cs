@@ -9,6 +9,7 @@ using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Telemetry;
 
 namespace WellSiteAutoPilot.Infrastructure.Messaging;
 
@@ -75,6 +76,8 @@ public sealed partial class ExecutionResultConsumer(
                     SerializerOptions) ?? throw new InvalidOperationException(
                     "Execution completed envelope could not be deserialized.");
 
+                using var activity = WellSiteTelemetry.StartConsumer("execution result apply", envelope.TraceParent);
+                activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
                 var disposition = await repository.ApplyCompletedAsync(
                     envelope.MessageId,
                     ConsumerName,
@@ -94,6 +97,8 @@ public sealed partial class ExecutionResultConsumer(
                     SerializerOptions) ?? throw new InvalidOperationException(
                     "Execution failed envelope could not be deserialized.");
 
+                using var activity = WellSiteTelemetry.StartConsumer("execution result apply", envelope.TraceParent);
+                activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
                 var disposition = await repository.ApplyFailedAsync(
                     envelope.MessageId,
                     ConsumerName,

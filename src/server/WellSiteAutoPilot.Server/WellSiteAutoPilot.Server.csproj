@@ -9,6 +9,7 @@
     <PackageReference Include="System.DirectoryServices.AccountManagement" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../platform/WellSiteAutoPilot.Telemetry/WellSiteAutoPilot.Telemetry.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Api.Contracts/WellSiteAutoPilot.Api.Contracts.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Infrastructure/WellSiteAutoPilot.Infrastructure.csproj" />

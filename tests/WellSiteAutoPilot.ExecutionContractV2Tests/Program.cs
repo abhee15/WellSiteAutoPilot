@@ -1,5 +1,9 @@
 using WellSiteAutoPilot.Failures;
+using System.Diagnostics;
 using System.Net;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using WellSiteAutoPilot.Telemetry;
 using System.Text;
 using System.Text.Json;
 using WellSiteAutoPilot.Messaging.Contracts;
@@ -341,6 +345,53 @@ if (roundTrip is null ||
 {
     throw new InvalidOperationException(
         "Execution V2 message did not round-trip.");
+}
+
+// Telemetry: a consumer span continues the producer's trace; a missing or malformed
+// traceparent starts a new trace instead of failing the message.
+using (var listener = new ActivityListener
+{
+    ShouldListenTo = source => source.Name == WellSiteTelemetry.SourceName,
+    Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+})
+{
+    ActivitySource.AddActivityListener(listener);
+    const string producerTrace = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+    using (var continued = WellSiteTelemetry.StartConsumer("test consume", producerTrace))
+    {
+        if (continued is null ||
+            continued.TraceId.ToString() != "0af7651916cd43dd8448eb211c80319c" ||
+            continued.ParentSpanId.ToString() != "b7ad6b7169203331" ||
+            continued.Kind != ActivityKind.Consumer)
+        {
+            throw new InvalidOperationException("A consumer span did not continue the producer's trace.");
+        }
+    }
+
+    foreach (var missing in new string?[] { null, "", "not-a-traceparent" })
+    {
+        using var fresh = WellSiteTelemetry.StartConsumer("test consume", missing);
+        if (fresh is null || fresh.ParentSpanId != default || fresh.TraceId.ToString() == "0af7651916cd43dd8448eb211c80319c")
+        {
+            throw new InvalidOperationException("A message without trace context did not start a new trace.");
+        }
+    }
+}
+
+var disabledServices = new ServiceCollection();
+disabledServices.AddWellSiteTelemetry(
+    new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Telemetry:Enabled"] = "false" }).Build(),
+    "test-service");
+if (disabledServices.Count != 0)
+{
+    throw new InvalidOperationException("Disabled telemetry still registered services.");
+}
+
+var enabledServices = new ServiceCollection();
+enabledServices.AddWellSiteTelemetry(new ConfigurationBuilder().Build(), "test-service");
+if (enabledServices.Count == 0)
+{
+    throw new InvalidOperationException("Enabled telemetry registered nothing.");
 }
 
 Console.WriteLine("Execution V2 multi-input contract and worker context checks passed.");

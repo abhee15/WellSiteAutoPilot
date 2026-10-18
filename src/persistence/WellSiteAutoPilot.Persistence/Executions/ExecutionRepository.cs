@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Text.Json;
 using WellSiteAutoPilot.Persistence.Audit;
 using Microsoft.EntityFrameworkCore;
@@ -436,7 +437,7 @@ public sealed partial class ExecutionRepository(
             execution.RequestContractVersion,
             execution.RequestedAtUtc,
             execution.CorrelationId,
-            null,
+            Activity.Current?.Id,
             payload);
 
         dbContext.OutboxMessages.Add(new OutboxMessageEntity

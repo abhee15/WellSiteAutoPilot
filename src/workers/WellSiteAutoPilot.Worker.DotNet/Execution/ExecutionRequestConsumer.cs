@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,6 +10,7 @@ using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Telemetry;
 
 namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 
@@ -94,6 +96,9 @@ public sealed partial class ExecutionRequestConsumer(
         INatsJSContext jetStream,
         CancellationToken cancellationToken)
     {
+        using var activity = WellSiteTelemetry.StartConsumer("execution run", envelope.TraceParent);
+        activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
+        activity?.SetTag(WellSiteTelemetry.CorrelationTag, envelope.CorrelationId);
         var startedAtUtc = timeProvider.GetUtcNow();
 
         try
@@ -140,6 +145,7 @@ public sealed partial class ExecutionRequestConsumer(
         catch (Exception exception)
         {
             var failure = FailureClassifier.Classify(exception);
+            activity?.SetStatus(ActivityStatusCode.Error, failure.Code);
             var failedAtUtc = timeProvider.GetUtcNow();
 
             var result = new ExecutionFailedV1(
@@ -179,7 +185,7 @@ public sealed partial class ExecutionRequestConsumer(
             1,
             DateTimeOffset.UtcNow,
             request.CorrelationId,
-            request.TraceParent,
+            Activity.Current?.Id ?? request.TraceParent,
             result);
 
         var acknowledgement = await jetStream.PublishAsync(

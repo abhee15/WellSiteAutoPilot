@@ -2,6 +2,7 @@
   <Folder Name="/src/platform/">
     <Project Path="src/platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
     <Project Path="src/platform/WellSiteAutoPilot.Http/WellSiteAutoPilot.Http.csproj" />
+    <Project Path="src/platform/WellSiteAutoPilot.Telemetry/WellSiteAutoPilot.Telemetry.csproj" />
   </Folder>
   <Folder Name="/src/server/">
     <Project Path="src/server/WellSiteAutoPilot.Api.Contracts/WellSiteAutoPilot.Api.Contracts.csproj" />
