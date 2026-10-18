@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../../src/App';
 import { t } from '../../src/localization';
@@ -31,7 +31,8 @@ it('clears a selected Asset and draft when the same user loses its Asset scope',
   await user.type(screen.getByRole('textbox', { name: 'Asset name' }), 'Draft that must be cleared');
   revoked = true;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
-  await screen.findByText(t('assets.createNoScope'));
+  await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Asset name' })).toBeNull());
+  expect(screen.queryByRole('heading', { name: t('assets.createTitle') })).toBeNull();
   expect(screen.queryByText(assetId)).toBeNull();
   expect(screen.queryByText('Confidential Well')).toBeNull();
   expect(screen.queryByDisplayValue('Draft that must be cleared')).toBeNull();

@@ -202,6 +202,10 @@ export function AssetCreationPanel({
     }
   };
 
+  // Someone who can never create an Asset here (no root permission, no authorized parent) is not
+  // shown a creation form or an explanation of one; the server still decides every write.
+  if (userId && capabilities && !canCreateRoot && !canCreateChildren) return null;
+
   return (
     <section className="panel asset-create-panel" aria-labelledby="asset-create-title">
       <header className="asset-create-heading">
