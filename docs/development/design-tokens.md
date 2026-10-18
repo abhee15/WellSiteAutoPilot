@@ -154,3 +154,10 @@ in that tokenization. Its dark CSS parity checks describe implementation
 preservation, not conformance to the agreed light design.
 The migration parity test verifies unchanged CSS semantics; native screenshots
 and keyboard/contrast tests remain desirable for later UI-specific PRs.
+
+## Typeface
+
+The UI uses **Roboto** (SIL Open Font License 1.1), self-hosted from the `@fontsource/roboto` package in weights
+400, 500 and 700, Latin subset. Nothing is fetched from the Internet at run time, which the on-premises runtime
+requires. The licence text ships with the app at `/licenses/roboto-OFL-1.1.txt`. CSS asks for 600 in places; Roboto
+has no 600, so those render at 700. Add the `latin-ext` files when a non-English locale needs them.
