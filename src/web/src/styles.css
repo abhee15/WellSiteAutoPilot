@@ -491,6 +491,7 @@ button:disabled {
   color: var(--color-text-muted);
   text-align: center !important;
 }
+.empty-hint { display: block; margin-top: var(--space-6); }
 
 
 .execution-inspect-button,

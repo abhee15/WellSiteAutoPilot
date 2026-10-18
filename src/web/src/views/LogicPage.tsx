@@ -117,7 +117,7 @@ export function LogicPage({
                 </tr>
               ))}
               {visibleModules.length === 0 && (
-                <EmptyRow columns={6}>
+                <EmptyRow columns={6} hint={isLoaded && modules.length === 0 ? t('logicCatalog.noneHint') : undefined}>
                   {!isLoaded ? t('views.loading') : modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}
                 </EmptyRow>
               )}
@@ -186,7 +186,8 @@ export function LogicPage({
                 );
               })}
               {visibleConfigurations.length === 0 && (
-                <EmptyRow columns={canReadRuns ? 8 : 7}>
+                <EmptyRow columns={canReadRuns ? 8 : 7}
+                  hint={isLoaded && configuredLogic.length === 0 ? t('configured.noneHint') : undefined}>
                   {!isLoaded ? t('views.loading') : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
                 </EmptyRow>
               )}
