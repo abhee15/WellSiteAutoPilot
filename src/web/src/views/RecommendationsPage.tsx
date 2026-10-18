@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHashDetail } from '../routing';
-import type { RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
+import type { AssetResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { RecommendationInboxControls } from './RecommendationInboxControls';
@@ -27,10 +27,13 @@ export function RecommendationInboxTable({
   items,
   nowUtc,
   onReview,
+  assetNames,
 }: {
   items: readonly RecommendationSummaryResponse[];
   nowUtc: number;
   onReview?: (recommendationId: string) => void;
+  /** Asset names by id, when the assets are loaded; the id alone is shown otherwise. */
+  assetNames?: ReadonlyMap<string, string>;
 }) {
   return (
     <div className="table-wrap">
@@ -56,7 +59,9 @@ export function RecommendationInboxTable({
                   <small>{t('inbox.expiredNote')}</small>
                 )}
               </td>
-              <td>{item.assetId ?? '—'}</td>
+              <td>{assetNames?.get(item.assetId ?? '')
+                ? <><strong>{assetNames.get(item.assetId ?? '')}</strong><small>{item.assetId}</small></>
+                : item.assetId ?? '—'}</td>
               <td>
                 <strong>{item.moduleId ?? '—'}</strong>
                 <small>{item.moduleVersion ?? '—'}</small>
@@ -101,11 +106,16 @@ export function RecommendationInboxTable({
 }
 
 export function RecommendationsPage({
-  userId, permissions,
+  userId, permissions, assets = [],
 }: {
   userId: string | null | undefined;
   permissions?: readonly string[] | null;
+  assets?: readonly AssetResponse[];
 }) {
+  const assetNames = useMemo(
+    () => new Map(assets.flatMap(asset => (asset.id && asset.name ? [[asset.id, asset.name] as const] : []))),
+    [assets],
+  );
   const [items, setItems] = useState<RecommendationSummaryResponse[]>([]);
   const [criteria, setCriteria] = useState<RecommendationInboxCriteria>(
     DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
@@ -240,7 +250,7 @@ export function RecommendationsPage({
           {errorMessages[error]}
         </p>}
         {(!isLoading || lastUpdated) && !error && (
-          <RecommendationInboxTable items={visible} nowUtc={nowUtc}
+          <RecommendationInboxTable items={visible} nowUtc={nowUtc} assetNames={assetNames}
             onReview={canDecide ? recommendationId => {
               setSelectedReviewId(recommendationId);
               setReviewNotice(null);
@@ -251,6 +261,7 @@ export function RecommendationsPage({
             <RecommendationDecisionReviewPanel
               key={JSON.stringify(selectedRecommendation)}
               item={selectedRecommendation}
+              assetName={assetNames.get(selectedRecommendation.assetId ?? '')}
               onCancel={() => setSelectedReviewId(null)}
               onSaved={() => {
                 setSelectedReviewId(null);
