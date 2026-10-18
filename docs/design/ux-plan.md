@@ -364,7 +364,7 @@ Ordered by how much UX value each unlocks. Sizes: S/M/L.
 | B7 | Recommendation lifecycle: expiry, Pending/Expired/Superseded sweep | M | Truthful inbox, countdowns |
 | B8 | Read-only audit/activity API with scope filtering | M | Activity page, "who changed this" |
 | B9 | Persist `RequiresAttention`; derived attention list | M | One attention model |
-| B10 | Server-sent events for runs and recommendations | M | No polling, live badges |
+| B10 | SignalR change signal for runs, recommendations, configurations, assets and modules (architecture baseline names SignalR; see [roadmap](../development/roadmap.md) D2) | M | No polling, live badges |
 | B11 | Provider health proxy and last-success; binding readiness endpoint | M | Data sources page, true readiness |
 | B12 | Persist skipped scheduled occurrences | S | "Why didn't it run?" |
 | B13 | Asset lifecycle verbs (update, move, deactivate) and asset-type edit; impact query | M | Asset management |
