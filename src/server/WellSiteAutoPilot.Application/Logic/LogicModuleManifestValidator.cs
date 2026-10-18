@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
@@ -60,12 +61,12 @@ public static partial class LogicModuleManifestValidator
         LogicModuleManifest manifest, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(manifest);
-        if (manifest.ParameterSchema is not { } schema || schema.ValueKind == System.Text.Json.JsonValueKind.Null)
+        if (manifest.ParameterSchema is not { } schema || schema.ValueKind == JsonValueKind.Null)
         {
             return;
         }
 
-        if (schema.ValueKind != System.Text.Json.JsonValueKind.Object)
+        if (schema.ValueKind != JsonValueKind.Object)
         {
             Fail("MODULE_PARAMETER_SCHEMA_INVALID", "The module settings schema must be a JSON object.");
         }
