@@ -63,3 +63,25 @@ export function outcomeLabel(code?: string | null): { text: string; code: string
   if (!code) return { text: '', code: null };
   return { text: OUTCOME_LABELS[code] ?? spaced(code), code };
 }
+
+const MODE_SENTENCES: Record<string, string> = {
+  Shadow: 'Shadow: it calculates and records the result, and sends nothing to the equipment.',
+  Recommendation: 'Recommendation: it proposes an action and waits for a person to decide.',
+  Autonomous: 'Autonomous: it may act on the equipment without a person deciding.',
+};
+
+/** What a run mode means, in one sentence. */
+export function modeSentence(value?: string | null): string {
+  if (!value) return '';
+  return MODE_SENTENCES[value] ?? spaced(value);
+}
+
+const TRIGGER_LABELS: Record<string, string> = {
+  Manual: 'Started by a person',
+  Scheduled: 'Started by its run schedule',
+  Event: 'Started by a change in the data',
+};
+
+export function triggerLabel(value?: string | null): string {
+  return value ? TRIGGER_LABELS[value] ?? spaced(value) : '—';
+}

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ExecutionResponse } from '../api/generated/v1/types.gen';
+import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
+import { hashFor } from '../routing';
+import { modeSentence, outcomeLabel, statusLabel, triggerLabel } from '../words';
+import { describeRunContext } from './runContext';
 import { t } from '../localization';
 import {
   ExecutionDetailError,
@@ -9,6 +12,7 @@ import {
   executionInputObservations,
 } from './executionDetail';
 import type { ExecutionDetailErrorKind } from './executionDetail';
+import './executionSummary.css';
 
 type Props = {
   executionId: string;
@@ -16,9 +20,12 @@ type Props = {
   poll?: boolean;
   onObserved?: (detail: ExecutionResponse) => void;
   onAccessLost?: () => void;
+  configuredLogic?: readonly ConfiguredLogicResponse[];
+  assets?: readonly AssetResponse[];
 };
 
-export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, onAccessLost }: Props) {
+export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, onAccessLost,
+  configuredLogic = [], assets = [] }: Props) {
   const [detail, setDetail] = useState<ExecutionResponse | null>(null);
   const [error, setError] = useState<ExecutionDetailErrorKind | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,15 +98,20 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
       </div>
       {isLoading && <p role="status">{t('execution.loading')}</p>}
       {error && <p role="alert" className="execution-detail-error">{errorMessages[error]}</p>}
-      {detail && <ExecutionDetailContent detail={detail} />}
+      {detail && <ExecutionDetailContent detail={detail} configuredLogic={configuredLogic} assets={assets} />}
     </section>
   );
 }
 
 /** Pure view to keep response rendering testable independently of network effects. */
-export function ExecutionDetailContent({ detail }: { detail: ExecutionResponse }) {
+export function ExecutionDetailContent({ detail, configuredLogic = [], assets = [] }: {
+  detail: ExecutionResponse;
+  configuredLogic?: readonly ConfiguredLogicResponse[];
+  assets?: readonly AssetResponse[];
+}) {
+  const context = describeRunContext(detail, configuredLogic, assets);
+  const outcome = outcomeLabel(detail.resultCode ?? detail.failureCode);
   const fields: Array<[string, string | null | undefined]> = [
-    [t('execution.status'), detail.status],
     [t('execution.mode'), detail.mode],
     [t('execution.trigger'), detail.trigger],
     [t('execution.module'), [detail.moduleId, detail.moduleVersion]
@@ -123,6 +135,27 @@ export function ExecutionDetailContent({ detail }: { detail: ExecutionResponse }
 
   return (
     <>
+      <div className="execution-summary" aria-label={t('execution.summary')}>
+        <p className="execution-summary-lead">
+          <strong>{statusLabel(detail.status)}</strong>
+          {outcome.text && <> · <span title={outcome.code ?? undefined}>{outcome.text}</span></>}
+        </p>
+        <ul className="execution-summary-list">
+          <li>{t('execution.summaryLogic')}{' '}
+            {detail.logicInstanceId && context.logicName
+              ? <a href={hashFor('logic', detail.logicInstanceId)}>{context.logicName}</a>
+              : (detail.moduleId ?? '—')}
+            {context.revisionNumber ? ` · ${t('setup.revision', { number: context.revisionNumber })}` : ''}
+          </li>
+          {context.assetIds.length > 0 && <li>{t('execution.summaryAssets')}{' '}
+            {context.assetIds.map((id, index) => <span key={id}>
+              {index > 0 && ', '}<a href={hashFor('assets', id)}>{context.assetLabels[index]}</a>
+            </span>)}
+          </li>}
+          <li>{triggerLabel(detail.trigger)}</li>
+          {detail.mode && <li>{modeSentence(detail.mode)}</li>}
+        </ul>
+      </div>
       <dl className="execution-detail-grid">
         {fields.map(([label, value]) => (
           <div key={label}>

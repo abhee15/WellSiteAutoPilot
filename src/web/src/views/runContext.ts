@@ -6,6 +6,8 @@ export type RunContext = {
   revisionNumber: number | null;
   /** Names of the assets the run covered (falls back to short ids for assets not loaded). */
   assetLabels: string[];
+  /** The same assets by id, in the same order, so a page can link to them. */
+  assetIds: string[];
 };
 
 const shortId = (id: string) => (id.length > 12 ? `${id.slice(0, 8)}…` : id);
@@ -30,6 +32,7 @@ export function describeRunContext(
     logicName: configuration?.name ?? null,
     revisionNumber: revision?.revisionNumber ?? null,
     assetLabels: assetIds.map(id => names.get(id) || shortId(id)),
+    assetIds,
   };
 }
 
