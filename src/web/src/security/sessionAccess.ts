@@ -26,6 +26,10 @@ export function hasPermission(user: CurrentUserResponse | null | undefined, perm
   return user?.isActive === true && Array.isArray(user.permissions) && user.permissions.includes(permission);
 }
 export function canOpenSection(user: CurrentUserResponse | null | undefined, section: Section): boolean {
+  if (section === 'overview') {
+    return ['executions.read', 'recommendations.read', 'assets.read', 'logic.read', 'configured-logic.read']
+      .some(permission => hasPermission(user, permission));
+  }
   if (section === 'logic') return hasPermission(user, 'logic.read') || hasPermission(user, 'configured-logic.read');
   const required = { operations: 'executions.read', recommendations: 'recommendations.read',
     assets: 'assets.read', access: 'security.manage' };

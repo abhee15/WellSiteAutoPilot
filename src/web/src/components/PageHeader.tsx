@@ -14,6 +14,11 @@ export function PageHeader({
   onRefresh?: () => void;
 }) {
   const copy = {
+    overview: {
+      eyebrow: t('nav.overview'),
+      title: t('overview.pageTitle'),
+      description: t('overview.pageDescription'),
+    },
     operations: {
       eyebrow: t('nav.operations'),
       title: t('page.operationsTitle'),

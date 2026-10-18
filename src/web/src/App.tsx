@@ -26,6 +26,7 @@ export { UserMenu, NavigationLink };
 import { RecommendationsPage } from './views/RecommendationsPage';
 import { AdministrationWorkspace } from './views/AdministrationWorkspace';
 import { OperationsPage } from './views/OperationsPage';
+import { OverviewPage } from './views/OverviewPage';
 import { AssetsPage } from './views/AssetsPage';
 import { LogicPage } from './views/LogicPage';
 
@@ -68,7 +69,7 @@ export function App() {
   useEffect(() => {
     if (!currentUser || isAwaitingAccess(currentUser) || hasExplicitSection()) return;
     const landing = firstOpenableSection(currentUser);
-    if (landing && landing !== 'operations') window.location.replace('#' + landing);
+    if (landing && landing !== 'overview') window.location.replace('#' + landing);
   }, [currentUser]);
 
   const refresh = useCallback(async () => {
@@ -150,7 +151,8 @@ export function App() {
         </div>
         <nav aria-label="Primary">
           <NavigationGroup id="nav-group-operate" label={t('nav.groupOperate')}>
-            {[canOpenSection(currentUser, 'operations') && <NavigationLink key="operations" section="operations" current={section}>{t('nav.operations')}</NavigationLink>,
+            {[canOpenSection(currentUser, 'overview') && <NavigationLink key="overview" section="overview" current={section}>{t('nav.overview')}</NavigationLink>,
+              canOpenSection(currentUser, 'operations') && <NavigationLink key="operations" section="operations" current={section}>{t('nav.operations')}</NavigationLink>,
               canOpenSection(currentUser, 'recommendations') && <NavigationLink key="recommendations" section="recommendations" current={section}>{t('nav.recommendations')}</NavigationLink>]}
           </NavigationGroup>
           <NavigationGroup id="nav-group-understand" label={t('nav.groupUnderstand')}>
@@ -181,6 +183,17 @@ export function App() {
         {isAwaitingAccess(currentUser) && currentUser && <AwaitingAccessNotice user={currentUser} />}
         {currentUser && !isAwaitingAccess(currentUser) && section !== 'access' && !canOpenSection(currentUser, section) && (
           <div className="status-error" role="alert">{t('session.sectionDenied')}</div>
+        )}
+        {section === 'overview' && canOpenSection(currentUser, section) && (
+          <OverviewPage
+            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+            permissions={currentUser?.permissions ?? []}
+            systemInfo={systemInfo}
+            executions={executions}
+            assets={assets}
+            configuredLogic={configuredLogic}
+            isLoaded={isLoaded}
+          />
         )}
         {section === 'operations' && canOpenSection(currentUser, section) && (
           <OperationsPage

@@ -12,9 +12,10 @@ after(async () => { await vite.close(); });
 const user = permissions => ({ userId: 'u', identityName: 'x', isActive: true, permissions });
 
 test('landing priority follows section order and permissions', () => {
-  assert.equal(routing.firstOpenableSection(user(['executions.read', 'assets.read'])), 'operations');
-  assert.equal(routing.firstOpenableSection(user(['recommendations.read', 'assets.read'])), 'recommendations');
-  assert.equal(routing.firstOpenableSection(user(['configured-logic.read'])), 'logic');
+  // Anyone who can read anything lands on the Overview, which links onward to what they may open.
+  assert.equal(routing.firstOpenableSection(user(['executions.read', 'assets.read'])), 'overview');
+  assert.equal(routing.firstOpenableSection(user(['recommendations.read', 'assets.read'])), 'overview');
+  assert.equal(routing.firstOpenableSection(user(['configured-logic.read'])), 'overview');
   assert.equal(routing.firstOpenableSection(user(['security.manage'])), 'access');
   assert.equal(routing.firstOpenableSection(user([])), null);
   assert.equal(routing.firstOpenableSection(null), null);
