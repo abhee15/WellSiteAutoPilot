@@ -1,6 +1,6 @@
-import type { RecommendationDecisionResponse } from '../api/generated/v1/types.gen';
+import type { RecommendationDecision, RecommendationDecisionResponse } from '../api/generated/v1/types.gen';
 
-export type RecommendationDecision = 'Approved' | 'Rejected';
+export type { RecommendationDecision };
 export type RecommendationDecisionErrorKind =
   | 'invalid'
   | 'accessDenied'

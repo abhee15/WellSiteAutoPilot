@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ConfiguredLogicRevisionResponse, ExecutionResponse, ConfiguredShadowReceiptResponse } from '../api/generated/v1/types.gen';
+import type {
+  ConfiguredLogicRevisionResponse, ExecutionResponse, ExecutionStatus, ConfiguredShadowReceiptResponse,
+} from '../api/generated/v1/types.gen';
 import { isSecurityId } from '../security/identifiers';
 import { t } from '../localization';
-import { fetchExecutionDetail, ExecutionDetailError } from './executionDetail';
+import { fetchExecutionDetail, ExecutionDetailError, IN_FLIGHT_EXECUTION_STATUSES } from './executionDetail';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { setupResponse, SetupApiError } from './configuredLogicSetup';
 import './configuredShadow.css';
@@ -11,7 +13,9 @@ type Props = {
   userId: string; configurationId: string; revision: ConfiguredLogicRevisionResponse;
   canRequest: boolean; disabled?: boolean;
 };
-const terminal = new Set(['Completed', 'Failed', 'Cancelled', 'Suspended', 'TimedOut']);
+// `satisfies` makes the compiler check each name against the server's ExecutionStatus.
+const terminal = new Set<string>(['Completed', 'Failed', 'Cancelled', 'Suspended', 'TimedOut'] satisfies ExecutionStatus[]);
+const accepted: readonly string[] = [...IN_FLIGHT_EXECUTION_STATUSES, ...terminal];
 export function shadowRequestStorageKey(userId: string, configurationId: string, revisionId: string) {
   return `wsa.shadow-request.v1:${userId}:${configurationId}:${revisionId}`;
 }
@@ -27,7 +31,7 @@ function receipt(value: unknown, configurationId: string, revisionId: string): v
   return isSecurityId(r.executionId) && r.logicInstanceId === configurationId &&
     r.configurationRevisionId === revisionId && r.requestContractVersion === 2 &&
     r.mode === 'Shadow' && r.trigger === 'Manual' &&
-    ['Requested', 'Queued', 'Starting', 'Running', 'Waiting', ...terminal].includes(r.status ?? '');
+    accepted.includes(r.status ?? '');
 }
 /** A request key is saved before the POST and survives navigation/reload.
  * Explicit recovery repeats that same idempotent command, never a new key. */

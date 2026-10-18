@@ -1,3 +1,5 @@
+using WellSiteAutoPilot.Api.Contracts.Executions;
+
 namespace WellSiteAutoPilot.Api.Contracts.ConfiguredLogic;
 
 public sealed record ConfiguredLogicAssetBindingRequest(
@@ -57,9 +59,9 @@ public sealed record ConfiguredLogicRevisionResponse(
     string ModuleId,
     string ModuleVersion,
     string ModuleManifestJson,
-    string Mode,
+    ExecutionMode Mode,
     string ParametersJson,
-    string Status,
+    ConfiguredLogicRevisionStatus Status,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? ValidatedAtUtc,
     DateTimeOffset? ActivatedAtUtc,

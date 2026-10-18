@@ -1,4 +1,4 @@
-import type { RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
+import type { RecommendationStatus, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 
 export type RecommendationInboxFilter = 'all' | 'awaiting' | 'expired' | 'decided';
 export type RecommendationInboxSort = 'newest' | 'oldest';
@@ -12,8 +12,9 @@ export const DEFAULT_RECOMMENDATION_INBOX_CRITERIA: RecommendationInboxCriteria 
   search: '', filter: 'awaiting', sort: 'newest',
 };
 
-const pendingStates = new Set(['Created', 'Pending']);
-const decidedStates = new Set(['Approved', 'Rejected']);
+// `satisfies` makes the compiler check each name against the server's RecommendationStatus.
+const pendingStates = new Set<string>(['Created', 'Pending'] satisfies RecommendationStatus[]);
+const decidedStates = new Set<string>(['Approved', 'Rejected'] satisfies RecommendationStatus[]);
 
 function isExpired(item: RecommendationSummaryResponse, nowUtc: number): boolean {
   if (!item.expiresAtUtc) return false;

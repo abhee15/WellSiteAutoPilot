@@ -1,4 +1,4 @@
-import type { LogicModuleResponse } from '../api/generated/v1/types.gen';
+import type { LogicModuleResponse, LogicRuntimeKind } from '../api/generated/v1/types.gen';
 
 export type LogicCatalogCriteria = {
   search: string;
@@ -40,9 +40,9 @@ export function filterLogicCatalog(
 
 export function availableLogicRuntimes(
   authorizedModules: readonly LogicModuleResponse[],
-): string[] {
+): LogicRuntimeKind[] {
   return [...new Set(authorizedModules
     .map(module => module.runtime)
-    .filter((runtime): runtime is string => typeof runtime === 'string' && !!runtime))]
+    .filter((runtime): runtime is LogicRuntimeKind => typeof runtime === 'string' && !!runtime))]
     .sort((left, right) => left.localeCompare(right));
 }

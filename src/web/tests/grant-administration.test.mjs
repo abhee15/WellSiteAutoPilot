@@ -215,3 +215,21 @@ test('own-access and unverifiable-membership server refusals are explicit for cr
       new Response(JSON.stringify({ code }), { status: 500 })), { kind: 'unavailable' });
   }
 });
+
+test('grant subject and scope accept only the exact closed server names, never numbers or other casing', async () => {
+  for (const invalid of [
+    { ...row, scopeKind: 'exactassets' }, { ...row, scopeKind: 1 }, { ...row, scopeKind: '1' },
+    { ...row, scopeKind: null }, { ...row, scopeKind: undefined },
+    { ...row, subjectKind: 'user' }, { ...row, subjectKind: 0 }, { ...row, subjectKind: 'Service' },
+  ]) {
+    await assert.rejects(api.loadGrants(userId, signal(),
+      async () => new Response(JSON.stringify([invalid]))), { kind: 'invalidResponse' });
+  }
+  for (const scopeKind of ['Everything', 'ExactAssets ', 2, null]) {
+    let called = false;
+    await assert.rejects(api.createGrant({ ...draft, scopeKind }, true, signal(),
+      async () => { called = true; return new Response(JSON.stringify(row), { status: 201 }); }),
+    { kind: 'invalid' });
+    assert.equal(called, false, 'an unknown scope must never reach the server');
+  }
+});

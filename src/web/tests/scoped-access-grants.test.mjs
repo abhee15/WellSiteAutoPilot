@@ -81,3 +81,15 @@ test('review must match the currently loaded role revision', () => {
   assert.throws(() => api.previewGrant(draft('ExactAssets', [wellA]),
     { ...role, revision: 2 }, permissions, assets, true));
 });
+
+test('scope and subject guards list exactly the server contract names', () => {
+  for (const name of ['ExactAssets', 'DeploymentWide', 'AllAssets']) assert.equal(api.isScopeKind(name), true);
+  for (const name of ['User', 'WindowsGroup']) assert.equal(api.isSubjectKind(name), true);
+  for (const bad of ['exactassets', 'ALLASSETS', 'Everything', '', ' ExactAssets', '0', 0, 1, null, undefined, {}, ['ExactAssets'],
+    'toString', 'constructor', '__proto__']) {
+    assert.equal(api.isScopeKind(bad), false, String(bad));
+  }
+  for (const bad of ['user', 'Group', '1', 0, null, undefined, 'hasOwnProperty']) assert.equal(api.isSubjectKind(bad), false, String(bad));
+  assert.throws(() => api.previewGrant(draft('1', []), role, permissions, assets, false), { name: 'Error' });
+  assert.throws(() => api.previewGrant(draft(1, []), role, permissions, assets, false), { name: 'Error' });
+});

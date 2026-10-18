@@ -86,6 +86,7 @@ var engineerMe = await BodyAsync(
     await engineer.GetAsync("/api/v1/security/me"), HttpStatusCode.OK);
 var engineerId = engineerMe.GetProperty("userId").GetGuid();
 await GrantFixture.ReplaceAsync(admin, engineerId, "engineer", [fieldId]);
+await GrantWireChecks.RunAsync(admin, engineerId);
 
 var engineerCaps = await BodyAsync(
     await engineer.GetAsync("/api/v1/assets/capabilities"), HttpStatusCode.OK);

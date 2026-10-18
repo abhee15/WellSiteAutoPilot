@@ -2,11 +2,12 @@ import { readSecurityRefusal } from '../security/securityRefusal';
 import { isWindowsSid } from '../security/windowsSid';
 import { isSecurityId as validId } from '../security/identifiers';
 import type { AccessGrantResponse } from '../api/generated/v1/types.gen';
-import type { GrantDraft } from './scopedAccessGrants';
+import { isScopeKind, isSubjectKind } from './scopedAccessGrants';
+import type { GrantDraft, SubjectKind } from './scopedAccessGrants';
 
 export type PersistedGrant = AccessGrantResponse & {
   grantId: string;
-  subjectKind: 'User' | 'WindowsGroup';
+  subjectKind: SubjectKind;
   userId: string | null;
   groupSid: string | null;
   roleId: string;
@@ -24,11 +25,11 @@ export class GrantApiError extends Error {
 function parse(response: unknown): response is PersistedGrant {
   if (!response || typeof response !== 'object' || Array.isArray(response)) return false;
   const p = response as Partial<PersistedGrant>;
-  return typeof p.grantId === 'string' && validId(p.grantId) &&
+  return typeof p.grantId === 'string' && validId(p.grantId) && isSubjectKind(p.subjectKind) &&
+    isScopeKind(p.scopeKind) &&
     (p.subjectKind === 'User' ? typeof p.userId === 'string' && validId(p.userId) && p.groupSid === null
       : p.subjectKind === 'WindowsGroup' && p.userId === null && isWindowsSid(p.groupSid) && p.groupSid === p.groupSid.toUpperCase()) && typeof p.roleId === 'string' &&
-    validId(p.roleId) && (p.scopeKind === 'ExactAssets' ||
-      p.scopeKind === 'DeploymentWide' || p.scopeKind === 'AllAssets') &&
+    validId(p.roleId) &&
     Array.isArray(p.assetIds) && p.assetIds.every(x =>
       typeof x === 'string' && validId(x)) &&
     new Set(p.assetIds.map(x => x.toLowerCase())).size === p.assetIds.length &&
@@ -85,7 +86,7 @@ export async function createGrant(draft: GrantDraft, confirmed: boolean,
   if (!confirmed || !(draft.subjectKind === 'User' ? validId(draft.userId) && !draft.groupSid
       : draft.subjectKind === 'WindowsGroup' && draft.userId === '' && isWindowsSid(draft.groupSid)) || !validId(draft.roleId) ||
     !Number.isSafeInteger(draft.expectedRoleRevision) || draft.expectedRoleRevision < 1 ||
-    !(['ExactAssets', 'DeploymentWide', 'AllAssets'] as const).includes(draft.scopeKind)) {
+    !isScopeKind(draft.scopeKind)) {
     throw new GrantApiError('invalid');
   }
   let response: Response;

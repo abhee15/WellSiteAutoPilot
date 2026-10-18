@@ -27,6 +27,26 @@ wire names and fail-closed validation; test unknown/malformed/numeric values
 and regeneration. Never edit generated files by hand. Runtime response
 validation remains necessary even with generated compile-time types.
 
+### Roadmap step 1b result — 2026-10-18
+
+Converted to typed, closed contract values (JSON strings unchanged, OpenAPI
+string enums, generated TypeScript unions): `AccessGrantResponse.SubjectKind`
+and `ScopeKind`, `CreateAccessGrantRequest.ScopeKind`, execution
+`Trigger`/`Mode`/`Status` (and the shadow receipt), recommendation `Status`,
+the decision request (`RecommendationDecision`: `Approved`|`Rejected`),
+configured-logic revision `Mode`/`Status`, module `Runtime`/`ExecutionProfile`/
+`TrustStatus` and platform component `Status`. Mechanism: contract enums in
+`Api.Contracts` with `ClosedStringEnumConverter<T>` (exact, case-sensitive
+names; numbers, numeric strings and undefined members rejected; member `0` is
+undefined so an omitted property never becomes a value), mapped to the domain
+enums by name in `Server/Contracts/ContractEnumMapping.cs`. Intentionally left
+as strings: role names/keys, binding roles, asset type keys, result/failure
+codes, and the query-string `status` filters (parsed server-side, still
+case-insensitive). `RolePermissionDefinitionResponse.ScopeKind`
+(`ResourceScoped`|`DeploymentWide`) is closed but has no enum in the
+application or persistence layers (it is compared as a string in many places);
+converting it needs its own change.
+
 PR #127 completed the coordinated enterprise RBAC runtime integration and
 merged as d23ef0d after seven passing checks. The next agreed Phase 1 priority
 is the real Windows browser diagnostic under #92. Enum generation remains

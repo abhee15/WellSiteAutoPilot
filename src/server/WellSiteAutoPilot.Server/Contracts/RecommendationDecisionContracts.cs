@@ -1,10 +1,12 @@
+using WellSiteAutoPilot.Api.Contracts.Recommendations;
+
 namespace WellSiteAutoPilot.Server.Contracts;
 
-public sealed record RecommendationDecisionRequest(string Decision, string? Reason);
+public sealed record RecommendationDecisionRequest(RecommendationDecision Decision, string? Reason);
 
 public sealed record RecommendationDecisionResponse(
     Guid Id,
-    string Status,
+    RecommendationStatus Status,
     string? DecisionBy,
     DateTimeOffset? DecisionAtUtc,
     string? DecisionReason);

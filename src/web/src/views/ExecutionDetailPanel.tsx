@@ -8,6 +8,7 @@ import {
   ExecutionDetailError,
   fetchExecutionDetail,
   formatDetailTimestamp,
+  IN_FLIGHT_EXECUTION_STATUSES,
   previewExecutionOutput,
   executionInputObservations,
 } from './executionDetail';
@@ -34,7 +35,7 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
   const callbacks = useRef({ onObserved, onAccessLost });
   useEffect(() => { callbacks.current = { onObserved, onAccessLost }; }, [onObserved, onAccessLost]);
   useEffect(() => {
-    if (!poll || !detail || !['Requested', 'Queued', 'Starting', 'Running', 'Waiting'].includes(detail.status ?? '')) return;
+    if (!poll || !detail || !IN_FLIGHT_EXECUTION_STATUSES.includes(detail.status ?? '')) return;
     const timer = window.setTimeout(() => setRefreshNumber(n => n + 1), 2000);
     return () => window.clearTimeout(timer);
   }, [detail, poll]);

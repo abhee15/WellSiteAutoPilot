@@ -2,6 +2,7 @@ import type {
   AssetResponse,
   ConfiguredLogicResponse,
   ExecutionResponse,
+  ExecutionStatus,
   RecommendationSummaryResponse,
 } from '../api/generated/v1/types.gen';
 import { recommendationIsAwaiting } from './recommendationInbox';
@@ -15,7 +16,7 @@ export type AttentionItem = {
   href: string;
 };
 
-const PROBLEM_STATUSES = new Set(['Failed', 'TimedOut', 'Suspended']);
+const PROBLEM_STATUSES = new Set<string>(['Failed', 'TimedOut', 'Suspended'] satisfies ExecutionStatus[]);
 const RECENT_MS = 24 * 60 * 60 * 1000;
 
 /**

@@ -10,10 +10,10 @@ public sealed record ExecutionResponse(
     string? AssetExternalId,
     string? Quantity,
     int RequestContractVersion,
-    string Trigger,
+    ExecutionTriggerKind Trigger,
     DateTimeOffset? ScheduledForUtc,
-    string Mode,
-    string Status,
+    ExecutionMode Mode,
+    ExecutionStatus Status,
     string CorrelationId,
     DateTimeOffset RequestedAtUtc,
     DateTimeOffset? StartedAtUtc,
@@ -25,4 +25,4 @@ public sealed record ExecutionResponse(
 public sealed record RequestConfiguredShadowRequest(Guid RequestId);
 
 public sealed record ConfiguredShadowReceiptResponse(Guid ExecutionId, Guid LogicInstanceId,
-    Guid ConfigurationRevisionId, int RequestContractVersion, string Mode, string Trigger);
+    Guid ConfigurationRevisionId, int RequestContractVersion, ExecutionMode Mode, ExecutionTriggerKind Trigger);

@@ -83,6 +83,9 @@ jobs:
       - name: Verify pure scoped-grant authorization isolation
         run: dotnet run --project tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj --configuration Release --no-build
 
+      - name: Verify closed API value contracts
+        run: dotnet run --project tests/WellSiteAutoPilot.ApiContractTests/WellSiteAutoPilot.ApiContractTests.csproj --configuration Release --no-build
+
       - name: Verify legacy Asset scope boundaries
         run: dotnet run --project tests/WellSiteAutoPilot.SecurityBoundaryTests/WellSiteAutoPilot.SecurityBoundaryTests.csproj --configuration Release --no-build
 
@@ -202,6 +205,60 @@ jobs:
 
             if ($paths -contains "/api/v1/executions/shadow") {
               throw "Retired raw dispatch must not be published in OpenAPI."
+            }
+
+            # API-owned finite values must be published as string enums and
+            # referenced by their fields so the generated client emits unions.
+            $closedValues = [ordered]@{
+              AccessGrantSubjectKind = "User,WindowsGroup"
+              AccessGrantScopeKind = "ExactAssets,DeploymentWide,AllAssets"
+              ExecutionMode = "Shadow,Recommendation,Autonomous"
+              ExecutionStatus = "Requested,Queued,Starting,Running,Waiting,Completed,Failed,Cancelled,Suspended,TimedOut"
+              ExecutionTriggerKind = "Manual,Scheduled"
+              LogicRuntimeKind = "Python,DotNet"
+              ExecutionProfile = "ScheduledOneShot,BoundedIterative,Reactive,ContinuousController,DurableWorkflow"
+              LogicModuleTrustStatus = "Untrusted,TrustedPublisher,CustomerApproved,SignatureInvalid"
+              RecommendationStatus = "Created,Pending,Approved,Rejected,Expired,Superseded,Invalidated,Executed"
+              RecommendationDecision = "Approved,Rejected"
+              ConfiguredLogicRevisionStatus = "Draft,Validated,Active,Superseded"
+              PlatformComponentStatus = "Unknown,Healthy,Degraded,Unavailable"
+            }
+            foreach ($name in $closedValues.Keys) {
+              $schema = $openApi.components.schemas.$name
+              if (-not $schema) { throw "OpenAPI did not publish closed value schema $name." }
+              $actual = (@($schema.enum) | Sort-Object) -join ","
+              $expected = (($closedValues[$name] -split ",") | Sort-Object) -join ","
+              if ($schema.type -ne "string" -or $actual -ne $expected) {
+                throw "OpenAPI schema $name must be a string enum of [$expected] but was type '$($schema.type)' [$actual]."
+              }
+            }
+
+            $closedFields = [ordered]@{
+              "AccessGrantResponse.subjectKind" = "AccessGrantSubjectKind"
+              "AccessGrantResponse.scopeKind" = "AccessGrantScopeKind"
+              "CreateAccessGrantRequest.scopeKind" = "AccessGrantScopeKind"
+              "ExecutionResponse.trigger" = "ExecutionTriggerKind"
+              "ExecutionResponse.mode" = "ExecutionMode"
+              "ExecutionResponse.status" = "ExecutionStatus"
+              "ConfiguredShadowReceiptResponse.mode" = "ExecutionMode"
+              "ConfiguredShadowReceiptResponse.trigger" = "ExecutionTriggerKind"
+              "LogicModuleResponse.runtime" = "LogicRuntimeKind"
+              "LogicModuleResponse.executionProfile" = "ExecutionProfile"
+              "LogicModuleResponse.trustStatus" = "LogicModuleTrustStatus"
+              "RecommendationSummaryResponse.status" = "RecommendationStatus"
+              "RecommendationDecisionRequest.decision" = "RecommendationDecision"
+              "RecommendationDecisionResponse.status" = "RecommendationStatus"
+              "ConfiguredLogicRevisionResponse.mode" = "ExecutionMode"
+              "ConfiguredLogicRevisionResponse.status" = "ConfiguredLogicRevisionStatus"
+              "PlatformComponentResponse.status" = "PlatformComponentStatus"
+            }
+            foreach ($field in $closedFields.Keys) {
+              $owner, $property = $field -split "\."
+              $definition = $openApi.components.schemas.$owner.properties.$property
+              $reference = ConvertTo-Json $definition -Depth 10 -Compress
+              if (-not $definition -or $reference -notmatch ('#/components/schemas/' + $closedFields[$field] + '"')) {
+                throw "OpenAPI field $field must reference closed value schema $($closedFields[$field]) but was $reference."
+              }
             }
 
             if ($paths | Where-Object { $_ -match 'v\\{version' }) {

@@ -44,6 +44,9 @@ test('invalid identities, actions, and audit reasons never reach the backend', a
   for (const [target, decision, reason] of [
     ['not-a-guid', 'Approved', 'reviewed'],
     [id, 'Pending', 'reviewed'],
+    [id, 'Executed', 'reviewed'],
+    [id, 'approved', 'reviewed'],
+    [id, 1, 'reviewed'],
     [id, 'Approved', ' '],
     [id, 'Rejected', 'bad\nreason'],
     [id, 'Approved', 'x'.repeat(1025)],
