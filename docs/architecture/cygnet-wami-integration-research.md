@@ -4,7 +4,7 @@ Status: research notes for roadmap step 8, written 2026-10-18. Nothing here is a
 below need owner confirmation against a real system. This follows ADR-005 (non-invasive integration):
 use only interfaces the providers already support.
 
-Target: **CygNet 9.7 and above.** Sources are the public Weatherford CygNet documentation (links at the end).
+Target: **CygNet 9.7 and above**, via Bridge API and via direct access. Sources are the public Weatherford CygNet documentation (links at the end).
 
 ## 1. CygNet interfaces that exist
 
@@ -45,13 +45,43 @@ Target: **CygNet 9.7 and above.** Sources are the public Weatherford CygNet docu
 
 Read-only Shadow work needs only the Base tier. Control stays out until step 9 is approved.
 
+## 1a. Phase 1 may require direct CygNet access (owner, 2026-10-18)
+
+The owner expects phase 1 may need to talk to CygNet **directly rather than through the Bridge API**, so
+the direct path must be designed and experimented with, not left as a fallback. The supported direct
+interface is the CygNet .NET API (or COM), which changes the shape of the design:
+
+- The .NET API is a set of **.NET Framework** assemblies with 32/64-bit variants, installed with CygNet. A
+  .NET 10 process should not load them: bitness handling, Framework-only dependencies and CygNet's own
+  installation layout make that fragile, and CygNet's redistribution terms are unconfirmed.
+- Proposed shape: a small **CygNet Native Agent**, a separate .NET Framework 4.8 Windows process that runs
+  on a machine with the CygNet client libraries installed (the CygNet host or a client PC). It is our own
+  code, uses only supported CygNet interfaces (ADR-005), and exposes the same provider contracts to the
+  Integration Gateway over a narrow local channel (named pipe or net.tcp, Windows authentication). The
+  Gateway talks only to that channel; it never loads CygNet assemblies.
+- The adapter in the Gateway is therefore the same contract either way. **Bridge and direct are two
+  transports behind one CygNet adapter**, chosen per deployment by configuration. This keeps core code,
+  modules and the contract tests unchanged and lets us compare the two on the owner's system.
+- Direct access runs with a Windows identity that holds CygNet ACS permissions, so the agent's service
+  account and its permissions become part of installer and security documentation.
+- Direct access has no Bridge license tiers, but CygNet's own ACS permissions still gate reads and any
+  command. The control path remains blocked on roadmap step 9 either way.
+- CygNet's .NET API documentation does not state the connection model (domain, site, service), supported
+  Framework versions, authentication or remote use. These must be taken from the help file
+  `CygNet.API.chm` in the CygNet `\Bin` folder and confirmed by experiment.
+
+Experiments to run on the owner's box, in order: (1) from a small .NET Framework console app on the CygNet
+host, read one current value, one history range and the facility list; (2) repeat from a different machine
+with only the client libraries; (3) run the same read from a service account; (4) compare latency and
+failure behaviour with the Bridge API if Bridge is available. Findings decide the transport defaults.
+
 ## 2. Consequences for design
 
-1. **Use the Bridge API for CygNet** unless the customer has no Bridge license. The Gateway then needs only
-   `HttpClient`; no CygNet files ship with our installer.
-2. **If a customer has no Bridge license** the options are a separate .NET Framework helper process using
-   the CygNet .NET API on a CygNet host, or OPC UA. Both are heavier; treat as a reported integration gap
-   (ADR-005) until a customer needs it.
+1. **Bridge API transport:** the Gateway needs only `HttpClient`; no CygNet files ship with our installer.
+   Requires a Bridge license.
+2. **Direct transport (section 1a):** a Native Agent on a machine with CygNet client libraries, behind the
+   same adapter. Needed when Bridge is unavailable or direct access proves better. OPC UA stays a later,
+   read-only option.
 3. **Compatibility check:** report Bridge version vs CygNet version from the descriptor, and mark
    `ProviderCompatibility` `Incompatible` when the pairing above is violated.
 4. **Token handling:** cache the token per domain, re-login once on 401, never log it, store the Bridge
@@ -90,6 +120,8 @@ Design implications that follow from this description:
 
 ## 4. What I need from the CygNet box
 
+0. For direct access: `CygNet.API.chm` (from the CygNet `\Bin` folder), the list of CygNet assemblies and
+   their versions, whether the box is 64-bit only, and the Windows identity that has ACS permissions.
 1. CygNet version and CygNet Bridge version, and whether the **Bridge API** option is installed.
 2. License tiers present (Base, Alarm, Control).
 3. The Bridge API help page (`https://<host>/CygNet/Help`) saved as a file, or its OpenAPI/JSON if offered.
