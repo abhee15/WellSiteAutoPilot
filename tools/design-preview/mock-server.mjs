@@ -15,6 +15,12 @@ const assets = [
   { id: id(12), assetTypeId: typeWell, name: 'Well 7-14H', parentAssetId: id(10), attributeValuesJson: '{"liftType":"Gas lift"}', isActive: true, createdAtUtc: iso(7000) },
   { id: id(13), assetTypeId: typeWell, name: 'Well 3-02', parentAssetId: null, attributeValuesJson: '{}', isActive: false, createdAtUtc: iso(6000) },
 ];
+const espManifest = { moduleId: 'esp-frequency-optimizer', version: '1.2.0',
+      executionProfile: 'ScheduledOneShot', description: 'Keeps an ESP near its best operating frequency.',
+      assetRequirements: [{ role: 'well', minimumCount: 1, maximumCount: 1, requiredAssetTypeKey: 'well' }], dataRequirements: [],
+      parameterSchema: { type: 'object', required: ['targetFrequencyHz'], properties: {
+        targetFrequencyHz: { type: 'number', minimum: 30, maximum: 70, title: 'Target frequency (Hz)', description: 'Where the optimizer aims.' },
+        mode: { type: 'string', enum: ['Hold', 'Trim'] }, allowIncrease: { type: 'boolean' } } } };
 const exec = (n, mode, status, result, minutes, asset) => ({
   executionId: id(100 + n), logicInstanceId: id(200), moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0',
   configurationRevisionId: id(300), assetId: asset, assetExternalId: null, quantity: null, requestContractVersion: 2,
@@ -22,6 +28,10 @@ const exec = (n, mode, status, result, minutes, asset) => ({
   requestedAtUtc: iso(minutes), startedAtUtc: iso(minutes - 0.1), completedAtUtc: status === 'Completed' ? iso(minutes - 0.3) : null,
   resultCode: result, failureCode: status === 'Failed' ? 'PROVIDER_TIMEOUT' : null, outputJson: '{}',
 });
+const configuredDetail = { id: id(500), name: 'ESP frequency — Permian Pad 7', activeRevisionId: id(300), canManage: true, canRequestShadow: true,
+  createdAtUtc: iso(5000), revisions: [{ id: id(300), configuredLogicId: id(500), revisionNumber: 2, moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0',
+    moduleManifestJson: JSON.stringify(espManifest), parametersJson: '{"targetFrequencyHz":52.5,"mode":"Trim","allowIncrease":true}', mode: 'Shadow', status: 'Active',
+    createdAtUtc: iso(3000), assetBindings: [{ role: 'well', assetId: id(11), parameterOverridesJson: '{}' }], dataBindings: [] }] };
 const executions = [
   exec(1, 'Shadow', 'Completed', 'RecommendationProduced', 3, id(11)),
   exec(2, 'Shadow', 'Completed', 'NoAction', 13, id(12)),
@@ -42,19 +52,15 @@ const responses = {
   '/api/v1/assets/capabilities': { canCreateRoot: true, canCreateUnderAuthorizedParents: true },
   '/api/v1/executions': executions,
   '/api/v1/logic-modules': [{ id: id(400), moduleId: 'esp-frequency-optimizer', version: '1.2.0', displayName: 'ESP frequency optimizer',
-    publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'Shadow', manifestJson: JSON.stringify({ moduleId: 'esp-frequency-optimizer', version: '1.2.0',
-      executionProfile: 'ScheduledOneShot', description: 'Keeps an ESP near its best operating frequency.',
-      assetRequirements: [{ role: 'well', minimumCount: 1, maximumCount: 1, requiredAssetTypeKey: 'well' }], dataRequirements: [],
-      parameterSchema: { type: 'object', required: ['targetFrequencyHz'], properties: {
-        targetFrequencyHz: { type: 'number', minimum: 30, maximum: 70, title: 'Target frequency (Hz)', description: 'Where the optimizer aims.' },
-        mode: { type: 'string', enum: ['Hold', 'Trim'] }, allowIncrease: { type: 'boolean' } } } }), packageSha256: 'ab'.repeat(32),
+    publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'Shadow', manifestJson: JSON.stringify(espManifest), packageSha256: 'ab'.repeat(32),
     trustStatus: 'Trusted', isEnabled: true, installedAtUtc: iso(5000) }],
   '/api/v1/security/users': [
     { userId: id(900), identityName: 'FIELD\\10482267', displayName: 'Alex Rivera', isActive: true, createdAtUtc: iso(9000), lastSeenAtUtc: iso(1), activeDirectGrantCount: 2 },
     { userId: id(901), identityName: 'FIELD\\10551903', displayName: null, isActive: true, createdAtUtc: iso(30), lastSeenAtUtc: iso(5), activeDirectGrantCount: 0 },
     { userId: id(902), identityName: 'FIELD\\10337741', displayName: 'Morgan Lee', isActive: true, createdAtUtc: iso(5000), lastSeenAtUtc: iso(90), activeDirectGrantCount: 1 },
     { userId: id(903), identityName: 'FIELD\\10299120', displayName: 'Sam Patel', isActive: false, createdAtUtc: iso(6000), lastSeenAtUtc: iso(4000), activeDirectGrantCount: 0 }],
-  '/api/v1/configured-logic': [],
+  '/api/v1/configured-logic': [configuredDetail],
+  ['/api/v1/configured-logic/' + id(500)]: configuredDetail,
   '/api/v1/recommendations': [],
 };
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
