@@ -1,12 +1,26 @@
 import { isWindowsSid } from '../security/windowsSid';
 import { isSecurityId as validId } from '../security/identifiers';
-import type { AssetDirectoryEntryResponse, CreateAccessGrantRequest } from '../api/generated/v1/types.gen';
+import type {
+  AccessGrantScopeKind, AccessGrantSubjectKind, AssetDirectoryEntryResponse, CreateAccessGrantRequest,
+} from '../api/generated/v1/types.gen';
 import type { RoleRecord, PermissionDefinition } from './roleCatalog';
 
-export type ScopeKind = 'ExactAssets' | 'DeploymentWide' | 'AllAssets';
+export type ScopeKind = AccessGrantScopeKind;
+export type SubjectKind = AccessGrantSubjectKind;
+
+// The compiler requires every member the server contract declares (and no
+// others); the guards keep the runtime check that generated types cannot give.
+const SCOPE_KINDS: Record<ScopeKind, true> = { ExactAssets: true, DeploymentWide: true, AllAssets: true };
+const SUBJECT_KINDS: Record<SubjectKind, true> = { User: true, WindowsGroup: true };
+export function isScopeKind(value: unknown): value is ScopeKind {
+  return typeof value === 'string' && Object.hasOwn(SCOPE_KINDS, value);
+}
+export function isSubjectKind(value: unknown): value is SubjectKind {
+  return typeof value === 'string' && Object.hasOwn(SUBJECT_KINDS, value);
+}
 export type AssetChoice = AssetDirectoryEntryResponse & { id: string; name: string; isActive: boolean };
 export type GrantDraft = CreateAccessGrantRequest & {
-  subjectKind: 'User' | 'WindowsGroup'; userId: string; groupSid?: string; roleId: string;
+  subjectKind: SubjectKind; userId: string; groupSid?: string; roleId: string;
   scopeKind: ScopeKind; assetIds: string[]; expectedRoleRevision: number;
 };
 export type GrantPreview = {
@@ -25,7 +39,7 @@ export function previewGrant(draft: GrantDraft, role: RoleRecord | null,
     draft.roleId.toLowerCase() !== role.roleId.toLowerCase() ||
     !Number.isSafeInteger(draft.expectedRoleRevision) || draft.expectedRoleRevision < 1 ||
     draft.expectedRoleRevision !== role.revision ||
-    !(['ExactAssets', 'DeploymentWide', 'AllAssets'] as const).includes(draft.scopeKind) ||
+    !isScopeKind(draft.scopeKind) ||
     (draft.scopeKind === 'AllAssets' && !allowAllAssets)) {
     throw new GrantValidationError('Invalid subject, role or scope');
   }

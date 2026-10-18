@@ -7,4 +7,4 @@ public sealed record SystemInfoResponse(
 public sealed record PlatformComponentResponse(
     string Name,
     string Version,
-    string Status);
+    PlatformComponentStatus Status);

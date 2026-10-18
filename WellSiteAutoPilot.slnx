@@ -36,6 +36,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/WellSiteAutoPilot.SecurityBoundaryTests/WellSiteAutoPilot.SecurityBoundaryTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.ApiContractTests/WellSiteAutoPilot.ApiContractTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.FailureContractTests/WellSiteAutoPilot.FailureContractTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj" />

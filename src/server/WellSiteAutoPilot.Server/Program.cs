@@ -223,7 +223,7 @@ v1.MapGet(
                 .Select(component => new PlatformComponentResponse(
                     component.Name,
                     component.Version,
-                    component.Status.ToString()))
+                    component.Status.ToContract()))
                 .ToArray());
     })
     .WithName("GetSystemInformation")
@@ -333,7 +333,7 @@ v1.MapPost(
     async (Guid userId, CreateAccessGrantRequest request, AccessGrantAdministrationService grants,
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        var scope = ParseRequired<AccessGrantScopeKind>(request.ScopeKind);
+        var scope = request.ScopeKind.ToDomain();
         var grant = await grants.CreateAuthorizedAsync(AccessGrantSubject.ForUser(userId),
             new CreateAccessGrantCommand(request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
             access.Subject, access.CreateActor(context), cancellationToken);
@@ -377,7 +377,7 @@ v1.MapPost(
     async (string groupSid, CreateAccessGrantRequest request, AccessGrantAdministrationService grants,
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        var scope = ParseRequired<AccessGrantScopeKind>(request.ScopeKind);
+        var scope = request.ScopeKind.ToDomain();
         var grant = await grants.CreateAuthorizedAsync(AccessGrantSubject.ForWindowsGroup(groupSid),
             new CreateAccessGrantCommand(request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
             access.Subject, access.CreateActor(context), cancellationToken);
@@ -669,7 +669,7 @@ v1.MapPost(
         var receipt = await requests.RequestAuthorizedAsync(configuredLogicId, revisionId, request.RequestId,
             access.Subject, access.CreateActor(context), cancellationToken);
         return Results.Ok(new ConfiguredShadowReceiptResponse(receipt.ExecutionId, receipt.ConfiguredLogicId,
-            receipt.ConfigurationRevisionId, receipt.ContractVersion, receipt.Mode.ToString(), receipt.Trigger.ToString()));
+            receipt.ConfigurationRevisionId, receipt.ContractVersion, receipt.Mode.ToContract(), receipt.Trigger.ToContract()));
     })
     .WithName("RequestConfiguredShadowExecution")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")
@@ -683,7 +683,7 @@ v1.MapGet(
     "/executions",
     async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, IExecutionRepository executions,
         RequestAccessContext access, CancellationToken cancellationToken) =>
-        (await executions.ListAuthorizedAsync(access.Subject, ParseFilter<ExecutionStatus>(status), PageLimit(limit ?? 50),
+        (await executions.ListAuthorizedAsync(access.Subject, ParseFilter<WellSiteAutoPilot.Domain.Executions.ExecutionStatus>(status), PageLimit(limit ?? 50),
             configuredLogicId, assetId, cancellationToken))
             .Select(ToResponse).ToArray())
     .WithName("ListExecutions")
@@ -801,7 +801,7 @@ v1.MapGet(
     async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, IRecommendationRepository recommendations,
         IResourceActionRepository actions, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var items = await recommendations.ListAuthorizedAsync(access.Subject, ParseFilter<RecommendationStatus>(status),
+        var items = await recommendations.ListAuthorizedAsync(access.Subject, ParseFilter<WellSiteAutoPilot.Domain.Recommendations.RecommendationStatus>(status),
             PageLimit(limit ?? 50, 100), configuredLogicId, assetId, cancellationToken);
         var capabilities = (await actions.GetRecommendationActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
@@ -833,10 +833,10 @@ v1.MapPost(
     async (Guid recommendationId, RecommendationDecisionRequest request, IRecommendationRepository recommendations,
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        var decision = ParseRequired<RecommendationStatus>(request.Decision);
+        var decision = request.Decision.ToDomain();
         var item = await recommendations.DecideAuthorizedAsync(access.Subject, recommendationId, decision,
             access.CreateActor(context), request.Reason, cancellationToken);
-        return new RecommendationDecisionResponse(item.Id, item.Status.ToString(), item.DecisionBy, item.DecisionAtUtc, item.DecisionReason);
+        return new RecommendationDecisionResponse(item.Id, item.Status.ToContract(), item.DecisionBy, item.DecisionAtUtc, item.DecisionReason);
     })
     .WithName("DecideRecommendation")
     .RequireAuthorization(WellSitePolicies.RecommendationsDecide)
@@ -888,9 +888,9 @@ static ConfiguredLogicRevisionResponse ToConfiguredLogicRevisionResponse(Configu
     revision.ModuleId,
     revision.ModuleVersion,
     revision.ModuleManifestJson,
-    revision.Mode.ToString(),
+    revision.Mode.ToContract(),
     revision.ParametersJson,
-    revision.Status.ToString(),
+    revision.Status.ToContract(),
     revision.CreatedAtUtc,
     revision.ValidatedAtUtc,
     revision.ActivatedAtUtc,
@@ -923,11 +923,11 @@ static LogicModuleResponse ToLogicModuleResponse(
     module.Version,
     module.DisplayName,
     module.Publisher,
-    module.Runtime.ToString(),
-    module.ExecutionProfile.ToString(),
+    module.Runtime.ToContract(),
+    module.ExecutionProfile.ToContract(),
     module.ManifestJson,
     module.PackageSha256,
-    module.TrustStatus.ToString(),
+    module.TrustStatus.ToContract(),
     module.IsEnabled,
     module.InstalledAtUtc);
 
@@ -947,7 +947,7 @@ static RecommendationSummaryResponse ToRecommendationSummaryResponse(
     recommendation.SuggestedValue,
     recommendation.Unit,
     recommendation.ReasonCode,
-    recommendation.Status.ToString(),
+    recommendation.Status.ToContract(),
     recommendation.CreatedAtUtc,
     recommendation.ExpiresAtUtc,
     recommendation.DecisionBy,
@@ -965,10 +965,10 @@ static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.AssetExternalId,
     execution.Quantity,
     execution.RequestContractVersion,
-    execution.Trigger.ToString(),
+    execution.Trigger.ToContract(),
     execution.ScheduledForUtc,
-    execution.Mode.ToString(),
-    execution.Status.ToString(),
+    execution.Mode.ToContract(),
+    execution.Status.ToContract(),
     execution.CorrelationId,
     execution.RequestedAtUtc,
     execution.StartedAtUtc,
@@ -1006,10 +1006,6 @@ static T RequireFound<T>(T? value, string code) where T : class => value ??
 static int PageLimit(int limit, int maximum = 500) => limit >= 1 && limit <= maximum ? limit :
     throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested page limit is invalid.");
 
-static T ParseRequired<T>(string? raw) where T : struct, Enum =>
-    Enum.TryParse<T>(raw, ignoreCase: false, out var value) && Enum.IsDefined(value) && raw == value.ToString() ? value :
-        throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "An explicit supported value is required.");
-
 static T? ParseFilter<T>(string? raw) where T : struct, Enum => raw is null ? null :
     Enum.TryParse<T>(raw, ignoreCase: true, out var value) && Enum.IsDefined(value) ? value :
         throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested status filter is invalid.");
@@ -1018,8 +1014,8 @@ static ConfiguredLogicResponse WithConfigurationActions(ConfiguredLogicDefinitio
     ToConfiguredLogicResponse(item) with { CanManage = capability?.CanManage == true, CanRequestShadow = capability?.CanRequestShadow == true };
 
 static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>
-    new(grant.Id, grant.SubjectKind.ToString(), grant.UserId,
-        grant.GroupSid, grant.RoleId, grant.ScopeKind.ToString(),
+    new(grant.Id, grant.SubjectKind.ToContract(), grant.UserId,
+        grant.GroupSid, grant.RoleId, grant.ScopeKind.ToContract(),
         grant.AssetIds.ToArray(), grant.IsActive, grant.Revision);
 
 public partial class Program;

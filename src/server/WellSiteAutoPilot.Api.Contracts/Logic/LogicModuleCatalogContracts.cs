@@ -13,10 +13,10 @@ public sealed record LogicModuleResponse(
     string Version,
     string DisplayName,
     string Publisher,
-    string Runtime,
-    string ExecutionProfile,
+    LogicRuntimeKind Runtime,
+    ExecutionProfile ExecutionProfile,
     string ManifestJson,
     string PackageSha256,
-    string TrustStatus,
+    LogicModuleTrustStatus TrustStatus,
     bool IsEnabled,
     DateTimeOffset InstalledAtUtc);

@@ -1,9 +1,13 @@
 import type {
   AssetResponse, AssetTypeResponse, ConfiguredLogicResponse,
-  ConfiguredLogicRevisionResponse, CreateConfiguredLogicRequest,
+  ConfiguredLogicRevisionResponse, ConfiguredLogicRevisionStatus, CreateConfiguredLogicRequest,
   LogicModuleResponse,
 } from '../api/generated/v1/types.gen';
 import { isSecurityId } from '../security/identifiers';
+
+// `satisfies` has the compiler check each name against the server's contract.
+const REVISION_STATUSES: readonly string[] =
+  ['Draft', 'Validated', 'Active', 'Superseded'] satisfies ConfiguredLogicRevisionStatus[];
 
 export type AssetRequirement = {
   role: string; minimumCount: number; maximumCount: number;
@@ -64,7 +68,7 @@ export function verifiedConfiguration(value: unknown): value is VerifiedConfigur
     Array.isArray(v.revisions) && v.revisions.length > 0 &&
     v.revisions.every(r => isSecurityId(r.id) &&
       Number.isSafeInteger(r.revisionNumber) && (r.revisionNumber ?? 0) > 0 &&
-      ['Draft', 'Validated', 'Active', 'Superseded'].includes(r.status ?? '') &&
+      REVISION_STATUSES.includes(r.status ?? '') &&
       r.mode === 'Shadow' && Array.isArray(r.assetBindings) &&
       r.assetBindings.every(b => isSecurityId(b.assetId)) && Array.isArray(r.dataBindings)) &&
     new Set(v.revisions.map(r => r.id)).size === v.revisions.length &&

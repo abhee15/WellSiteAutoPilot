@@ -19,7 +19,7 @@ public sealed record RecommendationSummaryResponse(
     decimal? SuggestedValue,
     string? Unit,
     string ReasonCode,
-    string Status,
+    RecommendationStatus Status,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? ExpiresAtUtc,
     string? DecisionBy,

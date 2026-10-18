@@ -1,4 +1,8 @@
-import type { ExecutionResponse } from '../api/generated/v1/types.gen';
+import type { ExecutionResponse, ExecutionStatus } from '../api/generated/v1/types.gen';
+
+/** Statuses of a run that has not finished. `satisfies` has the compiler check each name against the server's ExecutionStatus. */
+export const IN_FLIGHT_EXECUTION_STATUSES: readonly string[] =
+  ['Requested', 'Queued', 'Starting', 'Running', 'Waiting'] satisfies ExecutionStatus[];
 
 export type ExecutionDetailErrorKind =
   | 'invalidRequest'
