@@ -32,7 +32,14 @@ button:disabled {
 }
 
 .navigation {
-  min-height: 100vh;
+  /* The side panel stays the height of the window and scrolls on its own, so the signed-in user
+     at its foot is never pushed off screen by a long page. The page itself still scrolls normally. */
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   padding: var(--space-24) var(--space-16) var(--space-16);
   border-right: 1px solid var(--color-border-shell);
   background: var(--color-surface-panel);
@@ -56,7 +63,11 @@ button:disabled {
 
 .navigation nav {
   display: grid;
+  align-content: start;
   gap: var(--space-6);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .navigation a,
@@ -83,6 +94,7 @@ button:disabled {
 
 .user-menu {
   margin-top: auto;
+  flex: none;
   position: relative;
   min-width: 0;
 }
@@ -129,7 +141,11 @@ button:disabled {
   z-index: 20;
   bottom: calc(100% + 10px);
   left: 0;
-  width: min(300px, calc(100vw - 90px));
+  /* As wide as the side panel it belongs to: it never spills into the page. */
+  width: 100%;
+  box-sizing: border-box;
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
   padding: var(--space-16);
   border: 1px solid var(--color-border-control);
   border-radius: var(--radius-8);
@@ -764,6 +780,7 @@ button:disabled {
     position: fixed;
     bottom: 12px;
     left: 72px;
+    width: min(300px, calc(100vw - 90px));
   }
 
   .content {
