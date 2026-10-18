@@ -13,11 +13,12 @@ type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; executions?: readonly ExecutionResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
+  initialAssetId?: string | null;
 };
 /** A fresh authorized detail is the mutation boundary. Polling list metadata
  * cannot silently replace the revision a user is reviewing. */
 export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
-  assets, assetTypes, executions, onClose, onChanged }: Props) {
+  assets, assetTypes, executions, onClose, onChanged, initialAssetId }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
   const [source, setSource] = useState<ConfiguredLogicRevisionResponse | undefined>();
@@ -129,7 +130,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       onClick={() => void reload()}>{t('setup.reload')}</button>}
     {editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
       modules={modules} assets={assets} assetTypes={assetTypes}
-      configuration={detail ?? undefined} revision={source}
+      configuration={detail ?? undefined} revision={source} initialAssetId={initialAssetId}
       onSaved={value => { setDetail(value); setEditing(false); setSource(undefined);
         setNotice(t('setup.saved')); void onChanged(); }}
       onDenied={committed => { setDetail(null); setEditing(false); setSource(undefined);

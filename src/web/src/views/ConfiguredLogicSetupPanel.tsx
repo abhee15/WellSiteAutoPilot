@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { eligibleAssets, isJsonObject, readConfiguration, setupManifest,
+import { eligibleAssets, isJsonObject, prefillBindings, readConfiguration, setupManifest,
   setupResponse, SetupApiError, verifiedConfiguration, matchesSetupRevision } from './configuredLogicSetup';
 import type { SetupRequest, VerifiedConfiguration } from './configuredLogicSetup';
 import { attributeFields, attributeValues, buildAttributes } from './assetAttributeForm';
@@ -16,9 +16,11 @@ type Props = {
   configuration?: VerifiedConfiguration; revision?: ConfiguredLogicRevisionResponse;
   onSaved: (configuration: VerifiedConfiguration) => void; onCancel: () => void;
   onDenied?: (committed: boolean) => void;
+  /** Begin from this asset: it is pre-selected for the first role it fits. */
+  initialAssetId?: string | null;
 };
 export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
-  configuration, revision, onSaved, onCancel, onDenied }: Props) {
+  configuration, revision, onSaved, onCancel, onDenied, initialAssetId }: Props) {
   const approved = modules.filter(m => setupManifest(m));
   const [moduleKey, setModuleKey] = useState(() => revision
     ? JSON.stringify([revision.moduleId, revision.moduleVersion]) : '');
@@ -126,13 +128,18 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
   return <section className="setup-panel" aria-label={t('setup.heading')}>
     <h3>{configuration ? t('setup.newRevision') : t('setup.heading')}</h3>
     <p>{t('setup.shadowOnly')}</p>
+    {initialAssetId && !configuration && <p role="note">{t('setup.startingFromAsset', { name: assets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</p>}
     {approved.length === 0 && <p role="status">{t('setup.noModules')}</p>}
     <form className="setup-form" onSubmit={e => void submit(e)}>
       <fieldset disabled={busy || blocked}>
         <h4 className="setup-step">{t('setupStep.logic')}</h4>
         <p className="setup-step-hint">{t('setupStep.logicHint')}</p>
         <label>{t('setup.module')}<select required value={moduleKey} onChange={e => {
-          setModuleKey(e.target.value); setBindings({}); setData({}); setOverrides({}); setUseSchedule(false);
+          const chosen = approved.find(m => JSON.stringify([m.moduleId, m.version]) === e.target.value);
+          const chosenManifest = chosen ? setupManifest(chosen) : null;
+          setModuleKey(e.target.value);
+          setBindings(chosenManifest && !configuration ? prefillBindings(chosenManifest, initialAssetId, assets, assetTypes) : {});
+          setData({}); setOverrides({}); setUseSchedule(false);
           setParamValues(null); setParamErrors({}); setParamJson(false); setParameters('{}');
         }}><option value="">{t('setup.choose')}</option>{approved.map(m =>
           <option key={m.id} value={JSON.stringify([m.moduleId, m.version])}>

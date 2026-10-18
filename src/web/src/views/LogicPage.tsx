@@ -47,8 +47,14 @@ export function LogicPage({
   const [configuredCriteria, setConfiguredCriteria] = useState<ConfiguredLogicCriteria>(
     DEFAULT_CONFIGURED_LOGIC_CRITERIA,
   );
-  const [selectedConfiguredId, setSelectedConfiguredId] = useHashDetail('logic');
-  const [creating, setCreating] = useState(false);
+  const [rawDetail, setSelectedConfiguredId] = useHashDetail('logic');
+  // `#logic/new:<assetId>` starts setup from an asset (the "Put logic on this asset" link).
+  const startAssetId = rawDetail?.startsWith('new:') ? rawDetail.slice(4) : null;
+  const selectedConfiguredId = startAssetId ? null : rawDetail;
+  const [creating, setCreating] = useState(Boolean(startAssetId));
+  useEffect(() => { if (startAssetId) setCreating(true); }, [startAssetId]);
+  const prefillAssetId = startAssetId && assets.some(asset => asset.id === startAssetId && asset.isActive)
+    ? startAssetId : null;
   const [aboutModuleId, setAboutModuleId] = useState<string | null>(null);
   const aboutModule = modules.find(module => module.id === aboutModuleId);
   const canManage = mayManage && canReadConfigurations;
@@ -196,8 +202,8 @@ export function LogicPage({
         </div>
         {((creating && canCreate) || selectedConfiguration) && (
           <ConfiguredLogicWorkspace
-            key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguration]) : 'new:' + assets.map(item => item.id).join(',')}
-            selectedId={selectedConfiguredId}
+            key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguration]) : 'new:' + (prefillAssetId ?? '') + assets.map(item => item.id).join(',')}
+            selectedId={selectedConfiguredId} initialAssetId={prefillAssetId}
             canManage={creating ? canManage : canManage && selectedConfiguration?.canManage === true}
             userId={userId} canRequestShadow={permissions.includes('executions.request') && selectedConfiguration?.canRequestShadow === true}
             modules={modules} assets={assets} assetTypes={assetTypes}

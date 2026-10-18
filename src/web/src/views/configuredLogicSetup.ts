@@ -35,6 +35,18 @@ export function eligibleAssets(requirement: AssetRequirement,
   return assets.filter(a => a.isActive && isSecurityId(a.id) && (!typeKey ||
     types.some(t => t.id === a.assetTypeId && t.isActive && t.key?.toLowerCase() === typeKey)));
 }
+/**
+ * Starting bindings when setup begins from an asset ("Put logic on this asset"): the asset goes to
+ * the first role it is eligible for. The person can still change or remove it; nothing is sent
+ * until they save, and the server checks every binding.
+ */
+export function prefillBindings(manifest: SetupManifest, assetId: string | null | undefined,
+  assets: AssetResponse[], types: AssetTypeResponse[]): Record<string, string[]> {
+  if (!assetId) return {};
+  const role = manifest.assetRequirements.find(r => r.maximumCount >= 1 &&
+    eligibleAssets(r, assets, types).some(a => a.id === assetId));
+  return role ? { [role.role]: [assetId] } : {};
+}
 export function isJsonObject(value: string): boolean {
   try {
     const object: unknown = JSON.parse(value);
