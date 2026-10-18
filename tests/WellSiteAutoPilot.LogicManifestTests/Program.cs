@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
@@ -72,6 +73,21 @@ AssertFailure(
     },
     "MODULE_ASSET_CARDINALITY_INVALID");
 
+// Optional description and settings schema.
+LogicModuleManifestValidator.Validate(validManifest with { Description = "Reads pump fillage and proposes a speed." });
+AssertFailure(validManifest with { Description = "  " }, "MODULE_DESCRIPTION_INVALID");
+AssertFailure(
+    validManifest with { Description = new string('x', LogicModuleManifestValidator.MaximumDescriptionLength + 1) },
+    "MODULE_DESCRIPTION_INVALID");
+
+await LogicModuleManifestValidator.ValidateParameterSchemaAsync(validManifest);
+await LogicModuleManifestValidator.ValidateParameterSchemaAsync(validManifest with
+{
+    ParameterSchema = Schema("""{"type":"object","properties":{"targetFillage":{"type":"number","minimum":0,"maximum":100}},"required":["targetFillage"]}""")
+});
+await AssertSchemaFailure(validManifest with { ParameterSchema = Schema("[]") });
+await AssertSchemaFailure(validManifest with { ParameterSchema = Schema("""{"type":"object","$ref":"http://example.invalid/x"}""") });
+
 Console.WriteLine("Logic Module manifest validation checks passed.");
 return 0;
 
@@ -90,4 +106,24 @@ static void AssertFailure(
 
     throw new InvalidOperationException(
         $"Expected Logic Module validation failure '{expectedCode}'.");
+}
+
+static JsonElement Schema(string json)
+{
+    using var document = JsonDocument.Parse(json);
+    return document.RootElement.Clone();
+}
+
+static async Task AssertSchemaFailure(LogicModuleManifest manifest)
+{
+    try
+    {
+        await LogicModuleManifestValidator.ValidateParameterSchemaAsync(manifest);
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Code == "MODULE_PARAMETER_SCHEMA_INVALID")
+    {
+        return;
+    }
+
+    throw new InvalidOperationException("Expected MODULE_PARAMETER_SCHEMA_INVALID.");
 }

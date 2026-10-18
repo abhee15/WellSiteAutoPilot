@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace WellSiteAutoPilot.Domain.Logic;
 
 public sealed record LogicModuleManifest(
@@ -12,4 +14,8 @@ public sealed record LogicModuleManifest(
     string MinimumSdkVersion,
     IReadOnlyCollection<LogicAssetRequirement> AssetRequirements,
     IReadOnlyCollection<LogicDataRequirement> DataRequirements,
-    IReadOnlyCollection<LogicCommandRequirement> CommandRequirements);
+    IReadOnlyCollection<LogicCommandRequirement> CommandRequirements,
+    // Optional, human-readable summary of what the module does (shown in the catalog).
+    string? Description = null,
+    // Optional JSON Schema (the same subset Asset Types use) describing the module's settings.
+    JsonElement? ParameterSchema = null);
