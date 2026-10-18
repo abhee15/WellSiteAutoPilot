@@ -382,6 +382,30 @@ Phases are ordered by what the backend supports today.
 **Phase 0 — Foundation (done).** Light slate design tokens, button primitives, contrast tests, preview
 tooling (PR #139).
 
+**Status (2026-10-18).** Web-only work from Phases 1 and 2 that needs no new backend is done:
+grouped permission-aware navigation with hash deep links, an attention-first Overview, run summaries in
+words linked run → logic → asset → recommendation, the asset page with a hierarchy tree and a form
+generated from the asset type's schema, the Logic page with a plain status sentence per configuration,
+recent runs, and a module "About" panel built from the manifest, a numbered setup flow, and a decision
+screen that leads with the proposal and says "Approving records your decision. It does not send a
+command." The section is called Runs in the UI (address stays `#operations`).
+
+**Still open, in order of value:**
+- *Needs backend:* B2–B5 (persisted names, last and next run, asset children and search, module
+  description and parameter schema) for "Put logic on this asset", a real settings form and the guided
+  stepper (6.3); B1 live updates; B16 for AI-assisted authoring.
+- *Needs a decision from the owner:* palette and fonts (open question 11: Google Fonts or licensed fonts
+  are fine, we only need the files and licence), dark and high-contrast themes, sticky footer research.
+- *Web-only, not yet built:* shared `DataTable`, `FilterBar`, `Inspector` and `EmptyState` components; a
+  Logic page for one configuration that replaces the table plus below-table panel; revision status
+  words ("Checked", "Live", "Replaced") once the vocabulary question 2 is settled.
+
+**Retrospective.** What worked: small PRs with local checks first; tests that load real pages; building
+only from data already returned by the API. What bit us: file names that differ only by case collide on
+the Windows CI runner (keep helper and component names distinct); the sandbox has no .NET or TypeScript
+checker, so field names must be audited against the generated types before pushing. Next: run the
+design pass (palette, fonts, shared components) once the owner supplies the font details.
+
 **Phase 1 — Shell and shared pieces (no backend change).**
 1. Split `App.tsx`: shell, per-section data loading, exported pages.
 2. Navigation: grouped, permission-aware, Access entry, redirect to first permitted section, URL-hash
