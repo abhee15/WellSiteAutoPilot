@@ -390,15 +390,25 @@ recent runs, and a module "About" panel built from the manifest, a numbered setu
 screen that leads with the proposal and says "Approving records your decision. It does not send a
 command." The section is called Runs in the UI (address stays `#operations`).
 
+**Update (2026-10-18, later).** Also done since: a collapsible side panel with icons that remembers its
+state; hiding controls a person can never use (Create Asset, Manage access); backend B5 (a module's
+optional `description` and `parameterSchema`, with saved settings checked against the schema); a typed
+settings form for modules that declare a schema; each revision showing its saved settings with the
+module's labels; and "Put logic on this asset". Two items on the old backend list turned out not to need
+backend work: the asset page's "Logic on this asset" and the run Asset column are built from data the
+list endpoints already return (a revision's asset bindings), so B2 and B4 are now optimisations, not
+blockers.
+
 **Still open, in order of value:**
-- *Needs backend:* B2–B5 (persisted names, last and next run, asset children and search, module
-  description and parameter schema) for "Put logic on this asset", a real settings form and the guided
-  stepper (6.3); B1 live updates; B16 for AI-assisted authoring.
 - *Needs a decision from the owner:* palette and fonts (open question 11: Google Fonts or licensed fonts
   are fine, we only need the files and licence), dark and high-contrast themes, sticky footer research.
+- *Needs backend:* B3 (last and next run per configuration without a client join), B6 (module trust and
+  enable endpoints), B1 live updates, B16 for AI-assisted authoring; B2 and B4 only if the client joins
+  become slow or wrong at scale (list endpoints are capped and unpaged).
 - *Web-only, not yet built:* shared `DataTable`, `FilterBar`, `Inspector` and `EmptyState` components; a
-  Logic page for one configuration that replaces the table plus below-table panel; revision status
-  words ("Checked", "Live", "Replaced") once the vocabulary question 2 is settled.
+  Logic page for one configuration that replaces the table plus below-table panel (the detail already
+  shows status, runs and settings per revision); revision status words ("Checked", "Live", "Replaced")
+  once the vocabulary question 2 is settled; the guided stepper beyond today's numbered steps.
 
 **Retrospective.** What worked: small PRs with local checks first; tests that load real pages; building
 only from data already returned by the API. What bit us: file names that differ only by case collide on
