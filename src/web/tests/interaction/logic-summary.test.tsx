@@ -42,3 +42,22 @@ it('without permission to read runs the runs list is absent', async () => {
   await screen.findByText(/Revision 2 is live/);
   expect(screen.queryByText('Recent runs of this logic')).toBeNull();
 });
+
+it('a module explains what it does, what it needs and what uses it', async () => {
+  window.location.hash = '#logic';
+  const manifestJson = JSON.stringify({ assetRequirements: [{ role: 'well', minimumCount: 1, maximumCount: 1, requiredAssetTypeKey: 'well' }],
+    dataRequirements: [{ id: 'f', assetRole: 'well', quantity: 'PumpFillage', canonicalUnit: '%', maximumAgeSeconds: 60 }], commandRequirements: [] });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\x', isActive: true, roles: [], assetScopeIds: [], permissions: ['logic.read', 'configured-logic.read'] });
+    if (url.startsWith('/api/v1/logic-modules')) return response([{ id: 'm1', moduleId: 'sample.module', version: '1.0.0', displayName: 'Fillage monitor',
+      publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'ScheduledOneShot', manifestJson, trustStatus: 'CustomerApproved', isEnabled: true, installedAtUtc: '2026-10-01T00:00:00Z' }]);
+    if (url.startsWith('/api/v1/configured-logic?')) return response([{ ...live, revisions: [{ ...live.revisions[0], moduleId: 'sample.module' }] }]);
+    return response([]);
+  }));
+  render(<App />);
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'About Fillage monitor' }));
+  const panel = await screen.findByRole('region', { name: 'About Fillage monitor' });
+  expect(panel.textContent).toContain('Reads pump fillage for 1 well.');
+  expect(panel.textContent).toContain('no older than 1 min');
+  expect(panel.textContent).toContain('Pressure watch');
+});
