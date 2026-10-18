@@ -30,7 +30,7 @@ public sealed record AuditEventCursor(DateTimeOffset OccurredAtUtc, Guid Id)
         var parts = text.Split(':');
         if (parts.Length != 2 ||
             !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var ticks) ||
-            ticks is < 0 or > DateTimeOffset.MaxValue.UtcTicks ||
+            ticks > DateTimeOffset.MaxValue.UtcTicks ||
             parts[1].Length != 32 || !Guid.TryParseExact(parts[1], "N", out var id))
             return false;
 
