@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.IntegrationGateway.Providers;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,7 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.IntegrationGateway";
 });
 builder.Services.AddHealthChecks();
+builder.Services.AddWellSiteTelemetry(builder.Configuration, "wellsite-autopilot-gateway");
 builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services

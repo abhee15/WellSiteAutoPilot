@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Net;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
+using WellSiteAutoPilot.Telemetry;
 
 namespace WellSiteAutoPilot.Infrastructure.Messaging;
 
@@ -34,6 +36,8 @@ public sealed class OutboxPublisher(
 
         foreach (var message in pending)
         {
+            using var activity = WellSiteTelemetry.Source.StartActivity("outbox publish", ActivityKind.Producer);
+            activity?.SetTag("messaging.destination.name", message.Type);
             var acknowledgement = await jetStream.PublishAsync(
                 message.Type,
                 message.Payload,

@@ -10,6 +10,7 @@ using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Telemetry;
 
 namespace WellSiteAutoPilot.Infrastructure.Messaging;
 
@@ -83,6 +84,8 @@ public sealed partial class ExecutionResultV2Consumer(
             {
                 var envelope = JsonSerializer.Deserialize<MessageEnvelope<ExecutionStartedV2>>(
                     message.Data, SerializerOptions) ?? throw new InvalidOperationException("Invalid started envelope.");
+                using var activity = WellSiteTelemetry.StartConsumer("execution result apply", envelope.TraceParent);
+                activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
                 await repository.ApplyStartedAsync(envelope.MessageId, ConsumerName,
                     envelope.Payload.ExecutionId, envelope.Payload.StartedAtUtc, cancellationToken);
             }
@@ -97,6 +100,8 @@ public sealed partial class ExecutionResultV2Consumer(
                     SerializerOptions) ?? throw new InvalidOperationException(
                     "Execution V2 completed envelope could not be deserialized.");
 
+                using var activity = WellSiteTelemetry.StartConsumer("execution result apply", envelope.TraceParent);
+                activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
                 var disposition = await repository.ApplyCompletedAsync(
                     envelope.MessageId,
                     ConsumerName,
@@ -147,6 +152,8 @@ public sealed partial class ExecutionResultV2Consumer(
                     SerializerOptions) ?? throw new InvalidOperationException(
                     "Execution V2 failed envelope could not be deserialized.");
 
+                using var activity = WellSiteTelemetry.StartConsumer("execution result apply", envelope.TraceParent);
+                activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
                 var disposition = await repository.ApplyFailedAsync(
                     envelope.MessageId,
                     ConsumerName,

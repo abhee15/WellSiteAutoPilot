@@ -32,6 +32,7 @@ using WellSiteAutoPilot.Server;
 using WellSiteAutoPilot.Server.Scheduling;
 using WellSiteAutoPilot.Server.Security;
 using WellSiteAutoPilot.Server.Contracts;
+using WellSiteAutoPilot.Telemetry;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -48,6 +49,7 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Server";
 });
 builder.Services.AddHealthChecks();
+builder.Services.AddWellSiteTelemetry(builder.Configuration, "wellsite-autopilot-server");
 var securityOptions = SecurityOptionsLoader.Load(
     builder.Configuration);
 builder.Services.Configure<SecurityOptions>(
