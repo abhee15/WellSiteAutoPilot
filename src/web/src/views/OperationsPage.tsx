@@ -162,10 +162,12 @@ export function OperationsPage({
             </tbody>
           </table>
         </div>
-        {selectedIdStillAuthorized && selectedExecutionId && (
+        {selectedExecutionId && (
           <ExecutionDetailPanel
             key={selectedExecutionId}
             executionId={selectedExecutionId}
+            // A run opened by link may be older than the loaded list; the server decides if it may be seen.
+            onAccessLost={() => setSelectedExecutionId(null)}
             configuredLogic={configuredLogic}
             assets={assets}
             onClose={() => setSelectedExecutionId(null)}

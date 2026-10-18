@@ -57,3 +57,27 @@ it('the administration tab is part of the address', async () => {
   await user.click(screen.getByRole('tab', { name: 'User assignments' }));
   expect(window.location.hash).toBe('#access');
 });
+
+it('a run address opens its details even when the run is older than the loaded list', async () => {
+  const runId = '99999999-9999-4999-8999-999999999999';
+  window.location.hash = '#operations/' + runId;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions: ['executions.read'], assetScopeIds: [] });
+    if (url === '/api/v1/executions/' + runId) return response({ executionId: runId, status: 'Completed', mode: 'Shadow', moduleId: 'sample.module' });
+    return response([]);
+  }));
+  render(<App />);
+  expect(await screen.findByText('Shadow: it calculates and records the result, and sends nothing to the equipment.')).toBeTruthy();
+});
+
+it('a run address the server refuses is dropped instead of showing a stale panel', async () => {
+  const runId = '99999999-9999-4999-8999-999999999998';
+  window.location.hash = '#operations/' + runId;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions: ['executions.read'], assetScopeIds: [] });
+    if (url === '/api/v1/executions/' + runId) return response({}, 404);
+    return response([]);
+  }));
+  render(<App />);
+  await waitFor(() => expect(window.location.hash).toBe('#operations'));
+});
