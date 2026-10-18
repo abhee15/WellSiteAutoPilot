@@ -47,16 +47,22 @@ export function StatusPill({ value, label }: { value?: string | null; label?: st
   );
 }
 
+/** An empty table body. The optional hint says what the person can do about it. */
 export function EmptyRow({
   columns,
   children,
+  hint,
 }: {
   columns: number;
   children: string;
+  hint?: string;
 }) {
   return (
     <tr>
-      <td className="empty-state" colSpan={columns}>{children}</td>
+      <td className="empty-state" colSpan={columns}>
+        {children}
+        {hint && <small className="empty-hint">{hint}</small>}
+      </td>
     </tr>
   );
 }

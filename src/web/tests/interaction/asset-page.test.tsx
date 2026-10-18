@@ -55,3 +55,15 @@ it('the hierarchy tree shows children under their parent and opens an asset on c
   expect(await screen.findByText('Selected Asset')).toBeTruthy();
   expect(window.location.hash).toBe('#assets/' + assetId);
 });
+
+it('an empty asset list says what to do about it', async () => {
+  window.location.hash = '#assets';
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions: ['assets.read'], assetScopeIds: [] });
+    if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
+    return response([]);
+  }));
+  render(<App />);
+  expect(await screen.findByText('No Assets are configured.')).toBeTruthy();
+  expect(screen.getByText(/Assets are the wells and equipment logic runs on/)).toBeTruthy();
+});

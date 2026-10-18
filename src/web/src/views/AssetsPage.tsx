@@ -110,7 +110,7 @@ export function AssetsPage({
                 </tr>
               ))}
               {visibleAssets.length === 0 && (
-                <EmptyRow columns={5}>
+                <EmptyRow columns={5} hint={isLoaded && assets.length === 0 ? t('assets.noneHint') : undefined}>
                   {!isLoaded ? t('views.loading') : assets.length === 0 ? t('assets.none') : t('assets.noMatches')}
                 </EmptyRow>
               )}

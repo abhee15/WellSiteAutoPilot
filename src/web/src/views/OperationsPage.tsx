@@ -155,7 +155,7 @@ export function OperationsPage({
                 );
               })}
               {visibleExecutions.length === 0 && (
-                <EmptyRow columns={7}>{!isLoaded ? t('views.loading') : executions.length === 0
+                <EmptyRow columns={7} hint={isLoaded && executions.length === 0 ? t('views.noActivityHint') : undefined}>{!isLoaded ? t('views.loading') : executions.length === 0
                   ? t('views.noActivity')
                   : t('views.noMatches')}</EmptyRow>
               )}
