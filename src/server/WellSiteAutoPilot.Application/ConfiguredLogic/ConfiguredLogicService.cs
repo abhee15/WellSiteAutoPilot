@@ -55,6 +55,8 @@ public sealed class ConfiguredLogicService(
         EnsureManifestMatchesInstalled(command.ModuleManifestJson, installedModule);
         var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
         ValidateParameterObject(command.ParametersJson);
+        await LogicModuleManifestValidator.ValidateParametersAsync(
+            manifest, command.ParametersJson, cancellationToken);
 
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
@@ -135,6 +137,8 @@ public sealed class ConfiguredLogicService(
         EnsureManifestMatchesInstalled(command.ModuleManifestJson, installedModule);
         var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
         ValidateParameterObject(command.ParametersJson);
+        await LogicModuleManifestValidator.ValidateParametersAsync(
+            manifest, command.ParametersJson, cancellationToken);
 
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
@@ -205,6 +209,8 @@ public sealed class ConfiguredLogicService(
         EnsureManifestMatchesInstalled(revision.ModuleManifestJson, installedModule);
         ValidateParameterObject(revision.ParametersJson);
         var manifest = DeserializeAndValidateManifest(installedModule.ManifestJson);
+        await LogicModuleManifestValidator.ValidateParametersAsync(
+            manifest, revision.ParametersJson, cancellationToken);
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
             revision.AssetBindings
