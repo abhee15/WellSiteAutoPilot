@@ -14,6 +14,7 @@ import { profileLabel, statusLabel, trustLabel } from '../words';
 import { configurationAssetLabels, latestRunByConfiguration, summarizeAssetLabels } from './runContext';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
+import { ModulePanel } from './ModulePanel';
 import { LogicCatalogControls } from './LogicCatalogControls';
 import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, latestRevision } from './configuredLogicViews';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
@@ -48,6 +49,8 @@ export function LogicPage({
   );
   const [selectedConfiguredId, setSelectedConfiguredId] = useHashDetail('logic');
   const [creating, setCreating] = useState(false);
+  const [aboutModuleId, setAboutModuleId] = useState<string | null>(null);
+  const aboutModule = modules.find(module => module.id === aboutModuleId);
   const canManage = mayManage && canReadConfigurations;
   const canCreate = canManage && assets.some(asset => asset.isActive);
   useEffect(() => { if (!canCreate) setCreating(false); }, [canCreate]);
@@ -98,7 +101,12 @@ export function LogicPage({
               {visibleModules.map(module => (
                 <tr key={module.id}>
                   <td>
-                    <strong>{module.displayName}</strong>
+                    <button type="button" className="asset-select"
+                      aria-expanded={aboutModuleId === module.id}
+                      aria-label={t('modulePanel.about', { name: module.displayName ?? '—' })}
+                      onClick={() => setAboutModuleId(current => (current === module.id ? null : module.id ?? null))}>
+                      {module.displayName}
+                    </button>
                     <small>{module.moduleId} · v{module.version}</small>
                   </td>
                   <td>{module.publisher}</td>
@@ -116,6 +124,9 @@ export function LogicPage({
             </tbody>
           </table>
         </div>
+        {aboutModule && <ModulePanel module={aboutModule}
+          configurations={canReadConfigurations ? configuredLogic : []}
+          onClose={() => setAboutModuleId(null)} />}
       </section>}
 
       {canReadConfigurations && <section className="panel">
