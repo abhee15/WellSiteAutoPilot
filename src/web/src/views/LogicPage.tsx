@@ -10,7 +10,8 @@ import type {
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
 import { formatTimestamp } from '../format';
-import { profileLabel, statusLabel, trustLabel } from '../words';
+import { profileLabel, statusLabel } from '../words';
+import { moduleStateLabel, moduleStateToken } from './moduleApproval';
 import { configurationAssetLabels, latestRunByConfiguration, summarizeAssetLabels } from './runContext';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
@@ -118,7 +119,7 @@ export function LogicPage({
                   <td>{module.publisher}</td>
                   <td>{module.runtime}</td>
                   <td>{profileLabel(module.executionProfile)}</td>
-                  <td><StatusPill value={module.trustStatus} label={trustLabel(module.trustStatus)} /></td>
+                  <td><StatusPill value={moduleStateToken(module)} label={moduleStateLabel(module)} /></td>
                   <td>{formatTimestamp(module.installedAtUtc)}</td>
                 </tr>
               ))}
@@ -132,6 +133,7 @@ export function LogicPage({
         </div>
         {aboutModule && <ModulePanel module={aboutModule}
           configurations={canReadConfigurations ? configuredLogic : []}
+          canManage={permissions.includes('logic.manage')} onChanged={onRefresh}
           onClose={() => setAboutModuleId(null)} />}
       </section>}
 

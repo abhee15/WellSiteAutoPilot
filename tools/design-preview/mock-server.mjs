@@ -53,7 +53,13 @@ const responses = {
   '/api/v1/executions': executions,
   '/api/v1/logic-modules': [{ id: id(400), moduleId: 'esp-frequency-optimizer', version: '1.2.0', displayName: 'ESP frequency optimizer',
     publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'Shadow', manifestJson: JSON.stringify(espManifest), packageSha256: 'ab'.repeat(32),
-    trustStatus: 'Trusted', isEnabled: true, installedAtUtc: iso(5000) }],
+    trustStatus: 'Trusted', isEnabled: true, installedAtUtc: iso(5000) },
+  { id: id(401), moduleId: 'esp-frequency-optimizer', version: '1.3.0', displayName: 'ESP frequency optimizer',
+    publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'Shadow', manifestJson: JSON.stringify(espManifest), packageSha256: 'cd'.repeat(32),
+    trustStatus: 'Untrusted', isEnabled: false, installedAtUtc: iso(60) },
+  { id: id(402), moduleId: 'esp-frequency-optimizer', version: '1.0.0', displayName: 'ESP frequency optimizer',
+    publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'Shadow', manifestJson: JSON.stringify(espManifest), packageSha256: 'ef'.repeat(32),
+    trustStatus: 'CustomerApproved', isEnabled: false, installedAtUtc: iso(20000) }],
   '/api/v1/security/users': [
     { userId: id(900), identityName: 'FIELD\\10482267', displayName: 'Alex Rivera', isActive: true, createdAtUtc: iso(9000), lastSeenAtUtc: iso(1), activeDirectGrantCount: 2 },
     { userId: id(901), identityName: 'FIELD\\10551903', displayName: null, isActive: true, createdAtUtc: iso(30), lastSeenAtUtc: iso(5), activeDirectGrantCount: 0 },
@@ -66,6 +72,13 @@ const responses = {
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  const change = url.pathname.match(/^\/api\/v1\/logic-modules\/[^/]+\/([^/]+)\/(approve|retire)$/);
+  if (change && req.method === 'POST') {
+    const module = responses['/api/v1/logic-modules'].find(item => item.version === decodeURIComponent(change[1]));
+    if (change[2] === 'approve') Object.assign(module, { trustStatus: 'CustomerApproved', isEnabled: true });
+    else module.isEnabled = false;
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(module)); return;
+  }
   if (url.pathname.startsWith('/api/')) {
     const body = responses[url.pathname] ?? [];
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); return;
