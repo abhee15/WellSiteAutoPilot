@@ -4,10 +4,12 @@ import type {
   AssetCreationCapabilitiesResponse,
   AssetResponse,
   AssetTypeResponse,
+  ConfiguredLogicResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
 import { formatTimestamp } from '../format';
+import { AssetDetail } from './AssetDetail';
 import { AssetCreationPanel } from './AssetCreationPanel';
 import { AssetInventoryControls } from './AssetInventoryControls';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetInventory';
@@ -20,6 +22,8 @@ export function AssetsPage({
   capabilities,
   onRefresh,
   isLoaded = true,
+  configuredLogic = [],
+  permissions = [],
 }: {
   assetTypes: AssetTypeResponse[];
   assets: AssetResponse[];
@@ -27,6 +31,8 @@ export function AssetsPage({
   capabilities: AssetCreationCapabilitiesResponse | null;
   onRefresh: () => Promise<void>;
   isLoaded?: boolean;
+  configuredLogic?: ConfiguredLogicResponse[];
+  permissions?: readonly string[];
 }) {
   const [selectedId, setSelectedId] = useHashDetail('assets');
   const selectedAuthorized = assets.find(asset => asset.id === selectedId);
@@ -106,15 +112,17 @@ export function AssetsPage({
             </tbody>
           </table>
         </div>
-        {selectedAuthorized && <div className="asset-selected" aria-live="polite">
-          <h3>{t('assets.selected')}</h3>
-          <strong>{selectedAuthorized.name}</strong>
-          <p>{t('assets.selectedType', { name:
-            typeNames.get(selectedAuthorized.assetTypeId) ?? selectedAuthorized.assetTypeId ?? t('assets.unknownType') })}</p>
-          <code>{selectedAuthorized.id}</code>
-          <button type="button" className="secondary-button"
-            onClick={() => setSelectedId(null)}>{t('assets.clearSelection')}</button>
-        </div>}
+        {selectedAuthorized && <AssetDetail
+          key={selectedAuthorized.id}
+          asset={selectedAuthorized}
+          assets={assets}
+          typeName={typeNames.get(selectedAuthorized.assetTypeId) ?? selectedAuthorized.assetTypeId ?? t('assets.unknownType')}
+          configuredLogic={configuredLogic}
+          canReadRuns={permissions.includes('executions.read')}
+          canReadRecommendations={permissions.includes('recommendations.read')}
+          onSelect={setSelectedId}
+          onClose={() => setSelectedId(null)}
+        />}
       </section>
 
       <section className="panel">
