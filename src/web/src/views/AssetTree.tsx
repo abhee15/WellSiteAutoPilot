@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { AssetResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { ancestorIds, buildAssetTree } from './assetTree';
-import type { AssetTreeNode } from './assetTree';
+import { ancestorIds, buildAssetTree } from './assetHierarchy';
+import type { AssetTreeNode } from './assetHierarchy';
 import './assetTree.css';
 
 export function AssetTree({

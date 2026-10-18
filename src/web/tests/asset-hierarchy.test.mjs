@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAssetTree, ancestorIds } from '../src/views/assetTree.ts';
+import { buildAssetTree, ancestorIds } from '../src/views/assetHierarchy.ts';
 
 const a = (id, name, parentAssetId) => ({ id, name, parentAssetId });
 const names = nodes => nodes.map(n => [n.asset.name, names(n.children)]);
