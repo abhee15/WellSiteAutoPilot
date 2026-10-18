@@ -98,6 +98,18 @@ and only waits for it. The repository's `NatsHost` is **not** used locally: it
 looks for a bundled `..\NATS\nats-server.exe` and the ProgramData store, which
 only exist in an installed layout.
 
+## Troubleshooting on a developer machine
+
+- **`Endpoint with name 'http' already exists` at startup.** Aspire 13 builds `http`/`https` endpoints
+  from a project's `Properties/launchSettings.json`. The AppHost pins its own ports, so every
+  `AddProject` passes `launchProfileName: null` to ignore launch profiles. Keep that when adding projects.
+- **The orchestrator (DCP) fails to start even though the AppHost builds.** Seen on one Windows dev
+  machine: the DCP binary in the 13.0.0 orchestrator package did not work, and a byte-identical
+  re-download did not help. The workaround that worked there was a local, uncommitted
+  `<PackageReference Include="Aspire.Hosting.Orchestration.win-x64" Version="13.5.1" />`. This mixes
+  versions and is not committed. If it turns out to be needed everywhere, upgrade the Aspire SDK and
+  hosting packages together instead. Check antivirus or endpoint protection before overriding.
+
 ## CI impact
 
 No existing job needs to change. Today every job runs `dotnet build

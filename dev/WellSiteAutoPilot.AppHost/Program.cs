@@ -94,17 +94,20 @@ IResourceBuilder<T> OnNats<T>(IResourceBuilder<T> resource) where T : IResourceW
 var migrator = builder.AddProject<Projects.WellSiteAutoPilot_DatabaseMigrator>("migrator")
     .WithEnvironment("WSA_DATABASE_CONNECTION_STRING", database.DatabaseConnectionString);
 
-var simulator = builder.AddProject<Projects.WellSiteAutoPilot_ProviderSimulator>("provider-simulator")
+// Ports and environment are pinned below, so no project's launchSettings.json profile is used.
+// Without launchProfileName: null, Aspire also creates http/https endpoints from that file and the
+// explicit "http" endpoints below collide with them.
+var simulator = builder.AddProject<Projects.WellSiteAutoPilot_ProviderSimulator>("provider-simulator", launchProfileName: null)
     .WithHttpEndpoint(port: 5091, targetPort: 5091, name: "http", isProxied: false)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
-var gateway = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_IntegrationGateway>("integration-gateway")
+var gateway = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_IntegrationGateway>("integration-gateway", launchProfileName: null)
     .WithHttpEndpoint(port: 5081, targetPort: 5081, name: "http", isProxied: false)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Messaging__Nats__Url", natsUrl))
     .WaitFor(simulator);
 
-var worker = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Worker_DotNet>("dotnet-worker")
+var worker = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Worker_DotNet>("dotnet-worker", launchProfileName: null)
     .WithHttpEndpoint(port: 5082, targetPort: 5082, name: "http", isProxied: false)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Messaging__Nats__Url", natsUrl))
@@ -119,7 +122,7 @@ if (!string.Equals(config["Python:Enabled"], "false", StringComparison.OrdinalIg
         .WithEnvironment("PYTHONPATH", pythonSource));
 }
 
-var server = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Server>("server")
+var server = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Server>("server", launchProfileName: null)
     .WithHttpEndpoint(port: 5080, targetPort: 5080, name: "http", isProxied: false)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Swagger__Enabled", "true")
