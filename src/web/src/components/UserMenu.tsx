@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { hasPermission } from '../security/sessionAccess';
 import type { CurrentUserResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
@@ -12,8 +13,31 @@ export function UserMenu({
   const displayName = user?.displayName?.trim() || user?.identityName ||
     (isLoading ? t('session.loading') : t('session.unavailable'));
 
+  const menu = useRef<HTMLDetailsElement>(null);
+  // Standard disclosure behaviour: Escape closes and returns focus to the button, and so does
+  // clicking anywhere outside the menu.
+  useEffect(() => {
+    const close = (event: Event) => {
+      const element = menu.current;
+      if (!element?.open) return;
+      if (event instanceof KeyboardEvent) {
+        if (event.key !== 'Escape') return;
+        element.open = false;
+        element.querySelector('summary')?.focus();
+      } else if (!element.contains(event.target as Node)) {
+        element.open = false;
+      }
+    };
+    document.addEventListener('keydown', close);
+    document.addEventListener('pointerdown', close);
+    return () => {
+      document.removeEventListener('keydown', close);
+      document.removeEventListener('pointerdown', close);
+    };
+  }, []);
+
   return (
-    <details className="user-menu">
+    <details className="user-menu" ref={menu}>
       <summary aria-label={t('session.label', { name: displayName })}>
         <span className="user-avatar" aria-hidden="true">
           {displayName.charAt(0).toUpperCase()}
