@@ -89,7 +89,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
                 percent.Items.Count != 0)
                 throw new InvalidOperationException("Audit action prefix treated LIKE wildcards as patterns.");
 
-            var first = all.Items.First();
+            var first = all.Items[0];
             if (first.DetailsJson != "{}" || first.ActorIdentity != "audit-test")
                 throw new InvalidOperationException("Audit event fields were not returned intact.");
 
