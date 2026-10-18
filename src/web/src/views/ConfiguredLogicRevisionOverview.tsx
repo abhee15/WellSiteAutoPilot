@@ -1,16 +1,23 @@
-import type { ConfiguredLogicResponse } from '../api/generated/v1/types.gen';
+import type { ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { orderedRevisions } from './configuredLogicViews';
+import { logicStatusSentence, recentRunsFor } from './logicSummary';
+import { formatTimestamp } from '../format';
+import { statusLabel } from '../words';
+import './logicSummary.css';
 
 type Props = {
   logic: ConfiguredLogicResponse;
   onClose: () => void;
+  /** Runs already loaded by the page; omitted when the person may not read runs. */
+  executions?: readonly ExecutionResponse[];
 };
 
 /** Display metadata only: never render module manifests, mapping JSON or credentials. */
-export function ConfiguredLogicRevisionOverview({ logic, onClose }: Props) {
+export function ConfiguredLogicRevisionOverview({ logic, onClose, executions }: Props) {
   const revisions = orderedRevisions(logic);
+  const runs = executions ? recentRunsFor(executions, logic.id) : [];
 
   return (
     <section id="configured-revisions" className="execution-detail"
@@ -27,6 +34,16 @@ export function ConfiguredLogicRevisionOverview({ logic, onClose }: Props) {
           </button>
         </div>
       </div>
+      <p className="logic-status-sentence">{logicStatusSentence(logic, runs[0])}</p>
+      {executions && <div className="logic-recent-runs">
+        <h4>{t('logicSummary.recentRuns')}</h4>
+        {runs.length === 0 ? <p>{t('logicSummary.noRuns')}</p> : <ul>
+          {runs.map(run => <li key={run.executionId}>
+            <a href={'#operations/' + run.executionId}>{formatTimestamp(run.requestedAtUtc)}</a>
+            {' · '}{statusLabel(run.status)}
+          </li>)}
+        </ul>}
+      </div>}
       <div className="configured-revisions-summary">
         <span>{t('configured.summaryCount', { count: revisions.length })}</span>
         <span>{t('configured.summaryActive', {

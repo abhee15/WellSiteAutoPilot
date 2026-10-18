@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
+import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse, ExecutionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { ConfiguredShadowPanel } from './ConfiguredShadowPanel';
@@ -10,13 +10,13 @@ import type { VerifiedConfiguration } from './configuredLogicSetup';
 
 type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
-  assets: AssetResponse[]; assetTypes: AssetTypeResponse[];
+  assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; executions?: readonly ExecutionResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
 };
 /** A fresh authorized detail is the mutation boundary. Polling list metadata
  * cannot silently replace the revision a user is reviewing. */
 export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
-  assets, assetTypes, onClose, onChanged }: Props) {
+  assets, assetTypes, executions, onClose, onChanged }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
   const [source, setSource] = useState<ConfiguredLogicRevisionResponse | undefined>();
@@ -97,7 +97,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     {error && <p role="alert">{error}</p>}
     {!detail && selectedId && !error && <p role="status">{t('setup.loading')}</p>}
     {detail && <>
-      <ConfiguredLogicRevisionOverview logic={detail} onClose={onClose} />
+      <ConfiguredLogicRevisionOverview logic={detail} onClose={onClose} executions={executions} />
       <p>{t('setup.immutable')}</p>
       <ul className="setup-revisions">{[...detail.revisions].sort((a,b) =>
         (b.revisionNumber ?? 0) - (a.revisionNumber ?? 0)).map(r => <li key={r.id}>
