@@ -1,0 +1,36 @@
+.module-approval {
+  display: grid;
+  gap: var(--space-8);
+  margin-block: var(--space-12);
+  padding-block-start: var(--space-12);
+  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+.module-approval p {
+  margin: 0;
+}
+
+.module-approval-review {
+  display: grid;
+  gap: var(--space-8);
+  max-width: 44rem;
+}
+
+.module-approval-review h4 {
+  margin: 0;
+}
+
+.module-approval-review textarea {
+  width: 100%;
+  font: inherit;
+}
+
+.module-approval-hint {
+  min-height: 1.25em;
+}
+
+.module-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}

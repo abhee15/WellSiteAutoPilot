@@ -1,12 +1,15 @@
 import type { ConfiguredLogicResponse, LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { describeModule } from './moduleSummary';
+import { ModuleApprovalControls } from './ModuleApprovalControls';
 import './logicSummary.css';
 
-export function ModulePanel({ module, configurations, onClose }: {
+export function ModulePanel({ module, configurations, onClose, canManage = false, onChanged = async () => {} }: {
   module: LogicModuleResponse;
   configurations: readonly ConfiguredLogicResponse[];
   onClose: () => void;
+  canManage?: boolean;
+  onChanged?: () => Promise<void>;
 }) {
   const summary = describeModule(module, configurations);
   return (
@@ -19,6 +22,7 @@ export function ModulePanel({ module, configurations, onClose }: {
         <button type="button" onClick={onClose}>{t('configured.close')}</button>
       </div>
       <p className="logic-status-sentence">{summary.sentence}</p>
+      <ModuleApprovalControls key={module.id} module={module} canManage={canManage} onChanged={onChanged} />
       {summary.needs.length > 0 && <>
         <h4>{t('modulePanel.needs')}</h4>
         <ul>{summary.needs.map(line => <li key={line}>{line}</li>)}</ul>

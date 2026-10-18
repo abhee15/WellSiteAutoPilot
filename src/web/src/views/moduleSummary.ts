@@ -1,5 +1,6 @@
 import type { ConfiguredLogicResponse, LogicModuleResponse } from '../api/generated/v1/types.gen';
-import { profileLabel, trustLabel } from '../words';
+import { profileLabel } from '../words';
+import { moduleStateLabel } from './moduleApproval';
 
 type Manifest = {
   assetRequirements?: { role?: string; minimumCount?: number; maximumCount?: number; requiredAssetTypeKey?: string | null }[];
@@ -38,7 +39,7 @@ export function describeModule(
   try { manifest = JSON.parse(module.manifestJson ?? '') as Manifest; } catch { manifest = null; }
   const assets = Array.isArray(manifest?.assetRequirements) ? manifest.assetRequirements : [];
   const data = Array.isArray(manifest?.dataRequirements) ? manifest.dataRequirements : [];
-  const provenance = [module.publisher, profileLabel(module.executionProfile), trustLabel(module.trustStatus)]
+  const provenance = [module.publisher, profileLabel(module.executionProfile), moduleStateLabel(module)]
     .filter(Boolean).join(' · ');
   const usedBy = configurations
     .filter(item => (item.revisions ?? []).some(revision => revision.moduleId === module.moduleId))
