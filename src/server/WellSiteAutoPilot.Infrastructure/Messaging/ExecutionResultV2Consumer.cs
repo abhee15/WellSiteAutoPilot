@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
+using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Messaging.Contracts;
@@ -18,6 +19,7 @@ public sealed partial class ExecutionResultV2Consumer(
     IServiceScopeFactory scopeFactory,
     INatsConnection connection,
     JetStreamConsumerSettings consumerSettings,
+    IChangeNotifier changes,
     ILogger<ExecutionResultV2Consumer> logger) : BackgroundService
 {
     public const string ConsumerName = "wsa-server-execution-results-v2";
@@ -88,6 +90,7 @@ public sealed partial class ExecutionResultV2Consumer(
                 activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
                 await repository.ApplyStartedAsync(envelope.MessageId, ConsumerName,
                     envelope.Payload.ExecutionId, envelope.Payload.StartedAtUtc, cancellationToken);
+                changes.Notify(ChangeArea.Executions);
             }
             else if (string.Equals(
                     message.Subject,
@@ -135,10 +138,11 @@ public sealed partial class ExecutionResultV2Consumer(
                 {
                     var materializer = scope.ServiceProvider
                         .GetRequiredService<RecommendationMaterializer>();
-                    await materializer.MaterializeAsync(
+                    var created = await materializer.MaterializeAsync(
                         envelope.Payload.ExecutionId,
                         envelope.Payload.OutputJson,
                         cancellationToken);
+                    if (created > 0) changes.Notify(ChangeArea.Recommendations);
                 }
             }
             else if (string.Equals(
@@ -179,6 +183,8 @@ public sealed partial class ExecutionResultV2Consumer(
         Guid executionId, Guid messageId, string incomingStatus)
     {
         ExecutionResultDiagnostics.Record(disposition, "v2", incomingStatus);
+        // The repository call that produced this disposition has already committed.
+        if (disposition == ExecutionResultDisposition.Applied) changes.Notify(ChangeArea.Executions);
         if (disposition == ExecutionResultDisposition.ConflictingTerminalResult)
         {
             LogTerminalConflict(logger, executionId, messageId, incomingStatus);

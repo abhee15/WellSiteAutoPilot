@@ -11,6 +11,7 @@ using WellSiteAutoPilot.Api.Contracts.Recommendations;
 using WellSiteAutoPilot.Api.Contracts.System;
 using WellSiteAutoPilot.Api.Contracts.Security;
 using WellSiteAutoPilot.Application.Assets;
+using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
@@ -29,6 +30,7 @@ using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Server;
+using WellSiteAutoPilot.Server.Changes;
 using WellSiteAutoPilot.Server.Scheduling;
 using WellSiteAutoPilot.Server.Security;
 using WellSiteAutoPilot.Server.Contracts;
@@ -181,6 +183,7 @@ builder.Services.AddWellSitePersistence(
     "Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa");
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
+builder.Services.AddChangeSignal(builder.Configuration);
 
 var app = builder.Build();
 
@@ -416,6 +419,7 @@ v1.MapPost(
         return Results.Created($"/api/v1/asset-types/{item.Id}", ToAssetTypeResponse(item));
     })
     .WithName("CreateAssetType")
+    .NotifiesChange(ChangeArea.Assets)
     .RequireAuthorization(WellSitePolicies.AssetsManage)
     .Produces<AssetTypeResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -463,6 +467,7 @@ v1.MapPost(
         return Results.Created($"/api/v1/assets/{item.Id}", ToAssetResponse(item));
     })
     .WithName("CreateAsset")
+    .NotifiesChange(ChangeArea.Assets)
     .RequireAuthorization(WellSitePolicies.AssetsManage)
     .Produces<AssetResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -546,6 +551,7 @@ v1.MapPost(
             ToConfiguredLogicResponse(created));
     })
     .WithName("CreateConfiguredLogic")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -628,6 +634,7 @@ v1.MapPost(
             ToConfiguredLogicRevisionResponse(revision));
     })
     .WithName("CreateConfiguredLogicRevision")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status201Created)
@@ -641,6 +648,7 @@ v1.MapPost(
         ToConfiguredLogicRevisionResponse(await service.ValidateRevisionAuthorizedAsync(configuredLogicId, revisionId,
             access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("ValidateConfiguredLogicRevision")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -655,6 +663,7 @@ v1.MapPost(
         ToConfiguredLogicRevisionResponse(await service.ActivateRevisionAuthorizedAsync(configuredLogicId, revisionId,
             ifMatch?.Trim('"') ?? "", access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("ActivateConfiguredLogicRevision")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
@@ -672,6 +681,7 @@ v1.MapPost(
             receipt.ConfigurationRevisionId, receipt.ContractVersion, receipt.Mode.ToContract(), receipt.Trigger.ToContract()));
     })
     .WithName("RequestConfiguredShadowExecution")
+    .NotifiesChange(ChangeArea.Executions)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ExecutionsRequest)
     .Produces<ConfiguredShadowReceiptResponse>(StatusCodes.Status200OK)
@@ -727,6 +737,7 @@ v1.MapPost(
             ToLogicModuleResponse(module));
     })
     .WithName("RegisterLogicModule")
+    .NotifiesChange(ChangeArea.Modules)
     .RequireAuthorization(WellSitePolicies.LogicManage)
     .Produces<LogicModuleResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -772,6 +783,7 @@ v1.MapPost(
         ToLogicModuleResponse(await approvals.ApproveAsync(
             moduleId, moduleVersion, request.Reason, access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("ApproveLogicModule")
+    .NotifiesChange(ChangeArea.Modules)
     .RequireAuthorization(WellSitePolicies.LogicManage)
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -790,6 +802,7 @@ v1.MapPost(
         ToLogicModuleResponse(await approvals.RetireAsync(
             moduleId, moduleVersion, request.Reason, access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("RetireLogicModule")
+    .NotifiesChange(ChangeArea.Modules)
     .RequireAuthorization(WellSitePolicies.LogicManage)
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -839,6 +852,7 @@ v1.MapPost(
         return new RecommendationDecisionResponse(item.Id, item.Status.ToContract(), item.DecisionBy, item.DecisionAtUtc, item.DecisionReason);
     })
     .WithName("DecideRecommendation")
+    .NotifiesChange(ChangeArea.Recommendations)
     .RequireAuthorization(WellSitePolicies.RecommendationsDecide)
     .Produces<RecommendationDecisionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -852,6 +866,10 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 }).AllowAnonymous();
 
 app.MapHealthChecks("/health/ready").AllowAnonymous();
+
+// Live-update signal (ADR-008): area names only, never data. Deliberately not part of the
+// reviewed v1 API group; the hub authenticates with the same scheme as the REST API.
+app.MapChangeSignal();
 
 app.Run();
 
