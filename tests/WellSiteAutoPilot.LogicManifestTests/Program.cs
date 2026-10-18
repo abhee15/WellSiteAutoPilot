@@ -88,6 +88,18 @@ await LogicModuleManifestValidator.ValidateParameterSchemaAsync(validManifest wi
 await AssertSchemaFailure(validManifest with { ParameterSchema = Schema("[]") });
 await AssertSchemaFailure(validManifest with { ParameterSchema = Schema("""{"type":"object","$ref":"http://example.invalid/x"}""") });
 
+// Saved settings are checked against the schema; modules without one accept any object.
+var withSchema = validManifest with
+{
+    ParameterSchema = Schema("""{"type":"object","properties":{"targetFillage":{"type":"number","minimum":0,"maximum":100}},"required":["targetFillage"],"additionalProperties":false}""")
+};
+await LogicModuleManifestValidator.ValidateParametersAsync(validManifest, """{"anything":true}""");
+await LogicModuleManifestValidator.ValidateParametersAsync(withSchema, """{"targetFillage":75}""");
+await AssertParametersFailure(withSchema, "{}");
+await AssertParametersFailure(withSchema, """{"targetFillage":150}""");
+await AssertParametersFailure(withSchema, """{"targetFillage":"high"}""");
+await AssertParametersFailure(withSchema, """{"targetFillage":75,"extra":1}""");
+
 Console.WriteLine("Logic Module manifest validation checks passed.");
 return 0;
 
@@ -126,4 +138,18 @@ static async Task AssertSchemaFailure(LogicModuleManifest manifest)
     }
 
     throw new InvalidOperationException("Expected MODULE_PARAMETER_SCHEMA_INVALID.");
+}
+
+static async Task AssertParametersFailure(LogicModuleManifest manifest, string parametersJson)
+{
+    try
+    {
+        await LogicModuleManifestValidator.ValidateParametersAsync(manifest, parametersJson);
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Code == "CONFIGURED_LOGIC_PARAMETERS_INVALID")
+    {
+        return;
+    }
+
+    throw new InvalidOperationException($"Expected CONFIGURED_LOGIC_PARAMETERS_INVALID for {parametersJson}.");
 }

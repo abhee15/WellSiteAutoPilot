@@ -86,6 +86,45 @@ public static partial class LogicModuleManifestValidator
         }
     }
 
+    /// <summary>
+    /// Checks saved settings against the module's schema. A module without a schema accepts any
+    /// JSON object, so modules installed before schemas existed behave exactly as before.
+    /// </summary>
+    public static async Task ValidateParametersAsync(
+        LogicModuleManifest manifest, string parametersJson, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        if (manifest.ParameterSchema is not { } schema ||
+            schema.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        try
+        {
+            await WellSiteAutoPilot.Application.Assets.AssetAttributeSchemaValidator.ValidateValuesAsync(
+                schema.GetRawText(), parametersJson, cancellationToken);
+        }
+        catch (WellSiteAutoPilotException exception) when (
+            exception.Code == "ASSET_ATTRIBUTE_VALUES_INVALID")
+        {
+            throw new WellSiteAutoPilotException(
+                "CONFIGURED_LOGIC_PARAMETERS_INVALID",
+                FailureKind.Validation,
+                "The settings do not match what this module accepts.",
+                innerException: exception);
+        }
+        catch (WellSiteAutoPilotException exception) when (
+            exception.Code == "ASSET_ATTRIBUTE_SCHEMA_INVALID")
+        {
+            throw new WellSiteAutoPilotException(
+                "MODULE_PARAMETER_SCHEMA_INVALID",
+                FailureKind.Validation,
+                "The module settings schema is malformed or uses unsupported features.",
+                innerException: exception);
+        }
+    }
+
     private static void ValidateDescription(string? description)
     {
         if (description is null)
