@@ -23,7 +23,7 @@ it('the asset page explains where the asset sits, what runs on it and what it ha
       { id: assetId, assetTypeId: typeId, parentAssetId: parentId, name: 'North Well', isActive: true },
     ]);
     if (url.includes('/configured-logic')) return response([{ id: 'c1', name: 'Pressure watch', moduleId: 'sample.module', revisions: [{ id: 'r1', revisionNumber: 1, assetBindings: [{ assetId }], dataBindings: [] }] }]);
-    if (url.startsWith('/api/v1/executions?assetId=')) return response([{ id: runId, status: 'Succeeded', requestedAtUtc: '2026-10-01T00:00:00Z' }]);
+    if (url.startsWith('/api/v1/executions?assetId=')) return response([{ executionId: runId, status: 'Succeeded', requestedAtUtc: '2026-10-01T00:00:00Z' }]);
     if (url.startsWith('/api/v1/recommendations?assetId=')) return response([]);
     return response([]);
   }));

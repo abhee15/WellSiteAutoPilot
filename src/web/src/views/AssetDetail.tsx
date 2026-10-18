@@ -95,7 +95,6 @@ export function AssetDetail({
             {logic.map(item => (
               <li key={item.id}>
                 <a href={hashFor('logic', item.id)}>{item.name}</a>
-                <small>{item.moduleId}</small>
               </li>
             ))}
           </ul>
@@ -110,8 +109,8 @@ export function AssetDetail({
           ? <p className="asset-page-empty">{t('assetPage.noRuns')}</p>
           : <ul className="asset-page-list">
             {activity.runs.map(run => (
-              <li key={run.id}>
-                <a href={hashFor('operations', run.id)}>{formatTimestamp(run.requestedAtUtc)}</a>
+              <li key={run.executionId}>
+                <a href={hashFor('operations', run.executionId)}>{formatTimestamp(run.requestedAtUtc)}</a>
                 <small>{statusLabel(run.status)}</small>
               </li>
             ))}
