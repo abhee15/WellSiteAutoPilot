@@ -16,7 +16,7 @@ it('custom-role sessions request and show only permitted work areas', async () =
     ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false } : []));
   vi.stubGlobal('fetch', http); render(<App />);
   await screen.findByRole('link', { name: 'Assets' });
-  expect(screen.queryByRole('link', { name: 'Operations' })).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Runs' })).toBeNull();
   expect(screen.queryByRole('link', { name: 'Logic' })).toBeNull();
   expect(http.mock.calls.some(([url]) => /executions|logic-modules|configured-logic/.test(url))).toBe(false);
 });
@@ -32,7 +32,7 @@ it('an unrelated 403 clears that feature while preserving allowed work and the s
   }));
   render(<App />);
   await screen.findByText(/Access changed during refresh/);
-  expect(screen.getByRole('link', { name: 'Operations' })).not.toBeNull();
+  expect(screen.getByRole('link', { name: 'Runs' })).not.toBeNull();
   expect(screen.queryByRole('link', { name: 'Assets' })).toBeNull();
   expect(screen.getAllByText('FIELD\\custom').length).toBeGreaterThan(0);
 });

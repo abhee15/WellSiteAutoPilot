@@ -59,7 +59,7 @@ test('responsive links retain accessible full labels and active-page semantics',
     createElement(components.NavigationLink, {
       section: 'operations',
       current: 'operations',
-      children: 'Operations',
+      children: 'Runs',
     }),
   );
   const other = renderToStaticMarkup(
@@ -71,7 +71,7 @@ test('responsive links retain accessible full labels and active-page semantics',
   );
 
   assert.match(current, /aria-current="page"/);
-  assert.match(current, /aria-label="Operations"/);
+  assert.match(current, /aria-label="Runs"/);
   assert.match(current, /aria-hidden="true">OP</);
   assert.match(other, /aria-label="Assets"/);
   assert.match(other, /aria-hidden="true">AS</);

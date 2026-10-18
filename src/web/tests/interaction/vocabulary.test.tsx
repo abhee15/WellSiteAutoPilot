@@ -23,7 +23,7 @@ it('operations show plain wording, a fallback asset name and keep the raw code a
   const outcome = within(row).getByText('An input was too old');
   expect(outcome.getAttribute('title')).toBe('EXECUTION_INPUT_STALE');
   expect(within(row).getByText(assetId.slice(0, 8) + '…')).not.toBeNull();
-  expect(document.title).toBe('Operations · WellSite AutoPilot');
+  expect(document.title).toBe('Runs · WellSite AutoPilot');
 });
 
 it('offers a skip link that moves focus to the main content without changing the address', async () => {
