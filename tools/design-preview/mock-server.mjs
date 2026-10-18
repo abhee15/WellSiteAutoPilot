@@ -121,6 +121,30 @@ http.createServer(async (req, res) => {
     else module.isEnabled = false;
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(module)); return;
   }
+  if (url.pathname === '/api/v1/security/audit-events') {
+    // 120 recent events, newest first; the cursor is just the next offset.
+    const kinds = [
+      ['logic-module.approved', 'LogicModule', { reason: 'Reviewed against the vendor release notes.' }],
+      ['security.grant.created', 'AccessGrant', { scopeKind: 'ExactAssets', assetCount: 3 }],
+      ['asset.created', 'Asset', {}],
+      ['recommendation.approved', 'Recommendation', { note: 'Within operating limits.' }],
+      ['security.role.updated', 'Role', { revision: 4 }],
+      ['future.unlabelled-action', 'Unknown', { nested: { ignored: true } }]];
+    const all = Array.from({ length: 120 }, (_, index) => {
+      const [action, targetType, details] = kinds[index % kinds.length];
+      return { id: id(7000 + index), occurredAtUtc: iso(index * 7 + 1), actorUserId: id(900),
+        actorIdentity: index % 4 === 3 ? 'FIELD\\10337741' : 'FIELD\\10482267', action, targetType,
+        targetId: targetType + '-' + (120 - index), assetId: null, correlationId: null, detailsJson: JSON.stringify(details) };
+    });
+    const prefix = url.searchParams.get('actionPrefix') ?? '';
+    const type = url.searchParams.get('targetType') ?? '';
+    const limit = Math.min(Number(url.searchParams.get('limit') ?? 50), 50);
+    const offset = url.searchParams.get('cursor') ? Number(Buffer.from(url.searchParams.get('cursor'), 'base64url').toString()) : 0;
+    const matches = all.filter(item => item.action.startsWith(prefix) && (!type || item.targetType === type));
+    const items = matches.slice(offset, offset + limit);
+    const next = offset + limit < matches.length ? Buffer.from(String(offset + limit)).toString('base64url') : null;
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ items, nextCursor: next })); return;
+  }
   if (url.pathname.startsWith('/api/')) {
     const body = responses[url.pathname] ?? [];
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); return;

@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using WellSiteAutoPilot.Application.Audit;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Persistence;
@@ -113,6 +114,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
         await setup.SaveChangesAsync();
         await CheckAssetDirectoryAsync(options, direct, groupAdministrator, administratorGrant);
         await CheckAwaitingAccessAsync(options, direct);
+        await CheckAuditEventsAsync(options, direct);
         await setup.UserRoles.Where(item => item.UserId == groupAdministrator.UserId).ExecuteDeleteAsync();
         Console.WriteLine("Protected user/role/grant directory supports direct/group administrators, bypasses legacy role parsing, preserves a hydration snapshot and denies fresh reads after revocation.");
 
@@ -126,6 +128,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
             await ExpectAsync(() => directory.GetRoleAuthorizedAsync(actor, protectedRole), FailureKind.Authorization);
             await ExpectAsync(() => directory.ListGrantsAuthorizedAsync(actor, target), FailureKind.Authorization);
             await ExpectAsync(() => directory.ListGrantsAuthorizedAsync(actor, groupTarget), FailureKind.Authorization);
+            await ExpectAsync(() => directory.ListAuditEventsAuthorizedAsync(actor, new AuditEventQuery()), FailureKind.Authorization);
         }
     }
 
