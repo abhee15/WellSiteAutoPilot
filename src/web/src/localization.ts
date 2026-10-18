@@ -556,6 +556,8 @@ export const englishMessages = {
   'nav.groupOperate': 'Operate',
   'nav.groupUnderstand': 'Understand',
   'nav.groupAdminister': 'Administer',
+  'nav.collapse': 'Collapse side panel',
+  'nav.expand': 'Expand side panel',
   'nav.access': 'Access',
   'nav.assets': 'Assets',
   'nav.logic': 'Logic',

@@ -1,3 +1,5 @@
+import { NavIcon } from './NavIcon';
+
 export type Section = 'overview' | 'operations' | 'recommendations' | 'assets' | 'logic' | 'access';
 
 export function NavigationLink({
@@ -9,17 +11,16 @@ export function NavigationLink({
   current: Section;
   children: string;
 }) {
-  const shortLabel = { overview: 'OV', operations: 'OP', recommendations: 'RC', assets: 'AS', logic: 'LG', access: 'AC' }[section];
-
   return (
     <a
       aria-current={current === section ? 'page' : undefined}
       aria-label={children}
       className={section === current ? 'active' : undefined}
       href={'#' + section}
+      title={children}
     >
+      <NavIcon section={section} />
       <span className="nav-label">{children}</span>
-      <span className="nav-short" aria-hidden="true">{shortLabel}</span>
     </a>
   );
 }

@@ -58,3 +58,21 @@ it('only offers the Access section when nothing else is readable', async () => {
   await waitFor(() => expect(window.location.hash).toBe('#access'));
   expect(screen.queryByRole('link', { name: 'Overview' })).toBeNull();
 });
+
+it('collapses the side panel to an icon rail, remembers it, and keeps every link named', async () => {
+  const actor = (await import('@testing-library/user-event')).default.setup();
+  window.location.hash = '#assets';
+  signIn(['assets.read']);
+  const first = render(<App />);
+  const toggle = await screen.findByRole('button', { name: 'Collapse side panel' });
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(document.querySelector('.app-shell')?.classList.contains('nav-collapsed')).toBe(false);
+  await actor.click(toggle);
+  const expand = screen.getByRole('button', { name: 'Expand side panel' });
+  expect(expand.getAttribute('aria-expanded')).toBe('false');
+  expect(document.querySelector('.app-shell')?.classList.contains('nav-collapsed')).toBe(true);
+  expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Assets' }).getAttribute('title')).toBe('Assets');
+  first.unmount();
+  render(<App />);
+  expect(await screen.findByRole('button', { name: 'Expand side panel' })).not.toBeNull();
+});

@@ -16,6 +16,7 @@ import type {
 import { t } from './localization';
 import { UserMenu } from './components/UserMenu';
 import { NavigationLink } from './components/NavigationLink';
+import { useNavCollapsed } from './components/useNavCollapsed';
 import type { Section } from './components/NavigationLink';
 import { PageHeader } from './components/PageHeader';
 import { NavigationGroup } from './components/NavigationGroup';
@@ -38,6 +39,7 @@ export function App() {
   const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
+  const nav = useNavCollapsed();
   const activeRefresh = useRef<AbortController | null>(null);
   const accessKey = useRef<string | null>(null);
   // A 401 means the browser sent no Windows credentials; polling would only repeat prompts.
@@ -138,7 +140,7 @@ export function App() {
   }, [refresh]);
 
   return (
-    <div className="app-shell">
+    <div className={nav.collapsed ? 'app-shell nav-collapsed' : 'app-shell'}>
       <a className="skip-link" href="#main-content" onClick={event => {
         // The address is the app's router, so move focus instead of changing it.
         event.preventDefault();
@@ -146,10 +148,23 @@ export function App() {
       }}>{t('page.skipToContent')}</a>
       <aside className="navigation">
         <div className="product-mark">
-          <span className="product-kicker">Weatherford</span>
-          <strong>WellSite AutoPilot</strong>
+          <div className="product-name">
+            <span className="product-kicker">Weatherford</span>
+            <strong>WellSite AutoPilot</strong>
+          </div>
+          {!nav.narrow && (
+            <button type="button" className="nav-toggle" aria-expanded={!nav.collapsed} aria-controls="primary-nav"
+              aria-label={t(nav.collapsed ? 'nav.expand' : 'nav.collapse')} title={t(nav.collapsed ? 'nav.expand' : 'nav.collapse')}
+              onClick={nav.toggle}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                <path d="M4 5h16v14H4zM9 5v14" />
+                <path d={nav.collapsed ? 'M13 9l3 3-3 3' : 'M16 9l-3 3 3 3'} />
+              </svg>
+            </button>
+          )}
         </div>
-        <nav aria-label="Primary">
+        <nav aria-label="Primary" id="primary-nav">
           <NavigationGroup id="nav-group-operate" label={t('nav.groupOperate')}>
             {[canOpenSection(currentUser, 'overview') && <NavigationLink key="overview" section="overview" current={section}>{t('nav.overview')}</NavigationLink>,
               canOpenSection(currentUser, 'operations') && <NavigationLink key="operations" section="operations" current={section}>{t('nav.operations')}</NavigationLink>,
