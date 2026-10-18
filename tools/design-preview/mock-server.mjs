@@ -69,9 +69,51 @@ const responses = {
   ['/api/v1/configured-logic/' + id(500)]: configuredDetail,
   '/api/v1/recommendations': [],
 };
+// Optional live-update hub (MOCK_HUB=1): just enough of SignalR's long-polling transport for the
+// browser client to connect. Without it /hubs/changes is a 404 and the page falls back to polling,
+// which is also worth previewing. POST /__mock/change?area=assets pushes a change signal.
+const hubEnabled = process.env.MOCK_HUB === '1';
+const RS = '\u001e';
+const hubConnections = new Map();
+const hubSend = (connection, text) => {
+  if (connection.waiting) { const waiting = connection.waiting; connection.waiting = null; waiting.writeHead(200); waiting.end(text); }
+  else connection.queue.push(text);
+};
+function handleHub(req, res, url) {
+  const send = (status, body, type = 'application/json') => { res.writeHead(status, { 'content-type': type }); res.end(body); };
+  if (url.pathname === '/hubs/changes/negotiate' && req.method === 'POST') {
+    const token = 'mock-' + Math.random().toString(36).slice(2);
+    hubConnections.set(token, { queue: [], waiting: null, started: false });
+    send(200, JSON.stringify({ negotiateVersion: 1, connectionId: token + '-id', connectionToken: token,
+      availableTransports: [{ transport: 'LongPolling', transferFormats: ['Text', 'Binary'] }] }));
+    return;
+  }
+  const connection = hubConnections.get(url.searchParams.get('id') ?? '');
+  if (url.pathname !== '/hubs/changes' || !connection) { send(404, '{}'); return; }
+  if (req.method === 'GET') {
+    if (!connection.started) { connection.started = true; res.writeHead(200); res.end(); return; }
+    if (connection.queue.length) { res.writeHead(200); res.end(connection.queue.splice(0).join('')); return; }
+    connection.waiting = res; setTimeout(() => { if (connection.waiting === res) { connection.waiting = null; res.writeHead(200); res.end(); } }, 30_000);
+    return;
+  }
+  if (req.method === 'DELETE') { hubConnections.delete(url.searchParams.get('id')); send(202, ''); return; }
+  let body = ''; req.on('data', chunk => { body += chunk; });
+  req.on('end', () => {
+    if (body.includes('"protocol"')) hubSend(connection, '{}' + RS);
+    send(200, '');
+  });
+}
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (hubEnabled && url.pathname === '/__mock/change' && req.method === 'POST') {
+    const area = url.searchParams.get('area') ?? 'assets';
+    for (const connection of hubConnections.values()) {
+      hubSend(connection, JSON.stringify({ type: 1, target: 'changed', arguments: [area] }) + RS);
+    }
+    res.writeHead(204); res.end(); return;
+  }
+  if (hubEnabled && url.pathname.startsWith('/hubs/changes')) { handleHub(req, res, url); return; }
   const change = url.pathname.match(/^\/api\/v1\/logic-modules\/[^/]+\/([^/]+)\/(approve|retire)$/);
   if (change && req.method === 'POST') {
     const module = responses['/api/v1/logic-modules'].find(item => item.version === decodeURIComponent(change[1]));

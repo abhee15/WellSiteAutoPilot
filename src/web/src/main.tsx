@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { LiveUpdatesProvider } from './live/LiveUpdates';
 import '@fontsource/roboto/latin-400.css';
 import '@fontsource/roboto/latin-500.css';
 import '@fontsource/roboto/latin-700.css';
@@ -15,6 +16,8 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <LiveUpdatesProvider>
+      <App />
+    </LiveUpdatesProvider>
   </StrictMode>
 );

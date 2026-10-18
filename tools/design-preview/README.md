@@ -15,3 +15,10 @@ python3 ../../tools/design-preview/capture.py /tmp/wsa-after http://127.0.0.1:51
 `/opt/pw-browsers/chromium`). Edit the mock data in `mock-server.mjs` when a view needs more
 states (empty, failed, long lists). Compare against the prototype under `acl/src` described in
 `docs/development/design-tokens.md`.
+
+## Live updates
+
+By default the mock has no `/hubs/changes`, so the page shows the polling fallback ("Checking every 10 s").
+Start it with `MOCK_HUB=1` to serve a minimal long-polling SignalR hub; `POST /__mock/change?area=assets`
+then pushes a change signal and the page shows "Live updates on". Real WebSocket and Windows Negotiate
+behaviour are not simulated.
