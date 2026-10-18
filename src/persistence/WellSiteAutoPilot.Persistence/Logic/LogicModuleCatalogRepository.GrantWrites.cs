@@ -18,11 +18,7 @@ public sealed partial class LogicModuleCatalogRepository
         ArgumentNullException.ThrowIfNull(logicModule);
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(actor);
-        if (actor.UserId != subject.UserId || subject.UserId == Guid.Empty || string.IsNullOrWhiteSpace(actor.IdentityName) ||
-            actor.IdentityName.Length > 256 || actor.IdentityName.Any(char.IsControl) ||
-            (actor.CorrelationId is { } correlation && (string.IsNullOrWhiteSpace(correlation) || correlation.Length > 128 || correlation.Any(char.IsControl))))
-            throw new WellSiteAutoPilotException("SECURITY_REQUEST_SUBJECT_INVALID", FailureKind.Authorization,
-                "A bound authenticated actor is required.");
+        RequireBoundActor(subject, actor);
         if (logicModule.Id == Guid.Empty || !Enum.IsDefined(logicModule.TrustStatus) ||
             logicModule.IsEnabled != (logicModule.TrustStatus is LogicModuleTrustStatus.TrustedPublisher or LogicModuleTrustStatus.CustomerApproved))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,

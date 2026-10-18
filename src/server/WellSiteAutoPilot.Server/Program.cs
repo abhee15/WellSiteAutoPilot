@@ -152,6 +152,7 @@ builder.Services.AddScoped<AssetService>();
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<ManualShadowRequestService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
+builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
@@ -756,6 +757,42 @@ v1.MapGet(
     .RequireAuthorization(WellSitePolicies.LogicRead)
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/logic-modules/{moduleId}/{moduleVersion}/approve",
+    async (
+        string moduleId,
+        string moduleVersion,
+        ChangeLogicModuleApprovalRequest request,
+        LogicModuleApprovalService approvals,
+        RequestAccessContext access, HttpContext context,
+        CancellationToken cancellationToken) =>
+        ToLogicModuleResponse(await approvals.ApproveAsync(
+            moduleId, moduleVersion, request.Reason, access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("ApproveLogicModule")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/logic-modules/{moduleId}/{moduleVersion}/retire",
+    async (
+        string moduleId,
+        string moduleVersion,
+        ChangeLogicModuleApprovalRequest request,
+        LogicModuleApprovalService approvals,
+        RequestAccessContext access, HttpContext context,
+        CancellationToken cancellationToken) =>
+        ToLogicModuleResponse(await approvals.RetireAsync(
+            moduleId, moduleVersion, request.Reason, access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("RetireLogicModule")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
 v1.MapGet(
     "/recommendations",

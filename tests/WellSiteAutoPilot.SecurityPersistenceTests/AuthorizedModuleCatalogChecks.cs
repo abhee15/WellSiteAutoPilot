@@ -114,10 +114,62 @@ internal static class AuthorizedModuleCatalogChecks
         if (await setup.LogicModules.CountAsync(item => item.ModuleId == moduleId) != 2 ||
             await setup.AuditEvents.CountAsync(item => item.TargetId == first.Id.ToString() || item.TargetId == secondModule.Id.ToString()) != 2)
             throw new InvalidOperationException("Catalog idempotency/conflict handling duplicated module/audit state.");
+        // Approval: a registered-but-untrusted version can be approved once,
+        // retired once, and never approved again; every change is audited with
+        // its reason, repeats change nothing, and it needs deployment authority.
+        await setup.AccessGrants.Where(item => item.Id == globalGrant)
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsActive, true));
+        json["version"] = "1.0.2";
+        var untrusted = await RegisterAsync(command with
+        {
+            ManifestJson = json.ToJsonString(), TrustStatus = LogicModuleTrustStatus.Untrusted
+        });
+        if (untrusted.IsEnabled || untrusted.TrustStatus != LogicModuleTrustStatus.Untrusted)
+            throw new InvalidOperationException("An untrusted module was registered as usable.");
+        await ExpectAsync(() => ChangeAsync(untrusted.Version, LogicModuleApprovalAction.Approve, " "), FailureKind.Validation);
+        await ExpectAsync(() => ChangeAsync("9.9.9", LogicModuleApprovalAction.Approve, "Reviewed"), FailureKind.NotFound);
+        await setup.RolePermissions.Where(item => item.RoleId == roleId && item.Permission == WellSitePermissions.LogicManage).ExecuteDeleteAsync();
+        await ExpectAsync(() => ChangeAsync(untrusted.Version, LogicModuleApprovalAction.Approve, "Reviewed"), FailureKind.Authorization);
+        setup.ChangeTracker.Clear();
+        setup.RolePermissions.Add(new RolePermissionEntity { RoleId = roleId, Permission = WellSitePermissions.LogicManage });
+        await setup.SaveChangesAsync();
+        var approved = await ChangeAsync(untrusted.Version, LogicModuleApprovalAction.Approve, " Reviewed the package ");
+        if (approved.TrustStatus != LogicModuleTrustStatus.CustomerApproved || !approved.IsEnabled ||
+            (await ChangeAsync(untrusted.Version, LogicModuleApprovalAction.Approve, "Again")).Id != untrusted.Id ||
+            await ApprovalAuditCountAsync(untrusted.Id, "logic-module.approved") != 1 ||
+            !(await setup.AuditEvents.SingleAsync(item => item.TargetId == untrusted.Id.ToString() && item.Action == "logic-module.approved"))
+                .DetailsJson!.Contains("Reviewed the package", StringComparison.Ordinal))
+            throw new InvalidOperationException("Approving a module did not enable it exactly once with its reason.");
+        var retired = await ChangeAsync(untrusted.Version, LogicModuleApprovalAction.Retire, "Superseded");
+        var stored = await setup.LogicModules.AsNoTracking().SingleAsync(item => item.Id == untrusted.Id);
+        if (retired.IsEnabled || stored.IsEnabled || stored.TrustStatus != nameof(LogicModuleTrustStatus.CustomerApproved) ||
+            (await ChangeAsync(untrusted.Version, LogicModuleApprovalAction.Retire, "Again")).IsEnabled ||
+            await ApprovalAuditCountAsync(untrusted.Id, "logic-module.retired") != 1)
+            throw new InvalidOperationException("Retiring a module did not disable it exactly once.");
+        await ExpectAsync(() => ChangeAsync(untrusted.Version, LogicModuleApprovalAction.Approve, "Back"), FailureKind.Conflict);
+        json["version"] = "1.0.3";
+        var neverApproved = await RegisterAsync(command with
+        {
+            ManifestJson = json.ToJsonString(), TrustStatus = LogicModuleTrustStatus.Untrusted
+        });
+        await ExpectAsync(() => ChangeAsync(neverApproved.Version, LogicModuleApprovalAction.Retire, "Nothing"), FailureKind.Conflict);
         await setup.AccessGrants.Where(item => item.Id == globalGrant).ExecuteDeleteAsync();
         await setup.LogicModules.Where(item => item.ModuleId == moduleId).ExecuteDeleteAsync();
-        Console.WriteLine("Catalog writes require deployment-wide direct/group authority, including idempotency, and commit module/audit atomically with revocation fencing.");
-        return 2;
+        Console.WriteLine("Catalog writes require deployment-wide direct/group authority, including idempotency, and commit module/audit atomically with revocation fencing; approval and retirement are audited, idempotent and final.");
+        // Registrations of 1.0.0, 1.0.1, 1.0.2 and 1.0.3 plus one approval and one retirement.
+        return 6;
+
+        async Task<InstalledLogicModule> ChangeAsync(string version, LogicModuleApprovalAction action, string reason)
+        {
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            var approvals = new LogicModuleApprovalService(new LogicModuleCatalogRepository(db));
+            return action == LogicModuleApprovalAction.Approve
+                ? await approvals.ApproveAsync(moduleId, version, reason, subject, actor)
+                : await approvals.RetireAsync(moduleId, version, reason, subject, actor);
+        }
+
+        Task<int> ApprovalAuditCountAsync(Guid id, string action) =>
+            setup.AuditEvents.CountAsync(item => item.TargetId == id.ToString() && item.Action == action);
 
         async Task<InstalledLogicModule> RegisterAsync(RegisterLogicModuleCommand registration, AccessSubject? proof = null,
             DbContextOptions<WellSiteAutoPilotDbContext>? requestOptions = null)

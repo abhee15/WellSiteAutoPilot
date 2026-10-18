@@ -109,5 +109,58 @@ catch (WellSiteAutoPilotException exception) when (
 {
 }
 
+// Approval rules are pure: check every state against both actions.
+InstalledLogicModule WithState(LogicModuleTrustStatus status, bool enabled) => installed with { TrustStatus = status, IsEnabled = enabled };
+var notApproved = WithState(LogicModuleTrustStatus.Untrusted, false);
+var approvedModule = WithState(LogicModuleTrustStatus.CustomerApproved, true);
+var retiredModule = WithState(LogicModuleTrustStatus.CustomerApproved, false);
+var approveNew = LogicModuleApproval.Decide(notApproved, LogicModuleApprovalAction.Approve);
+if (approveNew is not { TrustStatus: LogicModuleTrustStatus.CustomerApproved, IsEnabled: true } ||
+    LogicModuleApproval.Decide(approvedModule, LogicModuleApprovalAction.Approve) is not null ||
+    LogicModuleApproval.Decide(WithState(LogicModuleTrustStatus.TrustedPublisher, true), LogicModuleApprovalAction.Approve) is not null)
+{
+    throw new InvalidOperationException("Approving a module did not follow the approval rules.");
+}
+
+var retire = LogicModuleApproval.Decide(WithState(LogicModuleTrustStatus.TrustedPublisher, true), LogicModuleApprovalAction.Retire);
+if (retire is not { TrustStatus: LogicModuleTrustStatus.TrustedPublisher, IsEnabled: false } ||
+    LogicModuleApproval.Decide(retiredModule, LogicModuleApprovalAction.Retire) is not null)
+{
+    throw new InvalidOperationException("Retiring a module did not follow the approval rules.");
+}
+
+foreach (var (module, action, code) in new[]
+{
+    (retiredModule, LogicModuleApprovalAction.Approve, "MODULE_RETIRED"),
+    (notApproved, LogicModuleApprovalAction.Retire, "MODULE_NOT_APPROVED")
+})
+{
+    try
+    {
+        LogicModuleApproval.Decide(module, action);
+        throw new InvalidOperationException($"{code} was not raised.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Code == code && exception.Kind == FailureKind.Conflict)
+    {
+    }
+}
+
+foreach (var bad in new[] { null, "", "   ", new string('x', LogicModuleApproval.MaximumReasonLength + 1), "line\nbreak" })
+{
+    try
+    {
+        LogicModuleApproval.ValidateReason(bad);
+        throw new InvalidOperationException("An invalid approval reason was accepted.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Validation)
+    {
+    }
+}
+
+if (LogicModuleApproval.ValidateReason("  Reviewed by operations  ") != "Reviewed by operations")
+{
+    throw new InvalidOperationException("The approval reason was not trimmed.");
+}
+
 Console.WriteLine("Logic Module catalog persistence and immutability checks passed.");
 return 0;

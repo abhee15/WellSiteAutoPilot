@@ -49,6 +49,8 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("POST", "/logic-modules"): ("RegisterLogicModule", "LogicManage"),
     ("GET", "/logic-modules"): ("ListLogicModules", "LogicRead"),
     ("GET", "/logic-modules/{moduleId}/{moduleVersion}"): ("GetLogicModule", "LogicRead"),
+    ("POST", "/logic-modules/{moduleId}/{moduleVersion}/approve"): ("ApproveLogicModule", "LogicManage"),
+    ("POST", "/logic-modules/{moduleId}/{moduleVersion}/retire"): ("RetireLogicModule", "LogicManage"),
     ("GET", "/recommendations"): ("ListRecommendations", "RecommendationsRead"),
     ("GET", "/recommendations/{recommendationId:guid}"): ("GetRecommendation", "RecommendationsRead"),
     ("POST", "/recommendations/{recommendationId:guid}/decision"): ("DecideRecommendation", "RecommendationsDecide"),
