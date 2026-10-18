@@ -70,7 +70,7 @@ button:disabled {
   overflow-y: auto;
 }
 
-.navigation a,
+.navigation nav a,
 .user-menu > summary {
   color: var(--color-text-navigation);
   text-decoration: none;
@@ -81,8 +81,8 @@ button:disabled {
   text-align: left;
 }
 
-.navigation a:hover,
-.navigation a.active,
+.navigation nav a:hover,
+.navigation nav a.active,
 .user-menu > summary:hover,
 .user-menu[open] > summary {
   background: var(--color-surface-navigation-active);
@@ -765,7 +765,7 @@ button:disabled {
     font-weight: 700;
   }
 
-  .navigation a {
+  .navigation nav a {
     display: flex;
     justify-content: center;
     padding: var(--space-10) var(--space-4);
@@ -992,7 +992,8 @@ button:disabled {
   button,
   select,
   input:not([type='checkbox']):not([type='radio']),
-  .navigation a {
+  .navigation nav a,
+  .user-panel-link {
     min-height: 44px;
   }
 }
