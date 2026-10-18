@@ -9,3 +9,4 @@
 .asset-page-list li { display: flex; gap: var(--space-10); align-items: baseline; flex-wrap: wrap; }
 .asset-page-list small { color: var(--color-text-subtle); }
 
+.activity-table tr.asset-row[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset 3px 0 0 var(--color-focus-ring); }
