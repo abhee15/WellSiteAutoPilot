@@ -14,8 +14,15 @@
 }
 .asset-create-form :is(input,select,textarea,button):focus-visible,
 .asset-select:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
-.asset-create-attributes, .asset-create-schema, .asset-create-hint,
+.asset-create-attributes, .asset-create-schema, .asset-create-hint, .asset-create-fields,
 .asset-create-error, .asset-create-success { grid-column: 1 / -1; }
+.asset-create-fields { display: grid; gap: var(--space-12); border: 0; padding: 0; margin: 0; min-width: 0; }
+.asset-create-fields legend { font-weight: 600; padding: 0; margin-bottom: var(--space-6); }
+.asset-create-field { display: grid; gap: var(--space-4); }
+.asset-create-field small { color: var(--color-text-subtle); }
+.asset-create-field small.asset-create-error { color: var(--color-text-warning-strong); }
+.asset-create-form input[type="checkbox"] { width: auto; }
+.asset-create-fields button { justify-self: start; }
 .asset-create-hint { margin: 0; padding: var(--space-8) 0; }
 .asset-create-form .asset-create-hint { padding: 0; }
 .asset-create-form button[type="submit"] { justify-self: start; }
@@ -35,6 +42,6 @@
 .asset-selected code { overflow-wrap: anywhere; }
 @media (max-width: 760px) {
   .asset-create-form { grid-template-columns: minmax(0, 1fr); }
-  .asset-create-attributes, .asset-create-schema, .asset-create-hint,
+  .asset-create-attributes, .asset-create-schema, .asset-create-hint, .asset-create-fields,
   .asset-create-error, .asset-create-success { grid-column: auto; }
 }

@@ -1,5 +1,5 @@
 import './assetCreation.css';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type {
   AssetCreationCapabilitiesResponse,
@@ -8,6 +8,8 @@ import type {
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { isSecurityId } from '../security/identifiers';
+import { attributeFields, buildAttributes } from './assetAttributeForm';
+import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
 
 type Props = {
   userId: string | null | undefined;
@@ -47,6 +49,9 @@ export function AssetCreationPanel({
   const [parentId, setParentId] = useState('');
   const [name, setName] = useState('');
   const [attributes, setAttributes] = useState('{}');
+  const [values, setValues] = useState<AttributeValues>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, AttributeFieldError>>({});
+  const [jsonMode, setJsonMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +66,8 @@ export function AssetCreationPanel({
 
   const selectedType = assetTypes.find(type => type.id === typeId && type.isActive);
   const activeTypes = assetTypes.filter(type => type.isActive);
+  const fields = useMemo(() => attributeFields(selectedType?.attributeSchemaJson), [selectedType]);
+  const formMode = fields !== null && !jsonMode;
   const canCreateRoot = !!userId && capabilities?.canCreateRoot === true;
   const canCreateChildren =
     !!userId && capabilities?.canCreateUnderAuthorizedParents === true;
@@ -73,7 +80,7 @@ export function AssetCreationPanel({
   useEffect(() => {
     if (!hasOptions || parentId && !selectedParentValid) {
       request.current?.abort(); pending.current = false; setIsSubmitting(false);
-      setParentId(''); setTypeId(''); setName(''); setAttributes('{}');
+      setParentId(''); setTypeId(''); setName(''); setAttributes('{}'); setValues({}); setFieldErrors({}); setJsonMode(false);
       setNotice(null); setError(null);
     }
   }, [hasOptions, parentId, selectedParentValid]);
@@ -90,16 +97,24 @@ export function AssetCreationPanel({
       setError(t('assets.createNameInvalid'));
       return;
     }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(attributes);
-    } catch {
-      setError(t('assets.createAttributesInvalid'));
-      return;
-    }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      setError(t('assets.createAttributesInvalid'));
-      return;
+    let attributesJson = attributes;
+    if (formMode && fields) {
+      const built = buildAttributes(fields, values);
+      setFieldErrors(built.errors);
+      if (Object.keys(built.errors).length > 0) { setError(t('assets.createFieldsInvalid')); return; }
+      attributesJson = built.json;
+    } else {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(attributes);
+      } catch {
+        setError(t('assets.createAttributesInvalid'));
+        return;
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setError(t('assets.createAttributesInvalid'));
+        return;
+      }
     }
 
     pending.current = true;
@@ -115,7 +130,7 @@ export function AssetCreationPanel({
           assetTypeId,
           name: trimmed,
           parentAssetId: parentId === '__root__' ? null : parentId,
-          attributeValuesJson: attributes,
+          attributeValuesJson: attributesJson,
         }),
       });
 
@@ -153,7 +168,7 @@ export function AssetCreationPanel({
           // Don't imply the operator can read/select the child.
           setNotice(t('assets.createPendingAccess', { name: trimmed }));
           setName('');
-          setAttributes('{}');
+          setAttributes('{}'); setValues({}); setJsonMode(false);
           await onRefresh();
         } else if (active.current) {
           setError(t('assets.createReadbackFailed'));
@@ -174,7 +189,7 @@ export function AssetCreationPanel({
       if (!active.current) return;
       setNotice(t('assets.createSuccess', { name: trimmed }));
       setName('');
-      setAttributes('{}');
+      setAttributes('{}'); setValues({}); setJsonMode(false);
       await onCreated(verified);
     } catch {
       // A POST with an interrupted response may already have committed.
@@ -205,6 +220,7 @@ export function AssetCreationPanel({
             <span>{t('assets.createType')}</span>
             <select value={typeId} onChange={event => {
               setTypeId(event.target.value); setError(null);
+              setValues({}); setFieldErrors({}); setJsonMode(false); setAttributes('{}');
             }} required disabled={isSubmitting}>
               <option value="">{t('assets.createChooseType')}</option>
               {activeTypes.map(type => (
@@ -232,6 +248,56 @@ export function AssetCreationPanel({
               disabled={isSubmitting}
               onChange={event => { setName(event.target.value); setError(null); }} />
           </label>
+          {formMode && fields ? (
+            <fieldset className="asset-create-fields" disabled={isSubmitting}>
+              <legend>{t('assets.createDetails')}</legend>
+              {fields.map(field => {
+                const problem = fieldErrors[field.key];
+                const id = 'asset-attr-' + field.key;
+                const set = (value: string | boolean) => {
+                  setValues(current => ({ ...current, [field.key]: value }));
+                  setFieldErrors(current => Object.fromEntries(
+                    Object.entries(current).filter(([key]) => key !== field.key)));
+                  setError(null);
+                };
+                const label = field.label + (field.required ? '' : ' ' + t('assets.createOptional'));
+                const common = { id, 'aria-invalid': problem ? true : undefined,
+                  'aria-describedby': problem ? id + '-error' : undefined } as const;
+                return <div className="asset-create-field" key={field.key}>
+                  {field.kind === 'boolean' ? (
+                    <label htmlFor={id}>
+                      <input {...common} type="checkbox" checked={values[field.key] === true}
+                        onChange={event => set(event.target.checked)} /> {label}
+                    </label>
+                  ) : (
+                    <>
+                      <label htmlFor={id}>{label}</label>
+                      {field.kind === 'choice' ? (
+                        <select {...common} value={String(values[field.key] ?? '')}
+                          onChange={event => set(event.target.value)}>
+                          <option value="">{t('assets.createChooseValue')}</option>
+                          {field.options?.map(option => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      ) : (
+                        <input {...common} type="text"
+                          inputMode={field.kind === 'text' ? undefined : 'decimal'}
+                          value={String(values[field.key] ?? '')}
+                          maxLength={field.maxLength}
+                          onChange={event => set(event.target.value)} />
+                      )}
+                    </>
+                  )}
+                  {field.description && <small>{field.description}</small>}
+                  {problem && <small id={id + '-error'} className="asset-create-error">
+                    {t(('assets.createField.' + problem) as 'assets.createField.required')}</small>}
+                </div>;
+              })}
+              <button type="button" className="secondary-button" onClick={() => {
+                const built = buildAttributes(fields, values);
+                setAttributes(built.json); setJsonMode(true); setFieldErrors({});
+              }}>{t('assets.createUseJson')}</button>
+            </fieldset>
+          ) : (
           <label className="asset-create-attributes">
             <span>{t('assets.createAttributes')}</span>
             <textarea value={attributes} rows={5} maxLength={65536}
@@ -240,6 +306,7 @@ export function AssetCreationPanel({
                 setAttributes(event.target.value); setError(null);
               }} />
           </label>
+          )}
           {selectedType && (
             <details className="asset-create-schema">
               <summary>{t('assets.createSchemaInfo')}</summary>

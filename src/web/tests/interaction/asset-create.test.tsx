@@ -188,6 +188,7 @@ describe('Asset create workflow with real DOM events', () => {
     vi.stubGlobal('fetch', http);
     panel();
     await prepareForm(user);
+    await user.click(screen.getByRole('button', { name: 'Edit these details as JSON instead' }));
     await user.clear(screen.getByRole('textbox', { name: 'Attributes (JSON object)' }));
     // Set a malformed JSON string without invoking user-event keyboard syntax.
     await user.type(screen.getByRole('textbox', { name: 'Attributes (JSON object)' }),
@@ -212,6 +213,7 @@ it('preserves raw duplicate attribute keys for authoritative server rejection', 
   vi.stubGlobal('fetch', http);
   panel();
   await prepareForm(user);
+  await user.click(screen.getByRole('button', { name: 'Edit these details as JSON instead' }));
   const editor = screen.getByRole('textbox', { name: 'Attributes (JSON object)' });
   await user.clear(editor);
   await user.paste(raw);
@@ -258,4 +260,38 @@ it('aborts a pending create on removal and never starts stale readback or select
   expect(http).toHaveBeenCalledTimes(1);
   expect(onCreated).not.toHaveBeenCalled();
   expect(onRefresh).not.toHaveBeenCalled();
+});
+
+describe('Asset create form generated from the type schema', () => {
+  const typed: AssetTypeResponse = {
+    ...wellType,
+    attributeSchemaJson: JSON.stringify({ type: 'object', required: ['depthFt'], properties: {
+      depthFt: { type: 'integer', title: 'Depth (ft)', minimum: 0 },
+      lift: { type: 'string', enum: ['ESP', 'Rod'] },
+    } }),
+  };
+  const render_ = (onCreated = () => {}) => render(<AssetCreationPanel userId="operator-id" assetTypes={[typed]}
+    assets={[field]} capabilities={{ canCreateRoot: false, canCreateUnderAuthorizedParents: true }}
+    onCreated={onCreated} onRefresh={() => {}} />);
+
+  it('shows labelled fields, names the problem, and sends typed values', async () => {
+    const user = userEvent.setup();
+    const http = vi.fn(async (url: string, init?: RequestInit) => init?.method === 'POST'
+      ? success(created, 201) : success(created));
+    vi.stubGlobal('fetch', http);
+    render_();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Asset type' }), typed.id);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Parent Asset' }), field.id);
+    await user.type(screen.getByRole('textbox', { name: 'Asset name' }), 'Well 101');
+    expect(screen.queryByRole('textbox', { name: 'Attributes (JSON object)' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    expect(await screen.findByText('This detail is required.')).toBeTruthy();
+    expect(http).not.toHaveBeenCalled();
+    await user.type(screen.getByRole('textbox', { name: 'Depth (ft)' }), '1200');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Lift (optional)' }), 'Rod');
+    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    await vi.waitFor(() => expect(http).toHaveBeenCalled());
+    const body = JSON.parse(String(http.mock.calls[0][1]?.body));
+    expect(JSON.parse(body.attributeValuesJson)).toEqual({ depthFt: 1200, lift: 'Rod' });
+  });
 });
