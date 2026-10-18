@@ -67,3 +67,26 @@ it('an empty asset list says what to do about it', async () => {
   expect(await screen.findByText('No Assets are configured.')).toBeTruthy();
   expect(screen.getByText(/Assets are the wells and equipment logic runs on/)).toBeTruthy();
 });
+
+it('selecting an asset highlights its grid row and brings the asset page into view', async () => {
+  window.location.hash = '#assets/' + assetId;
+  const scroll = vi.fn();
+  Element.prototype.scrollIntoView = scroll;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions: ['assets.read'], assetScopeIds: [] });
+    if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
+    if (url.includes('/asset-types')) return response([{ id: typeId, key: 'well', displayName: 'Well', schemaVersion: 1, isActive: true }]);
+    if (url.includes('/assets?')) return response([
+      { id: parentId, assetTypeId: typeId, name: 'Pad 7', isActive: true },
+      { id: assetId, assetTypeId: typeId, parentAssetId: parentId, name: 'North Well', isActive: true },
+    ]);
+    return response([]);
+  }));
+  render(<App />);
+  await screen.findByText('Selected Asset');
+  const rows = Array.from(document.querySelectorAll('tr.asset-row'));
+  const selected = rows.filter(row => row.getAttribute('aria-current') === 'true');
+  expect(selected).toHaveLength(1);
+  expect(selected[0].textContent).toContain('North Well');
+  expect(scroll).toHaveBeenCalled();
+});

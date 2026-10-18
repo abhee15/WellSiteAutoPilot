@@ -97,7 +97,8 @@ export function AssetsPage({
             </thead>
             <tbody>
               {visibleAssets.map(asset => (
-                <tr key={asset.id}>
+                <tr key={asset.id} className="asset-row" data-selected={asset.id === selectedId}
+                  aria-current={asset.id === selectedId ? 'true' : undefined}>
                   <td><button type="button" className="asset-select"
                     onClick={() => setSelectedId(asset.id ?? null)}
                     aria-label={t('assets.selectNamed', { name: asset.name ?? t('assets.unnamed') })}>

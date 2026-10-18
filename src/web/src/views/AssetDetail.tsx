@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   AssetResponse,
   ConfiguredLogicResponse,
@@ -55,8 +55,15 @@ export function AssetDetail({
     return () => controller.abort();
   }, [assetId, canReadRuns, canReadRecommendations]);
 
+  const pageRef = useRef<HTMLDivElement>(null);
+  // Selecting a row must visibly open the page; it sits below the grid and may be off screen.
+  useEffect(() => {
+    const el = pageRef.current;
+    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
+  }, [assetId]);
+
   return (
-    <div className="asset-page" aria-live="polite">
+    <div className="asset-page" aria-live="polite" ref={pageRef}>
       <header className="asset-page-header">
         <div>
           <p className="eyebrow">{t('assets.selected')}</p>
