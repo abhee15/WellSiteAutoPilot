@@ -1,0 +1,8 @@
+/* Asset hierarchy: semantic tokens only. */
+.asset-tree { padding: var(--space-12) var(--space-18); }
+.asset-tree ul { list-style: none; margin: 0; padding: 0 0 0 var(--space-16); }
+.asset-tree > ul { padding-left: 0; }
+.asset-tree-row { display: flex; align-items: center; gap: var(--space-6); padding: var(--space-4) 0; }
+.asset-tree-row small { color: var(--color-text-subtle); }
+.asset-tree-toggle { width: var(--space-20); flex: none; text-align: center; }
+.asset-tree-name[data-selected='true'] { font-weight: 600; }
