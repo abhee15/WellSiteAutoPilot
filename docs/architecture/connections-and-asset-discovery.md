@@ -126,3 +126,60 @@ Resolve before implementation:
 - Manual refresh first versus scheduled discovery later; conflict and missing-object policy.
 
 No schema migration, frontend screen, installed provider support, or automatic synchronization is delivered by this note.
+
+## Continuation: adapter implementation, templates, and writes
+
+The following records the remainder of the October 19 discussion. It refines the earlier proposals without declaring uninspected ForeSite operations available.
+
+### Initial provider focus and client dependencies
+
+The owner's tentative sequence is to focus on ForeSite first, then consider CygNet and WAMI. Validate initial ForeSite work against 5.7.1. This sets an integration investigation direction; it does not interrupt the active development priority or authorize an assumed set of provider APIs.
+
+Use one adapter per provider product/API family, supporting multiple named connections. Distinguish provider release, service-contract compatibility, and our adapter version. Share an implementation across compatible releases; introduce an internal version-specific client/mapping only when actual contract differences require it. Record validated support rather than assuming every patch release is compatible.
+
+An adapter contains custom provider-specific code; authentication boilerplate alone does not implement discovery. It needs the service contracts and DTOs for the chosen operations and their dependencies. Evaluate generating a WCF client from supported metadata first; compatible shared contract assemblies remain an option after runtime/deployment review. Generated clients still depend on the wire contract. Referencing provider assemblies creates a build/deployment dependency that must stay inside the adapter, never in the core, frontend, or logic modules. No dynamic plugin loader is required for the initial implementation.
+
+ForeSite's approximately 1,300–1,400 APIs are an owner-provided estimate, not a scope to wrap in full. Select only the operations needed for the first capability.
+
+### Gateway and worker boundary
+
+The Gateway hosts/routes to adapters. .NET and Python workers request authorized reads/calculations through internal Gateway contracts; they do not load ForeSite adapters or reference provider DTOs. Server-driven discovery also goes through the Gateway, with preview/import managed by ACL. Provider credentials remain within the integration boundary.
+
+The existing contracts and simulator are groundwork. Real ForeSite, CygNet, and WAMI adapters were not registered in the reviewed Gateway implementation.
+
+### Configurable discovery arrangements
+
+The owner clarified that users should be able to choose arrangements such as:
+- Wells only.
+- Device-type grouping followed by wells.
+- ForeSite system, well-type grouping, device-type grouping, then wells.
+
+The adapter may internally retrieve wells, well types, device types, and other relevant classifications through distinct operations. The generic ACL-facing contract should expose supported discovery options and their relationships without hardcoding ForeSite operations into the UI. Exact contract shape remains to be designed.
+
+Separate classification lists are insufficient: the adapter must provide the associations needed to place each well. A template selects grouping and mapping rules. Well type and device type may be independent classifications; their nesting can be a local presentation choice rather than a source-owned parent relationship. Offer only arrangements supported by available associations and handle absent/ambiguous classification explicitly.
+
+**Discover builds the proposed tree; Apply persists it after review.** Discovery must not silently save the hierarchy. Review includes selection, filtering, conflicts, and validation. Repeated imports use source identity to avoid duplicates.
+
+Prove one adapter's discovery using minimal connection configuration before building the full Connections UI. This validates the capabilities that the UI will present.
+
+### Explicit write capabilities
+
+Fetch/discovery and write operations are separate capabilities. Avoid an unrestricted set-any-property API. Distinguish:
+- External metadata/configuration edits, with explicit validation, permissions, and audit.
+- Operational/control settings, which follow ControlIntent, server policy/mode/authorization/approval/ownership checks, durable ControlAction, Gateway execution, and verification.
+
+The adapter maps an explicitly supported action to the appropriate ForeSite operation. Inspect whether a Set operation changes stored configuration, queues a command, or changes equipment. Service acceptance is not proof of physical application; report the actual outcome and readback where supported. Timeouts can leave an uncertain outcome; do not blindly retry writes without provider-supported idempotency or reconciliation.
+
+The owner reports that ForeSite can communicate with CygNet. This is not proof that a particular ForeSite Set operation reaches equipment or preserves required attribution. Validate the actual path. Unsupported writes remain unsupported; never automatically route a failed ForeSite action to CygNet. A CygNet path requires explicit binding, capability, authorization, and governance.
+
+The first ForeSite scope can remain read-only well discovery. Measurements, calculation, and validated writes can be added when needed by configured logic.
+
+### Public product research versus release-specific evidence
+
+Weatherford public materials describe ForeSite as a production optimization platform combining surveillance/analytics and physics-based models, with artificial-lift optimization, failure prediction, workover planning, and reservoir/wellbore/surface-network optimization. These descriptions establish product scope, not the 5.7.1 WCF API, authentication settings, well classifications, or exposed relationships.
+
+References:
+- [ForeSite production optimization platform](https://www.weatherford.com/production-and-intervention/production-4-0/production-optimization-platform/)
+- [ForeSite platform brochure](https://www.weatherford.com/documents/brochure/products-and-services/software/foresite-production-optimization-platform/)
+
+Next evidence needed: supported 5.7.1 service interfaces/DTOs or WSDL/MEX, binding/authentication configuration, then representative test responses and relationships. The owner offered to share those details later. Do not infer a complete discovery hierarchy from marketing material.
