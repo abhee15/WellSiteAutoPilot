@@ -148,13 +148,22 @@ export function AssetsPage({
           />}
           <div className="split-panes">
             <section className="panel split-browse" aria-label={t('assets.browse')}>
-              <AssetInventoryControls
-                userId={userId}
-                criteria={criteria}
-                onChange={setCriteria}
-                matchingCount={visibleAssets.length}
-                totalCount={assets.length}
-              />
+              <div className="split-search">
+                <input type="search" maxLength={120} value={criteria.search}
+                  aria-label={t('assets.search')} placeholder={t('assets.searchPlaceholder')}
+                  onChange={event => setCriteria({ ...criteria, search: event.target.value })} />
+              </div>
+              <details className="split-filters">
+                <summary>{t('assets.moreFilters')}</summary>
+                <AssetInventoryControls
+                  userId={userId}
+                  criteria={criteria}
+                  onChange={setCriteria}
+                  matchingCount={visibleAssets.length}
+                  totalCount={assets.length}
+                  hideSearch
+                />
+              </details>
               {!isLoaded ? <p className="split-note">{t('views.loading')}</p>
                 : assets.length === 0 ? (
                   <>

@@ -13,6 +13,15 @@
 .split-results li[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset 3px 0 0 var(--color-focus-ring); }
 .split-results small { color: var(--color-text-subtle); }
 
+/* The browse pane is narrow: stack the filter fields instead of letting them overflow. */
+.split-browse .data-view-fields,
+.split-browse .data-saved-view-fields { grid-template-columns: minmax(0, 1fr); }
+.split-search { padding: var(--space-12) var(--space-18) 0; }
+.split-search input { width: 100%; box-sizing: border-box; min-height: 36px; padding: 7px var(--space-10); border: 1px solid var(--color-border-control); border-radius: var(--radius-6); background: var(--color-surface-input); color: var(--color-text-primary); }
+.split-filters { padding: var(--space-8) 0 0; }
+.split-filters > summary { cursor: pointer; padding: var(--space-4) var(--space-18); color: var(--color-text-subtle); }
+.split-browse { min-width: 0; }
+
 @media (max-width: 900px) {
   .split-panes { grid-template-columns: minmax(0, 1fr); }
   .split-layout[data-has-selection='true'] .split-browse { display: none; }

@@ -11,6 +11,8 @@ type Props = {
   onChange: (next: AssetInventoryCriteria) => void;
   matchingCount: number;
   totalCount: number;
+  /** The page shows its own search box above, so leave it out here. */
+  hideSearch?: boolean;
 };
 
 function browserStorage(): Storage | null {
@@ -22,7 +24,7 @@ function newViewId(): string {
     ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
 }
 export function AssetInventoryControls({
-  userId, criteria, onChange, matchingCount, totalCount,
+  userId, criteria, onChange, matchingCount, totalCount, hideSearch = false,
 }: Props) {
   const [views, setViews] = useState<SavedAssetView[]>(
     () => loadSavedAssetViews(userId, browserStorage()),
@@ -77,12 +79,12 @@ export function AssetInventoryControls({
   return (
     <div className="data-view-controls" role="group" aria-label={t('assets.controls')}>
       <div className="data-view-fields asset-view-fields">
-        <label>
+        {!hideSearch && <label>
           <span>{t('assets.search')}</span>
           <input type="search" value={criteria.search} maxLength={120}
             placeholder={t('assets.searchPlaceholder')}
             onChange={event => modify({ ...criteria, search: event.target.value })} />
-        </label>
+        </label>}
         <label>
           <span>{t('assets.activity')}</span>
           <select value={criteria.activity}
