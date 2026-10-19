@@ -19,6 +19,8 @@ type Props = {
   capabilities: AssetCreationCapabilitiesResponse | null;
   onCreated: (asset: AssetResponse) => Promise<void> | void;
   onRefresh: () => Promise<void> | void;
+  /** Pre-fills the parent, for adding beneath the asset the person is looking at. */
+  suggestedParentId?: string | null;
 };
 
 type VerifiedAsset = AssetResponse & {
@@ -44,10 +46,10 @@ function isVerifiedAsset(
 }
 
 export function AssetCreationPanel({
-  userId, assetTypes, assets, capabilities, onCreated, onRefresh,
+  userId, assetTypes, assets, capabilities, onCreated, onRefresh, suggestedParentId,
 }: Props) {
   const [typeId, setTypeId] = useState('');
-  const [parentId, setParentId] = useState('');
+  const [parentId, setParentId] = useState(suggestedParentId ?? '');
   const [name, setName] = useState('');
   const [attributes, setAttributes] = useState('{}');
   const [values, setValues] = useState<AttributeValues>({});

@@ -46,7 +46,7 @@ it('permission loss removes the page and clears old asset data even when the rol
     ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false }
     : url.includes('/assets?') ? [{ id: assetId, name: 'Confidential Asset', isActive: true }] : [])));
   const user = userEvent.setup(); render(<App />);
-  await screen.findByRole('button', { name: 'Select Asset Confidential Asset' });
+  await screen.findByRole('button', { name: 'Open Confidential Asset from the hierarchy' });
   revoked = true; await user.click(screen.getByRole('button', { name: 'Refresh' }));
   await screen.findByRole('heading', { name: 'Waiting for access' });
   expect(screen.queryByText('Confidential Asset')).toBeNull();

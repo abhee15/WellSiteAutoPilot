@@ -157,7 +157,14 @@ Creating an asset: a **form generated from the asset type's schema** (typed fiel
 markers, an example) instead of a JSON text box. The type chooser explains each type in one line.
 Create Asset is a button that opens a panel, not an always-open form pushing the list down.
 
-Asset types can be defined from the Assets page (key, display name and a JSON attribute schema, for people with `assets.manage`); this is deliberately the simple version, to be refined as gaps show (a field builder is the likely next step).
+The page has two tabs, **Assets** and **Asset types** (`#assets` and `#assets/types`). Assets is a two-pane
+view: browse and search on the left (the hierarchy when nothing is filtered, a flat list with each asset's
+location when searching), the selected asset on the right; on narrow screens the two take turns. The add
+button reads "Add asset under <selected>" and pre-fills the parent. Asset types lists each type with how many
+assets hold it and a link to those assets. Still to come, in order: server-side top-level, paged children and
+search so very large hierarchies load lazily; asset page tabs; type details with a readable schema.
+
+Asset types can be defined from the Asset types tab (key, display name and a JSON attribute schema, for people with `assets.manage`); this is deliberately the simple version, to be refined as gaps show (a field builder is the likely next step).
 
 Not offered yet (no API): edit, move, deactivate, delete an asset; edit an asset type. These are shown
 in "Coming later" help text on the asset page only if an administrator would look for them; otherwise

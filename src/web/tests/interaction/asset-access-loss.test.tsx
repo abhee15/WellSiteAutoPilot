@@ -26,8 +26,9 @@ it('clears a selected Asset and draft when the same user loses its Asset scope',
   }));
   const user = userEvent.setup();
   render(<App />);
-  await user.click(await screen.findByRole('button', { name: t('assets.selectNamed', { name: 'Confidential Well' }) }));
+  await user.click(await screen.findByRole('button', { name: t('assetTree.open', { name: 'Confidential Well' }) }));
   expect(screen.getByText(assetId)).not.toBeNull();
+  await user.click(screen.getByRole('button', { name: /^Add asset/ }));
   await user.type(screen.getByRole('textbox', { name: 'Asset name' }), 'Draft that must be cleared');
   revoked = true;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));

@@ -34,7 +34,7 @@ it('shows Loading, not an empty-state claim, until the first read completes', as
   await screen.findAllByText('Loading…');
   expect(screen.queryByText('No Assets are configured.')).toBeNull();
   open();
-  await screen.findByRole('button', { name: 'Select Asset North Well' });
+  await screen.findByRole('button', { name: 'Open North Well from the hierarchy' });
 });
 
 it('a transient failure keeps the last good data and says it may be out of date', async () => {
@@ -42,11 +42,11 @@ it('a transient failure keeps the last good data and says it may be out of date'
   let status = 200;
   setup(() => status);
   const user = userEvent.setup(); render(<App />);
-  await screen.findByRole('button', { name: 'Select Asset North Well' });
+  await screen.findByRole('button', { name: 'Open North Well from the hierarchy' });
   status = 500;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
   await screen.findByText(/may be out of date/);
-  expect(screen.getByRole('button', { name: 'Select Asset North Well' })).not.toBeNull();
+  expect(screen.getByRole('button', { name: 'Open North Well from the hierarchy' })).not.toBeNull();
   expect(screen.queryByText('No Assets are configured.')).toBeNull();
   status = 200;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
