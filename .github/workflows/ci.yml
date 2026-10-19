@@ -441,6 +441,12 @@ jobs:
       - name: Smoke test installer
         shell: pwsh
         run: |
+          # Surface the failing check as an annotation (job logs are not always retrievable).
+          trap {
+            $message = ($_.Exception.Message -replace "\r?\n", " | ")
+            Write-Host "::error title=Installer smoke test::$message (script line $($_.InvocationInfo.ScriptLineNumber))"
+            exit 1
+          }
           $installer = (Resolve-Path "artifacts\WellSiteAutoPilot-$env:WSA_VERSION-Setup.exe").Path
           $installRoot = Join-Path $env:ProgramFiles "Weatherford\WellSite AutoPilot CI"
           if (Test-Path $installRoot) {
@@ -475,7 +481,13 @@ jobs:
             "/D=$installRoot"
           ) -Wait -PassThru
           if ($install.ExitCode -ne 0) {
-            throw "Installer smoke test failed with exit code $($install.ExitCode)."
+            # Re-run the bootstrapper directly so its own message reaches the annotation.
+            $diagnostic = ""
+            $bootstrapper = Join-Path $installRoot "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe"
+            if (Test-Path $bootstrapper) {
+              $diagnostic = (& $bootstrapper install-services --install-root $installRoot --bootstrap-admin "CI\wsa-admin" 2>&1 | Out-String)
+            }
+            throw "Installer smoke test failed with exit code $($install.ExitCode). Bootstrapper says: $diagnostic"
           }
 
           $securitySettingsPath = Join-Path $env:ProgramData "Weatherford\WellSite AutoPilot\server.settings.json"
@@ -676,7 +688,12 @@ jobs:
           Remove-Item Env:WSA_DATABASE_USER, Env:WSA_DATABASE_PASSWORD, Env:WSA_DATABASE_NAME
           $upgrade = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installRoot") -Wait -PassThru
           if ($upgrade.ExitCode -ne 0) {
-            throw "Installer upgrade over a running installation failed with exit code $($upgrade.ExitCode)."
+            $diagnostic = ""
+            $bootstrapper = Join-Path $installRoot "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe"
+            if (Test-Path $bootstrapper) {
+              $diagnostic = (& $bootstrapper install-services --install-root $installRoot 2>&1 | Out-String)
+            }
+            throw "Installer upgrade over a running installation failed with exit code $($upgrade.ExitCode). Bootstrapper says: $diagnostic"
           }
 
           foreach ($serviceName in $expectedAccounts.Keys) {
