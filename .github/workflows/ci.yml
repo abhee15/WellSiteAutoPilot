@@ -849,6 +849,8 @@ jobs:
           if ($LASTEXITCODE -eq 0 -or $refused -notmatch "No certificate with thumbprint") {
             throw "An unknown certificate thumbprint was not refused clearly: $refused"
           }
+          # The refusal above is the expected failure; do not let its exit code become the step's.
+          $global:LASTEXITCODE = 0
           Wait-ServedThumbprint $smokePort $pfxThumbprint
 
           $uninstaller = Join-Path $installRoot "Uninstall.exe"
