@@ -172,7 +172,9 @@ absent.
 
 ### 6.2 Browse and understand logic (Logic)
 
-Logic page has two lists, clearly separated and explained:
+Logic page uses the same shape as Assets: two tabs, **Your logic** and **Modules** (`#logic` and
+`#logic/modules`), each a list on the left with the selected logic or module on the right (narrow screens
+take turns). "Configure Logic" opens setup in the right pane. The two lists are:
 
 - **Your logic** (configured logic): what is set up for your assets.
 - **Available modules**: the library of capabilities that can be configured.
