@@ -25,7 +25,7 @@ function fixture(permissions: string[], initial: object, postStatus = 200, postB
     if (url.startsWith('/api/v1/logic-modules')) return json([module]);
     return json([]);
   }));
-  window.location.hash = '#logic';
+  window.location.hash = '#logic/modules';
   return writes;
 }
 

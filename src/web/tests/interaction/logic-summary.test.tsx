@@ -44,7 +44,7 @@ it('without permission to read runs the runs list is absent', async () => {
 });
 
 it('a module explains what it does, what it needs and what uses it', async () => {
-  window.location.hash = '#logic';
+  window.location.hash = '#logic/modules';
   const manifestJson = JSON.stringify({ assetRequirements: [{ role: 'well', minimumCount: 1, maximumCount: 1, requiredAssetTypeKey: 'well' }],
     dataRequirements: [{ id: 'f', assetRole: 'well', quantity: 'PumpFillage', canonicalUnit: '%', maximumAgeSeconds: 60 }], commandRequirements: [] });
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -60,4 +60,17 @@ it('a module explains what it does, what it needs and what uses it', async () =>
   expect(panel.textContent).toContain('Reads pump fillage for 1 well.');
   expect(panel.textContent).toContain('no older than 1 min');
   expect(panel.textContent).toContain('Pressure watch');
+});
+
+it('Your logic and Modules are tabs; the list sits beside the selected item', async () => {
+  fixture(['configured-logic.read', 'logic.read']);
+  render(<App />);
+  const configured = await screen.findByRole('tab', { name: /Your logic/ });
+  expect(configured.getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByText('Choose logic to see where it stands, or configure new logic for your assets.')).toBeTruthy();
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'Inspect revisions of Pressure watch' }));
+  expect(window.location.hash).toBe('#logic/' + configurationId);
+  await userEvent.setup().click(screen.getByRole('tab', { name: /Modules/ }));
+  expect(await screen.findByText('Choose a module to see what it does and what it needs.')).toBeTruthy();
+  expect(window.location.hash).toBe('#logic/modules');
 });

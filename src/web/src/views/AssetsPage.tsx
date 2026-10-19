@@ -16,7 +16,7 @@ import { AssetInventoryControls } from './AssetInventoryControls';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetInventory';
 import type { AssetInventoryCriteria } from './assetInventory';
 import { assetAncestors } from './assetPage';
-import './assetsLayout.css';
+import './splitLayout.css';
 
 /** The address `#assets/types` opens the Asset types tab; any other detail is an asset id. */
 const TYPES_TAB = 'types';
@@ -76,15 +76,15 @@ export function AssetsPage({
   };
 
   return (
-    <div className="assets-layout" data-has-selection={Boolean(selectedAuthorized)}>
-      <div className="assets-tabs" role="tablist" aria-label={t('assets.tabs')}>
+    <div className="split-layout" data-has-selection={Boolean(selectedAuthorized)}>
+      <div className="split-tabs" role="tablist" aria-label={t('assets.tabs')}>
         <a role="tab" href={hashFor('assets')} aria-selected={!onTypesTab}>
           {t('assets.tabAssets')} <span>{assets.length}</span>
         </a>
         <a role="tab" href={hashFor('assets', TYPES_TAB)} aria-selected={onTypesTab}>
           {t('assets.tabTypes')} <span>{assetTypes.length}</span>
         </a>
-        {!onTypesTab && canAdd && <button type="button" className="primary-button assets-add"
+        {!onTypesTab && canAdd && <button type="button" className="primary-button split-add"
           onClick={() => setAdding(open => !open)} aria-expanded={adding}>
           {selectedAuthorized
             ? t('assets.addUnder', { name: selectedAuthorized.name ?? t('assets.unnamed') })
@@ -94,7 +94,7 @@ export function AssetsPage({
 
       {onTypesTab ? (
         <section className="panel" aria-label={t('assets.tabTypes')}>
-          <p className="assets-intro">{t('assets.typesIntro')}</p>
+          <p className="split-intro">{t('assets.typesIntro')}</p>
           {canManageTypes && <AssetTypeDefinitionPanel onCreated={onRefresh} />}
           <div className="table-wrap">
             <table className="activity-table">
@@ -146,8 +146,8 @@ export function AssetsPage({
             }}
             onRefresh={onRefresh}
           />}
-          <div className="assets-panes">
-            <section className="panel assets-browse" aria-label={t('assets.browse')}>
+          <div className="split-panes">
+            <section className="panel split-browse" aria-label={t('assets.browse')}>
               <AssetInventoryControls
                 userId={userId}
                 criteria={criteria}
@@ -155,19 +155,19 @@ export function AssetsPage({
                 matchingCount={visibleAssets.length}
                 totalCount={assets.length}
               />
-              {!isLoaded ? <p className="assets-note">{t('views.loading')}</p>
+              {!isLoaded ? <p className="split-note">{t('views.loading')}</p>
                 : assets.length === 0 ? (
                   <>
-                    <p className="assets-note">{t('assets.none')}</p>
-                    <p className="assets-note">{t('assets.noneHint')}</p>
+                    <p className="split-note">{t('assets.none')}</p>
+                    <p className="split-note">{t('assets.noneHint')}</p>
                   </>
                 ) : !filtering ? (
                   <AssetTree assets={assets} selectedId={selectedId} onSelect={select} />
                 ) : visibleAssets.length === 0 ? (
-                  <p className="assets-note">{t('assets.noMatches')}</p>
+                  <p className="split-note">{t('assets.noMatches')}</p>
                 ) : (
                   <>
-                    <ul className="assets-results" aria-label={t('assets.results')}>
+                    <ul className="split-results" aria-label={t('assets.results')}>
                       {visibleAssets.slice(0, RESULT_LIMIT).map(asset => {
                         const id = asset.id ?? '';
                         const path = assetAncestors(assets, id).map(a => a.name ?? '—').join(' › ');
@@ -182,13 +182,13 @@ export function AssetsPage({
                         );
                       })}
                     </ul>
-                    {visibleAssets.length > RESULT_LIMIT && <p className="assets-note">
+                    {visibleAssets.length > RESULT_LIMIT && <p className="split-note">
                       {t('assets.resultsCapped', { shown: RESULT_LIMIT, total: visibleAssets.length })}</p>}
                   </>
                 )}
             </section>
-            <section className="assets-selected" aria-label={t('assets.selected')}>
-              <button type="button" className="secondary-button assets-back" onClick={() => select(null)}>
+            <section className="split-selected" aria-label={t('assets.selected')}>
+              <button type="button" className="secondary-button split-back" onClick={() => select(null)}>
                 {t('assets.browse')}
               </button>
               {selectedAuthorized ? <AssetDetail
@@ -202,7 +202,7 @@ export function AssetsPage({
                 canReadRecommendations={permissions.includes('recommendations.read')}
                 onSelect={select}
                 onClose={() => select(null)}
-              /> : <p className="assets-note">{t('assets.pickOne')}</p>}
+              /> : <p className="split-note">{t('assets.pickOne')}</p>}
             </section>
           </div>
         </>
