@@ -32,6 +32,23 @@ or a domain account can change a service's log-on account after installation (re
 resets it to the table above); the Server's account then needs read access to the machine settings
 file described below.
 
+## Network access
+
+By default the Server is reachable from other computers: it listens on every interface, port 5080, and the
+bootstrapper adds one inbound Windows Firewall rule bound to the Server executable for **Domain and Private
+networks only** (never Public). NATS (4222), the Integration Gateway (5081) and the worker (5082) stay on
+loopback. Choose "this computer only" in the installer, or `/NETWORKACCESS=no`, to listen on loopback
+and remove the rule. The choice is remembered, so an upgrade that does not mention it never widens or
+narrows access. Uninstalling removes the rule.
+
+Users browse to `http://<computer name>:5080/`. Because the Server runs as `NetworkService` (the machine
+account), Kerberos works for remote users without registering anything extra. For automatic sign-in the
+browser must treat the address as an intranet site: Edge and Chrome do this for single-label names and for
+sites listed in the `AuthServerAllowlist` policy. Otherwise they ask for credentials.
+
+**Traffic is plain HTTP.** Negotiate protects the sign-in, not the page content or API traffic. Add TLS
+(certificate on the Server) before using this across less-trusted networks; it is not provided yet.
+
 ## Database connection
 
 The installer does not create PostgreSQL, the database, or its login. The database must already exist

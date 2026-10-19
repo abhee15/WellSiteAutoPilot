@@ -12,6 +12,8 @@ internal static class Bootstrapper
     private const string ServerServiceName = "Weatherford.WellSiteAutoPilot.Server";
     private const string GatewayServiceName = "Weatherford.WellSiteAutoPilot.IntegrationGateway";
     private const string WorkerServiceName = "Weatherford.WellSiteAutoPilot.Worker.DotNet";
+    private const string FirewallRuleName = "WellSiteAutoPilot.Server";
+    private const int ServerPort = 5080;
 
     // LocalService has no network identity: it presents anonymous credentials, so a service running
     // as LocalService cannot complete a Negotiate (Kerberos/NTLM) sign-in and browsers prompt forever.
@@ -76,11 +78,12 @@ internal static class Bootstrapper
         // Resolve the database first so a missing or malformed setting stops the install before
         // anything is written or any service is touched.
         var database = ResolveDatabaseConnection(settingsPath);
+        var network = ResolveNetworkAccess(settingsPath, GetOption(args, "--network-access"));
 
         ConfigureBootstrapAdministrator(
             programDataRoot,
             GetOption(args, "--bootstrap-admin"));
-        StoreDatabaseConnection(settingsPath, database);
+        StoreInstallerSettings(settingsPath, database, network);
         RunDatabaseMigrator(installRoot, database.ConnectionString);
 
         var natsDataRoot = Path.Combine(programDataRoot, "NATS", "JetStream");
@@ -111,7 +114,10 @@ internal static class Bootstrapper
                 ServerServiceName,
                 "WellSite AutoPilot Server",
                 Path.Combine(installRoot, "Server", "WellSiteAutoPilot.Server.exe"),
-                "--urls http://127.0.0.1:5080",
+                // Only the Server is reachable from the network; NATS, the Gateway and the worker stay on loopback.
+                network.Enabled
+                    ? $"--urls http://*:{ServerPort}"
+                    : $"--urls http://127.0.0.1:{ServerPort}",
                 NetworkServiceAccount)
         };
 
@@ -154,6 +160,13 @@ internal static class Bootstrapper
             WaitForState(service.ServiceName, "RUNNING", TimeSpan.FromSeconds(30));
         }
 
+        ConfigureFirewall(
+            services.Single(service => service.ServiceName == ServerServiceName).ExecutablePath,
+            network.Enabled);
+
+        Console.WriteLine(network.Enabled
+            ? $"WellSite AutoPilot is reachable from the network on port {ServerPort} (Domain and Private networks)."
+            : "WellSite AutoPilot is reachable from this computer only.");
         Console.WriteLine("WellSite AutoPilot Windows services installed and started.");
         return 0;
     }
@@ -170,6 +183,8 @@ internal static class Bootstrapper
         {
             RemoveServiceIfPresent(serviceName);
         }
+
+        RunNetshAllowFailure($"advfirewall firewall delete rule name={FirewallRuleName}");
 
         Console.WriteLine("WellSite AutoPilot Windows services removed.");
         return 0;
@@ -404,25 +419,96 @@ internal static class Bootstrapper
                      !string.Equals(requested, stored, StringComparison.Ordinal));
     }
 
-    private static void StoreDatabaseConnection(string settingsPath, DatabaseConnection database)
+    private static NetworkChoice ResolveNetworkAccess(string settingsPath, string? option)
     {
-        if (!database.Changed)
+        var requested = InstallerSettings.ParseNetworkAccess(option);
+        var stored = File.Exists(settingsPath)
+            ? InstallerSettings.ReadNetworkAccess(File.ReadAllText(settingsPath))
+            : null;
+
+        // The choice is remembered, so an upgrade that does not mention it never silently widens (or
+        // narrows) who can connect. A first install defaults to reachable from the network.
+        return new NetworkChoice(
+            requested ?? stored ?? true,
+            Changed: requested is not null && requested != stored);
+    }
+
+    private static void StoreInstallerSettings(
+        string settingsPath, DatabaseConnection database, NetworkChoice network)
+    {
+        if (!database.Changed && !network.Changed)
         {
             return;
         }
 
-        var current = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : null;
-        var updated = InstallerSettings.WithConnectionString(current, database.ConnectionString);
+        var updated = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : null;
+        if (database.Changed)
+        {
+            updated = InstallerSettings.WithConnectionString(updated, database.ConnectionString);
+        }
+
+        if (network.Changed)
+        {
+            updated = InstallerSettings.WithNetworkAccess(updated, network.Enabled);
+        }
 
         // Lock the file down before the secret is written, so it is never readable through the
         // permissions inherited from ProgramData, even briefly.
         var temporaryPath = settingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         File.WriteAllText(temporaryPath, string.Empty);
         SecureSettingsFile(temporaryPath);
-        File.WriteAllText(temporaryPath, updated);
+        File.WriteAllText(temporaryPath, updated!);
         File.Move(temporaryPath, settingsPath, overwrite: true);
         SecureSettingsFile(settingsPath);
-        Console.WriteLine("Database connection stored in the protected machine settings file.");
+        Console.WriteLine("Installer settings stored in the protected machine settings file.");
+    }
+
+    /// <summary>
+    /// Allows inbound TCP to the Server only (the rule is bound to its executable) on Domain and Private
+    /// networks, never Public. Idempotent: any earlier rule is removed first, and turning network access
+    /// off removes it.
+    /// </summary>
+    private static void ConfigureFirewall(string serverExecutable, bool enabled)
+    {
+        RunNetshAllowFailure($"advfirewall firewall delete rule name={FirewallRuleName}");
+        if (!enabled)
+        {
+            return;
+        }
+
+        var result = RunNetshAllowFailure(
+            $"advfirewall firewall add rule name={FirewallRuleName} dir=in action=allow protocol=TCP " +
+            $"localport={ServerPort} program=\"{serverExecutable}\" profile=domain,private enable=yes");
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                "Failed to open the Windows Firewall for the Server: " +
+                $"{result.StandardOutput} {result.StandardError}".Trim());
+        }
+    }
+
+    // netsh needs program="path with spaces" quoted exactly, so the command line is built as one string.
+    private static ScResult RunNetshAllowFailure(string arguments)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "netsh.exe",
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        return new ScResult(process.ExitCode, standardOutput, standardError);
     }
 
     private static void RunDatabaseMigrator(string installRoot, string connectionString)
@@ -632,7 +718,11 @@ internal static class Bootstrapper
     {
         Console.WriteLine("WellSite AutoPilot Bootstrapper");
         Console.WriteLine(
-            "  install-services --install-root <path> [--bootstrap-admin <WindowsIdentity>]");
+            "  install-services --install-root <path> [--bootstrap-admin <WindowsIdentity>] [--network-access yes|no]");
+        Console.WriteLine(
+            "    --network-access (default yes, then remembered) lets other computers on Domain and Private");
+        Console.WriteLine(
+            "      networks reach the Server on port 5080 and opens the Windows Firewall for it; no = this computer only.");
         Console.WriteLine(
             "    --bootstrap-admin is required on a fresh installation and preserved on upgrades.");
         Console.WriteLine(
@@ -656,6 +746,8 @@ internal static class Bootstrapper
         string Account);
 
     private sealed record DatabaseConnection(string ConnectionString, bool Changed);
+
+    private sealed record NetworkChoice(bool Enabled, bool Changed);
 
     private sealed record ScResult(
         int ExitCode,

@@ -42,6 +42,9 @@ Var DbPortInput
 Var DbNameInput
 Var DbUserInput
 Var DbPasswordInput
+Var NetworkAccess
+Var NetworkAccessInput
+Var BootstrapperArgs
 
 ; Hands a value to the bootstrapper through its environment (never its command line, which other
 ; programs can read). The value goes through a register so quotes in a password cannot break the call.
@@ -79,6 +82,8 @@ Function .onInit
   ${GetOptions} $R0 "/DBNAME=" $DbName
   ${GetOptions} $R0 "/DBUSER=" $DbUser
   ${GetOptions} $R0 "/DBPASSWORD=" $DbPassword
+  ; /NETWORKACCESS=yes|no. Omitted: the first install allows network access and an upgrade keeps its earlier choice.
+  ${GetOptions} $R0 "/NETWORKACCESS=" $NetworkAccess
 FunctionEnd
 
 Function DatabasePageCreate
@@ -127,6 +132,14 @@ Function DatabasePageCreate
   ${NSD_CreatePassword} 32% 86u 68% 12u ""
   Pop $DbPasswordInput
 
+  ${NSD_CreateCheckbox} 0 106u 100% 10u "Allow other computers on the network to connect"
+  Pop $NetworkAccessInput
+  ${If} $NetworkAccess != "no"
+    ${NSD_Check} $NetworkAccessInput
+  ${EndIf}
+  ${NSD_CreateLabel} 10u 117u 95% 20u "Opens Windows Firewall port 5080 for the WellSite AutoPilot Server on Domain and Private networks only. Clear this to allow connections from this computer only."
+  Pop $0
+
   nsDialogs::Show
 FunctionEnd
 
@@ -136,6 +149,12 @@ Function DatabasePageLeave
   ${NSD_GetText} $DbNameInput $DbName
   ${NSD_GetText} $DbUserInput $DbUser
   ${NSD_GetText} $DbPasswordInput $DbPassword
+  ${NSD_GetState} $NetworkAccessInput $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $NetworkAccess "yes"
+  ${Else}
+    StrCpy $NetworkAccess "no"
+  ${EndIf}
 
   ; Leaving user and password empty means "keep the stored connection" (upgrade). The pre-filled host,
   ; port and database must then not be sent on their own, or they would look like a partial new connection.
@@ -277,6 +296,11 @@ SkipStopServices:
     !insertmacro ExportEnvironment "WSA_DATABASE_PASSWORD" "$DbPassword"
   ${EndIf}
 
+  StrCpy $BootstrapperArgs ""
+  ${If} $NetworkAccess != ""
+    StrCpy $BootstrapperArgs " --network-access $NetworkAccess"
+  ${EndIf}
+
   IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSecuritySettings FreshSecuritySettings
 
 FreshSecuritySettings:
@@ -284,12 +308,12 @@ FreshSecuritySettings:
     Abort "Fresh WellSite AutoPilot installation requires /BOOTSTRAPADMIN=<WindowsIdentity> in silent mode."
   ${EndIf}
   ; nsExec shows the bootstrapper's messages (for example a failed database migration) in the install log.
-  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR" --bootstrap-admin "$BootstrapAdmin"'
+  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR" --bootstrap-admin "$BootstrapAdmin"$BootstrapperArgs'
   Pop $0
   Goto ServicesInstalled
 
 ExistingSecuritySettings:
-  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR"'
+  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR"$BootstrapperArgs'
   Pop $0
 
 ServicesInstalled:

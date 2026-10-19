@@ -105,5 +105,25 @@ Refused(() => InstallerSettings.ReadConnectionString("{\"ConnectionStrings\":{\"
 var secretText = InstallerSettings.Redact("failed for Host=a;Password=s3cr3t and user pw s3cr3t", "Host=a;Password=s3cr3t", "s3cr3t", null, "");
 Expect(!secretText.Contains("s3cr3t", StringComparison.Ordinal), "a secret survived redaction");
 
+// Network access: parsed strictly, remembered, and merged without disturbing other settings.
+Expect(InstallerSettings.ParseNetworkAccess(null) is null && InstallerSettings.ParseNetworkAccess("  ") is null,
+    "no option must mean no change");
+Expect(InstallerSettings.ParseNetworkAccess("YES") == true && InstallerSettings.ParseNetworkAccess("no") == false,
+    "yes and no must parse in any case");
+Refused(() => InstallerSettings.ParseNetworkAccess("true"), "yes or no", "an unclear network-access value");
+Refused(() => InstallerSettings.ParseNetworkAccess("yes --bootstrap-admin x"), "yes or no", "an option with extra text");
+
+Expect(InstallerSettings.ReadNetworkAccess(security) is null, "a file without the choice remembers nothing");
+var remembered = InstallerSettings.WithNetworkAccess(security, enabled: false);
+Expect(InstallerSettings.ReadNetworkAccess(remembered) == false, "the network-access choice did not round-trip");
+Expect(JsonNode.Parse(remembered)!["Security"]!["BootstrapAdministrators"]![0]!.GetValue<string>() == "CORP\\admin",
+    "remembering network access lost the bootstrap administrator");
+var both = InstallerSettings.WithNetworkAccess(
+    InstallerSettings.WithConnectionString(remembered, "Host=a;Password=one"), enabled: true);
+Expect(InstallerSettings.ReadNetworkAccess(both) == true && InstallerSettings.ReadConnectionString(both) == "Host=a;Password=one",
+    "the connection and the network choice must coexist");
+Refused(() => InstallerSettings.ReadNetworkAccess("{\"Installer\":{\"NetworkAccess\":\"maybe\"}}"), "true or false",
+    "a non-boolean remembered choice");
+
 Console.WriteLine("Installer settings checks passed.");
 return 0;

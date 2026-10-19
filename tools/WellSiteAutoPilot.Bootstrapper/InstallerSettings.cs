@@ -23,6 +23,9 @@ internal static class InstallerSettings
     private const int DefaultPort = 5432;
     private const string DefaultDatabase = "wellsite_autopilot";
 
+    public const string InstallerSection = "Installer";
+    public const string NetworkAccessName = "NetworkAccess";
+
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
     /// <summary>
@@ -129,6 +132,77 @@ internal static class InstallerSettings
         else
         {
             root[ConnectionStringsSection] = new JsonObject { [ConnectionStringName] = connectionString };
+        }
+
+        return root.ToJsonString(WriteOptions);
+    }
+
+    /// <summary>"yes" or "no" (any case) from the command line; null when not given.</summary>
+    public static bool? ParseNetworkAccess(string? option)
+    {
+        var value = Clean(option);
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(value, "no", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        throw new InvalidOperationException("--network-access must be yes or no.");
+    }
+
+    /// <summary>The network-access choice remembered by an earlier install, if any.</summary>
+    public static bool? ReadNetworkAccess(string? settingsJson)
+    {
+        var root = ParseRoot(settingsJson);
+        if (!root.TryGetPropertyValue(InstallerSection, out var section) || section is null)
+        {
+            return null;
+        }
+
+        if (section is not JsonObject sectionObject)
+        {
+            throw new InvalidOperationException($"Settings file {InstallerSection} must be an object.");
+        }
+
+        if (!sectionObject.TryGetPropertyValue(NetworkAccessName, out var value) || value is null)
+        {
+            return null;
+        }
+
+        if (value is not JsonValue jsonValue || !jsonValue.TryGetValue<bool>(out var enabled))
+        {
+            throw new InvalidOperationException(
+                $"Settings file {InstallerSection}:{NetworkAccessName} must be true or false.");
+        }
+
+        return enabled;
+    }
+
+    /// <summary>The settings file content with the network-access choice remembered; everything else is kept.</summary>
+    public static string WithNetworkAccess(string? settingsJson, bool enabled)
+    {
+        var root = ParseRoot(settingsJson);
+        if (root.TryGetPropertyValue(InstallerSection, out var existing) && existing is not null)
+        {
+            if (existing is not JsonObject sectionObject)
+            {
+                throw new InvalidOperationException($"Settings file {InstallerSection} must be an object.");
+            }
+
+            sectionObject[NetworkAccessName] = enabled;
+        }
+        else
+        {
+            root[InstallerSection] = new JsonObject { [NetworkAccessName] = enabled };
         }
 
         return root.ToJsonString(WriteOptions);
