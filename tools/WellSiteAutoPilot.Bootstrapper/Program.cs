@@ -609,8 +609,12 @@ internal static class Bootstrapper
 
     private static bool ServiceExists(string serviceName)
     {
+        // 1060 is "service does not exist". A deleted service that something still holds open answers
+        // 1072 ("marked for deletion") until the last handle closes, and creating the same name then
+        // fails, so only 1060 counts as gone.
+        const int ServiceDoesNotExist = 1060;
         var result = RunScAllowFailure("query", serviceName);
-        return result.ExitCode == 0;
+        return result.ExitCode != ServiceDoesNotExist;
     }
 
     private static void WaitForState(
