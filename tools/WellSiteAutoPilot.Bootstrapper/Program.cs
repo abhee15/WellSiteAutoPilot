@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Security.Principal;
+using System.Text;
 using System.Text.Json;
 
 return Bootstrapper.Run(args);
@@ -11,6 +12,15 @@ internal static class Bootstrapper
     private const string ServerServiceName = "Weatherford.WellSiteAutoPilot.Server";
     private const string GatewayServiceName = "Weatherford.WellSiteAutoPilot.IntegrationGateway";
     private const string WorkerServiceName = "Weatherford.WellSiteAutoPilot.Worker.DotNet";
+    private const string FirewallRuleName = "WellSiteAutoPilot.Server";
+    private const int ServerPort = 5080;
+
+    // LocalService has no network identity: it presents anonymous credentials, so a service running
+    // as LocalService cannot complete a Negotiate (Kerberos/NTLM) sign-in and browsers prompt forever.
+    // The Server authenticates browser users and reads the directory, so it runs as NetworkService,
+    // which uses the machine account. The other services need no network identity.
+    private const string LocalServiceAccount = @"NT AUTHORITY\LocalService";
+    private const string NetworkServiceAccount = @"NT AUTHORITY\NetworkService";
     private static readonly JsonSerializerOptions SettingsJsonOptions =
         new()
         {
@@ -63,9 +73,18 @@ internal static class Bootstrapper
             "WellSite AutoPilot");
 
         Directory.CreateDirectory(programDataRoot);
+        var settingsPath = Path.Combine(programDataRoot, "server.settings.json");
+
+        // Resolve the database first so a missing or malformed setting stops the install before
+        // anything is written or any service is touched.
+        var database = ResolveDatabaseConnection(settingsPath);
+        var network = ResolveNetworkAccess(settingsPath, GetOption(args, "--network-access"));
+
         ConfigureBootstrapAdministrator(
             programDataRoot,
             GetOption(args, "--bootstrap-admin"));
+        StoreInstallerSettings(settingsPath, database, network);
+        RunDatabaseMigrator(installRoot, database.ConnectionString);
 
         var natsDataRoot = Path.Combine(programDataRoot, "NATS", "JetStream");
         Directory.CreateDirectory(natsDataRoot);
@@ -77,22 +96,29 @@ internal static class Bootstrapper
                 NatsServiceName,
                 "WellSite AutoPilot NATS",
                 Path.Combine(installRoot, "Infrastructure", "NATSHost", "WellSiteAutoPilot.NatsHost.exe"),
-                string.Empty),
+                string.Empty,
+                LocalServiceAccount),
             new ServiceDefinition(
                 GatewayServiceName,
                 "WellSite AutoPilot Integration Gateway",
                 Path.Combine(installRoot, "IntegrationGateway", "WellSiteAutoPilot.IntegrationGateway.exe"),
-                "--urls http://127.0.0.1:5081"),
+                "--urls http://127.0.0.1:5081",
+                LocalServiceAccount),
             new ServiceDefinition(
                 WorkerServiceName,
                 "WellSite AutoPilot .NET Runtime",
                 Path.Combine(installRoot, "Workers", "DotNet", "WellSiteAutoPilot.Worker.DotNet.exe"),
-                "--urls http://127.0.0.1:5082"),
+                "--urls http://127.0.0.1:5082",
+                LocalServiceAccount),
             new ServiceDefinition(
                 ServerServiceName,
                 "WellSite AutoPilot Server",
                 Path.Combine(installRoot, "Server", "WellSiteAutoPilot.Server.exe"),
-                "--urls http://127.0.0.1:5080")
+                // Only the Server is reachable from the network; NATS, the Gateway and the worker stay on loopback.
+                network.Enabled
+                    ? $"--urls http://*:{ServerPort}"
+                    : $"--urls http://127.0.0.1:{ServerPort}",
+                NetworkServiceAccount)
         };
 
         foreach (var service in services)
@@ -121,7 +147,7 @@ internal static class Bootstrapper
                 "start=",
                 "auto",
                 "obj=",
-                @"NT AUTHORITY\LocalService",
+                service.Account,
                 "DisplayName=",
                 service.DisplayName);
 
@@ -134,6 +160,13 @@ internal static class Bootstrapper
             WaitForState(service.ServiceName, "RUNNING", TimeSpan.FromSeconds(30));
         }
 
+        ConfigureFirewall(
+            services.Single(service => service.ServiceName == ServerServiceName).ExecutablePath,
+            network.Enabled);
+
+        Console.WriteLine(network.Enabled
+            ? $"WellSite AutoPilot is reachable from the network on port {ServerPort} (Domain and Private networks)."
+            : "WellSite AutoPilot is reachable from this computer only.");
         Console.WriteLine("WellSite AutoPilot Windows services installed and started.");
         return 0;
     }
@@ -150,6 +183,8 @@ internal static class Bootstrapper
         {
             RemoveServiceIfPresent(serviceName);
         }
+
+        RunNetshAllowFailure($"advfirewall firewall delete rule name={FirewallRuleName}");
 
         Console.WriteLine("WellSite AutoPilot Windows services removed.");
         return 0;
@@ -182,7 +217,7 @@ internal static class Bootstrapper
                 }
             }
 
-            GrantLocalServiceReadAccess(settingsPath);
+            SecureSettingsFile(settingsPath);
             return;
         }
 
@@ -220,7 +255,7 @@ internal static class Bootstrapper
         File.WriteAllText(temporaryPath, payload);
         File.Move(temporaryPath, settingsPath, overwrite: true);
 
-        GrantLocalServiceReadAccess(settingsPath);
+        SecureSettingsFile(settingsPath);
     }
 
     private static string[] ReadBootstrapAdministrators(
@@ -315,7 +350,12 @@ internal static class Bootstrapper
         return value;
     }
 
-    private static void GrantLocalServiceReadAccess(string path)
+    /// <summary>
+    /// The settings file can hold the database password. Only SYSTEM and Administrators get full
+    /// control and only the Server's account (NetworkService) can read it; inherited access is removed,
+    /// and any LocalService entry left by an earlier version is withdrawn.
+    /// </summary>
+    private static void SecureSettingsFile(string path)
     {
         var result = RunProcessAllowFailure(
             "icacls.exe",
@@ -324,7 +364,9 @@ internal static class Bootstrapper
             "/grant:r",
             "*S-1-5-18:F",
             "*S-1-5-32-544:F",
-            "*S-1-5-19:R");
+            "*S-1-5-20:R",
+            "/remove:g",
+            "*S-1-5-19");
 
         if (result.ExitCode != 0)
         {
@@ -352,6 +394,196 @@ internal static class Bootstrapper
         }
     }
 
+    private static DatabaseConnection ResolveDatabaseConnection(string settingsPath)
+    {
+        var requested = InstallerSettings.BuildConnectionString(
+            name => Environment.GetEnvironmentVariable(name));
+        var stored = File.Exists(settingsPath)
+            ? InstallerSettings.ReadConnectionString(File.ReadAllText(settingsPath))
+            : null;
+
+        if (requested is null && stored is null)
+        {
+            throw new InvalidOperationException(
+                "No database connection is configured. Provide the PostgreSQL connection with " +
+                $"{InstallerSettings.UserVariable} and {InstallerSettings.PasswordVariable} " +
+                $"(optionally {InstallerSettings.HostVariable}, {InstallerSettings.PortVariable}, " +
+                $"{InstallerSettings.NameVariable}), or a full {InstallerSettings.FullConnectionStringVariable}. " +
+                "The database must already exist and the user must be able to create tables in it.");
+        }
+
+        var effective = requested ?? stored!;
+        return new DatabaseConnection(
+            effective,
+            Changed: requested is not null &&
+                     !string.Equals(requested, stored, StringComparison.Ordinal));
+    }
+
+    private static NetworkChoice ResolveNetworkAccess(string settingsPath, string? option)
+    {
+        var requested = InstallerSettings.ParseNetworkAccess(option);
+        var stored = File.Exists(settingsPath)
+            ? InstallerSettings.ReadNetworkAccess(File.ReadAllText(settingsPath))
+            : null;
+
+        // The choice is remembered, so an upgrade that does not mention it never silently widens (or
+        // narrows) who can connect. A first install defaults to reachable from the network.
+        return new NetworkChoice(
+            requested ?? stored ?? true,
+            Changed: requested is not null && requested != stored);
+    }
+
+    private static void StoreInstallerSettings(
+        string settingsPath, DatabaseConnection database, NetworkChoice network)
+    {
+        if (!database.Changed && !network.Changed)
+        {
+            return;
+        }
+
+        var updated = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : null;
+        if (database.Changed)
+        {
+            updated = InstallerSettings.WithConnectionString(updated, database.ConnectionString);
+        }
+
+        if (network.Changed)
+        {
+            updated = InstallerSettings.WithNetworkAccess(updated, network.Enabled);
+        }
+
+        // Lock the file down before the secret is written, so it is never readable through the
+        // permissions inherited from ProgramData, even briefly.
+        var temporaryPath = settingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        File.WriteAllText(temporaryPath, string.Empty);
+        SecureSettingsFile(temporaryPath);
+        File.WriteAllText(temporaryPath, updated!);
+        File.Move(temporaryPath, settingsPath, overwrite: true);
+        SecureSettingsFile(settingsPath);
+        Console.WriteLine("Installer settings stored in the protected machine settings file.");
+    }
+
+    /// <summary>
+    /// Allows inbound TCP to the Server only (the rule is bound to its executable) on Domain and Private
+    /// networks, never Public. Idempotent: any earlier rule is removed first, and turning network access
+    /// off removes it.
+    /// </summary>
+    private static void ConfigureFirewall(string serverExecutable, bool enabled)
+    {
+        RunNetshAllowFailure($"advfirewall firewall delete rule name={FirewallRuleName}");
+        if (!enabled)
+        {
+            return;
+        }
+
+        var result = RunNetshAllowFailure(
+            $"advfirewall firewall add rule name={FirewallRuleName} dir=in action=allow protocol=TCP " +
+            $"localport={ServerPort} program=\"{serverExecutable}\" profile=domain,private enable=yes");
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                "Failed to open the Windows Firewall for the Server: " +
+                $"{result.StandardOutput} {result.StandardError}".Trim());
+        }
+    }
+
+    // netsh needs program="path with spaces" quoted exactly, so the command line is built as one string.
+    private static ScResult RunNetshAllowFailure(string arguments)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "netsh.exe",
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        return new ScResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static void RunDatabaseMigrator(string installRoot, string connectionString)
+    {
+        var migratorPath = Path.Combine(
+            installRoot, "Tools", "DatabaseMigrator", "WellSiteAutoPilot.DatabaseMigrator.exe");
+        if (!File.Exists(migratorPath))
+        {
+            throw new FileNotFoundException(
+                $"Database migrator was not found: {migratorPath}", migratorPath);
+        }
+
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = migratorPath,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        // The connection reaches the migrator only through its own environment, never the command line.
+        process.StartInfo.Environment[InstallerSettings.FullConnectionStringVariable] = connectionString;
+
+        var output = new StringBuilder();
+        void Capture(object _, DataReceivedEventArgs received)
+        {
+            if (received.Data is null)
+            {
+                return;
+            }
+
+            lock (output)
+            {
+                output.AppendLine(received.Data);
+            }
+        }
+
+        process.OutputDataReceived += Capture;
+        process.ErrorDataReceived += Capture;
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        if (!process.WaitForExit(TimeSpan.FromMinutes(5)))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new InvalidOperationException(
+                "Database migration did not finish within 5 minutes. Check that PostgreSQL is reachable.");
+        }
+
+        process.WaitForExit();
+
+        string text;
+        lock (output)
+        {
+            text = InstallerSettings.Redact(
+                output.ToString(),
+                connectionString,
+                Environment.GetEnvironmentVariable(InstallerSettings.PasswordVariable)).Trim();
+        }
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Database migration failed with exit code {process.ExitCode}. Check the PostgreSQL " +
+                $"connection settings and that the database exists. {text}".Trim());
+        }
+
+        Console.WriteLine(text);
+    }
+
     private static void RemoveServiceIfPresent(string serviceName)
     {
         if (!ServiceExists(serviceName))
@@ -377,8 +609,12 @@ internal static class Bootstrapper
 
     private static bool ServiceExists(string serviceName)
     {
+        // 1060 is "service does not exist". A deleted service that something still holds open answers
+        // 1072 ("marked for deletion") until the last handle closes, and creating the same name then
+        // fails, so only 1060 counts as gone.
+        const int ServiceDoesNotExist = 1060;
         var result = RunScAllowFailure("query", serviceName);
-        return result.ExitCode == 0;
+        return result.ExitCode != ServiceDoesNotExist;
     }
 
     private static void WaitForState(
@@ -486,9 +722,23 @@ internal static class Bootstrapper
     {
         Console.WriteLine("WellSite AutoPilot Bootstrapper");
         Console.WriteLine(
-            "  install-services --install-root <path> [--bootstrap-admin <WindowsIdentity>]");
+            "  install-services --install-root <path> [--bootstrap-admin <WindowsIdentity>] [--network-access yes|no]");
+        Console.WriteLine(
+            "    --network-access (default yes, then remembered) lets other computers on Domain and Private");
+        Console.WriteLine(
+            "      networks reach the Server on port 5080 and opens the Windows Firewall for it; no = this computer only.");
         Console.WriteLine(
             "    --bootstrap-admin is required on a fresh installation and preserved on upgrades.");
+        Console.WriteLine(
+            "    The PostgreSQL connection is read from the environment (never the command line):");
+        Console.WriteLine(
+            "      WSA_DATABASE_USER and WSA_DATABASE_PASSWORD, optionally WSA_DATABASE_HOST,");
+        Console.WriteLine(
+            "      WSA_DATABASE_PORT and WSA_DATABASE_NAME, or one WSA_DATABASE_CONNECTION_STRING.");
+        Console.WriteLine(
+            "      Required on a fresh installation; an upgrade keeps the stored connection.");
+        Console.WriteLine(
+            "      The database must already exist. Migrations run before any service starts.");
         Console.WriteLine("  uninstall-services");
     }
 
@@ -496,7 +746,12 @@ internal static class Bootstrapper
         string ServiceName,
         string DisplayName,
         string ExecutablePath,
-        string Arguments);
+        string Arguments,
+        string Account);
+
+    private sealed record DatabaseConnection(string ConnectionString, bool Changed);
+
+    private sealed record NetworkChoice(bool Enabled, bool Changed);
 
     private sealed record ScResult(
         int ExitCode,

@@ -27,6 +27,7 @@ using WellSiteAutoPilot.Domain.Security;
 using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Infrastructure.Messaging;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using WellSiteAutoPilot.Infrastructure.System;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
@@ -178,10 +179,11 @@ builder.Services.AddSingleton(new JetStreamConsumerSettings(
 builder.Services.AddHostedService<ExecutionResultConsumer>();
 builder.Services.AddHostedService<ExecutionResultV2Consumer>();
 builder.Services.AddHostedService<ScheduledShadowSchedulerHostedService>();
-builder.Services.AddWellSitePersistence(
-    builder.Configuration.GetConnectionString("WellSiteAutoPilot") ??
-    Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") ??
-    "Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa");
+builder.Services.AddWellSitePersistence(DatabaseConnectionLoader.Resolve(
+    builder.Configuration,
+    name => Environment.GetEnvironmentVariable(name),
+    SecurityOptionsLoader.GetProgramDataSettingsPath(),
+    WindowsServiceHelpers.IsWindowsService()));
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 builder.Services.AddChangeSignal(builder.Configuration);
