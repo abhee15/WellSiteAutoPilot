@@ -34,14 +34,19 @@ file described below.
 
 ## Network access
 
-By default the Server is reachable from other computers: it listens on every interface, port 5080, and the
+By default the Server is reachable from other computers: it listens on every interface (port 5080 unless you choose another), and the
 bootstrapper adds one inbound Windows Firewall rule bound to the Server executable for **Domain and Private
 networks only** (never Public). NATS (4222), the Integration Gateway (5081) and the worker (5082) stay on
 loopback. Choose "this computer only" in the installer, or `/NETWORKACCESS=no`, to listen on loopback
 and remove the rule. The choice is remembered, so an upgrade that does not mention it never widens or
 narrows access. Uninstalling removes the rule.
 
-Users browse to `http://<computer name>:5080/`. Because the Server runs as `NetworkService` (the machine
+**Port.** The installer has a "Server port" field, and a silent install takes `/PORT=<1-65535>` (the
+bootstrapper takes `--port`). Use it when another program already holds 5080. The firewall rule and the
+listening address follow the port. The port is remembered like the network choice, so an upgrade that does
+not mention it keeps the earlier port. 5081, 5082 and 4222 are refused because other services use them.
+
+Users browse to `http://<computer name>:<port>/` (port 5080 by default). Because the Server runs as `NetworkService` (the machine
 account), Kerberos works for remote users without registering anything extra. For automatic sign-in the
 browser must treat the address as an intranet site: Edge and Chrome do this for single-label names and for
 sites listed in the `AuthServerAllowlist` policy. Otherwise they ask for credentials.

@@ -25,6 +25,11 @@ internal static class InstallerSettings
 
     public const string InstallerSection = "Installer";
     public const string NetworkAccessName = "NetworkAccess";
+    public const string ServerPortName = "ServerPort";
+    public const int DefaultServerPort = 5080;
+
+    // The loopback ports of the services that run beside the Server.
+    private static readonly int[] ReservedPorts = [5081, 5082, 4222];
 
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
@@ -203,6 +208,79 @@ internal static class InstallerSettings
         else
         {
             root[InstallerSection] = new JsonObject { [NetworkAccessName] = enabled };
+        }
+
+        return root.ToJsonString(WriteOptions);
+    }
+
+    /// <summary>The Server's listening port from the command line; null when not given.</summary>
+    public static int? ParseServerPort(string? option)
+    {
+        var value = Clean(option);
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var port) ||
+            port is < 1 or > 65535)
+        {
+            throw new InvalidOperationException("--port must be a number from 1 to 65535.");
+        }
+
+        if (Array.IndexOf(ReservedPorts, port) >= 0)
+        {
+            throw new InvalidOperationException(
+                $"--port {port} is used by another WellSite AutoPilot service ({string.Join(", ", ReservedPorts)}).");
+        }
+
+        return port;
+    }
+
+    /// <summary>The Server port remembered by an earlier install, if any.</summary>
+    public static int? ReadServerPort(string? settingsJson)
+    {
+        var root = ParseRoot(settingsJson);
+        if (!root.TryGetPropertyValue(InstallerSection, out var section) || section is null)
+        {
+            return null;
+        }
+
+        if (section is not JsonObject sectionObject)
+        {
+            throw new InvalidOperationException($"Settings file {InstallerSection} must be an object.");
+        }
+
+        if (!sectionObject.TryGetPropertyValue(ServerPortName, out var value) || value is null)
+        {
+            return null;
+        }
+
+        if (value is not JsonValue jsonValue || !jsonValue.TryGetValue<int>(out var port) || port is < 1 or > 65535)
+        {
+            throw new InvalidOperationException(
+                $"Settings file {InstallerSection}:{ServerPortName} must be a port number from 1 to 65535.");
+        }
+
+        return port;
+    }
+
+    /// <summary>The settings file content with the Server port remembered; everything else is kept.</summary>
+    public static string WithServerPort(string? settingsJson, int port)
+    {
+        var root = ParseRoot(settingsJson);
+        if (root.TryGetPropertyValue(InstallerSection, out var existing) && existing is not null)
+        {
+            if (existing is not JsonObject sectionObject)
+            {
+                throw new InvalidOperationException($"Settings file {InstallerSection} must be an object.");
+            }
+
+            sectionObject[ServerPortName] = port;
+        }
+        else
+        {
+            root[InstallerSection] = new JsonObject { [ServerPortName] = port };
         }
 
         return root.ToJsonString(WriteOptions);
