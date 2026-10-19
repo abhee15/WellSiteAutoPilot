@@ -73,6 +73,10 @@ Page custom DatabasePageCreate DatabasePageLeave
 !insertmacro MUI_LANGUAGE "English"
 
 Function .onInit
+  ; The page functions look for the machine settings file before the install section runs, so resolve
+  ; $COMMONAPPDATA for all users here. Otherwise an upgrade is mistaken for a fresh install and a silent
+  ; upgrade aborts for want of an administrator and database credentials.
+  SetShellVarContext all
   ${GetParameters} $R0
   ${GetOptions} $R0 "/BOOTSTRAPADMIN=" $BootstrapAdmin
   ; Silent installs: /DBUSER= and /DBPASSWORD= (or WSA_DATABASE_USER / WSA_DATABASE_PASSWORD already in
