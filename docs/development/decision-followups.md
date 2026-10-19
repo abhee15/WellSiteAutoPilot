@@ -51,3 +51,7 @@ PR #127 completed the coordinated enterprise RBAC runtime integration and
 merged as d23ef0d after seven passing checks. The next agreed Phase 1 priority
 is the real Windows browser diagnostic under #92. Enum generation remains
 queued and does not interrupt that investigation.
+
+## Connections and asset discovery — 2026-10-19
+
+Captured product-owner brainstorming in [Connections, templates, and asset discovery](../architecture/connections-and-asset-discovery.md). Start from named provider connections and adapter-supplied starter templates, discover selected metadata into a customer-defined ACL hierarchy, retain explicit source bindings, then configure logic data bindings separately. The note distinguishes existing contracts, supported direction, proposed UX, and unresolved implementation choices. ForeSite WCF/NTLM contract inspection is a prerequisite to its adapter design. Preserve the current roadmap priority; this discussion does not request immediate adapter implementation.
