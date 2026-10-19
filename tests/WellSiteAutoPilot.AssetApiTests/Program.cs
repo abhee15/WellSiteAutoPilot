@@ -125,6 +125,47 @@ if (!engineerAssets.EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == f
     engineerAssets.EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == childId))
     throw new InvalidOperationException("List filtering violated explicit Asset scope");
 
+// Browsing a large hierarchy: children with counts and search with locations obey the same scope.
+var childName = createdChild.GetProperty("name").GetString()!;
+var adminRoots = await BodyAsync(
+    await admin.GetAsync("/api/v1/assets/children?limit=500"), HttpStatusCode.OK);
+var adminField = adminRoots.EnumerateArray().SingleOrDefault(x => x.GetProperty("id").GetGuid() == fieldId);
+if (adminField.ValueKind != JsonValueKind.Object || adminField.GetProperty("childCount").GetInt32() < 1)
+    throw new InvalidOperationException("Top level must list the field with its child count");
+var adminChildren = await BodyAsync(
+    await admin.GetAsync("/api/v1/assets/children?parentAssetId=" + fieldId), HttpStatusCode.OK);
+if (!adminChildren.EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == childId))
+    throw new InvalidOperationException("Children of the field must include the new child");
+var engineerRoots = await BodyAsync(
+    await engineer.GetAsync("/api/v1/assets/children?limit=500"), HttpStatusCode.OK);
+var engineerField = engineerRoots.EnumerateArray().SingleOrDefault(x => x.GetProperty("id").GetGuid() == fieldId);
+if (engineerField.ValueKind != JsonValueKind.Object || engineerField.GetProperty("childCount").GetInt32() != 0)
+    throw new InvalidOperationException("Child counts must not count assets outside the caller's scope");
+var engineerChildren = await BodyAsync(
+    await engineer.GetAsync("/api/v1/assets/children?parentAssetId=" + fieldId), HttpStatusCode.OK);
+if (engineerChildren.GetArrayLength() != 0)
+    throw new InvalidOperationException("Children outside the caller's scope leaked");
+var adminSearch = await BodyAsync(
+    await admin.GetAsync("/api/v1/assets/search?q=" + Uri.EscapeDataString(childName[..8].ToUpperInvariant())),
+    HttpStatusCode.OK);
+var adminHit = adminSearch.EnumerateArray().SingleOrDefault(x => x.GetProperty("id").GetGuid() == childId);
+if (adminHit.ValueKind != JsonValueKind.Object ||
+    adminHit.GetProperty("path").GetArrayLength() != 1 ||
+    adminHit.GetProperty("path")[0].GetProperty("id").GetGuid() != fieldId)
+    throw new InvalidOperationException("Search must find the child case-insensitively with its location");
+var engineerSearch = await BodyAsync(
+    await engineer.GetAsync("/api/v1/assets/search?q=" + Uri.EscapeDataString(childName[..8])), HttpStatusCode.OK);
+if (engineerSearch.EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == childId))
+    throw new InvalidOperationException("Search leaked an asset outside the caller's scope");
+var wildcardSearch = await BodyAsync(
+    await admin.GetAsync("/api/v1/assets/search?q=" + Uri.EscapeDataString("%")), HttpStatusCode.OK);
+if (wildcardSearch.GetArrayLength() != 0)
+    throw new InvalidOperationException("Search text must match literally, not as a wildcard");
+await CheckAsync(await admin.GetAsync("/api/v1/assets/search"),
+    HttpStatusCode.BadRequest, "Search without text must be rejected");
+await CheckAsync(await admin.GetAsync("/api/v1/assets/children?limit=0"),
+    HttpStatusCode.BadRequest, "A zero page size must be rejected");
+
 await CheckAsync(await operatorUser.PostAsJsonAsync("/api/v1/assets", new
 {
     assetTypeId = typeId, name = "Operator denied",

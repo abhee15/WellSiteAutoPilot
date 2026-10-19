@@ -33,3 +33,23 @@ public sealed record AssetResponse(
 public sealed record AssetCreationCapabilitiesResponse(
     bool CanCreateRoot,
     bool CanCreateUnderAuthorizedParents);
+
+/// <summary>One authorized asset in the hierarchy, with how many authorized assets sit directly below it.</summary>
+public sealed record AssetTreeNodeResponse(
+    Guid Id,
+    Guid AssetTypeId,
+    string Name,
+    Guid? ParentAssetId,
+    bool IsActive,
+    int ChildCount);
+
+public sealed record AssetPathSegmentResponse(Guid Id, string Name);
+
+/// <summary>A search match with the authorized ancestors it sits under, nearest the top first.</summary>
+public sealed record AssetSearchResultResponse(
+    Guid Id,
+    Guid AssetTypeId,
+    string Name,
+    Guid? ParentAssetId,
+    bool IsActive,
+    AssetPathSegmentResponse[] Path);

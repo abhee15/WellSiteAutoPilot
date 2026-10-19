@@ -537,6 +537,33 @@ v1.MapGet(
     .Produces<AssetResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
+    "/assets/children",
+    async (Guid? parentAssetId, int? offset, int? limit, IAssetRepository assets,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await assets.ListChildrenAuthorizedAsync(access.Subject, parentAssetId, PageOffset(offset),
+            PageLimit(limit ?? 100), cancellationToken))
+            .Select(node => new AssetTreeNodeResponse(node.Asset.Id, node.Asset.AssetTypeId, node.Asset.Name,
+                node.Asset.ParentAssetId, node.Asset.IsActive, node.ChildCount)).ToArray())
+    .WithName("ListAssetChildren")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .Produces<AssetTreeNodeResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapGet(
+    "/assets/search",
+    async (string? q, Guid? assetTypeId, int? offset, int? limit, IAssetRepository assets,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await assets.SearchAuthorizedAsync(access.Subject, SearchText(q), assetTypeId, PageOffset(offset),
+            PageLimit(limit ?? 50), cancellationToken))
+            .Select(hit => new AssetSearchResultResponse(hit.Asset.Id, hit.Asset.AssetTypeId, hit.Asset.Name,
+                hit.Asset.ParentAssetId, hit.Asset.IsActive,
+                hit.Path.Select(step => new AssetPathSegmentResponse(step.Id, step.Name)).ToArray())).ToArray())
+    .WithName("SearchAssets")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .Produces<AssetSearchResultResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapGet(
     "/assets/{assetId:guid}",
     async (Guid assetId, IAssetRepository assets, RequestAccessContext access, CancellationToken cancellationToken) =>
         ToAssetResponse(RequireFound(await assets.GetAuthorizedAsync(access.Subject, assetId, cancellationToken), "ASSET_NOT_FOUND")))
@@ -1064,6 +1091,12 @@ static T RequireFound<T>(T? value, string code) where T : class => value ??
 
 static int PageLimit(int limit, int maximum = 500) => limit >= 1 && limit <= maximum ? limit :
     throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested page limit is invalid.");
+
+static int PageOffset(int? offset) => offset is null ? 0 : offset >= 0 && offset <= 100_000 ? offset.Value :
+    throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested page offset is invalid.");
+
+static string SearchText(string? text) => text?.Trim() is { Length: >= 1 and <= 120 } trimmed ? trimmed :
+    throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "Search text must be 1 to 120 characters.");
 
 static T? ParseFilter<T>(string? raw) where T : struct, Enum => raw is null ? null :
     Enum.TryParse<T>(raw, ignoreCase: true, out var value) && Enum.IsDefined(value) ? value :
