@@ -74,7 +74,7 @@ Page custom DatabasePageCreate DatabasePageLeave
 
 Function .onInit
   ; The page functions look for the machine settings file before the install section runs, so resolve
-  ; $COMMONAPPDATA for all users here. Otherwise an upgrade is mistaken for a fresh install and a silent
+  ; $APPDATA for all users here. Otherwise an upgrade is mistaken for a fresh install and a silent
   ; upgrade aborts for want of an administrator and database credentials.
   SetShellVarContext all
   ${GetParameters} $R0
@@ -169,7 +169,7 @@ Function DatabasePageLeave
     StrCpy $DbName ""
   ${EndIf}
 
-  IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSettings FreshSettings
+  IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSettings FreshSettings
 
 FreshSettings:
   ${If} $DbUser == ""
@@ -194,7 +194,7 @@ ExistingSettings:
 FunctionEnd
 
 Function BootstrapAdminPageCreate
-  IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" 0 +2
+  IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" 0 +2
     Abort
 
   nsDialogs::Create 1018
@@ -226,8 +226,8 @@ FunctionEnd
 Function WriteInstallStep
   Exch $8
   Push $9
-  CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Diagnostics"
-  FileOpen $9 "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Diagnostics\installer-steps.log" a
+  CreateDirectory "$APPDATA\Weatherford\WellSite AutoPilot\Diagnostics"
+  FileOpen $9 "$APPDATA\Weatherford\WellSite AutoPilot\Diagnostics\installer-steps.log" a
   FileSeek $9 0 END
   FileWrite $9 "$8$\r$\n"
   FileClose $9
@@ -281,10 +281,10 @@ SkipStopServices:
   SetOutPath "$INSTDIR\Tools\Cli"
   File /r "${STAGING}\cli\*"
 
-  CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot"
-  CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Logs"
-  CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Diagnostics"
-  CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Modules"
+  CreateDirectory "$APPDATA\Weatherford\WellSite AutoPilot"
+  CreateDirectory "$APPDATA\Weatherford\WellSite AutoPilot\Logs"
+  CreateDirectory "$APPDATA\Weatherford\WellSite AutoPilot\Diagnostics"
+  CreateDirectory "$APPDATA\Weatherford\WellSite AutoPilot\Modules"
 
   WriteRegStr HKLM "Software\Weatherford\WellSiteAutoPilot" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "Software\Weatherford\WellSiteAutoPilot" "Version" "${VERSION}"
@@ -322,7 +322,7 @@ SkipStopServices:
     StrCpy $BootstrapperArgs " --network-access $NetworkAccess"
   ${EndIf}
 
-  IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSecuritySettings FreshSecuritySettings
+  IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSecuritySettings FreshSecuritySettings
 
 FreshSecuritySettings:
   ${If} $BootstrapAdmin == ""
