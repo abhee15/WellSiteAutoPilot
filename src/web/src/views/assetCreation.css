@@ -38,3 +38,4 @@
   .asset-create-attributes, .asset-create-schema, .asset-create-hint, .asset-create-fields,
   .asset-create-error, .asset-create-success { grid-column: auto; }
 }
+.asset-type-define > summary { padding: var(--space-12) var(--space-18); cursor: pointer; }
