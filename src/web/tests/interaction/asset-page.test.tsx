@@ -131,3 +131,25 @@ it('an Asset type opens its details with readable attributes, and the add form c
   cancel.click();
   await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull());
 });
+
+it('focusing on a root asset shows only that hierarchy and can be undone', async () => {
+  window.location.hash = '#assets/' + parentId;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions: ['assets.read'], assetScopeIds: [] });
+    if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
+    if (url.includes('/asset-types')) return response([{ id: typeId, key: 'well', displayName: 'Well', schemaVersion: 1, isActive: true }]);
+    if (url.includes('/assets?')) return response([
+      { id: parentId, assetTypeId: typeId, name: 'Pad 7', isActive: true },
+      { id: assetId, assetTypeId: typeId, parentAssetId: parentId, name: 'North Well', isActive: true },
+      { id: '99999999-9999-4999-8999-999999999999', assetTypeId: typeId, name: 'Other Pad', isActive: true },
+    ]);
+    return response([]);
+  }));
+  render(<App />);
+  (await screen.findByRole('button', { name: 'Focus on Pad 7 hierarchy' })).click();
+  expect(await screen.findByText('Showing only Pad 7 and what is under it')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Open Other Pad from the hierarchy' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Open North Well from the hierarchy' })).toBeTruthy();
+  screen.getByRole('button', { name: 'Show all assets' }).click();
+  expect(await screen.findByRole('button', { name: 'Open Other Pad from the hierarchy' })).toBeTruthy();
+});

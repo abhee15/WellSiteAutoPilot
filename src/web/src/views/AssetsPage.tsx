@@ -13,6 +13,7 @@ import { AssetCreationPanel } from './AssetCreationPanel';
 import { AssetTypeDefinitionPanel } from './AssetTypeDefinitionPanel';
 import { AssetTypeDetail } from './AssetTypeDetail';
 import { AssetTree } from './AssetTree';
+import { descendantsOf } from './assetHierarchy';
 import { AssetInventoryControls } from './AssetInventoryControls';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetInventory';
 import type { AssetInventoryCriteria } from './assetInventory';
@@ -82,6 +83,9 @@ export function AssetsPage({
   }, [assets]);
   const [criteria, setCriteria] = useState<AssetInventoryCriteria>(DEFAULT_ASSET_INVENTORY_CRITERIA);
   const [adding, setAdding] = useState(false);
+  const [focus, setFocus] = useState<{ id: string; name: string } | null>(null);
+  const focusId = focus?.id ?? null;
+  const canFocus = lazy || assets.some(asset => asset.parentAssetId === selectedAuthorized?.id);
   const [openTypeId, setOpenTypeId] = useState<string | null>(null);
   const visibleAssets = useMemo(
     () => filterAssetInventory(assets, typeNames, criteria),
@@ -199,6 +203,18 @@ export function AssetsPage({
                   hideSearch
                 />
               </details>}
+              {focus ? (
+                <p className="split-focus">
+                  <span>{t('assets.focusedOn', { name: focus.name })}</span>
+                  <button type="button" className="secondary-button" onClick={() => setFocus(null)}>
+                    {t('assets.showAll')}</button>
+                </p>
+              ) : selectedAuthorized && canFocus && !criteria.search.trim() && !filtering && (
+                <p className="split-focus">
+                  <button type="button" className="secondary-button" onClick={() => setFocus({ id: selectedAuthorized.id ?? '', name: selectedAuthorized.name ?? t('assets.unnamed') })}>
+                    {t('assets.focusOn', { name: selectedAuthorized.name ?? t('assets.unnamed') })}</button>
+                </p>
+              )}
               {!isLoaded ? <p className="split-note">{t('views.loading')}</p>
                 : assets.length === 0 ? (
                   <>
@@ -209,10 +225,10 @@ export function AssetsPage({
                   criteria.search.trim()
                     ? <AssetSearchResults query={criteria.search.trim()} selectedId={selectedId}
                       typeNames={typeNames} onSelect={select} />
-                    : <AssetBrowser selectedId={selectedId} refreshKey={refreshKey} onSelect={select}
+                    : <AssetBrowser key={focusId ?? 'all'} rootId={focusId} selectedId={selectedId} refreshKey={refreshKey} onSelect={select}
                       ancestorIds={context.ancestors.map(item => item.id ?? '')} />
                 ) : !filtering ? (
-                  <AssetTree assets={assets} selectedId={selectedId} onSelect={select} />
+                  <AssetTree assets={focusId ? descendantsOf(assets, focusId) : assets} selectedId={selectedId} onSelect={select} />
                 ) : visibleAssets.length === 0 ? (
                   <p className="split-note">{t('assets.noMatches')}</p>
                 ) : (
