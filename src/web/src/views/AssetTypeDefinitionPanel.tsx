@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import type { MessageKey } from '../localization';
 import { checkAssetTypeDraft, problemCode } from './assetTypeDefinition';
 import type { AssetTypeDraftProblem } from './assetTypeDefinition';
 
-const PROBLEM_KEYS: Record<AssetTypeDraftProblem, string> = {
+const PROBLEM_KEYS: Record<AssetTypeDraftProblem, MessageKey> = {
   key: 'assetTypes.keyInvalid',
   name: 'assetTypes.nameInvalid',
   schemaSyntax: 'assetTypes.schemaSyntax',
