@@ -125,5 +125,24 @@ Expect(InstallerSettings.ReadNetworkAccess(both) == true && InstallerSettings.Re
 Refused(() => InstallerSettings.ReadNetworkAccess("{\"Installer\":{\"NetworkAccess\":\"maybe\"}}"), "true or false",
     "a non-boolean remembered choice");
 
+Expect(InstallerSettings.ParseServerPort(null) is null && InstallerSettings.ParseServerPort(" ") is null,
+    "no port option means no change");
+Expect(InstallerSettings.ParseServerPort("8080") == 8080 && InstallerSettings.ParseServerPort("1") == 1 && InstallerSettings.ParseServerPort("65535") == 65535,
+    "valid ports were not accepted");
+Refused(() => InstallerSettings.ParseServerPort("0"), "1 to 65535", "port zero");
+Refused(() => InstallerSettings.ParseServerPort("65536"), "1 to 65535", "a port above 65535");
+Refused(() => InstallerSettings.ParseServerPort("80a"), "1 to 65535", "a port with extra text");
+Refused(() => InstallerSettings.ParseServerPort("-5"), "1 to 65535", "a negative port");
+Refused(() => InstallerSettings.ParseServerPort("5081"), "another WellSite AutoPilot service", "the Gateway port");
+Refused(() => InstallerSettings.ParseServerPort("4222"), "another WellSite AutoPilot service", "the NATS port");
+Expect(InstallerSettings.ReadServerPort(security) is null, "a file without a port remembers nothing");
+var withPort = InstallerSettings.WithServerPort(remembered, 8443);
+Expect(InstallerSettings.ReadServerPort(withPort) == 8443 && InstallerSettings.ReadNetworkAccess(withPort) == false,
+    "the port did not round-trip beside the network-access choice");
+Expect(InstallerSettings.ReadConnectionString(InstallerSettings.WithServerPort(both, 9000)) == "Host=a;Password=one",
+    "remembering the port dropped the stored connection");
+Refused(() => InstallerSettings.ReadServerPort("{\"Installer\":{\"ServerPort\":\"abc\"}}"), "port number", "a stored port that is not a number");
+Refused(() => InstallerSettings.ReadServerPort("{\"Installer\":{\"ServerPort\":70000}}"), "port number", "a stored port out of range");
+
 Console.WriteLine("Installer settings checks passed.");
 return 0;

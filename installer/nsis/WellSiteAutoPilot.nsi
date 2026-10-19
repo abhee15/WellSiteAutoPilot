@@ -44,6 +44,8 @@ Var DbUserInput
 Var DbPasswordInput
 Var NetworkAccess
 Var NetworkAccessInput
+Var ServerPort
+Var ServerPortInput
 Var BootstrapperArgs
 
 ; Hands a value to the bootstrapper through its environment (never its command line, which other
@@ -88,6 +90,8 @@ Function .onInit
   ${GetOptions} $R0 "/DBPASSWORD=" $DbPassword
   ; /NETWORKACCESS=yes|no. Omitted: the first install allows network access and an upgrade keeps its earlier choice.
   ${GetOptions} $R0 "/NETWORKACCESS=" $NetworkAccess
+  ; /PORT=<1-65535>: the Server's port. Omitted: the first install uses 5080 and an upgrade keeps its earlier port.
+  ${GetOptions} $R0 "/PORT=" $ServerPort
 FunctionEnd
 
 Function DatabasePageCreate
@@ -136,13 +140,43 @@ Function DatabasePageCreate
   ${NSD_CreatePassword} 32% 86u 68% 12u ""
   Pop $DbPasswordInput
 
-  ${NSD_CreateCheckbox} 0 106u 100% 10u "Allow other computers on the network to connect"
+  ${NSD_CreateCheckbox} 0 96u 100% 10u "Allow other computers on the network to connect"
   Pop $NetworkAccessInput
   ${If} $NetworkAccess != "no"
     ${NSD_Check} $NetworkAccessInput
   ${EndIf}
-  ${NSD_CreateLabel} 10u 117u 95% 20u "Opens Windows Firewall port 5080 for the WellSite AutoPilot Server on Domain and Private networks only. Clear this to allow connections from this computer only."
+  ${NSD_CreateLabel} 10u 107u 95% 18u "Opens Windows Firewall for the WellSite AutoPilot Server on Domain and Private networks only. Clear this to allow connections from this computer only."
   Pop $0
+
+  ; The Server port is remembered by an earlier install; the command line wins; otherwise 5080.
+  ${If} $ServerPort == ""
+    IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" 0 ServerPortScanDone
+    FileOpen $1 "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" r
+    ServerPortScan:
+      FileRead $1 $2
+      IfErrors ServerPortScanEnd
+      ${WordFind} "$2" '"ServerPort": ' "+1}" $3
+      IfErrors ServerPortScanNext 0
+      IntOp $3 $3 + 0
+      ${If} $3 > 0
+        StrCpy $ServerPort $3
+        Goto ServerPortScanEnd
+      ${EndIf}
+    ServerPortScanNext:
+      ClearErrors
+      Goto ServerPortScan
+    ServerPortScanEnd:
+    ClearErrors
+    FileClose $1
+    ServerPortScanDone:
+  ${EndIf}
+  ${If} $ServerPort == ""
+    StrCpy $ServerPort "5080"
+  ${EndIf}
+  ${NSD_CreateLabel} 0 128u 30% 10u "Server port"
+  Pop $0
+  ${NSD_CreateText} 32% 126u 17% 12u "$ServerPort"
+  Pop $ServerPortInput
 
   nsDialogs::Show
 FunctionEnd
@@ -153,6 +187,17 @@ Function DatabasePageLeave
   ${NSD_GetText} $DbNameInput $DbName
   ${NSD_GetText} $DbUserInput $DbUser
   ${NSD_GetText} $DbPasswordInput $DbPassword
+  ${NSD_GetText} $ServerPortInput $ServerPort
+  IntOp $0 $ServerPort + 0
+  ${If} $0 < 1
+  ${OrIf} $0 > 65535
+  ${OrIf} $0 == 5081
+  ${OrIf} $0 == 5082
+  ${OrIf} $0 == 4222
+    MessageBox MB_ICONSTOP "The Server port must be a number from 1 to 65535 and not 5081, 5082 or 4222 (used by other WellSite AutoPilot services)."
+    Abort
+  ${EndIf}
+  StrCpy $ServerPort $0
   ${NSD_GetState} $NetworkAccessInput $0
   ${If} $0 == ${BST_CHECKED}
     StrCpy $NetworkAccess "yes"
@@ -320,6 +365,9 @@ SkipStopServices:
   StrCpy $BootstrapperArgs ""
   ${If} $NetworkAccess != ""
     StrCpy $BootstrapperArgs " --network-access $NetworkAccess"
+  ${EndIf}
+  ${If} $ServerPort != ""
+    StrCpy $BootstrapperArgs "$BootstrapperArgs --port $ServerPort"
   ${EndIf}
 
   IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSecuritySettings FreshSecuritySettings
