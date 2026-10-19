@@ -976,7 +976,20 @@ jobs:
             cat /tmp/wsa-asset-server.log
             exit 1
           fi
-          dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj             --configuration Release --no-build
+          # Keep the client and server output so an abort leaves its last lines in the annotations
+          # (job logs are not always readable); the step still fails with the client's exit code.
+          annotate() {
+            printf '::error title=%s::' "$1"
+            tail -n 25 "$2" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g' | cut -c1-3500
+          }
+          client_status=0
+          dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj             --configuration Release --no-build > /tmp/wsa-asset-client.log 2>&1 || client_status=$?
+          cat /tmp/wsa-asset-client.log
+          if [ "$client_status" -ne 0 ]; then
+            annotate "Asset API test failed (exit $client_status)" /tmp/wsa-asset-client.log
+            annotate "Asset API server log" /tmp/wsa-asset-server.log
+            exit "$client_status"
+          fi
 
       - name: Verify Configured Logic persistence
         run: dotnet run --project tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj --configuration Release --no-build
