@@ -17,6 +17,9 @@ import { AssetInventoryControls } from './AssetInventoryControls';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetInventory';
 import type { AssetInventoryCriteria } from './assetInventory';
 import { assetAncestors } from './assetPage';
+import { SNAPSHOT_ASSET_LIMIT } from './assetBrowseApi';
+import { AssetBrowser, AssetSearchResults } from './AssetBrowser';
+import { useAssetContext } from './useAssetContext';
 import './splitLayout.css';
 
 /** The address `#assets/types` opens the Asset types tab; any other detail is an asset id. */
@@ -45,8 +48,26 @@ export function AssetsPage({
   const [detail, setDetail] = useHashDetail('assets');
   const onTypesTab = detail === TYPES_TAB;
   const selectedId = onTypesTab ? null : detail;
-  const selectedAuthorized = assets.find(asset => asset.id === selectedId);
+  // A full snapshot means the flat list may be incomplete: browse and search on the server instead.
+  const lazy = assets.length >= SNAPSHOT_ASSET_LIMIT;
+  const [localRefresh, setLocalRefresh] = useState(0);
+  const refreshKey = useMemo(
+    () => assets.map(asset => `${asset.id}|${asset.name}|${asset.isActive}`).join(',') + ':' + localRefresh,
+    [assets, localRefresh],
+  );
+  const context = useAssetContext(selectedId, assets, lazy, refreshKey);
+  const selectedAuthorized = lazy ? context.asset ?? undefined : assets.find(asset => asset.id === selectedId);
   useForgetVanishedSelection(selectedId, Boolean(selectedAuthorized), () => setDetail(null));
+  // What the asset page and the add form need to know about around the selection.
+  const nearby = useMemo(() => {
+    if (!lazy || !context.asset) return assets;
+    const seen = new Set<string | undefined>();
+    return [context.asset, ...context.ancestors, ...context.children, ...assets].filter(asset => {
+      if (seen.has(asset.id)) return false;
+      seen.add(asset.id);
+      return true;
+    });
+  }, [lazy, context.asset, context.ancestors, context.children, assets]);
   const typeNames = useMemo(
     () => new Map(assetTypes.map(type => [type.id, type.displayName])),
     [assetTypes],
@@ -81,7 +102,7 @@ export function AssetsPage({
     <div className="split-layout" data-has-selection={Boolean(selectedAuthorized)}>
       <div className="split-tabs" role="tablist" aria-label={t('assets.tabs')}>
         <a role="tab" href={hashFor('assets')} aria-selected={!onTypesTab}>
-          {t('assets.tabAssets')} <span>{assets.length}</span>
+          {t('assets.tabAssets')} <span>{lazy ? `${assets.length}+` : assets.length}</span>
         </a>
         <a role="tab" href={hashFor('assets', TYPES_TAB)} aria-selected={onTypesTab}>
           {t('assets.tabTypes')} <span>{assetTypes.length}</span>
@@ -123,7 +144,7 @@ export function AssetsPage({
                         onClick={() => setOpenTypeId(openTypeId === type.id ? null : type.id ?? null)}>
                         <strong>{type.displayName}</strong></button></td>
                       <td>{type.key}</td>
-                      <td>{count > 0
+                      <td>{lazy ? '—' : count > 0
                         ? <button type="button" className="asset-select"
                           aria-label={t('assets.showOfType', { count, name: typeName })}
                           onClick={() => showTypeAssets(typeName)}>{count}</button>
@@ -148,12 +169,13 @@ export function AssetsPage({
             key={(userId ?? 'anonymous') + ':' + (selectedAuthorized?.id ?? 'none')}
             userId={userId}
             assetTypes={assetTypes}
-            assets={assets}
+            assets={nearby}
             capabilities={capabilities}
             suggestedParentId={selectedAuthorized?.id ?? null}
             onCreated={async created => {
               setAdding(false);
               setDetail(created.id ?? null);
+              setLocalRefresh(count => count + 1);
               await onRefresh();
             }}
             onRefresh={onRefresh}
@@ -166,7 +188,7 @@ export function AssetsPage({
                   aria-label={t('assets.search')} placeholder={t('assets.searchPlaceholder')}
                   onChange={event => setCriteria({ ...criteria, search: event.target.value })} />
               </div>
-              <details className="split-filters">
+              {!lazy && <details className="split-filters">
                 <summary>{t('assets.moreFilters')}</summary>
                 <AssetInventoryControls
                   userId={userId}
@@ -176,13 +198,19 @@ export function AssetsPage({
                   totalCount={assets.length}
                   hideSearch
                 />
-              </details>
+              </details>}
               {!isLoaded ? <p className="split-note">{t('views.loading')}</p>
                 : assets.length === 0 ? (
                   <>
                     <p className="split-note">{t('assets.none')}</p>
                     <p className="split-note">{t('assets.noneHint')}</p>
                   </>
+                ) : lazy ? (
+                  criteria.search.trim()
+                    ? <AssetSearchResults query={criteria.search.trim()} selectedId={selectedId}
+                      typeNames={typeNames} onSelect={select} />
+                    : <AssetBrowser selectedId={selectedId} refreshKey={refreshKey} onSelect={select}
+                      ancestorIds={context.ancestors.map(item => item.id ?? '')} />
                 ) : !filtering ? (
                   <AssetTree assets={assets} selectedId={selectedId} onSelect={select} />
                 ) : visibleAssets.length === 0 ? (
@@ -216,7 +244,7 @@ export function AssetsPage({
               {selectedAuthorized ? <AssetDetail
                 key={selectedAuthorized.id}
                 asset={selectedAuthorized}
-                assets={assets}
+                assets={nearby}
                 typeName={typeNames.get(selectedAuthorized.assetTypeId) ?? selectedAuthorized.assetTypeId ?? t('assets.unknownType')}
                 configuredLogic={configuredLogic}
                 canReadRuns={permissions.includes('executions.read')}
