@@ -183,3 +183,44 @@ References:
 - [ForeSite platform brochure](https://www.weatherford.com/documents/brochure/products-and-services/software/foresite-production-optimization-platform/)
 
 Next evidence needed: supported 5.7.1 service interfaces/DTOs or WSDL/MEX, binding/authentication configuration, then representative test responses and relationships. The owner offered to share those details later. Do not infer a complete discovery hierarchy from marketing material.
+
+## Continuation: connection scope and Windows service identities
+
+### Connection feature scope
+
+ForeSite, CygNet, and WAMI are installed independently of ACL. A connection identifies an existing provider instance; it does not install that product or grant access in it.
+
+Keep the first Connections feature focused on adapter/provider selection, a friendly name, endpoint/server address, authentication mode, service identity or protected credential reference where needed, and test status. Templates, hierarchy mappings, and discovery rules reference connections but remain separate configuration.
+
+The owner identified Connections as the next intended focus. A simulator-backed implementation can establish the foundation while real ForeSite contract details are pending. This is the latest direction for planning; it does not mean a Connections feature has been implemented.
+
+### Administrator versus application identity
+
+The ACL bootstrap administrator is an application authorization/recovery principal. It is separate from the Windows service logon identity. Installing as a user does not automatically make that user the runtime identity, and ACL administration does not grant external ForeSite permissions.
+
+Review of `tools/WellSiteAutoPilot.Bootstrapper/Program.cs` on develop during this discussion found:
+- Server: `NT AUTHORITY\NetworkService`.
+- Integration Gateway: `NT AUTHORITY\LocalService`.
+- .NET worker and NATS host: `NT AUTHORITY\LocalService`.
+
+These are repository installer defaults, not an inspection of the owner's installed services. The Gateway makes outbound provider calls, so changing only the Server identity does not establish provider access.
+
+NetworkService presents the computer's credentials remotely. On a domain-joined machine this normally identifies the domain machine account, such as `DOMAIN\ACLHOST$`; it is not a hidden named user/service account. LocalService normally presents anonymous network credentials.
+
+References:
+- [Microsoft: NetworkService account](https://learn.microsoft.com/en-us/windows/win32/services/networkservice-account)
+- [Microsoft: Local accounts / service identities](https://learn.microsoft.com/en-us/windows/security/identity-protection/access-control/local-accounts)
+
+### Options to evaluate, not a final identity decision
+
+The owner asked whether NetworkService alone is sufficient. It can be sufficient for the Gateway when the environment supports machine-account authentication and the provider accepts and grants the machine account the necessary permissions. It does not automatically authorize access. Verify with a representative ForeSite WCF call from the running Gateway identity.
+
+If ForeSite requires a named domain service account, configure an IT-provisioned identity with the required external rights. Proposed installer work is to support the appropriate Gateway service identity, service-logon prerequisites, local file/certificate access, protected handling of any required credentials, and preservation across upgrade/repair. Do not automatically provision domain accounts or reuse the ACL administrator.
+
+Connections should be able to use the Gateway process identity without storing a separate provider password when that is supported. Alternative per-connection credentials require explicit adapter support and protected storage. Connection tests must execute through the Gateway under the configured runtime identity, not accidentally under the installing or signed-in user.
+
+No identity switch or installer code change is authorized by recording this discussion. NetworkService versus a dedicated domain identity remains subject to the provider contract, customer permissions, deployment policy, and testing.
+
+### Review and merge hold
+
+The owner explicitly requested that documentation PR **#205 remain unmerged** while they review and think further. This overrides the earlier automatic-merge-after-checks plan for this PR. Passing CI alone is not permission to merge #205; wait for a subsequent explicit user instruction. Keep additional discussion updates on the same documentation branch.
