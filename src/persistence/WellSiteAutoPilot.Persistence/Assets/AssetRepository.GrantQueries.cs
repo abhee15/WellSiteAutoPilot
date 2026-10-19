@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Assets;
 using WellSiteAutoPilot.Persistence.Security;
@@ -42,5 +43,108 @@ public sealed partial class AssetRepository
         if (limit is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(limit));
         return ListCoreAsync(ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
             subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow()), assetTypeId, parentAssetId, limit, cancellationToken);
+    }
+
+    private const int MaximumPathDepth = 32;
+
+    private sealed record AncestorRef(string Name, Guid? ParentId);
+
+    private IQueryable<AssetEntity> VisibleAssets(AccessSubject subject) =>
+        ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
+            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow());
+
+    public async Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject,
+        Guid? parentAssetId, int offset, int limit, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        ValidatePage(offset, limit);
+        var visible = VisibleAssets(subject);
+        var level = parentAssetId is { } parentId
+            ? visible.Where(item => item.ParentAssetId == parentId)
+            : visible.Where(item => item.ParentAssetId == null ||
+                !visible.Any(parent => parent.Id == item.ParentAssetId));
+        var page = await level
+            .OrderBy(item => item.Name).ThenBy(item => item.Id)
+            .Skip(offset).Take(limit)
+            .ToArrayAsync(cancellationToken);
+
+        var ids = page.Select(item => item.Id).ToArray();
+        var counts = new Dictionary<Guid, int>();
+        if (ids.Length > 0)
+        {
+            var grouped = await visible
+                .Where(item => item.ParentAssetId != null && ids.Contains(item.ParentAssetId.Value))
+                .GroupBy(item => item.ParentAssetId)
+                .Select(group => new { ParentId = group.Key, Count = group.Count() })
+                .ToArrayAsync(cancellationToken);
+            foreach (var row in grouped)
+            {
+                if (row.ParentId is { } rowParent) counts[rowParent] = row.Count;
+            }
+        }
+
+        return page
+            .Select(item => new AssetTreeNode(ToDomain(item), counts.GetValueOrDefault(item.Id)))
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<AssetSearchHit>> SearchAuthorizedAsync(AccessSubject subject, string text,
+        Guid? assetTypeId, int offset, int limit, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        ValidatePage(offset, limit);
+        var visible = VisibleAssets(subject);
+        var term = text.Trim();
+        var pattern = "%" + term.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal) + "%";
+        var matches = Guid.TryParse(term, out var exactId)
+            ? visible.Where(item => item.Id == exactId || EF.Functions.ILike(item.Name, pattern, "\\"))
+            : visible.Where(item => EF.Functions.ILike(item.Name, pattern, "\\"));
+        if (assetTypeId is { } typeId) matches = matches.Where(item => item.AssetTypeId == typeId);
+        var page = await matches
+            .OrderBy(item => item.Name).ThenBy(item => item.Id)
+            .Skip(offset).Take(limit)
+            .ToArrayAsync(cancellationToken);
+
+        var known = new Dictionary<Guid, AncestorRef>();
+        var requested = new HashSet<Guid>();
+        var frontier = page.Where(item => item.ParentAssetId != null)
+            .Select(item => item.ParentAssetId.GetValueOrDefault()).ToHashSet();
+        for (var depth = 0; depth < MaximumPathDepth && frontier.Count > 0; depth++)
+        {
+            var ids = frontier.Where(requested.Add).ToArray();
+            if (ids.Length == 0) break;
+            var found = await visible
+                .Where(item => ids.Contains(item.Id))
+                .Select(item => new { item.Id, item.Name, item.ParentAssetId })
+                .ToArrayAsync(cancellationToken);
+            frontier = [];
+            foreach (var item in found)
+            {
+                known[item.Id] = new AncestorRef(item.Name, item.ParentAssetId);
+                if (item.ParentAssetId is { } next) frontier.Add(next);
+            }
+        }
+
+        return page.Select(item =>
+        {
+            var path = new List<AssetPathSegment>();
+            var cursor = item.ParentAssetId;
+            while (cursor is { } id && path.Count < MaximumPathDepth && known.TryGetValue(id, out var ancestor))
+            {
+                path.Insert(0, new AssetPathSegment(id, ancestor.Name));
+                cursor = ancestor.ParentId;
+            }
+
+            return new AssetSearchHit(ToDomain(item), path);
+        }).ToArray();
+    }
+
+    private static void ValidatePage(int offset, int limit)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        if (limit is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(limit));
     }
 }

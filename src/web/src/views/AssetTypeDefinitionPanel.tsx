@@ -4,7 +4,7 @@ import type { FormEvent } from 'react';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
-import { checkAssetTypeDraft, problemCode } from './assetTypeDefinition';
+import { checkAssetTypeDraft, jsonSyntaxProblem, problemCode } from './assetTypeDefinition';
 import type { AssetTypeDraftProblem } from './assetTypeDefinition';
 
 const PROBLEM_KEYS: Record<AssetTypeDraftProblem, MessageKey> = {
@@ -38,7 +38,13 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
     if (pending.current) return;
     setNotice(null);
     const problem = checkAssetTypeDraft({ key, displayName, schemaJson });
-    if (problem) { setError(t(PROBLEM_KEYS[problem])); return; }
+    if (problem) {
+      const where = problem === 'schemaSyntax' ? jsonSyntaxProblem(schemaJson) : null;
+      setError(where
+        ? t('assetTypes.schemaSyntaxAt', { line: where.line, column: where.column })
+        : t(PROBLEM_KEYS[problem]));
+      return;
+    }
     setError(null);
 
     const trimmedKey = key.trim();
@@ -107,6 +113,9 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
         <details className="asset-create-schema">
           <summary>{t('assetTypes.example')}</summary>
           <pre>{EXAMPLE_SCHEMA}</pre>
+          <button type="button" className="secondary-button" disabled={isSubmitting}
+            onClick={() => { setSchemaJson(EXAMPLE_SCHEMA); setError(null); }}>
+            {t('assetTypes.useExample')}</button>
         </details>
         <p className="asset-create-hint">{t('assetTypes.immutableNote')}</p>
         {error && <p className="asset-create-error" role="alert">{error}</p>}

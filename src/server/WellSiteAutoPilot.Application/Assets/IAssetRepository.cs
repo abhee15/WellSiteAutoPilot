@@ -23,6 +23,17 @@ public interface IAssetRepository
     Task<IReadOnlyCollection<Asset>> ListAuthorizedAsync(AccessSubject subject, Guid? assetTypeId, Guid? parentAssetId, int limit,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Authorized assets directly below <paramref name="parentAssetId"/>, or the top level when it is
+    /// null: assets with no parent, or whose parent this subject may not see.
+    /// </summary>
+    Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject, Guid? parentAssetId,
+        int offset, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>Authorized assets whose name contains <paramref name="text"/>, each with its visible location.</summary>
+    Task<IReadOnlyCollection<AssetSearchHit>> SearchAuthorizedAsync(AccessSubject subject, string text,
+        Guid? assetTypeId, int offset, int limit, CancellationToken cancellationToken = default);
+
     Task<bool> AssetTypeKeyExistsAsync(
         string key,
         CancellationToken cancellationToken = default);

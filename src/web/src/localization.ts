@@ -305,6 +305,8 @@ export const englishMessages = {
   'assetTypes.keyInvalid': 'Enter a key of up to 128 characters.',
   'assetTypes.nameInvalid': 'Enter a display name of up to 256 characters.',
   'assetTypes.schemaSyntax': 'The schema is not valid JSON.',
+  'assetTypes.schemaSyntaxAt': 'The schema is not valid JSON. Check near line {line}, column {column}: common causes are a comma after the last item, single quotes instead of double quotes, or a missing comma or bracket.',
+  'assetTypes.useExample': 'Use this example',
   'assetTypes.schemaShape': 'The schema must be a JSON object, for example {}.',
   'assetTypes.schemaSize': 'The schema is larger than 32 KiB.',
   'assetTypes.keyConflict': 'An Asset Type with that key already exists. Choose another key.',
