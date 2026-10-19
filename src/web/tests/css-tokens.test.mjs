@@ -12,7 +12,7 @@ const walk = dir => {
     else if (path.endsWith('.css')) files.push(path);
   }
 };
-walk(fileURLToPath(new URL('../src', import.meta.url)));
+walk(fileURLToPath(import.meta.resolve('../src')));
 
 test('every CSS custom property that is used is defined by the design tokens', () => {
   const defined = new Set();

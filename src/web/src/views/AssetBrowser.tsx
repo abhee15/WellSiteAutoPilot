@@ -13,7 +13,7 @@ type Level = { items: BrowseNode[]; hasMore: boolean; loading: boolean; failed: 
  * when it is opened, so a very large hierarchy never has to be loaded at once.
  */
 export function AssetBrowser({
-  selectedId, ancestorIds, refreshKey, onSelect,
+  selectedId, ancestorIds, refreshKey, onSelect, rootId,
 }: {
   selectedId: string | null;
   /** Ancestors of the selected asset, top first; they are opened so the selection is visible. */
@@ -21,7 +21,10 @@ export function AssetBrowser({
   /** Changes when the underlying data did; open levels are re-read in place. */
   refreshKey: string;
   onSelect: (id: string) => void;
+  /** When set, only this asset's descendants are browsed. */
+  rootId?: string | null;
 }) {
+  const top = rootId ?? ROOT;
   const levels = useRef<Record<string, Level>>({});
   const [, redraw] = useState(0);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -51,7 +54,7 @@ export function AssetBrowser({
     controller.current.abort();
     controller.current = new AbortController();
     // Re-read the top level and every open level in place; old rows stay until the new ones arrive.
-    for (const key of [ROOT, ...expanded]) void load(key, false);
+    for (const key of [top, ...expanded]) void load(key, false);
     return () => controller.current.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
@@ -116,7 +119,7 @@ export function AssetBrowser({
 
   return (
     <nav className="asset-tree" aria-label={t('assetTree.label')}>
-      <ul role="tree">{renderLevel(ROOT)}</ul>
+      <ul role="tree">{renderLevel(top)}</ul>
     </nav>
   );
 }
