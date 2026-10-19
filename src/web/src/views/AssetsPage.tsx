@@ -11,6 +11,7 @@ import { EmptyRow, StatusPill } from '../components/common';
 import { AssetDetail } from './AssetDetail';
 import { AssetCreationPanel } from './AssetCreationPanel';
 import { AssetTypeDefinitionPanel } from './AssetTypeDefinitionPanel';
+import { AssetTypeDetail } from './AssetTypeDetail';
 import { AssetTree } from './AssetTree';
 import { AssetInventoryControls } from './AssetInventoryControls';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetInventory';
@@ -81,6 +82,7 @@ export function AssetsPage({
   }, [assets]);
   const [criteria, setCriteria] = useState<AssetInventoryCriteria>(DEFAULT_ASSET_INVENTORY_CRITERIA);
   const [adding, setAdding] = useState(false);
+  const [openTypeId, setOpenTypeId] = useState<string | null>(null);
   const visibleAssets = useMemo(
     () => filterAssetInventory(assets, typeNames, criteria),
     [assets, typeNames, criteria],
@@ -107,7 +109,7 @@ export function AssetsPage({
         </a>
         {!onTypesTab && canAdd && <button type="button" className="primary-button split-add"
           onClick={() => setAdding(open => !open)} aria-expanded={adding}>
-          {selectedAuthorized
+          {adding ? t('assets.closeAdd') : selectedAuthorized
             ? t('assets.addUnder', { name: selectedAuthorized.name ?? t('assets.unnamed') })
             : t('assets.add')}
         </button>}
@@ -116,7 +118,10 @@ export function AssetsPage({
       {onTypesTab ? (
         <section className="panel" aria-label={t('assets.tabTypes')}>
           <p className="split-intro">{t('assets.typesIntro')}</p>
-          {canManageTypes && <AssetTypeDefinitionPanel onCreated={onRefresh} />}
+          {canManageTypes && <AssetTypeDefinitionPanel onCreated={async created => {
+            await onRefresh();
+            setOpenTypeId(created.id ?? null);
+          }} />}
           <div className="table-wrap">
             <table className="activity-table">
               <thead>
@@ -134,7 +139,10 @@ export function AssetsPage({
                   const typeName = type.displayName ?? type.key ?? '';
                   return (
                     <tr key={type.id}>
-                      <td><strong>{type.displayName}</strong></td>
+                      <td><button type="button" className="asset-select" aria-expanded={openTypeId === type.id}
+                        aria-label={t('assetTypes.openDetails', { name: typeName })}
+                        onClick={() => setOpenTypeId(openTypeId === type.id ? null : type.id ?? null)}>
+                        <strong>{type.displayName}</strong></button></td>
                       <td>{type.key}</td>
                       <td>{lazy ? '—' : count > 0
                         ? <button type="button" className="asset-select"
@@ -150,6 +158,10 @@ export function AssetsPage({
               </tbody>
             </table>
           </div>
+          {assetTypes.filter(type => type.id === openTypeId).map(type => (
+            <AssetTypeDetail key={type.id} type={type} count={typeCounts.get(type.id ?? '') ?? 0}
+              onShowAssets={showTypeAssets} onClose={() => setOpenTypeId(null)} />
+          ))}
         </section>
       ) : (
         <>
@@ -167,6 +179,7 @@ export function AssetsPage({
               await onRefresh();
             }}
             onRefresh={onRefresh}
+            onCancel={() => setAdding(false)}
           />}
           <div className="split-panes">
             <section className="panel split-browse" aria-label={t('assets.browse')}>
