@@ -80,6 +80,9 @@ jobs:
 
       - name: Verify authenticated external identity boundary
         run: dotnet run --project tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj --configuration Release --no-build
+
+      - name: Verify installer settings and database connection handling
+        run: dotnet run --project tests/WellSiteAutoPilot.BootstrapperTests/WellSiteAutoPilot.BootstrapperTests.csproj --configuration Release --no-build
       - name: Verify pure scoped-grant authorization isolation
         run: dotnet run --project tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj --configuration Release --no-build
 
@@ -444,6 +447,26 @@ jobs:
             Remove-Item -Recurse -Force $installRoot
           }
 
+          # The installer needs an existing PostgreSQL database. The runner image's PostgreSQL 17
+          # (public fixture credential, as in the Windows browser fixture) hosts a disposable one.
+          $pgBin = "C:\Program Files\PostgreSQL\17\bin"
+          $psql = Join-Path $pgBin "psql.exe"
+          if (-not (Test-Path -LiteralPath $psql)) { throw "Expected runner PostgreSQL 17 installation is missing." }
+          $postgres = Get-Service "postgresql-x64-17"
+          if ($postgres.Status -ne "Running") {
+            if ($postgres.StartType -eq "Disabled") { Set-Service $postgres -StartupType Manual }
+            Start-Service $postgres
+          }
+          $smokeDatabase = "wsa_installer_smoke"
+          $env:PGPASSWORD = "root"
+          & $psql -h 127.0.0.1 -U postgres -d postgres -w -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $smokeDatabase WITH (FORCE)" -c "CREATE DATABASE $smokeDatabase"
+          if ($LASTEXITCODE -ne 0) { throw "Smoke database creation failed." }
+
+          # The installer takes the connection from the environment so the password is never on a command line.
+          $env:WSA_DATABASE_USER = "postgres"
+          $env:WSA_DATABASE_PASSWORD = "root"
+          $env:WSA_DATABASE_NAME = $smokeDatabase
+
           # CI\wsa-admin is a fake account; production installs verify the account exists.
           $env:WSA_ALLOW_UNRESOLVED_BOOTSTRAP_ADMIN = "1"
           $install = Start-Process -FilePath $installer -ArgumentList @(
@@ -464,6 +487,42 @@ jobs:
           $bootstrapAdmins = @($securitySettings.Security.BootstrapAdministrators)
           if ($bootstrapAdmins.Count -ne 1 -or $bootstrapAdmins[0] -ne "CI\wsa-admin") {
             throw "Installer did not preserve the explicit bootstrap administrator identity."
+          }
+
+          # The installer must configure the database connection, protect it, and migrate the schema.
+          $storedConnection = $securitySettings.ConnectionStrings.WellSiteAutoPilot
+          if (-not $storedConnection -or $storedConnection -notmatch "Database=$smokeDatabase" -or $storedConnection -notmatch "Password=root") {
+            throw "Installer did not store the database connection in the machine settings file."
+          }
+
+          $settingsAcl = Get-Acl -LiteralPath $securitySettingsPath
+          $settingsPrincipals = @($settingsAcl.Access | ForEach-Object { $_.IdentityReference.Value })
+          if ($settingsPrincipals -notcontains "NT AUTHORITY\NETWORK SERVICE") {
+            throw "Settings file is not readable by the Server account. Access: $($settingsPrincipals -join ', ')"
+          }
+          foreach ($principal in $settingsPrincipals) {
+            if ($principal -match "Users|Everyone|LOCAL SERVICE|Authenticated") {
+              throw "Settings file holding the database password is readable by $principal."
+            }
+          }
+
+          $migrations = & $psql -h 127.0.0.1 -U postgres -d $smokeDatabase -w -t -A -c 'SELECT count(*) FROM "__EFMigrationsHistory"'
+          if ($LASTEXITCODE -ne 0 -or [int]$migrations -lt 1) {
+            throw "Installer did not apply database migrations (history rows: $migrations)."
+          }
+
+          # Negotiate needs a network identity: the Server runs as NetworkService, the others as LocalService.
+          $expectedAccounts = @{
+            "Weatherford.WellSiteAutoPilot.Server" = "NT AUTHORITY\NetworkService"
+            "Weatherford.WellSiteAutoPilot.Nats" = "NT AUTHORITY\LocalService"
+            "Weatherford.WellSiteAutoPilot.IntegrationGateway" = "NT AUTHORITY\LocalService"
+            "Weatherford.WellSiteAutoPilot.Worker.DotNet" = "NT AUTHORITY\LocalService"
+          }
+          foreach ($serviceName in $expectedAccounts.Keys) {
+            $account = (Get-CimInstance Win32_Service -Filter "Name='$serviceName'").StartName
+            if ($account -ne $expectedAccounts[$serviceName]) {
+              throw "Service $serviceName runs as '$account' but should run as '$($expectedAccounts[$serviceName])'."
+            }
           }
 
           $required = @(
@@ -545,6 +604,22 @@ jobs:
 
           if (-not $uiReady) {
             throw "Installed WellSite AutoPilot Server did not serve the UI."
+          }
+
+          # The Server's background services query the database as soon as it starts; seeing its own
+          # authenticated connection proves the installed service really uses the stored connection.
+          $serverConnected = $false
+          for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $connections = & $psql -h 127.0.0.1 -U postgres -d postgres -w -t -A -c "SELECT count(*) FROM pg_stat_activity WHERE datname = '$smokeDatabase'"
+            if ($LASTEXITCODE -eq 0 -and [int]$connections -gt 0) {
+              $serverConnected = $true
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+
+          if (-not $serverConnected) {
+            throw "Installed Server never opened a connection to the configured database."
           }
 
           $workerReady = $false

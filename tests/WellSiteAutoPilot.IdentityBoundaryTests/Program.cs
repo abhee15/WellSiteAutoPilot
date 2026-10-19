@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Server.Security;
 
 WindowsAuthenticationDiagnosticChecks.Run();
+DatabaseConnectionChecks.Run();
 WindowsGroupResolverChecks.Run();
 SecurityActorFactoryChecks.Run();
 RequestAccessContextChecks.Run();

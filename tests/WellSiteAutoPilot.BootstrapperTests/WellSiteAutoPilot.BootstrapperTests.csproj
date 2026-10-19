@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The bootstrapper is a self-contained Windows executable; its platform-neutral settings logic
+         is compiled into this project so it is tested on every build. -->
+    <Compile Include="../../tools/WellSiteAutoPilot.Bootstrapper/InstallerSettings.cs" Link="InstallerSettings.cs" />
+  </ItemGroup>
+</Project>

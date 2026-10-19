@@ -32,6 +32,23 @@ ShowUninstDetails show
 
 Var BootstrapAdmin
 Var BootstrapAdminInput
+Var DbHost
+Var DbPort
+Var DbName
+Var DbUser
+Var DbPassword
+Var DbHostInput
+Var DbPortInput
+Var DbNameInput
+Var DbUserInput
+Var DbPasswordInput
+
+; Hands a value to the bootstrapper through its environment (never its command line, which other
+; programs can read). The value goes through a register so quotes in a password cannot break the call.
+!macro ExportEnvironment NAME VALUE
+  StrCpy $0 "${VALUE}"
+  System::Call 'Kernel32::SetEnvironmentVariable(t "${NAME}", t r0)i.r1'
+!macroend
 
 VIProductVersion "0.1.0.0"
 VIAddVersionKey /LANG=1033 "ProductName" "${PRODUCT_NAME}"
@@ -43,6 +60,7 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 Page custom BootstrapAdminPageCreate BootstrapAdminPageLeave
+Page custom DatabasePageCreate DatabasePageLeave
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -54,6 +72,93 @@ Page custom BootstrapAdminPageCreate BootstrapAdminPageLeave
 Function .onInit
   ${GetParameters} $R0
   ${GetOptions} $R0 "/BOOTSTRAPADMIN=" $BootstrapAdmin
+  ; Silent installs: /DBUSER= and /DBPASSWORD= (or WSA_DATABASE_USER / WSA_DATABASE_PASSWORD already in
+  ; the environment, which keeps the password off the command line), optionally /DBHOST= /DBPORT= /DBNAME=.
+  ${GetOptions} $R0 "/DBHOST=" $DbHost
+  ${GetOptions} $R0 "/DBPORT=" $DbPort
+  ${GetOptions} $R0 "/DBNAME=" $DbName
+  ${GetOptions} $R0 "/DBUSER=" $DbUser
+  ${GetOptions} $R0 "/DBPASSWORD=" $DbPassword
+FunctionEnd
+
+Function DatabasePageCreate
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  !insertmacro MUI_HEADER_TEXT "PostgreSQL Database" "Tell WellSite AutoPilot how to reach its database."
+
+  ${NSD_CreateLabel} 0 0 100% 36u "The PostgreSQL database must already exist, and this user must be able to create tables in it. The settings are stored in a protected machine settings file readable only by the WellSite AutoPilot Server. On an upgrade, leave the user and password empty to keep the stored connection."
+  Pop $0
+
+  ${If} $DbHost == ""
+    StrCpy $DbHost "127.0.0.1"
+  ${EndIf}
+  ${If} $DbPort == ""
+    StrCpy $DbPort "5432"
+  ${EndIf}
+  ${If} $DbName == ""
+    StrCpy $DbName "wellsite_autopilot"
+  ${EndIf}
+
+  ${NSD_CreateLabel} 0 40u 30% 10u "Host"
+  Pop $0
+  ${NSD_CreateText} 32% 38u 40% 12u "$DbHost"
+  Pop $DbHostInput
+  ${NSD_CreateLabel} 74% 40u 8% 10u "Port"
+  Pop $0
+  ${NSD_CreateText} 83% 38u 17% 12u "$DbPort"
+  Pop $DbPortInput
+
+  ${NSD_CreateLabel} 0 56u 30% 10u "Database"
+  Pop $0
+  ${NSD_CreateText} 32% 54u 68% 12u "$DbName"
+  Pop $DbNameInput
+
+  ${NSD_CreateLabel} 0 72u 30% 10u "User"
+  Pop $0
+  ${NSD_CreateText} 32% 70u 68% 12u "$DbUser"
+  Pop $DbUserInput
+
+  ${NSD_CreateLabel} 0 88u 30% 10u "Password"
+  Pop $0
+  ${NSD_CreatePassword} 32% 86u 68% 12u ""
+  Pop $DbPasswordInput
+
+  nsDialogs::Show
+FunctionEnd
+
+Function DatabasePageLeave
+  ${NSD_GetText} $DbHostInput $DbHost
+  ${NSD_GetText} $DbPortInput $DbPort
+  ${NSD_GetText} $DbNameInput $DbName
+  ${NSD_GetText} $DbUserInput $DbUser
+  ${NSD_GetText} $DbPasswordInput $DbPassword
+
+  IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSettings FreshSettings
+
+FreshSettings:
+  ${If} $DbUser == ""
+  ${OrIf} $DbPassword == ""
+    MessageBox MB_ICONSTOP "A fresh installation needs the PostgreSQL user and password."
+    Abort
+  ${EndIf}
+  Return
+
+ExistingSettings:
+  ; Upgrade: both empty keeps the stored connection; giving one without the other is a mistake.
+  ${If} $DbUser != ""
+  ${AndIf} $DbPassword == ""
+    MessageBox MB_ICONSTOP "Enter the password for the PostgreSQL user, or clear the user to keep the stored connection."
+    Abort
+  ${EndIf}
+  ${If} $DbUser == ""
+  ${AndIf} $DbPassword != ""
+    MessageBox MB_ICONSTOP "Enter the PostgreSQL user for this password, or clear the password to keep the stored connection."
+    Abort
+  ${EndIf}
 FunctionEnd
 
 Function BootstrapAdminPageCreate
@@ -137,17 +242,38 @@ Section "WellSite AutoPilot" SEC_CORE
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
 
+  ; Database connection for the bootstrapper. Empty values are not exported, so a silent install can
+  ; supply WSA_DATABASE_USER / WSA_DATABASE_PASSWORD through the process environment instead.
+  ${If} $DbHost != ""
+    !insertmacro ExportEnvironment "WSA_DATABASE_HOST" "$DbHost"
+  ${EndIf}
+  ${If} $DbPort != ""
+    !insertmacro ExportEnvironment "WSA_DATABASE_PORT" "$DbPort"
+  ${EndIf}
+  ${If} $DbName != ""
+    !insertmacro ExportEnvironment "WSA_DATABASE_NAME" "$DbName"
+  ${EndIf}
+  ${If} $DbUser != ""
+    !insertmacro ExportEnvironment "WSA_DATABASE_USER" "$DbUser"
+  ${EndIf}
+  ${If} $DbPassword != ""
+    !insertmacro ExportEnvironment "WSA_DATABASE_PASSWORD" "$DbPassword"
+  ${EndIf}
+
   IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSecuritySettings FreshSecuritySettings
 
 FreshSecuritySettings:
   ${If} $BootstrapAdmin == ""
     Abort "Fresh WellSite AutoPilot installation requires /BOOTSTRAPADMIN=<WindowsIdentity> in silent mode."
   ${EndIf}
-  ExecWait '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR" --bootstrap-admin "$BootstrapAdmin"' $0
+  ; nsExec shows the bootstrapper's messages (for example a failed database migration) in the install log.
+  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR" --bootstrap-admin "$BootstrapAdmin"'
+  Pop $0
   Goto ServicesInstalled
 
 ExistingSecuritySettings:
-  ExecWait '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR"' $0
+  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR"'
+  Pop $0
 
 ServicesInstalled:
   ${If} $0 != 0
