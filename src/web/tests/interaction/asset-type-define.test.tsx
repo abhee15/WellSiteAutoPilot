@@ -25,7 +25,7 @@ function host(permissions: string[], post: (body: Record<string, string>) => Res
 
 it('an Asset Type manager defines a type and the list is refreshed', async () => {
   const posts = host(['assets.read', 'assets.manage'], body => response({ id: '88888888-8888-4888-8888-888888888888', ...body, schemaVersion: 1, isActive: true }, 201));
-  window.location.hash = '#assets';
+  window.location.hash = '#assets/types';
   render(<App />);
   fireEvent.click(await screen.findByText('Define an Asset Type'));
   fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: ' well ' } });
@@ -37,7 +37,7 @@ it('an Asset Type manager defines a type and the list is refreshed', async () =>
 
 it('bad JSON is caught before any request and a duplicate key is explained', async () => {
   const posts = host(['assets.read', 'assets.manage'], () => response({ code: 'ASSET_TYPE_KEY_CONFLICT' }, 409));
-  window.location.hash = '#assets';
+  window.location.hash = '#assets/types';
   render(<App />);
   fireEvent.click(await screen.findByText('Define an Asset Type'));
   fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: 'well' } });
@@ -55,7 +55,7 @@ it('bad JSON is caught before any request and a duplicate key is explained', asy
 
 it('people without the manage permission are not offered the form', async () => {
   host(['assets.read'], () => response({}, 403));
-  window.location.hash = '#assets';
+  window.location.hash = '#assets/types';
   render(<App />);
   await screen.findByText('No Asset Types are configured.');
   expect(screen.queryByText('Define an Asset Type')).toBeNull();

@@ -35,7 +35,7 @@ it('selecting an asset puts it in the address so it can be shared', async () => 
   window.location.hash = '#assets';
   signIn(['assets.read']);
   const user = userEvent.setup(); render(<App />);
-  await user.click(await screen.findByRole('button', { name: 'Select Asset North Well' }));
+  await user.click(await screen.findByRole('button', { name: 'Open North Well from the hierarchy' }));
   await waitFor(() => expect(window.location.hash).toBe('#assets/' + assetId));
   await screen.findByText('Selected Asset');
 });
@@ -44,7 +44,7 @@ it('an unknown record address is kept and shows no selection', async () => {
   window.location.hash = '#assets/00000000-0000-4000-8000-000000000000';
   signIn(['assets.read']);
   render(<App />);
-  await screen.findByRole('button', { name: 'Select Asset North Well' });
+  await screen.findByRole('button', { name: 'Open North Well from the hierarchy' });
   expect(screen.queryByText('Selected Asset')).toBeNull();
 });
 
