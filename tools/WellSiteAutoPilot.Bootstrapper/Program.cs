@@ -80,10 +80,12 @@ internal static class Bootstrapper
         var network = ResolveNetworkAccess(
             settingsPath, GetOption(args, "--network-access"), GetOption(args, "--port"));
 
+        var tls = ResolveCertificate(settingsPath, args);
+
         ConfigureBootstrapAdministrator(
             programDataRoot,
             GetOption(args, "--bootstrap-admin"));
-        StoreInstallerSettings(settingsPath, database, network);
+        StoreInstallerSettings(settingsPath, database, network, tls);
         RunDatabaseMigrator(installRoot, database.ConnectionString);
 
         var natsDataRoot = Path.Combine(programDataRoot, "NATS", "JetStream");
@@ -116,8 +118,8 @@ internal static class Bootstrapper
                 Path.Combine(installRoot, "Server", "WellSiteAutoPilot.Server.exe"),
                 // Only the Server is reachable from the network; NATS, the Gateway and the worker stay on loopback.
                 network.Enabled
-                    ? $"--urls http://*:{network.Port}"
-                    : $"--urls http://127.0.0.1:{network.Port}",
+                    ? $"--urls https://*:{network.Port}"
+                    : $"--urls https://127.0.0.1:{network.Port}",
                 NetworkServiceAccount)
         };
 
@@ -166,8 +168,8 @@ internal static class Bootstrapper
             network.Port);
 
         Console.WriteLine(network.Enabled
-            ? $"WellSite AutoPilot is reachable from the network on port {network.Port} (Domain and Private networks)."
-            : $"WellSite AutoPilot is reachable from this computer only, on port {network.Port}.");
+            ? $"WellSite AutoPilot is reachable from the network at https://<computer name>:{network.Port}/ (Domain and Private networks)."
+            : $"WellSite AutoPilot is reachable from this computer only, at https://localhost:{network.Port}/.");
         Console.WriteLine("WellSite AutoPilot Windows services installed and started.");
         return 0;
     }
@@ -438,10 +440,60 @@ internal static class Bootstrapper
             PortChanged: requestedPort is not null && requestedPort != storedPort);
     }
 
-    private static void StoreInstallerSettings(
-        string settingsPath, DatabaseConnection database, NetworkChoice network)
+    private static TlsChoice ResolveCertificate(string settingsPath, string[] args)
     {
-        if (!database.Changed && !network.AccessChanged && !network.PortChanged)
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("The HTTPS certificate is managed through the Windows certificate store.");
+        }
+
+        return ProvisionCertificate(settingsPath, args);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static TlsChoice ProvisionCertificate(string settingsPath, string[] args)
+    {
+        string? storedThumbprint = null;
+        string? storedSource = null;
+        if (File.Exists(settingsPath))
+        {
+            (storedThumbprint, storedSource) = InstallerSettings.ReadCertificate(File.ReadAllText(settingsPath));
+        }
+
+        var choice = InstallerSettings.ChooseCertificate(
+            GetOption(args, "--cert-thumbprint"),
+            GetOption(args, "--cert-pfx"),
+            HasFlag(args, "--cert-self-signed"),
+            storedThumbprint);
+
+        var provisioned = ServerCertificate.Provision(
+            choice,
+            storedSource,
+            Environment.GetEnvironmentVariable(InstallerSettings.PfxPasswordVariable));
+
+        foreach (var warning in provisioned.Warnings)
+        {
+            Console.Error.WriteLine($"WARNING: {warning}");
+        }
+
+        Console.WriteLine(
+            $"HTTPS certificate ({provisioned.Source}): {provisioned.Subject}, thumbprint {provisioned.Thumbprint}, " +
+            $"valid until {provisioned.NotAfter:yyyy-MM-dd}.");
+
+        return new TlsChoice(
+            provisioned.Thumbprint,
+            provisioned.Source,
+            Changed: !string.Equals(provisioned.Thumbprint, storedThumbprint, StringComparison.OrdinalIgnoreCase) ||
+                     !string.Equals(provisioned.Source, storedSource, StringComparison.Ordinal));
+    }
+
+    private static bool HasFlag(string[] args, string flag) =>
+        args.Skip(1).Any(argument => string.Equals(argument, flag, StringComparison.OrdinalIgnoreCase));
+
+    private static void StoreInstallerSettings(
+        string settingsPath, DatabaseConnection database, NetworkChoice network, TlsChoice tls)
+    {
+        if (!database.Changed && !network.AccessChanged && !network.PortChanged && !tls.Changed)
         {
             return;
         }
@@ -460,6 +512,11 @@ internal static class Bootstrapper
         if (network.PortChanged)
         {
             updated = InstallerSettings.WithServerPort(updated, network.Port);
+        }
+
+        if (tls.Changed)
+        {
+            updated = InstallerSettings.WithCertificate(updated, tls.Thumbprint, tls.Source);
         }
 
         // Lock the file down before the secret is written, so it is never readable through the
@@ -734,11 +791,21 @@ internal static class Bootstrapper
         Console.WriteLine(
             "  install-services --install-root <path> [--bootstrap-admin <WindowsIdentity>] [--network-access yes|no] [--port <1-65535>]");
         Console.WriteLine(
+            "      [--cert-thumbprint <thumbprint> | --cert-pfx <file> | --cert-self-signed]");
+        Console.WriteLine(
             "    --network-access (default yes, then remembered) lets other computers on Domain and Private");
         Console.WriteLine(
             "      networks reach the Server and opens the Windows Firewall for it; no = this computer only.");
         Console.WriteLine(
-            "    --port (default 5080, then remembered) is the Server's port; 5081, 5082 and 4222 are taken by other services.");
+            "    --port (default 5443, then remembered) is the Server's port; 5081, 5082 and 4222 are taken by other services.");
+        Console.WriteLine(
+            "    The Server serves HTTPS only. The certificate comes from the Local Computer 'Personal' store");
+        Console.WriteLine(
+            "      (--cert-thumbprint), a PFX file imported there (--cert-pfx; password in WSA_CERT_PFX_PASSWORD),");
+        Console.WriteLine(
+            "      or a generated self-signed certificate for trials (--cert-self-signed, also the first-install default).");
+        Console.WriteLine(
+            "      The choice is remembered; the Server account is given read access to the private key.");
         Console.WriteLine(
             "    --bootstrap-admin is required on a fresh installation and preserved on upgrades.");
         Console.WriteLine(
@@ -762,6 +829,8 @@ internal static class Bootstrapper
         string Account);
 
     private sealed record DatabaseConnection(string ConnectionString, bool Changed);
+
+    private sealed record TlsChoice(string Thumbprint, string Source, bool Changed);
 
     private sealed record NetworkChoice(bool Enabled, int Port, bool AccessChanged, bool PortChanged);
 

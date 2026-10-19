@@ -5,6 +5,7 @@ using WellSiteAutoPilot.Server.Security;
 
 WindowsAuthenticationDiagnosticChecks.Run();
 DatabaseConnectionChecks.Run();
+TlsCertificateChecks.Run();
 WindowsGroupResolverChecks.Run();
 SecurityActorFactoryChecks.Run();
 RequestAccessContextChecks.Run();

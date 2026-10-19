@@ -32,9 +32,32 @@ or a domain account can change a service's log-on account after installation (re
 resets it to the table above); the Server's account then needs read access to the machine settings
 file described below.
 
+## HTTPS
+
+The installed Server serves **HTTPS only**; there is no plain HTTP option. (Development runs keep plain
+HTTP on 5080.) The installer's "HTTPS Certificate" page, or the silent options below, choose the certificate:
+
+| Source | Silent install | Bootstrapper |
+|---|---|---|
+| A certificate already in the Local Computer "Personal" store (recommended; use one from your organisation's authority) | `/CERTTHUMBPRINT=<40 hex characters>` | `--cert-thumbprint` |
+| A PFX file, imported into that store | `/CERTPFX=<path>` with `/CERTPFXPASSWORD=` or `WSA_CERT_PFX_PASSWORD` in the environment | `--cert-pfx` (password in `WSA_CERT_PFX_PASSWORD`) |
+| A generated self-signed certificate (trial only: browsers warn until it is trusted) | `/SELFSIGNED=yes` | `--cert-self-signed` |
+
+Whichever you choose, the installer verifies the certificate (private key present, in date, valid for
+server authentication) and gives the Server's account (`NetworkService`) read access to that one private
+key. Only the thumbprint is written to the settings file (`Tls:Thumbprint`); nothing secret is stored there.
+The choice is remembered: an upgrade that names no certificate keeps it, and a first silent install that
+names none generates a self-signed certificate. The Server refuses to start if the certificate or its key
+is missing, and says why. Changing the certificate later means re-running the installer, or the bootstrapper's
+`install-services` with a new option. A certificate must be renewed (replaced) before it expires; the
+installer warns when it is within 30 days. Uninstalling leaves certificates in the store.
+
+Clients on the machine or network must use a name the certificate covers (normally the computer name).
+The Integration Gateway and worker still talk to each other over loopback HTTP; they are not exposed.
+
 ## Network access
 
-By default the Server is reachable from other computers: it listens on every interface (port 5080 unless you choose another), and the
+By default the Server is reachable from other computers: it listens on every interface (port 5443 unless you choose another), and the
 bootstrapper adds one inbound Windows Firewall rule bound to the Server executable for **Domain and Private
 networks only** (never Public). NATS (4222), the Integration Gateway (5081) and the worker (5082) stay on
 loopback. Choose "this computer only" in the installer, or `/NETWORKACCESS=no`, to listen on loopback
@@ -42,17 +65,16 @@ and remove the rule. The choice is remembered, so an upgrade that does not menti
 narrows access. Uninstalling removes the rule.
 
 **Port.** The installer has a "Server port" field, and a silent install takes `/PORT=<1-65535>` (the
-bootstrapper takes `--port`). Use it when another program already holds 5080. The firewall rule and the
+bootstrapper takes `--port`). Use it when another program already holds 5443. The firewall rule and the
 listening address follow the port. The port is remembered like the network choice, so an upgrade that does
 not mention it keeps the earlier port. 5081, 5082 and 4222 are refused because other services use them.
 
-Users browse to `http://<computer name>:<port>/` (port 5080 by default). Because the Server runs as `NetworkService` (the machine
+Users browse to `https://<computer name>:<port>/` (port 5443 by default). Because the Server runs as `NetworkService` (the machine
 account), Kerberos works for remote users without registering anything extra. For automatic sign-in the
 browser must treat the address as an intranet site: Edge and Chrome do this for single-label names and for
 sites listed in the `AuthServerAllowlist` policy. Otherwise they ask for credentials.
 
-**Traffic is plain HTTP.** Negotiate protects the sign-in, not the page content or API traffic. Add TLS
-(certificate on the Server) before using this across less-trusted networks; it is not provided yet.
+Traffic is encrypted: see HTTPS below.
 
 ## Database connection
 

@@ -478,10 +478,46 @@ jobs:
           # A non-default port proves the port is configurable, reaches the firewall rule, and survives the
           # upgrade below, which does not repeat it.
           $smokePort = 5090
+
+          # The Server serves HTTPS only. A non-exportable machine certificate stands in for one from the
+          # organisation's authority: the Server's account cannot read its key until the installer grants it.
+          function Get-ServedThumbprint([int]$port) {
+            $client = [System.Net.Sockets.TcpClient]::new("127.0.0.1", $port)
+            try {
+              $accept = [System.Net.Security.RemoteCertificateValidationCallback]{ param($sender, $certificate, $chain, $errors) $true }
+              $ssl = [System.Net.Security.SslStream]::new($client.GetStream(), $false, $accept)
+              $ssl.AuthenticateAsClient($env:COMPUTERNAME)
+              return [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($ssl.RemoteCertificate).Thumbprint
+            } finally {
+              $client.Dispose()
+            }
+          }
+          function Wait-ServedThumbprint([int]$port, [string]$expected) {
+            $served = ""
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+              try { $served = Get-ServedThumbprint $port } catch { $served = "" }
+              if ($served -eq $expected) { return }
+              Start-Sleep -Seconds 1
+            }
+            throw "Server serves certificate '$served' on port $port but '$expected' was expected."
+          }
+          # The certificate cmdlets belong to Windows PowerShell; PowerShell 7 would hand back deserialized copies.
+          function Invoke-WindowsPowerShell([string]$command) {
+            $script = '$ProgressPreference = "SilentlyContinue"' + [Environment]::NewLine + $command
+            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script))
+            $output = & powershell.exe -NoProfile -NonInteractive -EncodedCommand $encoded 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "Windows PowerShell failed: $output" }
+            return ($output -split "\r?\n" | Where-Object { $_.Trim() } | Select-Object -Last 1).Trim()
+          }
+          $storeThumbprint = Invoke-WindowsPowerShell @'
+          $c = New-SelfSignedCertificate -DnsName $env:COMPUTERNAME,'localhost' -CertStoreLocation Cert:\LocalMachine\My -KeyExportPolicy NonExportable -NotAfter (Get-Date).AddDays(30)
+          $c.Thumbprint
+          '@
           $install = Start-Process -FilePath $installer -ArgumentList @(
             "/S",
             "/BOOTSTRAPADMIN=CI\wsa-admin",
             "/PORT=$smokePort",
+            "/CERTTHUMBPRINT=$storeThumbprint",
             "/D=$installRoot"
           ) -Wait -PassThru
           if ($install.ExitCode -ne 0) {
@@ -631,7 +667,7 @@ jobs:
           $uiReady = $false
           for ($attempt = 0; $attempt -lt 30; $attempt++) {
             try {
-              $page = Invoke-WebRequest "http://127.0.0.1:$smokePort/" -UseBasicParsing
+              $page = Invoke-WebRequest "https://127.0.0.1:$smokePort/" -SkipCertificateCheck -UseBasicParsing
               if ($page.StatusCode -eq 200 -and $page.Content -match "WellSite AutoPilot") {
                 $uiReady = $true
                 break
@@ -644,6 +680,20 @@ jobs:
           if (-not $uiReady) {
             throw "Installed WellSite AutoPilot Server did not serve the UI."
           }
+
+          Wait-ServedThumbprint $smokePort $storeThumbprint
+          $tlsSettings = Get-Content $securitySettingsPath -Raw | ConvertFrom-Json
+          if ($tlsSettings.Tls.Thumbprint -ne $storeThumbprint -or $tlsSettings.Installer.CertificateSource -ne "Store") {
+            throw "Installer did not remember the chosen certificate."
+          }
+          $httpAnswered = $false
+          try {
+            Invoke-WebRequest "http://127.0.0.1:$smokePort/" -UseBasicParsing -TimeoutSec 5 | Out-Null
+            $httpAnswered = $true
+          } catch {
+            # Expected: the TLS-only port does not speak HTTP.
+          }
+          if ($httpAnswered) { throw "The Server answered plain HTTP; it must serve HTTPS only." }
 
           # The Server's background services query the database as soon as it starts; seeing its own
           # authenticated connection proves the installed service really uses the stored connection.
@@ -678,7 +728,7 @@ jobs:
             Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } |
             Select-Object -First 1).IPAddress
           if ($networkAddress) {
-            $viaNetwork = Invoke-WebRequest "http://${networkAddress}:$smokePort/" -UseBasicParsing
+            $viaNetwork = Invoke-WebRequest "https://${networkAddress}:$smokePort/" -SkipCertificateCheck -UseBasicParsing
             if ($viaNetwork.StatusCode -ne 200) { throw "Server did not answer on the network address $networkAddress." }
           }
 
@@ -745,13 +795,61 @@ jobs:
           $upgradeUi = $false
           for ($attempt = 0; $attempt -lt 30; $attempt++) {
             try {
-              $page = Invoke-WebRequest "http://127.0.0.1:$smokePort/" -UseBasicParsing
+              $page = Invoke-WebRequest "https://127.0.0.1:$smokePort/" -SkipCertificateCheck -UseBasicParsing
               if ($page.StatusCode -eq 200) { $upgradeUi = $true; break }
             } catch {
               Start-Sleep -Seconds 1
             }
           }
           if (-not $upgradeUi) { throw "Server did not serve the UI after upgrade." }
+          Wait-ServedThumbprint $smokePort $storeThumbprint
+
+          # Switch certificate source through the bootstrapper: a generated self-signed certificate, then a PFX
+          # file whose certificate is first removed from the store so the import is what puts it back.
+          $bootstrapperExe = Join-Path $installRoot "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe"
+          function Invoke-BootstrapperInstall([string[]]$extra) {
+            $output = & $bootstrapperExe install-services --install-root $installRoot @extra 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "Bootstrapper $extra failed: $output" }
+            return $output
+          }
+
+          $null = Invoke-BootstrapperInstall @("--cert-self-signed")
+          $selfSignedSettings = Get-Content $securitySettingsPath -Raw | ConvertFrom-Json
+          $selfSignedThumbprint = $selfSignedSettings.Tls.Thumbprint
+          if ($selfSignedSettings.Installer.CertificateSource -ne "SelfSigned" -or $selfSignedThumbprint -eq $storeThumbprint) {
+            throw "A self-signed certificate was not created and remembered."
+          }
+          Wait-ServedThumbprint $smokePort $selfSignedThumbprint
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP "wsa-ci-server.pfx"
+          $pfxPassword = "ci-" + [guid]::NewGuid().ToString("N")
+          $env:WSA_CI_PFX_PATH = $pfxPath
+          $env:WSA_CI_PFX_PASSWORD = $pfxPassword
+          $pfxThumbprint = Invoke-WindowsPowerShell @'
+          $c = New-SelfSignedCertificate -DnsName $env:COMPUTERNAME,'localhost' -CertStoreLocation Cert:\LocalMachine\My -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(30)
+          Export-PfxCertificate -Cert $c -FilePath $env:WSA_CI_PFX_PATH -Password (ConvertTo-SecureString $env:WSA_CI_PFX_PASSWORD -AsPlainText -Force) | Out-Null
+          Remove-Item ('Cert:\LocalMachine\My\' + $c.Thumbprint)
+          $c.Thumbprint
+          '@
+          Remove-Item Env:WSA_CI_PFX_PATH, Env:WSA_CI_PFX_PASSWORD
+          $env:WSA_CERT_PFX_PASSWORD = $pfxPassword
+          $null = Invoke-BootstrapperInstall @("--cert-pfx", $pfxPath)
+          Remove-Item Env:WSA_CERT_PFX_PASSWORD
+          $pfxSettings = Get-Content $securitySettingsPath -Raw | ConvertFrom-Json
+          if ($pfxSettings.Tls.Thumbprint -ne $pfxThumbprint -or $pfxSettings.Installer.CertificateSource -ne "Pfx") {
+            throw "The PFX certificate was not imported and remembered."
+          }
+          if (-not (Get-Item "Cert:\LocalMachine\My\$($pfxThumbprint)" -ErrorAction SilentlyContinue)) {
+            throw "The PFX import did not put the certificate in the machine store."
+          }
+          Wait-ServedThumbprint $smokePort $pfxThumbprint
+
+          # A wrong thumbprint must be refused with a message, before anything is changed.
+          $refused = & $bootstrapperExe install-services --install-root $installRoot --cert-thumbprint ("0" * 40) 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $refused -notmatch "No certificate with thumbprint") {
+            throw "An unknown certificate thumbprint was not refused clearly: $refused"
+          }
+          Wait-ServedThumbprint $smokePort $pfxThumbprint
 
           $uninstaller = Join-Path $installRoot "Uninstall.exe"
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru

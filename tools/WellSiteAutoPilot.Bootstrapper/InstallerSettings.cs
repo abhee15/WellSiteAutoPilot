@@ -26,7 +26,16 @@ internal static class InstallerSettings
     public const string InstallerSection = "Installer";
     public const string NetworkAccessName = "NetworkAccess";
     public const string ServerPortName = "ServerPort";
-    public const int DefaultServerPort = 5080;
+    public const int DefaultServerPort = 5443;
+
+    // The Server reads Tls:Thumbprint at startup and serves HTTPS with that certificate from the
+    // LocalMachine\My store. Installer:CertificateSource records how it got there, so an upgrade can
+    // renew a self-signed certificate it created and refuse to invent one for a certificate the
+    // operator chose.
+    public const string TlsSection = "Tls";
+    public const string ThumbprintName = "Thumbprint";
+    public const string CertificateSourceName = "CertificateSource";
+    public const string PfxPasswordVariable = "WSA_CERT_PFX_PASSWORD";
 
     // The loopback ports of the services that run beside the Server.
     private static readonly int[] ReservedPorts = [5081, 5082, 4222];
@@ -286,6 +295,129 @@ internal static class InstallerSettings
         return root.ToJsonString(WriteOptions);
     }
 
+    /// <summary>A SHA-1 thumbprint as pasted from the certificate dialog: spaces and the hidden
+    /// direction marks Windows inserts are removed and the result is upper case hex.</summary>
+    public static string NormalizeThumbprint(string? value)
+    {
+        var builder = new StringBuilder();
+        foreach (var character in value ?? string.Empty)
+        {
+            if (char.IsWhiteSpace(character) || character is '\u200e' or '\u200f' or '\u202a' or '\u202c')
+            {
+                continue;
+            }
+
+            builder.Append(char.ToUpperInvariant(character));
+        }
+
+        var thumbprint = builder.ToString();
+        if (thumbprint.Length != 40 || !thumbprint.All(Uri.IsHexDigit))
+        {
+            throw new InvalidOperationException(
+                "A certificate thumbprint is 40 hexadecimal characters (SHA-1). Copy it from the Details tab of the certificate.");
+        }
+
+        return thumbprint;
+    }
+
+    /// <summary>
+    /// Decides where the HTTPS certificate comes from. At most one source may be requested. Nothing
+    /// requested keeps the certificate an earlier install stored; a first install with nothing requested
+    /// generates a self-signed certificate, because the installed Server only serves HTTPS.
+    /// </summary>
+    public static CertificateChoice ChooseCertificate(
+        string? thumbprintOption, string? pfxOption, bool selfSignedOption, string? storedThumbprint)
+    {
+        var thumbprint = Clean(thumbprintOption);
+        var pfx = Clean(pfxOption);
+        var requested = (thumbprint is null ? 0 : 1) + (pfx is null ? 0 : 1) + (selfSignedOption ? 1 : 0);
+        if (requested > 1)
+        {
+            throw new InvalidOperationException(
+                "Choose one certificate source: --cert-thumbprint, --cert-pfx or --cert-self-signed.");
+        }
+
+        if (thumbprint is not null)
+        {
+            return new CertificateChoice(CertificateKind.Store, NormalizeThumbprint(thumbprint));
+        }
+
+        if (pfx is not null)
+        {
+            return new CertificateChoice(CertificateKind.Pfx, pfx);
+        }
+
+        if (selfSignedOption)
+        {
+            return new CertificateChoice(CertificateKind.SelfSigned, null);
+        }
+
+        return storedThumbprint is not null
+            ? new CertificateChoice(CertificateKind.Stored, NormalizeThumbprint(storedThumbprint))
+            : new CertificateChoice(CertificateKind.SelfSigned, null);
+    }
+
+    /// <summary>The certificate thumbprint and source an earlier install remembered, if any.</summary>
+    public static (string? Thumbprint, string? Source) ReadCertificate(string? settingsJson)
+    {
+        var root = ParseRoot(settingsJson);
+        return (ReadString(root, TlsSection, ThumbprintName), ReadString(root, InstallerSection, CertificateSourceName));
+    }
+
+    /// <summary>The settings file content with the certificate remembered; everything else is kept.</summary>
+    public static string WithCertificate(string? settingsJson, string thumbprint, string source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(thumbprint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+
+        var root = ParseRoot(settingsJson);
+        SetString(root, TlsSection, ThumbprintName, NormalizeThumbprint(thumbprint));
+        SetString(root, InstallerSection, CertificateSourceName, source);
+        return root.ToJsonString(WriteOptions);
+    }
+
+    private static string? ReadString(JsonObject root, string section, string name)
+    {
+        if (!root.TryGetPropertyValue(section, out var node) || node is null)
+        {
+            return null;
+        }
+
+        if (node is not JsonObject sectionObject)
+        {
+            throw new InvalidOperationException($"Settings file {section} must be an object.");
+        }
+
+        if (!sectionObject.TryGetPropertyValue(name, out var value) || value is null)
+        {
+            return null;
+        }
+
+        if (value is not JsonValue jsonValue || !jsonValue.TryGetValue<string>(out var text))
+        {
+            throw new InvalidOperationException($"Settings file {section}:{name} must be text.");
+        }
+
+        return Clean(text);
+    }
+
+    private static void SetString(JsonObject root, string section, string name, string value)
+    {
+        if (root.TryGetPropertyValue(section, out var existing) && existing is not null)
+        {
+            if (existing is not JsonObject sectionObject)
+            {
+                throw new InvalidOperationException($"Settings file {section} must be an object.");
+            }
+
+            sectionObject[name] = value;
+        }
+        else
+        {
+            root[section] = new JsonObject { [name] = value };
+        }
+    }
+
     /// <summary>Removes every occurrence of the given secrets so output is safe to print.</summary>
     public static string Redact(string text, params string?[] secrets)
     {
@@ -370,3 +502,20 @@ internal static class InstallerSettings
         return builder.Append('"').ToString();
     }
 }
+
+internal enum CertificateKind
+{
+    /// <summary>A certificate already in LocalMachine\My, named by its thumbprint.</summary>
+    Store,
+
+    /// <summary>A PFX file to import into LocalMachine\My.</summary>
+    Pfx,
+
+    /// <summary>A certificate the installer generates (trial use).</summary>
+    SelfSigned,
+
+    /// <summary>The certificate an earlier install stored.</summary>
+    Stored
+}
+
+internal sealed record CertificateChoice(CertificateKind Kind, string? Value);
