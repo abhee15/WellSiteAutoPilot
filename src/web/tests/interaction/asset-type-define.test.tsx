@@ -60,3 +60,22 @@ it('people without the manage permission are not offered the form', async () => 
   await screen.findByText('No Asset Types are configured.');
   expect(screen.queryByText('Define an Asset Type')).toBeNull();
 });
+
+it('invalid JSON says where it goes wrong, and the example can be used as a starting point', async () => {
+  const posts = host(['assets.read', 'assets.manage'], () => response({}, 201));
+  window.location.hash = '#assets/types';
+  render(<App />);
+  fireEvent.click(await screen.findByText('Define an Asset Type'));
+  fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: 'well' } });
+  fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Well' } });
+  fireEvent.change(screen.getByLabelText('Attribute schema (JSON)'), {
+    target: { value: '{\n  "type": "object",\n  "properties": {\n    "a": { "type": "string" },\n  }\n}' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create Asset Type' }));
+  const form = () => document.querySelector('.asset-type-define') as HTMLElement;
+  await waitFor(() => expect(within(form()).getByRole('alert').textContent).toMatch(/near line 5, column 3/));
+  fireEvent.click(screen.getByText('Show an example schema'));
+  fireEvent.click(screen.getByRole('button', { name: 'Use this example' }));
+  expect((screen.getByLabelText('Attribute schema (JSON)') as HTMLTextAreaElement).value).toContain('"apiNumber"');
+  expect(within(form()).queryByRole('alert')).toBeNull();
+  expect(posts).toHaveLength(0);
+});

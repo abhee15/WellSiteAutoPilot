@@ -27,3 +27,19 @@ export function problemCode(body: unknown): string | null {
   const code = (body as { code?: unknown }).code;
   return typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/.test(code) ? code : null;
 }
+
+/** Where JSON text stops being valid, for a message a person can act on; null when it parses. */
+export function jsonSyntaxProblem(json: string): { line: number; column: number } | null {
+  try { JSON.parse(json); return null; } catch (reason) {
+    const message = reason instanceof Error ? reason.message : '';
+    const position = /position (\d+)/.exec(message);
+    if (position) {
+      const offset = Math.min(Number(position[1]), json.length);
+      const before = json.slice(0, offset);
+      return { line: before.split('\n').length, column: offset - before.lastIndexOf('\n') };
+    }
+    // The error runs to the end of the text (for example, a missing closing brace).
+    const lines = json.split('\n');
+    return { line: lines.length, column: lines[lines.length - 1].length + 1 };
+  }
+}
