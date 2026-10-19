@@ -486,6 +486,8 @@ jobs:
               ((Get-Process | Where-Object { $_.Path -and $_.Path -like "$installRoot*" } | ForEach-Object { "$($_.Name)($($_.Id))" }) -join ", ") +
               ". Services: " +
               ((Get-Service "Weatherford.WellSiteAutoPilot.*" -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Name)=$($_.Status)" }) -join ", ") + ". "
+            $stepsLog = Join-Path $env:ProgramData "Weatherford\WellSite AutoPilot\Diagnostics\installer-steps.log"
+            if (Test-Path $stepsLog) { $diagnostic += "Installer steps: " + ((Get-Content $stepsLog -Raw) -replace "\s+", " ") + " " }
             $bootstrapper = Join-Path $installRoot "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe"
             if (Test-Path $bootstrapper) {
               $diagnostic += (& $bootstrapper install-services --install-root $installRoot --bootstrap-admin "CI\wsa-admin" 2>&1 | Out-String)

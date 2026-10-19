@@ -219,6 +219,18 @@ Function BootstrapAdminPageLeave
   ${EndIf}
 FunctionEnd
 
+Function WriteInstallStep
+  Exch $8
+  Push $9
+  CreateDirectory "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Diagnostics"
+  FileOpen $9 "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\Diagnostics\installer-steps.log" a
+  FileSeek $9 0 END
+  FileWrite $9 "$8$\r$\n"
+  FileClose $9
+  Pop $9
+  Pop $8
+FunctionEnd
+
 Section "WellSite AutoPilot" SEC_CORE
   SetShellVarContext all
 
@@ -226,9 +238,14 @@ Section "WellSite AutoPilot" SEC_CORE
   ; schema, so stop and remove them before any file is replaced. The bootstrapper re-creates them.
   IfFileExists "$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" StopExistingServices SkipStopServices
 StopExistingServices:
-  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" uninstall-services'
+  nsExec::ExecToStack '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" uninstall-services'
   Pop $0
+  Pop $1
+  Push "uninstall-services exit $0: $1"
+  Call WriteInstallStep
 SkipStopServices:
+  Push "files extracting"
+  Call WriteInstallStep
 
   SetOutPath "$INSTDIR\Server"
   File /r "${STAGING}\server\*"
@@ -313,8 +330,13 @@ FreshSecuritySettings:
   Goto ServicesInstalled
 
 ExistingSecuritySettings:
-  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR"$BootstrapperArgs'
+  Push "files extracted; running install-services"
+  Call WriteInstallStep
+  nsExec::ExecToStack '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" install-services --install-root "$INSTDIR"$BootstrapperArgs'
   Pop $0
+  Pop $1
+  Push "install-services exit $0: $1"
+  Call WriteInstallStep
 
 ServicesInstalled:
   ${If} $0 != 0
