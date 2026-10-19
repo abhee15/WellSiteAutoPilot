@@ -142,7 +142,7 @@ export function AssetsPage({
                       <td><button type="button" className="asset-select" aria-expanded={openTypeId === type.id}
                         aria-label={t('assetTypes.openDetails', { name: typeName })}
                         onClick={() => setOpenTypeId(openTypeId === type.id ? null : type.id ?? null)}>
-                        <strong>{type.displayName}</strong></button></td>
+                        {type.displayName}</button></td>
                       <td>{type.key}</td>
                       <td>{lazy ? '—' : count > 0
                         ? <button type="button" className="asset-select"
