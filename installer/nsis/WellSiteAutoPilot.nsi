@@ -3,6 +3,8 @@ Unicode true
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "FileFunc.nsh"
+!include "WordFunc.nsh"
+!insertmacro WordFind
 !include "nsDialogs.nsh"
 
 !ifndef VERSION
@@ -138,6 +140,26 @@ Function DatabasePageCreate
 
   ${NSD_CreateCheckbox} 0 106u 100% 10u "Allow other computers on the network to connect"
   Pop $NetworkAccessInput
+  ; An upgrade shows the choice made earlier (Installer:NetworkAccess in the settings file) unless the
+  ; command line gave one. A first install defaults to allowing network access.
+  ${If} $NetworkAccess == ""
+    IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" 0 NetworkAccessScanDone
+    FileOpen $1 "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" r
+    NetworkAccessScan:
+      FileRead $1 $2
+      IfErrors NetworkAccessScanEnd
+      ${WordFind} "$2" '"NetworkAccess": false' "E+1" $3
+      IfErrors NetworkAccessScanNext 0
+      StrCpy $NetworkAccess "no"
+      Goto NetworkAccessScanEnd
+    NetworkAccessScanNext:
+      ClearErrors
+      Goto NetworkAccessScan
+    NetworkAccessScanEnd:
+    ClearErrors
+    FileClose $1
+    NetworkAccessScanDone:
+  ${EndIf}
   ${If} $NetworkAccess != "no"
     ${NSD_Check} $NetworkAccessInput
   ${EndIf}
