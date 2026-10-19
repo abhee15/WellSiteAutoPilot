@@ -52,3 +52,25 @@ export function ancestorIds(assets: readonly AssetResponse[], assetId: string | 
   }
   return open;
 }
+
+/** The assets below `rootId` (not the root itself), found by walking parent links. */
+export function descendantsOf(assets: readonly AssetResponse[], rootId: string): AssetResponse[] {
+  const byParent = new Map<string, AssetResponse[]>();
+  for (const asset of assets) {
+    if (!asset.parentAssetId) continue;
+    byParent.set(asset.parentAssetId, [...(byParent.get(asset.parentAssetId) ?? []), asset]);
+  }
+  const found: AssetResponse[] = [];
+  const seen = new Set<string>([rootId]);
+  const queue = [rootId];
+  while (queue.length) {
+    for (const child of byParent.get(queue.shift() as string) ?? []) {
+      const id = child.id ?? '';
+      if (seen.has(id)) continue;
+      seen.add(id);
+      found.push(child);
+      queue.push(id);
+    }
+  }
+  return found;
+}
