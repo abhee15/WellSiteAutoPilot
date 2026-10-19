@@ -52,7 +52,10 @@ export function AssetsPage({
   );
   const typeCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const asset of assets) counts.set(asset.assetTypeId, (counts.get(asset.assetTypeId) ?? 0) + 1);
+    for (const asset of assets) {
+      const key = asset.assetTypeId ?? '';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
     return counts;
   }, [assets]);
   const [criteria, setCriteria] = useState<AssetInventoryCriteria>(DEFAULT_ASSET_INVENTORY_CRITERIA);
@@ -106,15 +109,16 @@ export function AssetsPage({
               </thead>
               <tbody>
                 {assetTypes.map(type => {
-                  const count = typeCounts.get(type.id) ?? 0;
+                  const count = typeCounts.get(type.id ?? '') ?? 0;
+                  const typeName = type.displayName ?? type.key ?? '';
                   return (
                     <tr key={type.id}>
                       <td><strong>{type.displayName}</strong></td>
                       <td>{type.key}</td>
                       <td>{count > 0
                         ? <button type="button" className="asset-select"
-                          aria-label={t('assets.showOfType', { count, name: type.displayName })}
-                          onClick={() => showTypeAssets(type.displayName)}>{count}</button>
+                          aria-label={t('assets.showOfType', { count, name: typeName })}
+                          onClick={() => showTypeAssets(typeName)}>{count}</button>
                         : 0}</td>
                       <td>{type.schemaVersion}</td>
                       <td><StatusPill value={type.isActive ? 'Active' : 'Inactive'} /></td>
