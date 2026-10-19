@@ -144,5 +144,33 @@ Expect(InstallerSettings.ReadConnectionString(InstallerSettings.WithServerPort(b
 Refused(() => InstallerSettings.ReadServerPort("{\"Installer\":{\"ServerPort\":\"abc\"}}"), "port number", "a stored port that is not a number");
 Refused(() => InstallerSettings.ReadServerPort("{\"Installer\":{\"ServerPort\":70000}}"), "port number", "a stored port out of range");
 
+const string Thumb = "0123456789ABCDEF0123456789ABCDEF01234567";
+const string ThumbLower = "0123456789abcdef0123456789abcdef01234567";
+Expect(InstallerSettings.NormalizeThumbprint("\u200e01 23 45 67 89 ab cd ef 01 23 45 67 89 ab cd ef 01 23 45 67") == Thumb,
+    "a pasted thumbprint with spaces and a hidden mark was not normalised");
+Refused(() => InstallerSettings.NormalizeThumbprint("1234"), "40 hexadecimal", "a short thumbprint");
+Refused(() => InstallerSettings.NormalizeThumbprint(new string('G', 40)), "40 hexadecimal", "a non-hex thumbprint");
+
+Expect(InstallerSettings.ChooseCertificate(null, null, false, null) is { Kind: CertificateKind.SelfSigned },
+    "a first install with nothing requested must generate a self-signed certificate");
+Expect(InstallerSettings.ChooseCertificate(null, null, false, Thumb) is { Kind: CertificateKind.Stored, Value: Thumb },
+    "an upgrade must keep the stored certificate");
+Expect(InstallerSettings.ChooseCertificate(ThumbLower, null, false, null) is { Kind: CertificateKind.Store, Value: Thumb },
+    "a requested thumbprint must be used");
+Expect(InstallerSettings.ChooseCertificate(null, "C:\\certs\\site.pfx", false, Thumb) is { Kind: CertificateKind.Pfx, Value: "C:\\certs\\site.pfx" },
+    "a requested PFX file must replace the stored certificate");
+Expect(InstallerSettings.ChooseCertificate(null, null, true, Thumb) is { Kind: CertificateKind.SelfSigned },
+    "a requested self-signed certificate must replace the stored certificate");
+Refused(() => InstallerSettings.ChooseCertificate(Thumb, "x.pfx", false, null), "one certificate source", "two sources");
+Refused(() => InstallerSettings.ChooseCertificate(Thumb, null, true, null), "one certificate source", "a thumbprint and self-signed");
+
+Expect(InstallerSettings.ReadCertificate(security) is (null, null), "a file without a certificate remembers nothing");
+var withCertificate = InstallerSettings.WithCertificate(both, ThumbLower, "Store");
+Expect(InstallerSettings.ReadCertificate(withCertificate) is (Thumb, "Store"), "the certificate did not round-trip");
+Expect(InstallerSettings.ReadConnectionString(withCertificate) == "Host=a;Password=one" &&
+       InstallerSettings.ReadNetworkAccess(withCertificate) == true,
+    "remembering the certificate dropped other settings");
+Refused(() => InstallerSettings.ReadCertificate("{\"Tls\":{\"Thumbprint\":5}}"), "must be text", "a stored thumbprint that is not text");
+
 Console.WriteLine("Installer settings checks passed.");
 return 0;

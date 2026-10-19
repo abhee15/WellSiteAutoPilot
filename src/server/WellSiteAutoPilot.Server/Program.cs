@@ -48,6 +48,17 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         Path.Combine(AppContext.BaseDirectory, "wwwroot"))
 });
 
+// The installer serves HTTPS with a certificate from the machine store; development has none configured.
+var tlsThumbprint = TlsCertificateLoader.ResolveThumbprint(
+    builder.Configuration,
+    SecurityOptionsLoader.GetProgramDataSettingsPath());
+if (tlsThumbprint is not null)
+{
+    var tlsCertificate = TlsCertificateLoader.Load(tlsThumbprint);
+    builder.WebHost.ConfigureKestrel(kestrel =>
+        kestrel.ConfigureHttpsDefaults(https => https.ServerCertificate = tlsCertificate));
+}
+
 builder.Services.AddWindowsService(options =>
 {
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Server";

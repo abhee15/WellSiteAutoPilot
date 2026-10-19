@@ -48,6 +48,18 @@ Var NetworkAccess
 Var NetworkAccessInput
 Var ServerPort
 Var ServerPortInput
+Var CertThumbprint
+Var CertPfx
+Var CertPfxPassword
+Var CertSelfSigned
+Var CertKeepRadio
+Var CertStoreRadio
+Var CertStoreInput
+Var CertPfxRadio
+Var CertPfxInput
+Var CertPfxPasswordInput
+Var CertSelfSignedRadio
+Var HasStoredCertificate
 Var BootstrapperArgs
 
 ; Hands a value to the bootstrapper through its environment (never its command line, which other
@@ -68,6 +80,7 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
 !insertmacro MUI_PAGE_DIRECTORY
 Page custom BootstrapAdminPageCreate BootstrapAdminPageLeave
 Page custom DatabasePageCreate DatabasePageLeave
+Page custom CertificatePageCreate CertificatePageLeave
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -92,8 +105,16 @@ Function .onInit
   ${GetOptions} $R0 "/DBPASSWORD=" $DbPassword
   ; /NETWORKACCESS=yes|no. Omitted: the first install allows network access and an upgrade keeps its earlier choice.
   ${GetOptions} $R0 "/NETWORKACCESS=" $NetworkAccess
-  ; /PORT=<1-65535>: the Server's port. Omitted: the first install uses 5080 and an upgrade keeps its earlier port.
+  ; /PORT=<1-65535>: the Server's port. Omitted: the first install uses 5443 and an upgrade keeps its earlier port.
   ${GetOptions} $R0 "/PORT=" $ServerPort
+  ; HTTPS certificate (the Server only serves HTTPS): /CERTTHUMBPRINT= names a certificate already in the
+  ; Local Computer "Personal" store; /CERTPFX= (with /CERTPFXPASSWORD= or WSA_CERT_PFX_PASSWORD in the
+  ; environment) imports a PFX file; /SELFSIGNED=yes generates a trial certificate. Omitted: an upgrade keeps
+  ; its certificate and a first install generates a self-signed one.
+  ${GetOptions} $R0 "/CERTTHUMBPRINT=" $CertThumbprint
+  ${GetOptions} $R0 "/CERTPFX=" $CertPfx
+  ${GetOptions} $R0 "/CERTPFXPASSWORD=" $CertPfxPassword
+  ${GetOptions} $R0 "/SELFSIGNED=" $CertSelfSigned
 FunctionEnd
 
 Function DatabasePageCreate
@@ -170,7 +191,7 @@ Function DatabasePageCreate
   ${NSD_CreateLabel} 10u 107u 95% 18u "Opens Windows Firewall for the WellSite AutoPilot Server on Domain and Private networks only. Clear this to allow connections from this computer only."
   Pop $0
 
-  ; The Server port is remembered by an earlier install; the command line wins; otherwise 5080.
+  ; The Server port is remembered by an earlier install; the command line wins; otherwise 5443.
   ${If} $ServerPort == ""
     IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" 0 ServerPortScanDone
     FileOpen $1 "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" r
@@ -193,7 +214,7 @@ Function DatabasePageCreate
     ServerPortScanDone:
   ${EndIf}
   ${If} $ServerPort == ""
-    StrCpy $ServerPort "5080"
+    StrCpy $ServerPort "5443"
   ${EndIf}
   ${NSD_CreateLabel} 0 128u 30% 10u "Server port"
   Pop $0
@@ -302,6 +323,134 @@ Function WriteInstallStep
   Pop $8
 FunctionEnd
 
+Function CertificateBrowse
+  nsDialogs::SelectFileDialog open "" "Certificate files|*.pfx;*.p12|All files|*.*"
+  Pop $0
+  ${If} $0 != ""
+    ${NSD_SetText} $CertPfxInput $0
+    ${NSD_Uncheck} $CertKeepRadio
+    ${NSD_Uncheck} $CertStoreRadio
+    ${NSD_Uncheck} $CertSelfSignedRadio
+    ${NSD_Check} $CertPfxRadio
+  ${EndIf}
+FunctionEnd
+
+Function CertificatePageCreate
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  !insertmacro MUI_HEADER_TEXT "HTTPS Certificate" "WellSite AutoPilot is served over HTTPS only."
+
+  ${NSD_CreateLabel} 0 0 100% 20u "Choose the certificate the Server presents to browsers. It is kept in the Local Computer 'Personal' store, and the Server's account is given access to its private key."
+  Pop $0
+
+  StrCpy $HasStoredCertificate ""
+  IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" 0 CertificateScanDone
+  FileOpen $1 "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" r
+  CertificateScan:
+    FileRead $1 $2
+    IfErrors CertificateScanEnd
+    ${WordFind} "$2" '"Tls"' "E+1" $3
+    IfErrors CertificateScanNext 0
+    StrCpy $HasStoredCertificate "yes"
+    Goto CertificateScanEnd
+  CertificateScanNext:
+    ClearErrors
+    Goto CertificateScan
+  CertificateScanEnd:
+  ClearErrors
+  FileClose $1
+  CertificateScanDone:
+
+  ${NSD_CreateRadioButton} 0 22u 100% 10u "Keep the certificate already configured"
+  Pop $CertKeepRadio
+  ${NSD_AddStyle} $CertKeepRadio ${WS_GROUP}
+  ${If} $HasStoredCertificate != "yes"
+    ShowWindow $CertKeepRadio ${SW_HIDE}
+  ${EndIf}
+
+  ${NSD_CreateRadioButton} 0 34u 100% 10u "A certificate in the Windows certificate store - thumbprint:"
+  Pop $CertStoreRadio
+  ${NSD_CreateText} 12u 45u 85% 12u "$CertThumbprint"
+  Pop $CertStoreInput
+
+  ${NSD_CreateRadioButton} 0 62u 100% 10u "A certificate file (PFX) - imported into the store:"
+  Pop $CertPfxRadio
+  ${NSD_CreateText} 12u 73u 70% 12u "$CertPfx"
+  Pop $CertPfxInput
+  ${NSD_CreateButton} 85% 72u 15% 13u "Browse..."
+  Pop $0
+  ${NSD_OnClick} $0 CertificateBrowse
+  ${NSD_CreateLabel} 12u 90u 20% 10u "Password"
+  Pop $0
+  ${NSD_CreatePassword} 34% 89u 50% 12u ""
+  Pop $CertPfxPasswordInput
+
+  ${NSD_CreateRadioButton} 0 108u 100% 10u "A self-signed certificate (trial use only; browsers will warn)"
+  Pop $CertSelfSignedRadio
+
+  ${If} $CertThumbprint != ""
+    ${NSD_Check} $CertStoreRadio
+  ${ElseIf} $CertPfx != ""
+    ${NSD_Check} $CertPfxRadio
+  ${ElseIf} $CertSelfSigned == "yes"
+    ${NSD_Check} $CertSelfSignedRadio
+  ${ElseIf} $HasStoredCertificate == "yes"
+    ${NSD_Check} $CertKeepRadio
+  ${Else}
+    ${NSD_Check} $CertStoreRadio
+  ${EndIf}
+
+  nsDialogs::Show
+FunctionEnd
+
+Function CertificatePageLeave
+  ${NSD_GetText} $CertStoreInput $CertThumbprint
+  ${NSD_GetText} $CertPfxInput $CertPfx
+  ${NSD_GetText} $CertPfxPasswordInput $CertPfxPassword
+
+  ; Only the chosen source is sent; the others are cleared so a leftover value cannot count as a second choice.
+  ${NSD_GetState} $CertKeepRadio $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $CertThumbprint ""
+    StrCpy $CertPfx ""
+    StrCpy $CertPfxPassword ""
+    StrCpy $CertSelfSigned ""
+    Return
+  ${EndIf}
+
+  ${NSD_GetState} $CertSelfSignedRadio $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $CertThumbprint ""
+    StrCpy $CertPfx ""
+    StrCpy $CertPfxPassword ""
+    StrCpy $CertSelfSigned "yes"
+    Return
+  ${EndIf}
+
+  ${NSD_GetState} $CertPfxRadio $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $CertThumbprint ""
+    StrCpy $CertSelfSigned ""
+    ${If} $CertPfx == ""
+      MessageBox MB_ICONSTOP "Choose the certificate file (PFX)."
+      Abort
+    ${EndIf}
+    Return
+  ${EndIf}
+
+  StrCpy $CertPfx ""
+  StrCpy $CertPfxPassword ""
+  StrCpy $CertSelfSigned ""
+  ${If} $CertThumbprint == ""
+    MessageBox MB_ICONSTOP "Enter the thumbprint of the certificate, or choose another option. Open certlm.msc, double-click the certificate and copy the Thumbprint from the Details tab."
+    Abort
+  ${EndIf}
+FunctionEnd
+
 Section "WellSite AutoPilot" SEC_CORE
   SetShellVarContext all
 
@@ -390,6 +539,18 @@ SkipStopServices:
   ${EndIf}
   ${If} $ServerPort != ""
     StrCpy $BootstrapperArgs "$BootstrapperArgs --port $ServerPort"
+  ${EndIf}
+  ${If} $CertThumbprint != ""
+    StrCpy $BootstrapperArgs '$BootstrapperArgs --cert-thumbprint "$CertThumbprint"'
+  ${EndIf}
+  ${If} $CertPfx != ""
+    StrCpy $BootstrapperArgs '$BootstrapperArgs --cert-pfx "$CertPfx"'
+    ${If} $CertPfxPassword != ""
+      !insertmacro ExportEnvironment "WSA_CERT_PFX_PASSWORD" "$CertPfxPassword"
+    ${EndIf}
+  ${EndIf}
+  ${If} $CertSelfSigned == "yes"
+    StrCpy $BootstrapperArgs "$BootstrapperArgs --cert-self-signed"
   ${EndIf}
 
   IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSecuritySettings FreshSecuritySettings
