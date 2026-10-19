@@ -482,10 +482,13 @@ jobs:
           ) -Wait -PassThru
           if ($install.ExitCode -ne 0) {
             # Re-run the bootstrapper directly so its own message reaches the annotation.
-            $diagnostic = ""
+            $diagnostic = "Processes still running from the install folder: " +
+              ((Get-Process | Where-Object { $_.Path -and $_.Path -like "$installRoot*" } | ForEach-Object { "$($_.Name)($($_.Id))" }) -join ", ") +
+              ". Services: " +
+              ((Get-Service "Weatherford.WellSiteAutoPilot.*" -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Name)=$($_.Status)" }) -join ", ") + ". "
             $bootstrapper = Join-Path $installRoot "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe"
             if (Test-Path $bootstrapper) {
-              $diagnostic = (& $bootstrapper install-services --install-root $installRoot --bootstrap-admin "CI\wsa-admin" 2>&1 | Out-String)
+              $diagnostic += (& $bootstrapper install-services --install-root $installRoot --bootstrap-admin "CI\wsa-admin" 2>&1 | Out-String)
             }
             throw "Installer smoke test failed with exit code $($install.ExitCode). Bootstrapper says: $diagnostic"
           }
@@ -688,10 +691,13 @@ jobs:
           Remove-Item Env:WSA_DATABASE_USER, Env:WSA_DATABASE_PASSWORD, Env:WSA_DATABASE_NAME
           $upgrade = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installRoot") -Wait -PassThru
           if ($upgrade.ExitCode -ne 0) {
-            $diagnostic = ""
+            $diagnostic = "Processes still running from the install folder: " +
+              ((Get-Process | Where-Object { $_.Path -and $_.Path -like "$installRoot*" } | ForEach-Object { "$($_.Name)($($_.Id))" }) -join ", ") +
+              ". Services: " +
+              ((Get-Service "Weatherford.WellSiteAutoPilot.*" -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Name)=$($_.Status)" }) -join ", ") + ". "
             $bootstrapper = Join-Path $installRoot "Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe"
             if (Test-Path $bootstrapper) {
-              $diagnostic = (& $bootstrapper install-services --install-root $installRoot 2>&1 | Out-String)
+              $diagnostic += (& $bootstrapper install-services --install-root $installRoot 2>&1 | Out-String)
             }
             throw "Installer upgrade over a running installation failed with exit code $($upgrade.ExitCode). Bootstrapper says: $diagnostic"
           }
