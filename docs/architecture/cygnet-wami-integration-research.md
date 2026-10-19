@@ -75,6 +75,41 @@ host, read one current value, one history range and the facility list; (2) repea
 with only the client libraries; (3) run the same read from a service account; (4) compare latency and
 failure behaviour with the Bridge API if Bridge is available. Findings decide the transport defaults.
 
+## 1b. CygNet must know who the user is (owner, 2026-10-19)
+
+**Requirement.** Actions in CygNet must be performed as, or at least attributed by CygNet to, the signed-in
+person. A shared service identity is not enough. This is recorded as an open requirement; it is
+deliberately not designed yet and must be settled before step 8 (adapters) and step 9 (control path).
+
+**Why it is not simple here.** The browser signs in to the Server with Negotiate, so the Server knows the
+user for the length of that request. But work reaches CygNet asynchronously (Server, NATS, Gateway or Native
+Agent), long after the request, and scheduled or autonomous runs have no signed-in user at all. A user's live
+token cannot be queued.
+
+**Options to evaluate (none chosen).**
+
+| Option | What it needs | Weakness |
+| --- | --- | --- |
+| Kerberos constrained delegation with protocol transition (S4U2Self then S4U2Proxy) | A domain or managed service account for the Gateway or Native Agent, delegation to the CygNet service principal granted by a domain administrator, a Windows process | Needs Active Directory configuration and IT agreement; not possible with `LocalService`, and `NetworkService` only if the machine account is trusted for delegation |
+| Impersonate inside the Server while handling the request | Nothing extra | Only for synchronous calls made by the Server itself; cannot serve queued, scheduled or autonomous actions |
+| A service identity acts, and the user is recorded as "on behalf of" in our audit and in CygNet's | A CygNet account with the right permissions | CygNet cannot enforce the user's own rights; weaker attribution |
+| Per-user CygNet or Bridge login | The user's own credentials | We must never hold user passwords; not acceptable |
+
+**Questions that decide it (for the CygNet box and IT).**
+1. Does CygNet authenticate Windows identities, CygNet-native users, or both, and does the API or WAMI accept
+   an impersonated or delegated Windows identity?
+2. Will IT allow constrained delegation for a service account, and will it provide a managed service account?
+3. Does the Bridge support acting for a named user (for example a service token plus an on-behalf-of user)?
+4. For actions with no signed-in user, which identity does CygNet expect?
+
+**Consequences already visible.**
+- A recommendation that a person approves must carry the approver's verifiable identity on the control action,
+  so the executing component can act for that approver. This belongs in the step 9 design.
+- Service accounts must become configurable per service (today the bootstrapper fixes them), so the Gateway or
+  Native Agent can run as a named domain or managed service account without reinstalling. Secrets for that
+  account must be stored the way the database password is (protected file, never a command line).
+- The Native Agent (section 1a) is a Windows process, which is where delegation would naturally live.
+
 ## 2. Consequences for design
 
 1. **Bridge API transport:** the Gateway needs only `HttpClient`; no CygNet files ship with our installer.

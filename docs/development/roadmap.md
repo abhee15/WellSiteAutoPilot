@@ -87,7 +87,7 @@ Dependencies decide the order. Items in the same row are independent and can run
 | 5 | **Change notification seam** (D2), then SignalR hub and client with polling fallback and connection state | 4 for events worth sending, 1c for the hub | Live updates without a second filtering path |
 | 6 | **Python worker**: SDK contract over a subprocess, same loader and cache | 3 | Reuses the loader, so it comes after it |
 | 7 | **Readiness model** (D4), audit and activity read API, maintenance mode | 1d | Shared by control and by the UI |
-| 8 | **Provider adapters** (CygNet, WAMI) | owner detail on access; see `docs/architecture/cygnet-wami-integration-research.md` | Adapters sit behind contracts that already have tests. CygNet target is 9.7+ via the Bridge API |
+| 8 | **Provider adapters** (CygNet, WAMI) | owner detail on access; see `docs/architecture/cygnet-wami-integration-research.md` | Adapters sit behind contracts that already have tests. CygNet target is 9.7+ via the Bridge API. **Open requirement:** CygNet must know the signed-in user (identity delegation, see research doc section 1b); configurable per-service accounts come with it |
 | 9 | **Control path** | 3, 7, 8, design review | Safety critical: needs a written design and owner sign-off before any code |
 | 10 | Package signing and trusted publishers; retention and backup; licensing status | 2 | Additive once packages are keyed by hash |
 
