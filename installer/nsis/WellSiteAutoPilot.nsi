@@ -137,6 +137,15 @@ Function DatabasePageLeave
   ${NSD_GetText} $DbUserInput $DbUser
   ${NSD_GetText} $DbPasswordInput $DbPassword
 
+  ; Leaving user and password empty means "keep the stored connection" (upgrade). The pre-filled host,
+  ; port and database must then not be sent on their own, or they would look like a partial new connection.
+  ${If} $DbUser == ""
+  ${AndIf} $DbPassword == ""
+    StrCpy $DbHost ""
+    StrCpy $DbPort ""
+    StrCpy $DbName ""
+  ${EndIf}
+
   IfFileExists "$COMMONAPPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSettings FreshSettings
 
 FreshSettings:
@@ -193,6 +202,14 @@ FunctionEnd
 
 Section "WellSite AutoPilot" SEC_CORE
   SetShellVarContext all
+
+  ; Upgrade: running services lock their executables and an old Server must not run against a migrated
+  ; schema, so stop and remove them before any file is replaced. The bootstrapper re-creates them.
+  IfFileExists "$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" StopExistingServices SkipStopServices
+StopExistingServices:
+  nsExec::ExecToLog '"$INSTDIR\Tools\Bootstrapper\WellSiteAutoPilot.Bootstrapper.exe" uninstall-services'
+  Pop $0
+SkipStopServices:
 
   SetOutPath "$INSTDIR\Server"
   File /r "${STAGING}\server\*"

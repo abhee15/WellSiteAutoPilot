@@ -637,6 +637,54 @@ jobs:
             throw "Installed .NET worker health endpoint did not become ready."
           }
 
+          # Upgrade over a running installation: no database or administrator arguments. The stored
+          # connection must be kept, services replaced, and the schema left current.
+          Remove-Item Env:WSA_DATABASE_USER, Env:WSA_DATABASE_PASSWORD, Env:WSA_DATABASE_NAME
+          $upgrade = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installRoot") -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0) {
+            throw "Installer upgrade over a running installation failed with exit code $($upgrade.ExitCode)."
+          }
+
+          foreach ($serviceName in $expectedAccounts.Keys) {
+            $upgraded = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+              if ($service -and $service.Status -eq "Running") { $upgraded = $true; break }
+              Start-Sleep -Seconds 1
+            }
+            if (-not $upgraded) { throw "Service did not run after upgrade: $serviceName" }
+            $account = (Get-CimInstance Win32_Service -Filter "Name='$serviceName'").StartName
+            if ($account -ne $expectedAccounts[$serviceName]) {
+              throw "After upgrade $serviceName runs as '$account' but should run as '$($expectedAccounts[$serviceName])'."
+            }
+          }
+
+          $upgradedSettings = Get-Content $securitySettingsPath -Raw | ConvertFrom-Json
+          if ($upgradedSettings.ConnectionStrings.WellSiteAutoPilot -ne $storedConnection) {
+            throw "Upgrade changed or lost the stored database connection."
+          }
+
+          $upgradedAdmins = @($upgradedSettings.Security.BootstrapAdministrators)
+          if ($upgradedAdmins.Count -ne 1 -or $upgradedAdmins[0] -ne "CI\wsa-admin") {
+            throw "Upgrade changed the bootstrap administrator."
+          }
+
+          $migrationsAfter = & $psql -h 127.0.0.1 -U postgres -d $smokeDatabase -w -t -A -c 'SELECT count(*) FROM "__EFMigrationsHistory"'
+          if ($LASTEXITCODE -ne 0 -or [int]$migrationsAfter -ne [int]$migrations) {
+            throw "Upgrade changed the migration history ($migrations before, $migrationsAfter after)."
+          }
+
+          $upgradeUi = $false
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            try {
+              $page = Invoke-WebRequest "http://127.0.0.1:5080/" -UseBasicParsing
+              if ($page.StatusCode -eq 200) { $upgradeUi = $true; break }
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+          if (-not $upgradeUi) { throw "Server did not serve the UI after upgrade." }
+
           $uninstaller = Join-Path $installRoot "Uninstall.exe"
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) {

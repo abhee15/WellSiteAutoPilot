@@ -49,6 +49,10 @@ An installed Server with no connection configured refuses to start and names the
 failing on the first request with "no password has been provided". The passwordless development default
 applies only when the Server is not running as a Windows service.
 
+Upgrading over a running installation stops and removes the services first (they lock their files, and
+an old Server must not run against a migrated schema), keeps the stored connection and bootstrap
+administrator, migrates, then re-creates and starts the services. CI installs twice to prove this.
+
 Interactive installs ask for host, port, database, user and password. On an upgrade, leave user and
 password empty to keep the stored connection; supplying them replaces it (for example after a password
 change).
