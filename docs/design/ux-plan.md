@@ -157,6 +157,8 @@ Creating an asset: a **form generated from the asset type's schema** (typed fiel
 markers, an example) instead of a JSON text box. The type chooser explains each type in one line.
 Create Asset is a button that opens a panel, not an always-open form pushing the list down.
 
+Asset types can be defined from the Assets page (key, display name and a JSON attribute schema, for people with `assets.manage`); this is deliberately the simple version, to be refined as gaps show (a field builder is the likely next step).
+
 Not offered yet (no API): edit, move, deactivate, delete an asset; edit an asset type. These are shown
 in "Coming later" help text on the asset page only if an administrator would look for them; otherwise
 absent.

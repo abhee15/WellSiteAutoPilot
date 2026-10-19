@@ -11,6 +11,7 @@ import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/co
 import { formatTimestamp } from '../format';
 import { AssetDetail } from './AssetDetail';
 import { AssetCreationPanel } from './AssetCreationPanel';
+import { AssetTypeDefinitionPanel } from './AssetTypeDefinitionPanel';
 import { AssetTree } from './AssetTree';
 import { AssetInventoryControls } from './AssetInventoryControls';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetInventory';
@@ -134,6 +135,7 @@ export function AssetsPage({
 
       <section className="panel">
         <PanelHeader eyebrow="Schema" title="Asset Types" count={assetTypes.length} />
+        {permissions.includes('assets.manage') && <AssetTypeDefinitionPanel onCreated={onRefresh} />}
         <div className="table-wrap">
           <table className="activity-table">
             <thead>
