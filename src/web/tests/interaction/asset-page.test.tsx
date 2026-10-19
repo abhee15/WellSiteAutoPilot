@@ -111,3 +111,23 @@ it('the Asset types tab lists types with how many assets each holds and links ba
   expect(window.location.hash).toBe('#assets');
   expect(within(await screen.findByRole('list', { name: 'Matching assets' })).getByText('Well · Pad 7')).toBeTruthy();
 });
+
+it('an Asset type opens its details with readable attributes, and the add form can be cancelled', async () => {
+  window.location.hash = '#assets/types';
+  const schema = JSON.stringify({ type: 'object', properties: { apiNumber: { type: 'string', title: 'API number', maxLength: 32 } }, required: ['apiNumber'] });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions: ['assets.read', 'assets.create'], assetScopeIds: [] });
+    if (url.includes('capabilities')) return response({ canCreateRoot: true, canCreateUnderAuthorizedParents: true });
+    if (url.includes('/asset-types')) return response([{ id: typeId, key: 'well', displayName: 'Well', schemaVersion: 1, isActive: true, attributeSchemaJson: schema }]);
+    return response([]);
+  }));
+  render(<App />);
+  (await screen.findByRole('button', { name: 'Show details of Well' })).click();
+  expect(await screen.findByText('API number (apiNumber)')).toBeTruthy();
+  expect(screen.getByText('max length 32')).toBeTruthy();
+  window.location.hash = '#assets';
+  (await screen.findByRole('button', { name: 'Add asset' })).click();
+  const cancel = (await screen.findAllByRole('button', { name: 'Cancel' }))[0];
+  cancel.click();
+  await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull());
+});

@@ -16,7 +16,7 @@ const PROBLEM_KEYS: Record<AssetTypeDraftProblem, MessageKey> = {
 };
 
 export function AssetTypeDefinitionPanel({ onCreated }: {
-  onCreated: () => Promise<void> | void;
+  onCreated: (created: AssetTypeResponse) => Promise<void> | void;
 }) {
   const [key, setKey] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -79,7 +79,7 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
       if (!active.current) return;
       setNotice(t('assetTypes.created', { name: trimmedName }));
       setKey(''); setDisplayName(''); setSchemaJson('{}');
-      await onCreated();
+      await onCreated(echoed as AssetTypeResponse);
     } catch {
       // The POST may already have committed; never retry or claim it failed.
       if (active.current) setError(t('assetTypes.uncertain'));

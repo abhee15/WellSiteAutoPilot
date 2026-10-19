@@ -19,6 +19,8 @@ type Props = {
   capabilities: AssetCreationCapabilitiesResponse | null;
   onCreated: (asset: AssetResponse) => Promise<void> | void;
   onRefresh: () => Promise<void> | void;
+  /** Closes the form without creating anything. */
+  onCancel?: () => void;
   /** Pre-fills the parent, for adding beneath the asset the person is looking at. */
   suggestedParentId?: string | null;
 };
@@ -46,7 +48,7 @@ function isVerifiedAsset(
 }
 
 export function AssetCreationPanel({
-  userId, assetTypes, assets, capabilities, onCreated, onRefresh, suggestedParentId,
+  userId, assetTypes, assets, capabilities, onCreated, onRefresh, suggestedParentId, onCancel,
 }: Props) {
   const [typeId, setTypeId] = useState('');
   const [parentId, setParentId] = useState(suggestedParentId ?? '');
@@ -214,6 +216,8 @@ export function AssetCreationPanel({
       <header className="asset-create-heading">
         <h2 id="asset-create-title">{t('assets.createTitle')}</h2>
         <p>{t('assets.createHelp')}</p>
+        {onCancel && <button type="button" className="secondary-button" onClick={onCancel}>
+          {t('assets.cancelAdd')}</button>}
       </header>
       {!userId || !capabilities ? (
         <p className="asset-create-hint">{t('assets.createUnavailable')}</p>
@@ -292,6 +296,8 @@ export function AssetCreationPanel({
           <button type="submit" className="secondary-button" disabled={
             isSubmitting || !selectedType || !selectedParentValid || !name.trim()
           }>{isSubmitting ? t('assets.creating') : t('assets.createSubmit')}</button>
+          {onCancel && <button type="button" className="secondary-button" disabled={isSubmitting}
+            onClick={onCancel}>{t('assets.cancelAdd')}</button>}
         </form>
       )}
     </section>
