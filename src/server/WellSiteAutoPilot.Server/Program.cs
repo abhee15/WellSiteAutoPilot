@@ -15,6 +15,7 @@ using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Audit;
 using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Connections;
+using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
@@ -181,6 +182,7 @@ builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(150);
 });
 builder.Services.AddScoped<ConnectionService>();
+builder.Services.AddScoped<ConnectionImportService>();
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<ManualShadowRequestService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
@@ -1080,6 +1082,21 @@ v1.MapPost(
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<DiscoveryResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapPost(
+    "/connections/{connectionId:guid}/import/preview",
+    async (Guid connectionId, ImportPreviewRequest request, ConnectionImportService imports, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        ConnectionMapping.ToResponse(await imports.PreviewAsync(connectionId, request.Levels, access.Subject,
+            access.CreateActor(context), cancellationToken)))
+    .WithName("PreviewConnectionImport")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<ImportPreviewResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");

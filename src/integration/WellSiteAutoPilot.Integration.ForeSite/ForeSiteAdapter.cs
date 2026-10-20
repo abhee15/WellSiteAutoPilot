@@ -37,11 +37,11 @@ public static class ForeSiteAdapter
             AdapterSettingKind.Url, true)],
         [new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Wells")],
         [
-            new DiscoveryField("assetName", "ForeSite asset"),
-            new DiscoveryField("wellType", "Well type"),
-            new DiscoveryField("deviceType", "Device type"),
-            new DiscoveryField("field", "Field"),
-            new DiscoveryField("lease", "Lease")
+            new DiscoveryField("assetName", "ForeSite asset", "Unassigned", AsAttribute: false),
+            new DiscoveryField("wellType", "Well type", "Unknown type"),
+            new DiscoveryField("deviceType", "Device type", "Unspecified device"),
+            new DiscoveryField("field", "Field", "Unspecified field"),
+            new DiscoveryField("lease", "Lease", "Unspecified lease")
         ]);
 
     // ForeSite's WellTypeId enum: stable numeric ids on the wire, abbreviations for people.
