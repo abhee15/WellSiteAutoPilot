@@ -1,4 +1,4 @@
-import { canOpenSection, isAwaitingAccess, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
+import { canOpenSection, hasPermission, isAwaitingAccess, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
 import { AwaitingAccessNotice } from './components/AwaitingAccessNotice';
 import { loadWorkspaceSnapshot } from './views/workspaceSnapshot';
 import type { SnapshotKey } from './views/workspaceSnapshot';
@@ -20,6 +20,7 @@ import { useNavCollapsed } from './components/useNavCollapsed';
 import type { Section } from './components/NavigationLink';
 import { PageHeader } from './components/PageHeader';
 import { NavigationGroup } from './components/NavigationGroup';
+import { ConnectionsPage } from './views/ConnectionsPage';
 import { firstOpenableSection, hasExplicitSection, sectionFromHash } from './routing';
 import { useChangeRefresh, useLiveUpdates, usePollingRefresh } from './live/LiveUpdates';
 
@@ -184,7 +185,8 @@ export function App() {
               canOpenSection(currentUser, 'logic') && <NavigationLink key="logic" section="logic" current={section}>{t('nav.logic')}</NavigationLink>]}
           </NavigationGroup>
           <NavigationGroup id="nav-group-administer" label={t('nav.groupAdminister')}>
-            {[canOpenSection(currentUser, 'access') && <NavigationLink key="access" section="access" current={section}>{t('nav.access')}</NavigationLink>]}
+            {[canOpenSection(currentUser, 'connections') && <NavigationLink key="connections" section="connections" current={section}>{t('nav.connections')}</NavigationLink>,
+              canOpenSection(currentUser, 'access') && <NavigationLink key="access" section="access" current={section}>{t('nav.access')}</NavigationLink>]}
           </NavigationGroup>
         </nav>
         <UserMenu user={currentUser} isLoading={isRefreshing} />
@@ -193,9 +195,9 @@ export function App() {
       <main className="content" id="main-content" tabIndex={-1} ref={mainRef}>
         <PageHeader
           section={section}
-          isRefreshing={section === 'recommendations' || section === 'access' ? false : isRefreshing}
-          lastUpdated={section === 'recommendations' || section === 'access' ? null : lastUpdated}
-          onRefresh={section === 'recommendations' || section === 'access' ? undefined : () => void refresh()}
+          isRefreshing={section === 'recommendations' || section === 'access' || section === 'connections' ? false : isRefreshing}
+          lastUpdated={section === 'recommendations' || section === 'access' || section === 'connections' ? null : lastUpdated}
+          onRefresh={section === 'recommendations' || section === 'access' || section === 'connections' ? undefined : () => void refresh()}
         />
 
         {error && (
@@ -238,6 +240,10 @@ export function App() {
             assets={assets}
             configuredLogic={configuredLogic}
           />
+        )}
+        {section === 'connections' && canOpenSection(currentUser, section) && (
+          <ConnectionsPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+            canManage={hasPermission(currentUser, 'connections.manage')} />
         )}
         {section === 'access' && (
           currentUser?.userId && canOpenSection(currentUser, 'access')

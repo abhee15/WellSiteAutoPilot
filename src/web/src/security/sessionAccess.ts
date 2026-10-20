@@ -32,7 +32,7 @@ export function canOpenSection(user: CurrentUserResponse | null | undefined, sec
   }
   if (section === 'logic') return hasPermission(user, 'logic.read') || hasPermission(user, 'configured-logic.read');
   const required = { operations: 'executions.read', recommendations: 'recommendations.read',
-    assets: 'assets.read', access: 'security.manage' };
+    assets: 'assets.read', connections: 'connections.read', access: 'security.manage' };
   return hasPermission(user, required[section]);
 }
 export function sessionAccessKey(user: VerifiedSession): string {

@@ -1,6 +1,6 @@
 import { NavIcon } from './NavIcon';
 
-export type Section = 'overview' | 'operations' | 'recommendations' | 'assets' | 'logic' | 'access';
+export type Section = 'overview' | 'operations' | 'recommendations' | 'assets' | 'logic' | 'access' | 'connections';
 
 export function NavigationLink({
   section,

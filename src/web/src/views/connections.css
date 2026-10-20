@@ -1,0 +1,18 @@
+/* Connections: a list beside the selected connection's form. */
+.connections-layout { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); gap: var(--space-16); align-items: start; }
+@media (max-width: 800px) { .connections-layout { grid-template-columns: 1fr; } }
+.connection-list { list-style: none; margin: 0; padding: 0; }
+.connection-list li + li { border-top: 1px solid var(--color-border-row); }
+.connection-row { display: grid; gap: var(--space-4); width: 100%; text-align: left; padding: var(--space-12) var(--space-18); background: transparent; border: 0; border-left: 3px solid transparent; color: var(--color-text-primary); font: inherit; cursor: pointer; }
+.connection-row:hover { background: var(--color-surface-row-hover); }
+.connection-row[aria-current='true'] { border-left-color: var(--color-border-selected); background: var(--color-surface-row-hover); }
+.connection-row small { color: var(--color-text-subtle); }
+.connection-form { display: grid; gap: var(--space-14); padding: var(--space-12) var(--space-18) var(--space-18); }
+.connection-form label, .connection-field { display: grid; gap: var(--space-6); }
+.connection-form input, .connection-form select { width: 100%; color: var(--color-text-control); background: var(--color-surface-input); border: 1px solid var(--color-border-control); border-radius: 6px; padding: var(--space-8); font: inherit; }
+.connection-help { color: var(--color-text-subtle); font-size: var(--font-size-caption); }
+.connection-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; }
+.connection-test { border: 1px solid var(--color-border-status-neutral); border-radius: 6px; padding: var(--space-10) var(--space-12); display: grid; gap: var(--space-4); }
+.connection-test-healthy { border-color: var(--color-border-status-success); background: var(--color-surface-status-success); color: var(--color-text-status-success); }
+.connection-test-needsattention, .connection-test-outdated { border-color: var(--color-border-status-warning); background: var(--color-surface-status-warning); color: var(--color-text-status-warning); }
+.connection-test-unreachable { border-color: var(--color-border-status-error); background: var(--color-surface-status-error); color: var(--color-text-status-error); }
