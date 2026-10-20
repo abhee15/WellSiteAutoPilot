@@ -262,7 +262,7 @@ export function App() {
             key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             userId={currentUser?.userId}
             assets={assets}
-            assetTypes={assetTypes}
+            assetTypes={assetTypes.filter(type => type.isActive !== false)}
             onRefresh={refresh}
             modules={logicModules}
             configuredLogic={configuredLogic}

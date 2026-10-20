@@ -62,6 +62,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         assetType.Property(x => x.AttributeSchemaJson).IsRequired();
         assetType.Property(x => x.IsActive).IsRequired();
         assetType.Property(x => x.CreatedAtUtc).IsRequired();
+        assetType.Property(x => x.HiddenNote).HasMaxLength(200);
+        assetType.Property(x => x.HiddenBy).HasMaxLength(256);
         assetType.HasIndex(x => x.Key).IsUnique();
 
         var asset = modelBuilder.Entity<AssetEntity>();

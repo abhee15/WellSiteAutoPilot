@@ -1,6 +1,7 @@
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { StatusPill } from '../components/common';
+import { AssetTypeActions } from './AssetTypeActions';
 
 interface SchemaField { name: string; type: string; rules: string; required: boolean }
 
@@ -31,9 +32,13 @@ export function schemaFields(json: string | null | undefined): SchemaField[] {
   }
 }
 
-export function AssetTypeDetail({ type, count, onShowAssets, onClose }: {
+export function AssetTypeDetail({ type, count, countKnown = true, canHide = false, canManage = false, onChanged, onShowAssets, onClose }: {
   type: AssetTypeResponse;
   count: number;
+  countKnown?: boolean;
+  canHide?: boolean;
+  canManage?: boolean;
+  onChanged?: () => Promise<void>;
   onShowAssets: (typeName: string) => void;
   onClose: () => void;
 }) {
@@ -43,11 +48,16 @@ export function AssetTypeDetail({ type, count, onShowAssets, onClose }: {
     <section className="split-type-detail" aria-label={t('assetTypes.details')}>
       <header>
         <h3>{name}</h3>
-        <StatusPill value={type.isActive ? 'Active' : 'Inactive'} />
+        <StatusPill value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} />
         <button type="button" className="secondary-button" onClick={onClose}>
           {t('assetTypes.closeDetails')}</button>
       </header>
       <p className="split-note">{type.key} · v{type.schemaVersion}</p>
+      {!type.isActive && type.hiddenAtUtc && <p className="split-note">
+        {t('assetTypes.hiddenBy', { by: type.hiddenBy ?? '', when: new Date(type.hiddenAtUtc).toLocaleDateString() })}
+        {type.hiddenNote ? ` · ${t('assetTypes.hiddenNote', { note: type.hiddenNote })}` : ''}</p>}
+      {onChanged && <AssetTypeActions type={type} count={count} countKnown={countKnown}
+        canHide={canHide} canManage={canManage} onChanged={onChanged} />}
       {count > 0 && <button type="button" className="secondary-button" onClick={() => onShowAssets(name)}>
         {t('assets.showOfType', { count, name })}</button>}
       <h4>{t('assetTypes.fields')}</h4>

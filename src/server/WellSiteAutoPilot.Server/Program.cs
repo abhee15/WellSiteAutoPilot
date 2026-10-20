@@ -466,6 +466,52 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
+v1.MapPut(
+    "/asset-types/{assetTypeId:guid}/hide",
+    async (Guid assetTypeId, HideAssetTypeRequest request, IAssetRepository assets, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        await assets.SetAssetTypeHiddenAuthorizedAsync(assetTypeId, true, request.Note, access.Subject,
+            access.CreateActor(context), cancellationToken);
+        return Results.NoContent();
+    })
+    .WithName("HideAssetType")
+    .NotifiesChange(ChangeArea.Assets)
+    .RequireAuthorization(WellSitePolicies.AssetTypesHide)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPut(
+    "/asset-types/{assetTypeId:guid}/unhide",
+    async (Guid assetTypeId, IAssetRepository assets, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        await assets.SetAssetTypeHiddenAuthorizedAsync(assetTypeId, false, null, access.Subject,
+            access.CreateActor(context), cancellationToken);
+        return Results.NoContent();
+    })
+    .WithName("UnhideAssetType")
+    .NotifiesChange(ChangeArea.Assets)
+    .RequireAuthorization(WellSitePolicies.AssetTypesManage)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapDelete(
+    "/asset-types/{assetTypeId:guid}",
+    async (Guid assetTypeId, IAssetRepository assets, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        await assets.DeleteAssetTypeAuthorizedAsync(assetTypeId, access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.NoContent();
+    })
+    .WithName("DeleteAssetType")
+    .NotifiesChange(ChangeArea.Assets)
+    .RequireAuthorization(WellSitePolicies.AssetTypesManage)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
 v1.MapGet(
     "/asset-types",
     async (IAssetRepository assets, RequestAccessContext access, CancellationToken cancellationToken) =>
@@ -947,7 +993,10 @@ static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.Ass
     assetType.SchemaVersion,
     assetType.AttributeSchemaJson,
     assetType.IsActive,
-    assetType.CreatedAtUtc);
+    assetType.CreatedAtUtc,
+    assetType.HiddenNote,
+    assetType.HiddenAtUtc,
+    assetType.HiddenBy);
 
 static AssetResponse ToAssetResponse(WellSiteAutoPilot.Domain.Assets.Asset asset) => new(
     asset.Id,

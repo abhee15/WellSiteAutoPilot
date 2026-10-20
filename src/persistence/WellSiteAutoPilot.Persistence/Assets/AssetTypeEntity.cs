@@ -9,4 +9,7 @@ public sealed class AssetTypeEntity
     public string AttributeSchemaJson { get; set; } = "{}";
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAtUtc { get; init; }
+    public string? HiddenNote { get; set; }
+    public DateTimeOffset? HiddenAtUtc { get; set; }
+    public string? HiddenBy { get; set; }
 }

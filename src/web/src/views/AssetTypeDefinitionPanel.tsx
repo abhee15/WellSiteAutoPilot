@@ -63,6 +63,7 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
         const code = await response.json().then(problemCode, () => null);
         if (!active.current) return;
         setError(response.status === 403 ? t('assetTypes.denied')
+          : code === 'ASSET_TYPE_KEY_HIDDEN' ? t('assetTypes.keyHidden')
           : code === 'ASSET_TYPE_KEY_CONFLICT' ? t('assetTypes.keyConflict')
           : code === 'ASSET_ATTRIBUTE_SCHEMA_UNSUPPORTED' ? t('assetTypes.schemaUnsupported')
           : response.status === 400 ? t('assetTypes.rejected')

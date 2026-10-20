@@ -7,6 +7,9 @@ namespace WellSiteAutoPilot.Persistence.Assets;
 public sealed partial class AssetRepository(
     WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IAssetRepository
 {
+    public Task<bool> AssetTypeKeyIsHiddenAsync(string key, CancellationToken cancellationToken = default) =>
+        dbContext.AssetTypes.AnyAsync(item => item.Key == key && !item.IsActive, cancellationToken);
+
     public Task<bool> AssetTypeKeyExistsAsync(
         string key,
         CancellationToken cancellationToken = default) =>
@@ -190,7 +193,10 @@ public sealed partial class AssetRepository(
         entity.SchemaVersion,
         entity.AttributeSchemaJson,
         entity.IsActive,
-        entity.CreatedAtUtc);
+        entity.CreatedAtUtc,
+        entity.HiddenNote,
+        entity.HiddenAtUtc,
+        entity.HiddenBy);
 
     private static Asset ToDomain(AssetEntity entity) => new(
         entity.Id,

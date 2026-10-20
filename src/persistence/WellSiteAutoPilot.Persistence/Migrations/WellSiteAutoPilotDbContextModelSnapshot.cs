@@ -45,6 +45,9 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.Property<string>("AttributeSchemaJson").IsRequired().HasColumnType("text");
                 entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<DateTimeOffset?>("HiddenAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("HiddenBy").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("HiddenNote").HasMaxLength(200).HasColumnType("character varying(200)");
                 entity.Property<bool>("IsActive").HasColumnType("boolean");
                 entity.Property<string>("Key").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
                 entity.Property<int>("SchemaVersion").HasColumnType("integer");

@@ -32,6 +32,57 @@ public sealed partial class AssetRepository
         }, cancellationToken);
     }
 
+    public Task SetAssetTypeHiddenAuthorizedAsync(Guid assetTypeId, bool hidden, string? note, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (assetTypeId == Guid.Empty || note is { Length: > 200 } || note?.Any(char.IsControl) == true ||
+            !hidden && note is not null)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "The note must be at most 200 characters and only accompanies hiding a type.");
+        return WriteAuthorizedAsync(subject, actor, async () =>
+        {
+            var time = clock ?? TimeProvider.System;
+            // Hiding is an administrator-grade declutter action; restoring is harmless, so managers may do it.
+            await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject,
+                hidden ? WellSitePermissions.AssetTypesHide : WellSitePermissions.AssetTypesManage, time, cancellationToken);
+            var type = await LockAssetTypeAsync(assetTypeId, cancellationToken);
+            if (type.IsActive != hidden) return;
+            type.IsActive = !hidden;
+            type.HiddenNote = hidden ? note : null;
+            type.HiddenAtUtc = hidden ? time.GetUtcNow() : null;
+            type.HiddenBy = hidden ? actor.IdentityName.Trim() : null;
+            StageCreationAudit(hidden ? "asset-type.hidden" : "asset-type.unhidden", "asset-type", type.Id, null, subject, actor,
+                new { type.Key, Note = note });
+        }, cancellationToken);
+    }
+
+    public Task DeleteAssetTypeAuthorizedAsync(Guid assetTypeId, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (assetTypeId == Guid.Empty)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "An Asset Type is required.");
+        return WriteAuthorizedAsync(subject, actor, async () =>
+        {
+            await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject, WellSitePermissions.AssetTypesManage,
+                clock ?? TimeProvider.System, cancellationToken);
+            // The row lock conflicts with the share lock Asset creation holds, so a concurrent create either
+            // completes first (and blocks the delete here) or fails once the type is gone.
+            var type = await LockAssetTypeAsync(assetTypeId, cancellationToken);
+            if (await dbContext.Assets.AnyAsync(asset => asset.AssetTypeId == assetTypeId, cancellationToken))
+                throw new WellSiteAutoPilotException("ASSET_TYPE_IN_USE", FailureKind.Conflict,
+                    "This type has been used by Assets and cannot be deleted. Hide it instead.");
+            dbContext.AssetTypes.Remove(type);
+            StageCreationAudit("asset-type.deleted", "asset-type", type.Id, null, subject, actor, new { type.Key });
+        }, cancellationToken);
+    }
+
+    private async Task<AssetTypeEntity> LockAssetTypeAsync(Guid assetTypeId, CancellationToken cancellationToken) =>
+        (await dbContext.AssetTypes.FromSqlInterpolated($"""
+            SELECT t.* FROM assets.asset_types AS t WHERE t."Id" = {assetTypeId} FOR UPDATE OF t
+            """).ToArrayAsync(cancellationToken)).SingleOrDefault()
+        ?? throw new WellSiteAutoPilotException("ASSET_TYPE_NOT_FOUND", FailureKind.NotFound, "The Asset Type was not found.");
+
     public Task AddAssetAuthorizedAsync(Asset asset, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default)
     {
