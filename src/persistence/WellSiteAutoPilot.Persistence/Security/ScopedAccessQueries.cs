@@ -23,11 +23,14 @@ public static partial class ScopedAccessQueries
         var administrators = AdministratorGrants(db, subject.UserId, subject.WindowsGroups, nowUtc);
         var broadReads = ResourceGrants(db, subject.UserId, WellSitePermissions.AssetsRead, subject.WindowsGroups, nowUtc)
             .Where(grant => grant.ScopeKind == "AllAssets");
+        var catalogManagers = DeploymentGrants(db, subject.UserId, WellSitePermissions.AssetTypesManage, subject.WindowsGroups, nowUtc);
         var readableAssets = Assets(db, subject.UserId, WellSitePermissions.AssetsRead, subject.WindowsGroups, nowUtc);
-        // Full type-catalog visibility is a protected administration operation.
-        // A scoped reader receives only metadata used by its readable Assets.
+        // Full type-catalog visibility belongs to those who manage the catalog (including a type that no Asset
+        // uses yet) and to protected administrators with all-assets read. A scoped reader receives only metadata
+        // used by its readable Assets.
         return db.AssetTypes.AsNoTracking().Where(type =>
-            administrators.Any() && broadReads.Any() || readableAssets.Any(asset => asset.AssetTypeId == type.Id));
+            catalogManagers.Any() || administrators.Any() && broadReads.Any() ||
+            readableAssets.Any(asset => asset.AssetTypeId == type.Id));
     }
 
     public static IQueryable<AssetEntity> Assets(

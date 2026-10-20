@@ -22,11 +22,10 @@ public sealed partial class AssetRepository
         return WriteAuthorizedAsync(subject, actor, async () =>
         {
             var time = clock ?? TimeProvider.System;
-            await GrantWriteGuard.RequireAdministratorAsync(dbContext, subject, time, cancellationToken);
-            await GrantWriteGuard.RequireAllAssetsAsync(dbContext, subject, WellSitePermissions.AssetsManage, time, cancellationToken);
+            // The type catalog is deployment-wide, so its authority is a deployment-wide permission.
+            await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject, WellSitePermissions.AssetTypesManage, time, cancellationToken);
             await AssetAttributeSchemaValidator.ValidateDefinitionAsync(assetType.AttributeSchemaJson, cancellationToken);
-            await GrantWriteGuard.RequireAdministratorAsync(dbContext, subject, time, cancellationToken);
-            await GrantWriteGuard.RequireAllAssetsAsync(dbContext, subject, WellSitePermissions.AssetsManage, time, cancellationToken);
+            await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject, WellSitePermissions.AssetTypesManage, time, cancellationToken);
             StageAssetType(assetType);
             StageCreationAudit("asset-type.created", "asset-type", assetType.Id, null, subject, actor,
                 new { assetType.Key, assetType.SchemaVersion });
@@ -63,7 +62,7 @@ public sealed partial class AssetRepository
                     await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.AssetsManage, [parent], time, cancellationToken);
                 else
                 {
-                    await GrantWriteGuard.RequireAdministratorAsync(dbContext, subject, time, cancellationToken);
+                    // A root affects the whole hierarchy, so it needs authority over every asset.
                     await GrantWriteGuard.RequireAllAssetsAsync(dbContext, subject, WellSitePermissions.AssetsManage, time, cancellationToken);
                 }
             }

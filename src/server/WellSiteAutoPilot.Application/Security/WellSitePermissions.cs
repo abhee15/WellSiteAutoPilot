@@ -13,6 +13,8 @@ public static class WellSitePermissions
     public const string RecommendationsRead = "recommendations.read";
     public const string RecommendationsDecide = "recommendations.decide";
     public const string SecurityManage = "security.manage";
+    public const string AssetTypesManage = "asset-types.manage";
+    public const string AssetTypesHide = "asset-types.hide";
 
     public static IReadOnlyCollection<string> All { get; } =
     [
@@ -26,6 +28,8 @@ public static class WellSitePermissions
         ExecutionsRequest,
         RecommendationsRead,
         RecommendationsDecide,
-        SecurityManage
+        SecurityManage,
+        AssetTypesManage,
+        AssetTypesHide
     ];
 }

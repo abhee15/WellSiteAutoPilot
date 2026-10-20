@@ -16,6 +16,8 @@ const labels: Record<string, MessageKey> = {
   'recommendations.read': 'roles.permissionRecommendationsRead',
   'recommendations.decide': 'roles.permissionRecommendationsDecide',
   'security.manage': 'roles.permissionSecurityManage',
+  'asset-types.manage': 'roles.permissionAssetTypesManage',
+  'asset-types.hide': 'roles.permissionAssetTypesHide',
 };
 const categories: Record<string, MessageKey> = {
   Assets: 'roles.categoryAssets',
@@ -24,6 +26,7 @@ const categories: Record<string, MessageKey> = {
   Executions: 'roles.categoryExecutions',
   Recommendations: 'roles.categoryRecommendations',
   Security: 'roles.categorySecurity',
+  AssetTypes: 'roles.categoryAssetTypes',
 };
 function errorLabel(kind: RoleErrorKind): string {
   switch (kind) {
