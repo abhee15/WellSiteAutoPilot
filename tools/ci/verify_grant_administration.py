@@ -212,6 +212,25 @@ assert down_find["complete"] is False and down_find["items"] == [], down_find
 # Only managers may look, adapters that cannot list say so, and a disabled connection refuses.
 request("POST", "/connections/" + stand_in["id"] + "/discover", OPERATOR, expected=403)
 request("POST", "/connections/" + created["id"] + "/discover", expected=409)
+# Plan: the same discovery grouped as asked, with a fingerprint that identifies exactly this plan. Nothing is saved.
+plan_url = "/connections/" + stand_in["id"] + "/import/preview"
+preview = request("POST", plan_url, body={"levels": ["assetName", "wellType"]})
+assert preview["objectCount"] == 3 and preview["groupCount"] == 5 and preview["fallbackObjectCount"] == 0, preview
+assert preview["levels"] == ["assetName", "wellType"] and preview["rootObjectCount"] == 0, preview
+assert [(g["name"], g["objectCount"]) for g in preview["groups"]] == [("North Field", 2), ("South Field", 1)], preview
+assert [c["name"] for c in preview["groups"][0]["children"]] == ["ESP", "RRL"], preview
+assert preview["groups"][1]["children"][0]["sampleNames"] == ["Bravo 1"], preview
+assert set(preview["typesToCreate"]) <= {"well", "group"}, preview
+assert not (preview["conflicts"] and preview["canImport"]), preview
+assert preview["actingAs"], preview
+assert request("POST", plan_url, body={"levels": ["assetName", "wellType"]})["fingerprint"] == preview["fingerprint"]
+assert request("POST", plan_url, body={"levels": ["assetName"]})["fingerprint"] != preview["fingerprint"]
+flat = request("POST", plan_url, body={})
+assert flat["groups"] == [] and flat["rootObjectCount"] == 3 and flat["groupCount"] == 0, flat
+request("POST", plan_url, body={"levels": ["nonsense"]}, expected=400)
+request("POST", plan_url, body={"levels": ["field", "field"]}, expected=400)
+request("POST", plan_url, OPERATOR, {"levels": []}, expected=403)
+request("POST", "/connections/" + not_foresite["id"] + "/import/preview", body={"levels": []}, expected=409)
 request("DELETE", "/connections/" + stand_in["id"], expected=204)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)

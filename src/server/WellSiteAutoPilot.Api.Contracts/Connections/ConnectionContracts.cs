@@ -50,3 +50,28 @@ public sealed record CreateConnectionRequest(string Name, string AdapterKey, Dic
 public sealed record UpdateConnectionRequest(int ExpectedRevision, string Name, Dictionary<string, string?>? Settings);
 
 public sealed record SetConnectionEnabledRequest(int ExpectedRevision, bool Enabled);
+
+/// <summary>The facts to group by, outermost first. Empty means no groups, only the objects themselves.</summary>
+public sealed record ImportPreviewRequest(List<string>? Levels);
+
+public sealed record ImportGroupResponse(
+    string Name, bool IsFallback, int ObjectCount, IReadOnlyList<string> SampleNames, IReadOnlyList<ImportGroupResponse> Children);
+
+/// <summary>
+/// What an import would create, for review; nothing has been saved. <c>Fingerprint</c> identifies this exact plan so
+/// applying it can refuse if the source changed since. <c>CanImport</c> is false while there are conflicts or a
+/// missing permission, and <c>Warnings</c> and <c>Conflicts</c> say why in plain sentences.
+/// </summary>
+public sealed record ImportPreviewResponse(
+    string Fingerprint,
+    IReadOnlyList<string> Levels,
+    int ObjectCount,
+    int GroupCount,
+    int FallbackObjectCount,
+    int RootObjectCount,
+    IReadOnlyList<ImportGroupResponse> Groups,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> Conflicts,
+    IReadOnlyList<string> TypesToCreate,
+    bool CanImport,
+    string? ActingAs);

@@ -35,6 +35,11 @@ public sealed record AdapterDescriptor(
 }
 
 /// <summary>A fact about a discovered object that people may group or filter by, for example ForeSite's well type.</summary>
-public sealed record DiscoveryField(string Key, string Label);
+/// <summary>
+/// <paramref name="EmptyGroupName"/> names the group for objects with no value for this fact (null gives a generic
+/// "Unspecified: label"). <paramref name="AsAttribute"/> says whether the fact is kept as an Asset attribute people can
+/// filter on; a fact that only shapes the tree (ForeSite's asset name) can leave it off.
+/// </summary>
+public sealed record DiscoveryField(string Key, string Label, string? EmptyGroupName = null, bool AsAttribute = true);
 
 public sealed record AdapterSettingProblem(string FieldKey, string Message);
