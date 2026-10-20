@@ -41,6 +41,16 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
             : await response.Content.ReadFromJsonAsync<AdapterTestResult>(cancellationToken);
     }
 
+    public async Task<DiscoveryResult?> DiscoverAsync(
+        string adapterKey, IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken = default)
+    {
+        using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(adapterKey)}/discover", settings);
+        using var response = await SendAsync(request, cancellationToken, allowNotFound: true);
+        return response.StatusCode == HttpStatusCode.NotFound
+            ? null
+            : await response.Content.ReadFromJsonAsync<DiscoveryResult>(cancellationToken);
+    }
+
     private HttpRequestMessage Authorized(HttpMethod method, string path, IReadOnlyDictionary<string, string?>? settings = null)
     {
         var key = configuration[ServiceCallerClient.KeyConfigurationName];

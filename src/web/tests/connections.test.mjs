@@ -9,7 +9,7 @@ before(async () => {
 });
 after(async () => { await vite?.close(); });
 
-const adapter = { key: 'simulator', displayName: 'Sim', description: '', settingsVersion: 1, capabilities: [],
+const adapter = { key: 'simulator', displayName: 'Sim', description: '', settingsVersion: 1, capabilities: [], canDiscover: false, groupingFields: [],
   fields: [{ key: 'baseUrl', label: 'Address', helpText: '', kind: 'Url', required: true, maxLength: 256 }] };
 const connection = { id: '00000000-0000-4000-8000-000000000001', name: 'A', adapterKey: 'simulator', settingsVersion: 1,
   settings: { baseUrl: 'http://x' }, isEnabled: true, revision: 3, createdAtUtc: 'a', updatedAtUtc: 'b', lastTest: null,
@@ -67,4 +67,26 @@ test('dirty detection ignores whitespace and empty optional values', () => {
   assert.equal(api.isDirty(connection, adapter, { name: 'A ', settings: { baseUrl: ' http://x' } }), false);
   assert.equal(api.isDirty(connection, adapter, { name: 'A', settings: { baseUrl: 'http://z' } }), true);
   assert.equal(api.isDirty(connection, adapter, { name: 'B', settings: { baseUrl: 'http://x' } }), true);
+});
+
+test('discovery is validated, filtered by name or any fact, and its refusals are classified', async () => {
+  const good = { complete: true, actingAs: 'A\\b', warnings: [], items: [
+    { externalId: '1', displayName: 'Alpha 1', kind: 'k', metadata: { wellType: 'ESP' } },
+    { externalId: '2', displayName: 'Bravo', kind: 'k', metadata: {} }] };
+  const found = await api.discoverConnection(connection, async (url, init) => {
+    assert.equal(String(url), `/api/v1/connections/${connection.id}/discover`);
+    assert.equal(init.method, 'POST');
+    return new Response(JSON.stringify(good));
+  });
+  assert.equal(found.items.length, 2);
+  assert.deepEqual(api.filterDiscovered(found.items, ' esp ').map(i => i.externalId), ['1']);
+  assert.deepEqual(api.filterDiscovered(found.items, 'brav').map(i => i.externalId), ['2']);
+  assert.equal(api.filterDiscovered(found.items, '').length, 2);
+  await assert.rejects(api.discoverConnection(connection, async () => new Response('{"complete":"yes"}')), { kind: 'invalidResponse' });
+  const refuse = (status, code) => api.discoverConnection(connection, async () =>
+    new Response(JSON.stringify({ code }), { status })).catch(e => e.kind);
+  assert.equal(await refuse(409, 'CONNECTION_DISCOVERY_UNSUPPORTED'), 'unsupported');
+  assert.equal(await refuse(409, 'CONNECTION_DISABLED'), 'disabled');
+  assert.equal(await refuse(400, 'CONNECTION_DISCOVERY_TOO_LARGE'), 'tooLarge');
+  assert.equal(await refuse(503, undefined), 'gatewayUnavailable');
 });

@@ -36,6 +36,8 @@ public static class ConnectionFailureCodes
     public const string SettingsInvalid = "CONNECTION_SETTINGS_INVALID";
     public const string AdapterUnknown = "CONNECTION_ADAPTER_UNKNOWN";
     public const string Disabled = "CONNECTION_DISABLED";
+    public const string DiscoveryUnsupported = "CONNECTION_DISCOVERY_UNSUPPORTED";
+    public const string DiscoveryTooLarge = "CONNECTION_DISCOVERY_TOO_LARGE";
 }
 
 /// <summary>What the Server asks of the Gateway about adapters. The Gateway is authoritative; the Server stays provider-neutral.</summary>
@@ -49,5 +51,9 @@ public interface IGatewayAdapters
 
     /// <summary>Null when the Gateway does not know the adapter.</summary>
     Task<AdapterTestResult?> TestAsync(
+        string adapterKey, IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken = default);
+
+    /// <summary>Null when the Gateway does not know the adapter or it cannot discover.</summary>
+    Task<DiscoveryResult?> DiscoverAsync(
         string adapterKey, IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken = default);
 }

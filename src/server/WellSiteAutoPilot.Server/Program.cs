@@ -177,8 +177,8 @@ builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
 {
     client.BaseAddress = new Uri(
         (builder.Configuration["Runtime:IntegrationGatewayUrl"] ?? "http://127.0.0.1:5081").TrimEnd('/') + "/");
-    // A connection test may take up to the Gateway's own limit before it answers.
-    client.Timeout = TimeSpan.FromSeconds(30);
+    // A test is limited to 10 seconds and a discovery to 120 by the Gateway; this allows a little over the longer one.
+    client.Timeout = TimeSpan.FromSeconds(150);
 });
 builder.Services.AddScoped<ConnectionService>();
 builder.Services.AddScoped<ExecutionService>();
@@ -1066,6 +1066,20 @@ v1.MapPost(
     .WithName("TestConnection")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ConnectionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapPost(
+    "/connections/{connectionId:guid}/discover",
+    async (Guid connectionId, ConnectionService connections, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        ConnectionMapping.ToResponse(await connections.DiscoverAsync(connectionId, access.Subject,
+            access.CreateActor(context), cancellationToken)))
+    .WithName("DiscoverConnection")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<DiscoveryResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");

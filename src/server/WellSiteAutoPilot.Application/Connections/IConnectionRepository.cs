@@ -23,6 +23,10 @@ public interface IConnectionRepository
     Task<ConnectionRecord> RecordTestAuthorizedAsync(Guid id, ConnectionTestRecord result, AccessSubject subject,
         SecurityActorContext actor, CancellationToken cancellationToken = default);
 
+    /// <summary>Records only that a discovery was run, with counts, so the audit trail shows who looked and what they saw.</summary>
+    Task RecordDiscoveryAuthorizedAsync(Guid id, int found, int warnings, bool complete, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default);
+
     Task DeleteAuthorizedAsync(Guid id, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default);
 }

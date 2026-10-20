@@ -10,7 +10,22 @@ public sealed record AdapterResponse(
     string Description,
     int SettingsVersion,
     IReadOnlyList<AdapterSettingFieldResponse> Fields,
-    IReadOnlyList<string> Capabilities);
+    IReadOnlyList<string> Capabilities,
+    bool CanDiscover,
+    IReadOnlyList<DiscoveryFieldResponse> GroupingFields);
+
+public sealed record DiscoveryFieldResponse(string Key, string Label);
+
+/// <summary>One object found in an outside system. Metadata holds the facts the adapter read, by name.</summary>
+public sealed record DiscoveredObjectResponse(
+    string ExternalId, string DisplayName, string Kind, IReadOnlyDictionary<string, string> Metadata);
+
+/// <summary>
+/// What a connection holds right now. When <c>Complete</c> is false the list is partial or empty and must not be
+/// read as "nothing there". <c>ActingAs</c> is the account the outside system saw.
+/// </summary>
+public sealed record DiscoveryResponse(
+    bool Complete, IReadOnlyList<DiscoveredObjectResponse> Items, IReadOnlyList<string> Warnings, string? ActingAs);
 
 public sealed record ConnectionTestResponse(
     string Outcome, string Message, string? ActingAs, DateTimeOffset TestedAtUtc, int TestedRevision);

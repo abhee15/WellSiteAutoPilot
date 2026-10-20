@@ -8,12 +8,12 @@ import type { Adapter, Connection } from '../../src/views/connections';
 vi.mock('../../src/views/connections', async importOriginal => ({
   ...await importOriginal<typeof import('../../src/views/connections')>(),
   loadConnections: vi.fn(), loadAdapters: vi.fn(), createConnection: vi.fn(), updateConnection: vi.fn(),
-  setConnectionEnabled: vi.fn(), testConnection: vi.fn(), deleteConnection: vi.fn(),
+  setConnectionEnabled: vi.fn(), testConnection: vi.fn(), deleteConnection: vi.fn(), discoverConnection: vi.fn(),
 }));
 
 const adapter: Adapter = {
   key: 'simulator', displayName: 'Provider Simulator', description: 'A built-in simulated provider.',
-  settingsVersion: 1, capabilities: ['Current engineering data'],
+  settingsVersion: 1, capabilities: ['Current engineering data'], canDiscover: false, groupingFields: [],
   fields: [{ key: 'baseUrl', label: 'Simulator address', helpText: 'Where it listens.', kind: 'Url', required: true, maxLength: 256 }],
 };
 const saved = (extra: Partial<Connection> = {}): Connection => ({
@@ -131,5 +131,53 @@ describe('Connections page', () => {
     await screen.findByText('Field simulator');
     expect(screen.getByText(/could not be loaded, so new connections cannot be created/)).toBeTruthy();
     expect((screen.getByText('New connection') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('finds what a connection holds, searchable, and says who it looked as', async () => {
+    const finder: Adapter = { ...adapter, key: 'foresite', displayName: 'ForeSite', canDiscover: true,
+      groupingFields: [{ key: 'wellType', label: 'Well type' }] };
+    vi.mocked(api.loadAdapters).mockResolvedValue([finder]);
+    vi.mocked(api.loadConnections).mockResolvedValue([saved({ adapterKey: 'foresite' })]);
+    vi.mocked(api.discoverConnection).mockResolvedValue({
+      complete: true, actingAs: 'CORP\\svc-wsa', warnings: ['Asset names were not available.'],
+      items: [
+        { externalId: '1', displayName: 'Alpha 1', kind: 'foresite.well', metadata: { wellType: 'RRL', field: 'Alpha' } },
+        { externalId: '2', displayName: 'Bravo 1', kind: 'foresite.well', metadata: { wellType: 'ESP', field: 'Bravo' } },
+      ],
+    });
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await userEvent.click(await screen.findByText('Find what it holds'));
+    await screen.findByText('Found 2.');
+    expect(screen.getByText('Alpha 1')).toBeTruthy();
+    expect(screen.getByText('Asset names were not available.')).toBeTruthy();
+    expect(screen.getByText(/Found as CORP/)).toBeTruthy();
+    expect(screen.queryByText(/list is incomplete/)).toBeNull();
+    await userEvent.type(screen.getByLabelText('Search what was found'), 'esp');
+    expect(screen.queryByText('Alpha 1')).toBeNull();
+    expect(screen.getByText('Bravo 1')).toBeTruthy();
+  });
+
+  it('never presents an incomplete answer as "nothing there"', async () => {
+    const finder: Adapter = { ...adapter, canDiscover: true };
+    vi.mocked(api.loadAdapters).mockResolvedValue([finder]);
+    vi.mocked(api.loadConnections).mockResolvedValue([saved()]);
+    vi.mocked(api.discoverConnection).mockResolvedValue({
+      complete: false, actingAs: null, warnings: ['The system could not be reached.'], items: [],
+    });
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await userEvent.click(await screen.findByText('Find what it holds'));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/incomplete/);
+    expect(screen.getByText('The system could not be reached.')).toBeTruthy();
+    expect(screen.queryByText('Nothing was found.')).toBeNull();
+  });
+
+  it('offers Find only when the system can list what it holds', async () => {
+    vi.mocked(api.loadConnections).mockResolvedValue([saved()]);
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await screen.findByLabelText('Name');
+    expect(screen.queryByText('Find what it holds')).toBeNull();
   });
 });

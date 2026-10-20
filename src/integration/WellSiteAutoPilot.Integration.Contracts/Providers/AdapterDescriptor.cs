@@ -27,6 +27,14 @@ public sealed record AdapterDescriptor(
     string Description,
     int SettingsVersion,
     IReadOnlyList<AdapterSettingField> Fields,
-    IReadOnlyList<ProviderCapability> Capabilities);
+    IReadOnlyList<ProviderCapability> Capabilities,
+    IReadOnlyList<DiscoveryField>? GroupingFields = null)
+{
+    /// <summary>True when the adapter can list what the provider holds.</summary>
+    public bool CanDiscover => Capabilities.Any(item => item.Kind == ProviderCapabilityKind.AssetDiscovery);
+}
+
+/// <summary>A fact about a discovered object that people may group or filter by, for example ForeSite's well type.</summary>
+public sealed record DiscoveryField(string Key, string Label);
 
 public sealed record AdapterSettingProblem(string FieldKey, string Message);

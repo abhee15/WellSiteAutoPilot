@@ -68,6 +68,29 @@ public sealed class ConnectionService(
         return await repository.RecordTestAuthorizedAsync(id, record, subject, actor, cancellationToken);
     }
 
+    /// <summary>Hard ceiling on one discovery: a preview and an import are computed in a single request.</summary>
+    public const int MaximumDiscoveredObjects = 5000;
+
+    public async Task<DiscoveryResult> DiscoverAsync(Guid id, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        var connection = await GetAsync(id, cancellationToken);
+        if (!connection.IsEnabled)
+            throw new WellSiteAutoPilotException(ConnectionFailureCodes.Disabled, FailureKind.Conflict,
+                "Enable the connection before finding what it holds.");
+        var settings = connection.Settings.ToDictionary(item => item.Key, item => (string?)item.Value, StringComparer.Ordinal);
+        var result = await gateway.DiscoverAsync(connection.AdapterKey, settings, cancellationToken)
+            ?? throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryUnsupported, FailureKind.Conflict,
+                "This connection's adapter cannot list what it holds.");
+        if (result.Items.Count > MaximumDiscoveredObjects)
+            throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryTooLarge, FailureKind.Validation,
+                $"That system holds more than {MaximumDiscoveredObjects} objects, which is more than one import handles. " +
+                "Narrow what the connection's account can see and try again.");
+        await repository.RecordDiscoveryAuthorizedAsync(id, result.Items.Count, result.Warnings.Count, result.Complete,
+            subject, actor, cancellationToken);
+        return result;
+    }
+
     public Task DeleteAsync(Guid id, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default) =>
         repository.DeleteAuthorizedAsync(id, subject, actor, cancellationToken);

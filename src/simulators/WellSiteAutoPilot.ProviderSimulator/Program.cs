@@ -71,6 +71,22 @@ app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
     .Produces<EngineeringValue>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status503ServiceUnavailable);
 
+// A stand-in for the parts of ForeSite's web services that discovery reads, so CI can exercise the whole path
+// without ForeSite. It lives under its own prefix: the simulator's root address must keep answering 404 to a
+// ForeSite connection, which is how the "this is not ForeSite" check works.
+app.MapGet("/foresite/SurfaceNetworkService/Asset/All", () => Results.Json(new object[]
+{
+    new { Id = 1, Name = "North Field" },
+    new { Id = 2, Name = "South Field" }
+}));
+
+app.MapGet("/foresite/Wells/All", () => Results.Json(new object[]
+{
+    new { Id = 101, Name = "Alpha 1", AssetId = 1, WellType = 1, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = "RPC" },
+    new { Id = 102, Name = "Alpha 2", AssetId = 1, WellType = 2, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = "ESP" },
+    new { Id = 103, Name = "Bravo 1", AssetId = 2, WellType = 1, Field = "Bravo", Lease = "L-2", FacilityId = 8, PrincipalDeviceType = "RPC" }
+}));
+
 app.Run();
 
 public partial class Program;
