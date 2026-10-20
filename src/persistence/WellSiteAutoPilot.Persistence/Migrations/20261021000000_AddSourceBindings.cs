@@ -13,6 +13,8 @@ namespace WellSiteAutoPilot.Persistence.Migrations;
 [Migration("20261021000000_AddSourceBindings")]
 public partial class AddSourceBindings : Migration
 {
+    private static readonly string[] BindingKeyColumns = ["ConnectionId", "ResourceKind", "ExternalId"];
+
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         ArgumentNullException.ThrowIfNull(migrationBuilder);
@@ -57,7 +59,7 @@ public partial class AddSourceBindings : Migration
             name: "IX_source_bindings_ConnectionId_ResourceKind_ExternalId",
             schema: "integration",
             table: "source_bindings",
-            columns: new[] { "ConnectionId", "ResourceKind", "ExternalId" },
+            columns: BindingKeyColumns,
             unique: true);
     }
 
