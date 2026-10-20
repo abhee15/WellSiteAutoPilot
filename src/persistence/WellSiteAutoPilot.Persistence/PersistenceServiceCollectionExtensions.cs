@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Connections;
+using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Logic;
@@ -30,6 +31,7 @@ public static class PersistenceServiceCollectionExtensions
             options => options.UseNpgsql(connectionString));
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
+        services.AddScoped<IConnectionImportRepository, ConnectionImportRepository>();
         services.AddScoped<IExecutionRepository, ExecutionRepository>();
         services.AddScoped<IConfiguredLogicRepository, ConfiguredLogicRepository>();
         services.AddScoped<ILogicModuleCatalogRepository, LogicModuleCatalogRepository>();

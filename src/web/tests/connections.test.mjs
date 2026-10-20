@@ -88,5 +88,6 @@ test('discovery is validated, filtered by name or any fact, and its refusals are
   assert.equal(await refuse(409, 'CONNECTION_DISCOVERY_UNSUPPORTED'), 'unsupported');
   assert.equal(await refuse(409, 'CONNECTION_DISABLED'), 'disabled');
   assert.equal(await refuse(400, 'CONNECTION_DISCOVERY_TOO_LARGE'), 'tooLarge');
+  assert.equal(await refuse(409, 'CONNECTION_HAS_IMPORTS'), 'hasImports');
   assert.equal(await refuse(503, undefined), 'gatewayUnavailable');
 });

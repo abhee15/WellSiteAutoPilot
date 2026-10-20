@@ -107,8 +107,10 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
         CancellationToken cancellationToken = default) =>
         WriteAsync(subject, actor, async () =>
         {
-            // Source bindings do not exist yet; once they do, a connection they reference must refuse deletion here.
             var entity = await LockAsync(id, null, cancellationToken);
+            if (await dbContext.SourceBindings.AnyAsync(binding => binding.ConnectionId == id, cancellationToken))
+                throw new WellSiteAutoPilotException(ConnectionFailureCodes.HasImports, FailureKind.Conflict,
+                    "Assets were imported from this connection, so it cannot be deleted. Disable it instead.");
             dbContext.Connections.Remove(entity);
             Audit("connection.deleted", id, subject, actor, new { entity.AdapterKey });
         }, cancellationToken);

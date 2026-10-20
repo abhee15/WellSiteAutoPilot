@@ -28,7 +28,7 @@ export type Connection = {
 };
 
 export type ConnectionErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'stale' | 'disabled' |
-  'invalidSettings' | 'invalid' | 'unsupported' | 'tooLarge' | 'gatewayUnavailable' | 'invalidResponse' | 'unavailable';
+  'invalidSettings' | 'invalid' | 'unsupported' | 'tooLarge' | 'hasImports' | 'gatewayUnavailable' | 'invalidResponse' | 'unavailable';
 
 export class ConnectionsError extends Error {
   constructor(public readonly kind: ConnectionErrorKind, public readonly detail: string | null = null) {
@@ -97,7 +97,8 @@ async function failure(response: Response): Promise<ConnectionsError> {
   if (status === 409) {
     return new ConnectionsError(code === 'CONNECTION_NAME_CONFLICT' ? 'nameTaken'
       : code === 'CONNECTION_DISABLED' ? 'disabled'
-        : code === 'CONNECTION_DISCOVERY_UNSUPPORTED' ? 'unsupported' : 'stale');
+        : code === 'CONNECTION_DISCOVERY_UNSUPPORTED' ? 'unsupported'
+          : code === 'CONNECTION_HAS_IMPORTS' ? 'hasImports' : 'stale');
   }
   if (status === 400) {
     return code === 'CONNECTION_SETTINGS_INVALID' ? new ConnectionsError('invalidSettings', detail)

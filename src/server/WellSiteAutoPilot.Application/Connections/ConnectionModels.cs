@@ -40,6 +40,9 @@ public static class ConnectionFailureCodes
     public const string DiscoveryTooLarge = "CONNECTION_DISCOVERY_TOO_LARGE";
     public const string DiscoveryIncomplete = "CONNECTION_DISCOVERY_INCOMPLETE";
     public const string ImportLevelsInvalid = "CONNECTION_IMPORT_LEVELS_INVALID";
+    public const string HasImports = "CONNECTION_HAS_IMPORTS";
+    public const string ImportPlanChanged = "CONNECTION_IMPORT_PLAN_CHANGED";
+    public const string ImportNotAllowed = "CONNECTION_IMPORT_NOT_ALLOWED";
     public const string ImportNeedsAllAssets = "CONNECTION_IMPORT_NEEDS_ALL_ASSETS";
 }
 

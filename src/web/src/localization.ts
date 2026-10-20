@@ -775,6 +775,7 @@ export const englishMessages = {
   'connections.findSearch': 'Search what was found',
   'connections.findShowing': 'Showing {shown} of {count}. Search to narrow the list.',
   'connections.findNone': 'Nothing matches that search.',
+  'connections.errHasImports': 'Assets were imported from this connection, so it cannot be deleted. Disable it instead.',
   'connections.errUnsupported': 'This system cannot list what it holds.',
   'connections.errTooLarge': 'That system holds more than one import can handle. Narrow what the connection’s account can see and try again.',
   'connections.errUncertain': 'The result is not known. Reload the page to see whether the change was saved.',

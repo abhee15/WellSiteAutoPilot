@@ -24,7 +24,10 @@ internal static class ConnectionMapping
     public static ImportPreviewResponse ToResponse(ImportPreview preview) => new(
         preview.Plan.Fingerprint, preview.Plan.Levels, preview.Plan.Placements.Count, preview.Plan.GroupCount,
         preview.Plan.FallbackObjectCount, preview.Plan.RootObjectCount, preview.Plan.Groups.Select(ToResponse).ToArray(),
-        preview.Warnings, preview.Conflicts, preview.TypesToCreate, preview.CanImport, preview.ActingAs);
+        preview.Warnings, preview.Conflicts, preview.TypesToCreate, preview.CanImport, preview.ActingAs, preview.AlreadyImported);
+
+    public static ImportResultResponse ToResponse(ImportOutcome outcome) => new(
+        outcome.WellsCreated, outcome.GroupsCreated, outcome.GroupsReused, outcome.AlreadyImported, outcome.TypesCreated);
 
     private static ImportGroupResponse ToResponse(PlanGroup group) => new(
         group.Name, group.IsFallback, group.ObjectCount, group.SampleNames, group.Children.Select(ToResponse).ToArray());

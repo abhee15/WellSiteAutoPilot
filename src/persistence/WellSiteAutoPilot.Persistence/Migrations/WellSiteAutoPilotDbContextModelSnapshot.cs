@@ -81,6 +81,23 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Connections.SourceBindingEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<Guid>("AssetId").HasColumnType("uuid");
+                entity.Property<Guid>("ConnectionId").HasColumnType("uuid");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("ExternalId").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<string>("ResourceKind").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+                entity.Property<string>("SnapshotJson").IsRequired().HasColumnType("text");
+                entity.HasKey("Id");
+                entity.HasIndex("AssetId");
+                entity.HasIndex("ConnectionId", "ResourceKind", "ExternalId").IsUnique();
+                entity.ToTable("source_bindings", "integration");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Assets.AssetEntity",
             entity =>
             {
@@ -108,6 +125,23 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.HasKey("Id");
                 entity.HasIndex("ActiveRevisionId");
                 entity.ToTable("configured_logic", "logic");
+            });
+
+        modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Connections.SourceBindingEntity",
+            entity =>
+            {
+                entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                    .WithMany()
+                    .HasForeignKey("AssetId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("ConnectionId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
             });
 
         modelBuilder.Entity(
