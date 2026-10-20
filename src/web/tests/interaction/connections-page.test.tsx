@@ -9,6 +9,7 @@ vi.mock('../../src/views/connections', async importOriginal => ({
   ...await importOriginal<typeof import('../../src/views/connections')>(),
   loadConnections: vi.fn(), loadAdapters: vi.fn(), createConnection: vi.fn(), updateConnection: vi.fn(),
   setConnectionEnabled: vi.fn(), testConnection: vi.fn(), deleteConnection: vi.fn(), discoverConnection: vi.fn(),
+  previewImport: vi.fn(), importFromConnection: vi.fn(),
 }));
 
 const adapter: Adapter = {
@@ -179,5 +180,97 @@ describe('Connections page', () => {
     await userEvent.click(await screen.findByText('Field simulator'));
     await screen.findByLabelText('Name');
     expect(screen.queryByText('Find what it holds')).toBeNull();
+  });
+
+  const importer: Adapter = {
+    ...adapter, key: 'foresite', displayName: 'ForeSite', canDiscover: true,
+    groupingFields: [{ key: 'assetName', label: 'ForeSite asset' }, { key: 'wellType', label: 'Well type' }],
+  };
+  const preview = (extra: Partial<api.ImportPreview> = {}): api.ImportPreview => ({
+    fingerprint: 'ABC', levels: ['assetName'], objectCount: 3, groupCount: 2, fallbackObjectCount: 1, rootObjectCount: 0,
+    warnings: [], conflicts: [], typesToCreate: ['well', 'group'], canImport: true, actingAs: 'CORP\\svc', alreadyImported: 0,
+    groups: [
+      { name: 'North', isFallback: false, objectCount: 2, sampleNames: ['Alpha 1', 'Alpha 2'], children: [] },
+      { name: 'Unassigned', isFallback: true, objectCount: 1, sampleNames: ['Orphan'], children: [] },
+    ], ...extra,
+  });
+  const openImporter = async () => {
+    vi.mocked(api.loadAdapters).mockResolvedValue([importer]);
+    vi.mocked(api.loadConnections).mockResolvedValue([saved({ adapterKey: 'foresite' })]);
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await screen.findByText('Import into Assets');
+  };
+
+  it('reviews the grouped tree before anything is created, then imports exactly what was reviewed', async () => {
+    vi.mocked(api.previewImport).mockResolvedValue(preview());
+    vi.mocked(api.importFromConnection).mockResolvedValue({
+      wellsCreated: 3, groupsCreated: 2, groupsReused: 1, alreadyImported: 0, typesCreated: ['well', 'group'],
+    });
+    await openImporter();
+    await userEvent.selectOptions(screen.getByLabelText('Add a grouping level'), 'assetName');
+    await userEvent.click(screen.getByText('Review import'));
+    await screen.findByText('3 to import in 2 groups.');
+    expect(vi.mocked(api.previewImport).mock.calls[0][1]).toEqual(['assetName']);
+    expect(screen.getByText('North')).toBeTruthy();
+    expect(screen.getByText(/Unassigned \(no value\)/)).toBeTruthy();
+    expect(screen.getByText(/asset types will be created first: well, group/)).toBeTruthy();
+    expect(api.importFromConnection).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByText('Import 3'));
+    expect(api.importFromConnection).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByText('Yes, import'));
+    await screen.findByText('Imported 3 and created 2 groups.');
+    expect(vi.mocked(api.importFromConnection).mock.calls[0].slice(1)).toEqual([['assetName'], 'ABC']);
+    expect(screen.getByText('1 groups already existed and were reused.')).toBeTruthy();
+    expect(screen.queryByText('3 to import in 2 groups.')).toBeNull();
+  });
+
+  it('drops a reviewed plan when the grouping changes and when the source moved on', async () => {
+    vi.mocked(api.previewImport).mockResolvedValue(preview());
+    vi.mocked(api.importFromConnection).mockRejectedValue(new api.ConnectionsError('planChanged'));
+    await openImporter();
+    await userEvent.click(screen.getByText('Review import'));
+    await screen.findByText('3 to import in 2 groups.');
+    await userEvent.selectOptions(screen.getByLabelText('Add a grouping level'), 'wellType');
+    expect(screen.queryByText('3 to import in 2 groups.')).toBeNull();
+    await userEvent.click(screen.getByText('Review import'));
+    await userEvent.click(await screen.findByText('Import 3'));
+    await userEvent.click(screen.getByText('Yes, import'));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/has changed since you reviewed it/);
+    expect(screen.queryByText('3 to import in 2 groups.')).toBeNull();
+  });
+
+  it('will not import while there are conflicts, and says why a scoped manager is refused', async () => {
+    vi.mocked(api.previewImport).mockResolvedValueOnce(preview({ canImport: false, conflicts: ['The existing asset type “well” does not accept the values for 1.'] }))
+      .mockRejectedValueOnce(new api.ConnectionsError('needsAllAssets'));
+    await openImporter();
+    await userEvent.click(screen.getByText('Review import'));
+    expect((await screen.findByText(/does not accept the values/)).getAttribute('role')).toBe('alert');
+    expect((screen.getByText('Import 3') as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(screen.getByText('Review import'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/permission to manage all Assets/));
+    expect(screen.queryByText('Import 3')).toBeNull();
+  });
+
+  it('reorders and removes grouping levels', async () => {
+    vi.mocked(api.previewImport).mockResolvedValue(preview());
+    await openImporter();
+    await userEvent.selectOptions(screen.getByLabelText('Add a grouping level'), 'assetName');
+    await userEvent.selectOptions(screen.getByLabelText('Add a grouping level'), 'wellType');
+    await userEvent.click(screen.getByLabelText('Move Well type up'));
+    await userEvent.click(screen.getByText('Review import'));
+    await waitFor(() => expect(api.previewImport).toHaveBeenCalled());
+    expect(vi.mocked(api.previewImport).mock.calls[0][1]).toEqual(['wellType', 'assetName']);
+    await userEvent.click(screen.getByLabelText('Remove ForeSite asset'));
+    expect(screen.getByText('Level 1: Well type')).toBeTruthy();
+  });
+
+  it('offers no import to someone who cannot manage connections or when the connection is disabled', async () => {
+    vi.mocked(api.loadAdapters).mockResolvedValue([importer]);
+    vi.mocked(api.loadConnections).mockResolvedValue([saved({ adapterKey: 'foresite', isEnabled: false })]);
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await screen.findByLabelText('Name');
+    expect(screen.queryByText('Import into Assets')).toBeNull();
   });
 });

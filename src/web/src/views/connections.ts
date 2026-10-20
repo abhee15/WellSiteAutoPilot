@@ -28,7 +28,8 @@ export type Connection = {
 };
 
 export type ConnectionErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'stale' | 'disabled' |
-  'invalidSettings' | 'invalid' | 'unsupported' | 'tooLarge' | 'hasImports' | 'gatewayUnavailable' | 'invalidResponse' | 'unavailable';
+  'invalidSettings' | 'invalid' | 'unsupported' | 'tooLarge' | 'hasImports' | 'needsAllAssets' | 'planChanged' | 'importNotAllowed' |
+  'incomplete' | 'invalidLevels' | 'gatewayUnavailable' | 'invalidResponse' | 'unavailable';
 
 export class ConnectionsError extends Error {
   constructor(public readonly kind: ConnectionErrorKind, public readonly detail: string | null = null) {
@@ -92,17 +93,22 @@ async function failure(response: Response): Promise<ConnectionsError> {
     }
   } catch { /* the status alone decides */ }
   const status = response.status;
+  if (status === 403 && code === 'CONNECTION_IMPORT_NEEDS_ALL_ASSETS') return new ConnectionsError('needsAllAssets');
   if (status === 401 || status === 403) return new ConnectionsError('accessDenied');
   if (status === 404) return new ConnectionsError('notFound');
   if (status === 409) {
     return new ConnectionsError(code === 'CONNECTION_NAME_CONFLICT' ? 'nameTaken'
       : code === 'CONNECTION_DISABLED' ? 'disabled'
         : code === 'CONNECTION_DISCOVERY_UNSUPPORTED' ? 'unsupported'
-          : code === 'CONNECTION_HAS_IMPORTS' ? 'hasImports' : 'stale');
+          : code === 'CONNECTION_HAS_IMPORTS' ? 'hasImports'
+            : code === 'CONNECTION_IMPORT_PLAN_CHANGED' ? 'planChanged'
+              : code === 'CONNECTION_IMPORT_NOT_ALLOWED' ? 'importNotAllowed'
+                : code === 'CONNECTION_DISCOVERY_INCOMPLETE' ? 'incomplete' : 'stale', detail);
   }
   if (status === 400) {
     return code === 'CONNECTION_SETTINGS_INVALID' ? new ConnectionsError('invalidSettings', detail)
-      : code === 'CONNECTION_DISCOVERY_TOO_LARGE' ? new ConnectionsError('tooLarge') : new ConnectionsError('invalid');
+      : code === 'CONNECTION_DISCOVERY_TOO_LARGE' ? new ConnectionsError('tooLarge')
+        : code === 'CONNECTION_IMPORT_LEVELS_INVALID' ? new ConnectionsError('invalidLevels') : new ConnectionsError('invalid');
   }
   if (status === 503 || status === 504) return new ConnectionsError('gatewayUnavailable');
   return new ConnectionsError('unavailable');
@@ -187,6 +193,62 @@ export async function testConnection(connection: Connection, fetcher: typeof fet
 export async function discoverConnection(connection: Connection, fetcher: typeof fetch = fetch): Promise<Discovery> {
   const body = await send(`/connections/${connection.id}/discover`, { method: 'POST' }, fetcher);
   if (!isDiscovery(body)) throw new ConnectionsError('invalidResponse');
+  return body;
+}
+
+export type ImportGroup = {
+  name: string; isFallback: boolean; objectCount: number; sampleNames: string[]; children: ImportGroup[];
+};
+
+/** What an import would create, for review. `fingerprint` names this exact plan and is sent back to apply it. */
+export type ImportPreview = {
+  fingerprint: string; levels: string[]; objectCount: number; groupCount: number; fallbackObjectCount: number;
+  rootObjectCount: number; groups: ImportGroup[]; warnings: string[]; conflicts: string[]; typesToCreate: string[];
+  canImport: boolean; actingAs: string | null; alreadyImported: number;
+};
+
+export type ImportResult = {
+  wellsCreated: number; groupsCreated: number; groupsReused: number; alreadyImported: number; typesCreated: string[];
+};
+
+const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every(x => typeof x === 'string');
+
+function isImportGroup(value: unknown, depth = 0): value is ImportGroup {
+  return depth <= 5 && isObject(value) && typeof value.name === 'string' && typeof value.isFallback === 'boolean' &&
+    isCount(value.objectCount) && isStrings(value.sampleNames) && Array.isArray(value.children) &&
+    value.children.every(child => isImportGroup(child, depth + 1));
+}
+
+function isImportPreview(value: unknown): value is ImportPreview {
+  return isObject(value) && typeof value.fingerprint === 'string' && value.fingerprint.length > 0 &&
+    isStrings(value.levels) && isCount(value.objectCount) && isCount(value.groupCount) &&
+    isCount(value.fallbackObjectCount) && isCount(value.rootObjectCount) && isCount(value.alreadyImported) &&
+    Array.isArray(value.groups) && value.groups.every(group => isImportGroup(group)) &&
+    isStrings(value.warnings) && isStrings(value.conflicts) && isStrings(value.typesToCreate) &&
+    typeof value.canImport === 'boolean' && (value.actingAs === null || typeof value.actingAs === 'string');
+}
+
+function isImportResult(value: unknown): value is ImportResult {
+  return isObject(value) && isCount(value.wellsCreated) && isCount(value.groupsCreated) &&
+    isCount(value.groupsReused) && isCount(value.alreadyImported) && isStrings(value.typesCreated);
+}
+
+/** Works out what importing would do with these grouping levels. Nothing is saved. */
+export async function previewImport(
+  connection: Connection, levels: string[], fetcher: typeof fetch = fetch,
+): Promise<ImportPreview> {
+  const body = await send(`/connections/${connection.id}/import/preview`, json('POST', { levels }), fetcher);
+  if (!isImportPreview(body)) throw new ConnectionsError('invalidResponse');
+  return body;
+}
+
+/** Applies exactly the plan that was reviewed; the server refuses if the source has changed since. */
+export async function importFromConnection(
+  connection: Connection, levels: string[], expectedFingerprint: string, fetcher: typeof fetch = fetch,
+): Promise<ImportResult> {
+  const body = await send(`/connections/${connection.id}/import`, json('POST', { levels, expectedFingerprint }), fetcher);
+  if (!isImportResult(body)) throw new ConnectionsError('invalidResponse');
   return body;
 }
 

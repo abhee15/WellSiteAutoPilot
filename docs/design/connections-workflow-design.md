@@ -417,3 +417,22 @@ evidence of what ForeSite returns, not a design.
    empty Assets page offers "Import from a connection".
 5. Then the CygNet adapter on the same path, linking (9.4), and check for changes (7a) as later slices.
 
+
+### 13.3 Built (step 4)
+
+Slices 4a to 4d shipped as #217 to the import screens PR. As built:
+
+- Find, plan and import all start from a fresh discovery. A plan needs a complete discovery; an incomplete one is
+  refused with the adapter's reason rather than shown as "nothing there".
+- Adapters declare grouping facts with a label for objects that lack the value and whether the fact is also kept as
+  an Asset attribute (`DiscoveryField`). ForeSite's asset name only shapes the tree.
+- Preview and import are separate calls. Import repeats the plan and refuses if its fingerprint is not the one
+  reviewed. Objects already bound are skipped, so a second import only adds what is new.
+- Groups are not bound; they are matched by parent, name and type on each import. Hand-made groups with the same
+  parent and name are therefore reused.
+- Deleting a connection is refused while it has imports. Disabling it is the way to stop using it.
+- The Connections page shows the importer for an enabled, saved connection whose adapter can discover. The empty
+  Assets page links to it for people who can manage connections.
+
+Known limits, to revisit: a bound Asset that is later deactivated still counts as imported; scoped managers cannot
+import (13.1a); no check for changes yet.
