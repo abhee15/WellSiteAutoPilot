@@ -383,3 +383,37 @@ written now and tested with a fixture row), audit on every change. API: each end
 permission, settings validated per adapter, test result tied to revision. Web: list, create, edit, stale edit
 message, test result states, permission gating. Gateway: rejects unauthenticated calls and still serves the
 simulator.
+
+## 13. Step 4 in detail: find, structure and import
+
+Written after steps 1 to 3 shipped, to settle the open questions in section 9 that block building. The POC is
+evidence of what ForeSite returns, not a design.
+
+### 13.1 Decisions
+
+| # | Decision | Reason |
+| --- | --- | --- |
+| 13.1a | **Who may import (answers 9.1).** Import needs `connections.manage`, **all-assets** `assets.manage`, and `asset-types.manage` when a needed type does not exist. A scoped manager is refused with a plain message. | Grants bind exact Assets and creating an Asset grants the creator nothing, so a scoped manager would create children they cannot see. Refusing is honest and safe; importing under a parent for scoped managers waits for a hierarchy-scoped grant, which is a separate framework decision. Section 4's rule is narrowed accordingly. |
+| 13.1b | **Discovery identity (9.2).** The Gateway's service account, stated on the screen ("Found as DOMAIN\account"). | Per-person identity needs delegation and is the open CygNet requirement. |
+| 13.1c | **Discovery contract (9.7).** `DiscoveryResult { complete, items, warnings }`. `complete` is false for any partial answer; a check for changes may only report "missing" from a complete result. No paging token yet: ForeSite returns everything in one answer, and the contract can gain one when an adapter needs it. | Matches the POC finding; keeps the "missing" rule enforceable. |
+| 13.1d | **Size (9.5).** A discovery is capped at 5,000 objects; larger results are refused with a message to narrow the source. Preview is computed by the Server from one fresh discovery; apply re-reads, re-plans and refuses if the plan changed since the preview (a plan fingerprint is compared). No background job in this step. | Bounded work in one request and one transaction; the re-plan prevents applying a stale review. |
+| 13.1e | **Neutral types.** `well` and `group`, created on first import when absent. If the type key exists, it is used as is and the plan reports a conflict when its schema rejects the values. The sample logic module already requires `well`. | Keeps imported Assets usable by existing modules and avoids a type per provider. |
+| 13.1f | **Attributes and bindings.** Mapped facts that people filter on (`field`, `lease`, `wellType`, `deviceType`) are Asset attributes; everything else the provider said is kept in the binding's snapshot. | D6 plus the Views requirement to filter on attributes. |
+| 13.1g | **Grouping.** An ordered list of levels chosen from the adapter's declared grouping fields (ForeSite: `assetName`, `wellType`, `deviceType`, `field`, `lease`), always ending in the object itself. A missing value falls back to a labelled group (`Unassigned`, `Unknown type`, `Unspecified device`). Group names need not be unique across parents, and a group is matched by parent plus name within one import. | From the POC findings; the engineer owns the design (D11). |
+| 13.1h | **Idempotence.** The binding key is connection + resource kind + external id. Already-bound objects are reported "already imported" and skipped; existing groups (by parent + name + type `group`) are reused, never duplicated. Nothing is matched by Asset name alone. | D10 and section 7a. |
+
+### 13.2 Slices
+
+1. **4a Find.** Adapters gain `discover`. Gateway `POST /api/internal/v1/adapters/{key}/discover` (server caller only)
+   returns a `DiscoveryResult`; the ForeSite adapter reads `Wells/All` and the asset names. The Server adds
+   `POST /connections/{id}/discover` (`connections.manage`), and the Connections page gains "Find" showing the
+   count, warnings, the identity used and a searchable list. Nothing is saved.
+2. **4b Plan.** A pure planner turns a discovery and a chosen level list into a tree with counts, fallback groups
+   and conflicts; `POST /connections/{id}/import/preview` returns it with a fingerprint. Still nothing saved.
+3. **4c Import.** `source_bindings` table, the types, and `POST /connections/{id}/import` applying a re-planned,
+   fingerprint-checked plan in one serializable transaction with one audit event carrying counts. Deleting a
+   connection becomes blocked while bindings reference it (the rule written in 12.7).
+4. **4d Page.** Structure (level builder with live preview), review and result in the Connections page; the
+   empty Assets page offers "Import from a connection".
+5. Then the CygNet adapter on the same path, linking (9.4), and check for changes (7a) as later slices.
+
