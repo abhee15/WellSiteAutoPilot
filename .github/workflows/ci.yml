@@ -1288,7 +1288,7 @@ jobs:
           Security__ServiceKey="$WORKER_KEY" Runtime__IntegrationGatewayUrl=http://127.0.0.1:5081             dotnet run --project src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --urls http://127.0.0.1:5082 > worker.log 2>&1 &
           echo $! > worker.pid
 
-          ASPNETCORE_ENVIRONMENT=CI Swagger__Enabled=true Security__AuthenticationMode=TestHeader Security__BootstrapAdministrators__0='CI\wsa-admin' ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
+          Security__ServiceKey="$SERVER_KEY" ASPNETCORE_ENVIRONMENT=CI Swagger__Enabled=true Security__AuthenticationMode=TestHeader Security__BootstrapAdministrators__0='CI\wsa-admin' ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &
           echo $! > server.pid
 
           for attempt in {1..45}; do

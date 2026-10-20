@@ -18,6 +18,8 @@ public static class WellSitePolicies
     public const string SecurityManage = WellSitePermissions.SecurityManage;
     public const string AssetTypesManage = WellSitePermissions.AssetTypesManage;
     public const string AssetTypesHide = WellSitePermissions.AssetTypesHide;
+    public const string ConnectionsRead = WellSitePermissions.ConnectionsRead;
+    public const string ConnectionsManage = WellSitePermissions.ConnectionsManage;
 
     public static void AddGrantPolicies(AuthorizationOptions options)
     {

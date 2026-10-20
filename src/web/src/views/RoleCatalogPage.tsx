@@ -18,6 +18,8 @@ const labels: Record<string, MessageKey> = {
   'security.manage': 'roles.permissionSecurityManage',
   'asset-types.manage': 'roles.permissionAssetTypesManage',
   'asset-types.hide': 'roles.permissionAssetTypesHide',
+  'connections.read': 'roles.permissionConnectionsRead',
+  'connections.manage': 'roles.permissionConnectionsManage',
 };
 const categories: Record<string, MessageKey> = {
   Assets: 'roles.categoryAssets',
@@ -27,6 +29,7 @@ const categories: Record<string, MessageKey> = {
   Recommendations: 'roles.categoryRecommendations',
   Security: 'roles.categorySecurity',
   AssetTypes: 'roles.categoryAssetTypes',
+  Connections: 'roles.categoryConnections',
 };
 function errorLabel(kind: RoleErrorKind): string {
   switch (kind) {

@@ -14,6 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddServiceCallerSettingsFile("gateway.keys.json");
 builder.Services.AddServiceCallerAuthentication(builder.Configuration);
 builder.Services.AddSingleton<AdapterCatalog>();
+builder.Services.AddHttpClient("adapter-test");
+builder.Services.AddTransient<AdapterConnectionTester>();
 
 builder.Services.AddWindowsService(options =>
 {
@@ -128,14 +130,27 @@ v1.MapGet("/adapters", (AdapterCatalog catalog) => Results.Ok(catalog.List()))
 
 v1.MapPost(
     "/adapters/{adapterKey}/validate",
-    (string adapterKey, ValidateAdapterSettingsRequest request, AdapterCatalog catalog) =>
+    (string adapterKey, AdapterSettingsRequest request, AdapterCatalog catalog) =>
         catalog.Find(adapterKey) is { } descriptor
-            ? Results.Ok(new ValidateAdapterSettingsResponse(AdapterSettingsValidator.Validate(
+            ? Results.Ok(new AdapterValidationResponse(AdapterSettingsValidator.Validate(
                 descriptor, request.Settings ?? new Dictionary<string, string?>())))
             : Results.NotFound())
     .WithName("ValidateAdapterSettings")
     .RequireAuthorization(ServiceCaller.ServerPolicy)
-    .Produces<ValidateAdapterSettingsResponse>(StatusCodes.Status200OK)
+    .Produces<AdapterValidationResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound);
+
+v1.MapPost(
+    "/adapters/{adapterKey}/test",
+    async (string adapterKey, AdapterSettingsRequest request, AdapterCatalog catalog,
+        AdapterConnectionTester tester, CancellationToken cancellationToken) =>
+        catalog.Find(adapterKey) is { } descriptor
+            ? Results.Ok(await tester.TestAsync(
+                descriptor, request.Settings ?? new Dictionary<string, string?>(), cancellationToken))
+            : Results.NotFound())
+    .WithName("TestAdapterConnection")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<AdapterTestResult>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound);
 
 v1.MapGet(

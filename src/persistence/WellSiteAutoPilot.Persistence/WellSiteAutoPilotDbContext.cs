@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.Audit;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
+using WellSiteAutoPilot.Persistence.Connections;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Messaging;
 using WellSiteAutoPilot.Persistence.Logic;
@@ -15,6 +16,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
 {
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
+    public DbSet<ConnectionEntity> Connections => Set<ConnectionEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
     public DbSet<ExecutionAssetScopeEntity> ExecutionAssetScopes => Set<ExecutionAssetScopeEntity>();
@@ -65,6 +67,23 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         assetType.Property(x => x.HiddenNote).HasMaxLength(200);
         assetType.Property(x => x.HiddenBy).HasMaxLength(256);
         assetType.HasIndex(x => x.Key).IsUnique();
+
+        var connection = modelBuilder.Entity<ConnectionEntity>();
+        connection.ToTable("connections", "integration");
+        connection.HasKey(x => x.Id);
+        connection.Property(x => x.Name).HasMaxLength(100).IsRequired();
+        connection.Property(x => x.NormalizedName).HasMaxLength(100).IsRequired();
+        connection.Property(x => x.AdapterKey).HasMaxLength(64).IsRequired();
+        connection.Property(x => x.SettingsVersion).IsRequired();
+        connection.Property(x => x.SettingsJson).IsRequired();
+        connection.Property(x => x.IsEnabled).IsRequired();
+        connection.Property(x => x.Revision).IsRequired();
+        connection.Property(x => x.CreatedAtUtc).IsRequired();
+        connection.Property(x => x.UpdatedAtUtc).IsRequired();
+        connection.Property(x => x.LastTestOutcome).HasMaxLength(32);
+        connection.Property(x => x.LastTestMessage).HasMaxLength(500);
+        connection.Property(x => x.LastTestActingAs).HasMaxLength(256);
+        connection.HasIndex(x => x.NormalizedName).IsUnique();
 
         var asset = modelBuilder.Entity<AssetEntity>();
         asset.ToTable("assets", "assets");
