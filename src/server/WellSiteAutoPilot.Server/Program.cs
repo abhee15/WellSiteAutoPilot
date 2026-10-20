@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.Assets;
+using WellSiteAutoPilot.Api.Contracts.Connections;
 using WellSiteAutoPilot.Api.Contracts.Executions;
 using WellSiteAutoPilot.Api.Contracts.Logic;
 using WellSiteAutoPilot.Api.Contracts.ConfiguredLogic;
@@ -13,6 +14,7 @@ using WellSiteAutoPilot.Api.Contracts.Security;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Audit;
 using WellSiteAutoPilot.Application.Changes;
+using WellSiteAutoPilot.Application.Connections;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
@@ -25,6 +27,8 @@ using WellSiteAutoPilot.Domain.Recommendations;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Security;
 using WellSiteAutoPilot.Http;
+using WellSiteAutoPilot.Http.ServiceCallers;
+using WellSiteAutoPilot.Server.Connections;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Infrastructure.Messaging;
 using Microsoft.Extensions.Hosting.WindowsServices;
@@ -47,6 +51,9 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         Environment.GetEnvironmentVariable("Frontend__DevelopmentStaticRoot"),
         Path.Combine(AppContext.BaseDirectory, "wwwroot"))
 });
+
+// The installer writes the Server's key for the Integration Gateway here; development and CI supply it as configuration.
+builder.Configuration.AddServiceCallerSettingsFile("server.keys.json");
 
 // The installer serves HTTPS with a certificate from the machine store; development has none configured.
 var tlsThumbprint = TlsCertificateLoader.ResolveThumbprint(
@@ -166,6 +173,14 @@ builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
 });
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<AssetService>();
+builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
+{
+    client.BaseAddress = new Uri(
+        (builder.Configuration["Runtime:IntegrationGatewayUrl"] ?? "http://127.0.0.1:5081").TrimEnd('/') + "/");
+    // A connection test may take up to the Gateway's own limit before it answers.
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddScoped<ConnectionService>();
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<ManualShadowRequestService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
@@ -972,6 +987,101 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapGet(
+    "/connections",
+    async (ConnectionService connections, CancellationToken cancellationToken) =>
+        (await connections.ListAsync(cancellationToken)).Select(ConnectionMapping.ToResponse).ToArray())
+    .WithName("ListConnections")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<ConnectionResponse[]>(StatusCodes.Status200OK);
+
+v1.MapGet(
+    "/connections/adapters",
+    async (ConnectionService connections, CancellationToken cancellationToken) =>
+        (await connections.ListAdaptersAsync(cancellationToken)).Select(ConnectionMapping.ToResponse).ToArray())
+    .WithName("ListConnectionAdapters")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<AdapterResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapGet(
+    "/connections/{connectionId:guid}",
+    async (Guid connectionId, ConnectionService connections, CancellationToken cancellationToken) =>
+        ConnectionMapping.ToResponse(await connections.GetAsync(connectionId, cancellationToken)))
+    .WithName("GetConnection")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<ConnectionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/connections",
+    async (CreateConnectionRequest request, ConnectionService connections, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var item = await connections.CreateAsync(new CreateConnectionCommand(request.Name, request.AdapterKey, request.Settings),
+            access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Created($"/api/v1/connections/{item.Id}", ConnectionMapping.ToResponse(item));
+    })
+    .WithName("CreateConnection")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<ConnectionResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapPut(
+    "/connections/{connectionId:guid}",
+    async (Guid connectionId, UpdateConnectionRequest request, ConnectionService connections, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        ConnectionMapping.ToResponse(await connections.UpdateAsync(connectionId,
+            new UpdateConnectionCommand(request.ExpectedRevision, request.Name, request.Settings),
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("UpdateConnection")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<ConnectionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapPut(
+    "/connections/{connectionId:guid}/enabled",
+    async (Guid connectionId, SetConnectionEnabledRequest request, ConnectionService connections,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ConnectionMapping.ToResponse(await connections.SetEnabledAsync(connectionId, request.ExpectedRevision,
+            request.Enabled, access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("SetConnectionEnabled")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<ConnectionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/connections/{connectionId:guid}/test",
+    async (Guid connectionId, ConnectionService connections, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        ConnectionMapping.ToResponse(await connections.TestAsync(connectionId, access.Subject,
+            access.CreateActor(context), cancellationToken)))
+    .WithName("TestConnection")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<ConnectionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapDelete(
+    "/connections/{connectionId:guid}",
+    async (Guid connectionId, ConnectionService connections, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        await connections.DeleteAsync(connectionId, access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.NoContent();
+    })
+    .WithName("DeleteConnection")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {

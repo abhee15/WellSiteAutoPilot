@@ -6,5 +6,6 @@
     <ProjectReference Include="../WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
     <ProjectReference Include="../../platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
     <ProjectReference Include="../../modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
+    <ProjectReference Include="../../integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
   </ItemGroup>
 </Project>

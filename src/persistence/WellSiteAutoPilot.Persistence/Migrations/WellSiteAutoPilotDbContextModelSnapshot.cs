@@ -57,6 +57,30 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Connections.ConnectionEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<string>("AdapterKey").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<bool>("IsEnabled").HasColumnType("boolean");
+                entity.Property<string>("LastTestActingAs").HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<DateTimeOffset?>("LastTestAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("LastTestMessage").HasMaxLength(500).HasColumnType("character varying(500)");
+                entity.Property<string>("LastTestOutcome").HasMaxLength(32).HasColumnType("character varying(32)");
+                entity.Property<int?>("LastTestRevision").HasColumnType("integer");
+                entity.Property<string>("Name").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)");
+                entity.Property<string>("NormalizedName").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)");
+                entity.Property<int>("Revision").HasColumnType("integer");
+                entity.Property<string>("SettingsJson").IsRequired().HasColumnType("text");
+                entity.Property<int>("SettingsVersion").HasColumnType("integer");
+                entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.HasKey("Id");
+                entity.HasIndex("NormalizedName").IsUnique();
+                entity.ToTable("connections", "integration");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Assets.AssetEntity",
             entity =>
             {

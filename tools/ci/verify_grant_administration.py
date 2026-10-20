@@ -155,4 +155,43 @@ assert {item["id"] for item in request("GET", "/assets", OPERATOR)} == {first["i
 retire(operator["userId"], read_grant)
 request("GET", "/assets", OPERATOR, expected=403)
 assert request("GET", "/security/me", OPERATOR)["permissions"] == []
+# Connections: engineers manage them, operators cannot even list them, and the Gateway judges the settings.
+request("GET", "/connections", OPERATOR, expected=403)
+request("GET", "/connections", None, expected=401)
+request("POST", "/connections", OPERATOR, {"name": "Denied", "adapterKey": "simulator", "settings": {}}, expected=403)
+adapters = request("GET", "/connections/adapters")
+assert [item["key"] for item in adapters] == ["simulator"], adapters
+assert adapters[0]["fields"][0]["key"] == "baseUrl" and adapters[0]["fields"][0]["kind"] == "Url", adapters
+conn_name = "CI simulator " + uuid.uuid4().hex[:8]
+request("POST", "/connections", body={"name": conn_name, "adapterKey": "simulator", "settings": {"baseUrl": "ftp://x"}}, expected=400)
+request("POST", "/connections", body={"name": conn_name, "adapterKey": "nothing", "settings": {}}, expected=400)
+request("POST", "/connections", body={"name": "   ", "adapterKey": "simulator", "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=400)
+created = request("POST", "/connections", body={"name": conn_name, "adapterKey": "simulator",
+    "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=201)
+assert created["revision"] == 1 and created["isEnabled"] and created["lastTest"] is None, created
+request("POST", "/connections", body={"name": conn_name.lower(), "adapterKey": "simulator",
+    "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=409)
+tested = request("POST", "/connections/" + created["id"] + "/test")
+assert tested["lastTest"]["outcome"] == "Healthy" and tested["lastTestIsCurrent"], tested
+assert tested["lastTest"]["actingAs"], tested
+edited = request("PUT", "/connections/" + created["id"], body={"expectedRevision": 1, "name": conn_name,
+    "settings": {"baseUrl": "http://127.0.0.1:5091/"}})
+assert edited["revision"] == 2 and edited["lastTestIsCurrent"] is False, edited
+request("PUT", "/connections/" + created["id"], body={"expectedRevision": 1, "name": conn_name,
+    "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=409)
+off = request("PUT", "/connections/" + created["id"] + "/enabled", body={"expectedRevision": 2, "enabled": False})
+assert off["isEnabled"] is False and off["revision"] == 3, off
+request("POST", "/connections/" + created["id"] + "/test", expected=409)
+request("PUT", "/connections/" + created["id"] + "/enabled", body={"expectedRevision": 3, "enabled": True})
+broken = request("POST", "/connections", body={"name": conn_name + " down", "adapterKey": "simulator",
+    "settings": {"baseUrl": "http://127.0.0.1:9"}}, expected=201)
+assert request("POST", "/connections/" + broken["id"] + "/test")["lastTest"]["outcome"] == "Unreachable"
+assert {item["id"] for item in request("GET", "/connections")} >= {created["id"], broken["id"]}
+request("DELETE", "/connections/" + broken["id"], expected=204)
+request("DELETE", "/connections/" + created["id"], expected=204)
+request("GET", "/connections/" + created["id"], expected=404)
+audit = request("GET", "/security/audit-events?limit=100&actionPrefix=connection.")["items"]
+actions = {item["action"] for item in audit}
+assert {"connection.created", "connection.updated", "connection.tested", "connection.deleted"} <= actions, actions
+assert not any("127.0.0.1:5091" in json.dumps(item) for item in audit if item["action"].startswith("connection.")), "settings values must not be audited"
 print("Live grant HTTP matrix passed: paired scopes, no descendant inheritance, global/resource separation, protected administration, untrusted-group denial and fresh revocation.")
