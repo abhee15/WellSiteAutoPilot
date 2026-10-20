@@ -1132,6 +1132,13 @@ jobs:
       - name: Start provider simulator and Integration Gateway
         shell: bash
         run: |
+          verifier() { printf '%s' "$1" | openssl dgst -sha256 -binary | base64 -w0; }
+          SERVER_KEY=$(openssl rand -hex 32)
+          WORKER_KEY=$(openssl rand -hex 32)
+          echo "WSA_SERVER_KEY=$SERVER_KEY" >> "$GITHUB_ENV"
+          echo "WSA_WORKER_KEY=$WORKER_KEY" >> "$GITHUB_ENV"
+          export Security__Callers__server__Verifier=$(verifier "$SERVER_KEY")
+          export Security__Callers__worker__Verifier=$(verifier "$WORKER_KEY")
           dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
           echo $! > simulator.pid
 
@@ -1153,7 +1160,7 @@ jobs:
       - name: Verify semantic engineering value through Gateway
         shell: bash
         run: |
-          response=$(curl --fail --silent --get             --data-urlencode "assetExternalId=WELL-101"             --data-urlencode "quantity=PumpFillage"             http://127.0.0.1:5081/api/internal/v1/data/current)
+          response=$(curl --fail --silent --get -H "Authorization: WSA-Service worker:$WSA_WORKER_KEY"             --data-urlencode "assetExternalId=WELL-101"             --data-urlencode "quantity=PumpFillage"             http://127.0.0.1:5081/api/internal/v1/data/current)
 
           echo "$response"
 
@@ -1168,6 +1175,32 @@ jobs:
           assert value["quality"] == "Good"
           assert value["source"] == "simulator:WELL-101"
           PY
+
+      - name: Verify Gateway caller authentication
+        shell: bash
+        run: |
+          base=http://127.0.0.1:5081/api/internal/v1
+          status() { curl --silent --output /dev/null --write-out '%{http_code}' "$@"; }
+          expect() { if [ "$1" != "$2" ]; then echo "$3: expected HTTP $2 but got $1"; exit 1; fi; }
+
+          expect "$(status "$base/adapters")" 401 "no credential"
+          expect "$(status -H 'Authorization: WSA-Service server:wrong' "$base/adapters")" 401 "wrong key"
+          expect "$(status -H "Authorization: WSA-Service nobody:$WSA_SERVER_KEY" "$base/adapters")" 401 "unknown caller"
+          expect "$(status -H "Authorization: WSA-Service worker:$WSA_SERVER_KEY" "$base/adapters")" 401 "key presented under the wrong name"
+          expect "$(status -H "Authorization: WSA-Service worker:$WSA_WORKER_KEY" "$base/adapters")" 403 "worker must not reach adapters"
+          expect "$(status -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" "$base/adapters")" 200 "server reaches adapters"
+          expect "$(status "$base/data/current?assetExternalId=WELL-101&quantity=PumpFillage")" 401 "data without a credential"
+          expect "$(status "$base/integrations")" 401 "integrations without a credential"
+          # Health stays open for the installer and the readiness probes.
+          expect "$(status http://127.0.0.1:5081/health/ready)" 200 "health"
+
+          adapters=$(curl --fail --silent -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" "$base/adapters")
+          echo "$adapters" | python -c "import json,sys; d=json.load(sys.stdin); assert [a['key'] for a in d]==['simulator'], d; assert d[0]['fields'][0]['key']=='baseUrl', d"
+
+          problems=$(curl --fail --silent -X POST -H 'Content-Type: application/json' -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" \
+            -d '{"settings":{"baseUrl":"ftp://x","extra":"1"}}' "$base/adapters/simulator/validate")
+          echo "$problems" | python -c "import json,sys; d=json.load(sys.stdin)['problems']; assert {p['fieldKey'] for p in d}=={'baseUrl','extra'}, d"
+          expect "$(status -X POST -H 'Content-Type: application/json' -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" -d '{}' "$base/adapters/unknown/validate")" 404 "unknown adapter"
 
       - name: Show service logs on failure
         if: failure()
@@ -1239,13 +1272,20 @@ jobs:
       - name: Start runtime processes
         shell: bash
         run: |
+          verifier() { printf '%s' "$1" | openssl dgst -sha256 -binary | base64 -w0; }
+          SERVER_KEY=$(openssl rand -hex 32)
+          WORKER_KEY=$(openssl rand -hex 32)
+          echo "WSA_SERVER_KEY=$SERVER_KEY" >> "$GITHUB_ENV"
+          echo "WSA_WORKER_KEY=$WORKER_KEY" >> "$GITHUB_ENV"
+          export Security__Callers__server__Verifier=$(verifier "$SERVER_KEY")
+          export Security__Callers__worker__Verifier=$(verifier "$WORKER_KEY")
           dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
           echo $! > simulator.pid
 
           Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
           echo $! > gateway.pid
 
-          Runtime__IntegrationGatewayUrl=http://127.0.0.1:5081             dotnet run --project src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --urls http://127.0.0.1:5082 > worker.log 2>&1 &
+          Security__ServiceKey="$WORKER_KEY" Runtime__IntegrationGatewayUrl=http://127.0.0.1:5081             dotnet run --project src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj --configuration Release --no-build --urls http://127.0.0.1:5082 > worker.log 2>&1 &
           echo $! > worker.pid
 
           ASPNETCORE_ENVIRONMENT=CI Swagger__Enabled=true Security__AuthenticationMode=TestHeader Security__BootstrapAdministrators__0='CI\wsa-admin' ConnectionStrings__WellSiteAutoPilot="$WSA_DATABASE_CONNECTION_STRING"             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj --configuration Release --no-build --urls http://127.0.0.1:5080 > server.log 2>&1 &

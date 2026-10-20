@@ -4,5 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
+    <ProjectReference Include="../../src/platform/WellSiteAutoPilot.Http/WellSiteAutoPilot.Http.csproj" />
   </ItemGroup>
 </Project>

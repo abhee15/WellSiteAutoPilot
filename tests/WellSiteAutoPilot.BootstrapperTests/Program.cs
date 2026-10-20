@@ -172,5 +172,24 @@ Expect(InstallerSettings.ReadConnectionString(withCertificate) == "Host=a;Passwo
     "remembering the certificate dropped other settings");
 Refused(() => InstallerSettings.ReadCertificate("{\"Tls\":{\"Thumbprint\":5}}"), "must be text", "a stored thumbprint that is not text");
 
+// Internal caller keys: 256-bit random keys, a verifier the Gateway can check, and files that never mix them up.
+var firstKey = InstallerSettings.NewServiceKey();
+var secondKey = InstallerSettings.NewServiceKey();
+Expect(firstKey.Length == 64 && firstKey.All(Uri.IsHexDigit) && firstKey != secondKey, "service keys must be distinct 256-bit hex values");
+// The same vector is asserted by the Gateway's own tests, so the two halves cannot drift apart.
+Expect(InstallerSettings.ServiceKeyVerifier("abc") == "ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=",
+    "the verifier must be the base64 SHA-256 of the key");
+Expect(InstallerSettings.ReadServiceKey(InstallerSettings.ServiceKeyFileContent(firstKey)) == firstKey,
+    "a stored service key did not round-trip");
+Expect(InstallerSettings.ReadServiceKey(null) is null && InstallerSettings.ReadServiceKey("{}") is null,
+    "a missing key file must read as no key");
+var gatewayFile = InstallerSettings.GatewayKeyFileContent(firstKey, secondKey);
+Expect(!gatewayFile.Contains(firstKey, StringComparison.Ordinal) && !gatewayFile.Contains(secondKey, StringComparison.Ordinal),
+    "the Gateway file must hold verifiers, never keys");
+var callers = JsonNode.Parse(gatewayFile)!["Security"]!["Callers"]!;
+Expect((string?)callers["server"]!["Verifier"] == InstallerSettings.ServiceKeyVerifier(firstKey) &&
+       (string?)callers["worker"]!["Verifier"] == InstallerSettings.ServiceKeyVerifier(secondKey),
+    "the Gateway file must verify the Server key as server and the worker key as worker");
+
 Console.WriteLine("Installer settings checks passed.");
 return 0;
