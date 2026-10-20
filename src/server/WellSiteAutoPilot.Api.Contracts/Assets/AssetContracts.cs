@@ -12,7 +12,13 @@ public sealed record AssetTypeResponse(
     int SchemaVersion,
     string AttributeSchemaJson,
     bool IsActive,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    string? HiddenNote,
+    DateTimeOffset? HiddenAtUtc,
+    string? HiddenBy);
+
+/// <summary>An optional note of up to 200 characters explaining why the type is hidden.</summary>
+public sealed record HideAssetTypeRequest(string? Note);
 
 public sealed record CreateAssetRequest(
     Guid AssetTypeId,

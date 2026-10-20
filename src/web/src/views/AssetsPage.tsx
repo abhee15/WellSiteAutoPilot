@@ -96,6 +96,13 @@ export function AssetsPage({
   const canAdd = !!userId && !!capabilities
     && (capabilities.canCreateRoot === true || capabilities.canCreateUnderAuthorizedParents === true);
   const canManageTypes = permissions.includes('asset-types.manage');
+  const canHideTypes = permissions.includes('asset-types.hide');
+  const [showHidden, setShowHidden] = useState(false);
+  const listedTypes = useMemo(
+    () => showHidden ? assetTypes : assetTypes.filter(type => type.isActive !== false),
+    [assetTypes, showHidden],
+  );
+  const activeTypes = useMemo(() => assetTypes.filter(type => type.isActive !== false), [assetTypes]);
   const select = (id: string | null) => { setDetail(id); setAdding(false); };
   const showTypeAssets = (typeName: string) => {
     setCriteria({ ...DEFAULT_ASSET_INVENTORY_CRITERIA, search: typeName });
@@ -109,7 +116,7 @@ export function AssetsPage({
           {t('assets.tabAssets')} <span>{lazy ? `${assets.length}+` : assets.length}</span>
         </a>
         <a role="tab" href={hashFor('assets', TYPES_TAB)} aria-selected={onTypesTab}>
-          {t('assets.tabTypes')} <span>{assetTypes.length}</span>
+          {t('assets.tabTypes')} <span>{listedTypes.length}</span>
         </a>
         {!onTypesTab && canAdd && <button type="button" className="primary-button split-add"
           onClick={() => setAdding(open => !open)} aria-expanded={adding}>
@@ -126,6 +133,9 @@ export function AssetsPage({
             await onRefresh();
             setOpenTypeId(created.id ?? null);
           }} />}
+          {(canManageTypes || canHideTypes) && <label className="split-note">
+            <input type="checkbox" checked={showHidden} onChange={event => setShowHidden(event.target.checked)} />
+            {' '}{t('assetTypes.showHidden')}</label>}
           <div className="table-wrap">
             <table className="activity-table">
               <thead>
@@ -138,7 +148,7 @@ export function AssetsPage({
                 </tr>
               </thead>
               <tbody>
-                {assetTypes.map(type => {
+                {listedTypes.map(type => {
                   const count = typeCounts.get(type.id ?? '') ?? 0;
                   const typeName = type.displayName ?? type.key ?? '';
                   return (
@@ -154,16 +164,18 @@ export function AssetsPage({
                           onClick={() => showTypeAssets(typeName)}>{count}</button>
                         : 0}</td>
                       <td>{type.schemaVersion}</td>
-                      <td><StatusPill value={type.isActive ? 'Active' : 'Inactive'} /></td>
+                      <td><StatusPill value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} /></td>
                     </tr>
                   );
                 })}
-                {assetTypes.length === 0 && <EmptyRow columns={5}>{t('assets.noTypes')}</EmptyRow>}
+                {listedTypes.length === 0 && <EmptyRow columns={5}>{t('assets.noTypes')}</EmptyRow>}
               </tbody>
             </table>
           </div>
-          {assetTypes.filter(type => type.id === openTypeId).map(type => (
+          {listedTypes.filter(type => type.id === openTypeId).map(type => (
             <AssetTypeDetail key={type.id} type={type} count={typeCounts.get(type.id ?? '') ?? 0}
+              countKnown={!lazy} canHide={canHideTypes} canManage={canManageTypes}
+              onChanged={async () => { setOpenTypeId(null); await onRefresh(); }}
               onShowAssets={showTypeAssets} onClose={() => setOpenTypeId(null)} />
           ))}
         </section>
@@ -172,7 +184,7 @@ export function AssetsPage({
           {adding && canAdd && <AssetCreationPanel
             key={(userId ?? 'anonymous') + ':' + (selectedAuthorized?.id ?? 'none')}
             userId={userId}
-            assetTypes={assetTypes}
+            assetTypes={activeTypes}
             assets={nearby}
             capabilities={capabilities}
             suggestedParentId={selectedAuthorized?.id ?? null}

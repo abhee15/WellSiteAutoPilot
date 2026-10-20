@@ -107,6 +107,46 @@ internal static class AuthorizedAssetCreationChecks
             await new AssetRepository(db).AddAssetTypeAuthorizedAsync(type with { Id = Guid.NewGuid() }, adminSubject, adminActor);
         }, FailureKind.Conflict);
 
+        // Hide, restore and delete: the hide authority is separate, a hidden type takes no new Assets, its key
+        // cannot be silently redefined, and only a never-used type may be deleted.
+        await ExpectFailureAsync(() => HideAsync(type.Id, "nope", subject, actor), FailureKind.Authorization);
+        await HideAsync(type.Id, "superseded", adminSubject, adminActor);
+        await using (var check = new WellSiteAutoPilotDbContext(options))
+        {
+            var hidden = await check.AssetTypes.AsNoTracking().SingleAsync(item => item.Id == type.Id);
+            if (hidden.IsActive || hidden.HiddenNote != "superseded" || hidden.HiddenBy != adminActor.IdentityName ||
+                hidden.HiddenAtUtc is null || !await check.AuditEvents.AnyAsync(audit => audit.Action == "asset-type.hidden" &&
+                    audit.TargetId == type.Id.ToString()))
+                throw new InvalidOperationException("Hiding an Asset Type lost its state or audit.");
+        }
+        await ExpectFailureAsync(() => HideAsync(type.Id, new string('x', 201), adminSubject, adminActor), FailureKind.Validation);
+        await ExpectFailureAsync(async () =>
+        {
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            await new AssetRepository(db).AddAssetAuthorizedAsync(NewAsset(parentA.Id), subject, actor);
+        }, FailureKind.NotFound);
+        await ExpectFailureAsync(async () =>
+        {
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            await new AssetService(new AssetRepository(db), TimeProvider.System)
+                .CreateAssetTypeAuthorizedAsync(new(key, "Again", schema), adminSubject, adminActor);
+        }, FailureKind.Conflict);
+        await ExpectFailureAsync(() => UnhideAsync(type.Id, subject, actor), FailureKind.Authorization);
+        await UnhideAsync(type.Id, adminSubject, adminActor);
+        await using (var check = new WellSiteAutoPilotDbContext(options))
+        {
+            var restored = await check.AssetTypes.AsNoTracking().SingleAsync(item => item.Id == type.Id);
+            if (!restored.IsActive || restored.HiddenNote is not null || restored.HiddenAtUtc is not null || restored.HiddenBy is not null)
+                throw new InvalidOperationException("Restoring an Asset Type left hidden state behind.");
+        }
+        await ExpectFailureAsync(() => DeleteAsync(type.Id, adminSubject, adminActor), FailureKind.Conflict);
+        var spare = await service.CreateAssetTypeAuthorizedAsync(new(key + "-spare", "Spare type", schema), adminSubject, adminActor);
+        await ExpectFailureAsync(() => DeleteAsync(spare.Id, subject, actor), FailureKind.Authorization);
+        await DeleteAsync(spare.Id, adminSubject, adminActor);
+        await using (var check = new WellSiteAutoPilotDbContext(options))
+            if (await check.AssetTypes.AnyAsync(item => item.Id == spare.Id))
+                throw new InvalidOperationException("Deleting an unused Asset Type left the row.");
+
         var pause = new PauseSave();
         var pausedOptions = new DbContextOptionsBuilder<WellSiteAutoPilotDbContext>(options).AddInterceptors(pause).Options;
         await using var writer = new WellSiteAutoPilotDbContext(pausedOptions);
@@ -153,6 +193,21 @@ internal static class AuthorizedAssetCreationChecks
             await using var db = new WellSiteAutoPilotDbContext(options);
             return await new AssetService(new AssetRepository(db), TimeProvider.System)
                 .CreateAssetAuthorizedAsync(new(type.Id, key, parent, """{"rpm":1}"""), subject, actor);
+        }
+        async Task HideAsync(Guid id, string? note, AccessSubject who, SecurityActorContext by)
+        {
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            await new AssetRepository(db).SetAssetTypeHiddenAuthorizedAsync(id, true, note, who, by);
+        }
+        async Task UnhideAsync(Guid id, AccessSubject who, SecurityActorContext by)
+        {
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            await new AssetRepository(db).SetAssetTypeHiddenAuthorizedAsync(id, false, null, who, by);
+        }
+        async Task DeleteAsync(Guid id, AccessSubject who, SecurityActorContext by)
+        {
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            await new AssetRepository(db).DeleteAssetTypeAuthorizedAsync(id, who, by);
         }
         Asset NewAsset(Guid? parent) => new(Guid.NewGuid(), type.Id, key, parent, """{"rpm":1}""", true, now);
     }

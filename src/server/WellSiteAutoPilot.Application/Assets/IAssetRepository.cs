@@ -14,6 +14,16 @@ public interface IAssetRepository
     Task AddAssetTypeAuthorizedAsync(AssetTypeDefinition assetType, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Hides (with an optional note) or restores a type; hiding keeps existing Assets working.</summary>
+    Task SetAssetTypeHiddenAuthorizedAsync(Guid assetTypeId, bool hidden, string? note, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes a type that no Asset has ever used.</summary>
+    Task DeleteAssetTypeAuthorizedAsync(Guid assetTypeId, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> AssetTypeKeyIsHiddenAsync(string key, CancellationToken cancellationToken = default);
+
     Task AddAssetAuthorizedAsync(Asset asset, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default);
 

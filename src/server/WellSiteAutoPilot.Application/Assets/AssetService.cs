@@ -42,6 +42,14 @@ public sealed class AssetService(
 
         if (await repository.AssetTypeKeyExistsAsync(key, cancellationToken))
         {
+            if (await repository.AssetTypeKeyIsHiddenAsync(key, cancellationToken))
+            {
+                throw new WellSiteAutoPilotException(
+                    "ASSET_TYPE_KEY_HIDDEN",
+                    FailureKind.Conflict,
+                    "A hidden asset type with this key exists. Restore it instead of defining it again.");
+            }
+
             throw new WellSiteAutoPilotException(
                 "ASSET_TYPE_KEY_CONFLICT",
                 FailureKind.Conflict,

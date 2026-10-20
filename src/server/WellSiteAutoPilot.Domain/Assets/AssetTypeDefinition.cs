@@ -7,4 +7,7 @@ public sealed record AssetTypeDefinition(
     int SchemaVersion,
     string AttributeSchemaJson,
     bool IsActive,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    string? HiddenNote = null,
+    DateTimeOffset? HiddenAtUtc = null,
+    string? HiddenBy = null);
