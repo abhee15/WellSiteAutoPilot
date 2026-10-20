@@ -17,6 +17,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
     public DbSet<ConnectionEntity> Connections => Set<ConnectionEntity>();
+    public DbSet<SourceBindingEntity> SourceBindings => Set<SourceBindingEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
     public DbSet<ExecutionAssetScopeEntity> ExecutionAssetScopes => Set<ExecutionAssetScopeEntity>();
@@ -84,6 +85,24 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         connection.Property(x => x.LastTestMessage).HasMaxLength(500);
         connection.Property(x => x.LastTestActingAs).HasMaxLength(256);
         connection.HasIndex(x => x.NormalizedName).IsUnique();
+
+        var sourceBinding = modelBuilder.Entity<SourceBindingEntity>();
+        sourceBinding.ToTable("source_bindings", "integration");
+        sourceBinding.HasKey(x => x.Id);
+        sourceBinding.Property(x => x.ResourceKind).HasMaxLength(128).IsRequired();
+        sourceBinding.Property(x => x.ExternalId).HasMaxLength(256).IsRequired();
+        sourceBinding.Property(x => x.SnapshotJson).IsRequired();
+        sourceBinding.Property(x => x.CreatedAtUtc).IsRequired();
+        sourceBinding.HasIndex(x => new { x.ConnectionId, x.ResourceKind, x.ExternalId }).IsUnique();
+        sourceBinding.HasIndex(x => x.AssetId);
+        sourceBinding.HasOne<ConnectionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ConnectionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        sourceBinding.HasOne<AssetEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.AssetId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         var asset = modelBuilder.Entity<AssetEntity>();
         asset.ToTable("assets", "assets");

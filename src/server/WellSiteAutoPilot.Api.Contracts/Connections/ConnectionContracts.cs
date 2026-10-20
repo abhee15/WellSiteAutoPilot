@@ -74,4 +74,11 @@ public sealed record ImportPreviewResponse(
     IReadOnlyList<string> Conflicts,
     IReadOnlyList<string> TypesToCreate,
     bool CanImport,
-    string? ActingAs);
+    string? ActingAs,
+    int AlreadyImported);
+
+/// <summary>Applies the plan the person reviewed: the same levels and the fingerprint the preview returned.</summary>
+public sealed record ImportConnectionRequest(List<string>? Levels, string? ExpectedFingerprint);
+
+public sealed record ImportResultResponse(
+    int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported, IReadOnlyList<string> TypesCreated);

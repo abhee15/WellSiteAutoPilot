@@ -1101,6 +1101,21 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
 
+v1.MapPost(
+    "/connections/{connectionId:guid}/import",
+    async (Guid connectionId, ImportConnectionRequest request, ConnectionImportService imports, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        ConnectionMapping.ToResponse(await imports.ImportAsync(connectionId, request.Levels, request.ExpectedFingerprint,
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("ImportFromConnection")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<ImportResultResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
 v1.MapDelete(
     "/connections/{connectionId:guid}",
     async (Guid connectionId, ConnectionService connections, RequestAccessContext access,

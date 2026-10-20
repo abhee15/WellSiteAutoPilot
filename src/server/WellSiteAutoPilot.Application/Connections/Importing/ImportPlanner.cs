@@ -7,7 +7,8 @@ namespace WellSiteAutoPilot.Application.Connections.Importing;
 
 /// <summary>Where one discovered object would go: its own name, the groups above it (top first) and the attributes it would carry.</summary>
 public sealed record PlannedPlacement(
-    string ExternalId, string Kind, string Name, IReadOnlyList<string> GroupPath, IReadOnlyDictionary<string, string> Attributes);
+    string ExternalId, string Kind, string Name, IReadOnlyList<string> GroupPath, IReadOnlyDictionary<string, string> Attributes,
+    IReadOnlyDictionary<string, string> Snapshot);
 
 /// <summary>One group in the planned tree. <see cref="ObjectCount"/> counts every object below it.</summary>
 public sealed class PlanGroup(string name, bool isFallback)
@@ -85,7 +86,7 @@ public static class ImportPlanner
             }
 
             var name = Clean(item.DisplayName) ?? "Object " + item.ExternalId;
-            placements.Add(new PlannedPlacement(item.ExternalId, item.ProviderType, name, path, attributes));
+            placements.Add(new PlannedPlacement(item.ExternalId, item.ProviderType, name, path, attributes, item.Metadata));
         }
 
         var (roots, groupCount, rootObjects) = BuildTree(placements, levels, byKey);

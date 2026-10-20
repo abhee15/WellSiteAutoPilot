@@ -231,7 +231,21 @@ request("POST", plan_url, body={"levels": ["nonsense"]}, expected=400)
 request("POST", plan_url, body={"levels": ["field", "field"]}, expected=400)
 request("POST", plan_url, OPERATOR, {"levels": []}, expected=403)
 request("POST", "/connections/" + not_foresite["id"] + "/import/preview", body={"levels": []}, expected=409)
-request("DELETE", "/connections/" + stand_in["id"], expected=204)
+# Import: only the reviewed plan is applied, repeating it adds nothing, and the connection can no longer be deleted.
+import_url = "/connections/" + stand_in["id"] + "/import"
+levels = ["assetName", "wellType"]
+request("POST", import_url, body={"levels": levels, "expectedFingerprint": "not-the-reviewed-plan"}, expected=409)
+request("POST", import_url, OPERATOR, {"levels": levels, "expectedFingerprint": preview["fingerprint"]}, expected=403)
+imported = request("POST", import_url, body={"levels": levels, "expectedFingerprint": preview["fingerprint"]})
+assert imported["wellsCreated"] == 3 and imported["groupsCreated"] + imported["groupsReused"] == 5, imported
+assert imported["alreadyImported"] == 0 and set(imported["typesCreated"]) <= {"well", "group"}, imported
+names = {item["name"] for item in request("GET", "/assets?limit=500")}
+assert {"North Field", "South Field", "ESP", "RRL", "Alpha 1", "Alpha 2", "Bravo 1"} <= names, names
+again = request("POST", plan_url, body={"levels": levels})
+assert again["objectCount"] == 0 and again["alreadyImported"] == 3 and again["groupCount"] == 0, again
+repeat = request("POST", import_url, body={"levels": levels, "expectedFingerprint": again["fingerprint"]})
+assert repeat["wellsCreated"] == 0 and repeat["groupsCreated"] == 0 and repeat["alreadyImported"] == 3, repeat
+request("DELETE", "/connections/" + stand_in["id"], expected=409)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)
 assert {item["id"] for item in request("GET", "/connections")} >= {created["id"], broken["id"]}
@@ -240,6 +254,6 @@ request("DELETE", "/connections/" + created["id"], expected=204)
 request("GET", "/connections/" + created["id"], expected=404)
 audit = request("GET", "/security/audit-events?limit=100&actionPrefix=connection.")["items"]
 actions = {item["action"] for item in audit}
-assert {"connection.created", "connection.updated", "connection.tested", "connection.discovered", "connection.deleted"} <= actions, actions
+assert {"connection.created", "connection.updated", "connection.tested", "connection.discovered", "connection.imported", "connection.deleted"} <= actions, actions
 assert not any("127.0.0.1:5091" in json.dumps(item) for item in audit if item["action"].startswith("connection.")), "settings values must not be audited"
 print("Live grant HTTP matrix passed: paired scopes, no descendant inheritance, global/resource separation, protected administration, untrusted-group denial and fresh revocation.")

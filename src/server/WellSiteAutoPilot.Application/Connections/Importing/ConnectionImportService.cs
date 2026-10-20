@@ -14,12 +14,19 @@ public sealed record ImportPreview(
     IReadOnlyList<string> Conflicts,
     IReadOnlyList<string> TypesToCreate,
     bool CanImport,
-    string? ActingAs);
+    string? ActingAs,
+    int AlreadyImported);
+
+/// <summary>What an import did. Wells and groups created, and groups that already existed and were reused.</summary>
+public sealed record ImportOutcome(int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported,
+    IReadOnlyList<string> TypesCreated);
 
 /// <summary>Plans an import of what a connection holds into the Asset tree.</summary>
 public sealed class ConnectionImportService(
     ConnectionService connections,
     IAssetRepository assets,
+    AssetService assetService,
+    IConnectionImportRepository imports,
     IRequestAccessRepository access)
 {
     /// <summary>The neutral types imported objects use, so existing logic that asks for a "well" keeps working.</summary>
@@ -53,9 +60,13 @@ public sealed class ConnectionImportService(
                 "The system did not give a complete answer, so nothing can be planned from it. " + string.Join(" ", found.Warnings));
 
         var warnings = found.Warnings.ToList();
-        var items = found.Items.GroupBy(item => item.ExternalId, StringComparer.Ordinal).Select(group => group.First()).ToArray();
-        if (items.Length < found.Items.Count)
-            warnings.Add($"{found.Items.Count - items.Length} object(s) were listed more than once and are counted once.");
+        var distinct = found.Items.GroupBy(item => item.ExternalId, StringComparer.Ordinal).Select(group => group.First()).ToArray();
+        if (distinct.Length < found.Items.Count)
+            warnings.Add($"{found.Items.Count - distinct.Length} object(s) were listed more than once and are counted once.");
+        // Objects that already have an Asset are left alone: bindings, not names, say what was imported.
+        var bound = await imports.BoundKeysAsync(connectionId, cancellationToken);
+        var items = distinct.Where(item => !bound.Contains(IConnectionImportRepository.BindingKey(item.ProviderType, item.ExternalId))).ToArray();
+        var alreadyImported = distinct.Length - items.Length;
 
         var plan = ImportPlanner.Plan(connectionId, items, levels, fields);
         var existing = (await assets.ListAssetTypesAsync(cancellationToken)).ToDictionary(type => type.Key, StringComparer.Ordinal);
@@ -71,7 +82,58 @@ public sealed class ConnectionImportService(
         if (!canCreateTypes)
             warnings.Add("Importing needs to create the asset types " + string.Join(" and ", typesToCreate) +
                 ", which needs permission to manage asset types.");
-        return new ImportPreview(plan, warnings, conflicts, typesToCreate, canCreateTypes && conflicts.Count == 0, found.ActingAs);
+        return new ImportPreview(plan, warnings, conflicts, typesToCreate, canCreateTypes && conflicts.Count == 0, found.ActingAs,
+            alreadyImported);
+    }
+
+    /// <summary>
+    /// Imports what the reviewed plan showed. The plan is made again from a fresh look at the system; if it is not
+    /// the plan the person reviewed (<paramref name="expectedFingerprint"/>), nothing is written.
+    /// </summary>
+    public async Task<ImportOutcome> ImportAsync(Guid connectionId, IReadOnlyList<string>? requestedLevels,
+        string? expectedFingerprint, AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        var preview = await PreviewAsync(connectionId, requestedLevels, subject, actor, cancellationToken);
+        if (!string.Equals(preview.Plan.Fingerprint, expectedFingerprint, StringComparison.Ordinal))
+            throw new WellSiteAutoPilotException(ConnectionFailureCodes.ImportPlanChanged, FailureKind.Conflict,
+                "What the system holds has changed since you reviewed it. Review the import again.");
+        if (!preview.CanImport)
+            throw new WellSiteAutoPilotException(ConnectionFailureCodes.ImportNotAllowed, FailureKind.Conflict,
+                "This import cannot go ahead: " + string.Join(" ", preview.Conflicts.Concat(preview.Warnings)));
+        if (preview.Plan.Placements.Count == 0)
+            return new ImportOutcome(0, 0, 0, preview.AlreadyImported, []);
+
+        var created = new List<string>();
+        foreach (var key in preview.TypesToCreate)
+        {
+            try
+            {
+                await assetService.CreateAssetTypeAuthorizedAsync(TypeFor(key, preview.Plan), subject, actor, cancellationToken);
+                created.Add(key);
+            }
+            catch (WellSiteAutoPilotException exception) when (exception.Code == "ASSET_TYPE_KEY_CONFLICT")
+            {
+                // Someone created the same type a moment ago; it is looked up again below and used as is.
+            }
+        }
+
+        var types = (await assets.ListAssetTypesAsync(cancellationToken)).ToDictionary(type => type.Key, StringComparer.Ordinal);
+        if (!types.TryGetValue(WellTypeKey, out var well) || !types.TryGetValue(GroupTypeKey, out var group))
+            throw new WellSiteAutoPilotException("ASSET_TYPE_NOT_FOUND", FailureKind.NotFound,
+                "The asset types for this import are unavailable.");
+        var applied = await imports.ApplyAuthorizedAsync(new ImportApplyRequest(connectionId, preview.Plan, well.Id, group.Id),
+            subject, actor, cancellationToken);
+        return new ImportOutcome(applied.WellsCreated, applied.GroupsCreated, applied.GroupsReused, preview.AlreadyImported, created);
+    }
+
+    // Both types are neutral. The well type declares the facts people filter on; it allows others so a later
+    // system can add its own without changing the type.
+    private static CreateAssetTypeCommand TypeFor(string key, ImportPlan plan)
+    {
+        if (key == GroupTypeKey) return new CreateAssetTypeCommand(GroupTypeKey, "Group", """{"type":"object"}""");
+        var names = plan.Placements.SelectMany(item => item.Attributes.Keys).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+        var properties = string.Join(",", names.Select(name => $"{JsonSerializer.Serialize(name)}:{{\"type\":\"string\",\"maxLength\":256}}"));
+        return new CreateAssetTypeCommand(WellTypeKey, "Well", $$"""{"type":"object","properties":{{{properties}}}}""");
     }
 
     private static List<string> ValidateLevels(IReadOnlyList<string>? requested, IReadOnlyList<DiscoveryField> fields)

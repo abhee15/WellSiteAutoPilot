@@ -28,6 +28,7 @@ function errorMessage(error: unknown): string {
     case 'disabled': return t('connections.errDisabled');
     case 'invalidSettings': return t('connections.errSettings', { detail: error.detail ?? '' });
     case 'unsupported': return t('connections.errUnsupported');
+    case 'hasImports': return t('connections.errHasImports');
     case 'tooLarge': return t('connections.errTooLarge');
     case 'invalid': return t('connections.errInvalid');
     case 'gatewayUnavailable': return t('connections.errGateway');
