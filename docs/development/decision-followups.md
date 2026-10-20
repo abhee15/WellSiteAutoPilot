@@ -55,3 +55,10 @@ queued and does not interrupt that investigation.
 ## Connections and asset discovery — 2026-10-19
 
 Captured product-owner brainstorming in [Connections, templates, and asset discovery](../architecture/connections-and-asset-discovery.md). Start from named provider connections and adapter-supplied starter templates, discover selected metadata into a customer-defined ACL hierarchy, retain explicit source bindings, then configure logic data bindings separately. The note distinguishes existing contracts, supported direction, proposed UX, and unresolved implementation choices. ForeSite WCF/NTLM contract inspection is a prerequisite to its adapter design. Preserve the current roadmap priority; this discussion does not request immediate adapter implementation.
+
+
+### Runtime connections and external adapter direction — 2026-10-20
+
+The owner requested refinement of the same documentation branch. Connections are runtime configuration independent of provider installation/upgrade and the AutoPilot installer; the earlier installer proposals are superseded. Treat ForeSite/WAMI as having no provider-versioned contracts pending inspection. Record compatibility evidence and selected support profiles without promising automatic release detection; keep capability checks read-only and invalidate affected validation when configuration/adapter evidence changes.
+
+The [refined design](../architecture/connections-and-asset-discovery.md#refinement-runtime-connections-compatibility-evidence-and-external-adapters) explores independently developed third-party adapters against a future published SDK. Reuse the current semantic interfaces, prove them with one real adapter, and defer external hosting until a concrete requirement warrants a versioned wire protocol. Connections remain AutoPilot-managed; third-party tools use supported authorized APIs, never direct database writes. Hosting, packaging and trust details are recommendations/open decisions, not implemented plugin support. PR #205 must remain draft and unmerged until explicit owner approval.

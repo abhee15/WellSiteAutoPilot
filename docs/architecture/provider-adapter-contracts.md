@@ -23,3 +23,10 @@ Provider-specific compatibility is evaluated by the adapter/runtime layer and re
 ## Connection setup and discovery planning
 
 See [Connections, templates, and asset discovery](connections-and-asset-discovery.md) for the 2026-10-19 discussion of named connections, starter templates, customer-defined destination hierarchies, metadata/source bindings, ForeSite WCF investigation, and subsequent logic configuration. This is a planning note; the presence of discovery contracts does not establish an implemented discovery/import workflow.
+
+
+## Runtime configuration and independently developed adapters
+
+The [October 20 refinement](connections-and-asset-discovery.md#refinement-runtime-connections-compatibility-evidence-and-external-adapters) separates provider installation, adapter deployment and connection configuration. Provider product versions can be unknown; ForeSite/WAMI versioned contracts are not assumed. Compatibility needs adapter-maintained profiles and capability-specific evidence, with provenance and explicit unknown/incompatible states.
+
+The existing interfaces are the starting point for a future public adapter SDK, not a finished plugin loader or network protocol. Third parties could implement these semantics in separate repositories; an external host would require an explicitly versioned, authenticated wire protocol. Workers still use the Gateway, and governed actions retain server authorization and validation. Phase 1 should prove the boundary with one real adapter before building external hosting machinery.

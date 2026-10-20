@@ -1,6 +1,6 @@
 # Connections, templates, and asset discovery
 
-Date: 2026-10-19.
+Date: 2026-10-19; refined 2026-10-20.
 Status: design discussion captured for refinement; not an implementation claim or a replacement for accepted ADRs.
 Source: product-owner brainstorming on adapter selection, ForeSite discovery, hierarchy setup, and subsequent logic configuration.
 
@@ -52,7 +52,7 @@ After database and access setup:
 
 Also consider **Discover into this node** from the asset tree, opening the same workflow with its destination already selected.
 
-Installer selection can determine available adapter components. Connection creation and discovery belong in the app so connection changes do not require reinstalling the product. Packaging, optional dependencies, and later component installation remain open.
+Connections are runtime configuration, independent of both provider installation and the AutoPilot installer. ForeSite, CygNet, and WAMI may be installed before or after AutoPilot and upgraded on their own schedules. Adapter code must be available before a connection can use it, but provider selection and connection creation must not require rerunning the AutoPilot installer. Independent adapter packaging remains a separate future design concern.
 
 ## Templates and user-defined destination hierarchies
 
@@ -82,7 +82,7 @@ Before committing to a discovery implementation:
 
 The adapter must know which WCF operations to call. Creating an ACL type cannot teach the adapter an unknown service contract. Do not assume WCF metadata itself provides asset inventory.
 
-Browser-to-ACL authentication and Gateway-to-ForeSite authentication are separate. A dedicated service identity is the initial recommendation; do not assume browser identity can be forwarded through NTLM. This does not settle the separate CygNet end-user attribution/delegation requirement in [integration research](cygnet-wami-integration-research.md). Final identity selection and protected credential handling need deployment validation.
+Browser-to-ACL authentication and Gateway-to-ForeSite authentication are separate. Use an explicitly supported backend identity; do not assume browser identity can be forwarded through NTLM. This does not settle the separate CygNet end-user attribution/delegation requirement in [integration research](cygnet-wami-integration-research.md). Final identity selection and protected credential handling need deployment validation.
 
 ## Persistence, ownership, and repeat discovery
 
@@ -215,11 +215,88 @@ References:
 
 The owner asked whether NetworkService alone is sufficient. It can be sufficient for the Gateway when the environment supports machine-account authentication and the provider accepts and grants the machine account the necessary permissions. It does not automatically authorize access. Verify with a representative ForeSite WCF call from the running Gateway identity.
 
-If ForeSite requires a named domain service account, configure an IT-provisioned identity with the required external rights. Proposed installer work is to support the appropriate Gateway service identity, service-logon prerequisites, local file/certificate access, protected handling of any required credentials, and preservation across upgrade/repair. Do not automatically provision domain accounts or reuse the ACL administrator.
+If ForeSite requires a named domain service account, deployment administration must configure an IT-provisioned identity with the required external rights, service-logon prerequisites, and local file/certificate access. Connection setup must explain which identity actually makes the call and report access failures. This is separate from the Connections feature and does not propose an installer change. Do not automatically provision domain accounts or reuse the ACL administrator.
 
 Connections should be able to use the Gateway process identity without storing a separate provider password when that is supported. Alternative per-connection credentials require explicit adapter support and protected storage. Connection tests must execute through the Gateway under the configured runtime identity, not accidentally under the installing or signed-in user.
 
 No identity switch or installer code change is authorized by recording this discussion. NetworkService versus a dedicated domain identity remains subject to the provider contract, customer permissions, deployment policy, and testing.
+
+
+## Refinement: runtime connections, compatibility evidence, and external adapters
+
+The October 20 direction supersedes the earlier installer-selection and installer-identity proposals. The owner requested this documentation update, not implementation of a plugin platform. The owner reports that ForeSite and WAMI do not offer versioned contracts; treat this as the working constraint until their interfaces are inspected. Do not require provider-side version negotiation or assume a product-version operation exists.
+
+### Connections as independent configuration
+
+Keep three lifecycles distinct: provider software installation, adapter implementation/deployment, and saved connection configuration. Co-location is a Phase 1 scenario, not a requirement; the same connection concept must work with remote providers.
+
+AutoPilot owns the connection identity, authorized administration, endpoint/settings, protected credential references, adapter association, and validation history. Secrets stay within the integration boundary. A connection may use the executing adapter host's Windows identity when supported; selecting an authentication mode cannot change a Windows service account or grant provider permissions. For an external host, the outbound identity is that host's identity, not necessarily the Gateway's.
+
+Local discovery can suggest installed providers/endpoints where a supported mechanism exists. Require confirmation and test the selected endpoint. Do not scan arbitrary networks, infer permissions from installation, or treat a local executable's file version as proof of a remote service's identity. Connections may be saved as unverified when a provider is not yet installed or reachable; only validated capabilities become eligible for use.
+
+Present transport reachability, authentication/authorization, capability validation, and compatibility as separate results. A login success is not proof that discovery, calculation, or writes are supported. Show the actual execution identity where available, evidence source, time checked, and an actionable reason for failure without revealing secrets.
+
+### Compatibility without provider-versioned contracts
+
+Distinguish four independent versions: provider product release (possibly unknown), adapter package, AutoPilot adapter SDK/protocol, and semantic capability contracts. We can version the last three even when the provider exposes no version negotiation.
+
+| Evidence | Use and limitation |
+| --- | --- |
+| Supported provider version/build operation, if one exists | Observed endpoint information; still requires an adapter support profile |
+| Administrator-declared product release/profile | Recorded configuration with explicit provenance; not automatically detected or independently verified |
+| Local installation/build information | Optional hint only; may not describe the selected service |
+| Targeted non-mutating operation and response checks | Evidence for the exact exercised capability and identity; not proof of all API behavior |
+| Maintained adapter support profile and representative integration tests | Documents validated contracts, mappings, units, semantics, known limitations, and supported deployment assumptions |
+
+WSDL/MEX, where available, can help inspect the wire contract; unchanged metadata or a matching hash cannot prove unchanged behavior. Do not invent an API to enumerate all provider methods or dynamically generate a production adapter from unknown contracts.
+
+Use a selected, validated adapter support profile together with bounded capability checks. Product release may remain unknown: that alone need not block a read capability with sufficient validated evidence. Conversely, an administrator-entered version, successful ping, or a broad declared version range must never promote an unvalidated capability to compatible. Preserve Unknown when evidence is insufficient.
+
+Capability checks must be read-only, bounded, cancellable, and run using the actual configured backend identity. Do not test compatibility by sending equipment commands. Distinguish unavailable, unauthorized, inconclusive, and unsupported outcomes; a timeout or denied permission does not prove an operation is absent. Initially use explicit profiles and checks for the small set of implemented operations, rather than a general contract-negotiation engine.
+
+### Provider upgrades and affected logic
+
+Revalidate on explicit Test connection, connection edits, adapter/profile changes, runtime startup, and reconnect after an outage. Consider periodic checks later. Providers without version/change signals can upgrade silently; no probe schedule guarantees immediate detection. Offer an administrator maintenance/revalidate workflow for known provider upgrades.
+
+Record evidence against the connection configuration revision, adapter/profile version, and capability set. Invalidate affected validation when those change, and prevent a stale in-flight test result from validating newer configuration. Validate configured logic when it is bound/activated and gate subsequent provider operations using current connection/capability state; cache freshness and command-time checks require a concrete policy before writes are enabled.
+
+Modules normally declare semantic requirements (quantity, unit, quality, calculation/action and capability contract version), not ForeSite/WAMI release numbers. Provider-specific behavior belongs in the adapter. Existing module and binding contracts must be inspected before adding any requirement fields; this note does not claim that dependency-impact tracking exists today.
+
+A provider upgrade need not require changing a module if the adapter preserves its required semantics. Revalidate affected configured-logic bindings when evidence changes; explain impacted assets, capabilities and configurations. Preserve saved assets, source bindings, history and logic configuration. Known incompatible or insufficiently validated required capabilities block dependent provider operations, especially control; unaffected capabilities can remain usable under policy. Health recovery alone must not restore invalidated compatibility or automatically resume suspended autonomous configurations. In-flight command outcomes require existing reconciliation/verification, never a blind retry against a new adapter.
+
+### Third-party adapter development outside AutoPilot
+
+Yes: a vendor or customer can develop an adapter in a separate repository against a published, provider-neutral contract. A generic adapter framework supplies the interface, lifecycle and tooling; each implementation still supplies product-specific authentication, calls, DTO translation and discovery relationships. It cannot learn an arbitrary third-party API from a connection URL.
+
+Evolve the existing Integration.Contracts capability interfaces rather than introducing a competing abstraction. They are an initial semantic foundation, not yet a public SDK or externally hosted protocol. Before publishing an SDK, remove accidental implementation dependencies and define compatibility, lifecycle, connection context, paging, bounded errors, cancellation, correlation and conformance expectations. The current discovery signature accepts a continuation token but does not return a next token; address this when designing real paging rather than promising complete enumeration now.
+
+An adapter descriptor/manifest should identify publisher, adapter ID/version, supported SDK/protocol versions, supported deployment/runtime dependencies, configuration-schema version, authentication options, implemented semantic capability versions, support profiles and optional templates. These are proposed metadata, not existing fields. Static advertised support and connection-specific validated/authorized capabilities are different. Identify the adapter type, host registration, connection and external asset separately; routing must not rely on display names or the current ambiguous provider ID.
+
+Configuration schemas can describe validated fields, secret references and safe display hints so Connections can render standard forms without provider-specific frontend code. Migration of saved settings across schema versions must be explicit and reviewed; never silently discard credentials or mappings. External tools could manage connections through future supported, authorized AutoPilot APIs; they must not write directly to AutoPilot tables. AutoPilot remains the authority even when a vendor supplies setup tooling.
+
+Two hosting choices remain possible:
+
+| Hosting | Recommendation and tradeoff |
+| --- | --- |
+| Trusted .NET adapter in the Gateway | Smallest initial approach using explicit registration; adapter dependencies/runtime must fit the host, and deployment may require a controlled restart |
+| Independently deployed adapter host/service | Preferred future option for third-party, incompatible-runtime or separately managed integrations; uses an explicitly versioned neutral wire protocol and authenticated Gateway registration |
+
+A shared C# interface is sufficient for separately developed compatible .NET code, but it is not a language-neutral network protocol. An external host could use another language or a provider-required runtime after an explicit protocol is specified. Keep workers and modules calling the Gateway; the Gateway routes to either hosting form. External hosting moves provider-specific dependencies and outbound credentials into the approved adapter host, while preserving the integration boundary and existing governed action path.
+
+An external host adds authentication, process supervision, credential provisioning, transport security, registration, timeouts, health and deployment work. Process separation alone is not a security sandbox; constrain host identities and accessible resources. Do not implement both hosting forms speculatively in Phase 1 or promise hot-loading/upload of arbitrary DLLs.
+
+Adapter trust is distinct from logic-module trust. Approve publishers/packages or external host registrations administratively, verify package integrity/identity as applicable, and limit accessible secrets and capabilities. Signing identifies a publisher; it does not establish safety or compatibility. In-process third-party code shares the Gateway's privileges. Microsoft's [.NET plugin guidance](https://learn.microsoft.com/en-us/dotnet/core/tutorials/creating-app-with-plugin-support) explicitly notes that untrusted code cannot safely be loaded into a trusted process; AssemblyLoadContext dependency isolation is not a security boundary. Remote registration must also bind authenticated host identity to approved adapter/capability claims and authorized connections.
+
+A published adapter SDK should eventually include a simulator/sample adapter and conformance tests for stable IDs, mappings, units/quality, paging, authorization failures, malformed responses, cancellation, timeouts, compatibility reporting, correlation, and supported command idempotency/readback. Passing these tests is required evidence, not a guarantee that provider upgrades are harmless. Provider access permissions remain external prerequisites.
+
+### Recommended bounded sequence
+
+1. Establish saved Connections and validation against the simulator, using a descriptor/configuration schema small enough for the concrete adapters.
+2. Inspect the supplied ForeSite 5.7.1 contracts and prove a representative read/discovery with an explicit support profile and real runtime identity.
+3. Validate the boundary with that first real adapter; then extract and publish a minimal adapter SDK/sample for independent development.
+4. Add external hosting when a concrete third-party/runtime requirement needs it, with an explicit protocol and conformance checks.
+
+This preserves an extensible direction while deferring a marketplace, arbitrary plugin loader and external hosting machinery. Exact SDK/protocol packaging, trust distribution, capability freshness policy, identity provisioning, settings migrations and command-time compatibility rules remain open for implementation design. The review/merge hold for PR #205 still applies.
 
 ### Review and merge hold
 
