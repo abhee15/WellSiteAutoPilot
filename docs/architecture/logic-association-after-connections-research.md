@@ -1,6 +1,6 @@
 # Logic association after Connections: findings and proposed first slices
 
-Date: 2026-10-20. Status: research and implementation proposal, not an approved control design or completed feature.
+Updated: 2026-10-20 after merged PRs #207–#221. Status: research and implementation proposal, not an approved control design or completed feature.
 
 ## Recommendation
 
@@ -16,37 +16,63 @@ Hierarchy organizes Assets. It does not establish a measurement mapping, command
 | --- | --- | --- |
 | [PR #205](https://github.com/abhee15/WellSiteAutoPilot/pull/205) | `ad04a9edf3cfaec72b5474e2db7616a35df31759` on `docs/connections-asset-discovery-20261019` | Draft simple-first design: runtime connections, adapters in this repo, discovery then Shadow; explicit owner merge hold |
 | [Connections POC](https://github.com/abhee15/WellSiteAutoPilot/tree/e32d325d7bca31741323c5dac9198a21fa133121) | `e32d325d7bca31741323c5dac9198a21fa133121` on `poc/connections-205` | ForeSite and CygNet facility discovery, connection UI and hierarchy Apply; experimental code |
-| Research branch base | `59e062ab4a6a3362d6ba28fe3a84610134744923` (`develop` at review) | This branch adds this document only; it does not import either branch's changes |
+| Original research branch base | `59e062ab4a6a3362d6ba28fe3a84610134744923` | This branch adds this document only; it does not import the POC or #205 changes |
+| Current develop review | `03d76b2cf9254ee10a9afe28a7e75fb2f4037d92` after #207–#221 | Authoritative implementation for the current findings below; POC observations are historical |
 
 Findings below are static source inspection. No ForeSite/CygNet service, Windows delegation or equipment action was exercised in this research session. The POC's [findings](https://github.com/abhee15/WellSiteAutoPilot/blob/e32d325d7bca31741323c5dac9198a21fa133121/docs/poc/connections-205-findings.md) report a live ForeSite discovery/import of ten wells; those are the POC author's results, not a validation of telemetry or setpoint APIs. CygNet discovery was tested with recorded responses; native library execution on a CygNet installation remains unproven there.
 
+## What the new merges resolve
+
+The current implementation supersedes several POC gaps. Reuse it; do not build another connection store, source-binding table, importer or internal authentication mechanism.
+
+| Merged PRs | Now present in develop | Consequence for the plan |
+| --- | --- | --- |
+| #208–#209 | Separate Asset type permissions, hide/restore/delete behavior | Use existing type management and neutral well compatibility; no administrator-only type prerequisite |
+| #211 | Per-caller Gateway authentication and route policies; worker and Server credentials are distinct | Anonymous current-data access is closed. Extend the existing service identity boundary for execution/binding authorization |
+| #212–#213 | Server-owned PostgreSQL connections, revisions, stale-test protection, dedicated `connections.read`/`connections.manage`, Administration UI | No JSON-file replacement work remains; association needs a safe read of existing connection/source references |
+| #214 | Installer-selectable, remembered Gateway Windows account and reported acting identity | Service account configuration is implemented; per-person downstream enforcement/attribution is still separate |
+| #215, #217 | Real ForeSite adapter check/discovery, declared grouping facts, complete/warnings/acting-as discovery response | Reuse its descriptor and mapping style; current telemetry and setpoints are still absent |
+| #218–#220 | Reviewed fingerprint, fresh discovery, import UI, neutral `well`/`group`, unique source bindings and transactional Asset/group/binding import; referenced connection deletion blocked | Hierarchy/source identity groundwork exists. Connect it to Configured Logic instead of repeating import work |
+| #221 | Permission-gated Status page and detailed system info; compact signed-in health response | Reuse status presentation; last manual connection test is not live data/control readiness |
+
+The merged [workflow design](https://github.com/abhee15/WellSiteAutoPilot/blob/03d76b2cf9254ee10a9afe28a7e75fb2f4037d92/docs/design/connections-workflow-design.md), especially §§12–14, records the latest detail. Import currently requires deployment `connections.manage`, all-assets `assets.manage`, and `asset-types.manage` when a needed type is absent. Scoped import and selecting a destination parent are not implemented. Discovery/import are bounded at 5,000 objects. One physical object → one Asset with multiple source bindings is the agreed direction (D10); linking, CygNet implementation and check-for-changes remain later slices.
+
 ## What exists and what is missing
 
-All source paths in this table refer to the POC snapshot above unless stated otherwise. Existing components should be extended rather than introducing a second module/binding/workflow framework.
+All current source paths below refer to [develop snapshot 03d76b2](https://github.com/abhee15/WellSiteAutoPilot/tree/03d76b2cf9254ee10a9afe28a7e75fb2f4037d92). The earlier CygNet agent remains POC-only evidence, not shipped develop functionality.
 
-| Area and source | Observed behavior | Gap relevant to logic association |
+| Area and source | Observed behavior | Remaining gap relevant to logic association |
 | --- | --- | --- |
-| `Integration.ForeSite/ForeSiteAssetDiscoveryProvider.cs` | Implements discovery, health and metadata; calls `Wells/All` and `SurfaceNetworkService/Asset/All`; advertises only discovery | No current UDC values, measurement catalog, setpoint operations, command status or readback implementation |
-| `Integration.CygNet/CygNetFacilityDiscoveryProvider.cs`, `CygNetAgent/Program.cs` | FAC facility enumeration; agent exposes health and facilities | FAC discovery does not resolve current points, DDS/device transactions or commands; discovery partial-permission flag is dropped |
-| `Server/Connections/ConnectionEndpoints.cs` | Imports source metadata plus `connectionId` and `externalId` into Asset JSON | No dedicated source-binding integrity; CygNet imports also receive `foresite-well`/`foresite-group` types; provider resource kind and domain must remain unambiguous |
-| Same Apply endpoint | Rediscovers at Apply; loops over all not-yet-imported results, scans up to 500 existing leaves/groups | Does not apply an immutable reviewed selection; concurrent imports and inventory above 500 require DB-backed uniqueness and bounded complete lookup; partial Apply can leave partial imports |
-| `IntegrationGateway/Connections/Connections.cs` | Builds discovery providers per saved connection; stores connection JSON on disk | Runtime data router is separate; endpoint/settings edits and deletion are not protected by persisted references; connection storage belongs in the planned Server DB model |
-| `Domain/ConfiguredLogic/ConfiguredLogicDataBinding.cs` | Stores requirement, local Asset, `ProviderId`, external Asset ID and mapping JSON | No explicit durable connection/source binding identity; caller-supplied strings/JSON are not verified against the imported source |
-| `Application/ConfiguredLogic/ConfiguredLogicService.cs` | Validates installed module, roles/counts/type, parameters/schema, required data mappings and JSON structure | No live operation compatibility or point existence checks; no enforcement that all bindings of a ForeSite-only module remain ForeSite; declared Asset traits are not checked by `ValidateAssetBindingsAsync` |
-| `Application/Executions/ConfiguredExecutionSnapshot.cs` | Carries provider and mapping JSON into immutable execution inputs | Useful foundation; add binding/connection revision provenance and dispatch-time authoritative resolution |
-| `Worker.DotNet/Execution/ModuleExecutionEngine.cs`, `GatewayDataClient.cs` | Reads by provider ID + external ID + quantity; enforces quantity/unit, quality, age and future timestamp rules | `ProviderMappingJson` is not consumed/passed to the Gateway read; a selected UDC cannot affect the request |
-| `IntegrationGateway/Program.cs` | Current-data router registers only `simulator`; `/data/current` accepts raw external identifiers | Saved real connections never enter this route; old data routes remain outside the POC's secured connection group; require internal authentication and exact Asset/operation authorization |
-| `ModuleSdk/LogicModuleContracts.cs` | Inputs, engineering results, recommendation drafts, control intents and state updates are represented | Reuse this model; intents must be checked against declared command requirements and persisted output bindings before any dispatch |
-| `Worker.DotNet/Execution/BuiltInLogicModuleResolver.cs` | Resolves only `SampleShadowReadModule` | Catalog/package registration does not make arbitrary payload executable; first module needs explicit worker registration or a separately proven approved-package runtime |
-| `ConfiguredLogicService.cs`, `ExecutionRequestV2Consumer.cs` | Configured revisions and worker execution are Shadow-only | Mode names elsewhere are not functioning Recommendation/Autonomous execution support |
-| `Application/Recommendations/RecommendationMaterializer.cs` | Materializes `ControlIntents` only for completed Recommendation-mode executions | Shadow results do not automatically create approval items; `RecommendationIntentDraft` is not the materializer's source; mode/output semantics need one consistent path |
-| `RecommendationDecisionService.cs`, `Messaging.Contracts/Control/ControlMessages.cs` | Decision persistence and command message DTOs exist | Approval does not create/send a command; durable ControlAction policy, ownership, dispatch and verification are missing, also stated in `docs/development/roadmap.md` |
+| `Integration.ForeSite/ForeSiteAdapter.cs` | Check, well discovery, grouping facts, warnings and acting identity; advertises AssetDiscovery | No current UDC values, measurement catalog, setpoint operations, command status or readback |
+| `IntegrationGateway/Adapters/AdapterCatalog.cs` | Simulator and ForeSite explicitly registered | No production CygNet adapter/agent in this snapshot; POC native discovery does not establish current reads or control |
+| `Persistence/Connections/SourceBindingEntity.cs` | Durable ID, connection, resource kind, external ID, Asset ID, import snapshot and creation time; DB uniqueness/FKs | Configured Logic has no reference to this source binding; no binding revision, linking/reconciliation lifecycle or execution provenance yet |
+| `Application/Connections/Importing/*`, `Persistence/Connections/ConnectionImportRepository.cs` | Fingerprint-reviewed fresh import; Assets/groups/bindings written in one serializable transaction; neutral types and duplicate-source protection | Connection-revision race and flat-import prerequisite below; type creation is performed separately before the Asset transaction |
+| `Persistence/Connections/ConnectionRepository.cs` | Persisted revisions, blocked deletion while imports exist, audited setting-name changes | Update still permits changing a bound connection's `baseUrl`; source identity can change under existing bindings |
+| `Domain/ConfiguredLogic/ConfiguredLogicDataBinding.cs` | Stores requirement, local Asset, `ProviderId`, external Asset ID and mapping JSON | No authoritative connection/source-binding reference; strings/JSON not verified against imported source |
+| `Application/ConfiguredLogic/ConfiguredLogicService.cs` | Installed module, role/cardinality/type, parameters/schema and data mapping structure checks | No live measurement/operation validation or provider-family restriction; declared Asset traits are not enforced by `ValidateAssetBindingsAsync` |
+| `Application/Executions/ConfiguredExecutionSnapshot.cs` | Carries provider and mapping JSON into immutable execution inputs | Add authoritative source/connection revision provenance and dispatch-time resolution |
+| `Worker.DotNet/Execution/ModuleExecutionEngine.cs`, `GatewayDataClient.cs` | Quantity/unit, quality, age and future-time checks | `ProviderMappingJson` still not passed to the current read; selecting a UDC does not affect the call |
+| `IntegrationGateway/Program.cs` | `/data/current` now requires authenticated Server/worker caller; router still registers only `simulator` | No saved-connection routing or execution/Asset/binding-specific authorization; raw external IDs remain accepted from those callers |
+| `ModuleSdk/LogicModuleContracts.cs`, `BuiltInLogicModuleResolver.cs` | SDK inputs/results/intents exist; only sample module resolved | First real module needs explicit approved worker registration; catalog installation alone is not runtime availability |
+| `ConfiguredLogicService.cs`, `ExecutionRequestV2Consumer.cs` | Shadow-only configured revisions and worker execution | Recommendation/Autonomous mode execution remains to implement |
+| `RecommendationMaterializer.cs`, `RecommendationDecisionService.cs` | Recommendation-mode `ControlIntents` can materialize; approve/reject records a decision | Shadow does not create approval items; draft semantics/mode path need reconciliation; no durable command dispatch or verification |
 
-### Identity is still an actual gap
+### Source-inspection findings to address before relying on imports for logic
 
-The Server-to-Gateway client and the adapter's HTTP handler use `UseDefaultCredentials`. The agent impersonates its immediate authenticated caller. Together these do not demonstrate that the original browser user reaches CygNet: the immediate caller can be the Gateway service account. Agent `/health` does not use the facilities route's impersonation path either. Test the exact Server → Gateway → provider/agent → CygNet chain under the intended Windows service identities; document reachability, AutoPilot permission, provider permission and human attribution separately.
+These are concrete code-path findings, not reproduced runtime failures in this session. They should receive focused regression tests before an implementation fix is merged.
 
-Keep the unresolved per-person CygNet enforcement/attribution requirement visible for ForeSite-mediated control too. Confirm what identity ForeSite records and propagates downstream. An AutoPilot audit username does not prove CygNet enforced that person's rights. Scheduled/autonomous actions need an explicitly agreed unattended identity. Never put Windows tokens or user passwords in queued messages.
+1. **Bound connection address replacement remains allowed.** `ConnectionRepository.UpdateAuthorizedAsync` assigns `SettingsJson` without checking `SourceBindings`; `ConnectionService.UpdateAsync` validates settings but does not restrict replacement. After import, changing ForeSite `baseUrl` can make well ID 123 refer to a different installation. Reject source-changing settings on referenced connections, while allowing renames and enable/disable. Use a new connection and explicit rebinding for replacement initially, as the merged design §6 requires.
+2. **Discovery/import does not pin the connection revision.** `ImportPlanner.Fingerprint` includes connection ID and planned fields, not connection revision. `ImportApplyRequest` carries no expected revision; `ApplyAuthorizedAsync` locks/rechecks enabled state but not the revision used by discovery. If the address changes after discovery and before the import transaction, the transaction can attach old discovery to the edited connection. Even separate preview/apply can accept a different source with identical projected IDs/fields. Carry the discovery connection revision through preview/fingerprint and apply; compare it under the locked connection row. Serializable isolation cannot validate a discovery that happened before the transaction. Fingerprint only covers placement/attributes, not every snapshot fact; this is not a complete source-identity or control-target attestation.
+3. **First flat import unnecessarily requires a Group type.** Preview adds `group` to `TypesToCreate` only when `GroupCount > 0`. With empty levels and no existing `group`, `ImportAsync` creates only `well`, then unconditionally requires both types and returns `ASSET_TYPE_NOT_FOUND`. Make the Group type requirement conditional on an actual group. Test first import into an empty catalog with no levels as well as grouped import.
+4. **Do not claim type creation is in the same transaction.** Missing types are created via `AssetService` before `ApplyAuthorizedAsync`. Failure of the later import can leave the types present even though no wells/bindings were created. This is distinct from atomic Asset/group/binding creation, which is implemented. Document the boundary or deliberately bring type creation into the transaction if full-operation atomicity is required.
+
+Also retain existing limits: inactive bound Assets still count as imported; groups are reused by parent/name/type without bindings; linking and check-for-changes are not implemented. `PreviewAsync` deduplicates by external ID alone although binding identity includes resource kind; that works for today's single-kind ForeSite adapter but must change before a multi-kind provider can emit overlapping external IDs.
+
+### Identity: implemented service account, remaining attribution decision
+
+Server → Gateway now uses `WSA-Service` caller authentication, not Windows delegation. Gateway → ForeSite uses the Gateway's chosen Windows account. Tests/discovery display that account, and #214 makes its installer configuration persistent. This resolves how read-only calls identify the backend; do not propose replacing it for association work.
+
+Per-person CygNet enforcement/attribution remains explicitly open in the merged design. The POC agent impersonates its immediate caller, which does not prove that the original browser user reaches CygNet across the chain. Confirm what identity ForeSite records/propagates for writes and which unattended identity is permitted. An AutoPilot audit username is not proof of provider-side human authorization. Never queue Windows tokens or user passwords.
 
 ## Minimal association model
 
@@ -54,7 +80,7 @@ Use the existing module catalog, Configured Logic revision lifecycle and executi
 
 | Association | Proposed meaning |
 | --- | --- |
-| Asset source binding | Local Asset ID → connection ID + provider resource kind + immutable external resource identity. Store in an authoritative model with uniqueness/reference checks, not editable free-form Asset metadata alone |
+| Asset source binding | Reuse `integration.source_bindings`: local Asset → connection + resource kind + external identity. Add authorized association lookup and references from configured inputs; do not create a second binding store |
 | Module requirements | Named Asset role, supported well/device prerequisites, named engineering inputs, freshness/quality/unit rules, parameters and declared command requirements. An explicit provider-family restriction for the first provider-specific module is sufficient; a capability expression language is unnecessary |
 | Configured input binding | Requirement ID + exact Asset → source binding + adapter-validated measurement key. Include UDC/device/group identifiers only where the actual provider contract needs them |
 | Configured output binding | Command requirement ID + exact Asset → same permitted provider/connection + explicit operation/target, unit, limits and verification mapping. Do not infer a writable target from the input UDC |
@@ -64,12 +90,12 @@ Distinguish adapter key (`foresite`), saved connection ID (one ForeSite instance
 
 For example, bind an illustrative ESP frequency input to local well W, source binding B on ForeSite connection F, and the measured-frequency mapping returned by that adapter. Bind its proposed frequency-setpoint output separately to F's supported write operation. The exact UDCs and operation names must come from the deployed ForeSite contract; no frequency mapping or limits are asserted here. Actual frequency, configured target frequency and last requested setpoint are different quantities.
 
-If the same physical well is imported through ForeSite and CygNet, do not merge by display name. Before enabling writes to it through both routes, establish an explicit shared physical control-domain identity and ownership rule so two modules cannot independently command the same device. Initially allow one active write owner for that control domain; no general cross-provider matching engine is needed.
+Follow agreed D10: one physical well is one Asset with explicit ForeSite/CygNet source bindings; ForeSite is the well system of record. Linking is still unimplemented. Do not match/merge solely by display name or a non-qualified facility ID. Before enabling writes through both routes, resolve both bindings to the same physical control domain and allow one active write owner so two modules cannot independently command the device. Source linking does not authorize a ForeSite-only module to use CygNet or enable automatic fallback.
 
 ### Hierarchy and the operator journey
 
 1. Open an imported leaf well and choose **Associate logic** using the existing Logic workspace.
-2. Offer trusted executable module versions whose Asset type/traits, provider family and required operations fit. Show why an ESP module is unavailable when well/device classification is missing or incompatible. Normalize the POC's provider-named Asset types deliberately; do not loosen type validation to make the sample fit.
+2. Offer trusted executable module versions whose Asset type/traits, provider family and required operations fit. Show why an ESP module is unavailable when well/device classification is missing or incompatible. Reuse the now-imported neutral `well` type; validate its well/device classification and traits without loosening module requirements.
 3. Resolve its persisted connection/source identity; present read mappings and, later, independently permitted output targets. Prefer adapter-provided validated choices to typing external IDs or JSON.
 4. Enter parameters, check a bounded live input preview with source/timestamp/unit/quality, and save an immutable Draft. Review then activate Shadow explicitly. Saving or previewing must not activate a schedule or send a command.
 5. Run once; inspect inputs, proposed outputs and failure reasons through existing execution detail. Add scheduling only after that path is proven; retain UTC/cadence conventions and explicit display timezone.
@@ -116,7 +142,7 @@ Reuse existing configured-logic create/revise/validate/activate/Shadow and recom
 | Server mapping queries | List supported input/output choices for that exact bound resource; validate submitted choices against authoritative IDs and permissions |
 | Server live preview/validation | Bounded read-only binding check; return value/unit/quality/time and clear unsupported, denied, stale, unavailable or missing mapping results; attach evidence to the checked revisions |
 | Configured Logic revision | Persist input connection/source references and later declared output bindings/provider restriction; revalidate on activation and dispatch |
-| Internal Gateway data call | Authenticated request tied to execution + exact Asset/binding + operation; resolve connection and mapping authoritatively, preserve correlation, enforce least privilege and connection enabled state |
+| Internal Gateway data call | Reuse implemented per-caller authentication; tie reads to execution + exact Asset/binding + operation; resolve connection and mapping authoritatively, preserve correlation, enforce least privilege and connection enabled state |
 | Provider current-data interface | Pass the selected validated measurement mapping; extend the existing semantic contract only as needed. Reuse `EngineeringValue` for numeric input; require an actual source timestamp/quality |
 | Server governed control | Atomically persist approved/eligible action and outbox dispatch; explicit policy, identity, expiry, binding revision and ownership checks |
 | Internal Gateway command/verification | Execute one authorized persisted action through its bound connection; return provider receipt/status and verification evidence. Use existing command/verification contracts as a starting point, adding missing target/precondition fields only for demonstrated need |
@@ -148,11 +174,11 @@ Before writes, implement the following bounded controls for the first operation:
 
 ## Delivery sequence and completion evidence
 
-This extends #205's simple-first sequence after the active authentication work. It does not authorize merging #205 or the POC or changing their implementation.
+This advances #205's simple-first sequence using the merged Connections/import foundation. It does not authorize merging #205 or the POC. Internal caller authentication, saved connections, discovery and import are implemented prerequisites, not new work to repeat.
 
 | Slice | Deliverable | Completion evidence |
 | --- | --- | --- |
-| 1. Source bindings and secure routing | DB-backed named connections/source binding references; provider-neutral Asset typing; authenticated authorized real current-data route | Two connections of the same adapter cannot cross-route; raw identifier substitution/denied/disabled cases fail; reference and stale-revision checks hold |
+| 1. Connect existing bindings to logic | Address source replacement/revision and flat-import findings; authorized Asset/source-binding lookup, configured input references and saved-connection current-data routing | Reuse DB connections, bindings and service auth; prove two same-adapter connections cannot cross-route; denied/disabled/stale bindings fail; grouped and first flat import work |
 | 2. First ForeSite module in Shadow | One explicitly registered approved .NET module, one real ESP well, one mapped input, association UI and live preview | Actual service identity reads correct quantity/UDC, unit/time/quality; manual run persists observations/proposal with zero writes; stale/bad/missing/unit mismatch fail clearly |
 | 3. Recommendation without actuation | Deliberate mode support, materialized expiring proposals, approve/reject audit and consistent UI wording | Module intents stay within bindings; out-of-scope, changed/expired/replayed decisions are tested; no command until action dispatch slice exists |
 | 4. One approved ForeSite setpoint | Inspected provider contract, durable action, policy/ownership, approval-to-dispatch and status/readback | Controlled test environment proves target and units, one logical action under duplicate delivery/restart, denied permission, timeout uncertainty and delayed readback behavior |
@@ -172,7 +198,7 @@ For integration acceptance, use PostgreSQL + messaging + Server + worker + Gatew
 5. What Windows identities and per-person enforcement/attribution are required for manual, approved and autonomous actions across all hops?
 6. Which deployed controller/device/SCADA configuration and existing optimization loops must the first module cooperate with?
 
-Answers affect operational writes. They need not stop source-binding cleanup, authorized current reads and a clearly read-only Shadow slice once its own API evidence is available.
+Answers affect operational writes. They need not stop connecting the existing source bindings to authorized current reads and a clearly read-only Shadow slice once its own API evidence is available.
 
 ## External sources and evidence limits
 
@@ -182,4 +208,4 @@ Public primary sources were checked on 2026-10-20. They ground CygNet concepts, 
 - **[S2]** [CygNet .NET API, 9.8](https://softwaredocs.weatherford.com/cygnet/98/Content/Topics/Scripting/CygNet%20.NET%20API.htm): Points/PNT/CVS and Devices/DDS/UIS responsibilities, architecture-specific assemblies and installed help. Does not establish .NET 10 runtime support for the POC's 9.9 assemblies.
 - **[S3]** [CygNet UisClient Methods, 9.5](https://softwaredocs.weatherford.com/cygnet/95/content/topics/Scripting/CxUis%20UisClient%20Methods.htm): scripting send arguments. Used only as evidence of operation-specific targeting; not a selected implementation contract.
 
-Repository source inspection is the evidence for the implementation gaps above. No actual ForeSite telemetry/setpoint API names or payloads have been verified by this research. Retain #205's draft/unmerged owner-review hold; this research is a separate docs-only proposal.
+Repository source inspection at `03d76b2cf9254ee10a9afe28a7e75fb2f4037d92` is the evidence for the updated implementation gaps above. No application code or migration is changed by this research update; runtime regressions above are proposed acceptance tests, not claims of executed tests. No actual ForeSite telemetry/setpoint API names or payloads have been verified by this research. Retain #205's draft/unmerged owner-review hold; this research is a separate docs-only proposal.
