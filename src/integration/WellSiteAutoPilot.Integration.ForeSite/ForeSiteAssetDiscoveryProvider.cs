@@ -18,6 +18,18 @@ public sealed class ForeSiteAssetDiscoveryProvider(
     public const string WellProviderType = "foresite.well";
     public const string TestedProfile = "ForeSite 5.7.1 (WellService /Wells/All)";
 
+    // ForeSite's ServiceConnectionStatus: Unknown, Connected, Disconnected, ...
+    private const int DisconnectedStatus = 2;
+
+    // ForeSite's WellTypeId enum (stable numeric ids; r_WellType stores abbreviations only).
+    private static readonly Dictionary<long, string> WellTypes =
+        new()
+        {
+            [1] = "RRL", [2] = "ESP", [3] = "GInj", [4] = "GLift", [5] = "NF",
+            [6] = "WInj", [7] = "WGInj", [8] = "PLift", [9] = "OT", [10] = "PCP",
+            [12] = "SInj", [13] = "CInj"
+        };
+
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web)
         {
@@ -44,15 +56,32 @@ public sealed class ForeSiteAssetDiscoveryProvider(
     public async ValueTask<ProviderHealth> GetHealthAsync(
         CancellationToken cancellationToken = default)
     {
+        // Same probe the ForeSite Toolbox status screen uses: the server reports
+        // the state of its own dependencies (WAMI, Catalog, CygNet sites, ...).
         try
         {
-            var wells = await GetWellsAsync(cancellationToken);
-            return new ProviderHealth(
-                providerId,
-                "ForeSite",
-                ProviderHealthState.Healthy,
-                $"Read {wells.Count} well(s).",
-                DateTimeOffset.UtcNow);
+            using var response = await httpClient.GetAsync(
+                "Administration/ServiceStatus", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var services = await response.Content.ReadFromJsonAsync<ForeSiteServiceStatus[]>(
+                JsonOptions, cancellationToken) ?? [];
+            var disconnected = services
+                .Where(service => service.Status == DisconnectedStatus)
+                .Select(service => service.Name ?? "unnamed")
+                .ToArray();
+
+            // Discovery only needs the server itself, so dependency outages degrade
+            // rather than fail; the reason keeps them visible.
+            return disconnected.Length == 0
+                ? new ProviderHealth(
+                    providerId, "ForeSite", ProviderHealthState.Healthy,
+                    $"{services.Length} dependent service(s) connected.",
+                    DateTimeOffset.UtcNow)
+                : new ProviderHealth(
+                    providerId, "ForeSite", ProviderHealthState.Degraded,
+                    "Server reachable; dependent services disconnected: " +
+                    string.Join(", ", disconnected) + ".",
+                    DateTimeOffset.UtcNow);
         }
         catch (HttpRequestException ex) when (ex.StatusCode is
             System.Net.HttpStatusCode.Unauthorized or
@@ -101,7 +130,13 @@ public sealed class ForeSiteAssetDiscoveryProvider(
     {
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
         Add(metadata, "assetId", well.AssetId);
-        Add(metadata, "wellType", well.WellType);
+        Add(metadata, "wellTypeId", well.WellType);
+        if (well.WellType is { ValueKind: JsonValueKind.Number } type &&
+            type.TryGetInt64(out var typeId) &&
+            WellTypes.TryGetValue(typeId, out var abbreviation))
+        {
+            metadata["wellType"] = abbreviation;
+        }
         Add(metadata, "field", well.Field);
         Add(metadata, "lease", well.Lease);
         Add(metadata, "facilityId", well.FacilityId);
@@ -129,6 +164,7 @@ public sealed class ForeSiteAssetDiscoveryProvider(
     }
 
     // Only the fields the first discovery slice needs; the full WellDTO has ~70.
+    private sealed record ForeSiteServiceStatus(string? Name, int Status);
     private sealed record ForeSiteWell(
         long? Id,
         string? Name,

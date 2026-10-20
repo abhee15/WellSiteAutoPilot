@@ -6,6 +6,7 @@ using WellSiteAutoPilot.Integration.ForeSite;
 // Recorded-shape tests always run; the live check runs when FORESITE_BASE_URL is set
 // (uses the current Windows identity, like the production backend identity would).
 await RecordedResponseMapsWells();
+await HealthReflectsServiceStatus();
 await UnauthorizedReportsDegraded();
 await UnreachableReportsUnavailable();
 await LiveDiscoveryIfConfigured();
@@ -14,7 +15,7 @@ Console.WriteLine("ForeSite adapter tests passed.");
 static async Task RecordedResponseMapsWells()
 {
     const string body = """
-        [{"Id":1,"Name":"Well_001","AssetId":77,"WellType":"Oil","Field":"F1","Lease":null,"Ignored":{"x":1}},
+        [{"Id":1,"Name":"Well_001","AssetId":77,"WellType":1,"Field":"F1","Lease":null,"Ignored":{"x":1}},
          {"Id":2,"Name":"","FacilityId":"FAC"},
          {"Name":"no id"}]
         """;
@@ -26,12 +27,24 @@ static async Task RecordedResponseMapsWells()
     Assert(first.ExternalId == "1" && first.DisplayName == "Well_001", "id and name map");
     Assert(first.ProviderType == ForeSiteAssetDiscoveryProvider.WellProviderType, "provider type");
     Assert(first.Metadata["assetId"] == "77" && first.Metadata["field"] == "F1", "metadata maps");
+    Assert(first.Metadata["wellType"] == "RRL" && first.Metadata["wellTypeId"] == "1", "well type id and abbreviation");
     Assert(!first.Metadata.ContainsKey("lease"), "null metadata omitted");
     Assert(assets.Last().DisplayName == "Well 2", "blank name falls back");
+    Assert(!assets.Last().Metadata.ContainsKey("wellType"), "unknown well type keeps only the raw id");
     Assert((await provider.DiscoverAssetsAsync("next")).Count == 0, "no further pages");
-    Assert((await provider.GetHealthAsync()).State == ProviderHealthState.Healthy, "healthy");
     Assert((await provider.GetCompatibilityAsync()).State == ProviderCompatibilityState.Unknown,
         "compatibility is never claimed without evidence");
+}
+
+static async Task HealthReflectsServiceStatus()
+{
+    var healthy = await Create(HttpStatusCode.OK, """[{"Name":"WAMI","Status":1}]""").GetHealthAsync();
+    Assert(healthy.State == ProviderHealthState.Healthy, "all dependents connected is healthy");
+
+    var degraded = await Create(HttpStatusCode.OK,
+        """[{"Name":"WAMI","Status":2},{"Name":"Catalog Service","Status":1}]""").GetHealthAsync();
+    Assert(degraded.State == ProviderHealthState.Degraded, "disconnected dependent degrades");
+    Assert(degraded.Reason!.Contains("WAMI") && !degraded.Reason.Contains("Catalog"), "reason names only the failing service");
 }
 
 static async Task UnauthorizedReportsDegraded()
@@ -68,7 +81,8 @@ static async Task LiveDiscoveryIfConfigured()
 
     var health = await provider.GetHealthAsync();
     Console.WriteLine($"Live health: {health.State} {health.Reason}");
-    Assert(health.State == ProviderHealthState.Healthy, "live ForeSite is healthy");
+    Assert(health.State is ProviderHealthState.Healthy or ProviderHealthState.Degraded,
+        "live ForeSite is reachable (dependents may be disconnected on a dev box)");
 
     var assets = await provider.DiscoverAssetsAsync();
     foreach (var asset in assets)
