@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.ForeSite;
 
 namespace WellSiteAutoPilot.IntegrationGateway.Adapters;
 
@@ -19,6 +20,7 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients)
         return descriptor.Key switch
         {
             "simulator" => await TestSimulatorAsync(settings, actingAs, cancellationToken),
+            ForeSiteAdapter.Key => await TestForeSiteAsync(settings, actingAs, cancellationToken),
             _ => new(AdapterTestOutcomes.NeedsAttention, "This adapter cannot be tested yet.", actingAs)
         };
     }
@@ -47,6 +49,19 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients)
             return new(AdapterTestOutcomes.Unreachable, "The simulator could not be reached at that address.", actingAs);
         }
     }
+
+    private async Task<AdapterTestResult> TestForeSiteAsync(
+        IReadOnlyDictionary<string, string?> settings, string actingAs, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(Timeout);
+        // The client presents the Gateway's own Windows identity, which is what ForeSite will see in use.
+        using var client = clients.CreateClient(WindowsClientName);
+        client.BaseAddress = ForeSiteAdapter.BaseAddress(settings[ForeSiteAdapter.BaseUrlSetting]!);
+        return await ForeSiteAdapter.CheckAsync(client, actingAs, timeout.Token);
+    }
+
+    public const string WindowsClientName = "adapter-test-windows";
 
     private static string ActingAs() => $"{Environment.UserDomainName}\\{Environment.UserName}";
 }

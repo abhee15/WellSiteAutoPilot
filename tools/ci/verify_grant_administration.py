@@ -160,8 +160,8 @@ request("GET", "/connections", OPERATOR, expected=403)
 request("GET", "/connections", None, expected=401)
 request("POST", "/connections", OPERATOR, {"name": "Denied", "adapterKey": "simulator", "settings": {}}, expected=403)
 adapters = request("GET", "/connections/adapters")
-assert [item["key"] for item in adapters] == ["simulator"], adapters
-assert adapters[0]["fields"][0]["key"] == "baseUrl" and adapters[0]["fields"][0]["kind"] == "Url", adapters
+assert [item["key"] for item in adapters] == ["simulator", "foresite"], adapters
+assert all(item["fields"][0]["key"] == "baseUrl" and item["fields"][0]["kind"] == "Url" for item in adapters), adapters
 conn_name = "CI simulator " + uuid.uuid4().hex[:8]
 request("POST", "/connections", body={"name": conn_name, "adapterKey": "simulator", "settings": {"baseUrl": "ftp://x"}}, expected=400)
 request("POST", "/connections", body={"name": conn_name, "adapterKey": "nothing", "settings": {}}, expected=400)
@@ -186,6 +186,16 @@ request("PUT", "/connections/" + created["id"] + "/enabled", body={"expectedRevi
 broken = request("POST", "/connections", body={"name": conn_name + " down", "adapterKey": "simulator",
     "settings": {"baseUrl": "http://127.0.0.1:9"}}, expected=201)
 assert request("POST", "/connections/" + broken["id"] + "/test")["lastTest"]["outcome"] == "Unreachable"
+# ForeSite: the simulator answers at its address but is not ForeSite, and a closed port is unreachable.
+not_foresite = request("POST", "/connections", body={"name": conn_name + " not foresite", "adapterKey": "foresite",
+    "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=201)
+checked = request("POST", "/connections/" + not_foresite["id"] + "/test")["lastTest"]
+assert checked["outcome"] == "NeedsAttention" and "does not look like ForeSite" in checked["message"], checked
+down = request("POST", "/connections", body={"name": conn_name + " foresite down", "adapterKey": "foresite",
+    "settings": {"baseUrl": "http://127.0.0.1:9"}}, expected=201)
+assert request("POST", "/connections/" + down["id"] + "/test")["lastTest"]["outcome"] == "Unreachable"
+request("DELETE", "/connections/" + not_foresite["id"], expected=204)
+request("DELETE", "/connections/" + down["id"], expected=204)
 assert {item["id"] for item in request("GET", "/connections")} >= {created["id"], broken["id"]}
 request("DELETE", "/connections/" + broken["id"], expected=204)
 request("DELETE", "/connections/" + created["id"], expected=204)

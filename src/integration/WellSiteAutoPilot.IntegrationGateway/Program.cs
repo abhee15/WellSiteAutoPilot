@@ -15,6 +15,8 @@ builder.Configuration.AddServiceCallerSettingsFile("gateway.keys.json");
 builder.Services.AddServiceCallerAuthentication(builder.Configuration);
 builder.Services.AddSingleton<AdapterCatalog>();
 builder.Services.AddHttpClient("adapter-test");
+builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true });
 builder.Services.AddTransient<AdapterConnectionTester>();
 
 builder.Services.AddWindowsService(options =>
