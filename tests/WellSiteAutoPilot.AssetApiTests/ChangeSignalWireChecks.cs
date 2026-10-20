@@ -24,7 +24,10 @@ internal static class ChangeSignalWireChecks
                     "Hub negotiate without identity must challenge, got " + (int)rejected.StatusCode + ".");
 
         using var listener = await ConnectAsync(origin, adminIdentity);
-        var read = ReadUntilAsync(listener, frame => frame.Contains("\"target\":\"changed\"", StringComparison.Ordinal));
+        // Earlier checks can leave late signals for other areas (for example executions) in flight, so
+        // wait for the area this check triggers rather than for the first signal of any kind.
+        var read = ReadUntilAsync(listener, frame => frame.Contains("\"target\":\"changed\"", StringComparison.Ordinal) &&
+            frame.Contains("\"arguments\":[\"assets\"]", StringComparison.Ordinal));
         // The handshake reply is sent before the hub admits the connection to its groups, so a
         // change committed too early is legitimately missed (polling recovers it in the UI).
         // Keep committing until the first signal arrives.
