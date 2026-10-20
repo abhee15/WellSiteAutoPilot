@@ -21,7 +21,7 @@ it('clears a selected Asset and draft when the same user loses its Asset scope',
       ? { canCreateRoot: false, canCreateUnderAuthorizedParents: !revoked }
       : url.startsWith('/api/v1/assets?')
       ? revoked ? [] : [{ id: assetId, assetTypeId: typeId, name: 'Confidential Well', isActive: true }]
-      : url.startsWith('/api/v1/system/info') ? {} : [];
+      : url.startsWith('/api/v1/system/health') ? {} : [];
     return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
   }));
   const user = userEvent.setup();

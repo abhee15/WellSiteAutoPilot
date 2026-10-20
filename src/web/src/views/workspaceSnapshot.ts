@@ -1,10 +1,10 @@
 import type { AssetResponse, AssetCreationCapabilitiesResponse, AssetTypeResponse, ConfiguredLogicResponse,
-  ExecutionResponse, LogicModuleResponse, SystemInfoResponse } from '../api/generated/v1/types.gen';
+  ExecutionResponse, LogicModuleResponse, SystemHealthResponse } from '../api/generated/v1/types.gen';
 import { hasPermission, SessionAccessError } from '../security/sessionAccess';
 import type { VerifiedSession } from '../security/sessionAccess';
 
 export type WorkspaceSnapshot = {
-  system: SystemInfoResponse | null; executions: ExecutionResponse[]; assetTypes: AssetTypeResponse[];
+  system: SystemHealthResponse | null; executions: ExecutionResponse[]; assetTypes: AssetTypeResponse[];
   assets: AssetResponse[]; capabilities: AssetCreationCapabilitiesResponse | null;
   modules: LogicModuleResponse[]; configurations: ConfiguredLogicResponse[];
   deniedPermissions: string[]; incomplete: boolean;
@@ -42,7 +42,7 @@ export async function loadWorkspaceSnapshot(user: VerifiedSession, signal: Abort
   const object = (value: unknown) => !!value && typeof value === 'object' && !Array.isArray(value);
   const records = (value: unknown) => Array.isArray(value) && value.every(object);
   const [system, executions, assetTypes, assets, capabilities, modules, configurations] = await Promise.all([
-    read<SystemInfoResponse | null>('system', null, '/api/v1/system/info', null, object),
+    read<SystemHealthResponse | null>('system', null, '/api/v1/system/health', null, object),
     read<ExecutionResponse[]>('executions', 'executions.read', '/api/v1/executions?limit=50', [], records),
     read<AssetTypeResponse[]>('assetTypes', 'assets.read', '/api/v1/asset-types', [], records),
     read<AssetResponse[]>('assets', 'assets.read', '/api/v1/assets?limit=100', [], records),

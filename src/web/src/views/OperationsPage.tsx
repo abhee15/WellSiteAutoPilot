@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
-  AssetResponse, ConfiguredLogicResponse, ExecutionResponse, SystemInfoResponse,
+  AssetResponse, ConfiguredLogicResponse, ExecutionResponse, SystemHealthResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
@@ -14,14 +14,17 @@ import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './operationsViews';
 import type { OperationsViewCriteria } from './operationsViews';
 
 export function OperationsPage({
-  systemInfo,
+  systemHealth,
+  canOpenStatus = false,
   executions,
   userId,
   isLoaded = true,
   assets = [],
   configuredLogic = [],
 }: {
-  systemInfo: SystemInfoResponse | null;
+  systemHealth: SystemHealthResponse | null;
+  /** Whether the person may open the Status page, where each service is listed. */
+  canOpenStatus?: boolean;
   executions: ExecutionResponse[];
   userId: string | null | undefined;
   isLoaded?: boolean;
@@ -40,10 +43,8 @@ export function OperationsPage({
     }),
     [executions, viewCriteria, configuredLogic, assets],
   );
-  const components = systemInfo?.components ?? [];
-  const unhealthyComponents = components.filter(
-    component => component.status !== 'Healthy',
-  ).length;
+  const componentCount = systemHealth?.componentCount ?? 0;
+  const unhealthyComponents = systemHealth?.unhealthyCount ?? 0;
   const activeExecutions = executions.filter(
     execution =>
       execution.status === 'Requested' ||
@@ -65,16 +66,16 @@ export function OperationsPage({
         <SummaryCard
           label="Runtime health"
           value={
-            components.length === 0
+            componentCount === 0
               ? 'Unknown'
               : unhealthyComponents === 0
                 ? 'Healthy'
                 : 'Attention'
           }
           detail={
-            components.length === 0
+            componentCount === 0
               ? 'Waiting for runtime status'
-              : `${components.length - unhealthyComponents}/${components.length} components healthy`
+              : `${componentCount - unhealthyComponents}/${componentCount} services healthy`
           }
         />
         <SummaryCard
@@ -181,20 +182,21 @@ export function OperationsPage({
       <section className="panel compact-panel">
         <PanelHeader eyebrow="Runtime node" title="Service health" />
         <div className="health-list">
-          {components.map(component => (
-            <div className="health-row" key={component.name}>
+          {systemHealth && (
+            <div className="health-row">
               <div>
-                <strong>{component.name}</strong>
-                <small>Version {component.version}</small>
+                <strong>Platform services</strong>
+                <small>{componentCount - unhealthyComponents}/{componentCount} healthy</small>
               </div>
-              <span className={`health-state health-${toCssToken(component.status)}`}>
-                {component.status ?? 'Unknown'}
+              <span className={`health-state health-${toCssToken(systemHealth.status)}`}>
+                {systemHealth.status ?? 'Unknown'}
               </span>
             </div>
-          ))}
-          {!systemInfo && (
+          )}
+          {!systemHealth && (
             <div className="status-loading">Loading runtime health…</div>
           )}
+          {canOpenStatus && <a href="#status">{t('status.seeDetails')}</a>}
         </div>
       </section>
     </>

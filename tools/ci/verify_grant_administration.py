@@ -155,6 +155,14 @@ assert {item["id"] for item in request("GET", "/assets", OPERATOR)} == {first["i
 retire(operator["userId"], read_grant)
 request("GET", "/assets", OPERATOR, expected=403)
 assert request("GET", "/security/me", OPERATOR)["permissions"] == []
+# Platform status: detail is for people who administer connections or security; the overall state is for everyone.
+request("GET", "/system/info", OPERATOR, expected=403)
+request("GET", "/system/info", None, expected=401)
+info = request("GET", "/system/info")
+assert info["components"] and all(item["name"] and item["version"] for item in info["components"]), info
+health = request("GET", "/system/health", OPERATOR)
+assert set(health) == {"status", "componentCount", "unhealthyCount"} and health["componentCount"] == len(info["components"]), health
+request("GET", "/system/health", None, expected=401)
 # Connections: engineers manage them, operators cannot even list them, and the Gateway judges the settings.
 request("GET", "/connections", OPERATOR, expected=403)
 request("GET", "/connections", None, expected=401)

@@ -54,7 +54,7 @@ test('workspace does not request APIs outside the current permissions', async ()
   const urls = [];
   const snapshot = await workspace.loadWorkspaceSnapshot(session, signal(), async (url, init) => {
     urls.push(url); assert.equal(init.cache, 'no-store');
-    return response(url.includes('system/info') ? {} : url.includes('capabilities')
+    return response(url.includes('system/health') ? {} : url.includes('capabilities')
       ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false } : []);
   });
   assert.equal(urls.some(url => /executions|logic-modules|configured-logic/.test(url)), false);
@@ -66,7 +66,7 @@ test('one denied API family clears its own data while retaining permitted work',
   const user = { ...session, permissions: ['assets.read', 'executions.read'] };
   const snapshot = await workspace.loadWorkspaceSnapshot(user, signal(), async url => {
     if (url === '/api/v1/asset-types') return new Response('', { status: 403 });
-    return response(url.includes('system/info') ? {} : url.includes('executions') ? [{ executionId: 'allowed' }]
+    return response(url.includes('system/health') ? {} : url.includes('executions') ? [{ executionId: 'allowed' }]
       : url.includes('capabilities') ? { canCreateRoot: true, canCreateUnderAuthorizedParents: true }
       : [{ id: 'must-be-cleared' }]);
   });
@@ -85,7 +85,7 @@ test('expired sessions discard the entire snapshot, and malformed area payloads 
 
 test('non-object resource records are discarded rather than passed into UI components', async () => {
   const snapshot = await workspace.loadWorkspaceSnapshot(session, signal(), async url =>
-    response(url.includes('system/info') ? {} : [null, 5, 'malformed']));
+    response(url.includes('system/health') ? {} : [null, 5, 'malformed']));
   assert.equal(snapshot.incomplete, true);
   assert.deepEqual(snapshot.assets, []); assert.deepEqual(snapshot.assetTypes, []);
 });
@@ -101,14 +101,14 @@ test('an active user without effective permissions is awaiting access', () => {
 test('transient read failures are reported as unavailable so callers keep their last good data', async () => {
   const snapshot = await workspace.loadWorkspaceSnapshot(session, signal(), async url => {
     if (url.includes('/assets?')) return new Response('', { status: 500 });
-    return response(url.includes('system/info') ? {} : url.includes('capabilities')
+    return response(url.includes('system/health') ? {} : url.includes('capabilities')
       ? { canCreateRoot: true, canCreateUnderAuthorizedParents: true } : []);
   });
   assert.deepEqual(snapshot.unavailable, ['assets']);
   assert.equal(snapshot.incomplete, true);
   const denied = await workspace.loadWorkspaceSnapshot({ ...session, permissions: ['assets.read'] }, signal(),
     async url => url === '/api/v1/asset-types' ? new Response('', { status: 403 })
-      : response(url.includes('system/info') ? {} : url.includes('capabilities')
+      : response(url.includes('system/health') ? {} : url.includes('capabilities')
         ? { canCreateRoot: true, canCreateUnderAuthorizedParents: true } : []));
   assert.deepEqual(denied.unavailable, []);
 });

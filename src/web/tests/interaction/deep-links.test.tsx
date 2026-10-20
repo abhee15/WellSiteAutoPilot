@@ -12,7 +12,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.location.hash = ''; l
 function signIn(permissions: string[]) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions, assetScopeIds: [] });
-    if (url.includes('system/info')) return response({});
+    if (url.includes('system/health')) return response({});
     if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
     if (url.includes('/asset-types')) return response([{ id: typeId, key: 'well', displayName: 'Well', schemaVersion: 1, isActive: true }]);
     if (url.includes('/assets?')) return response([{ id: assetId, assetTypeId: typeId, name: 'North Well', isActive: true, createdAtUtc: '2026-10-01T00:00:00Z' }]);

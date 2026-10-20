@@ -273,7 +273,7 @@ describe('Configured Logic setup journey', () => {
         : url.startsWith('/api/v1/asset-types') ? types
         : url.startsWith('/api/v1/assets?') ? revoked ? [] : assets
         : url.startsWith('/api/v1/assets/capabilities') ? {}
-        : url.startsWith('/api/v1/system/info') ? {} : [];
+        : url.startsWith('/api/v1/system/health') ? {} : [];
       return response(value);
     }));
     const user = userEvent.setup(); render(<App />);

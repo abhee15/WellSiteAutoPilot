@@ -11,7 +11,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.location.hash = ''; l
 function setup(assetsStatus: () => number, release?: Promise<void>) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\keep', isActive: true, roles: [], permissions: ['assets.read'], assetScopeIds: [] });
-    if (url.includes('system/info')) return response({});
+    if (url.includes('system/health')) return response({});
     if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
     if (url.includes('/asset-types')) return response([]);
     if (url.includes('/assets?')) {

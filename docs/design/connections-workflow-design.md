@@ -436,3 +436,11 @@ Slices 4a to 4d shipped as #217 to the import screens PR. As built:
 
 Known limits, to revisit: a bound Asset that is later deactivated still counts as imported; scoped managers cannot
 import (13.1a); no check for changes yet.
+
+## 14. Status page and gating `/system/info` (step 5)
+
+`/system/info` lists internal component names and versions, so it is no longer open to every signed-in person.
+
+- **Split.** `GET /system/info` (names, versions, state) requires `system-status.read`, an any-of policy satisfied by `connections.read` or `security.manage`. A new `GET /system/health` returns only an overall state and counts (`status`, `componentCount`, `unhealthyCount`) to any signed-in person, so operators keep the health indicator on Runs and Overview without seeing component names.
+- **Status page** (Administer group, opens for the same two permissions). Two independent parts: platform services from `/system/info`, and each connection's last test result from `/connections`. A part the person cannot see is not requested; a part that fails to load says so rather than appearing empty. It refreshes every 30 s and on demand.
+- **Not built yet.** Scheduled connection checks. A connection's state only reflects the last manual test, which the page states as "Last tested …" or "Never tested". Background checks need a system actor, a frequency and audit-on-change rules, and get their own design first.

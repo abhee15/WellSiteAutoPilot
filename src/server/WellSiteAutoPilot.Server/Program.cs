@@ -134,6 +134,7 @@ builder.Services.AddAuthorization(WellSitePolicies.AddGrantPolicies);
 builder.Services.AddSingleton<IIdentityGroupResolver>(services =>
     new WindowsTokenGroupResolver(authenticationMode, services.GetRequiredService<TimeProvider>()));
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, GrantPermissionHandler>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, GrantAnyPermissionHandler>();
 builder.Services.AddScoped<RequestAccessContext>();
 
 builder.Services.AddWellSiteHttpErrorHandling();
@@ -261,7 +262,28 @@ v1.MapGet(
                 .ToArray());
     })
     .WithName("GetSystemInformation")
+    .RequireAuthorization(WellSitePolicies.SystemStatusRead)
     .Produces<SystemInfoResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden)
+    .Produces<WellSiteProblemDetails>(
+        StatusCodes.Status500InternalServerError,
+        "application/problem+json");
+
+v1.MapGet(
+    "/system/health",
+    async (IPlatformInformationService service, CancellationToken cancellationToken) =>
+    {
+        // The overall state only: no component names, versions or addresses, so any signed-in person may see it.
+        var components = await service.GetComponentsAsync(cancellationToken);
+        var states = components.Select(component => component.Status.ToContract()).ToArray();
+        var unhealthy = states.Count(state => state != PlatformComponentStatus.Healthy);
+        var status = states.Contains(PlatformComponentStatus.Unavailable)
+            ? PlatformComponentStatus.Unavailable
+            : unhealthy > 0 ? PlatformComponentStatus.Degraded : PlatformComponentStatus.Healthy;
+        return new SystemHealthResponse(status, components.Count, unhealthy);
+    })
+    .WithName("GetSystemHealth")
+    .Produces<SystemHealthResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status500InternalServerError,
         "application/problem+json");

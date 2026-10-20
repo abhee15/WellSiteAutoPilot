@@ -8,6 +8,7 @@ const PATHS: Record<Section, string> = {
   assets: 'M12 3v5M12 8H5v5M12 8h7v5M3 13h4v4H3zM17 13h4v4h-4zM10 17h4v4h-4z',
   logic: 'M6 4v10M6 14a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 4a2 2 0 1 0 0 .01M18 4a2 2 0 1 0 0 .01M18 6v2a4 4 0 0 1-4 4h-4',
   connections: 'M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5',
+  status: 'M4 5h16v6H4zM4 13h16v6H4zM8 8h.01M8 16h.01',
   access: 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z',
 };
 
