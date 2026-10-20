@@ -40,6 +40,11 @@ export function PageHeader({
       title: t('page.logicTitle'),
       description: t('page.logicDescription'),
     },
+    connections: {
+      eyebrow: t('connections.eyebrow'),
+      title: t('connections.pageTitle'),
+      description: t('connections.pageDescription'),
+    },
     access: {
       eyebrow: t('access.eyebrow'),
       title: t('access.pageTitle'),

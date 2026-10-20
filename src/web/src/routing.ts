@@ -4,7 +4,7 @@ import type { CurrentUserResponse } from './api/generated/v1/types.gen';
 import { canOpenSection } from './security/sessionAccess';
 
 /** Sections in landing priority order. */
-export const SECTION_ORDER: readonly Section[] = ['overview', 'operations', 'recommendations', 'assets', 'logic', 'access'];
+export const SECTION_ORDER: readonly Section[] = ['overview', 'operations', 'recommendations', 'assets', 'logic', 'connections', 'access'];
 
 /**
  * Addresses look like `#section` or `#section/detail` (a selected record or tab).
