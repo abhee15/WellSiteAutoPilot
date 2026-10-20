@@ -25,6 +25,10 @@ framework (permissions, grants, audit) governs every step. The first connection 
 | D6 | Imported Assets use **neutral types** (for example Well and Group). Provider facts live in a separate **source binding**, not in attributes. | Proposed |
 | D7 | Adapters declare their **templates in code** (asset types, groupings). There is no separate "enable template" step. | Proposed |
 | D8 | Import runs as **one server-side operation authorized at its attachment point**, not as one create call per node. | Proposed |
+| D10 | **One physical object is one Asset.** A ForeSite well is one Asset whether or not it is connected to CygNet. ForeSite is the system of record for wells; a CygNet facility attaches as an additional source binding (proposed automatically from the ForeSite facility id, confirmed by the engineer). A CygNet-only well is its own Asset and can later be linked to a ForeSite Asset instead of duplicated. | Agreed |
+| D11 | The engineer owns hierarchy design. AutoPilot previews, flags conflicts and already-imported objects and limits parents to those the engineer may manage, but does not police the grouping. | Agreed |
+| D12 | Several arrangements of the same source are saved **Views** (named, ordered groupings computed from Asset attributes and binding data), not duplicate Assets and not multiple parents. | Proposed |
+| D13 | Source changes are reconciled by an explicit **check for changes**: new, changed and missing. Nothing is deleted automatically, and only a complete, successful check may report objects as missing. | Proposed |
 | D9 | The project is early: forward migrations are written, but where compatibility work would be awkward the development database may be reset instead. | Agreed |
 
 ## 3. Administration layout
@@ -117,6 +121,31 @@ This replaces the POC's per-node create calls. Under the current rules a scoped 
 refused at the second level, because the new groups have no grant of their own. Visibility of what was created is
 section 9.
 
+## 7a. Identity, views and keeping in step with the source
+
+**Identity.** The binding key is connection plus resource kind plus external id, unique. A second import of the same
+object is reported as "already imported" and offers a View, never a second Asset. Linking a second source to an
+existing Asset adds a binding.
+
+**Views (proposed).** A View is a saved, named, ordered grouping over Asset attributes and binding data, for example
+Field > Lease > Well or Well type > Device type > Well. It is computed when displayed: nothing is duplicated, no
+group Assets are created, and it follows source changes by itself. The real tree (parent links) stays the structure
+for containment and grants. The View builder is the same level builder used in the import's Structure step. If
+modules need to select a whole group, logic setup can expand a group or View into explicit Asset bindings; real
+group Assets that carry their own logic are a later option.
+
+**Check for changes (proposed).**
+- Compare a complete discovery with the saved bindings: *New* (not bound), *Changed* (source data differs from the
+  saved snapshot), *Missing* (bound but no longer returned).
+- A partial or failed discovery (warnings, paging failure, cold start, lost permissions) is inconclusive and never
+  produces "missing".
+- A missing object marks the Asset "source missing since..."; the engineer chooses keep, hide or detach. Asset
+  hide/deactivate is a new action (reusing the inactive flag, audited), to be designed with the same pattern as types.
+- Ownership after import: name and position in the tree belong to the Asset; attributes mapped from the source are
+  refreshed and labelled as coming from the source; the template type allows local-only attributes.
+- Checking is manual at first and produces a review list. Scheduled checks may later propose changes but do not
+  apply them.
+
 ## 8. Types: hide, unhide and delete
 
 Most clutter is types nobody used (typos, experiments); those are **deleted**, not hidden. Hiding applies to types
@@ -153,6 +182,7 @@ that Assets already use.
 
 ## 10. Delivery order
 
+0. Import, Views, change checking and the Assets page changes (source section, views selector, needs-attention filter) follow in that order after the connection and ForeSite steps below.
 1. Framework permissions: add `asset-types.manage` and `asset-types.hide`, relax the root and type fences, add
    hide and delete for types, migrate the seeded Administrator role, update tests and the CI authorization check.
 2. Connections: persisted connections, `connections.read` and `connections.manage`, the Connections page, test and
