@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../platform/WellSiteAutoPilot.Telemetry/WellSiteAutoPilot.Telemetry.csproj" />
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.ForeSite/WellSiteAutoPilot.Integration.ForeSite.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
     <ProjectReference Include="../../messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
     <ProjectReference Include="../../platform/WellSiteAutoPilot.Http/WellSiteAutoPilot.Http.csproj" />

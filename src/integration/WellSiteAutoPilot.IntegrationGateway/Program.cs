@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.IntegrationGateway.Connections;
 using WellSiteAutoPilot.IntegrationGateway.Providers;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Telemetry;
@@ -66,6 +67,13 @@ builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
 builder.Services.AddTransient<IProviderHealthProvider>(
     serviceProvider =>
         serviceProvider.GetRequiredService<SimulatorCurrentDataProvider>());
+builder.Services.AddHttpClient("connection-probe", client => client.Timeout = TimeSpan.FromSeconds(45))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true });
+builder.Services.AddSingleton<AdapterRegistry>();
+builder.Services.AddSingleton(services => new ConnectionStore(
+    builder.Configuration["Connections:StorePath"] ??
+        Path.Combine(AppContext.BaseDirectory, "connections.json"),
+    services.GetRequiredService<TimeProvider>()));
 builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
 
@@ -133,6 +141,88 @@ v1.MapGet(
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status503ServiceUnavailable,
         "application/problem+json");
+
+v1.MapGet("/adapters", (AdapterRegistry registry) => Results.Ok(registry.List()))
+    .WithName("ListAdapters");
+
+v1.MapGet("/connections", (ConnectionStore store) => Results.Ok(store.List()))
+    .WithName("ListConnections");
+
+v1.MapPost("/connections", (ConnectionInput input, ConnectionStore store, AdapterRegistry registry) =>
+{
+    if (ValidateConnection(input, registry) is { } problem) return problem;
+    return Results.Created("/connections", store.Create(input));
+}).WithName("CreateConnection");
+
+v1.MapPut("/connections/{id:guid}", (Guid id, ConnectionInput input, ConnectionStore store, AdapterRegistry registry) =>
+{
+    if (ValidateConnection(input, registry) is { } problem) return problem;
+    try
+    {
+        return store.Update(id, input) is { } updated ? Results.Ok(updated) : Results.NotFound();
+    }
+    catch (StaleRevisionException)
+    {
+        return Results.Conflict(new { error = "STALE_REVISION", message = "The connection changed since it was loaded." });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = "INVALID", message = ex.Message });
+    }
+}).WithName("UpdateConnection");
+
+v1.MapDelete("/connections/{id:guid}", (Guid id, ConnectionStore store) =>
+    store.Delete(id) ? Results.NoContent() : Results.NotFound())
+    .WithName("DeleteConnection");
+
+v1.MapPost("/connections/{id:guid}/test", async (
+    Guid id, ConnectionStore store, AdapterRegistry registry, TimeProvider time, CancellationToken ct) =>
+{
+    if (store.Get(id) is not { } connection) return Results.NotFound();
+    if (!connection.Enabled)
+        return Results.Conflict(new { error = "DISABLED", message = "The connection is disabled." });
+    var (health, metadata, discovery) = registry.Build(connection);
+    var h = await health.GetHealthAsync(ct);
+    var compat = metadata is null ? null : await metadata.GetCompatibilityAsync(ct);
+    var result = new ConnectionTestResult(connection.Revision, time.GetUtcNow(), h.State.ToString(), h.Reason,
+        compat?.State.ToString() ?? "Unknown", compat?.Reason, discovery is not null);
+    // A test that finished after an edit is dropped, never attached to the newer revision.
+    return store.RecordTest(id, result) is { } saved
+        ? Results.Ok(saved)
+        : Results.Conflict(new { error = "STALE_REVISION", message = "The connection changed while testing." });
+}).WithName("TestConnection");
+
+v1.MapPost("/connections/{id:guid}/discover", async (
+    Guid id, ConnectionStore store, AdapterRegistry registry, TimeProvider time, CancellationToken ct) =>
+{
+    if (store.Get(id) is not { } connection) return Results.NotFound();
+    if (!connection.Enabled)
+        return Results.Conflict(new { error = "DISABLED", message = "The connection is disabled." });
+    var (_, _, discovery) = registry.Build(connection);
+    if (discovery is null)
+        return Results.BadRequest(new { error = "NO_DISCOVERY", message = "This adapter does not support asset discovery." });
+    var assets = new List<DiscoveredAsset>();
+    string? token = null;
+    do
+    {
+        var page = await discovery.DiscoverAssetsAsync(token, ct);
+        assets.AddRange(page);
+        token = null; // the contract returns no next-page token yet (gap recorded in the POC findings)
+    }
+    while (token is not null);
+    return Results.Ok(new DiscoveryResult(id, time.GetUtcNow(), assets));
+}).WithName("DiscoverConnectionAssets");
+
+static IResult? ValidateConnection(ConnectionInput input, AdapterRegistry registry)
+{
+    if (string.IsNullOrWhiteSpace(input.Name))
+        return Results.BadRequest(new { error = "INVALID", message = "A name is required." });
+    if (registry.Find(input.AdapterKey) is null)
+        return Results.BadRequest(new { error = "INVALID", message = "Unknown adapter." });
+    if (!Uri.TryCreate(input.Endpoint, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+        return Results.BadRequest(new { error = "INVALID", message = "The endpoint must be an http(s) URL." });
+    return null;
+}
 
 app.Run();
 

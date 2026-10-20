@@ -33,6 +33,7 @@ using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Server;
 using WellSiteAutoPilot.Server.Changes;
+using WellSiteAutoPilot.Server.Connections;
 using WellSiteAutoPilot.Server.Scheduling;
 using WellSiteAutoPilot.Server.Security;
 using WellSiteAutoPilot.Server.Contracts;
@@ -165,6 +166,7 @@ builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
         builder.Configuration["Runtime:DotNetWorkerUrl"] ?? "http://127.0.0.1:5082");
 });
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddConnectionClient(builder.Configuration);
 builder.Services.AddScoped<AssetService>();
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<ManualShadowRequestService>();
@@ -227,6 +229,8 @@ var v1 = productApi
     .MapGroup("/api/v{version:apiVersion}")
     .HasApiVersion(1.0)
     .RequireAuthorization();
+
+v1.MapConnectionEndpoints();
 
 v1.MapGet(
     "/system/info",
