@@ -101,15 +101,26 @@ var simulator = builder.AddProject<Projects.WellSiteAutoPilot_ProviderSimulator>
     .WithHttpEndpoint(port: 5091, targetPort: 5091, name: "http", isProxied: false)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
+// Internal callers authenticate to the Gateway with random keys made fresh for each local run; the Gateway
+// receives only their SHA-256 verifiers, exactly as the installer arranges for an installed product.
+static string NewServiceKey() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+static string VerifierOf(string key) =>
+    Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key)));
+var serverServiceKey = NewServiceKey();
+var workerServiceKey = NewServiceKey();
+
 var gateway = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_IntegrationGateway>("integration-gateway", launchProfileName: null)
     .WithHttpEndpoint(port: 5081, targetPort: 5081, name: "http", isProxied: false)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("Security__Callers__server__Verifier", VerifierOf(serverServiceKey))
+    .WithEnvironment("Security__Callers__worker__Verifier", VerifierOf(workerServiceKey))
     .WithEnvironment("Messaging__Nats__Url", natsUrl))
     .WaitFor(simulator);
 
 var worker = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Worker_DotNet>("dotnet-worker", launchProfileName: null)
     .WithHttpEndpoint(port: 5082, targetPort: 5082, name: "http", isProxied: false)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("Security__ServiceKey", workerServiceKey)
     .WithEnvironment("Messaging__Nats__Url", natsUrl))
     .WaitFor(gateway);
 

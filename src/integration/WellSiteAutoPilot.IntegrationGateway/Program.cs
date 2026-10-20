@@ -1,12 +1,19 @@
 using Asp.Versioning;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using WellSiteAutoPilot.Http;
+using WellSiteAutoPilot.Http.ServiceCallers;
+using WellSiteAutoPilot.IntegrationGateway.Adapters;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.IntegrationGateway.Providers;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// The installer writes this service's caller verifiers here; development and CI supply them as configuration.
+builder.Configuration.AddServiceCallerSettingsFile("gateway.keys.json");
+builder.Services.AddServiceCallerAuthentication(builder.Configuration);
+builder.Services.AddSingleton<AdapterCatalog>();
 
 builder.Services.AddWindowsService(options =>
 {
@@ -72,6 +79,8 @@ builder.Services.AddWellSiteMessaging(
 var app = builder.Build();
 
 app.UseWellSiteHttpErrorHandling();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Swagger:Enabled", false))
 {
@@ -109,7 +118,25 @@ v1.MapGet(
             }
         });
     })
-    .WithName("ListIntegrations");
+    .WithName("ListIntegrations")
+    .RequireAuthorization(ServiceCaller.DataReadPolicy);
+
+v1.MapGet("/adapters", (AdapterCatalog catalog) => Results.Ok(catalog.List()))
+    .WithName("ListAdapters")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<IReadOnlyList<AdapterDescriptor>>(StatusCodes.Status200OK);
+
+v1.MapPost(
+    "/adapters/{adapterKey}/validate",
+    (string adapterKey, ValidateAdapterSettingsRequest request, AdapterCatalog catalog) =>
+        catalog.Find(adapterKey) is { } descriptor
+            ? Results.Ok(new ValidateAdapterSettingsResponse(AdapterSettingsValidator.Validate(
+                descriptor, request.Settings ?? new Dictionary<string, string?>())))
+            : Results.NotFound())
+    .WithName("ValidateAdapterSettings")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<ValidateAdapterSettingsResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound);
 
 v1.MapGet(
     "/data/current",
@@ -126,6 +153,7 @@ v1.MapGet(
                 quantity,
                 cancellationToken)))
     .WithName("GetCurrentEngineeringValue")
+    .RequireAuthorization(ServiceCaller.DataReadPolicy)
     .Produces<EngineeringValue>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(
         StatusCodes.Status400BadRequest,
@@ -135,5 +163,9 @@ v1.MapGet(
         "application/problem+json");
 
 app.Run();
+
+public sealed record ValidateAdapterSettingsRequest(Dictionary<string, string?>? Settings);
+
+public sealed record ValidateAdapterSettingsResponse(IReadOnlyList<AdapterSettingProblem> Problems);
 
 public partial class Program;

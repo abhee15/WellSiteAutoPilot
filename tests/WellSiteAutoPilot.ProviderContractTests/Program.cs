@@ -1,4 +1,38 @@
+using WellSiteAutoPilot.Http.ServiceCallers;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+
+// Internal caller keys: a key is only accepted against its own verifier, in constant time, and malformed input
+// is a plain refusal rather than an error.
+const string abcVerifier = "ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=";
+if (ServiceCallerKeys.VerifierFor("abc") != abcVerifier)
+    throw new InvalidOperationException("The verifier must be the base64 SHA-256 of the key (the installer asserts the same vector).");
+var callerKey = ServiceCallerKeys.NewKey();
+if (callerKey.Length != 64 || callerKey == ServiceCallerKeys.NewKey())
+    throw new InvalidOperationException("Caller keys must be distinct 256-bit values.");
+if (!ServiceCallerKeys.Matches(callerKey, ServiceCallerKeys.VerifierFor(callerKey)) ||
+    ServiceCallerKeys.Matches(callerKey + "x", ServiceCallerKeys.VerifierFor(callerKey)) ||
+    ServiceCallerKeys.Matches("", abcVerifier) || ServiceCallerKeys.Matches(null, abcVerifier) ||
+    ServiceCallerKeys.Matches("abc", null) || ServiceCallerKeys.Matches("abc", "not base64!") ||
+    ServiceCallerKeys.Matches("abc", "AAAA"))
+    throw new InvalidOperationException("Caller key verification accepted or rejected the wrong input.");
+
+// Adapter settings are checked against what the adapter declared.
+var declared = new AdapterDescriptor("demo", "Demo", "A demo adapter.", 1,
+[
+    new AdapterSettingField("address", "Address", "Where it listens.", AdapterSettingKind.Url, true),
+    new AdapterSettingField("port", "Port", "A port.", AdapterSettingKind.WholeNumber, false),
+    new AdapterSettingField("secure", "Secure", "Use TLS.", AdapterSettingKind.YesNo, false),
+    new AdapterSettingField("site", "Site", "A site.", AdapterSettingKind.Text, false, 5)
+], []);
+static string Keys(IReadOnlyList<AdapterSettingProblem> problems) =>
+    string.Join(",", problems.Select(item => item.FieldKey).Order(StringComparer.Ordinal));
+if (Keys(AdapterSettingsValidator.Validate(declared, new Dictionary<string, string?> { ["address"] = "http://h:1", ["port"] = "80", ["secure"] = "yes" })) != "")
+    throw new InvalidOperationException("Valid settings were refused.");
+if (Keys(AdapterSettingsValidator.Validate(declared, new Dictionary<string, string?>())) != "address" ||
+    Keys(AdapterSettingsValidator.Validate(declared, new Dictionary<string, string?> { ["address"] = "ftp://h" })) != "address" ||
+    Keys(AdapterSettingsValidator.Validate(declared, new Dictionary<string, string?> { ["address"] = "http://u:p@h" })) != "address" ||
+    Keys(AdapterSettingsValidator.Validate(declared, new Dictionary<string, string?> { ["address"] = "http://h", ["port"] = "-1", ["secure"] = "maybe", ["site"] = "toolong", ["extra"] = "1" })) != "extra,port,secure,site")
+    throw new InvalidOperationException("Invalid settings were accepted or misreported.");
 
 var cygnet = new ProviderDescriptor(
     "cygnet-primary",

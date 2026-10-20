@@ -86,6 +86,7 @@ internal static class Bootstrapper
             programDataRoot,
             GetOption(args, "--bootstrap-admin"));
         StoreInstallerSettings(settingsPath, database, network, tls);
+        ProvisionServiceKeys(programDataRoot, HasFlag(args, "--rotate-service-keys"));
         RunDatabaseMigrator(installRoot, database.ConnectionString);
 
         var natsDataRoot = Path.Combine(programDataRoot, "NATS", "JetStream");
@@ -376,6 +377,56 @@ internal static class Bootstrapper
             throw new InvalidOperationException(
                 $"Failed to secure bootstrap settings at {path}: " +
                 $"{result.StandardOutput} {result.StandardError}".Trim());
+        }
+    }
+
+    private const string NetworkServiceSid = "*S-1-5-20";
+    private const string LocalServiceSid = "*S-1-5-19";
+
+    /// <summary>
+    /// Creates the keys the Server and the worker present to the Integration Gateway, and the verifiers the Gateway
+    /// checks them against. Each file is readable only by the account of the service that needs it, so the worker
+    /// (LocalService) cannot read the Server's key (NetworkService). Existing keys are kept on upgrade unless
+    /// --rotate-service-keys is given. The files are written locked down, never readable even briefly.
+    /// </summary>
+    private static void ProvisionServiceKeys(string programDataRoot, bool rotate)
+    {
+        var serverPath = Path.Combine(programDataRoot, InstallerSettings.ServerKeysFile);
+        var workerPath = Path.Combine(programDataRoot, InstallerSettings.WorkerKeysFile);
+        var gatewayPath = Path.Combine(programDataRoot, InstallerSettings.GatewayKeysFile);
+
+        string? ExistingKey(string path) =>
+            rotate || !File.Exists(path) ? null : InstallerSettings.ReadServiceKey(File.ReadAllText(path));
+
+        var serverKey = ExistingKey(serverPath) ?? InstallerSettings.NewServiceKey();
+        var workerKey = ExistingKey(workerPath) ?? InstallerSettings.NewServiceKey();
+
+        WriteProtectedFile(serverPath, InstallerSettings.ServiceKeyFileContent(serverKey), NetworkServiceSid);
+        WriteProtectedFile(workerPath, InstallerSettings.ServiceKeyFileContent(workerKey), LocalServiceSid);
+        WriteProtectedFile(gatewayPath, InstallerSettings.GatewayKeyFileContent(serverKey, workerKey), LocalServiceSid);
+        Console.WriteLine(rotate
+            ? "Internal service keys were regenerated."
+            : "Internal service keys are in place.");
+    }
+
+    private static void WriteProtectedFile(string path, string content, string readerSid)
+    {
+        var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        File.WriteAllText(temporaryPath, string.Empty);
+        SecureKeyFile(temporaryPath, readerSid);
+        File.WriteAllText(temporaryPath, content);
+        File.Move(temporaryPath, path, overwrite: true);
+        SecureKeyFile(path, readerSid);
+    }
+
+    private static void SecureKeyFile(string path, string readerSid)
+    {
+        var result = RunProcessAllowFailure(
+            "icacls.exe", path, "/inheritance:r", "/grant:r", "*S-1-5-18:F", "*S-1-5-32-544:F", readerSid + ":R");
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Failed to secure service key file {path}: {result.StandardOutput} {result.StandardError}".Trim());
         }
     }
 
@@ -818,6 +869,10 @@ internal static class Bootstrapper
             "      Required on a fresh installation; an upgrade keeps the stored connection.");
         Console.WriteLine(
             "      The database must already exist. Migrations run before any service starts.");
+        Console.WriteLine(
+            "    --rotate-service-keys replaces the keys the Server and worker use to call the Integration Gateway;");
+        Console.WriteLine(
+            "      otherwise existing keys are kept on upgrade.");
         Console.WriteLine("  uninstall-services");
     }
 

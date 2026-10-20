@@ -434,6 +434,55 @@ internal static class InstallerSettings
         return text;
     }
 
+    // Keys the internal callers (Server, worker) present to the Integration Gateway. Each service has its own
+    // file under ProgramData, readable only by that service's account. The Gateway file holds SHA-256 verifiers.
+    public const string ServerKeysFile = "server.keys.json";
+    public const string WorkerKeysFile = "worker.keys.json";
+    public const string GatewayKeysFile = "gateway.keys.json";
+
+    /// <summary>A fresh 256-bit key as 64 hexadecimal characters.</summary>
+    public static string NewServiceKey() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+    /// <summary>The verifier the Gateway stores for a key: base64 of its SHA-256. Must match the Gateway's check.</summary>
+    public static string ServiceKeyVerifier(string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        return Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(key)));
+    }
+
+    /// <summary>The key file for the Server or the worker: <c>{"Security":{"ServiceKey":"..."}}</c>.</summary>
+    public static string ServiceKeyFileContent(string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        return new JsonObject { ["Security"] = new JsonObject { ["ServiceKey"] = key } }.ToJsonString(WriteOptions);
+    }
+
+    /// <summary>The key stored in a Server or worker key file, or null when there is none.</summary>
+    public static string? ReadServiceKey(string? json)
+    {
+        var root = ParseRoot(json);
+        return root["Security"] is JsonObject security && security["ServiceKey"] is JsonValue value &&
+               value.TryGetValue<string>(out var key) ? Clean(key) : null;
+    }
+
+    /// <summary>The Gateway file: verifiers for the Server and the worker, never the keys themselves.</summary>
+    public static string GatewayKeyFileContent(string serverKey, string workerKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workerKey);
+        return new JsonObject
+        {
+            ["Security"] = new JsonObject
+            {
+                ["Callers"] = new JsonObject
+                {
+                    ["server"] = new JsonObject { ["Verifier"] = ServiceKeyVerifier(serverKey) },
+                    ["worker"] = new JsonObject { ["Verifier"] = ServiceKeyVerifier(workerKey) }
+                }
+            }
+        }.ToJsonString(WriteOptions);
+    }
+
     private static JsonObject ParseRoot(string? settingsJson)
     {
         if (string.IsNullOrWhiteSpace(settingsJson))
