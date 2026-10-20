@@ -21,7 +21,7 @@ framework (permissions, grants, audit) governs every step. The first connection 
 | D2 | Connections have their **own permission set**, because engineers, not only administrators, work with them. | Agreed |
 | D3 | A scoped asset manager may import where they already hold the asset authority. Import adds no power of its own. | Agreed |
 | D4 | Engineers may create **asset types**. Asset types become a deployment-wide permission, not an administrator-only fence. | Agreed |
-| D5 | Administrators may **hide** asset types that clutter the catalog. A type that was never used may be deleted by whoever may create types. | Agreed in principle |
+| D5 | Administrators may **hide** asset types that clutter the catalog; anyone who may create types may **unhide** one. A type that was never used may be deleted by whoever may create types. | Agreed in principle; unhide rule proposed |
 | D6 | Imported Assets use **neutral types** (for example Well and Group). Provider facts live in a separate **source binding**, not in attributes. | Proposed |
 | D7 | Adapters declare their **templates in code** (asset types, groupings). There is no separate "enable template" step. | Proposed |
 | D8 | Import runs as **one server-side operation authorized at its attachment point**, not as one create call per node. | Proposed |
@@ -50,8 +50,8 @@ The framework separates *what* (a permission), *where* (a scope: deployment, all
 | --- | --- | --- |
 | `connections.read` | Deployment-wide | See connection names, provider, enabled state and health in words. No endpoint or settings. |
 | `connections.manage` | Deployment-wide, marked privileged | Create, edit, disable and delete connections; test; discover; start an import. |
-| `asset-types.manage` | Deployment-wide | Create asset types (including from templates); delete a type that has never been used. |
-| `asset-types.hide` | Deployment-wide | Hide or show a type in pickers and lists. Intended for administrators. |
+| `asset-types.manage` | Deployment-wide | Create asset types (including from templates); delete a type that has never been used; unhide a hidden type. |
+| `asset-types.hide` | Deployment-wide | Hide a type, with an optional short note. Intended for administrators. |
 
 Rules that change or are made explicit:
 
@@ -117,10 +117,20 @@ This replaces the POC's per-node create calls. Under the current rules a scoped 
 refused at the second level, because the new groups have no grant of their own. Visibility of what was created is
 section 9.
 
-## 8. Types: hide and delete
+## 8. Types: hide, unhide and delete
 
-- **Hide** sets the existing inactive flag. A hidden type leaves pickers and the default list; existing Assets keep
-  working; "show hidden" and unhide are available; every change is audited. The UI says "Hidden".
+Most clutter is types nobody used (typos, experiments); those are **deleted**, not hidden. Hiding applies to types
+that Assets already use.
+
+- **Hide** (`asset-types.hide`) sets the existing inactive flag with an optional note of up to 200 characters
+  ("superseded by Well"). A hidden type is not offered in Asset creation pickers or module Asset-type filters, so
+  nothing new is built on it. Existing Assets of it keep working. Every change is audited.
+- **Visibility:** operators never see hidden types. Holders of `asset-types.manage` (and administrators) can switch
+  on "Show hidden"; hidden types are labelled with who hid them, when, and the note. The UI says "Hidden".
+- **Unhide** needs `asset-types.manage`. Restoring is harmless and audited, so an engineer who needs a hidden type
+  does not wait for an administrator. If administrator-only unhide proves necessary, it can be tightened later.
+- **No silent duplicates:** defining a type whose key matches a hidden type returns a specific message ("a hidden
+  type with this key exists"), not a generic key conflict.
 - **Delete** is allowed only for a type with no Assets, ever, and is safe against a concurrent create.
 - The Asset types table already shows a per-type count, which guides decluttering.
 
