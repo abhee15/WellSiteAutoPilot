@@ -133,7 +133,7 @@ public sealed class ConnectionImportService(
         if (key == GroupTypeKey) return new CreateAssetTypeCommand(GroupTypeKey, "Group", """{"type":"object"}""");
         var names = plan.Placements.SelectMany(item => item.Attributes.Keys).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
         var properties = string.Join(",", names.Select(name => $"{JsonSerializer.Serialize(name)}:{{\"type\":\"string\",\"maxLength\":256}}"));
-        return new CreateAssetTypeCommand(WellTypeKey, "Well", $$"""{"type":"object","properties":{{{properties}}}}""");
+        return new CreateAssetTypeCommand(WellTypeKey, "Well", "{\"type\":\"object\",\"properties\":{" + properties + "}}");
     }
 
     private static List<string> ValidateLevels(IReadOnlyList<string>? requested, IReadOnlyList<DiscoveryField> fields)
