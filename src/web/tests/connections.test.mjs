@@ -91,3 +91,33 @@ test('discovery is validated, filtered by name or any fact, and its refusals are
   assert.equal(await refuse(409, 'CONNECTION_HAS_IMPORTS'), 'hasImports');
   assert.equal(await refuse(503, undefined), 'gatewayUnavailable');
 });
+
+test('import preview and result are validated, and refusals are classified', async () => {
+  const group = { name: 'North', isFallback: false, objectCount: 2, sampleNames: ['A'], children: [] };
+  const good = { fingerprint: 'F', levels: ['x'], objectCount: 2, groupCount: 1, fallbackObjectCount: 0, rootObjectCount: 0,
+    groups: [group], warnings: [], conflicts: [], typesToCreate: ['well'], canImport: true, actingAs: null, alreadyImported: 0 };
+  const seen = [];
+  const preview = await api.previewImport(connection, ['x'], async (url, init) => {
+    seen.push([String(url), init.method, init.body]);
+    return new Response(JSON.stringify(good));
+  });
+  assert.equal(preview.fingerprint, 'F');
+  assert.deepEqual(seen[0], [`/api/v1/connections/${connection.id}/import/preview`, 'POST', '{"levels":["x"]}']);
+  await assert.rejects(api.previewImport(connection, [], async () => new Response(JSON.stringify({ ...good, fingerprint: '' }))), { kind: 'invalidResponse' });
+  await assert.rejects(api.previewImport(connection, [], async () => new Response(JSON.stringify({ ...good, groups: [{ name: 1 }] }))), { kind: 'invalidResponse' });
+  const done = { wellsCreated: 2, groupsCreated: 1, groupsReused: 0, alreadyImported: 0, typesCreated: [] };
+  const result = await api.importFromConnection(connection, ['x'], 'F', async (url, init) => {
+    assert.equal(init.body, '{"levels":["x"],"expectedFingerprint":"F"}');
+    return new Response(JSON.stringify(done));
+  });
+  assert.equal(result.wellsCreated, 2);
+  await assert.rejects(api.importFromConnection(connection, [], 'F', async () => new Response('{"wellsCreated":-1}')), { kind: 'invalidResponse' });
+  const refuse = (status, code) => api.importFromConnection(connection, [], 'F', async () =>
+    new Response(JSON.stringify({ code }), { status })).catch(e => e.kind);
+  assert.equal(await refuse(403, 'CONNECTION_IMPORT_NEEDS_ALL_ASSETS'), 'needsAllAssets');
+  assert.equal(await refuse(403, undefined), 'accessDenied');
+  assert.equal(await refuse(409, 'CONNECTION_IMPORT_PLAN_CHANGED'), 'planChanged');
+  assert.equal(await refuse(409, 'CONNECTION_IMPORT_NOT_ALLOWED'), 'importNotAllowed');
+  assert.equal(await refuse(409, 'CONNECTION_DISCOVERY_INCOMPLETE'), 'incomplete');
+  assert.equal(await refuse(400, 'CONNECTION_IMPORT_LEVELS_INVALID'), 'invalidLevels');
+});

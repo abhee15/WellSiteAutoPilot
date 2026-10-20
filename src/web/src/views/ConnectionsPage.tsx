@@ -1,4 +1,5 @@
 import './connections.css';
+import { ConnectionImport } from './ConnectionImport';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -258,6 +259,9 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
               onClick={() => setConfirmDelete(true)}>{t('connections.delete')}</button>}
           </>}
         </div>
+      )}
+      {canManage && connection && adapter?.canDiscover && adapter.groupingFields.length > 0 && connection.isEnabled && !dirty && (
+        <ConnectionImport connection={connection} adapter={adapter} />
       )}
       {found && <FoundList found={found} query={query} onQuery={setQuery} />}
       {connection && dirty && canManage && <p className="connection-help">{t('connections.testDirty')}</p>}

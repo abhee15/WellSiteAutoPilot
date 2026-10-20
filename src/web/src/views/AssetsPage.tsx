@@ -232,6 +232,8 @@ export function AssetsPage({
                   <>
                     <p className="split-note">{t('assets.none')}</p>
                     <p className="split-note">{t('assets.noneHint')}</p>
+                    {permissions.includes('connections.manage') && permissions.includes('connections.read') &&
+                      <p className="split-note"><a href="#connections">{t('assets.importFromConnection')}</a></p>}
                   </>
                 ) : lazy ? (
                   criteria.search.trim()

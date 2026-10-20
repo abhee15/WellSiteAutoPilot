@@ -68,6 +68,23 @@ it('an empty asset list says what to do about it', async () => {
   expect(screen.getByText(/Assets are the wells and equipment logic runs on/)).toBeTruthy();
 });
 
+it('an empty asset list offers importing only to people who can manage connections', async () => {
+  window.location.hash = '#assets';
+  const as = (permissions: string[]) => vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions, assetScopeIds: [] });
+    if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
+    return response([]);
+  }));
+  as(['assets.read']);
+  const first = render(<App />);
+  await screen.findByText('No Assets are configured.');
+  expect(screen.queryByText('Import from a connection')).toBeNull();
+  first.unmount();
+  as(['assets.read', 'connections.read', 'connections.manage']);
+  render(<App />);
+  expect((await screen.findByText('Import from a connection')).getAttribute('href')).toBe('#connections');
+});
+
 it('selecting an asset highlights it in the hierarchy and brings the asset page into view', async () => {
   window.location.hash = '#assets/' + assetId;
   const scroll = vi.fn();
