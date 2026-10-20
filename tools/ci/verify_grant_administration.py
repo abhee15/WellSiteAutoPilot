@@ -194,6 +194,25 @@ assert checked["outcome"] == "NeedsAttention" and "does not look like ForeSite" 
 down = request("POST", "/connections", body={"name": conn_name + " foresite down", "adapterKey": "foresite",
     "settings": {"baseUrl": "http://127.0.0.1:9"}}, expected=201)
 assert request("POST", "/connections/" + down["id"] + "/test")["lastTest"]["outcome"] == "Unreachable"
+# Find: the simulator's ForeSite-shaped stand-in is served under /foresite, and discovery reads it as the Gateway's account.
+stand_in = request("POST", "/connections", body={"name": conn_name + " foresite stand-in", "adapterKey": "foresite",
+    "settings": {"baseUrl": "http://127.0.0.1:5091/foresite"}}, expected=201)
+found = request("POST", "/connections/" + stand_in["id"] + "/discover")
+assert found["complete"] is True and found["warnings"] == [] and found["actingAs"], found
+assert sorted(item["displayName"] for item in found["items"]) == ["Alpha 1", "Alpha 2", "Bravo 1"], found
+alpha = next(item for item in found["items"] if item["externalId"] == "102")
+assert alpha["kind"] == "foresite.well" and alpha["metadata"]["assetName"] == "North Field", alpha
+assert alpha["metadata"]["wellType"] == "ESP" and alpha["metadata"]["deviceType"] == "ESP", alpha
+assert alpha["metadata"]["field"] == "Alpha" and alpha["metadata"]["lease"] == "L-1", alpha
+# A wrong address is an incomplete answer with a reason, never an empty "complete" list.
+lost = request("POST", "/connections/" + not_foresite["id"] + "/discover")
+assert lost["complete"] is False and lost["items"] == [] and lost["warnings"], lost
+down_find = request("POST", "/connections/" + down["id"] + "/discover")
+assert down_find["complete"] is False and down_find["items"] == [], down_find
+# Only managers may look, adapters that cannot list say so, and a disabled connection refuses.
+request("POST", "/connections/" + stand_in["id"] + "/discover", OPERATOR, expected=403)
+request("POST", "/connections/" + created["id"] + "/discover", expected=409)
+request("DELETE", "/connections/" + stand_in["id"], expected=204)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)
 assert {item["id"] for item in request("GET", "/connections")} >= {created["id"], broken["id"]}
@@ -202,6 +221,6 @@ request("DELETE", "/connections/" + created["id"], expected=204)
 request("GET", "/connections/" + created["id"], expected=404)
 audit = request("GET", "/security/audit-events?limit=100&actionPrefix=connection.")["items"]
 actions = {item["action"] for item in audit}
-assert {"connection.created", "connection.updated", "connection.tested", "connection.deleted"} <= actions, actions
+assert {"connection.created", "connection.updated", "connection.tested", "connection.discovered", "connection.deleted"} <= actions, actions
 assert not any("127.0.0.1:5091" in json.dumps(item) for item in audit if item["action"].startswith("connection.")), "settings values must not be audited"
 print("Live grant HTTP matrix passed: paired scopes, no descendant inheritance, global/resource separation, protected administration, untrusted-group denial and fresh revocation.")

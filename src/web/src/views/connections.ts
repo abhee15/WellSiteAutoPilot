@@ -7,7 +7,13 @@ export type AdapterField = {
 export type Adapter = {
   key: string; displayName: string; description: string; settingsVersion: number;
   fields: AdapterField[]; capabilities: string[];
+  canDiscover: boolean; groupingFields: { key: string; label: string }[];
 };
+
+export type DiscoveredObject = { externalId: string; displayName: string; kind: string; metadata: Record<string, string> };
+
+/** `complete` false means partial or failed: the list must never be read as "nothing is there". */
+export type Discovery = { complete: boolean; items: DiscoveredObject[]; warnings: string[]; actingAs: string | null };
 
 export type TestOutcome = 'Healthy' | 'NeedsAttention' | 'Unreachable';
 
@@ -22,7 +28,7 @@ export type Connection = {
 };
 
 export type ConnectionErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'stale' | 'disabled' |
-  'invalidSettings' | 'invalid' | 'gatewayUnavailable' | 'invalidResponse' | 'unavailable';
+  'invalidSettings' | 'invalid' | 'unsupported' | 'tooLarge' | 'gatewayUnavailable' | 'invalidResponse' | 'unavailable';
 
 export class ConnectionsError extends Error {
   constructor(public readonly kind: ConnectionErrorKind, public readonly detail: string | null = null) {
@@ -44,10 +50,21 @@ function isAdapter(value: unknown): value is Adapter {
   return typeof value.key === 'string' && value.key.length > 0 && typeof value.displayName === 'string' &&
     typeof value.description === 'string' && Number.isSafeInteger(value.settingsVersion) &&
     Array.isArray(value.capabilities) && value.capabilities.every(x => typeof x === 'string') &&
+    typeof value.canDiscover === 'boolean' && Array.isArray(value.groupingFields) &&
+    value.groupingFields.every(f => isObject(f) && typeof f.key === 'string' && typeof f.label === 'string') &&
     Array.isArray(value.fields) && value.fields.every(field => isObject(field) &&
       typeof field.key === 'string' && field.key.length > 0 && typeof field.label === 'string' &&
       typeof field.helpText === 'string' && typeof field.kind === 'string' && kinds.includes(field.kind) &&
       typeof field.required === 'boolean' && Number.isSafeInteger(field.maxLength));
+}
+
+function isDiscovery(value: unknown): value is Discovery {
+  return isObject(value) && typeof value.complete === 'boolean' &&
+    (value.actingAs === null || typeof value.actingAs === 'string') &&
+    Array.isArray(value.warnings) && value.warnings.every(x => typeof x === 'string') &&
+    Array.isArray(value.items) && value.items.every(item => isObject(item) &&
+      typeof item.externalId === 'string' && typeof item.displayName === 'string' && typeof item.kind === 'string' &&
+      isObject(item.metadata) && Object.values(item.metadata).every(x => typeof x === 'string'));
 }
 
 function isConnection(value: unknown): value is Connection {
@@ -79,11 +96,12 @@ async function failure(response: Response): Promise<ConnectionsError> {
   if (status === 404) return new ConnectionsError('notFound');
   if (status === 409) {
     return new ConnectionsError(code === 'CONNECTION_NAME_CONFLICT' ? 'nameTaken'
-      : code === 'CONNECTION_DISABLED' ? 'disabled' : 'stale');
+      : code === 'CONNECTION_DISABLED' ? 'disabled'
+        : code === 'CONNECTION_DISCOVERY_UNSUPPORTED' ? 'unsupported' : 'stale');
   }
   if (status === 400) {
-    return code === 'CONNECTION_SETTINGS_INVALID'
-      ? new ConnectionsError('invalidSettings', detail) : new ConnectionsError('invalid');
+    return code === 'CONNECTION_SETTINGS_INVALID' ? new ConnectionsError('invalidSettings', detail)
+      : code === 'CONNECTION_DISCOVERY_TOO_LARGE' ? new ConnectionsError('tooLarge') : new ConnectionsError('invalid');
   }
   if (status === 503 || status === 504) return new ConnectionsError('gatewayUnavailable');
   return new ConnectionsError('unavailable');
@@ -162,6 +180,21 @@ export async function setConnectionEnabled(
 
 export async function testConnection(connection: Connection, fetcher: typeof fetch = fetch): Promise<Connection> {
   return asConnection(await send(`/connections/${connection.id}/test`, { method: 'POST' }, fetcher));
+}
+
+/** Looks at the outside system now, as the Gateway's account. Nothing is saved. */
+export async function discoverConnection(connection: Connection, fetcher: typeof fetch = fetch): Promise<Discovery> {
+  const body = await send(`/connections/${connection.id}/discover`, { method: 'POST' }, fetcher);
+  if (!isDiscovery(body)) throw new ConnectionsError('invalidResponse');
+  return body;
+}
+
+/** Case-insensitive match on the name and every fact, so "ESP" or a field name finds what people expect. */
+export function filterDiscovered(items: DiscoveredObject[], query: string): DiscoveredObject[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return items;
+  return items.filter(item => item.displayName.toLowerCase().includes(needle) ||
+    Object.values(item.metadata).some(value => value.toLowerCase().includes(needle)));
 }
 
 export async function deleteConnection(connection: Connection, fetcher: typeof fetch = fetch): Promise<void> {

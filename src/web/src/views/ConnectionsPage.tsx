@@ -5,10 +5,12 @@ import type { MessageKey } from '../localization';
 import { formatTimestamp } from '../format';
 import { useHashDetail } from '../routing';
 import {
-  ConnectionsError, connectionStatus, createConnection, deleteConnection, isDirty, loadAdapters, loadConnections,
+  ConnectionsError, connectionStatus, createConnection, deleteConnection, discoverConnection, filterDiscovered, isDirty, loadAdapters, loadConnections,
   setConnectionEnabled, testConnection, updateConnection,
 } from './connections';
-import type { Adapter, Connection, ConnectionDraft, ConnectionStatus } from './connections';
+import type { Adapter, Connection, ConnectionDraft, ConnectionStatus, Discovery } from './connections';
+
+const shownLimit = 200;
 
 const statusLabels: Record<ConnectionStatus, MessageKey> = {
   disabled: 'connections.statusDisabled', notTested: 'connections.statusNotTested',
@@ -25,6 +27,8 @@ function errorMessage(error: unknown): string {
     case 'stale': return t('connections.errStale');
     case 'disabled': return t('connections.errDisabled');
     case 'invalidSettings': return t('connections.errSettings', { detail: error.detail ?? '' });
+    case 'unsupported': return t('connections.errUnsupported');
+    case 'tooLarge': return t('connections.errTooLarge');
     case 'invalid': return t('connections.errInvalid');
     case 'gatewayUnavailable': return t('connections.errGateway');
     default: return t('connections.errUncertain');
@@ -136,7 +140,9 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
   const [draft, setDraft] = useState<ConnectionDraft>({
     name: connection?.name ?? '', settings: { ...(connection?.settings ?? {}) },
   });
-  const [busy, setBusy] = useState<'save' | 'test' | 'toggle' | 'delete' | null>(null);
+  const [busy, setBusy] = useState<'save' | 'test' | 'toggle' | 'delete' | 'find' | null>(null);
+  const [found, setFound] = useState<Discovery | null>(null);
+  const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const adapter = adapters.find(item => item.key === adapterKey) ?? null;
@@ -228,6 +234,13 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
               onClick={() => void run('test', async () => onSaved(await testConnection(connection)))}>
               {busy === 'test' ? t('connections.testing') : t('connections.test')}
             </button>
+            {adapter?.canDiscover && (
+              <button type="button" className="secondary-button"
+                disabled={disabled || dirty || !connection.isEnabled}
+                onClick={() => void run('find', async () => { setFound(await discoverConnection(connection)); setQuery(''); })}>
+                {busy === 'find' ? t('connections.finding') : t('connections.find')}
+              </button>
+            )}
             <button type="button" className="secondary-button" disabled={disabled}
               onClick={() => void run('toggle', async () => onSaved(await setConnectionEnabled(connection, !connection.isEnabled)))}>
               {connection.isEnabled ? t('connections.disable') : t('connections.enable')}
@@ -245,8 +258,47 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
           </>}
         </div>
       )}
+      {found && <FoundList found={found} query={query} onQuery={setQuery} />}
       {connection && dirty && canManage && <p className="connection-help">{t('connections.testDirty')}</p>}
       {connection && !connection.isEnabled && <p className="connection-help">{t('connections.testDisabled')}</p>}
     </form>
   );
+}
+
+function FoundList({ found, query, onQuery }: { found: Discovery; query: string; onQuery: (value: string) => void }) {
+  const matches = filterDiscovered(found.items, query);
+  const shown = matches.slice(0, shownLimit);
+  return (
+    <section className="connection-found" aria-label={t('connections.findHeading')}>
+      <h3>{t('connections.findHeading')}</h3>
+      {!found.complete && <p role="alert" className="status-error">{t('connections.findIncomplete')}</p>}
+      {found.warnings.map(warning => <p key={warning} role="status" className="connection-help">{warning}</p>)}
+      {found.complete && found.items.length === 0 && <p className="empty-state">{t('connections.findEmpty')}</p>}
+      {found.items.length > 0 && <>
+        <p role="status">{t('connections.findCount', { count: found.items.length })}</p>
+        <label>
+          <span>{t('connections.findSearch')}</span>
+          <input type="search" value={query} onChange={event => onQuery(event.target.value)} />
+        </label>
+        {matches.length === 0 && <p className="empty-state">{t('connections.findNone')}</p>}
+        <ul className="connection-found-list">
+          {shown.map(item => (
+            <li key={item.externalId}>
+              <strong>{item.displayName}</strong>
+              <small>{foundFacts(item.metadata)}</small>
+            </li>
+          ))}
+        </ul>
+        {matches.length > shown.length && <p className="connection-help">
+          {t('connections.findShowing', { shown: shown.length, count: matches.length })}</p>}
+      </>}
+      {found.actingAs && <p className="connection-help">{t('connections.findActingAs', { account: found.actingAs })}</p>}
+    </section>
+  );
+}
+
+/** The few facts people recognise a well by, in a stable order. Everything else stays in the import's record. */
+function foundFacts(metadata: Record<string, string>): string {
+  return ['assetName', 'wellType', 'deviceType', 'field', 'lease']
+    .map(key => metadata[key]).filter(value => !!value).join(' · ');
 }

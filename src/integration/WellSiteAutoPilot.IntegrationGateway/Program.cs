@@ -18,6 +18,7 @@ builder.Services.AddHttpClient("adapter-test");
 builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true });
 builder.Services.AddTransient<AdapterConnectionTester>();
+builder.Services.AddTransient<AdapterDiscoverer>();
 
 builder.Services.AddWindowsService(options =>
 {
@@ -153,6 +154,19 @@ v1.MapPost(
     .WithName("TestAdapterConnection")
     .RequireAuthorization(ServiceCaller.ServerPolicy)
     .Produces<AdapterTestResult>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound);
+
+v1.MapPost(
+    "/adapters/{adapterKey}/discover",
+    async (string adapterKey, AdapterSettingsRequest request, AdapterCatalog catalog,
+        AdapterDiscoverer discoverer, CancellationToken cancellationToken) =>
+        catalog.Find(adapterKey) is { } descriptor && descriptor.CanDiscover
+            ? Results.Ok(await discoverer.DiscoverAsync(
+                descriptor, request.Settings ?? new Dictionary<string, string?>(), cancellationToken))
+            : Results.NotFound())
+    .WithName("DiscoverAdapterAssets")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<DiscoveryResult>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound);
 
 v1.MapGet(

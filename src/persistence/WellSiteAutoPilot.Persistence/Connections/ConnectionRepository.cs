@@ -95,6 +95,14 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
         return ToRecord(await Reload(id, cancellationToken));
     }
 
+    public Task RecordDiscoveryAuthorizedAsync(Guid id, int found, int warnings, bool complete, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default) =>
+        WriteAsync(subject, actor, async () =>
+        {
+            var entity = await LockAsync(id, null, cancellationToken);
+            Audit("connection.discovered", id, subject, actor, new { entity.AdapterKey, Found = found, Warnings = warnings, Complete = complete });
+        }, cancellationToken);
+
     public Task DeleteAuthorizedAsync(Guid id, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default) =>
         WriteAsync(subject, actor, async () =>
