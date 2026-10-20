@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.ForeSite;
 
 namespace WellSiteAutoPilot.IntegrationGateway.Adapters;
 
@@ -16,7 +17,7 @@ public sealed class AdapterCatalog
             AdapterSettingKind.Url, true)],
         [new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current engineering data")]);
 
-    private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator];
+    private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator, ForeSiteAdapter.Descriptor];
 
     public IReadOnlyList<AdapterDescriptor> List() => _descriptors;
 
