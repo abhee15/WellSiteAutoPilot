@@ -164,8 +164,4 @@ v1.MapGet(
 
 app.Run();
 
-public sealed record ValidateAdapterSettingsRequest(Dictionary<string, string?>? Settings);
-
-public sealed record ValidateAdapterSettingsResponse(IReadOnlyList<AdapterSettingProblem> Problems);
-
 public partial class Program;
