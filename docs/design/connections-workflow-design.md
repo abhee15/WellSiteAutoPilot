@@ -127,8 +127,13 @@ section 9.
 object is reported as "already imported" and offers a View, never a second Asset. Linking a second source to an
 existing Asset adds a binding.
 
-**Views (proposed).** A View is a saved, named, ordered grouping over Asset attributes and binding data, for example
-Field > Lease > Well or Well type > Device type > Well. It is computed when displayed: nothing is duplicated, no
+**Views (proposed).** A View is a saved, named set of filters and an optional ordered grouping over Asset attributes and
+binding data, for example Field > Lease > Well, or a flat list of all wells with well type ESP wherever they sit in the
+main tree. A View shows only the Assets the viewer may read, so different people can see different results from the
+same View. A filter works only when the attribute exists (a CygNet-only well has no well type unless it is mapped).
+Views are stored on the server, not in the browser as today's saved filters are, so they can be shared and used by
+logic setup. Proposed rule: personal Views are private; a shared View is editable by its creator and by holders of
+`assets.manage` on the Assets involved. It is computed when displayed: nothing is duplicated, no
 group Assets are created, and it follows source changes by itself. The real tree (parent links) stays the structure
 for containment and grants. The View builder is the same level builder used in the import's Structure step. If
 modules need to select a whole group, logic setup can expand a group or View into explicit Asset bindings; real
