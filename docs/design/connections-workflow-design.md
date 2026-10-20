@@ -204,3 +204,92 @@ Reuse the adapter projects, their recorded and live tests, the health semantics,
 CygNet agent shape. Rewrite the JSON-file connection store (PostgreSQL), the Server endpoints (permissions, import
 operation, source bindings), and the UI (two-pane layout, localization, design tokens). Do not merge the POC branch
 wholesale.
+
+## 12. Slice 2 in detail: Connections
+
+Written because section 6 names the entity but not how it behaves. The POC is evidence of what works against real
+systems, not a design; nothing below is taken from it unless stated. Items marked **Decide** need an answer before
+code.
+
+### 12.1 What a connection is
+
+A named, enabled-or-disabled link from this deployment to one external system, described by an adapter key and a
+small set of settings that the adapter declares. It carries no discovered data and no secrets. Everything that
+follows (discovery, import, source bindings) refers to it by id.
+
+| Field | Rule |
+| --- | --- |
+| Name | Unique, 1 to 100 characters, shown everywhere. |
+| Adapter | One of the adapters this build ships: `simulator` first, then `foresite`, then `cygnet`. Fixed after the connection is first used. |
+| Settings | Adapter-declared typed fields, stored as validated JSON. ForeSite: base address. CygNet: agent address, domain, site, service. Validated against the adapter's declaration on save. |
+| Enabled | A disabled connection keeps its bindings but cannot be tested, discovered or imported. |
+| Revision | Increments on every change; edits send the revision they read, and a stale edit is refused. |
+| Last test | Outcome, message, time and the revision it was run against. A result for an older revision is shown as "out of date". |
+
+**Decide 1: where adapters declare their settings.** Recommended: the Server ships a small catalogue of adapter
+declarations (key, display name, settings fields with labels, help text and validation), shared with the UI through
+the API. The Gateway only executes. This keeps validation and the form in one place and means a new adapter is a
+code change, not a database change. Alternative: the Gateway publishes declarations at startup, which adds a
+dependency on the Gateway being up just to render a form.
+
+### 12.2 Permissions and endpoints
+
+`connections.read` lists and opens connections and shows last test results. `connections.manage` creates, edits,
+enables, disables, deletes and tests. Both are deployment-wide, as section 4 says. Engineers get both; operators
+get neither; the Admin role gets both because it must hold every permission.
+
+| Endpoint | Permission |
+| --- | --- |
+| `GET /connections`, `GET /connections/{id}` | `connections.read` |
+| `GET /connections/adapters` | `connections.read` |
+| `POST /connections` | `connections.manage` |
+| `PUT /connections/{id}` (carries expected revision) | `connections.manage` |
+| `PUT /connections/{id}/enabled` | `connections.manage` |
+| `POST /connections/{id}/test` | `connections.manage` |
+| `DELETE /connections/{id}` | `connections.manage`; refused while any source binding refers to it |
+
+Every change writes an audit event with the actor and the setting names that changed (not values that might later
+hold something sensitive). The CI authorization check lists each endpoint.
+
+### 12.3 Test and status
+
+A test is a bounded, read-only call through the Gateway (default timeout 10 seconds) that answers three things:
+reachable, accepted our identity, and what the system said about itself. Outcomes:
+
+- **Healthy**: the system answered as expected.
+- **Needs attention**: the system answered but refused our identity or reported a problem (for example 401 or 403).
+- **Unreachable**: no answer in the time allowed.
+
+The result is stored against the revision. Testing never changes data in the external system. There is no
+background polling in this slice; a scheduled check belongs with the Status page (delivery step 5).
+
+### 12.4 How the Server reaches adapters
+
+The browser never talks to the Gateway. The Server calls the Gateway with a service credential and the Gateway
+rejects anything without it, which also closes the open `/integrations` and `/data/current` routes from section 9.
+The Gateway selects the adapter from the connection's adapter key and settings, which the Server sends with each
+call; the Gateway stores no connections of its own. **Decide 2:** the credential. Recommended: a shared key from
+configuration, supplied by the installer, rotated by reinstalling or editing configuration; mutual TLS is stronger
+but heavier to install on the single-server deployments we target.
+
+### 12.5 The Connections page
+
+Under Administer, shown when the person holds `connections.read` (managing controls need `connections.manage`).
+Two-pane like Assets: a list on the left (name, adapter, state, last test), details on the right with the settings,
+last test result, a Test button and, for managers, Edit, Disable and Delete. Creating starts with choosing an
+adapter, then the declared fields. The page says plainly that discovery uses the service identity until per-person
+access is decided (section 9, question 2). Strings go through localization and styles through the design tokens,
+as everywhere else.
+
+### 12.6 What this slice deliberately leaves out
+
+Secrets storage, discovery and import (step 4), ForeSite and CygNet adapters beyond reachability (steps 3 and 4),
+scheduled checks and the Status page (step 5), and any change to Assets.
+
+### 12.7 Tests
+
+Persistence: unique name, stale-revision refusal, delete refused when referenced (once bindings exist; the rule is
+written now and tested with a fixture row), audit on every change. API: each endpoint allowed and denied per
+permission, settings validated per adapter, test result tied to revision. Web: list, create, edit, stale edit
+message, test result states, permission gating. Gateway: rejects unauthenticated calls and still serves the
+simulator.
