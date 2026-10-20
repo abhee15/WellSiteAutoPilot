@@ -192,7 +192,8 @@ that Assets already use.
    hide and delete for types, migrate the seeded Administrator role, update tests and the CI authorization check.
 2. Connections: persisted connections, `connections.read` and `connections.manage`, the Connections page, test and
    status, simulator use through an authenticated Gateway.
-3. First real adapter productionised from the POC (ForeSite), with its support note.
+3. Installer support for a configurable, upgrade-preserved Gateway service account (section 12.5a), then the first real
+   adapter productionised from the POC (ForeSite), with its support note.
 4. Discover, preview and the import operation with source bindings and templates; then the CygNet adapter on the
    same path.
 5. Status page and the Administer layout, gating `/system/info`.
@@ -208,8 +209,8 @@ wholesale.
 ## 12. Slice 2 in detail: Connections
 
 Written because section 6 names the entity but not how it behaves. The POC is evidence of what works against real
-systems, not a design; nothing below is taken from it unless stated. Items marked **Decide** need an answer before
-code.
+systems, not a design; nothing below is taken from it unless stated. The three decisions below were researched against the
+repository and are recorded with their reasons; challenge them here before code.
 
 ### 12.1 What a connection is
 
@@ -226,11 +227,27 @@ follows (discovery, import, source bindings) refers to it by id.
 | Revision | Increments on every change; edits send the revision they read, and a stale edit is refused. |
 | Last test | Outcome, message, time and the revision it was run against. A result for an older revision is shown as "out of date". |
 
-**Decide 1: where adapters declare their settings.** Recommended: the Server ships a small catalogue of adapter
-declarations (key, display name, settings fields with labels, help text and validation), shared with the UI through
-the API. The Gateway only executes. This keeps validation and the form in one place and means a new adapter is a
-code change, not a database change. Alternative: the Gateway publishes declarations at startup, which adds a
-dependency on the Gateway being up just to render a form.
+**Decision 1 (researched): adapters declare their own settings; the Server stays provider-neutral.** An earlier
+draft of this section proposed that the Server ship the declarations. That was wrong: ADR-005 keeps provider
+knowledge inside adapters and the core provider-neutral, and a Server catalogue would put ForeSite and CygNet
+fields into the core and into web code. Instead:
+
+- Each adapter project owns one `AdapterDescriptor`: key, display name, description, a `SettingsVersion`, its
+  capabilities (the existing `ProviderCapability` list) and a flat list of setting fields. A field is key, label,
+  help text, kind (text, URL, whole number, yes/no), required, and maximum length. No conditional fields, no
+  nesting, no schema language. This is the small shared form component the owner-agreed direction allows, not a
+  schema-driven form engine or manifest format.
+- The Gateway registers adapters in code and serves `GET /adapters` (descriptors) and
+  `POST /adapters/{key}/validate` (settings in, field problems out). Adapters may check more than types, for
+  example that an address is a well-formed `http` or `https` URL.
+- The Server stores `Settings` as opaque JSON beside the adapter key and the settings version. It never reads a
+  provider field. It refuses to save settings the adapter rejects; if the Gateway cannot be reached the save fails
+  with a clear message rather than storing unvalidated settings.
+- The web page renders whatever descriptor the Server relays. Adding an adapter touches the adapter project and the
+  Gateway registration only. Labels and help from an adapter are data supplied in English; they are not part of the
+  UI localization catalogue until a second language is a requirement.
+- `SettingsVersion` is a cheap hook: when an adapter changes its fields, a connection stored at an older version is
+  shown as "needs review" and must be re-saved. A migration framework is deliberately not built.
 
 ### 12.2 Permissions and endpoints
 
@@ -263,14 +280,62 @@ reachable, accepted our identity, and what the system said about itself. Outcome
 The result is stored against the revision. Testing never changes data in the external system. There is no
 background polling in this slice; a scheduled check belongs with the Status page (delivery step 5).
 
-### 12.4 How the Server reaches adapters
+### 12.4 How callers reach the Gateway (decision 2, researched)
 
-The browser never talks to the Gateway. The Server calls the Gateway with a service credential and the Gateway
-rejects anything without it, which also closes the open `/integrations` and `/data/current` routes from section 9.
-The Gateway selects the adapter from the connection's adapter key and settings, which the Server sends with each
-call; the Gateway stores no connections of its own. **Decide 2:** the credential. Recommended: a shared key from
-configuration, supplied by the installer, rotated by reinstalling or editing configuration; mutual TLS is stronger
-but heavier to install on the single-server deployments we target.
+**Facts that shape it.** The browser never talks to the Gateway. Two components call it: the Server (connection
+management, test, later discovery and import) and the .NET worker (current data for executions, later). The
+installer runs the Gateway, worker and NATS as LocalService and the Server as NetworkService, all on loopback
+except the Server. LocalService presents anonymous credentials on the network, so Windows (Negotiate) sign-in cannot
+identify the worker or the Gateway; NetworkService and virtual accounts all appear as the machine account, so
+Windows sign-in would not tell the Server from any other NetworkService process. The architecture baseline already
+says service-to-service calls use a service identity plus grants.
+
+**What must be true.** (1) An unauthenticated or unknown caller is refused. (2) The two callers are different
+callers with different rights: the worker runs module code and must never reach connection management, test or
+discovery. (3) No secret is shared more widely than it needs to be, and none is on a command line, in source or in
+ordinary application settings (the same rule already applied to the database password and to NATS credentials).
+(4) It works unchanged on the single-server installs we target, in local development and in CI, without Active
+Directory configuration.
+
+**Design: one key per caller, verified by hash.**
+
+- Each caller has a name (`server`, `worker`) and a random 256-bit key generated by the installer.
+- A caller sends `Authorization: WSA-Service <name>:<key>` on every call. The Gateway holds only the SHA-256
+  verifier of each key (the keys are high entropy, so a plain hash is sufficient) and compares in constant time.
+- Where things are stored: the Server's key in the existing protected settings file, readable by the Server's
+  account only; the worker's key in its own file readable by LocalService; the verifiers in a Gateway file readable
+  by LocalService. The worker's account therefore cannot read the Server's key, and neither can learn the other's
+  secret from the verifiers. This is the isolation the two-caller split buys.
+- The Gateway maps the caller name to a role and authorizes each route by role. `server`: everything internal.
+  `worker`: the current-data route only, and later only for bindings that resolve to an enabled connection.
+  Anything else is 403, and both outcomes are logged without echoing the key.
+- Install and upgrade keep existing keys; an explicit rotate option regenerates them and restarts the services.
+- Development and tests supply the keys through configuration (Aspire parameters locally), so no test depends on
+  Windows.
+- The Gateway refuses to listen on a non-loopback address unless HTTPS is configured, because the key is sent in
+  every request.
+- The authentication scheme is a pluggable ASP.NET handler that only produces a caller name. If a deployment later
+  runs per-service domain accounts, a Negotiate or mutual-TLS handler can produce the same caller names without
+  changing any authorization rule.
+
+**Alternatives considered and why not now.**
+
+| Option | Why not the first choice |
+| --- | --- |
+| Windows (Negotiate) with an allowed-account list | LocalService cannot authenticate; NetworkService and virtual accounts collapse to the machine account, so it identifies the machine, not the service. Needs per-service domain accounts and IT agreement to be meaningful. Kept as a later handler. |
+| Named pipe with an access list | Operating-system enforced and secret-free, but Windows-only security, so CI and Aspire on Linux cannot exercise it, and it rules out a Gateway on another host. |
+| Mutual TLS | Certificate issuance, renewal and trust for three loopback services is more installer and support burden than the threat justifies. |
+| One shared key for all callers | Simplest, but the worker could then call connection management. Rejected because the worker runs module code. |
+
+**What this does not protect against.** A process running as the same account as a caller can read that caller's
+key, and a local administrator can read everything. On a single host those are inside the trust boundary; the
+protection is against the network, other accounts, and the worker reaching the Server's privileges.
+
+**Looking ahead (step 4).** When a worker asks for current data it must name a connection and a binding, not supply
+settings. The Gateway therefore needs an authoritative way to obtain a connection's settings by id. Recommended: a
+narrow Server endpoint the Gateway calls with the `server`-equivalent internal key, cached by connection revision,
+so the Gateway still stores nothing of its own. This is recorded now so slice 2 does not paint it into a corner;
+it is built in step 4. In slice 2 only the Server calls the Gateway, and it sends the settings itself.
 
 ### 12.5 The Connections page
 
@@ -281,9 +346,25 @@ adapter, then the declared fields. The page says plainly that discovery uses the
 access is decided (section 9, question 2). Strings go through localization and styles through the design tokens,
 as everywhere else.
 
+### 12.5a Identity the Gateway uses toward providers (decision 3)
+
+The Gateway's own Windows account is the identity ForeSite and CygNet see. Under LocalService that identity is
+anonymous on the network, so real Windows-authenticated provider calls will fail. The installer today deletes and
+recreates every service with a fixed account on each run, so an account an administrator sets by hand would be lost
+at the next install or upgrade.
+
+Therefore, before the first real adapter (step 3), the installer needs a way to run the Gateway under a chosen
+account (a domain or group-managed service account) and to keep it on upgrade. This is a small separate slice, not
+part of Connections itself, and it matches the research note that service accounts must become configurable.
+For slice 2 nothing changes: the simulator needs no provider identity.
+
+The test result states which identity the Gateway used ("acting as DOMAIN\account"), read from the running process,
+so a permission problem is diagnosable from the page. Connection settings can never select or change the account.
+Per-person CygNet attribution remains the open requirement in section 9.
+
 ### 12.6 What this slice deliberately leaves out
 
-Secrets storage, discovery and import (step 4), ForeSite and CygNet adapters beyond reachability (steps 3 and 4),
+Secrets storage (the caller keys in 12.4 are infrastructure, not connection data), discovery and import (step 4), ForeSite and CygNet adapters beyond reachability (steps 3 and 4),
 scheduled checks and the Status page (step 5), and any change to Assets.
 
 ### 12.7 Tests
