@@ -1,9 +1,12 @@
 namespace WellSiteAutoPilot.Api.Contracts.Connections;
 
 public sealed record AdapterResponse(
-    string Key, string DisplayName, string DefaultEndpoint, bool SupportsDiscovery, string Description);
+    string Key, string DisplayName, string DefaultEndpoint, bool SupportsDiscovery, string Description,
+    string[]? SettingKeys = null);
 
-public sealed record ConnectionRequest(string Name, string AdapterKey, string Endpoint, bool Enabled, int? Revision);
+public sealed record ConnectionRequest(
+    string Name, string AdapterKey, string Endpoint, bool Enabled, int? Revision,
+    Dictionary<string, string>? Settings = null);
 
 public sealed record ConnectionTestResponse(
     int TestedRevision, DateTimeOffset TestedAtUtc, string Health, string? HealthReason,
@@ -11,7 +14,7 @@ public sealed record ConnectionTestResponse(
 
 public sealed record ConnectionResponse(
     Guid Id, string Name, string AdapterKey, string Endpoint, bool Enabled, int Revision,
-    DateTimeOffset UpdatedAtUtc, ConnectionTestResponse? LastTest);
+    DateTimeOffset UpdatedAtUtc, ConnectionTestResponse? LastTest, Dictionary<string, string>? Settings = null);
 
 public sealed record DiscoveredAssetResponse(
     string ExternalId, string DisplayName, string ProviderType, string? ParentExternalId,

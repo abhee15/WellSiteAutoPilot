@@ -235,6 +235,11 @@ static IResult? ValidateConnection(ConnectionInput input, AdapterRegistry regist
         return Results.BadRequest(new { error = "INVALID", message = "Unknown adapter." });
     if (!Uri.TryCreate(input.Endpoint, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
         return Results.BadRequest(new { error = "INVALID", message = "The endpoint must be an http(s) URL." });
+    if (input.AdapterKey == "cygnet")
+    {
+        try { WellSiteAutoPilot.Integration.CygNet.CygNetScope.FromSettings(input.Settings); }
+        catch (ArgumentException ex) { return Results.BadRequest(new { error = "INVALID", message = ex.Message }); }
+    }
     return null;
 }
 

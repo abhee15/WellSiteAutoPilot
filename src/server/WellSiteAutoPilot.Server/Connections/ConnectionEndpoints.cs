@@ -26,13 +26,15 @@ public static class ConnectionEndpoints
     // Template levels read the discovered metadata of the same name; "well" is always the leaf.
     private static readonly Dictionary<string, string> LevelFallbacks = new()
     {
-        ["asset"] = "Unassigned", ["wellType"] = "Unknown type", ["deviceType"] = "Unspecified device", ["well"] = ""
+        ["asset"] = "Unassigned", ["wellType"] = "Unknown type", ["deviceType"] = "Unspecified device", ["well"] = "",
+        ["site"] = "Unknown site", ["service"] = "Unknown service", ["facilityType"] = "Unknown facility type"
     };
 
     private static readonly HierarchyTemplateResponse[] Templates =
     [
         new("asset-type-device-well", "Asset > Well type > Device type > Well", ["asset", "wellType", "deviceType", "well"]),
-        new("asset-type-well", "Asset > Well type > Well", ["asset", "wellType", "well"])
+        new("asset-type-well", "Asset > Well type > Well", ["asset", "wellType", "well"]),
+        new("cygnet-site-service-facility", "CygNet: Site > Service > Facility", ["site", "service", "well"])
     ];
 
     private const string WellSchema =
@@ -94,7 +96,7 @@ public static class ConnectionEndpoints
             if (levels is null || levels[^1] != "well" || levels.Distinct().Count() != levels.Length ||
                 levels.Any(l => !LevelFallbacks.ContainsKey(l)))
                 throw new WellSiteAutoPilotException("CONNECTION_TEMPLATE_INVALID", FailureKind.Validation,
-                    "A template needs distinct levels from asset, wellType, deviceType and ends with well.");
+                    "A template needs distinct, known levels (asset, wellType, deviceType, site, service, facilityType) and must end with well.");
             var (result, discovery) = await Discover(f, assets, id, ct);
             if (result is not null || discovery is null) return result!;
             var types = await assets.ListAssetTypesAsync(ct);

@@ -36,5 +36,30 @@ Simulator Healthy; ForeSite discovered 10 wells; Apply created group hierarchy (
 - ForeSite takes about 90 s after start to warm its well cache before `Wells/All` returns 200.
 - The generated TS client is not committed (repo convention); regenerate with `dev/scripts/generate-api-client.mjs`.
 
+## CygNet adapter (second POC slice)
+
+Modelled on ForeSite's well-configuration **Facility picker**, which calls `DataConnection/AvailableFacilitiesWithStatus/{domain}/{site}/{service}` and ForeSite's `CygNetFacilityHelper.GetWellFacilities`:
+1. `ServiceInformation.GetAssociatedService(domain/site/service, ServiceType.FAC)` resolves the FAC service.
+2. `Facilities.Client.GetFacilityTagList("facility_site = '..' AND facility_type = 'WELL' AND facility_service = '..'")` lists tags (the well type name is a ForeSite system setting; default `WELL`).
+3. `ReadFacility(tag)` gives `Type` and `Description`. A `SecurityException` on one facility means component-level security hides it; ForeSite reports this as a "readFailed" flag, not an error.
+4. The picker shows `FacilityId | Type | Description`.
+
+What was built:
+| Area | Change |
+|---|---|
+| Adapter | `src/integration/WellSiteAutoPilot.Integration.CygNet`: `CygNetFacilityDiscoveryProvider` (discovery, health, metadata), `CygNetScope` (domain, site, service, facilityType). External id is `site.service::facilityId`. No CygNet assemblies are loaded. |
+| Agent | `src/integration/WellSiteAutoPilot.CygNetAgent`: small ASP.NET Core process, Negotiate auth + impersonation, `GET /health`, `GET /facilities?domain&site&service&type`. NOT in the solution; built on a CygNet machine with `-p:CygNetLibPath=<CygNet Bin>`. |
+| Gateway/Server/UI | Connections now carry `Settings`; adapters declare `SettingKeys` (the UI renders the fields). New `cygnet` adapter; new built-in template `cygnet-site-service-facility`; template levels `site`, `service`, `facilityType` added. |
+| Tests | `tests/WellSiteAutoPilot.CygNetAdapterTests` (recorded; live with `CYGNET_AGENT_URL`, `CYGNET_DOMAIN`, `CYGNET_SITE`, `CYGNET_SERVICE`). |
+
+Findings:
+- **The agent can be net10, not .NET Framework.** ForeSite's own net10 host (`CygNetWrapper.Net10.csproj`) references the same `CygNet.API.*` assemblies, so `cygnet-wami-integration-research.md` section 1a (net48 agent) can be relaxed. The agent project compiled against the 9.9 assemblies. Whether the native `Cx*64.dll` pieces load in a given install still needs the owner's box.
+- **Health:** any answer from the agent is Healthy; agent up but CygNet unreachable (503) is Degraded; agent down is Unavailable. Same philosophy as ForeSite.
+- **Not proven live:** this box has no CygNet install (`C:\CygNet` holds only ODBC support). The agent ran here and returned 401 for anonymous callers and 503 for CygNet calls, as designed. The facility read itself was verified only against a recorded-shape fake agent (3 facilities discovered; template Apply created Site > Service > Facility, idempotent). Run the live check on a CygNet machine.
+- Domain, site and service are typed in by the user. The agent could later expose `GET /services` (ForeSite's `GetFACServicesByDomain`, `GetCurrentValueServicesForDomain`) so the UI can offer pickers.
+- Other facility kinds: the agent takes `type`, so pads, tanks or meters are the same call with a different `facilityType` (use `parentFacilityId` + facility attribute for children, as `GetFacilities` does).
+- Gap: the Server still stores imported assets as `foresite-well`/`foresite-group` types; a provider-neutral asset type is needed.
+- Gap: the `readFailed` (partial permission) flag is dropped by the discovery contract; add a warnings channel.
+
 ## Running the POC
 See `connections-205-run.md`.

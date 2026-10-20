@@ -1,14 +1,14 @@
 import './activity.css';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-interface AdapterResponse { key: string; displayName: string; defaultEndpoint: string; supportsDiscovery: boolean; description: string }
+interface AdapterResponse { key: string; displayName: string; defaultEndpoint: string; supportsDiscovery: boolean; description: string; settingKeys?: string[] | null }
 interface ConnectionTest {
   testedRevision: number; testedAtUtc: string; health: string; healthReason?: string | null;
   compatibility: string; compatibilityReason?: string | null; supportsDiscovery: boolean;
 }
 interface ConnectionResponse {
   id: string; name: string; adapterKey: string; endpoint: string; enabled: boolean; revision: number;
-  updatedAtUtc: string; lastTest?: ConnectionTest | null;
+  updatedAtUtc: string; lastTest?: ConnectionTest | null; settings?: Record<string, string> | null;
 }
 interface DiscoveredAsset {
   externalId: string; displayName: string; providerType: string; parentExternalId?: string | null;
@@ -43,7 +43,7 @@ function healthClass(value: string): string {
   return value === 'Healthy' ? 'status-ok' : value === 'Degraded' ? 'status-warn' : 'status-bad';
 }
 
-interface Draft { id: string | null; name: string; adapterKey: string; endpoint: string; enabled: boolean; revision: number | null }
+interface Draft { id: string | null; name: string; adapterKey: string; endpoint: string; enabled: boolean; revision: number | null; settings: Record<string, string> }
 
 /** Administration > Connections: adapters, saved connections, test evidence, discovery preview and import. */
 export function ConnectionsPage() {
@@ -81,11 +81,11 @@ export function ConnectionsPage() {
 
   const startNew = () => {
     const first = adapters[0];
-    setDraft({ id: null, name: '', adapterKey: first?.key ?? '', endpoint: first?.defaultEndpoint ?? '', enabled: true, revision: null });
+    setDraft({ id: null, name: '', adapterKey: first?.key ?? '', endpoint: first?.defaultEndpoint ?? '', enabled: true, revision: null, settings: {} });
   };
 
   const save = () => draft && run('save', async () => {
-    const body = { name: draft.name, adapterKey: draft.adapterKey, endpoint: draft.endpoint, enabled: draft.enabled, revision: draft.revision };
+    const body = { name: draft.name, adapterKey: draft.adapterKey, endpoint: draft.endpoint, enabled: draft.enabled, revision: draft.revision, settings: draft.settings };
     if (draft.id) await call('PUT', `/${draft.id}`, body); else await call('POST', '', body);
     setDraft(null); await refresh();
     setMessage({ kind: 'ok', text: 'Connection saved. Test it to record evidence for this revision.' });
@@ -159,13 +159,19 @@ export function ConnectionsPage() {
           <label>Adapter
             <select value={draft.adapterKey} disabled={draft.id !== null}
               onChange={e => setDraft({ ...draft, adapterKey: e.target.value,
-                endpoint: adapters.find(a => a.key === e.target.value)?.defaultEndpoint ?? draft.endpoint })}>
+                endpoint: adapters.find(a => a.key === e.target.value)?.defaultEndpoint ?? draft.endpoint, settings: {} })}>
               {adapters.map(a => <option key={a.key} value={a.key}>{a.displayName}</option>)}
             </select>
           </label>
           <label>Endpoint
             <input type="url" value={draft.endpoint} required onChange={e => setDraft({ ...draft, endpoint: e.target.value })} />
           </label>
+          {(adapters.find(a => a.key === draft.adapterKey)?.settingKeys ?? []).map(key => (
+            <label key={key}>{key}
+              <input value={draft.settings[key] ?? ''}
+                onChange={e => setDraft({ ...draft, settings: { ...draft.settings, [key]: e.target.value } })} />
+            </label>
+          ))}
           <label>
             <span><input type="checkbox" checked={draft.enabled}
               onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /> Enabled</span>
@@ -215,7 +221,7 @@ export function ConnectionsPage() {
                           disabled={busy !== null || !c.enabled || !supportsDiscovery(c.adapterKey)}
                           onClick={() => void discover(c)}>{busy === `discover-${c.id}` ? 'Discovering…' : 'Discover'}</button>
                         <button type="button" className="secondary-button" disabled={busy !== null}
-                          onClick={() => setDraft({ id: c.id, name: c.name, adapterKey: c.adapterKey, endpoint: c.endpoint, enabled: c.enabled, revision: c.revision })}>Edit</button>
+                          onClick={() => setDraft({ id: c.id, name: c.name, adapterKey: c.adapterKey, endpoint: c.endpoint, enabled: c.enabled, revision: c.revision, settings: c.settings ?? {} })}>Edit</button>
                         <button type="button" className="secondary-button" disabled={busy !== null}
                           onClick={() => void remove(c)}>Delete</button>
                       </div>

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.CygNet;
 using WellSiteAutoPilot.Integration.ForeSite;
 
 namespace WellSiteAutoPilot.IntegrationGateway.Connections;
@@ -13,7 +14,8 @@ public sealed record ConnectionRecord(
     bool Enabled,
     int Revision,
     DateTimeOffset UpdatedAtUtc,
-    ConnectionTestResult? LastTest);
+    ConnectionTestResult? LastTest,
+    Dictionary<string, string>? Settings = null);
 
 public sealed record ConnectionTestResult(
     int TestedRevision,
@@ -24,9 +26,9 @@ public sealed record ConnectionTestResult(
     string? CompatibilityReason,
     bool SupportsDiscovery);
 
-public sealed record AdapterInfo(string Key, string DisplayName, string DefaultEndpoint, bool SupportsDiscovery, string Description);
+public sealed record AdapterInfo(string Key, string DisplayName, string DefaultEndpoint, bool SupportsDiscovery, string Description, string[]? SettingKeys = null);
 
-public sealed record ConnectionInput(string Name, string AdapterKey, string Endpoint, bool Enabled, int? Revision);
+public sealed record ConnectionInput(string Name, string AdapterKey, string Endpoint, bool Enabled, int? Revision, Dictionary<string, string>? Settings = null);
 
 public sealed record DiscoveryResult(Guid ConnectionId, DateTimeOffset DiscoveredAtUtc, IReadOnlyCollection<DiscoveredAsset> Assets);
 
@@ -38,7 +40,10 @@ public sealed class AdapterRegistry(IHttpClientFactory clients)
         new("foresite", "ForeSite (read-only)", "http://localhost",
             true, "Discovers wells from the ForeSite WellService; health from Administration/ServiceStatus. Reads are scoped to the ForeSite user's asset access."),
         new("simulator", "Provider simulator", "http://127.0.0.1:5091",
-            false, "Development simulator. Health only; no asset discovery.")
+            false, "Development simulator. Health only; no asset discovery."),
+        new("cygnet", "CygNet (read-only, via CygNet agent)", "http://127.0.0.1:5099",
+            true, "Discovers facilities (default type WELL) from a CygNet FAC service through the CygNet Native Agent on a CygNet machine. Windows identity; CygNet permissions apply.",
+            ["domain", "site", "service", "facilityType"])
     ];
 
     public IReadOnlyCollection<AdapterInfo> List() => Adapters;
@@ -54,6 +59,10 @@ public sealed class AdapterRegistry(IHttpClientFactory clients)
             case "foresite":
                 var foresite = new ForeSiteAssetDiscoveryProvider(client, "foresite:" + connection.Id);
                 return (foresite, foresite, foresite);
+            case "cygnet":
+                var cygnet = new CygNetFacilityDiscoveryProvider(
+                    client, CygNetScope.FromSettings(connection.Settings), "cygnet:" + connection.Id);
+                return (cygnet, cygnet, cygnet);
             case "simulator":
                 return (new Providers.SimulatorCurrentDataProvider(client), null, null);
             default:
@@ -87,7 +96,7 @@ public sealed class ConnectionStore(string path, TimeProvider time)
         {
             var items = Load();
             var created = new ConnectionRecord(Guid.NewGuid(), input.Name.Trim(), input.AdapterKey, input.Endpoint.Trim(),
-                input.Enabled, 1, time.GetUtcNow(), null);
+                input.Enabled, 1, time.GetUtcNow(), null, input.Settings);
             items.Add(created);
             Save(items);
             return created;
@@ -107,7 +116,7 @@ public sealed class ConnectionStore(string path, TimeProvider time)
             if (input.AdapterKey != current.AdapterKey) throw new InvalidOperationException("The adapter of a connection cannot be changed.");
             var updated = current with
             {
-                Name = input.Name.Trim(), Endpoint = input.Endpoint.Trim(), Enabled = input.Enabled,
+                Name = input.Name.Trim(), Endpoint = input.Endpoint.Trim(), Enabled = input.Enabled, Settings = input.Settings,
                 Revision = current.Revision + 1, UpdatedAtUtc = time.GetUtcNow()
             };
             items[index] = updated;

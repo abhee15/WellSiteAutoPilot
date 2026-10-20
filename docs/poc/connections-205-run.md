@@ -11,3 +11,5 @@
 5. Adapter tests: `FORESITE_BASE_URL=http://localhost dotnet run --project tests/WellSiteAutoPilot.ForeSiteAdapterTests`.
 
 The local launcher used for the POC (Aspire's DCP did not work on the POC box) is not committed.
+
+CygNet: build the agent on a machine with CygNet (dotnet build src/integration/WellSiteAutoPilot.CygNetAgent -p:CygNetLibPath=<CygNet Bin>), run it with --urls http://0.0.0.0:5099 under a Windows account that has CygNet permissions, then add a CygNet connection (endpoint = agent URL; settings domain, site, service, facilityType). Tests: `CYGNET_AGENT_URL=... dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests`.
