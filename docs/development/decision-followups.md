@@ -52,20 +52,16 @@ merged as d23ef0d after seven passing checks. The next agreed Phase 1 priority
 is the real Windows browser diagnostic under #92. Enum generation remains
 queued and does not interrupt that investigation.
 
-## Connections and asset discovery — 2026-10-19
+## Connections and asset discovery — agreed simple-first scope, 2026-10-20
 
-Captured product-owner brainstorming in [Connections, templates, and asset discovery](../architecture/connections-and-asset-discovery.md). Start from named provider connections and adapter-supplied starter templates, discover selected metadata into a customer-defined ACL hierarchy, retain explicit source bindings, then configure logic data bindings separately. The note distinguishes existing contracts, supported direction, proposed UX, and unresolved implementation choices. ForeSite WCF/NTLM contract inspection is a prerequisite to its adapter design. Preserve the current roadmap priority; this discussion does not request immediate adapter implementation.
+The owner agreed that Connections is the next foundation after authentication is completed and validated. Consolidated [design](../architecture/connections-and-asset-discovery.md) and [high-level implementation plan](connections-implementation-plan.md) supersede earlier broad installer/plugin proposals.
 
+- Connections are runtime configuration for independently installed providers.
+- Maintain each adapter in its own project inside the AutoPilot repository; explicitly register, test and release supported adapters with AutoPilot initially.
+- Deliver cohesive slices: saved connections and authorized simulator use; real read-only ForeSite validation; discovery/preview/apply; configured Shadow logic usage; then additional concrete capabilities/providers.
+- Use documented tested support profiles and targeted checks. Do not assume ForeSite/WAMI versioned contracts, automatic release detection or a compatibility graph.
+- Retain protected configuration, credentials, stable IDs, concurrency/audit, exact-Asset and Gateway authorization, and simple referenced-connection protection. No general dependency or plugin engine is required.
+- Keep the boundary extensible, but defer a public SDK, independent adapter distribution and external hosting until real adapter experience and a concrete need justify them.
+- CygNet per-person attribution/enforcement and unattended execution identity remain unresolved before writes; read-only Connections do not silently settle that requirement.
 
-### Runtime connections and external adapter direction — 2026-10-20
-
-The owner requested refinement of the same documentation branch. Connections are runtime configuration independent of provider installation/upgrade and the AutoPilot installer; the earlier installer proposals are superseded. Treat ForeSite/WAMI as having no provider-versioned contracts pending inspection. Record compatibility evidence and selected support profiles without promising automatic release detection; keep capability checks read-only and invalidate affected validation when configuration/adapter evidence changes.
-
-The [refined design](../architecture/connections-and-asset-discovery.md#refinement-runtime-connections-compatibility-evidence-and-external-adapters) explores independently developed third-party adapters against a future published SDK. Reuse the current semantic interfaces, prove them with one real adapter, and defer external hosting until a concrete requirement warrants a versioned wire protocol. Connections remain AutoPilot-managed; third-party tools use supported authorized APIs, never direct database writes. Hosting, packaging and trust details are recommendations/open decisions, not implemented plugin support. PR #205 must remain draft and unmerged until explicit owner approval.
-
-
-### Connections foundation review — 2026-10-20
-
-The owner positions Connections after completion/validation of authentication. The [foundation review](../architecture/connections-and-asset-discovery.md#foundation-review-lifecycle-authority-and-execution-dependencies) records remaining lifecycle, instance identity, administration/use authority, Gateway authorization, revision/dispatch, load/readiness and credential-recovery gaps. Initial protected-administrator connection management/discovery is a recommendation, not an accepted new permission model. Keep exact-Asset authorization, preserve referenced records, avoid silent source replacement, and validate the real Gateway boundary before enabling provider access.
-
-The existing CygNet per-person attribution/enforcement requirement remains unresolved, especially for queued and autonomous work. Connection authentication alone does not settle it. Prioritize a complete simulator-backed connection-management and authorized-use slice, then real ForeSite read-only validation and discovery; external SDK/hosting machinery remains deferred. Preserve PR #205's explicit merge hold.
+PR #205 remains draft and unmerged until explicit owner approval. This documentation plan does not interrupt authentication work or claim implementation.
