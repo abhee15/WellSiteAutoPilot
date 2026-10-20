@@ -30,7 +30,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/security/windows-groups/{groupSid}/grants"): ("ListWindowsGroupAccessGrants", "SecurityManage"),
     ("POST", "/security/windows-groups/{groupSid}/grants"): ("CreateWindowsGroupAccessGrant", "SecurityManage"),
     ("PUT", "/security/windows-groups/{groupSid}/grants/{grantId:guid}/deactivate"): ("DeactivateWindowsGroupAccessGrant", "SecurityManage"),
-    ("POST", "/asset-types"): ("CreateAssetType", "AssetsManage"),
+    ("POST", "/asset-types"): ("CreateAssetType", "AssetTypesManage"),
     ("GET", "/asset-types"): ("ListAssetTypes", "AssetsRead"),
     ("GET", "/asset-types/{assetTypeId:guid}"): ("GetAssetType", "AssetsRead"),
     ("GET", "/assets/capabilities"): ("GetAssetCreationCapabilities", "AssetsRead"),

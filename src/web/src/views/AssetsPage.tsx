@@ -95,7 +95,7 @@ export function AssetsPage({
     .some(key => criteria[key] !== DEFAULT_ASSET_INVENTORY_CRITERIA[key]);
   const canAdd = !!userId && !!capabilities
     && (capabilities.canCreateRoot === true || capabilities.canCreateUnderAuthorizedParents === true);
-  const canManageTypes = permissions.includes('assets.manage');
+  const canManageTypes = permissions.includes('asset-types.manage');
   const select = (id: string | null) => { setDetail(id); setAdding(false); };
   const showTypeAssets = (typeName: string) => {
     setCriteria({ ...DEFAULT_ASSET_INVENTORY_CRITERIA, search: typeName });

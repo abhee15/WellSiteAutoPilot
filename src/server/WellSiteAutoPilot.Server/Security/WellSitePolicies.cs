@@ -16,6 +16,8 @@ public static class WellSitePolicies
     public const string RecommendationsRead = WellSitePermissions.RecommendationsRead;
     public const string RecommendationsDecide = WellSitePermissions.RecommendationsDecide;
     public const string SecurityManage = WellSitePermissions.SecurityManage;
+    public const string AssetTypesManage = WellSitePermissions.AssetTypesManage;
+    public const string AssetTypesHide = WellSitePermissions.AssetTypesHide;
 
     public static void AddGrantPolicies(AuthorizationOptions options)
     {

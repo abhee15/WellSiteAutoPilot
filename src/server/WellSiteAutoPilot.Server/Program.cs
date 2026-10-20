@@ -461,7 +461,7 @@ v1.MapPost(
     })
     .WithName("CreateAssetType")
     .NotifiesChange(ChangeArea.Assets)
-    .RequireAuthorization(WellSitePolicies.AssetsManage)
+    .RequireAuthorization(WellSitePolicies.AssetTypesManage)
     .Produces<AssetTypeResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
@@ -490,8 +490,7 @@ v1.MapGet(
     async (IRequestAccessRepository grants, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
         var hints = await grants.GetPermissionHintsAsync(access.Subject, cancellationToken);
-        var root = await grants.HasAdministratorAsync(access.Subject, cancellationToken) &&
-            await grants.HasAllAssetPermissionAsync(access.Subject, WellSitePermissions.AssetsManage, cancellationToken);
+        var root = await grants.HasAllAssetPermissionAsync(access.Subject, WellSitePermissions.AssetsManage, cancellationToken);
         return new AssetCreationCapabilitiesResponse(root, hints.Contains(WellSitePermissions.AssetsManage));
     })
     .WithName("GetAssetCreationCapabilities")
