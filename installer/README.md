@@ -27,10 +27,28 @@ The installer pipeline will be introduced with the first runnable application sk
 
 `LocalService` presents anonymous credentials on the network, so a Server running as `LocalService`
 cannot complete a Negotiate sign-in and browsers prompt for credentials in a loop. Each service
-definition in the bootstrapper carries its own account. A site that needs a managed service account
-or a domain account can change a service's log-on account after installation (re-running the installer
-resets it to the table above); the Server's account then needs read access to the machine settings
-file described below.
+definition in the bootstrapper carries its own account; re-running the installer resets the Server,
+NATS and worker to the table above.
+
+### The Integration Gateway's account
+
+The Gateway's Windows account is the identity ForeSite and CygNet see when it calls them, and
+`LocalService` is anonymous on the network, so a real provider connection needs a domain account or,
+better, a group-managed service account (gMSA). Choose it at install time; the choice is remembered, so
+an upgrade that does not mention it keeps it.
+
+| Choice | Silent install | Bootstrapper |
+| --- | --- | --- |
+| A group-managed service account (name ends in `$`; Windows holds the password) | `/GATEWAYACCOUNT=CORP\svc-wsa-gateway$` | `--gateway-account` |
+| An ordinary domain or local account (`.\name`) | `/GATEWAYACCOUNT=CORP\svc-wsa` with `/GATEWAYACCOUNTPASSWORD=` or `WSA_GATEWAY_ACCOUNT_PASSWORD` in the environment | `--gateway-account` (password in `WSA_GATEWAY_ACCOUNT_PASSWORD`) |
+| Back to `LocalService` | `/GATEWAYACCOUNTDEFAULT=yes` | `--gateway-account-default` |
+
+The installer lets the account log on as a service (local security policy; a domain policy that sets
+that right replaces it), starts the Gateway under it, and makes the Gateway's key file readable by it
+and by no other service. An ordinary account's password is never stored, so an upgrade needs it again
+(the installer says so); a gMSA has none to supply. The account is remembered only after the Gateway
+has started under it. Connection settings can never select the account, and a connection's test
+result states which account the Gateway used.
 
 ## HTTPS
 

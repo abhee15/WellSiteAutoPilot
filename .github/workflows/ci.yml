@@ -853,6 +853,66 @@ jobs:
           $global:LASTEXITCODE = 0
           Wait-ServedThumbprint $smokePort $pfxThumbprint
 
+          # The Integration Gateway's account: a named local account is used, remembered across an upgrade that
+          # does not mention it, never stored with its password, and can be returned to LocalService.
+          $gatewayService = "Weatherford.WellSiteAutoPilot.IntegrationGateway"
+          function Get-ServiceAccount([string]$name) {
+            ((& sc.exe qc $name | Select-String "SERVICE_START_NAME").ToString() -split ":", 2)[1].Trim()
+          }
+          function Wait-GatewayReady {
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              try {
+                if ((Invoke-WebRequest "http://127.0.0.1:5081/health/ready" -UseBasicParsing).StatusCode -eq 200) { return }
+              } catch { Start-Sleep -Seconds 1 }
+            }
+            throw "The Integration Gateway did not become ready."
+          }
+          $gatewayUser = "wsagw" + (Get-Random -Minimum 1000 -Maximum 9999)
+          $gatewayPassword = "Aa1!" + [guid]::NewGuid().ToString("N")
+          New-LocalUser -Name $gatewayUser -Password (ConvertTo-SecureString $gatewayPassword -AsPlainText -Force) -PasswordNeverExpires | Out-Null
+          try {
+            $env:WSA_GATEWAY_ACCOUNT_PASSWORD = $gatewayPassword
+            $output = Invoke-BootstrapperInstall @("--gateway-account", ".\$gatewayUser")
+            if ($output.Contains($gatewayPassword)) { throw "The Gateway account password was printed." }
+            if ((Get-ServiceAccount $gatewayService) -notmatch [regex]::Escape($gatewayUser)) {
+              throw "The Gateway did not take the requested account: $(Get-ServiceAccount $gatewayService)"
+            }
+            Wait-GatewayReady
+            $accountSettings = Get-Content $securitySettingsPath -Raw
+            if (($accountSettings | ConvertFrom-Json).Installer.GatewayAccount -ne ".\$gatewayUser") { throw "The Gateway account was not remembered." }
+            if ($accountSettings.Contains($gatewayPassword)) { throw "The Gateway account password was stored in the settings file." }
+
+            # An upgrade that does not mention the account keeps it.
+            $null = Invoke-BootstrapperInstall @()
+            if ((Get-ServiceAccount $gatewayService) -notmatch [regex]::Escape($gatewayUser)) { throw "An upgrade lost the Gateway account." }
+            Wait-GatewayReady
+
+            # The password is never stored, so an upgrade without it is refused with a message.
+            Remove-Item Env:WSA_GATEWAY_ACCOUNT_PASSWORD
+            $noPassword = & $bootstrapperExe install-services --install-root $installRoot 2>&1 | Out-String
+            if ($LASTEXITCODE -eq 0 -or $noPassword -notmatch "needs its password") {
+              throw "A missing Gateway account password was not refused clearly: $noPassword"
+            }
+            $global:LASTEXITCODE = 0
+            Wait-GatewayReady
+
+            # A malformed name is refused before anything is changed.
+            $badName = & $bootstrapperExe install-services --install-root $installRoot --gateway-account "not an account" 2>&1 | Out-String
+            if ($LASTEXITCODE -eq 0 -or $badName -notmatch "--gateway-account must look like") { throw "A malformed Gateway account was not refused: $badName" }
+            $global:LASTEXITCODE = 0
+
+            $null = Invoke-BootstrapperInstall @("--gateway-account-default")
+            if ((Get-ServiceAccount $gatewayService) -notmatch "LocalService") { throw "The Gateway did not return to LocalService." }
+            Wait-GatewayReady
+            if (($(Get-Content $securitySettingsPath -Raw) | ConvertFrom-Json).Installer.GatewayAccount -ne "NT AUTHORITY\LocalService") {
+              throw "Returning to LocalService was not remembered."
+            }
+          } finally {
+            Remove-Item Env:WSA_GATEWAY_ACCOUNT_PASSWORD -ErrorAction SilentlyContinue
+            Remove-LocalUser -Name $gatewayUser -ErrorAction SilentlyContinue
+          }
+          Wait-ServedThumbprint $smokePort $pfxThumbprint
+
           $uninstaller = Join-Path $installRoot "Uninstall.exe"
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) {

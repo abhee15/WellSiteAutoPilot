@@ -376,6 +376,110 @@ internal static class InstallerSettings
         return root.ToJsonString(WriteOptions);
     }
 
+    // The Windows account the Integration Gateway runs as, and therefore the identity ForeSite and CygNet see.
+    // LocalService is anonymous on the network, so a real provider needs a domain or group-managed service
+    // account. The choice is remembered so an upgrade keeps it; a password is never stored.
+    public const string GatewayAccountName = "GatewayAccount";
+    public const string GatewayAccountPasswordVariable = "WSA_GATEWAY_ACCOUNT_PASSWORD";
+    public const string DefaultGatewayAccount = @"NT AUTHORITY\LocalService";
+
+    /// <summary>DOMAIN\name or .\name: letters, digits, dot, dash and underscore, plus a trailing $ on the name.</summary>
+    private static bool IsAccountShape(string value)
+    {
+        var parts = value.Split('\\');
+        if (parts.Length != 2) return false;
+        var (domain, name) = (parts[0], parts[1]);
+        static bool Plain(string text, bool allowDollar) =>
+            text.Length is >= 1 and <= 63 && char.IsAsciiLetterOrDigit(text[0]) &&
+            text.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_' || allowDollar && c == '$');
+        return (domain == "." || Plain(domain, false)) && Plain(name, true);
+    }
+
+    public static bool IsDefaultGatewayAccount(string account) =>
+        string.Equals(account, DefaultGatewayAccount, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A group-managed service account has a name ending in $ and Windows holds its password.</summary>
+    public static bool IsManagedServiceAccount(string account) => account.EndsWith('$');
+
+    /// <summary>A Gateway account as DOMAIN\name (or .\name for a local account); refuses anything else.</summary>
+    public static string ParseGatewayAccount(string? option)
+    {
+        var value = Clean(option);
+        if (value is null) throw new InvalidOperationException("--gateway-account needs an account such as CORP\\svc-wsa-gateway$.");
+        if (IsDefaultGatewayAccount(value)) return DefaultGatewayAccount;
+        if (!IsAccountShape(value))
+        {
+            throw new InvalidOperationException(
+                "--gateway-account must look like DOMAIN\\account (use .\\account for a local account), " +
+                "or be left out to run as LocalService.");
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// The account the Gateway should run as: the one requested now, else the one an earlier install remembered,
+    /// else LocalService. Asking for both a named account and the default is a contradiction.
+    /// </summary>
+    public static (string Account, bool Changed) ChooseGatewayAccount(string? requested, bool useDefault, string? stored)
+    {
+        if (useDefault && Clean(requested) is not null)
+        {
+            throw new InvalidOperationException("Use either --gateway-account or --gateway-account-default, not both.");
+        }
+
+        var effectiveStored = stored is null ? DefaultGatewayAccount : ParseGatewayAccount(stored);
+        var chosen = useDefault ? DefaultGatewayAccount
+            : Clean(requested) is null ? effectiveStored : ParseGatewayAccount(requested);
+        return (chosen, !string.Equals(chosen, effectiveStored, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>A password is needed for a named account that Windows does not manage the password of.</summary>
+    public static bool GatewayAccountNeedsPassword(string account) =>
+        !IsDefaultGatewayAccount(account) && !IsManagedServiceAccount(account);
+
+    public static string? ReadGatewayAccount(string? settingsJson) =>
+        ReadString(ParseRoot(settingsJson), InstallerSection, GatewayAccountName);
+
+    public static string WithGatewayAccount(string? settingsJson, string account)
+    {
+        var root = ParseRoot(settingsJson);
+        SetString(root, InstallerSection, GatewayAccountName, ParseGatewayAccount(account));
+        return root.ToJsonString(WriteOptions);
+    }
+
+    /// <summary>
+    /// A security-policy export (secedit) with the account's SID allowed to log on as a service, and whether
+    /// anything changed. The right is what lets Windows start a service under that account.
+    /// </summary>
+    public static (string Content, bool Changed) WithServiceLogonRight(string policyExport, string sid)
+    {
+        ArgumentNullException.ThrowIfNull(policyExport);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sid);
+        var entry = sid.StartsWith('*') ? sid : "*" + sid;
+        var lines = policyExport.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n').ToList();
+        var header = lines.FindIndex(line => line.Trim().Equals("[Privilege Rights]", StringComparison.OrdinalIgnoreCase));
+        if (header < 0)
+        {
+            lines.AddRange(["[Privilege Rights]", "SeServiceLogonRight = " + entry]);
+            return (string.Join("\r\n", lines) + "\r\n", true);
+        }
+
+        for (var index = header + 1; index < lines.Count && !lines[index].TrimStart().StartsWith('['); index++)
+        {
+            var line = lines[index];
+            if (!line.TrimStart().StartsWith("SeServiceLogonRight", StringComparison.OrdinalIgnoreCase)) continue;
+            var equals = line.IndexOf('=', StringComparison.Ordinal);
+            var holders = equals < 0 ? [] : line[(equals + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (holders.Contains(entry, StringComparer.OrdinalIgnoreCase)) return (policyExport, false);
+            lines[index] = "SeServiceLogonRight = " + string.Join(",", holders.Append(entry));
+            return (string.Join("\r\n", lines), true);
+        }
+
+        lines.Insert(header + 1, "SeServiceLogonRight = " + entry);
+        return (string.Join("\r\n", lines), true);
+    }
+
     private static string? ReadString(JsonObject root, string section, string name)
     {
         if (!root.TryGetPropertyValue(section, out var node) || node is null)
