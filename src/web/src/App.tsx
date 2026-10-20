@@ -11,7 +11,7 @@ import type {
   CurrentUserResponse,
   ExecutionResponse,
   LogicModuleResponse,
-  SystemInfoResponse,
+  SystemHealthResponse,
 } from './api/generated/v1/types.gen';
 import { t } from './localization';
 import { UserMenu } from './components/UserMenu';
@@ -20,6 +20,7 @@ import { useNavCollapsed } from './components/useNavCollapsed';
 import type { Section } from './components/NavigationLink';
 import { PageHeader } from './components/PageHeader';
 import { NavigationGroup } from './components/NavigationGroup';
+import { StatusPage } from './views/StatusPage';
 import { ConnectionsPage } from './views/ConnectionsPage';
 import { firstOpenableSection, hasExplicitSection, sectionFromHash } from './routing';
 import { useChangeRefresh, useLiveUpdates, usePollingRefresh } from './live/LiveUpdates';
@@ -36,7 +37,7 @@ import { LogicPage } from './views/LogicPage';
 
 export function App() {
   const [section, setSection] = useState<Section>(() => sectionFromHash());
-  const [systemInfo, setSystemInfo] = useState<SystemInfoResponse | null>(null);
+  const [systemHealth, setSystemHealth] = useState<SystemHealthResponse | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
   const nav = useNavCollapsed();
@@ -82,7 +83,7 @@ export function App() {
     setIsRefreshing(true);
 
     const clearWorkspace = () => {
-      setSystemInfo(null); setExecutions([]); setAssetTypes([]); setAssets([]);
+      setSystemHealth(null); setExecutions([]); setAssetTypes([]); setAssets([]);
       setAssetCapabilities(null); setLogicModules([]); setConfiguredLogic([]); setLastUpdated(null);
       setIsLoaded(false);
     };
@@ -101,7 +102,7 @@ export function App() {
       setCurrentUser(effectiveUser);
       // A dataset that could not be read this time keeps its last good copy instead of emptying the page.
       const fresh = (key: SnapshotKey) => !snapshot.unavailable.includes(key);
-      if (fresh('system')) setSystemInfo(snapshot.system);
+      if (fresh('system')) setSystemHealth(snapshot.system);
       if (fresh('executions')) setExecutions(snapshot.executions);
       if (fresh('assetTypes')) setAssetTypes(snapshot.assetTypes);
       if (fresh('assets')) setAssets(snapshot.assets);
@@ -186,6 +187,7 @@ export function App() {
           </NavigationGroup>
           <NavigationGroup id="nav-group-administer" label={t('nav.groupAdminister')}>
             {[canOpenSection(currentUser, 'connections') && <NavigationLink key="connections" section="connections" current={section}>{t('nav.connections')}</NavigationLink>,
+              canOpenSection(currentUser, 'status') && <NavigationLink key="status" section="status" current={section}>{t('nav.status')}</NavigationLink>,
               canOpenSection(currentUser, 'access') && <NavigationLink key="access" section="access" current={section}>{t('nav.access')}</NavigationLink>]}
           </NavigationGroup>
         </nav>
@@ -195,9 +197,9 @@ export function App() {
       <main className="content" id="main-content" tabIndex={-1} ref={mainRef}>
         <PageHeader
           section={section}
-          isRefreshing={section === 'recommendations' || section === 'access' || section === 'connections' ? false : isRefreshing}
-          lastUpdated={section === 'recommendations' || section === 'access' || section === 'connections' ? null : lastUpdated}
-          onRefresh={section === 'recommendations' || section === 'access' || section === 'connections' ? undefined : () => void refresh()}
+          isRefreshing={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? false : isRefreshing}
+          lastUpdated={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? null : lastUpdated}
+          onRefresh={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? undefined : () => void refresh()}
         />
 
         {error && (
@@ -214,7 +216,7 @@ export function App() {
           <OverviewPage
             key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             permissions={currentUser?.permissions ?? []}
-            systemInfo={systemInfo}
+            systemHealth={systemHealth}
             executions={executions}
             assets={assets}
             configuredLogic={configuredLogic}
@@ -224,7 +226,8 @@ export function App() {
         {section === 'operations' && canOpenSection(currentUser, section) && (
           <OperationsPage
             key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            systemInfo={systemInfo}
+            systemHealth={systemHealth}
+            canOpenStatus={canOpenSection(currentUser, 'status')}
             executions={executions}
             assets={assets}
             configuredLogic={configuredLogic}
@@ -244,6 +247,11 @@ export function App() {
         {section === 'connections' && canOpenSection(currentUser, section) && (
           <ConnectionsPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
             canManage={hasPermission(currentUser, 'connections.manage')} />
+        )}
+        {section === 'status' && canOpenSection(currentUser, section) && (
+          <StatusPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+            canSeeServices={hasPermission(currentUser, 'connections.read') || hasPermission(currentUser, 'security.manage')}
+            canSeeConnections={hasPermission(currentUser, 'connections.read')} />
         )}
         {section === 'access' && (
           currentUser?.userId && canOpenSection(currentUser, 'access')

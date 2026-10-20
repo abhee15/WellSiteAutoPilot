@@ -100,7 +100,7 @@ function stubApi(counts: { executions: number }) {
       return response({ userId, identityName: 'FIELD\\live', isActive: true, permissions: ['executions.read'] });
     }
     if (url.startsWith('/api/v1/executions')) { counts.executions += 1; return response([]); }
-    if (url.includes('system/info')) return response({});
+    if (url.includes('system/health')) return response({});
     return response([]);
   }));
 }

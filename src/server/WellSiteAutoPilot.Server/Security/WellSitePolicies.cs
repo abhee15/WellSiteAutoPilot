@@ -21,12 +21,18 @@ public static class WellSitePolicies
     public const string ConnectionsRead = WellSitePermissions.ConnectionsRead;
     public const string ConnectionsManage = WellSitePermissions.ConnectionsManage;
 
+    /// <summary>Platform service detail: for people who administer connections or security.</summary>
+    public const string SystemStatusRead = "system-status.read";
+
     public static void AddGrantPolicies(AuthorizationOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         foreach (var permission in WellSitePermissions.All)
             options.AddPolicy(permission, policy => policy.RequireAuthenticatedUser()
                 .AddRequirements(new GrantPermissionRequirement(permission)));
+        options.AddPolicy(SystemStatusRead, policy => policy.RequireAuthenticatedUser()
+            .AddRequirements(new GrantAnyPermissionRequirement(
+                [WellSitePermissions.ConnectionsRead, WellSitePermissions.SecurityManage])));
     }
 
 }

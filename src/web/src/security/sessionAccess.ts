@@ -31,6 +31,7 @@ export function canOpenSection(user: CurrentUserResponse | null | undefined, sec
       .some(permission => hasPermission(user, permission));
   }
   if (section === 'logic') return hasPermission(user, 'logic.read') || hasPermission(user, 'configured-logic.read');
+  if (section === 'status') return hasPermission(user, 'connections.read') || hasPermission(user, 'security.manage');
   const required = { operations: 'executions.read', recommendations: 'recommendations.read',
     assets: 'assets.read', connections: 'connections.read', access: 'security.manage' };
   return hasPermission(user, required[section]);

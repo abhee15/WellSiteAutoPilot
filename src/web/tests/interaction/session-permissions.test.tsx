@@ -12,7 +12,7 @@ it('custom-role sessions request and show only permitted work areas', async () =
   window.location.hash = '#assets';
   const http = vi.fn(async (url: string) => response(url === '/api/v1/security/me'
     ? { userId, identityName: 'FIELD\\custom', isActive: true, roles: ['Well Reader'], permissions: ['assets.read'], assetScopeIds: [assetId] }
-    : url.includes('system/info') ? {} : url.includes('capabilities')
+    : url.includes('system/health') ? {} : url.includes('capabilities')
     ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false } : []));
   vi.stubGlobal('fetch', http); render(<App />);
   await screen.findByRole('link', { name: 'Assets' });
@@ -27,7 +27,7 @@ it('an unrelated 403 clears that feature while preserving allowed work and the s
     if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\custom', isActive: true,
       roles: ['Custom'], permissions: ['assets.read', 'executions.read'], assetScopeIds: [] });
     if (url === '/api/v1/asset-types') return response({}, 403);
-    return response(url.includes('system/info') ? {} : url.includes('capabilities')
+    return response(url.includes('system/health') ? {} : url.includes('capabilities')
       ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false } : []);
   }));
   render(<App />);
@@ -42,7 +42,7 @@ it('permission loss removes the page and clears old asset data even when the rol
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url === '/api/v1/security/me'
     ? { userId, identityName: 'FIELD\\named-admin', isActive: true, roles: ['Admin'],
         permissions: revoked ? [] : ['assets.read'], assetScopeIds: [assetId] }
-    : url.includes('system/info') ? {} : url.includes('capabilities')
+    : url.includes('system/health') ? {} : url.includes('capabilities')
     ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false }
     : url.includes('/assets?') ? [{ id: assetId, name: 'Confidential Asset', isActive: true }] : [])));
   const user = userEvent.setup(); render(<App />);
@@ -57,7 +57,7 @@ it('catalog-only access does not load configuration capabilities or expose confi
   window.location.hash = '#logic';
   const http = vi.fn(async (url: string) => response(url === '/api/v1/security/me'
     ? { userId, identityName: 'FIELD\\catalog', isActive: true, roles: ['Catalog Reader'], permissions: ['logic.read'], assetScopeIds: [] }
-    : url.includes('system/info') ? {} : []));
+    : url.includes('system/health') ? {} : []));
   vi.stubGlobal('fetch', http); render(<App />);
   await screen.findByText('Logic Modules');
   expect(screen.queryByText('Configured Logic')).toBeNull();
@@ -70,7 +70,7 @@ it('a 401 pauses automatic refresh and explains sign-in; manual Refresh retries 
   const http = vi.fn(async (url: string) => url === '/api/v1/security/me'
     ? (authenticated ? response({ userId, identityName: 'FIELD\\reader', isActive: true, roles: [], permissions: ['assets.read'], assetScopeIds: [] })
       : response({}, 401))
-    : response(url.includes('system/info') ? {} : url.includes('capabilities')
+    : response(url.includes('system/health') ? {} : url.includes('capabilities')
       ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false } : []));
   vi.stubGlobal('fetch', http);
   vi.useFakeTimers({ shouldAdvanceTime: true });

@@ -19,7 +19,7 @@ function signIn(permissions: string[]) {
           : url.startsWith('/api/v1/assets?') || url === '/api/v1/assets' ? [{ id: assetId, assetTypeId: typeId, name: 'Well 101', isActive: true }]
             : url.startsWith('/api/v1/logic-modules') ? [{ id: 'm', moduleId: 'sample', version: '1.0.0', displayName: 'Sample logic',
               isEnabled: true, manifestJson: JSON.stringify(manifest) }]
-              : url.startsWith('/api/v1/system/info') ? {} : [])));
+              : url.startsWith('/api/v1/system/health') ? {} : [])));
 }
 
 it('offers "Put logic on this asset" only to someone who can configure logic', async () => {

@@ -45,6 +45,11 @@ export function PageHeader({
       title: t('connections.pageTitle'),
       description: t('connections.pageDescription'),
     },
+    status: {
+      eyebrow: t('status.eyebrow'),
+      title: t('status.pageTitle'),
+      description: t('status.pageDescription'),
+    },
     access: {
       eyebrow: t('access.eyebrow'),
       title: t('access.pageTitle'),

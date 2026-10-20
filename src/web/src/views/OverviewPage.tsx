@@ -4,7 +4,7 @@ import type {
   ConfiguredLogicResponse,
   ExecutionResponse,
   RecommendationSummaryResponse,
-  SystemInfoResponse,
+  SystemHealthResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
@@ -26,10 +26,10 @@ function attentionText(item: AttentionItem): string {
 
 /** The home page: what needs a person first, then how things stand. */
 export function OverviewPage({
-  permissions, systemInfo, executions, assets, configuredLogic, isLoaded,
+  permissions, systemHealth, executions, assets, configuredLogic, isLoaded,
 }: {
   permissions: readonly string[];
-  systemInfo: SystemInfoResponse | null;
+  systemHealth: SystemHealthResponse | null;
   executions: ExecutionResponse[];
   assets: AssetResponse[];
   configuredLogic: ConfiguredLogicResponse[];
@@ -67,7 +67,7 @@ export function OverviewPage({
     permissions, executions, recommendations, assets, configuredLogic, nowUtc: Date.now(),
   });
   const ready = isLoaded && recommendationsLoaded;
-  const unhealthy = (systemInfo?.components ?? []).filter(component => component.status !== 'Healthy').length;
+  const unhealthy = systemHealth?.unhealthyCount ?? 0;
 
   return (
     <>

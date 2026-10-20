@@ -9,7 +9,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.location.hash = ''; l
 function signIn(permissions: string[]) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url === '/api/v1/security/me'
     ? { userId, identityName: 'FIELD\\nav', isActive: true, roles: [], permissions, assetScopeIds: [] }
-    : url.includes('system/info') ? {} : url.includes('capabilities')
+    : url.includes('system/health') ? {} : url.includes('capabilities')
       ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false } : [])));
 }
 
