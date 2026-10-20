@@ -20,4 +20,8 @@ public sealed record DiscoveredAssetResponse(
 public sealed record DiscoveryResponse(
     Guid ConnectionId, DateTimeOffset DiscoveredAtUtc, DiscoveredAssetResponse[] Assets);
 
+public sealed record HierarchyTemplateResponse(string Key, string Name, string[] Levels);
+
+public sealed record ApplyDiscoveryRequest(string? TemplateKey, string[]? Levels);
+
 public sealed record ApplyDiscoveryResponse(int Created, int AlreadyPresent, Guid AssetTypeId);

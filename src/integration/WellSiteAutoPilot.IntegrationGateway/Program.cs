@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
@@ -14,6 +15,10 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Weatherford.WellSiteAutoPilot.IntegrationGateway";
 });
 builder.Services.AddHealthChecks();
+var requireWindowsAuth = string.Equals(
+    builder.Configuration["Security:AuthenticationMode"] ?? "Negotiate", "Negotiate", StringComparison.OrdinalIgnoreCase);
+builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
+builder.Services.AddAuthorization();
 builder.Services.AddWellSiteTelemetry(builder.Configuration, "wellsite-autopilot-gateway");
 builder.Services.AddWellSiteHttpErrorHandling();
 builder.Services.AddEndpointsApiExplorer();
@@ -90,13 +95,22 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Swagger:Enabl
     });
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
 
+// Windows authentication (as in the Server) protects the connection endpoints; the existing
+// data endpoints are not covered yet.
 var internalApi = app.NewVersionedApi("WellSite AutoPilot Integration Gateway API");
 var v1 = internalApi
     .MapGroup("/api/internal/v{version:apiVersion}")
     .HasApiVersion(1.0);
+var secured = v1.MapGroup(string.Empty);
+if (requireWindowsAuth)
+{
+    secured.RequireAuthorization();
+}
 
 v1.MapGet(
     "/integrations",
@@ -142,19 +156,19 @@ v1.MapGet(
         StatusCodes.Status503ServiceUnavailable,
         "application/problem+json");
 
-v1.MapGet("/adapters", (AdapterRegistry registry) => Results.Ok(registry.List()))
+secured.MapGet("/adapters", (AdapterRegistry registry) => Results.Ok(registry.List()))
     .WithName("ListAdapters");
 
-v1.MapGet("/connections", (ConnectionStore store) => Results.Ok(store.List()))
+secured.MapGet("/connections", (ConnectionStore store) => Results.Ok(store.List()))
     .WithName("ListConnections");
 
-v1.MapPost("/connections", (ConnectionInput input, ConnectionStore store, AdapterRegistry registry) =>
+secured.MapPost("/connections", (ConnectionInput input, ConnectionStore store, AdapterRegistry registry) =>
 {
     if (ValidateConnection(input, registry) is { } problem) return problem;
     return Results.Created("/connections", store.Create(input));
 }).WithName("CreateConnection");
 
-v1.MapPut("/connections/{id:guid}", (Guid id, ConnectionInput input, ConnectionStore store, AdapterRegistry registry) =>
+secured.MapPut("/connections/{id:guid}", (Guid id, ConnectionInput input, ConnectionStore store, AdapterRegistry registry) =>
 {
     if (ValidateConnection(input, registry) is { } problem) return problem;
     try
@@ -171,11 +185,11 @@ v1.MapPut("/connections/{id:guid}", (Guid id, ConnectionInput input, ConnectionS
     }
 }).WithName("UpdateConnection");
 
-v1.MapDelete("/connections/{id:guid}", (Guid id, ConnectionStore store) =>
+secured.MapDelete("/connections/{id:guid}", (Guid id, ConnectionStore store) =>
     store.Delete(id) ? Results.NoContent() : Results.NotFound())
     .WithName("DeleteConnection");
 
-v1.MapPost("/connections/{id:guid}/test", async (
+secured.MapPost("/connections/{id:guid}/test", async (
     Guid id, ConnectionStore store, AdapterRegistry registry, TimeProvider time, CancellationToken ct) =>
 {
     if (store.Get(id) is not { } connection) return Results.NotFound();
@@ -192,7 +206,7 @@ v1.MapPost("/connections/{id:guid}/test", async (
         : Results.Conflict(new { error = "STALE_REVISION", message = "The connection changed while testing." });
 }).WithName("TestConnection");
 
-v1.MapPost("/connections/{id:guid}/discover", async (
+secured.MapPost("/connections/{id:guid}/discover", async (
     Guid id, ConnectionStore store, AdapterRegistry registry, TimeProvider time, CancellationToken ct) =>
 {
     if (store.Get(id) is not { } connection) return Results.NotFound();

@@ -15,6 +15,7 @@ public sealed class ForeSiteAssetDiscoveryProvider(
     IProviderHealthProvider,
     IProviderMetadataProvider
 {
+    private const string AssetsPath = "SurfaceNetworkService/Asset/All";
     public const string WellProviderType = "foresite.well";
     public const string TestedProfile = "ForeSite 5.7.1 (WellService /Wells/All)";
 
@@ -47,41 +48,26 @@ public sealed class ForeSiteAssetDiscoveryProvider(
         }
 
         var wells = await GetWellsAsync(cancellationToken);
+        var assetNames = await GetAssetNamesAsync(cancellationToken);
         return wells
             .Where(well => well.Id is not null)
-            .Select(ToDiscoveredAsset)
+            .Select(well => ToDiscoveredAsset(well, assetNames))
             .ToArray();
     }
 
     public async ValueTask<ProviderHealth> GetHealthAsync(
         CancellationToken cancellationToken = default)
     {
-        // Same probe the ForeSite Toolbox status screen uses: the server reports
-        // the state of its own dependencies (WAMI, Catalog, CygNet sites, ...).
+        // A response from the server is sufficient proof it is up. Dependent services
+        // (WAMI, Catalog, CygNet sites) are not required for read-only discovery, and
+        // Administration/ServiceStatus can take ~16s, so a cheap read is used instead.
         try
         {
-            using var response = await httpClient.GetAsync(
-                "Administration/ServiceStatus", cancellationToken);
+            using var response = await httpClient.GetAsync(AssetsPath, cancellationToken);
             response.EnsureSuccessStatusCode();
-            var services = await response.Content.ReadFromJsonAsync<ForeSiteServiceStatus[]>(
-                JsonOptions, cancellationToken) ?? [];
-            var disconnected = services
-                .Where(service => service.Status == DisconnectedStatus)
-                .Select(service => service.Name ?? "unnamed")
-                .ToArray();
-
-            // Discovery only needs the server itself, so dependency outages degrade
-            // rather than fail; the reason keeps them visible.
-            return disconnected.Length == 0
-                ? new ProviderHealth(
-                    providerId, "ForeSite", ProviderHealthState.Healthy,
-                    $"{services.Length} dependent service(s) connected.",
-                    DateTimeOffset.UtcNow)
-                : new ProviderHealth(
-                    providerId, "ForeSite", ProviderHealthState.Degraded,
-                    "Server reachable; dependent services disconnected: " +
-                    string.Join(", ", disconnected) + ".",
-                    DateTimeOffset.UtcNow);
+            return new ProviderHealth(
+                providerId, "ForeSite", ProviderHealthState.Healthy,
+                "ForeSite server responded.", DateTimeOffset.UtcNow);
         }
         catch (HttpRequestException ex) when (ex.StatusCode is
             System.Net.HttpStatusCode.Unauthorized or
@@ -126,10 +112,42 @@ public sealed class ForeSiteAssetDiscoveryProvider(
             JsonOptions, cancellationToken) ?? [];
     }
 
-    private static DiscoveredAsset ToDiscoveredAsset(ForeSiteWell well)
+    // Asset names are context for templates; discovery still works if they cannot be read.
+    private async Task<Dictionary<string, string>> GetAssetNamesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await httpClient.GetAsync(AssetsPath, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var assets = await response.Content.ReadFromJsonAsync<ForeSiteAsset[]>(JsonOptions, cancellationToken) ?? [];
+            return assets
+                .Where(a => a.Id is not null && !string.IsNullOrWhiteSpace(a.Name))
+                .GroupBy(a => a.Id!.Value.ToString(CultureInfo.InvariantCulture))
+                .ToDictionary(g => g.Key, g => g.First().Name!, StringComparer.Ordinal);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static DiscoveredAsset ToDiscoveredAsset(ForeSiteWell well, Dictionary<string, string> assetNames)
     {
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
         Add(metadata, "assetId", well.AssetId);
+        if (metadata.TryGetValue("assetId", out var assetId) && assetNames.TryGetValue(assetId, out var assetName))
+        {
+            metadata["assetName"] = assetName;
+        }
+        metadata["wellId"] = well.Id!.Value.ToString(CultureInfo.InvariantCulture);
+        if (!string.IsNullOrWhiteSpace(well.Name))
+        {
+            metadata["wellName"] = well.Name;
+        }
+        if (!string.IsNullOrWhiteSpace(well.PrincipalDeviceType))
+        {
+            metadata["deviceType"] = well.PrincipalDeviceType;
+        }
         Add(metadata, "wellTypeId", well.WellType);
         if (well.WellType is { ValueKind: JsonValueKind.Number } type &&
             type.TryGetInt64(out var typeId) &&
@@ -164,7 +182,7 @@ public sealed class ForeSiteAssetDiscoveryProvider(
     }
 
     // Only the fields the first discovery slice needs; the full WellDTO has ~70.
-    private sealed record ForeSiteServiceStatus(string? Name, int Status);
+    private sealed record ForeSiteAsset(long? Id, string? Name);
     private sealed record ForeSiteWell(
         long? Id,
         string? Name,
@@ -172,5 +190,6 @@ public sealed class ForeSiteAssetDiscoveryProvider(
         JsonElement? WellType,
         JsonElement? Field,
         JsonElement? Lease,
-        JsonElement? FacilityId);
+        JsonElement? FacilityId,
+        string? PrincipalDeviceType);
 }

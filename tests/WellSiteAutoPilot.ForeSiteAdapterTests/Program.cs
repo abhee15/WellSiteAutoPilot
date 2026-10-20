@@ -6,7 +6,7 @@ using WellSiteAutoPilot.Integration.ForeSite;
 // Recorded-shape tests always run; the live check runs when FORESITE_BASE_URL is set
 // (uses the current Windows identity, like the production backend identity would).
 await RecordedResponseMapsWells();
-await HealthReflectsServiceStatus();
+await AnyServerResponseIsHealthy();
 await UnauthorizedReportsDegraded();
 await UnreachableReportsUnavailable();
 await LiveDiscoveryIfConfigured();
@@ -15,11 +15,14 @@ Console.WriteLine("ForeSite adapter tests passed.");
 static async Task RecordedResponseMapsWells()
 {
     const string body = """
-        [{"Id":1,"Name":"Well_001","AssetId":77,"WellType":1,"Field":"F1","Lease":null,"Ignored":{"x":1}},
+        [{"Id":1,"Name":"Well_001","AssetId":77,"WellType":1,"Field":"F1","Lease":null,"PrincipalDeviceType":"RodPump","Ignored":{"x":1}},
          {"Id":2,"Name":"","FacilityId":"FAC"},
          {"Name":"no id"}]
         """;
-    var provider = Create(HttpStatusCode.OK, body);
+    var provider = new ForeSiteAssetDiscoveryProvider(new HttpClient(new StubHandler(HttpStatusCode.OK, body)
+    {
+        AssetsBody = """[{"Id":77,"Name":"North Asset"}]"""
+    }) { BaseAddress = new Uri("http://foresite.test/") });
 
     var assets = await provider.DiscoverAssetsAsync();
     Assert(assets.Count == 2, "wells without an id are skipped");
@@ -29,6 +32,8 @@ static async Task RecordedResponseMapsWells()
     Assert(first.Metadata["assetId"] == "77" && first.Metadata["field"] == "F1", "metadata maps");
     Assert(first.Metadata["wellType"] == "RRL" && first.Metadata["wellTypeId"] == "1", "well type id and abbreviation");
     Assert(!first.Metadata.ContainsKey("lease"), "null metadata omitted");
+    Assert(first.Metadata["assetName"] == "North Asset" && first.Metadata["wellName"] == "Well_001" &&
+        first.Metadata["wellId"] == "1" && first.Metadata["deviceType"] == "RodPump", "template fields map");
     Assert(assets.Last().DisplayName == "Well 2", "blank name falls back");
     Assert(!assets.Last().Metadata.ContainsKey("wellType"), "unknown well type keeps only the raw id");
     Assert((await provider.DiscoverAssetsAsync("next")).Count == 0, "no further pages");
@@ -36,17 +41,11 @@ static async Task RecordedResponseMapsWells()
         "compatibility is never claimed without evidence");
 }
 
-static async Task HealthReflectsServiceStatus()
+static async Task AnyServerResponseIsHealthy()
 {
-    var healthy = await Create(HttpStatusCode.OK, """[{"Name":"WAMI","Status":1}]""").GetHealthAsync();
-    Assert(healthy.State == ProviderHealthState.Healthy, "all dependents connected is healthy");
-
-    var degraded = await Create(HttpStatusCode.OK,
-        """[{"Name":"WAMI","Status":2},{"Name":"Catalog Service","Status":1}]""").GetHealthAsync();
-    Assert(degraded.State == ProviderHealthState.Degraded, "disconnected dependent degrades");
-    Assert(degraded.Reason!.Contains("WAMI") && !degraded.Reason.Contains("Catalog"), "reason names only the failing service");
+    var health = await Create(HttpStatusCode.OK, "[]").GetHealthAsync();
+    Assert(health.State == ProviderHealthState.Healthy, "a server response is enough; dependents are not required");
 }
-
 static async Task UnauthorizedReportsDegraded()
 {
     var health = await Create(HttpStatusCode.Unauthorized, "").GetHealthAsync();
@@ -81,7 +80,7 @@ static async Task LiveDiscoveryIfConfigured()
 
     var health = await provider.GetHealthAsync();
     Console.WriteLine($"Live health: {health.State} {health.Reason}");
-    Assert(health.State is ProviderHealthState.Healthy or ProviderHealthState.Degraded,
+    Assert(health.State == ProviderHealthState.Healthy,
         "live ForeSite is reachable (dependents may be disconnected on a dev box)");
 
     var assets = await provider.DiscoverAssetsAsync();
@@ -106,11 +105,15 @@ static void Assert(bool condition, string message)
 
 internal sealed class StubHandler(HttpStatusCode status, string body) : HttpMessageHandler
 {
+    public string? AssetsBody { get; init; }
+
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken) =>
         Task.FromResult(new HttpResponseMessage(status)
         {
-            Content = new StringContent(body, Encoding.UTF8, "application/json")
+            Content = new StringContent(
+                AssetsBody is not null && request.RequestUri!.AbsolutePath.Contains("Asset/All") ? AssetsBody : body,
+                Encoding.UTF8, "application/json")
         });
 }
 

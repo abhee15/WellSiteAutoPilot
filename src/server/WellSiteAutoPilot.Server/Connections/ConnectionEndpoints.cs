@@ -19,6 +19,22 @@ public static class ConnectionEndpoints
 {
     private const string GatewayClient = "gateway-connections";
     private const string WellAssetTypeKey = "foresite-well";
+    private const string GroupAssetTypeKey = "foresite-group";
+    private const string GroupSchema =
+        """{"type":"object","properties":{"level":{"type":"string"}},"additionalProperties":true}""";
+
+    // Template levels read the discovered metadata of the same name; "well" is always the leaf.
+    private static readonly Dictionary<string, string> LevelFallbacks = new()
+    {
+        ["asset"] = "Unassigned", ["wellType"] = "Unknown type", ["deviceType"] = "Unspecified device", ["well"] = ""
+    };
+
+    private static readonly HierarchyTemplateResponse[] Templates =
+    [
+        new("asset-type-device-well", "Asset > Well type > Device type > Well", ["asset", "wellType", "deviceType", "well"]),
+        new("asset-type-well", "Asset > Well type > Well", ["asset", "wellType", "well"])
+    ];
+
     private const string WellSchema =
         """{"type":"object","required":["externalId","connectionId"],"properties":{"externalId":{"type":"string"},"connectionId":{"type":"string"}},"additionalProperties":true}""";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -28,8 +44,8 @@ public static class ConnectionEndpoints
         {
             client.BaseAddress = new Uri((configuration["Runtime:IntegrationGatewayUrl"] ?? "http://127.0.0.1:5081")
                 .TrimEnd('/') + "/api/internal/v1/");
-            client.Timeout = TimeSpan.FromSeconds(30);
-        });
+            client.Timeout = TimeSpan.FromSeconds(60);
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true });
 
     public static void MapConnectionEndpoints(this RouteGroupBuilder v1)
     {
@@ -66,42 +82,72 @@ public static class ConnectionEndpoints
             return result ?? Results.Ok(discovery);
         }).WithName("DiscoverConnectionAssets").Produces<DiscoveryResponse>();
 
-        admin.MapPost("/{id:guid}/discover/apply", async (Guid id, IHttpClientFactory f, AssetService assets,
-            RequestAccessContext access, HttpContext http, CancellationToken ct) =>
+        admin.MapGet("/templates", () => Results.Ok(Templates))
+            .WithName("ListHierarchyTemplates").Produces<HierarchyTemplateResponse[]>();
+
+        admin.MapPost("/{id:guid}/discover/apply", async (Guid id, ApplyDiscoveryRequest request, IHttpClientFactory f,
+            AssetService assets, RequestAccessContext access, HttpContext http, CancellationToken ct) =>
         {
+            var levels = request.Levels is { Length: > 0 }
+                ? request.Levels
+                : Templates.FirstOrDefault(t => t.Key == request.TemplateKey)?.Levels;
+            if (levels is null || levels[^1] != "well" || levels.Distinct().Count() != levels.Length ||
+                levels.Any(l => !LevelFallbacks.ContainsKey(l)))
+                throw new WellSiteAutoPilotException("CONNECTION_TEMPLATE_INVALID", FailureKind.Validation,
+                    "A template needs distinct levels from asset, wellType, deviceType and ends with well.");
             var (result, discovery) = await Discover(f, assets, id, ct);
             if (result is not null || discovery is null) return result!;
             var types = await assets.ListAssetTypesAsync(ct);
-            var type = types.FirstOrDefault(t => t.Key == WellAssetTypeKey) ??
+            var actor = access.CreateActor(http);
+            var wellType = types.FirstOrDefault(t => t.Key == WellAssetTypeKey) ??
                 await assets.CreateAssetTypeAuthorizedAsync(
-                    new CreateAssetTypeCommand(WellAssetTypeKey, "ForeSite well", WellSchema),
-                    access.Subject, access.CreateActor(http), ct);
-            var created = 0;
+                    new CreateAssetTypeCommand(WellAssetTypeKey, "ForeSite well", WellSchema), access.Subject, actor, ct);
+            var groupType = types.FirstOrDefault(t => t.Key == GroupAssetTypeKey) ??
+                await assets.CreateAssetTypeAuthorizedAsync(
+                    new CreateAssetTypeCommand(GroupAssetTypeKey, "ForeSite group", GroupSchema), access.Subject, actor, ct);
+
+            var groups = (await assets.ListAssetsAsync(groupType.Id, null, 500, ct)).ToList();
+            async Task<Guid> Group(Guid? parent, string level, string name)
+            {
+                var existing = groups.FirstOrDefault(g => g.ParentAssetId == parent && g.Name == name);
+                if (existing is not null) return existing.Id;
+                var attrs = JsonSerializer.Serialize(new Dictionary<string, string> { ["level"] = level }, Json);
+                var created = await CreateWithFallback(assets, groupType.Id, name, parent, attrs, name + " (" + level + ")", access, actor, ct);
+                groups.Add(created);
+                return created.Id;
+            }
+
+            var createdCount = 0;
             foreach (var asset in discovery.Assets.Where(a => !a.AlreadyImported))
             {
+                Guid? parent = null;
+                foreach (var level in levels[..^1])
+                    parent = await Group(parent, level, asset.Metadata.GetValueOrDefault(level) is { Length: > 0 } v ? v : LevelFallbacks[level]);
                 var values = new Dictionary<string, string>(asset.Metadata)
                 {
                     ["externalId"] = asset.ExternalId,
                     ["connectionId"] = id.ToString()
                 };
-                var json = JsonSerializer.Serialize(values, Json);
-                try
-                {
-                    await assets.CreateAssetAuthorizedAsync(
-                        new CreateAssetCommand(type.Id, asset.DisplayName, null, json),
-                        access.Subject, access.CreateActor(http), ct);
-                }
-                catch (WellSiteAutoPilotException ex) when (ex.Kind == FailureKind.Conflict)
-                {
-                    // Display names are not unique in ForeSite; the external id disambiguates.
-                    await assets.CreateAssetAuthorizedAsync(
-                        new CreateAssetCommand(type.Id, $"{asset.DisplayName} [{asset.ExternalId}]", null, json),
-                        access.Subject, access.CreateActor(http), ct);
-                }
-                created++;
+                await CreateWithFallback(assets, wellType.Id, asset.DisplayName, parent,
+                    JsonSerializer.Serialize(values, Json), $"{asset.DisplayName} [{asset.ExternalId}]", access, actor, ct);
+                createdCount++;
             }
-            return Results.Ok(new ApplyDiscoveryResponse(created, discovery.Assets.Length - created, type.Id));
+            return Results.Ok(new ApplyDiscoveryResponse(createdCount, discovery.Assets.Length - createdCount, wellType.Id));
         }).WithName("ApplyConnectionDiscovery").NotifiesChange(ChangeArea.Assets).Produces<ApplyDiscoveryResponse>();
+    }
+
+    // Names are not unique in ForeSite (or across hierarchy branches); retry once with a disambiguated name.
+    private static async Task<Asset> CreateWithFallback(AssetService assets, Guid typeId, string name, Guid? parent,
+        string json, string fallbackName, RequestAccessContext access, SecurityActorContext actor, CancellationToken ct)
+    {
+        try
+        {
+            return await assets.CreateAssetAuthorizedAsync(new CreateAssetCommand(typeId, name, parent, json), access.Subject, actor, ct);
+        }
+        catch (WellSiteAutoPilotException ex) when (ex.Kind == FailureKind.Conflict)
+        {
+            return await assets.CreateAssetAuthorizedAsync(new CreateAssetCommand(typeId, fallbackName, parent, json), access.Subject, actor, ct);
+        }
     }
 
     // Discovery is a proposal: mark what is already imported so Apply stays idempotent per connection + external id.

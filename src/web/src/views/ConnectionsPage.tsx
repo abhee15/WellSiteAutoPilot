@@ -1,4 +1,5 @@
 import './activity.css';
+import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 interface AdapterResponse { key: string; displayName: string; defaultEndpoint: string; supportsDiscovery: boolean; description: string }
 interface ConnectionTest {
@@ -105,19 +106,24 @@ export function ConnectionsPage() {
     setDiscovery(await call<DiscoveryResponse>('POST', `/${c.id}/discover`));
   });
 
+  const [templates, setTemplates] = useState<HierarchyTemplate[]>([]);
+  const [templateKey, setTemplateKey] = useState('asset-type-device-well');
+  const [customLevels, setCustomLevels] = useState('asset,wellType,deviceType,well');
+  useEffect(() => { void call<HierarchyTemplate[]>('GET', '/templates').then(setTemplates).catch(() => undefined); }, []);
+
+  const levels = templateKey === 'custom'
+    ? customLevels.split(',').map(s => s.trim()).filter(Boolean)
+    : templates.find(x => x.key === templateKey)?.levels ?? [];
+
   const apply = () => discovery && run('apply', async () => {
-    const result = await call<ApplyDiscoveryResponse>('POST', `/${discovery.connectionId}/discover/apply`);
+    const body = templateKey === 'custom' ? { levels } : { templateKey };
+    const result = await call<ApplyDiscoveryResponse>('POST', `/${discovery.connectionId}/discover/apply`, body);
     setApplied(result);
     setDiscovery(await call<DiscoveryResponse>('POST', `/${discovery.connectionId}/discover`));
   });
 
   const pending = discovery?.assets.filter(a => !a.alreadyImported).length ?? 0;
-  const byType = new Map<string, DiscoveryResponse['assets']>();
-  discovery?.assets.forEach(a => {
-    const key = a.metadata['wellType'] ? `${a.metadata['wellType']}` : 'Unknown';
-    byType.set(key, [...(byType.get(key) ?? []), a]);
-  });
-
+  const tree = buildTree(discovery?.assets ?? [], levels);
   return (
     <section aria-labelledby="connections-heading">
       <h2 id="connections-heading" className="access-intro">Connections</h2>
@@ -227,33 +233,60 @@ export function ConnectionsPage() {
             Discovery preview · {discovery.assets.length} found, {pending} not yet imported
           </h3>
           <p className="access-note access-intro">
-            Results are limited to what the connection's ForeSite user may see.
-            Imported assets appear under Assets as "ForeSite well".
+            Results are limited to what the connection's ForeSite user may see. Wells are placed in the hierarchy
+            below; a missing value falls into "Unassigned" / "Unknown type" / "Unspecified device".
           </p>
+          <div className="activity-filters">
+            <label>Hierarchy template
+              <select value={templateKey} onChange={e => setTemplateKey(e.target.value)}>
+                {templates.map(x => <option key={x.key} value={x.key}>{x.name}</option>)}
+                <option value="custom">Custom…</option>
+              </select>
+            </label>
+            {templateKey === 'custom' && (
+              <label>Levels (asset, wellType, deviceType, then well last)
+                <input value={customLevels} onChange={e => setCustomLevels(e.target.value)} />
+              </label>
+            )}
+          </div>
           <div className="activity-more">
             <button type="button" className="secondary-button" disabled={busy !== null || pending === 0}
               onClick={() => void apply()}>{busy === 'apply' ? 'Applying…' : `Apply ${pending} asset(s)`}</button>
             {applied && <span role="status"> Created {applied.created}, already present {applied.alreadyPresent}.</span>}
           </div>
-          {[...byType.entries()].map(([type, items]) => (
-            <div className="table-wrap" key={type}>
-              <table aria-label={`Discovered ${type} wells`}>
-                <caption>{type} ({items.length})</caption>
-                <thead><tr><th scope="col">External id</th><th scope="col">Name</th>
-                  <th scope="col">Field / lease</th><th scope="col">ForeSite assets</th><th scope="col">Status</th></tr></thead>
-                <tbody>{items.map(a => (
-                  <tr key={a.externalId}>
-                    <td>{a.externalId}</td><td>{a.displayName}</td>
-                    <td>{[a.metadata['field'], a.metadata['lease']].filter(Boolean).join(' / ') || '—'}</td>
-                    <td>{a.metadata['assetId'] ?? '—'}</td>
-                    <td>{a.alreadyImported ? 'Imported' : 'New'}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-          ))}
+          <ul className="access-intro" aria-label="Hierarchy preview">{renderTree(tree)}</ul>
         </>
       )}
     </section>
   );
 }
+
+interface HierarchyTemplate { key: string; name: string; levels: string[] }
+interface TreeNode { label: string; children: Map<string, TreeNode>; well?: DiscoveredAsset }
+
+const levelFallback: Record<string, string> = { asset: 'Unassigned', wellType: 'Unknown type', deviceType: 'Unspecified device' };
+
+/** Mirrors the server's template placement so the preview matches what Apply creates. */
+function buildTree(assets: DiscoveredAsset[], levels: string[]): TreeNode {
+  const root: TreeNode = { label: '', children: new Map() };
+  for (const asset of assets) {
+    let node = root;
+    for (const level of levels.slice(0, -1)) {
+      const label = asset.metadata[level] || levelFallback[level] || level;
+      if (!node.children.has(label)) node.children.set(label, { label, children: new Map() });
+      node = node.children.get(label)!;
+    }
+    node.children.set(`#${asset.externalId}`, { label: asset.displayName, children: new Map(), well: asset });
+  }
+  return root;
+}
+
+function renderTree(node: TreeNode): React.ReactNode {
+  return [...node.children.entries()].map(([key, child]) => (
+    <li key={key}>
+      {child.label}{child.well && <small> · well {child.well.externalId}{child.well.alreadyImported ? ' · imported' : ''}</small>}
+      {child.children.size > 0 && <ul>{renderTree(child)}</ul>}
+    </li>
+  ));
+}
+
