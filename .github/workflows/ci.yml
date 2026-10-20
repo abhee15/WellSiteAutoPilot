@@ -1440,7 +1440,22 @@ jobs:
           PY
 
       - name: Verify configured Shadow execution and result provenance
-        run: dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj --configuration Release --no-build -- --configured-e2e
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet run --project tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj --configuration Release --no-build -- --configured-e2e 2>&1 | tee e2e.log
+
+      - name: Annotate runtime logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          # Job logs are not always readable; the last lines of each log are kept in the annotations.
+          for log in e2e.log worker.log gateway.log server.log; do
+            if test -f "$log"; then
+              printf '::error title=%s::' "$log"
+              tail -n 25 "$log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g' | cut -c1-3500
+            fi
+          done
 
       - name: Show runtime logs on failure
         if: failure()
