@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { formatTimestamp, toCssToken } from '../format';
-import type { SystemInfoResponse } from '../api/generated/v1/types.gen';
 import { connectionStatus, loadAdapters, loadConnections } from './connections';
 import type { Adapter, Connection, ConnectionStatus } from './connections';
 
@@ -13,20 +12,22 @@ const statusLabels: Record<ConnectionStatus, MessageKey> = {
   NeedsAttention: 'connections.outcomeNeedsAttention', Unreachable: 'connections.outcomeUnreachable',
 };
 
+type ServiceInfo = { components: { name: string; version: string; status: string }[] };
+
 type Part<T> = { state: 'loading' } | { state: 'failed' } | { state: 'ready'; value: T };
 
-async function loadServices(signal: AbortSignal): Promise<SystemInfoResponse> {
+async function loadServices(signal: AbortSignal): Promise<ServiceInfo> {
   const response = await fetch('/api/v1/system/info', { signal, credentials: 'same-origin', cache: 'no-store' });
   if (!response.ok) throw new Error('services');
   const body: unknown = await response.json();
-  const info = body as Partial<SystemInfoResponse> | null;
+  const info = body as Partial<ServiceInfo> | null;
   if (!info || !Array.isArray(info.components)) throw new Error('services');
-  return info as SystemInfoResponse;
+  return info as ServiceInfo;
 }
 
 /** One place to see whether the platform and the systems it reaches are working. Each part loads on its own. */
 export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServices: boolean; canSeeConnections: boolean }) {
-  const [services, setServices] = useState<Part<SystemInfoResponse>>({ state: 'loading' });
+  const [services, setServices] = useState<Part<ServiceInfo>>({ state: 'loading' });
   const [connections, setConnections] = useState<Part<{ items: Connection[]; adapters: Adapter[] }>>({ state: 'loading' });
   const request = useRef<AbortController | null>(null);
 
