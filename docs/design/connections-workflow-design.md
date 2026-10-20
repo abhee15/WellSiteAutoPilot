@@ -358,6 +358,15 @@ account (a domain or group-managed service account) and to keep it on upgrade. T
 part of Connections itself, and it matches the research note that service accounts must become configurable.
 For slice 2 nothing changes: the simulator needs no provider identity.
 
+**Decided and built (step 3).** The installer takes `--gateway-account DOMAIN\name` (or `.\name`; silent
+`/GATEWAYACCOUNT=`) and `--gateway-account-default`. A group-managed service account (name ends in `$`) is the
+recommended choice because Windows holds its password; an ordinary account's password arrives through
+`WSA_GATEWAY_ACCOUNT_PASSWORD` and is never stored or printed, so an upgrade must supply it again and is refused
+with a clear message if it does not. The chosen account is remembered in the machine settings (`Installer:GatewayAccount`),
+only after the Gateway has started under it, and an upgrade that does not mention it keeps it. The installer grants
+the account the log-on-as-a-service right through the local security policy and makes `gateway.keys.json` readable
+by that account alone. Only the Gateway can be changed this way; the Server, worker and NATS keep their fixed accounts.
+
 The test result states which identity the Gateway used ("acting as DOMAIN\account"), read from the running process,
 so a permission problem is diagnosable from the page. Connection settings can never select or change the account.
 Per-person CygNet attribution remains the open requirement in section 9.

@@ -52,6 +52,9 @@ Var CertThumbprint
 Var CertPfx
 Var CertPfxPassword
 Var CertSelfSigned
+Var GatewayAccount
+Var GatewayAccountDefault
+Var GatewayAccountPassword
 Var CertKeepRadio
 Var CertStoreRadio
 Var CertStoreInput
@@ -115,6 +118,13 @@ Function .onInit
   ${GetOptions} $R0 "/CERTPFX=" $CertPfx
   ${GetOptions} $R0 "/CERTPFXPASSWORD=" $CertPfxPassword
   ${GetOptions} $R0 "/SELFSIGNED=" $CertSelfSigned
+  ; The Windows account the Integration Gateway runs as (the identity ForeSite and CygNet see):
+  ; /GATEWAYACCOUNT=DOMAIN\name with /GATEWAYACCOUNTPASSWORD= (or WSA_GATEWAY_ACCOUNT_PASSWORD in the
+  ; environment; a group-managed account whose name ends in $ needs none), or /GATEWAYACCOUNTDEFAULT=yes to
+  ; return to LocalService. Omitted: an upgrade keeps its earlier account. The password is never stored.
+  ${GetOptions} $R0 "/GATEWAYACCOUNT=" $GatewayAccount
+  ${GetOptions} $R0 "/GATEWAYACCOUNTPASSWORD=" $GatewayAccountPassword
+  ${GetOptions} $R0 "/GATEWAYACCOUNTDEFAULT=" $GatewayAccountDefault
 FunctionEnd
 
 Function DatabasePageCreate
@@ -551,6 +561,15 @@ SkipStopServices:
   ${EndIf}
   ${If} $CertSelfSigned == "yes"
     StrCpy $BootstrapperArgs "$BootstrapperArgs --cert-self-signed"
+  ${EndIf}
+  ${If} $GatewayAccount != ""
+    StrCpy $BootstrapperArgs '$BootstrapperArgs --gateway-account "$GatewayAccount"'
+    ${If} $GatewayAccountPassword != ""
+      !insertmacro ExportEnvironment "WSA_GATEWAY_ACCOUNT_PASSWORD" "$GatewayAccountPassword"
+    ${EndIf}
+  ${EndIf}
+  ${If} $GatewayAccountDefault == "yes"
+    StrCpy $BootstrapperArgs "$BootstrapperArgs --gateway-account-default"
   ${EndIf}
 
   IfFileExists "$APPDATA\Weatherford\WellSite AutoPilot\server.settings.json" ExistingSecuritySettings FreshSecuritySettings

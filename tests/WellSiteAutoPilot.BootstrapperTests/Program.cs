@@ -191,5 +191,51 @@ Expect((string?)callers["server"]!["Verifier"] == InstallerSettings.ServiceKeyVe
        (string?)callers["worker"]!["Verifier"] == InstallerSettings.ServiceKeyVerifier(secondKey),
     "the Gateway file must verify the Server key as server and the worker key as worker");
 
+
+// Gateway account: strict names, remembered across upgrades, passwords only where Windows does not hold them.
+Expect(InstallerSettings.ParseGatewayAccount(@"CORP\svc-wsa$") == @"CORP\svc-wsa$" && InstallerSettings.ParseGatewayAccount(@".\wsagateway") == @".\wsagateway",
+    "domain, managed and local accounts must be accepted");
+Expect(InstallerSettings.ParseGatewayAccount(@"nt authority\localservice") == InstallerSettings.DefaultGatewayAccount,
+    "the default account must be recognised in any case");
+foreach (var bad in new[] { "svc", @"CORP\", @"\svc", @"CORP\svc extra", @"CORP\svc & calc", "svc@corp.example", @"NT AUTHORITY\SYSTEM", @"CORP\a\b" })
+{
+    Refused(() => InstallerSettings.ParseGatewayAccount(bad), "--gateway-account", "the account name '" + bad + "'");
+}
+
+Expect(InstallerSettings.ChooseGatewayAccount(null, false, null) == (InstallerSettings.DefaultGatewayAccount, false),
+    "a first install without a choice must stay on LocalService and record nothing");
+Expect(InstallerSettings.ChooseGatewayAccount(@"CORP\svc$", false, null) == (@"CORP\svc$", true),
+    "a new account must be recorded");
+Expect(InstallerSettings.ChooseGatewayAccount(null, false, @"CORP\svc$") == (@"CORP\svc$", false),
+    "an upgrade that does not mention the account must keep it");
+Expect(InstallerSettings.ChooseGatewayAccount(null, true, @"CORP\svc$") == (InstallerSettings.DefaultGatewayAccount, true),
+    "asking for the default must return to LocalService and record the change");
+Expect(InstallerSettings.ChooseGatewayAccount(@"CORP\SVC$", false, @"CORP\svc$").Changed == false,
+    "the same account in another case is not a change");
+Refused(() => InstallerSettings.ChooseGatewayAccount(@"CORP\svc$", true, null), "not both", "a named account together with the default");
+Expect(InstallerSettings.GatewayAccountNeedsPassword(@"CORP\svc") && !InstallerSettings.GatewayAccountNeedsPassword(@"CORP\svc$") &&
+       !InstallerSettings.GatewayAccountNeedsPassword(InstallerSettings.DefaultGatewayAccount),
+    "only an ordinary named account needs a password");
+var withAccount = InstallerSettings.WithGatewayAccount(both, @"CORP\svc$");
+Expect(InstallerSettings.ReadGatewayAccount(withAccount) == @"CORP\svc$" && InstallerSettings.ReadNetworkAccess(withAccount) == true &&
+       InstallerSettings.ReadConnectionString(withAccount) == "Host=a;Password=one",
+    "the account must be remembered without disturbing other settings");
+Expect(InstallerSettings.ReadGatewayAccount(null) is null && InstallerSettings.ReadGatewayAccount("{}") is null,
+    "a file without the account remembers nothing");
+
+// The log-on-as-a-service right is added to an exported policy once, and nothing else is disturbed.
+var export = "[Unicode]\r\nUnicode=yes\r\n[Privilege Rights]\r\nSeBackupPrivilege = *S-1-5-32-544\r\nSeServiceLogonRight = *S-1-5-80-1,*S-1-5-32-544\r\n[Version]\r\nsignature=\"$CHICAGO$\"\r\n";
+var granted = InstallerSettings.WithServiceLogonRight(export, "*S-1-5-21-9-9-9-1001");
+Expect(granted.Changed && granted.Content.Contains("SeServiceLogonRight = *S-1-5-80-1,*S-1-5-32-544,*S-1-5-21-9-9-9-1001", StringComparison.Ordinal) &&
+       granted.Content.Contains("SeBackupPrivilege = *S-1-5-32-544", StringComparison.Ordinal),
+    "the SID was not appended to the existing service log-on list");
+Expect(!InstallerSettings.WithServiceLogonRight(granted.Content, "*S-1-5-21-9-9-9-1001").Changed,
+    "granting the same right twice must change nothing");
+var missingLine = InstallerSettings.WithServiceLogonRight("[Privilege Rights]\r\nSeBackupPrivilege = *S-1-5-32-544\r\n", "S-1-5-21-5");
+Expect(missingLine.Changed && missingLine.Content.Contains("SeServiceLogonRight = *S-1-5-21-5", StringComparison.Ordinal),
+    "a policy without the right must gain it");
+Expect(InstallerSettings.WithServiceLogonRight("[Unicode]\r\nUnicode=yes\r\n", "*S-1-5-21-5").Content.Contains("[Privilege Rights]", StringComparison.Ordinal),
+    "a policy without the section must gain it");
+
 Console.WriteLine("Installer settings checks passed.");
 return 0;

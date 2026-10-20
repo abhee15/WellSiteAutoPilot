@@ -81,12 +81,15 @@ internal static class Bootstrapper
             settingsPath, GetOption(args, "--network-access"), GetOption(args, "--port"));
 
         var tls = ResolveCertificate(settingsPath, args);
+        var gateway = ResolveGatewayAccount(settingsPath, args);
 
         ConfigureBootstrapAdministrator(
             programDataRoot,
             GetOption(args, "--bootstrap-admin"));
         StoreInstallerSettings(settingsPath, database, network, tls);
-        ProvisionServiceKeys(programDataRoot, HasFlag(args, "--rotate-service-keys"));
+        ProvisionServiceKeys(
+            programDataRoot, HasFlag(args, "--rotate-service-keys"),
+            InstallerSettings.IsDefaultGatewayAccount(gateway.Account) ? LocalServiceSid : AccountSid(gateway.Account));
         RunDatabaseMigrator(installRoot, database.ConnectionString);
 
         var natsDataRoot = Path.Combine(programDataRoot, "NATS", "JetStream");
@@ -106,7 +109,8 @@ internal static class Bootstrapper
                 "WellSite AutoPilot Integration Gateway",
                 Path.Combine(installRoot, "IntegrationGateway", "WellSiteAutoPilot.IntegrationGateway.exe"),
                 "--urls http://127.0.0.1:5081",
-                LocalServiceAccount),
+                gateway.Account,
+                gateway.Password),
             new ServiceDefinition(
                 WorkerServiceName,
                 "WellSite AutoPilot .NET Runtime",
@@ -134,6 +138,11 @@ internal static class Bootstrapper
             }
         }
 
+        if (!InstallerSettings.IsDefaultGatewayAccount(gateway.Account))
+        {
+            GrantServiceLogonRight(gateway.Account);
+        }
+
         foreach (var service in services)
         {
             RemoveServiceIfPresent(service.ServiceName);
@@ -142,17 +151,26 @@ internal static class Bootstrapper
                 ? $"\"{service.ExecutablePath}\""
                 : $"\"{service.ExecutablePath}\" {service.Arguments}";
 
-            RunSc(
-                "create",
-                service.ServiceName,
-                "binPath=",
-                binPath,
-                "start=",
-                "auto",
-                "obj=",
-                service.Account,
-                "DisplayName=",
-                service.DisplayName);
+            var createArguments = new List<string>
+            {
+                "create", service.ServiceName, "binPath=", binPath, "start=", "auto", "obj=", service.Account
+            };
+            if (service.Password is not null)
+            {
+                createArguments.AddRange(["password=", service.Password]);
+            }
+
+            createArguments.AddRange(["DisplayName=", service.DisplayName]);
+            try
+            {
+                RunSc(createArguments.ToArray());
+            }
+            catch (InvalidOperationException exception) when (service.Password is not null)
+            {
+                // sc echoes its arguments on failure; the password must never reach the output.
+                throw new InvalidOperationException(
+                    InstallerSettings.Redact(exception.Message, service.Password));
+            }
 
             RunSc(
                 "description",
@@ -163,6 +181,13 @@ internal static class Bootstrapper
             WaitForState(service.ServiceName, "RUNNING", TimeSpan.FromSeconds(30));
         }
 
+        // Remembered only once the Gateway has started under the account, so a wrong name or password is not kept.
+        if (gateway.Changed)
+        {
+            var current = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : null;
+            WriteSettingsFile(settingsPath, InstallerSettings.WithGatewayAccount(current, gateway.Account));
+        }
+
         ConfigureFirewall(
             services.Single(service => service.ServiceName == ServerServiceName).ExecutablePath,
             network.Enabled,
@@ -171,6 +196,9 @@ internal static class Bootstrapper
         Console.WriteLine(network.Enabled
             ? $"WellSite AutoPilot is reachable from the network at https://<computer name>:{network.Port}/ (Domain and Private networks)."
             : $"WellSite AutoPilot is reachable from this computer only, at https://localhost:{network.Port}/.");
+        Console.WriteLine(InstallerSettings.IsDefaultGatewayAccount(gateway.Account)
+            ? "The Integration Gateway runs as LocalService, which is anonymous on the network. Real ForeSite or CygNet connections need --gateway-account."
+            : $"The Integration Gateway runs as {gateway.Account}; that is the identity outside systems will see.");
         Console.WriteLine("WellSite AutoPilot Windows services installed and started.");
         return 0;
     }
@@ -389,7 +417,7 @@ internal static class Bootstrapper
     /// (LocalService) cannot read the Server's key (NetworkService). Existing keys are kept on upgrade unless
     /// --rotate-service-keys is given. The files are written locked down, never readable even briefly.
     /// </summary>
-    private static void ProvisionServiceKeys(string programDataRoot, bool rotate)
+    private static void ProvisionServiceKeys(string programDataRoot, bool rotate, string gatewayReader)
     {
         var serverPath = Path.Combine(programDataRoot, InstallerSettings.ServerKeysFile);
         var workerPath = Path.Combine(programDataRoot, InstallerSettings.WorkerKeysFile);
@@ -403,7 +431,7 @@ internal static class Bootstrapper
 
         WriteProtectedFile(serverPath, InstallerSettings.ServiceKeyFileContent(serverKey), NetworkServiceSid);
         WriteProtectedFile(workerPath, InstallerSettings.ServiceKeyFileContent(workerKey), LocalServiceSid);
-        WriteProtectedFile(gatewayPath, InstallerSettings.GatewayKeyFileContent(serverKey, workerKey), LocalServiceSid);
+        WriteProtectedFile(gatewayPath, InstallerSettings.GatewayKeyFileContent(serverKey, workerKey), gatewayReader);
         Console.WriteLine(rotate
             ? "Internal service keys were regenerated."
             : "Internal service keys are in place.");
@@ -570,12 +598,17 @@ internal static class Bootstrapper
             updated = InstallerSettings.WithCertificate(updated, tls.Thumbprint, tls.Source);
         }
 
+        WriteSettingsFile(settingsPath, updated!);
+    }
+
+    private static void WriteSettingsFile(string settingsPath, string content)
+    {
         // Lock the file down before the secret is written, so it is never readable through the
         // permissions inherited from ProgramData, even briefly.
         var temporaryPath = settingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         File.WriteAllText(temporaryPath, string.Empty);
         SecureSettingsFile(temporaryPath);
-        File.WriteAllText(temporaryPath, updated!);
+        File.WriteAllText(temporaryPath, content);
         File.Move(temporaryPath, settingsPath, overwrite: true);
         SecureSettingsFile(settingsPath);
         Console.WriteLine("Installer settings stored in the protected machine settings file.");
@@ -700,6 +733,94 @@ internal static class Bootstrapper
         }
 
         Console.WriteLine(text);
+    }
+
+    private static GatewayAccountChoice ResolveGatewayAccount(string settingsPath, string[] args)
+    {
+        var stored = File.Exists(settingsPath) ? InstallerSettings.ReadGatewayAccount(File.ReadAllText(settingsPath)) : null;
+        var (account, changed) = InstallerSettings.ChooseGatewayAccount(
+            GetOption(args, "--gateway-account"), HasFlag(args, "--gateway-account-default"), stored);
+        string? password = null;
+        if (InstallerSettings.GatewayAccountNeedsPassword(account))
+        {
+            password = Environment.GetEnvironmentVariable(InstallerSettings.GatewayAccountPasswordVariable);
+            if (string.IsNullOrEmpty(password))
+            {
+                throw new InvalidOperationException(
+                    $"The Integration Gateway runs as {account}, which needs its password. Provide it with " +
+                    $"{InstallerSettings.GatewayAccountPasswordVariable} (it is never stored, so an upgrade needs it again). " +
+                    "A group-managed service account, whose name ends in $, needs no password.");
+            }
+        }
+
+        return new GatewayAccountChoice(account, password, changed);
+    }
+
+    /// <summary>The account's SID in the form icacls and secedit accept (*S-1-...).</summary>
+    private static string AccountSid(string account)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Service accounts are resolved through Windows.");
+        }
+
+        return ResolveWindowsSid(account);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static string ResolveWindowsSid(string account)
+    {
+        var separator = account.IndexOf('\\', StringComparison.Ordinal);
+        var domain = account[..separator] == "." ? Environment.MachineName : account[..separator];
+        try
+        {
+            return "*" + new NTAccount(domain, account[(separator + 1)..]).Translate(typeof(SecurityIdentifier)).Value;
+        }
+        catch (IdentityNotMappedException exception)
+        {
+            throw new InvalidOperationException($"Windows does not know the account {account}.", exception);
+        }
+    }
+
+    /// <summary>
+    /// Allows the account to log on as a service, which Windows requires before it will start a service under
+    /// it. Done through the local security policy; a domain policy that sets the right overrides it.
+    /// </summary>
+    private static void GrantServiceLogonRight(string account)
+    {
+        var sid = AccountSid(account);
+        var folder = Path.Combine(Path.GetTempPath(), "wsa-secedit-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var export = Path.Combine(folder, "current.inf");
+            var database = Path.Combine(folder, "policy.sdb");
+            var export1 = RunProcessAllowFailure("secedit.exe", "/export", "/cfg", export, "/areas", "USER_RIGHTS", "/quiet");
+            if (export1.ExitCode != 0 || !File.Exists(export))
+            {
+                throw new InvalidOperationException($"Could not read the local security policy: {export1.StandardOutput} {export1.StandardError}".Trim());
+            }
+
+            var (content, changed) = InstallerSettings.WithServiceLogonRight(File.ReadAllText(export), sid);
+            if (!changed)
+            {
+                return;
+            }
+
+            File.WriteAllText(export, content, Encoding.Unicode);
+            var apply = RunProcessAllowFailure(
+                "secedit.exe", "/configure", "/db", database, "/cfg", export, "/areas", "USER_RIGHTS", "/quiet");
+            if (apply.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"Could not allow {account} to log on as a service: {apply.StandardOutput} {apply.StandardError}".Trim());
+            }
+
+            Console.WriteLine($"{account} was allowed to log on as a service.");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     private static void RemoveServiceIfPresent(string serviceName)
@@ -881,7 +1002,10 @@ internal static class Bootstrapper
         string DisplayName,
         string ExecutablePath,
         string Arguments,
-        string Account);
+        string Account,
+        string? Password = null);
+
+    private sealed record GatewayAccountChoice(string Account, string? Password, bool Changed);
 
     private sealed record DatabaseConnection(string ConnectionString, bool Changed);
 
