@@ -107,9 +107,11 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
                 entity.Property<bool>("IsActive").HasColumnType("boolean");
                 entity.Property<string>("Name").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                entity.Property<Guid?>("OwnerConnectionId").HasColumnType("uuid");
                 entity.Property<Guid?>("ParentAssetId").HasColumnType("uuid");
                 entity.HasKey("Id");
                 entity.HasIndex("AssetTypeId");
+                entity.HasIndex("OwnerConnectionId");
                 entity.HasIndex("ParentAssetId");
                 entity.ToTable("assets", "assets");
             });
@@ -489,6 +491,11 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("AssetTypeId")
                     .OnDelete(DeleteBehavior.Restrict)
                     .IsRequired();
+
+                entity.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
+                    .WithMany()
+                    .HasForeignKey("OwnerConnectionId")
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
                     .WithMany()

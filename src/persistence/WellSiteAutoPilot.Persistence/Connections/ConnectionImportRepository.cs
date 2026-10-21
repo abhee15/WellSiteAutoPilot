@@ -70,7 +70,7 @@ public sealed class ConnectionImportRepository(WellSiteAutoPilotDbContext dbCont
 
             var now = Time.GetUtcNow();
             var existingGroups = hasGroups
-                ? await LoadGroupsAsync(request.GroupTypeId, cancellationToken)
+                ? await LoadGroupsAsync(request.GroupTypeId, request.ConnectionId, cancellationToken)
                 : new Dictionary<(Guid? Parent, string Name), Guid>();
             var reused = new HashSet<Guid>();
             var groupsCreated = 0;
@@ -95,7 +95,8 @@ public sealed class ConnectionImportRepository(WellSiteAutoPilotDbContext dbCont
                             dbContext.Assets.Add(new AssetEntity
                             {
                                 Id = groupId, AssetTypeId = request.GroupTypeId, Name = name, ParentAssetId = parent,
-                                AttributeValuesJson = EmptyAttributes, IsActive = true, CreatedAtUtc = now
+                                AttributeValuesJson = EmptyAttributes, IsActive = true, CreatedAtUtc = now,
+                                OwnerConnectionId = request.ConnectionId
                             });
                             groupsCreated++;
                         }
@@ -110,7 +111,8 @@ public sealed class ConnectionImportRepository(WellSiteAutoPilotDbContext dbCont
                 dbContext.Assets.Add(new AssetEntity
                 {
                     Id = assetId, AssetTypeId = request.WellTypeId, Name = placement.Name, ParentAssetId = parent,
-                    AttributeValuesJson = attributeJson[placement.ExternalId], IsActive = true, CreatedAtUtc = now
+                    AttributeValuesJson = attributeJson[placement.ExternalId], IsActive = true, CreatedAtUtc = now,
+                    OwnerConnectionId = request.ConnectionId
                 });
                 dbContext.SourceBindings.Add(new SourceBindingEntity
                 {
@@ -166,10 +168,11 @@ public sealed class ConnectionImportRepository(WellSiteAutoPilotDbContext dbCont
     }
 
     // Groups are matched by parent and name only within the group type, as designed: never by name across the tree.
-    private async Task<Dictionary<(Guid? Parent, string Name), Guid>> LoadGroupsAsync(Guid groupTypeId, CancellationToken cancellationToken)
+    private async Task<Dictionary<(Guid? Parent, string Name), Guid>> LoadGroupsAsync(Guid groupTypeId, Guid ownerConnectionId, CancellationToken cancellationToken)
     {
         var groups = await dbContext.Assets.AsNoTracking()
-            .Where(asset => asset.AssetTypeId == groupTypeId && asset.IsActive)
+            // A Group is only reused within the Connection that owns it; two Connections never share a Group.
+            .Where(asset => asset.AssetTypeId == groupTypeId && asset.IsActive && asset.OwnerConnectionId == ownerConnectionId)
             .OrderBy(asset => asset.CreatedAtUtc).ThenBy(asset => asset.Id)
             .Select(asset => new { asset.Id, asset.ParentAssetId, asset.Name }).ToArrayAsync(cancellationToken);
         var index = new Dictionary<(Guid? Parent, string Name), Guid>();

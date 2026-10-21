@@ -292,6 +292,33 @@ request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": curre
 renamed = request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": current["revision"],
     "name": conn_name + " renamed stand-in", "settings": {"baseUrl": "http://127.0.0.1:5091/foresite"}})
 assert renamed["revision"] == current["revision"] + 1 and renamed["name"].endswith("renamed stand-in"), renamed
+# Ownership: what a connection imported belongs to it alone. A second connection to the same system gets its own
+# Assets and its own Groups, even when every name is the same; nothing is shared or merged.
+before = request("GET", "/assets?limit=500")
+mine = {item["id"]: item for item in before if item.get("ownerConnectionId") == stand_in["id"]}
+assert {item["name"] for item in mine.values()} >= {"North Field", "South Field", "ESP", "RRL", "Alpha 1", "Alpha 2", "Bravo 1"}, mine
+assert all(item.get("ownerConnectionId") for item in mine.values()), mine
+twin = request("POST", "/connections", body={"name": conn_name + " foresite twin", "adapterKey": "foresite",
+    "settings": {"baseUrl": "http://127.0.0.1:5091/foresite"}}, expected=201)
+twin_plan = request("POST", "/connections/" + twin["id"] + "/import/preview", body={"levels": levels})
+assert twin_plan["objectCount"] == 3 and twin_plan["alreadyImported"] == 0, twin_plan
+twin_done = request("POST", "/connections/" + twin["id"] + "/import", body={"levels": levels, "expectedFingerprint": twin_plan["fingerprint"]})
+assert twin_done["wellsCreated"] == 3 and twin_done["groupsCreated"] == 5 and twin_done["groupsReused"] == 0, twin_done
+after = request("GET", "/assets?limit=500")
+for name in ["Alpha 1", "North Field", "ESP"]:
+    owners = sorted(item["ownerConnectionId"] for item in after if item["name"] == name and item.get("ownerConnectionId"))
+    assert owners == sorted([stand_in["id"], twin["id"]]), (name, owners)
+assert {item["id"] for item in after if item.get("ownerConnectionId") == stand_in["id"]} == set(mine), "the first connection's Assets changed"
+request("DELETE", "/connections/" + twin["id"], expected=409)
+# Creating beneath a connection's Group keeps that owner; a root Asset stays standalone.
+well_type = next(item for item in request("GET", "/asset-types") if item["key"] == "well")
+north = next(item for item in after if item["name"] == "North Field" and item.get("ownerConnectionId") == stand_in["id"])
+inside = request("POST", "/assets", body={"assetTypeId": well_type["id"], "name": "Added by hand", "parentAssetId": north["id"],
+    "attributeValuesJson": "{}"}, expected=201)
+assert inside["ownerConnectionId"] == stand_in["id"], inside
+alone = request("POST", "/assets", body={"assetTypeId": well_type["id"], "name": "Standalone by hand", "parentAssetId": None,
+    "attributeValuesJson": "{}"}, expected=201)
+assert alone.get("ownerConnectionId") is None, alone
 request("DELETE", "/connections/" + stand_in["id"], expected=409)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)
