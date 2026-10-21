@@ -20,5 +20,11 @@ public sealed record AssetOwnerScope(Guid? ConnectionId);
 /// </summary>
 public sealed record AssetOwnerSummary(Guid? ConnectionId, string? ConnectionName, bool IsEnabled, int TopLevelCount, int AssetCount);
 
+/// <summary>
+/// Where an imported Asset came from: its Connection (with the current name), the kind of object and the outside
+/// system's own id. Only what a person needs to recognise the source; the stored import snapshot is not exposed.
+/// </summary>
+public sealed record AssetSourceInfo(Guid ConnectionId, string? ConnectionName, string ResourceKind, string ExternalId, DateTimeOffset ImportedAtUtc);
+
 /// <summary>A search match with the authorized ancestors it sits under.</summary>
 public sealed record AssetSearchHit(Asset Asset, IReadOnlyList<AssetPathSegment> Path);

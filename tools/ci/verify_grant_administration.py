@@ -335,6 +335,15 @@ request("GET", "/assets/children?ownerConnectionId=" + twin["id"] + "&standalone
 assert request("GET", "/assets/children?ownerConnectionId=" + str(uuid.uuid4())) == []
 # A person without asset read access is not told which connections exist.
 request("GET", "/assets/owners", OPERATOR, expected=403)
+# Where an imported Asset came from: its Connection, kind and the outside system's own id. Hand-made Assets and Groups have none.
+alpha = next(item for item in after if item["name"] == "Alpha 1" and item.get("ownerConnectionId") == twin["id"])
+source = request("GET", "/assets/" + alpha["id"] + "/source")
+assert source["connectionId"] == twin["id"] and source["connectionName"].endswith("foresite twin"), source
+assert source["resourceKind"] and source["externalId"] and source["importedAtUtc"], source
+assert "snapshot" not in json.dumps(source).lower(), source
+request("GET", "/assets/" + alone["id"] + "/source", expected=404)
+request("GET", "/assets/" + north["id"] + "/source", expected=404)
+request("GET", "/assets/" + alpha["id"] + "/source", OPERATOR, expected=403)
 # Views: a person's own saved arrangement, evaluated on the server one level at a time.
 definition = {"version": 1, "connections": [], "assetTypeIds": [], "activity": "all", "search": None,
     "grouping": ["connection", "status"]}

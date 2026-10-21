@@ -453,6 +453,8 @@ export const englishMessages = {
   'assets.selectedType': 'Type: {name}',
   'assets.clearSelection': 'Clear selection',
   'assetPage.locatedUnder': 'Located under {path}',
+  'assetPage.source': 'Source ({kind}):',
+  'assetPage.importedAt': 'imported {time}',
   'assetPage.topLevel': 'Top-level asset',
   'assetPage.contains': 'Contains',
   'assetPage.noChildren': 'Nothing is placed under this asset.',

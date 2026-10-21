@@ -32,6 +32,7 @@ function host(requests: { url: string; init?: RequestInit }[], existing: unknown
     }
     if (url === '/api/v1/assets/owners') return response([{ connectionId, connectionName: 'Houston Production', isEnabled: true, topLevelCount: 1, assetCount: 1 }]);
     if (url.includes('/assets?')) return response([well]);
+    if (url === '/api/v1/assets/' + wellId + '/source') return response({ connectionId, connectionName: 'Houston Production', resourceKind: 'foresite.well', externalId: 'FS-1001', importedAtUtc: '2026-10-21T10:00:00Z' });
     if (url === '/api/v1/assets/' + wellId) return response(well);
     return response([]);
   }));
@@ -55,6 +56,9 @@ it('opens a saved View: groups load when opened and a chosen asset opens the ass
   expect(window.location.hash).toBe('#assets/' + wellId);
   // The location starts at the owning Connection, so equal names in two Connections stay distinguishable.
   expect(await screen.findByText('Located under Houston Production')).toBeTruthy();
+  // And where it came from in the outside system.
+  expect(await screen.findByText('FS-1001')).toBeTruthy();
+  expect(screen.getByText(/Source \(foresite\.well\):/)).toBeTruthy();
 });
 
 it('creates a View from the dedicated flow and selects it', async () => {

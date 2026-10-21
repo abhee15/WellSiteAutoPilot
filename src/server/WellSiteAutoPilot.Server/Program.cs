@@ -759,6 +759,20 @@ v1.MapGet(
     .Produces<AssetResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+v1.MapGet(
+    "/assets/{assetId:guid}/source",
+    async (Guid assetId, IAssetRepository assets, RequestAccessContext access, CancellationToken cancellationToken) =>
+    {
+        var source = RequireFound(await assets.GetSourceAuthorizedAsync(access.Subject, assetId, cancellationToken),
+            "ASSET_SOURCE_NOT_FOUND");
+        return new AssetSourceResponse(source.ConnectionId, source.ConnectionName, source.ResourceKind, source.ExternalId,
+            source.ImportedAtUtc);
+    })
+    .WithName("GetAssetSource")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .Produces<AssetSourceResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
 v1.MapPost(
     "/configured-logic",
     async (

@@ -127,3 +127,19 @@ export async function fetchOwners(signal: AbortSignal): Promise<OwnerGroup[]> {
     }];
   });
 }
+
+/** Where an imported Asset came from: the kind of object and the outside system's own id. */
+export type AssetSource = {
+  connectionId: string; connectionName: string | null; resourceKind: string; externalId: string; importedAtUtc: string;
+};
+
+/** The source of one Asset, or null when it was made by hand (or this person may not see it). */
+export async function fetchAssetSource(id: string, signal: AbortSignal): Promise<AssetSource | null> {
+  const value = await getJson(`/api/v1/assets/${encodeURIComponent(id)}/source`, signal);
+  return isObject(value) && typeof value.connectionId === 'string' && typeof value.resourceKind === 'string' &&
+    typeof value.externalId === 'string'
+    ? { connectionId: value.connectionId, connectionName: typeof value.connectionName === 'string' ? value.connectionName : null,
+      resourceKind: value.resourceKind, externalId: value.externalId,
+      importedAtUtc: typeof value.importedAtUtc === 'string' ? value.importedAtUtc : '' }
+    : null;
+}
