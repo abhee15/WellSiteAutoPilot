@@ -61,6 +61,7 @@ Check(sdk.ProviderConstructorParameterTypes.Count > 0, "SDK exposes provider con
 Console.WriteLine($"PetroVisor SDK API assembly version {sdk.ApiAssemblyVersion}; client {sdk.ClientAssemblyVersion}.");
 foreach (var signature in sdk.ProviderConstructorParameterTypes)
     Console.WriteLine("PetroVisor SDK provider constructor parameter types: " + signature);
+SdkSurface.Emit();
 Console.WriteLine("PetroVisor adapter POC checks passed.");
 
 static void Check(bool pass, string message)
