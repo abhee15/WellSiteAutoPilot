@@ -227,42 +227,38 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
       )}
       {error && <p role="alert" className="status-error">{error}</p>}
       {canManage && (
-        <div className="connection-actions">
+        <div className="connection-actions connection-actions-settings">
           <button type="submit" className="primary-button" disabled={disabled || !adapter || !draft.name.trim() || !dirty}>
             {connection ? t('connections.save') : t('connections.create')}
           </button>
-          {connection && <>
+          {connection && dirty && (
+            <button type="button" className="secondary-button" disabled={disabled}
+              onClick={() => setDraft({ name: connection.name, settings: { ...connection.settings } })}>
+              {t('connections.discard')}
+            </button>
+          )}
+        </div>
+      )}
+      {canManage && connection && (
+        <div className="connection-actions connection-actions-workflow" role="group" aria-label={t('connections.checkGroup')}>
+          <button type="button" className="secondary-button"
+            disabled={disabled || dirty || !connection.isEnabled}
+            onClick={() => void run('test', async () => onSaved(await testConnection(connection)))}>
+            {busy === 'test' ? t('connections.testing') : t('connections.test')}
+          </button>
+          {adapter?.canDiscover && (
             <button type="button" className="secondary-button"
               disabled={disabled || dirty || !connection.isEnabled}
-              onClick={() => void run('test', async () => onSaved(await testConnection(connection)))}>
-              {busy === 'test' ? t('connections.testing') : t('connections.test')}
+              onClick={() => void run('find', async () => {
+                const result = await discoverConnection(connection);
+                setFound(result);
+                setSelection({ value: { snapshotId: result.snapshotId, query: '', facets: {} }, count: result.totalCount });
+              })}>
+              {busy === 'find' ? t('connections.finding') : t('connections.find')}
             </button>
-            {adapter?.canDiscover && (
-              <button type="button" className="secondary-button"
-                disabled={disabled || dirty || !connection.isEnabled}
-                onClick={() => void run('find', async () => {
-                  const result = await discoverConnection(connection);
-                  setFound(result);
-                  setSelection({ value: { snapshotId: result.snapshotId, query: '', facets: {} }, count: result.totalCount });
-                })}>
-                {busy === 'find' ? t('connections.finding') : t('connections.find')}
-              </button>
-            )}
-            <button type="button" className="secondary-button" disabled={disabled}
-              onClick={() => void run('toggle', async () => onSaved(await setConnectionEnabled(connection, !connection.isEnabled)))}>
-              {connection.isEnabled ? t('connections.disable') : t('connections.enable')}
-            </button>
-            {confirmDelete ? <>
-              <span>{t('connections.deleteConfirm', { name: connection.name })}</span>
-              <button type="button" className="secondary-button" disabled={disabled}
-                onClick={() => void run('delete', async () => { await deleteConnection(connection); onGone(); })}>
-                {t('connections.deleteYes')}
-              </button>
-              <button type="button" className="secondary-button" disabled={disabled}
-                onClick={() => setConfirmDelete(false)}>{t('connections.deleteNo')}</button>
-            </> : <button type="button" className="secondary-button" disabled={disabled}
-              onClick={() => setConfirmDelete(true)}>{t('connections.delete')}</button>}
-          </>}
+          )}
+          {dirty ? <span className="connection-help">{t('connections.testDirty')}</span>
+            : !connection.isEnabled && <span className="connection-help">{t('connections.testDisabled')}</span>}
         </div>
       )}
       {canManage && connection && adapter?.canDiscover && adapter.groupingFields.length > 0 && connection.isEnabled && !dirty && (
@@ -272,8 +268,30 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
       )}
       {found && connection && <FoundList key={found.snapshotId} connection={connection} found={found}
         onSelect={(value, count) => setSelection({ value, count })} />}
-      {connection && dirty && canManage && <p className="connection-help">{t('connections.testDirty')}</p>}
-      {connection && !connection.isEnabled && <p className="connection-help">{t('connections.testDisabled')}</p>}
+      {canManage && connection && (
+        <section className="connection-manage" aria-label={t('connections.manageHeading')}>
+          <h3>{t('connections.manageHeading')}</h3>
+          <div className="connection-actions">
+            <button type="button" className="secondary-button" disabled={disabled}
+              onClick={() => void run('toggle', async () => onSaved(await setConnectionEnabled(connection, !connection.isEnabled)))}>
+              {connection.isEnabled ? t('connections.disable') : t('connections.enable')}
+            </button>
+            {!confirmDelete && <button type="button" className="secondary-button" disabled={disabled}
+              onClick={() => setConfirmDelete(true)}>{t('connections.delete')}</button>}
+          </div>
+          {confirmDelete && (
+            <div className="connection-actions connection-delete-confirm" role="alertdialog" aria-label={t('connections.delete')}>
+              <span>{t('connections.deleteConfirm', { name: connection.name })}</span>
+              <button type="button" className="secondary-button" disabled={disabled}
+                onClick={() => void run('delete', async () => { await deleteConnection(connection); onGone(); })}>
+                {t('connections.deleteYes')}
+              </button>
+              <button type="button" className="secondary-button" disabled={disabled}
+                onClick={() => setConfirmDelete(false)}>{t('connections.deleteNo')}</button>
+            </div>
+          )}
+        </section>
+      )}
     </form>
   );
 }
