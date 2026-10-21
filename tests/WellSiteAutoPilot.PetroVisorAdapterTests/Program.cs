@@ -6,8 +6,9 @@ const string account = @"DOMAIN\wsa-service";
 var descriptor = PetroVisorAdapter.Descriptor;
 Check(descriptor.Key == "petrovisor" && descriptor.CanDiscover, "descriptor advertises discovery");
 Check(descriptor.GroupingFields!.Single().Key == "entityType", "entity type is the only grouping dimension");
-Check(descriptor.Fields.Count == 2 && descriptor.Fields.Any(x => x.Key == "workspace" && x.Required) &&
-    descriptor.Fields.Any(x => x.Key == "baseUrl" && x.Required), "workspace-bound settings required");
+Check(descriptor.Fields.Count == 3 && descriptor.Fields.Any(x => x.Key == "workspace" && x.Required) &&
+    descriptor.Fields.Any(x => x.Key == "baseUrl" && x.Required) &&
+    descriptor.Fields.Any(x => x.Key == "identityUrl" && !x.Required), "workspace-bound settings required, identity provider optional");
 
 var goodSettings = new Dictionary<string, string?> { ["workspace"] = "Production", ["baseUrl"] = "https://petrovisor.example/api" };
 Check(AdapterSettingsValidator.Validate(descriptor, goodSettings).Count == 0, "valid settings accepted");
