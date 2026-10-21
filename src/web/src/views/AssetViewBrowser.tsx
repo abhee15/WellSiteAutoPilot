@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import { VIEW_PAGE_SIZE, loadViewNodes } from './assetViewsApi';
 import type { ViewAsset, ViewGroup } from './assetViewsApi';
+import { AssetNodeIcon, assetNodeKind } from './AssetNodeIcon';
 import './assetTree.css';
 
 const SEPARATOR = '\u0001';
@@ -13,12 +14,13 @@ const EMPTY: Level = { groups: [], assets: [], hasMore: false, loading: true, fa
  * loaded at once. The View only arranges Assets; selecting one opens the same asset page as the default hierarchy.
  */
 export function AssetViewBrowser({
-  viewId, selectedId, onSelect, translateGroup,
+  viewId, selectedId, onSelect, translateGroup, typeNames,
 }: {
   viewId: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
   translateGroup?: (group: ViewGroup) => string;
+  typeNames?: ReadonlyMap<string | undefined, string | null | undefined>;
 }) {
   const [levels, setLevels] = useState<Record<string, Level>>({});
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -79,7 +81,8 @@ export function AssetViewBrowser({
                   aria-label={t(expanded ? 'assetTree.collapse' : 'assetTree.expand', { name: label })}
                   onClick={() => toggle(childPath)}>{expanded ? '−' : '+'}</button>
                 <button type="button" className="asset-select asset-tree-name" onClick={() => toggle(childPath)}
-                  aria-label={t('assetTree.open', { name: label })}>{label}</button>
+                  aria-label={t('assetTree.open', { name: label })}>
+                  <AssetNodeIcon kind="group" />{label}</button>
                 <small>{t('assetOwner.count', { count: String(group.count) })}</small>
               </div>
               {expanded && <ul role="group">{renderLevel(childPath)}</ul>}
@@ -91,7 +94,8 @@ export function AssetViewBrowser({
             <div className="asset-tree-row">
               <span className="asset-tree-toggle" aria-hidden="true" />
               <button type="button" className="asset-select asset-tree-name" data-selected={asset.id === selectedId}
-                aria-label={t('assetTree.open', { name: asset.name })} onClick={() => onSelect(asset.id)}>{asset.name}</button>
+                aria-label={t('assetTree.open', { name: asset.name })} onClick={() => onSelect(asset.id)}>
+                <AssetNodeIcon kind={assetNodeKind(false, typeNames?.get(asset.assetTypeId))} />{asset.name}</button>
             </div>
           </li>
         ))}

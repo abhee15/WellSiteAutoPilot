@@ -8,5 +8,5 @@
 .asset-tree-name[data-selected='true'] { font-weight: 600; }
 .asset-tree-status { padding: var(--space-4) 0 var(--space-4) var(--space-24); color: var(--color-text-subtle); }
 .asset-owner-row { font-weight: 600; }
-.asset-owner-icon { color: var(--color-text-subtle); }
 .asset-owner-link { font-size: var(--font-size-label); }
+.asset-node-icon { flex: none; color: var(--color-text-subtle); vertical-align: middle; margin-right: var(--space-4); }
