@@ -93,8 +93,19 @@ internal static class ConfiguredShadowE2e
         message.Headers.TryAddWithoutValidation("If-Match", "\"" + reviewedActiveRevision + "\"");
         await Read(await client.SendAsync(message), HttpStatusCode.OK);
     }
-    private static async Task<JsonElement> Send(HttpClient client, string path, Guid requestId) =>
-        await Read(await client.PostAsJsonAsync(path, new { requestId }), HttpStatusCode.OK);
+    private static async Task<JsonElement> Send(HttpClient client, string path, Guid requestId)
+    {
+        // Requests are Serializable, so a replay can lose to the worker updating the same execution's status and
+        // come back as a transient conflict. The documented client behaviour is to reload and retry; a conflict that
+        // persists still fails the check.
+        for (var attempt = 1; ; attempt++)
+        {
+            var response = await client.PostAsJsonAsync(path, new { requestId });
+            if (response.StatusCode != HttpStatusCode.Conflict || attempt == 6) return await Read(response, HttpStatusCode.OK);
+            response.Dispose();
+            await Task.Delay(250);
+        }
+    }
     private static async Task<JsonElement> AwaitTerminal(HttpClient client, Guid executionId)
     {
         for (var attempt = 0; attempt < 60; attempt++)
