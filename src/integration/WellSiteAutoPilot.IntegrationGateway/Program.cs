@@ -16,7 +16,7 @@ builder.Services.AddServiceCallerAuthentication(builder.Configuration);
 builder.Services.AddSingleton<AdapterCatalog>();
 builder.Services.AddHttpClient("adapter-test");
 builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true });
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true, UseCookies = false });
 builder.Services.AddTransient<AdapterConnectionTester>();
 builder.Services.AddTransient<AdapterDiscoverer>();
 
