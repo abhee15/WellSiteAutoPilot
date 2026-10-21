@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
-import { MAX_VIEW_LEVELS, MAX_VIEW_NAME, STANDALONE, VIEW_LEVELS, ViewsError, createView, deleteView, updateView } from './assetViewsApi';
-import type { AssetView, ViewActivity, ViewDefinition, ViewLevel } from './assetViewsApi';
+import { MAX_VIEW_LEVELS, MAX_VIEW_NAME, STANDALONE, VIEW_LEVELS, ViewsError, copyView, createView, deleteView, updateView } from './assetViewsApi';
+import type { AssetView, ViewActivity, ViewDefinition, ViewLevel, ViewVisibility } from './assetViewsApi';
 import type { OwnerGroup } from './assetHierarchy';
 import './assetViews.css';
 
@@ -12,6 +12,8 @@ const errorKey = (error: unknown): MessageKey => {
   if (!(error instanceof ViewsError)) return 'assetViews.errUnavailable';
   switch (error.kind) {
     case 'nameTaken': return 'assetViews.errNameTaken';
+    case 'sharedNameTaken': return 'assetViews.errSharedNameTaken';
+    case 'shareForbidden': return 'assetViews.errShareForbidden';
     case 'stale': return 'assetViews.errStale';
     case 'limit': return 'assetViews.errLimit';
     case 'invalid': return 'assetViews.errInvalid';
@@ -23,9 +25,11 @@ const errorKey = (error: unknown): MessageKey => {
 
 /** Create or change one View: what it shows and how it is grouped. A View never moves or copies Assets. */
 export function AssetViewEditor({
-  view, owners, assetTypes, onSaved, onDeleted, onCancel, initial,
+  view, owners, assetTypes, canShare, onSaved, onDeleted, onCancel, initial,
 }: {
   view: AssetView | null;
+  /** Whether this person holds asset-views.share. */
+  canShare: boolean;
   /** Starting point for a new View, such as a browser-local filter being converted. `lossy` says part of it cannot carry over. */
   initial?: { name: string; definition: ViewDefinition; lossy: boolean } | null;
   owners: readonly OwnerGroup[];
@@ -34,9 +38,11 @@ export function AssetViewEditor({
   onDeleted: () => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(view?.name ?? initial?.name ?? '');
+  const [name, setName] = useState(view ? (view.canEdit ? view.name : (view.name + ' (copy)').slice(0, MAX_VIEW_NAME)) : initial?.name ?? '');
   const [definition, setDefinition] = useState<ViewDefinition>(view?.definition ?? initial?.definition ?? { version: 1,
     connections: [], assetTypeIds: [], activity: 'all', search: null, grouping: [] });
+  const [visibility, setVisibility] = useState<ViewVisibility>(view?.visibility ?? 'personal');
+  const readOnly = !!view && !view.canEdit;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -62,7 +68,8 @@ export function AssetViewEditor({
   };
   const save = () => run(async () => {
     const cleaned = { ...definition, search: definition.search?.trim() ? definition.search.trim() : null };
-    onSaved(view ? await updateView(view, name.trim(), cleaned) : await createView(name.trim(), cleaned));
+    if (readOnly && view) { onSaved(await copyView(view, name.trim())); return; }
+    onSaved(view ? await updateView(view, name.trim(), cleaned, visibility) : await createView(name.trim(), cleaned, visibility));
   });
 
   return (
@@ -71,13 +78,17 @@ export function AssetViewEditor({
       <h3>{t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}</h3>
       <p className="connection-help">{t('assetViews.intro')}</p>
       {!view && initial?.lossy && <p className="connection-help" role="note">{t('assetViews.lossyNote')}</p>}
+      {readOnly && view && <p className="connection-help" role="note">
+        {t('assetViews.copyNote', { owner: view.ownerName || t('assetViews.someone') })}</p>}
+      {view && view.hiddenConnectionCount > 0 && <p className="connection-help" role="note">
+        {t('assetViews.hiddenConnections', { count: String(view.hiddenConnectionCount) })}</p>}
       <label>
         <span>{t('assetViews.name')}</span>
         <input type="text" value={name} maxLength={MAX_VIEW_NAME} disabled={busy}
           onChange={event => setName(event.target.value)} />
       </label>
 
-      <fieldset disabled={busy}>
+      <fieldset disabled={busy || readOnly}>
         <legend>{t('assetViews.connections')}</legend>
         <p className="connection-help">{t('assetViews.connectionsHelp')}</p>
         {connectionChoices.map(choice => (
@@ -90,7 +101,7 @@ export function AssetViewEditor({
       </fieldset>
 
       {assetTypes.length > 0 && (
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy || readOnly}>
           <legend>{t('assetViews.types')}</legend>
           <p className="connection-help">{t('assetViews.typesHelp')}</p>
           {assetTypes.map(type => (
@@ -105,7 +116,7 @@ export function AssetViewEditor({
 
       <label>
         <span>{t('assetViews.activity')}</span>
-        <select value={definition.activity} disabled={busy}
+        <select value={definition.activity} disabled={busy || readOnly}
           onChange={event => setDefinition(current => ({ ...current, activity: event.target.value as ViewActivity }))}>
           <option value="all">{t('assetViews.activityAll')}</option>
           <option value="active">{t('assetViews.activityActive')}</option>
@@ -114,11 +125,20 @@ export function AssetViewEditor({
       </label>
       <label>
         <span>{t('assetViews.search')}</span>
-        <input type="text" value={definition.search ?? ''} maxLength={120} disabled={busy}
+        <input type="text" value={definition.search ?? ''} maxLength={120} disabled={busy || readOnly}
           onChange={event => setDefinition(current => ({ ...current, search: event.target.value }))} />
       </label>
 
-      <fieldset disabled={busy}>
+      {(canShare || visibility === 'shared') && !readOnly && (
+        <label className="asset-view-check">
+          <input type="checkbox" checked={visibility === 'shared'} disabled={busy || !canShare}
+            onChange={event => setVisibility(event.target.checked ? 'shared' : 'personal')} />
+          {' '}{t('assetViews.share')}
+          <span className="connection-help">{t('assetViews.shareHelp')}</span>
+        </label>
+      )}
+
+      <fieldset disabled={busy || readOnly}>
         <legend>{t('assetViews.grouping')}</legend>
         <p className="connection-help">{t('assetViews.groupingHelp')}</p>
         {definition.grouping.length === 0 && <p className="split-note">{t('assetViews.flat')}</p>}
@@ -151,12 +171,12 @@ export function AssetViewEditor({
       {error && <p role="alert" className="status-error">{t(error)}</p>}
       <div className="connection-actions">
         <button type="submit" className="primary-button" disabled={busy || !name.trim()}>
-          {t('assetViews.save')}</button>
+          {t(readOnly ? 'assetViews.saveCopy' : 'assetViews.save')}</button>
         <button type="button" className="secondary-button" disabled={busy} onClick={onCancel}>{t('assetViews.cancel')}</button>
-        {view && !confirmDelete && <button type="button" className="secondary-button" disabled={busy}
+        {view && !readOnly && !confirmDelete && <button type="button" className="secondary-button" disabled={busy}
           onClick={() => setConfirmDelete(true)}>{t('assetViews.delete')}</button>}
       </div>
-      {view && confirmDelete && (
+      {view && !readOnly && confirmDelete && (
         <div className="connection-actions connection-delete-confirm" role="alertdialog" aria-label={t('assetViews.delete')}>
           <span>{t('assetViews.deleteConfirm', { name: view.name })}</span>
           <button type="button" className="secondary-button" disabled={busy}

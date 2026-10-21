@@ -22,7 +22,7 @@ import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
 import { AssetViewBrowser } from './AssetViewBrowser';
 import { AssetViewEditor } from './AssetViewEditor';
 import { viewConnectionFromDetail } from './assetViewNavigation';
-import { loadViews } from './assetViewsApi';
+import { loadViews, unshareView } from './assetViewsApi';
 import type { AssetView, ViewDefinition } from './assetViewsApi';
 import type { ViewGroup } from './assetViewsApi';
 import type { OwnerGroup } from './assetHierarchy';
@@ -56,8 +56,7 @@ export function AssetsPage({
 }) {
   const [detail, setDetail] = useHashDetail('assets');
   const onTypesTab = detail === TYPES_TAB;
-  // The post-import navigation intent is not an Asset ID. Do not try to fetch an Asset
-  // with it or let the vanished-selection cleanup erase it.
+  // Post-import View navigation is not an Asset selection or an authorization grant.
   const viewConnectionId = viewConnectionFromDetail(detail);
   const selectedId = onTypesTab || viewConnectionId ? null : detail;
   // A full snapshot means the flat list may be incomplete: browse and search on the server instead.
@@ -73,8 +72,6 @@ export function AssetsPage({
   const [viewDraft, setViewDraft] = useState<{ name: string; definition: ViewDefinition; lossy: boolean } | null>(null);
   useEffect(() => {
     if (!viewConnectionId) return;
-    // Only prefill the owner Connection. This View can include earlier imports from
-    // that Connection too; no View is saved until the person confirms in the editor.
     setViewDraft({ name: '', definition: { version: 1, connections: [viewConnectionId],
       assetTypeIds: [], activity: 'all', search: null, grouping: [] }, lossy: false });
     setEditingView('new');
@@ -260,6 +257,7 @@ export function AssetsPage({
             initial={editingView === 'new' ? viewDraft : null}
             owners={owners}
             assetTypes={activeTypes.map(type => ({ id: type.id ?? '', name: type.displayName ?? type.key ?? '' }))}
+            canShare={permissions.includes('asset-views.share')}
             onSaved={saved => {
               setViews(current => [...current.filter(view => view.id !== saved.id), saved]
                 .sort((a, b) => a.name.localeCompare(b.name)));
@@ -282,13 +280,32 @@ export function AssetsPage({
               <span>{t('assetViews.selector')}</span>{' '}
               <select value={activeView ? activeView.id : ''} onChange={event => { setActiveViewId(event.target.value); setFocus(null); }}>
                 <option value="">{t('assetViews.default')}</option>
-                {views.map(view => <option key={view.id} value={view.id}>{view.name}</option>)}
+                {views.some(view => view.isOwner) && (
+                  <optgroup label={t('assetViews.mine')}>
+                    {views.filter(view => view.isOwner).map(view =>
+                      <option key={view.id} value={view.id}>{view.name}{view.visibility === 'shared' ? ' · ' + t('assetViews.sharedTag') : ''}</option>)}
+                  </optgroup>)}
+                {views.some(view => !view.isOwner) && (
+                  <optgroup label={t('assetViews.sharedWithMe')}>
+                    {views.filter(view => !view.isOwner).map(view =>
+                      <option key={view.id} value={view.id}>{view.name}{view.ownerName ? ' · ' + view.ownerName : ''}</option>)}
+                  </optgroup>)}
               </select>
             </label>
             <button type="button" className="secondary-button" onClick={() => { setViewDraft(null); setEditingView('new'); }}>
               {t('assetViews.create')}</button>
             {activeView && <button type="button" className="secondary-button" onClick={() => setEditingView(activeView)}>
-              {t('assetViews.edit')}</button>}
+              {t(activeView.canEdit ? 'assetViews.edit' : 'assetViews.copy')}</button>}
+            {activeView && !activeView.isOwner && activeView.visibility === 'shared' && permissions.includes('security.manage') && (
+              <button type="button" className="secondary-button" onClick={() => {
+                void unshareView(activeView).then(() => {
+                  setViews(current => current.filter(view => view.id !== activeView.id));
+                  setActiveViewId('');
+                }).catch(() => undefined);
+              }}>{t('assetViews.unshare')}</button>)}
+            {activeView && activeView.hiddenConnectionCount > 0 && (
+              <span className="connection-help" role="note">
+                {t('assetViews.hiddenConnections', { count: String(activeView.hiddenConnectionCount) })}</span>)}
           </div>
           <div className="split-panes">
             <section className="panel split-browse" aria-label={t('assets.browse')}>

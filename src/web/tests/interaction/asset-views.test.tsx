@@ -15,12 +15,16 @@ const well = { id: wellId, assetTypeId: typeId, name: 'North Well', parentAssetI
 const definition = { version: 1, connections: [], assetTypeIds: [], activity: 'all', search: null, grouping: ['connection'] };
 const saved = { id: viewId, name: 'By owner', definition, revision: 1, createdAtUtc: '2026-10-21T10:00:00Z', updatedAtUtc: '2026-10-21T10:00:00Z' };
 
-function host(requests: { url: string; init?: RequestInit }[], existing: unknown[]) {
+function host(requests: { url: string; init?: RequestInit }[], existing: unknown[], permissions: string[] = ['assets.read']) {
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     requests.push({ url, init });
-    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions: ['assets.read'], assetScopeIds: [] });
+    if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions, assetScopeIds: [] });
     if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
     if (url.includes('/asset-types')) return response([{ id: typeId, key: 'well', displayName: 'Well', schemaVersion: 1, isActive: true }]);
+    if (url === `/api/v1/asset-views/${viewId}/copy` && init?.method === 'POST') {
+      const body = JSON.parse(String(init.body)) as { name: string };
+      return response({ ...saved, id: '55555555-5555-4555-8555-555555555557', name: body.name, visibility: 'personal', isOwner: true, canEdit: true }, 201);
+    }
     if (url === '/api/v1/asset-views' && init?.method === 'POST') {
       const body = JSON.parse(String(init.body)) as { name: string; definition: unknown };
       return response({ ...saved, id: '55555555-5555-4555-8555-555555555556', name: body.name, definition: body.definition }, 201);
@@ -169,4 +173,50 @@ it('turns the browser-local filters into a View: only what can carry over, and n
   expect(body.name).toBe('Pumps');
   expect(body.definition.activity).toBe('active');
   expect(body.definition.grouping).toEqual([]);
+});
+
+it('shares a View only for people who may share, and says what that means', async () => {
+  const plain: { url: string; init?: RequestInit }[] = [];
+  host(plain, [], ['assets.read']);
+  window.location.hash = '#assets';
+  const user = userEvent.setup();
+  const first = render(<App />);
+  await user.click(await screen.findByRole('button', { name: 'Create View' }));
+  const form = await screen.findByRole('form', { name: 'Create a View' });
+  expect(within(form).queryByLabelText(/Share with everyone/)).toBeNull();
+  first.unmount();
+  cleanup();
+
+  const requests: { url: string; init?: RequestInit }[] = [];
+  host(requests, [], ['assets.read', 'asset-views.share']);
+  render(<App />);
+  await user.click(await screen.findByRole('button', { name: 'Create View' }));
+  const sharing = await screen.findByRole('form', { name: 'Create a View' });
+  await user.type(within(sharing).getByLabelText('View name'), 'For the team');
+  await user.click(within(sharing).getByLabelText(/Share with everyone who can read Assets/));
+  await user.click(within(sharing).getByRole('button', { name: 'Save View' }));
+  await waitFor(() => expect(requests.some(request => request.init?.method === 'POST')).toBe(true));
+  const body = JSON.parse(String(requests.find(request => request.init?.method === 'POST')!.init?.body)) as { visibility: string };
+  expect(body.visibility).toBe('shared');
+});
+
+it("someone else's shared View is read-only: it is listed under Shared views and can be copied", async () => {
+  const requests: { url: string; init?: RequestInit }[] = [];
+  host(requests, [{ ...saved, visibility: 'shared', ownerName: 'Pat Engineer', isOwner: false, canEdit: false, hiddenConnectionCount: 2 }]);
+  window.location.hash = '#assets';
+  const user = userEvent.setup();
+  render(<App />);
+  const selector = await screen.findByLabelText('View');
+  await waitFor(() => expect(within(selector).queryByText('By owner · Pat Engineer')).toBeTruthy());
+  await user.selectOptions(selector, viewId);
+  expect(screen.queryByRole('button', { name: 'Edit view' })).toBeNull();
+  expect((await screen.findAllByText('2 Connection(s) named in this View are not visible to you.')).length).toBeGreaterThan(0);
+  await user.click(screen.getByRole('button', { name: 'Save a copy' }));
+  const form = await screen.findByRole('form', { name: 'Edit view' });
+  expect(within(form).queryByRole('button', { name: 'Delete View' })).toBeNull();
+  expect((within(form).getByLabelText('View name') as HTMLInputElement).value).toBe('By owner (copy)');
+  await user.click(within(form).getByRole('button', { name: 'Save my copy' }));
+  await waitFor(() => expect(requests.some(request => request.url.endsWith('/copy'))).toBe(true));
+  const body = JSON.parse(String(requests.find(request => request.url.endsWith('/copy'))!.init?.body)) as { name: string };
+  expect(body.name).toBe('By owner (copy)');
 });

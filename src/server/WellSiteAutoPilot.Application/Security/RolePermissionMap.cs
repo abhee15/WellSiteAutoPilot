@@ -20,6 +20,7 @@ public static class RolePermissionMap
                             WellSitePermissions.AssetTypesManage,
                             WellSitePermissions.ConnectionsRead,
                             WellSitePermissions.ConnectionsManage,
+                            WellSitePermissions.AssetViewsShare,
                             WellSitePermissions.LogicRead,
                             WellSitePermissions.LogicManage,
                             WellSitePermissions.ConfiguredLogicRead,
