@@ -32,3 +32,4 @@
 
 .status-page { display: grid; gap: var(--space-12); }
 .status-actions { display: flex; justify-content: flex-end; }
+.connection-facets { display: flex; flex-wrap: wrap; gap: var(--space-12); }

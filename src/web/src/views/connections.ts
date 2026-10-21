@@ -13,7 +13,21 @@ export type Adapter = {
 export type DiscoveredObject = { externalId: string; displayName: string; kind: string; metadata: Record<string, string> };
 
 /** `complete` false means partial or failed: the list must never be read as "nothing is there". */
-export type Discovery = { complete: boolean; items: DiscoveredObject[]; warnings: string[]; actingAs: string | null };
+export type DiscoveryFacet = { key: string; label: string; values: { value: string; count: number }[]; hasMore: boolean };
+
+/**
+ * `items` is only the first part of what was found (at most 1,000): `totalCount` says how many there are, and
+ * `snapshotId` names the kept list that searching, reviewing and importing work from.
+ */
+export type Discovery = {
+  complete: boolean; items: DiscoveredObject[]; warnings: string[]; actingAs: string | null;
+  totalCount: number; snapshotId: string; facets: DiscoveryFacet[]; expiresAtUtc: string;
+};
+
+/** The part of a kept list a person chose: words and one value per grouping fact. */
+export type ImportSelection = { snapshotId: string; query: string; facets: Record<string, string[]> };
+
+export type SearchResult = { matchCount: number; items: DiscoveredObject[] };
 
 export type TestOutcome = 'Healthy' | 'NeedsAttention' | 'Unreachable';
 
@@ -28,7 +42,7 @@ export type Connection = {
 };
 
 export type ConnectionErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'stale' | 'disabled' |
-  'invalidSettings' | 'invalid' | 'unsupported' | 'tooLarge' | 'hasImports' | 'needsAllAssets' | 'planChanged' | 'importNotAllowed' |
+  'invalidSettings' | 'invalid' | 'unsupported' | 'tooLarge' | 'importTooLarge' | 'snapshotExpired' | 'hasImports' | 'needsAllAssets' | 'planChanged' | 'importNotAllowed' |
   'incomplete' | 'invalidLevels' | 'gatewayUnavailable' | 'invalidResponse' | 'unavailable';
 
 export class ConnectionsError extends Error {
@@ -59,13 +73,26 @@ function isAdapter(value: unknown): value is Adapter {
       typeof field.required === 'boolean' && Number.isSafeInteger(field.maxLength));
 }
 
+function isDiscoveredObjects(value: unknown): value is DiscoveredObject[] {
+  return Array.isArray(value) && value.every(item => isObject(item) &&
+    typeof item.externalId === 'string' && typeof item.displayName === 'string' && typeof item.kind === 'string' &&
+    isObject(item.metadata) && Object.values(item.metadata).every(x => typeof x === 'string'));
+}
+
+function isFacet(value: unknown): value is DiscoveryFacet {
+  return isObject(value) && typeof value.key === 'string' && typeof value.label === 'string' &&
+    typeof value.hasMore === 'boolean' && Array.isArray(value.values) &&
+    value.values.every(entry => isObject(entry) && typeof entry.value === 'string' &&
+      Number.isSafeInteger(entry.count) && (entry.count as number) >= 0);
+}
+
 function isDiscovery(value: unknown): value is Discovery {
   return isObject(value) && typeof value.complete === 'boolean' &&
     (value.actingAs === null || typeof value.actingAs === 'string') &&
     Array.isArray(value.warnings) && value.warnings.every(x => typeof x === 'string') &&
-    Array.isArray(value.items) && value.items.every(item => isObject(item) &&
-      typeof item.externalId === 'string' && typeof item.displayName === 'string' && typeof item.kind === 'string' &&
-      isObject(item.metadata) && Object.values(item.metadata).every(x => typeof x === 'string'));
+    isDiscoveredObjects(value.items) && Number.isSafeInteger(value.totalCount) &&
+    (value.totalCount as number) >= value.items.length && typeof value.snapshotId === 'string' && uuid.test(value.snapshotId) &&
+    typeof value.expiresAtUtc === 'string' && Array.isArray(value.facets) && value.facets.every(isFacet);
 }
 
 function isConnection(value: unknown): value is Connection {
@@ -100,6 +127,7 @@ async function failure(response: Response): Promise<ConnectionsError> {
     return new ConnectionsError(code === 'CONNECTION_NAME_CONFLICT' ? 'nameTaken'
       : code === 'CONNECTION_DISABLED' ? 'disabled'
         : code === 'CONNECTION_DISCOVERY_UNSUPPORTED' ? 'unsupported'
+          : code === 'CONNECTION_SNAPSHOT_EXPIRED' ? 'snapshotExpired'
           : code === 'CONNECTION_HAS_IMPORTS' ? 'hasImports'
             : code === 'CONNECTION_IMPORT_PLAN_CHANGED' ? 'planChanged'
               : code === 'CONNECTION_IMPORT_NOT_ALLOWED' ? 'importNotAllowed'
@@ -107,7 +135,8 @@ async function failure(response: Response): Promise<ConnectionsError> {
   }
   if (status === 400) {
     return code === 'CONNECTION_SETTINGS_INVALID' ? new ConnectionsError('invalidSettings', detail)
-      : code === 'CONNECTION_DISCOVERY_TOO_LARGE' ? new ConnectionsError('tooLarge')
+      : code === 'CONNECTION_DISCOVERY_TOO_LARGE' ? new ConnectionsError('tooLarge', detail)
+        : code === 'CONNECTION_IMPORT_TOO_LARGE' ? new ConnectionsError('importTooLarge', detail)
         : code === 'CONNECTION_IMPORT_LEVELS_INVALID' ? new ConnectionsError('invalidLevels') : new ConnectionsError('invalid');
   }
   if (status === 503 || status === 504) return new ConnectionsError('gatewayUnavailable');
@@ -234,20 +263,40 @@ function isImportResult(value: unknown): value is ImportResult {
     isCount(value.groupsReused) && isCount(value.alreadyImported) && isStrings(value.typesCreated);
 }
 
-/** Works out what importing would do with these grouping levels. Nothing is saved. */
+const selectionBody = (selection: ImportSelection | null) => selection === null ? {} : {
+  snapshotId: selection.snapshotId, query: selection.query || null,
+  facets: Object.keys(selection.facets).length > 0 ? selection.facets : null,
+};
+
+/** Looks within what was found earlier, by words and grouping values. At most the first 1,000 matches come back. */
+export async function searchDiscovered(
+  connection: Connection, selection: ImportSelection, fetcher: typeof fetch = fetch,
+): Promise<SearchResult> {
+  const body = await send(`/connections/${connection.id}/discover/search`, json('POST', selectionBody(selection)), fetcher);
+  if (!isObject(body) || !Number.isSafeInteger(body.matchCount) || !isDiscoveredObjects(body.items) ||
+    (body.matchCount as number) < body.items.length) throw new ConnectionsError('invalidResponse');
+  return { matchCount: body.matchCount as number, items: body.items };
+}
+
+/**
+ * Works out what importing would do with these grouping levels, for the chosen part of what was found (everything
+ * when there is no selection). Nothing is saved.
+ */
 export async function previewImport(
-  connection: Connection, levels: string[], fetcher: typeof fetch = fetch,
+  connection: Connection, levels: string[], selection: ImportSelection | null = null, fetcher: typeof fetch = fetch,
 ): Promise<ImportPreview> {
-  const body = await send(`/connections/${connection.id}/import/preview`, json('POST', { levels }), fetcher);
+  const body = await send(`/connections/${connection.id}/import/preview`, json('POST', { levels, ...selectionBody(selection) }), fetcher);
   if (!isImportPreview(body)) throw new ConnectionsError('invalidResponse');
   return body;
 }
 
 /** Applies exactly the plan that was reviewed; the server refuses if the source has changed since. */
 export async function importFromConnection(
-  connection: Connection, levels: string[], expectedFingerprint: string, fetcher: typeof fetch = fetch,
+  connection: Connection, levels: string[], expectedFingerprint: string, selection: ImportSelection | null = null,
+  fetcher: typeof fetch = fetch,
 ): Promise<ImportResult> {
-  const body = await send(`/connections/${connection.id}/import`, json('POST', { levels, expectedFingerprint }), fetcher);
+  const body = await send(
+    `/connections/${connection.id}/import`, json('POST', { levels, expectedFingerprint, ...selectionBody(selection) }), fetcher);
   if (!isImportResult(body)) throw new ConnectionsError('invalidResponse');
   return body;
 }
