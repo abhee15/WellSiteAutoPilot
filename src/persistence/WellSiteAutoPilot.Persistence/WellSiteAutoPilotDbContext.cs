@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.Audit;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
+using WellSiteAutoPilot.Persistence.Assets.Views;
 using WellSiteAutoPilot.Persistence.Connections;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Messaging;
@@ -17,6 +18,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
     public DbSet<ConnectionEntity> Connections => Set<ConnectionEntity>();
+    public DbSet<AssetViewEntity> AssetViews => Set<AssetViewEntity>();
     public DbSet<SourceBindingEntity> SourceBindings => Set<SourceBindingEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
@@ -85,6 +87,17 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         connection.Property(x => x.LastTestMessage).HasMaxLength(500);
         connection.Property(x => x.LastTestActingAs).HasMaxLength(256);
         connection.HasIndex(x => x.NormalizedName).IsUnique();
+
+        var assetView = modelBuilder.Entity<AssetViewEntity>();
+        assetView.ToTable("asset_views", "assets");
+        assetView.HasKey(x => x.Id);
+        assetView.Property(x => x.Name).HasMaxLength(48).IsRequired();
+        assetView.Property(x => x.NormalizedName).HasMaxLength(48).IsRequired();
+        assetView.Property(x => x.DefinitionJson).IsRequired();
+        assetView.Property(x => x.Revision).IsRequired();
+        assetView.Property(x => x.CreatedAtUtc).IsRequired();
+        assetView.Property(x => x.UpdatedAtUtc).IsRequired();
+        assetView.HasIndex(x => new { x.OwnerUserId, x.NormalizedName }).IsUnique();
 
         var sourceBinding = modelBuilder.Entity<SourceBindingEntity>();
         sourceBinding.ToTable("source_bindings", "integration");

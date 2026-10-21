@@ -335,6 +335,35 @@ request("GET", "/assets/children?ownerConnectionId=" + twin["id"] + "&standalone
 assert request("GET", "/assets/children?ownerConnectionId=" + str(uuid.uuid4())) == []
 # A person without asset read access is not told which connections exist.
 request("GET", "/assets/owners", OPERATOR, expected=403)
+# Views: a person's own saved arrangement, evaluated on the server one level at a time.
+definition = {"version": 1, "connections": [], "assetTypeIds": [], "activity": "all", "search": None,
+    "grouping": ["connection", "status"]}
+view = request("POST", "/asset-views", body={"name": "  By owner  ", "definition": definition}, expected=201)
+assert view["name"] == "By owner" and view["revision"] == 1, view
+request("POST", "/asset-views", body={"name": "by OWNER", "definition": definition}, expected=409)
+request("POST", "/asset-views", body={"name": "Bad", "definition": {**definition, "grouping": ["status", "status"]}}, expected=400)
+request("POST", "/asset-views", body={"name": "Bad", "definition": {**definition, "connections": ["not-a-guid"]}}, expected=400)
+assert [item["id"] for item in request("GET", "/asset-views")] == [view["id"]]
+top = request("GET", "/asset-views/" + view["id"] + "/nodes")
+assert top["level"] == "connection" and top["assets"] == [], top
+groups = {item["key"]: item for item in top["groups"]}
+assert groups[twin["id"]]["count"] == by_owner[twin["id"]]["assetCount"], (groups, by_owner)
+assert groups["standalone"]["label"] == "Standalone" and groups[stand_in["id"]]["label"].endswith("renamed stand-in"), groups
+by_status = request("GET", "/asset-views/" + view["id"] + "/nodes?path=" + twin["id"])
+assert by_status["level"] == "status" and [item["key"] for item in by_status["groups"]] == ["active"], by_status
+leaves = request("GET", "/asset-views/" + view["id"] + "/nodes?path=" + twin["id"] + "&path=active")
+assert leaves["level"] is None and len(leaves["assets"]) == groups[twin["id"]]["count"], leaves
+request("GET", "/asset-views/" + view["id"] + "/nodes?path=" + twin["id"] + "&path=active&path=x", expected=400)
+request("GET", "/asset-views/" + view["id"] + "/nodes?path=not-a-guid", expected=400)
+# Editing needs the current revision, and one person's Views are invisible to everyone else.
+renamed = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 1, "name": "By owner v2",
+    "definition": {**definition, "grouping": ["assetType"]}})
+assert renamed["revision"] == 2 and renamed["definition"]["grouping"] == ["assetType"], renamed
+request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 1, "name": "Late", "definition": definition}, expected=409)
+request("GET", "/asset-views/" + view["id"], OPERATOR, expected=403)
+request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=1", expected=409)
+request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=2", expected=204)
+request("GET", "/asset-views/" + view["id"], expected=404)
 request("DELETE", "/connections/" + stand_in["id"], expected=409)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)

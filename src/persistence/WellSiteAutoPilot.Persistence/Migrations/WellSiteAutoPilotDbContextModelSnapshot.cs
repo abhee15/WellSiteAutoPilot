@@ -57,6 +57,23 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity(
+            "WellSiteAutoPilot.Persistence.Assets.Views.AssetViewEntity",
+            entity =>
+            {
+                entity.Property<Guid>("Id").HasColumnType("uuid");
+                entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<string>("DefinitionJson").IsRequired().HasColumnType("text");
+                entity.Property<string>("Name").IsRequired().HasMaxLength(48).HasColumnType("character varying(48)");
+                entity.Property<string>("NormalizedName").IsRequired().HasMaxLength(48).HasColumnType("character varying(48)");
+                entity.Property<Guid>("OwnerUserId").HasColumnType("uuid");
+                entity.Property<int>("Revision").HasColumnType("integer");
+                entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.HasKey("Id");
+                entity.HasIndex("OwnerUserId", "NormalizedName").IsUnique();
+                entity.ToTable("asset_views", "assets");
+            });
+
+        modelBuilder.Entity(
             "WellSiteAutoPilot.Persistence.Connections.ConnectionEntity",
             entity =>
             {
