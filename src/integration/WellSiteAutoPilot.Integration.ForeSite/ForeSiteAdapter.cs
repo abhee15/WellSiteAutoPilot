@@ -217,7 +217,7 @@ public static class ForeSiteAdapter
         }
     }
 
-    private sealed class ForeSiteTokenException(string message) : Exception(message);
+    private sealed class ForeSiteTokenException(string message) : Exception(message) { }
 
     private static async Task<string> ExplainAsync(HttpResponseMessage response, string actingAs, CancellationToken ct)
     {
