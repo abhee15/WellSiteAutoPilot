@@ -30,18 +30,22 @@ A **Connection** is where a source lives, **Assets** are what was imported or cr
 
 ~~~text
 Assets                                         [Create View] [Add Asset]
-  [plug icon] ForeSite - POP             Connection · 120 Assets
-       [folder icon] Field A
-         [folder icon] ESP Wells
+  [plug icon] FS-001 · ForeSite POP       Connection · 120 Assets
+       [folder icon] Source Asset A       ForeSite asset grouping
+         [folder icon] ESP                Lift / Well Type
            [well icon] Well A            Well · Active
-  [plug icon] PetroVisor - West          Connection · 95 Assets
-       [folder icon] Production
+  [plug icon] Houston Production          Connection · 95 Assets
+       [folder icon] Production           Provider-selected Group
          [well icon] Well A              Well · Active
-  [layers icon] Standalone               4 Assets
+  [layers icon] Standalone                4 Assets
        [well icon] Test Well
 ~~~
 
 The two "Well A" nodes are **different WSA Assets**, because they belong to different Connections. This is not a duplicate-detection error. Display the Connection name consistently in search results, breadcrumbs and selected Asset details.
+
+**Root naming:** One name, one identity. The Asset-tree root label is **the Connection name already entered by the user**. Setup can suggest a default like `FS-001 · ForeSite POP`, but the person can freely choose `Houston Production`. Do not introduce an additional editable root-node name or treat the visible prefix as the actual Connection ID. Keep the immutable WSA Connection UUID available in details; a rename updates the root's label only.
+
+**Hierarchy order:** For ForeSite, the typical sequence is **Connection -> Source Asset -> Lift/Well Type -> Well**. Lift Type is not normally the initial root/group directly under Assets. Source-driven and user-selected levels can vary; any missing level may be omitted and a flat selection still sits under the Connection root. Show the level's purpose (such as "ForeSite asset", "Lift type") through a secondary label, not merely its value.
 
 ### Tree icon and level language
 
