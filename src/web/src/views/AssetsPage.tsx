@@ -21,6 +21,7 @@ import { assetAncestors } from './assetPage';
 import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
 import { AssetViewBrowser } from './AssetViewBrowser';
 import { AssetViewEditor } from './AssetViewEditor';
+import { viewConnectionFromDetail } from './assetViewNavigation';
 import { loadViews } from './assetViewsApi';
 import type { AssetView, ViewDefinition } from './assetViewsApi';
 import type { ViewGroup } from './assetViewsApi';
@@ -55,7 +56,10 @@ export function AssetsPage({
 }) {
   const [detail, setDetail] = useHashDetail('assets');
   const onTypesTab = detail === TYPES_TAB;
-  const selectedId = onTypesTab ? null : detail;
+  // The post-import navigation intent is not an Asset ID. Do not try to fetch an Asset
+  // with it or let the vanished-selection cleanup erase it.
+  const viewConnectionId = viewConnectionFromDetail(detail);
+  const selectedId = onTypesTab || viewConnectionId ? null : detail;
   // A full snapshot means the flat list may be incomplete: browse and search on the server instead.
   const lazy = assets.length >= SNAPSHOT_ASSET_LIMIT;
   const [localRefresh, setLocalRefresh] = useState(0);
@@ -67,6 +71,14 @@ export function AssetsPage({
   const [activeViewId, setActiveViewId] = useState<string>('');
   const [editingView, setEditingView] = useState<'new' | AssetView | null>(null);
   const [viewDraft, setViewDraft] = useState<{ name: string; definition: ViewDefinition; lossy: boolean } | null>(null);
+  useEffect(() => {
+    if (!viewConnectionId) return;
+    // Only prefill the owner Connection. This View can include earlier imports from
+    // that Connection too; no View is saved until the person confirms in the editor.
+    setViewDraft({ name: '', definition: { version: 1, connections: [viewConnectionId],
+      assetTypeIds: [], activity: 'all', search: null, grouping: [] }, lossy: false });
+    setEditingView('new');
+  }, [viewConnectionId]);
   const startViewFromFilters = (filters: AssetInventoryCriteria, suggestedName: string) => {
     setViewDraft({
       name: suggestedName,
@@ -254,13 +266,17 @@ export function AssetsPage({
               setActiveViewId(saved.id);
               setEditingView(null);
               setViewDraft(null);
+              if (viewConnectionId) setDetail(null);
             }}
             onDeleted={() => {
               if (editingView !== 'new') setViews(current => current.filter(view => view.id !== editingView.id));
               setActiveViewId('');
               setEditingView(null);
             }}
-            onCancel={() => { setEditingView(null); setViewDraft(null); }} />}
+            onCancel={() => {
+              setEditingView(null); setViewDraft(null);
+              if (viewConnectionId) setDetail(null);
+            }} />}
           <div className="asset-view-bar">
             <label>
               <span>{t('assetViews.selector')}</span>{' '}
