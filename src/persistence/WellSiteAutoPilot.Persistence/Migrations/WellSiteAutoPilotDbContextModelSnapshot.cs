@@ -8,6 +8,8 @@ namespace WellSiteAutoPilot.Persistence.Migrations;
 [DbContext(typeof(WellSiteAutoPilotDbContext))]
 sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
 {
+    private static readonly string[] SharedViewNameColumns = ["NormalizedName"];
+
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
@@ -68,7 +70,9 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.Property<Guid>("OwnerUserId").HasColumnType("uuid");
                 entity.Property<int>("Revision").HasColumnType("integer");
                 entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<int>("Visibility").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(0);
                 entity.HasKey("Id");
+                entity.HasIndex(SharedViewNameColumns, "IX_asset_views_NormalizedName_Shared").IsUnique().HasFilter("\"Visibility\" = 1");
                 entity.HasIndex("OwnerUserId", "NormalizedName").IsUnique();
                 entity.ToTable("asset_views", "assets");
             });

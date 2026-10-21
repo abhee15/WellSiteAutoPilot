@@ -61,6 +61,8 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/asset-views/{viewId:guid}"): ("GetAssetView", "AssetsRead"),
     ("PUT", "/asset-views/{viewId:guid}"): ("UpdateAssetView", "AssetsRead"),
     ("DELETE", "/asset-views/{viewId:guid}"): ("DeleteAssetView", "AssetsRead"),
+    ("POST", "/asset-views/{viewId:guid}/copy"): ("CopyAssetView", "AssetsRead"),
+    ("POST", "/asset-views/{viewId:guid}/unshare"): ("UnshareAssetView", "SecurityManage"),
     ("GET", "/asset-views/{viewId:guid}/nodes"): ("ListAssetViewNodes", "AssetsRead"),
     ("GET", "/assets/{assetId:guid}"): ("GetAsset", "AssetsRead"),
     ("GET", "/assets/{assetId:guid}/source"): ("GetAssetSource", "AssetsRead"),

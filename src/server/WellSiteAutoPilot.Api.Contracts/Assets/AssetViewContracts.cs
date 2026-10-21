@@ -12,13 +12,24 @@ public sealed record AssetViewDefinitionDto(
     string? Search,
     IReadOnlyList<string> Grouping);
 
-/// <summary>A person's own saved arrangement of the Assets they may already see. It never grants access.</summary>
+/// <summary>
+/// A saved arrangement of the Assets a person may already see; it never grants access. <c>Visibility</c> is personal or
+/// shared. For someone other than the owner the definition lists only the Connections they can see and
+/// <c>HiddenConnectionCount</c> says how many it left out. <c>CanEdit</c> is true only for the owner (and, for a
+/// shared View, only while they may still share).
+/// </summary>
 public sealed record AssetViewResponse(
-    Guid Id, string Name, AssetViewDefinitionDto Definition, int Revision, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc);
+    Guid Id, string Name, AssetViewDefinitionDto Definition, int Revision, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc,
+    string Visibility, string OwnerName, bool IsOwner, bool CanEdit, int HiddenConnectionCount);
 
-public sealed record CreateAssetViewRequest(string Name, AssetViewDefinitionDto Definition);
+/// <summary><c>Visibility</c> is "personal" (the default) or "shared"; sharing needs the asset-views.share permission.</summary>
+public sealed record CreateAssetViewRequest(string Name, AssetViewDefinitionDto Definition, string? Visibility = null);
 
-public sealed record UpdateAssetViewRequest(int ExpectedRevision, string Name, AssetViewDefinitionDto Definition);
+/// <summary>An omitted <c>Visibility</c> keeps the current one.</summary>
+public sealed record UpdateAssetViewRequest(int ExpectedRevision, string Name, AssetViewDefinitionDto Definition, string? Visibility = null);
+
+/// <summary>Makes a personal copy of a View the caller can read.</summary>
+public sealed record CopyAssetViewRequest(string Name);
 
 public sealed record AssetViewGroupResponse(string Key, string Label, int Count);
 

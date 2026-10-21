@@ -93,11 +93,13 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         assetView.HasKey(x => x.Id);
         assetView.Property(x => x.Name).HasMaxLength(48).IsRequired();
         assetView.Property(x => x.NormalizedName).HasMaxLength(48).IsRequired();
+        assetView.Property(x => x.Visibility).IsRequired().HasDefaultValue(0);
         assetView.Property(x => x.DefinitionJson).IsRequired();
         assetView.Property(x => x.Revision).IsRequired();
         assetView.Property(x => x.CreatedAtUtc).IsRequired();
         assetView.Property(x => x.UpdatedAtUtc).IsRequired();
         assetView.HasIndex(x => new { x.OwnerUserId, x.NormalizedName }).IsUnique();
+        assetView.HasIndex(x => x.NormalizedName, "IX_asset_views_NormalizedName_Shared").IsUnique().HasFilter("\"Visibility\" = 1");
 
         var sourceBinding = modelBuilder.Entity<SourceBindingEntity>();
         sourceBinding.ToTable("source_bindings", "integration");

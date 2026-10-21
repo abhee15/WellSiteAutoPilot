@@ -370,8 +370,24 @@ renamed = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision":
 assert renamed["revision"] == 2 and renamed["definition"]["grouping"] == ["assetType"], renamed
 request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 1, "name": "Late", "definition": definition}, expected=409)
 request("GET", "/asset-views/" + view["id"], OPERATOR, expected=403)
+# Sharing: the owner (an Admin, who holds asset-views.share) shares it; it stays a read-only query for others.
+assert "asset-views.share" in request("GET", "/security/me")["permissions"]
+shared = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 2, "name": "By owner v2",
+    "definition": definition, "visibility": "shared"})
+assert shared["visibility"] == "shared" and shared["isOwner"] and shared["canEdit"] and shared["hiddenConnectionCount"] == 0, shared
+assert request("GET", "/asset-views/" + view["id"])["visibility"] == "shared"
+request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 3, "name": "By owner v2",
+    "definition": definition, "visibility": "bogus"}, expected=400)
+request("POST", "/asset-views/" + view["id"] + "/copy", OPERATOR, body={"name": "Mine"}, expected=403)
+request("POST", "/asset-views/" + view["id"] + "/unshare", OPERATOR, expected=403)
+request("POST", "/asset-views", body={"name": "by owner v2", "definition": definition, "visibility": "shared"}, expected=409)
+copy = request("POST", "/asset-views/" + view["id"] + "/copy", body={"name": "My copy"}, expected=201)
+assert copy["visibility"] == "personal" and copy["id"] != view["id"] and copy["definition"] == shared["definition"], copy
+request("DELETE", "/asset-views/" + copy["id"] + "?expectedRevision=1", expected=204)
+unshared = request("POST", "/asset-views/" + view["id"] + "/unshare")
+assert unshared["visibility"] == "personal" and unshared["revision"] == 4, unshared
 request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=1", expected=409)
-request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=2", expected=204)
+request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=4", expected=204)
 request("GET", "/asset-views/" + view["id"], expected=404)
 request("DELETE", "/connections/" + stand_in["id"], expected=409)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
