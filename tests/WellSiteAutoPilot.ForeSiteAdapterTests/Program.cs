@@ -223,6 +223,16 @@ static async Task LiveIfConfigured()
     var result = await ForeSiteAdapter.CheckAsync(client, Environment.UserName, CancellationToken.None);
     Console.WriteLine($"Live ForeSite check: {result.Outcome} - {result.Message}");
     Expect(result.Outcome == AdapterTestOutcomes.Healthy, "the live ForeSite did not report Healthy");
+
+    // Never run the expensive on-prem discovery in cloud CI or the ordinary live health probe.
+    // An operator on the ForeSite network must opt in explicitly using the Gateway identity.
+    if (Environment.GetEnvironmentVariable("FORESITE_DISCOVERY_SMOKE") == "1")
+    {
+        client.Timeout = TimeSpan.FromMinutes(5);
+        var discovered = await ForeSiteAdapter.DiscoverAsync(client, Environment.UserName, CancellationToken.None);
+        Console.WriteLine($"Live ForeSite scoped discovery: complete={discovered.Complete}, wells={discovered.Items.Count}, warnings={discovered.Warnings.Count}");
+        Expect(discovered.Complete, "the live ForeSite scoped-well discovery was incomplete");
+    }
 }
 
 
