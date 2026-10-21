@@ -550,3 +550,40 @@ of this browser, with a one-click *Save as View* that converts a filter into a V
 
 **Slices.** C1 server model, API, guards and live checks. C2 selector plus Create/Edit View in the web. C3 convert
 local filters. C4 sharing (needs a decision first).
+
+## 19. Sharing Views (slice C4): design
+
+**Decision (owner).** Sharing is permission based. To begin with, Engineers and Admins can share.
+
+**Permission.** A new permission `asset-views.share`, granted by default to Admin and Engineer (and assignable to any
+custom role through the role catalog). Operators do not get it. Creating, editing and deleting a *personal* View
+stays open to everyone with `assets.read`.
+
+**Model.** A View gains a visibility: `Personal` (today) or `Shared`.
+- Only the owner can share or unshare, and only while holding `asset-views.share`. A caller without it cannot
+  create or update a View as Shared (403, `ASSET_VIEW_SHARE_FORBIDDEN`).
+- A Shared View is listed for everyone with `assets.read`, marked with its owner and "Shared".
+- Viewers cannot edit or delete it. They can *Save a copy*, which creates their own Personal View.
+- The owner edits it with the same revision check as today. Admins (`security.manage`) can unshare or delete any
+  Shared View, so a View cannot be stranded when its owner leaves.
+- Shared names are unique among Shared Views (normalized, like personal names); personal names stay unique per
+  owner. Limit: 100 Shared Views in total.
+- Losing `asset-views.share` does not delete the owner's Shared Views; they stay shared until the owner or an Admin
+  unshares them, but the owner cannot edit them as Shared until the permission is back.
+
+**Security boundary.** A View never grants access. Each viewer's evaluation runs over *that viewer's* visible
+Assets, so a shared View over Connections or Assets the viewer cannot see shows nothing for them. When returning a
+Shared View to a non-owner, the definition lists only the Connection ids that viewer can see, so Connection
+identities are not leaked through a definition; the response carries a `hiddenConnectionCount` instead.
+
+**Persistence.** `assets.asset_views` gains `Visibility` (smallint, default Personal) with a partial unique index
+on the normalized name where Visibility is Shared. Existing rows migrate as Personal.
+
+**API.** The existing contract gains `visibility`, `ownerDisplayName`, `isOwner`, `canEdit`, `hiddenConnectionCount`;
+create/update accept `visibility`. Deleting and editing keep `expectedRevision`. A `POST .../copy` endpoint creates
+the viewer's personal copy.
+
+**Web.** The editor shows a "Share with everyone who can read Assets" switch only when the caller can share. The
+selector groups *My views* and *Shared views*. Shared Views are read-only for non-owners with *Save a copy*.
+
+**Slices.** C4a server (permission, role map, migration, API, guards, live checks). C4b web.
