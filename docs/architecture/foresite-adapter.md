@@ -31,6 +31,28 @@ permission discovery will is used instead.
 
 Nothing ForeSite sends back is ever shown or stored.
 
+## Discovery and device types
+
+Discovery reads `Wells/All` using the Gateway's Windows identity and existing token/cookie session, then
+`SurfaceNetworkService/Asset/All` for source asset names. Its well grouping metadata includes
+`wellType` (lift method) and `deviceType` (controller/device classification); these are separate concepts.
+
+ForeSite may supply device information in `PrincipalDeviceType` or `DeviceType`, either as a
+simple value or a nested object with a `Name` and `Id`. The adapter reads the name for
+`deviceType`, and preserves `deviceTypeId`, `deviceName`, and `deviceId` when present.
+It does not infer a device type from the well's lift method.
+
+For wells missing the device type in `Wells/All`, discovery uses the already-used
+`Wells/Well/{id}` endpoint to fill the missing device metadata. The fallback is deliberately
+limited to **25 wells per discovery** to prevent an N+1 read against large installations.
+Failures, unsupported response shapes, and wells beyond this cap produce non-sensitive
+warnings; the well inventory remains complete. The adapter never guesses a device type,
+and bulk values win over conflicting detail values.
+
+This uses recorded API shapes rather than a new unverified device-list endpoint. An opt-in
+live validation against ForeSite is still needed to establish which fields the deployed
+ForeSite version returns in practice.
+
 ## Support position
 ForeSite exposes no version endpoint, so compatibility is never claimed from the connection alone. The profile
 the discovery slice was exercised against is ForeSite 5.7.1 (WellService). The live check is opt-in:
