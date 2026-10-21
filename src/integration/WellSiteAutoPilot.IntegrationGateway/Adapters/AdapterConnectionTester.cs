@@ -1,10 +1,11 @@
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.ForeSite;
+using WellSiteAutoPilot.Integration.PetroVisor;
 
 namespace WellSiteAutoPilot.IntegrationGateway.Adapters;
 
 /// <summary>Tries a connection's settings against the outside system. One branch per adapter, kept next to its descriptor.</summary>
-public sealed class AdapterConnectionTester(IHttpClientFactory clients)
+public sealed class AdapterConnectionTester(IHttpClientFactory clients, IPetroVisorSessionFactory petroVisorSessions)
 {
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
@@ -21,6 +22,7 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients)
         {
             "simulator" => await TestSimulatorAsync(settings, actingAs, cancellationToken),
             ForeSiteAdapter.Key => await TestForeSiteAsync(settings, actingAs, cancellationToken),
+            PetroVisorAdapter.Key => await TestPetroVisorAsync(settings, cancellationToken),
             _ => new(AdapterTestOutcomes.NeedsAttention, "This adapter cannot be tested yet.", actingAs)
         };
     }
@@ -59,6 +61,17 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients)
         using var client = clients.CreateClient(WindowsClientName);
         client.BaseAddress = ForeSiteAdapter.BaseAddress(settings[ForeSiteAdapter.BaseUrlSetting]!);
         return await ForeSiteAdapter.CheckAsync(client, actingAs, timeout.Token);
+    }
+
+    private async Task<AdapterTestResult> TestPetroVisorAsync(
+        IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(Timeout);
+        var reader = new PetroVisorSdkEntityReader(
+            petroVisorSessions, PetroVisorAdapter.DiscoveryAddress(settings[PetroVisorAdapter.EndpointSetting]!));
+        return await PetroVisorAdapter.CheckAsync(
+            reader, settings[PetroVisorAdapter.WorkspaceSetting]!.Trim(), petroVisorSessions.Identity, timeout.Token);
     }
 
     public const string WindowsClientName = "adapter-test-windows";

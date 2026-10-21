@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Http.ServiceCallers;
 using WellSiteAutoPilot.IntegrationGateway.Adapters;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.PetroVisor;
 using WellSiteAutoPilot.IntegrationGateway.Providers;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Telemetry;
@@ -17,6 +18,8 @@ builder.Services.AddSingleton<AdapterCatalog>();
 builder.Services.AddHttpClient("adapter-test");
 builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true, UseCookies = false });
+builder.Services.AddSingleton<IPetroVisorSessionFactory>(
+    new PetroVisorPasswordSessionFactory(Environment.GetEnvironmentVariable));
 builder.Services.AddTransient<AdapterConnectionTester>();
 builder.Services.AddTransient<AdapterDiscoverer>();
 

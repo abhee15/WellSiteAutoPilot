@@ -168,7 +168,7 @@ request("GET", "/connections", OPERATOR, expected=403)
 request("GET", "/connections", None, expected=401)
 request("POST", "/connections", OPERATOR, {"name": "Denied", "adapterKey": "simulator", "settings": {}}, expected=403)
 adapters = request("GET", "/connections/adapters")
-assert [item["key"] for item in adapters] == ["simulator", "foresite"], adapters
+assert [item["key"] for item in adapters] == ["simulator", "foresite", "petrovisor"], adapters
 assert all(item["fields"][0]["key"] == "baseUrl" and item["fields"][0]["kind"] == "Url" for item in adapters), adapters
 conn_name = "CI simulator " + uuid.uuid4().hex[:8]
 request("POST", "/connections", body={"name": conn_name, "adapterKey": "simulator", "settings": {"baseUrl": "ftp://x"}}, expected=400)
@@ -202,6 +202,14 @@ assert checked["outcome"] == "NeedsAttention" and "does not look like ForeSite" 
 down = request("POST", "/connections", body={"name": conn_name + " foresite down", "adapterKey": "foresite",
     "settings": {"baseUrl": "http://127.0.0.1:9"}}, expected=201)
 assert request("POST", "/connections/" + down["id"] + "/test")["lastTest"]["outcome"] == "Unreachable"
+# PetroVisor: with no sign-in set up on the Gateway, a test says so and discovery is incomplete, never an empty list.
+pv = request("POST", "/connections", body={"name": conn_name + " petrovisor", "adapterKey": "petrovisor",
+    "settings": {"baseUrl": "https://petrovisor.invalid/discovery", "workspace": "Production"}}, expected=201)
+pv_test = request("POST", "/connections/" + pv["id"] + "/test")["lastTest"]
+assert pv_test["outcome"] == "NeedsAttention" and "no PetroVisor sign-in" in pv_test["message"], pv_test
+pv_find = request("POST", "/connections/" + pv["id"] + "/discover")
+assert pv_find["complete"] is False and pv_find["items"] == [] and pv_find["warnings"], pv_find
+request("DELETE", "/connections/" + pv["id"], expected=204)
 # Find: the simulator's ForeSite-shaped stand-in is served under /foresite, and discovery reads it as the Gateway's account.
 stand_in = request("POST", "/connections", body={"name": conn_name + " foresite stand-in", "adapterKey": "foresite",
     "settings": {"baseUrl": "http://127.0.0.1:5091/foresite"}}, expected=201)
