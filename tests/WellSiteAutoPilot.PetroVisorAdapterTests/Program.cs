@@ -42,8 +42,8 @@ Check(fetched.Complete && fetched.Items.Count == 3, "the read seam returns mappe
 var denied = await PetroVisorAdapter.DiscoverAsync(new FailingReader(new UnauthorizedAccessException("TOKEN-DO-NOT-LEAK")), "Production", account);
 Check(!denied.Complete && !denied.Warnings[0].Contains("TOKEN-DO-NOT-LEAK", StringComparison.Ordinal),
     "vendor error is redacted");
-var offline = await PetroVisorAdapter.DiscoverAsync(new FailingReader(new HttpRequestException("SECRET-URL")), "Production", account);
-Check(!offline.Complete && !offline.Warnings[0].Contains("SECRET-URL", StringComparison.Ordinal),
+var offline = await PetroVisorAdapter.DiscoverAsync(new FailingReader(new HttpRequestException("No such host https://secret.example/x")), "Production", account);
+Check(!offline.Complete && !offline.Warnings[0].Contains("secret.example", StringComparison.Ordinal),
     "transport errors are redacted");
 using (var cts = new CancellationTokenSource())
 {
