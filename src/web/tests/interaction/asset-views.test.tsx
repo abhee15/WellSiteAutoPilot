@@ -89,6 +89,49 @@ it('creates a View from the dedicated flow and selects it', async () => {
   expect((screen.getByLabelText('View') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Wells by owner');
 });
 
+it('opens a new View after Connection import with its owner preselected but requires Save', async () => {
+  const requests: { url: string; init?: RequestInit }[] = [];
+  host(requests, []);
+  window.location.hash = '#assets/new-view-for-connection%3A' + connectionId;
+  const user = userEvent.setup();
+  render(<App />);
+
+  const form = await screen.findByRole('form', { name: 'Create a View' });
+  expect((within(form).getByLabelText('Houston Production') as HTMLInputElement).checked).toBe(true);
+  expect(requests.some(request => request.url === '/api/v1/asset-views' && request.init?.method === 'POST'))
+    .toBe(false);
+  await user.type(within(form).getByLabelText('View name'), 'After ForeSite import');
+  await user.click(within(form).getByRole('button', { name: 'Save View' }));
+
+  const savedRequest = await waitFor(() => {
+    const post = requests.find(request => request.url === '/api/v1/asset-views' && request.init?.method === 'POST');
+    expect(post).toBeDefined();
+    return post!;
+  });
+  const body = JSON.parse(String(savedRequest.init?.body)) as {
+    name: string; definition: { connections: string[]; search: string | null; grouping: string[] }
+  };
+  expect(body.name).toBe('After ForeSite import');
+  expect(body.definition.connections).toEqual([connectionId]);
+  expect(body.definition.search).toBeNull();
+  expect(body.definition.grouping).toEqual([]);
+  await waitFor(() => expect(window.location.hash).toBe('#assets'));
+  expect(screen.queryByRole('form', { name: 'Create a View' })).toBeNull();
+});
+
+it('can cancel a post-import View without creating or saving anything', async () => {
+  const requests: { url: string; init?: RequestInit }[] = [];
+  host(requests, []);
+  window.location.hash = '#assets/new-view-for-connection%3A' + connectionId;
+  render(<App />);
+  const form = await screen.findByRole('form', { name: 'Create a View' });
+  await userEvent.setup().click(within(form).getByRole('button', { name: 'Cancel' }));
+  await waitFor(() => expect(window.location.hash).toBe('#assets'));
+  expect(screen.queryByRole('form', { name: 'Create a View' })).toBeNull();
+  expect(requests.some(request => request.url === '/api/v1/asset-views' && request.init?.method === 'POST'))
+    .toBe(false);
+});
+
 it('says so when the name is already used and keeps what was typed', async () => {
   const requests: { url: string; init?: RequestInit }[] = [];
   host(requests, []);

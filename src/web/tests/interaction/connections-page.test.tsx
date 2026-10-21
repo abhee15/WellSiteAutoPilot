@@ -317,12 +317,17 @@ describe('Connections page', () => {
     expect(screen.getByText(/Unassigned \(no value\)/)).toBeTruthy();
     expect(screen.getByText(/asset types will be created first: well, group/)).toBeTruthy();
     expect(api.importFromConnection).not.toHaveBeenCalled();
+    expect(screen.queryByRole('link', { name: 'Create View from these Assets' })).toBeNull();
     await userEvent.click(screen.getByText('Import 3'));
     expect(api.importFromConnection).not.toHaveBeenCalled();
     await userEvent.click(screen.getByText('Yes, import'));
     await screen.findByText('Imported 3 and created 2 groups.');
     expect(vi.mocked(api.importFromConnection).mock.calls[0].slice(1)).toEqual([['assetName'], 'ABC', null]);
     expect(screen.getByText('1 groups already existed and were reused.')).toBeTruthy();
+    const viewLink = screen.getByRole('link', { name: 'Create View from these Assets' });
+    expect(viewLink.getAttribute('href')).toBe(
+      '#assets/new-view-for-connection%3A00000000-0000-4000-8000-000000000001');
+    expect(screen.getByText(/including earlier imports/)).toBeTruthy();
     expect(screen.queryByText('3 to import in 2 groups.')).toBeNull();
   });
 
