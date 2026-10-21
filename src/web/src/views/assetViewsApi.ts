@@ -17,8 +17,18 @@ export type ViewDefinition = {
   grouping: ViewLevel[];
 };
 
+export type ViewVisibility = 'personal' | 'shared';
+
 export type AssetView = {
   id: string; name: string; definition: ViewDefinition; revision: number; createdAtUtc: string; updatedAtUtc: string;
+  visibility: ViewVisibility;
+  /** Who owns it; shown next to a shared View. */
+  ownerName: string;
+  isOwner: boolean;
+  /** Only the owner edits, and a shared View only while they may still share. Everyone else saves a copy. */
+  canEdit: boolean;
+  /** Connections the View names that this person cannot see (never named, only counted). */
+  hiddenConnectionCount: number;
 };
 
 export type ViewGroup = { key: string; label: string; count: number };
@@ -29,7 +39,7 @@ export type ViewAsset = {
 /** `level` is set when `groups` are returned and null when the last level was reached and `assets` are returned. */
 export type ViewNodes = { level: ViewLevel | null; groups: ViewGroup[]; assets: ViewAsset[] };
 
-export type ViewsErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'stale' | 'limit' | 'invalid' | 'invalidResponse' | 'unavailable';
+export type ViewsErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'sharedNameTaken' | 'shareForbidden' | 'stale' | 'limit' | 'invalid' | 'invalidResponse' | 'unavailable';
 
 export class ViewsError extends Error {
   constructor(public readonly kind: ViewsErrorKind) {
@@ -58,8 +68,13 @@ function toView(value: unknown): AssetView | null {
   if (!isObject(value) || typeof value.id !== 'string' || typeof value.name !== 'string' ||
     !Number.isSafeInteger(value.revision) || typeof value.createdAtUtc !== 'string' || typeof value.updatedAtUtc !== 'string') return null;
   const definition = toDefinition(value.definition);
+  const shared = value.visibility === 'shared';
+  const isOwner = value.isOwner !== false;
   return definition ? { id: value.id, name: value.name, definition, revision: value.revision as number,
-    createdAtUtc: value.createdAtUtc, updatedAtUtc: value.updatedAtUtc } : null;
+    createdAtUtc: value.createdAtUtc, updatedAtUtc: value.updatedAtUtc, visibility: shared ? 'shared' : 'personal',
+    ownerName: typeof value.ownerName === 'string' ? value.ownerName : '', isOwner,
+    canEdit: typeof value.canEdit === 'boolean' ? value.canEdit : isOwner,
+    hiddenConnectionCount: Number.isSafeInteger(value.hiddenConnectionCount) ? value.hiddenConnectionCount as number : 0 } : null;
 }
 
 function toAsset(value: unknown): ViewAsset | null {
@@ -78,11 +93,13 @@ async function failure(response: Response): Promise<ViewsError> {
     const body: unknown = await response.json();
     if (isObject(body) && typeof body.code === 'string') code = body.code;
   } catch { /* the status alone decides */ }
+  if (response.status === 403 && code === 'ASSET_VIEW_SHARE_FORBIDDEN') return new ViewsError('shareForbidden');
   if (response.status === 401 || response.status === 403) return new ViewsError('accessDenied');
   if (response.status === 404) return new ViewsError('notFound');
   if (response.status === 409) {
     return new ViewsError(code === 'ASSET_VIEW_NAME_CONFLICT' ? 'nameTaken'
-      : code === 'ASSET_VIEW_LIMIT_REACHED' ? 'limit' : 'stale');
+      : code === 'ASSET_VIEW_SHARED_NAME_CONFLICT' ? 'sharedNameTaken'
+        : code === 'ASSET_VIEW_LIMIT_REACHED' || code === 'ASSET_VIEW_SHARED_LIMIT_REACHED' ? 'limit' : 'stale');
   }
   if (response.status === 400) return new ViewsError('invalid');
   return new ViewsError('unavailable');
@@ -117,15 +134,27 @@ export async function loadViews(signal: AbortSignal, fetcher: typeof fetch = fet
   return body.map(one);
 }
 
-export async function createView(name: string, definition: ViewDefinition, fetcher: typeof fetch = fetch): Promise<AssetView> {
-  return one(await send('/asset-views', json('POST', { name, definition }), fetcher));
+export async function createView(
+  name: string, definition: ViewDefinition, visibility: ViewVisibility = 'personal', fetcher: typeof fetch = fetch,
+): Promise<AssetView> {
+  return one(await send('/asset-views', json('POST', { name, definition, visibility }), fetcher));
 }
 
 export async function updateView(
-  view: AssetView, name: string, definition: ViewDefinition, fetcher: typeof fetch = fetch,
+  view: AssetView, name: string, definition: ViewDefinition, visibility: ViewVisibility, fetcher: typeof fetch = fetch,
 ): Promise<AssetView> {
   return one(await send('/asset-views/' + encodeURIComponent(view.id),
-    json('PUT', { expectedRevision: view.revision, name, definition }), fetcher));
+    json('PUT', { expectedRevision: view.revision, name, definition, visibility }), fetcher));
+}
+
+/** A personal copy of a View the person can read (their own or a shared one). */
+export async function copyView(view: AssetView, name: string, fetcher: typeof fetch = fetch): Promise<AssetView> {
+  return one(await send('/asset-views/' + encodeURIComponent(view.id) + '/copy', json('POST', { name }), fetcher));
+}
+
+/** Administrators only: take a shared View back to its owner alone. */
+export async function unshareView(view: AssetView, fetcher: typeof fetch = fetch): Promise<AssetView> {
+  return one(await send('/asset-views/' + encodeURIComponent(view.id) + '/unshare', { method: 'POST' }, fetcher));
 }
 
 export async function deleteView(view: AssetView, fetcher: typeof fetch = fetch): Promise<void> {

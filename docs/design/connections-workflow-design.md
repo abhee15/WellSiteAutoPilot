@@ -587,3 +587,6 @@ the viewer's personal copy.
 selector groups *My views* and *Shared views*. Shared Views are read-only for non-owners with *Save a copy*.
 
 **Slices.** C4a server (permission, role map, migration, API, guards, live checks). C4b web.
+
+**Status.** C4a (server) and C4b (web) are built. Not built, by choice: an Admin can *Stop sharing* someone's View in the
+web but deletes it only through the API; add a delete button if that proves needed.
