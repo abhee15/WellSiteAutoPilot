@@ -116,7 +116,7 @@ static async Task DiscoveryChecks()
            enrichedWell.Metadata["deviceId"] == "810" &&
            enrichedWell.Metadata["deviceName"] == "VSD-1",
         "device type and associated device details are recovered from Wells/Well/{id}");
-    Expect(detailRoutes.RequestedPaths.Count(path => path.EndsWith("/Wells/Well/101", StringComparison.Ordinal)) == 0 &&
+    Expect(!detailRoutes.RequestedPaths.Any(path => path.EndsWith("/Wells/Well/101", StringComparison.Ordinal)) &&
            detailRoutes.RequestedPaths.Count(path => path.EndsWith("/Wells/Well/102", StringComparison.Ordinal)) == 1,
         "typed bulk wells do not cause extra device requests");
 
