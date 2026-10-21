@@ -44,6 +44,8 @@ public static class ConnectionFailureCodes
     public const string ImportPlanChanged = "CONNECTION_IMPORT_PLAN_CHANGED";
     public const string ImportNotAllowed = "CONNECTION_IMPORT_NOT_ALLOWED";
     public const string ImportNeedsAllAssets = "CONNECTION_IMPORT_NEEDS_ALL_ASSETS";
+    public const string ImportTooLarge = "CONNECTION_IMPORT_TOO_LARGE";
+    public const string SnapshotExpired = "CONNECTION_SNAPSHOT_EXPIRED";
 }
 
 /// <summary>What the Server asks of the Gateway about adapters. The Gateway is authoritative; the Server stays provider-neutral.</summary>

@@ -25,7 +25,20 @@ public sealed record DiscoveredObjectResponse(
 /// read as "nothing there". <c>ActingAs</c> is the account the outside system saw.
 /// </summary>
 public sealed record DiscoveryResponse(
-    bool Complete, IReadOnlyList<DiscoveredObjectResponse> Items, IReadOnlyList<string> Warnings, string? ActingAs);
+    bool Complete, IReadOnlyList<DiscoveredObjectResponse> Items, IReadOnlyList<string> Warnings, string? ActingAs,
+    int TotalCount, Guid SnapshotId, IReadOnlyList<DiscoveryFacetResponse> Facets, DateTimeOffset ExpiresAtUtc);
+
+public sealed record DiscoveryFacetValueResponse(string Value, int Count);
+
+/// <summary>The values one grouping fact takes across everything found. <c>HasMore</c> is true when the list was cut short.</summary>
+public sealed record DiscoveryFacetResponse(
+    string Key, string Label, IReadOnlyList<DiscoveryFacetValueResponse> Values, bool HasMore);
+
+/// <summary>Looks within what was found earlier. Words must all match; within one fact any chosen value matches, across facts all must.</summary>
+public sealed record DiscoverySearchRequest(Guid SnapshotId, string? Query, Dictionary<string, List<string>>? Facets);
+
+/// <summary><c>Items</c> holds at most the first 1,000 matches; <c>MatchCount</c> says how many there are in all.</summary>
+public sealed record DiscoverySearchResponse(int MatchCount, IReadOnlyList<DiscoveredObjectResponse> Items);
 
 public sealed record ConnectionTestResponse(
     string Outcome, string Message, string? ActingAs, DateTimeOffset TestedAtUtc, int TestedRevision);
@@ -52,7 +65,8 @@ public sealed record UpdateConnectionRequest(int ExpectedRevision, string Name, 
 public sealed record SetConnectionEnabledRequest(int ExpectedRevision, bool Enabled);
 
 /// <summary>The facts to group by, outermost first. Empty means no groups, only the objects themselves.</summary>
-public sealed record ImportPreviewRequest(List<string>? Levels);
+public sealed record ImportPreviewRequest(
+    List<string>? Levels, Guid? SnapshotId = null, string? Query = null, Dictionary<string, List<string>>? Facets = null);
 
 public sealed record ImportGroupResponse(
     string Name, bool IsFallback, int ObjectCount, IReadOnlyList<string> SampleNames, IReadOnlyList<ImportGroupResponse> Children);
@@ -78,7 +92,9 @@ public sealed record ImportPreviewResponse(
     int AlreadyImported);
 
 /// <summary>Applies the plan the person reviewed: the same levels and the fingerprint the preview returned.</summary>
-public sealed record ImportConnectionRequest(List<string>? Levels, string? ExpectedFingerprint);
+public sealed record ImportConnectionRequest(
+    List<string>? Levels, string? ExpectedFingerprint, Guid? SnapshotId = null, string? Query = null,
+    Dictionary<string, List<string>>? Facets = null);
 
 public sealed record ImportResultResponse(
     int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported, IReadOnlyList<string> TypesCreated);
