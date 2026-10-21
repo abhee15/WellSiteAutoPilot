@@ -7,12 +7,19 @@ using System.Text;
 /// </summary>
 internal static class SdkSurface
 {
-    private static readonly string[] Interesting =
+    private static readonly string[] Exact =
     [
-        "ServiceProvider", "EndPoint", "Endpoint", "Authentic", "Credential", "Windows", "Negotiate", "Kerberos",
-        "Integrated", "Sso", "Token", "Session", "Workspace", "IRepositoryService", "RepositoryService",
-        "IDataService", "DataService", "IEntity", "EntityType", "Entity", "Signal", "DataRequest", "Scope",
+        "AbstractServiceProvider", "ClientConfiguration", "AbstractRepositoryServicesContainer`1", "PetroVisorUserInfo",
+        "Entity", "EntityType", "AbstractNamedItem", "AbstractLightPetroVisorItem", "NativeClientTokens",
     ];
+
+    private static bool Wanted(Type type) =>
+        Exact.Contains(type.Name, StringComparer.Ordinal) ||
+        (type.IsInterface && type.Name.StartsWith("IRepositoryService", StringComparison.Ordinal)) ||
+        (type.IsInterface && type.Name.Contains("Entity", StringComparison.Ordinal) && type.Name.EndsWith("Service", StringComparison.Ordinal)) ||
+        (type.IsInterface && type.Name.Contains("Workspace", StringComparison.Ordinal)) ||
+        type.Name.Contains("Token", StringComparison.Ordinal) || type.Name.Contains("Identity", StringComparison.Ordinal) ||
+        type.Name.Contains("Auth", StringComparison.Ordinal) || type.Name.Contains("Windows", StringComparison.Ordinal);
 
     public static void Emit()
     {
@@ -27,24 +34,24 @@ internal static class SdkSurface
             try { types = assembly.GetExportedTypes(); }
             catch (ReflectionTypeLoadException exception) { types = exception.Types.Where(t => t is not null).Select(t => t!).ToArray(); }
 
-            lines.Add($"{name}: {types.Length} exported types");
-            lines.Add(name + " type names: " + string.Join(", ", types.Select(t => t.Name).Order(StringComparer.Ordinal)));
-            foreach (var type in types.OrderBy(t => t.FullName, StringComparer.Ordinal))
-            {
-                if (!Interesting.Any(word => type.Name.Contains(word, StringComparison.Ordinal))) continue;
+            foreach (var type in types.Where(Wanted).OrderBy(t => t.FullName, StringComparer.Ordinal))
                 lines.Add(Describe(type));
-            }
         }
 
-        // GitHub allows a limited number of annotations per step, so pack the lines into a few large ones.
+        // The annotation text is cut at about 4 KB and a step may carry ten, so pack tightly and stop at the limit.
         var chunk = new StringBuilder();
         var index = 1;
         foreach (var line in lines)
         {
-            if (chunk.Length + line.Length > 30000) { Notice(index++, chunk.ToString()); chunk.Clear(); }
-            chunk.Append(line).Append('\n');
+            if (chunk.Length + line.Length > 3800)
+            {
+                if (index >= 10) return;
+                Notice(index++, chunk.ToString());
+                chunk.Clear();
+            }
+            chunk.Append(line.Length > 3800 ? line[..3800] : line).Append('\n');
         }
-        if (chunk.Length > 0) Notice(index, chunk.ToString());
+        if (chunk.Length > 0 && index <= 10) Notice(index, chunk.ToString());
     }
 
     private static string Describe(Type type)
