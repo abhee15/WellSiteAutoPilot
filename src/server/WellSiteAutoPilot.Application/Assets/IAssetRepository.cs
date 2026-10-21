@@ -49,6 +49,10 @@ public interface IAssetRepository
     Task<IReadOnlyCollection<AssetOwnerSummary>> ListOwnersAuthorizedAsync(AccessSubject subject,
         CancellationToken cancellationToken = default);
 
+    /// <summary>The source of an Asset this subject may see, or null when it is not visible or was not imported.</summary>
+    Task<AssetSourceInfo?> GetSourceAuthorizedAsync(AccessSubject subject, Guid assetId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// The next level of a View for this subject: the groups under <paramref name="path"/> (already chosen group keys,
     /// one per level) or, once every level is chosen, a page of the matching Assets. Only Assets the subject may see are counted.

@@ -73,3 +73,7 @@ public sealed record AssetSearchResultResponse(
     bool IsActive,
     AssetPathSegmentResponse[] Path,
     Guid? OwnerConnectionId = null);
+
+/// <summary>Where an imported Asset came from. Assets made by hand have none (the call returns 404).</summary>
+public sealed record AssetSourceResponse(
+    Guid ConnectionId, string? ConnectionName, string ResourceKind, string ExternalId, DateTimeOffset ImportedAtUtc);

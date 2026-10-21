@@ -63,6 +63,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("DELETE", "/asset-views/{viewId:guid}"): ("DeleteAssetView", "AssetsRead"),
     ("GET", "/asset-views/{viewId:guid}/nodes"): ("ListAssetViewNodes", "AssetsRead"),
     ("GET", "/assets/{assetId:guid}"): ("GetAsset", "AssetsRead"),
+    ("GET", "/assets/{assetId:guid}/source"): ("GetAssetSource", "AssetsRead"),
     ("POST", "/configured-logic"): ("CreateConfiguredLogic", "ConfiguredLogicManage"),
     ("GET", "/configured-logic"): ("ListConfiguredLogic", "ConfiguredLogicRead"),
     ("GET", "/configured-logic/{configuredLogicId:guid}"): ("GetConfiguredLogic", "ConfiguredLogicRead"),

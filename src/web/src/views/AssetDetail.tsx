@@ -13,6 +13,8 @@ import { StatusPill } from '../components/common';
 import {
   assetAncestors, assetChildren, fetchAssetRecommendations, fetchAssetRuns, logicOnAsset,
 } from './assetPage';
+import { fetchAssetSource } from './assetBrowseApi';
+import type { AssetSource } from './assetBrowseApi';
 import './assetPage.css';
 
 type Activity = {
@@ -45,6 +47,16 @@ export function AssetDetail({
   // The path starts at the owning Connection, so equally named Assets in two Connections stay distinguishable.
   const where = [...(owner && owner.connectionId !== null ? [owner.name] : []), ...ancestors.map(a => a.name ?? '—')];
   const logic = logicOnAsset(configuredLogic, assetId);
+  const [source, setSource] = useState<AssetSource | null>(null);
+  const importedFromConnection = owner !== null && owner.connectionId !== null;
+  useEffect(() => {
+    setSource(null);
+    if (!importedFromConnection) return;
+    const controller = new AbortController();
+    fetchAssetSource(assetId, controller.signal).then(found => { if (!controller.signal.aborted) setSource(found); })
+      .catch(() => { /* provenance is extra detail; the page works without it */ });
+    return () => controller.abort();
+  }, [assetId, importedFromConnection]);
   const [activity, setActivity] = useState<Activity>({ runs: [], recommendations: [], state: 'loading' });
 
   useEffect(() => {
@@ -81,6 +93,10 @@ export function AssetDetail({
             {owner.connectionId === null ? t('assetOwner.standalone') : <>
               {t('assetOwner.ownedBy')}{' '}
               {canOpenConnection ? <a href={hashFor('connections', owner.connectionId)}>{owner.name}</a> : owner.name}</>}
+          </p>}
+          {source && <p className="asset-page-meta">
+            {t('assetPage.source', { kind: source.resourceKind })} <code>{source.externalId}</code>
+            {source.importedAtUtc && <> · {t('assetPage.importedAt', { time: formatTimestamp(source.importedAtUtc) })}</>}
           </p>}
           <p className="asset-page-meta"><code>{assetId}</code></p>
           <p className="asset-page-meta">
