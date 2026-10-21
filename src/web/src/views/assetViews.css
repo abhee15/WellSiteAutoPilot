@@ -4,7 +4,7 @@
 .asset-view-editor p { margin: 0; }
 /* One field pattern, shared with the other forms: small caption above a full-width control. */
 .asset-view-editor label:not(.asset-view-check) { display: grid; gap: var(--space-6); max-width: 420px; }
-.asset-view-editor label:not(.asset-view-check) > span { color: var(--color-text-subtle); font-size: var(--font-size-tag); }
+.asset-view-editor label:not(.asset-view-check) > span { color: var(--color-text-secondary); font-size: var(--font-size-body-small); font-weight: 500; }
 .asset-view-editor input:not([type='checkbox']), .asset-view-editor select { inline-size: 100%; }
 .asset-view-editor fieldset { display: grid; gap: var(--space-8); margin: 0; min-inline-size: 0;
   border: var(--border-width-thin) solid var(--color-border-row); border-radius: var(--radius-8); padding: var(--space-12) var(--space-14); }

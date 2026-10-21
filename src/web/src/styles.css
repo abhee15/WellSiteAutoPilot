@@ -277,7 +277,9 @@ button:disabled {
   background: var(--color-surface-input);
   color: var(--color-text-control);
   border-radius: var(--radius-6);
-  padding: var(--space-8) var(--space-12);
+  padding: var(--space-6) var(--space-14);
+  min-height: 36px;
+  font-size: var(--font-size-body-small);
   cursor: pointer;
 }
 
@@ -291,7 +293,9 @@ button:disabled {
   background: var(--color-surface-accent);
   color: var(--color-text-on-accent);
   border-radius: var(--radius-6);
-  padding: var(--space-8) var(--space-12);
+  padding: var(--space-6) var(--space-14);
+  min-height: 36px;
+  font-size: var(--font-size-body-small);
   font-weight: 600;
   cursor: pointer;
 }
@@ -320,7 +324,8 @@ button:disabled {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* As many equal cards per row as fit, so four cards never leave one stranded on a second row. */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-12);
   margin-bottom: var(--space-18);
 }
@@ -943,15 +948,29 @@ button:disabled {
 }
 
 /* Role authoring reuses the same accessible Administration layout. */
+/* Same underline tabs as Assets and Logic. */
 .administration-tabs {
   display: flex;
-  gap: var(--space-10);
-  margin-bottom: var(--space-18);
+  gap: var(--space-4);
+  margin-bottom: var(--space-16);
   flex-wrap: wrap;
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+.administration-tabs button {
+  padding: var(--space-10) var(--space-16);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-subtle);
+}
+.administration-tabs button:hover:not(:disabled) {
+  background: var(--color-surface-control-hover);
 }
 .administration-tabs button[aria-selected="true"] {
-  border-color: var(--color-border-selected);
-  color: var(--color-text-selected);
+  border-bottom-color: var(--color-focus-ring);
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 .role-actions {
   display: flex;
@@ -1115,4 +1134,29 @@ button:disabled {
 /* Text blocks inside grid/flex forms get their spacing from the container's gap, not default paragraph margins. */
 :where(.connection-form, .connection-import, .connection-found, .connection-manage, .connection-test, .asset-view-editor) p {
   margin: 0;
+}
+
+/* Messages: one look for every error box. A bare role="alert" gets the same box as .status-error, and inside a
+   panel both sit inset from the edges instead of touching them. */
+:where([role='alert']:not([class])) {
+  border: var(--border-width-thin) solid var(--color-border-error);
+  background: var(--color-surface-error);
+  padding: var(--space-10) var(--space-14);
+  border-radius: var(--radius-8);
+}
+
+.panel > .status-error,
+.panel > [role='alert']:not([class]) {
+  margin: var(--space-12) var(--space-18);
+}
+
+/* Form field captions: one size and weight above every control in the forms (filters keep their compact captions). */
+.connection-form label, .connection-field, .asset-create-form label, .role-fields > label:not(.access-confirm) {
+  font-size: var(--font-size-body-small);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.connection-form label input, .connection-form label select, .connection-field input, .connection-field select {
+  font-weight: 400;
+  color: var(--color-text-control);
 }
