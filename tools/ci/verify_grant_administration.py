@@ -218,7 +218,7 @@ assert found["complete"] is True and found["warnings"] == [] and found["actingAs
 assert sorted(item["displayName"] for item in found["items"]) == ["Alpha 1", "Alpha 2", "Bravo 1"], found
 alpha = next(item for item in found["items"] if item["externalId"] == "102")
 assert alpha["kind"] == "foresite.well" and alpha["metadata"]["assetName"] == "North Field", alpha
-assert alpha["metadata"]["wellType"] == "ESP" and alpha["metadata"]["deviceType"] == "ESP", alpha
+assert alpha["metadata"]["wellType"] == "ESP" and alpha["metadata"]["deviceType"] == "WFordKS", alpha
 assert alpha["metadata"]["field"] == "Alpha" and alpha["metadata"]["lease"] == "L-1", alpha
 # What was found is kept briefly: totals, counts per grouping fact and a sample, then searching and scoping within it.
 assert found["totalCount"] == 3 and found["snapshotId"] and found["expiresAtUtc"], found

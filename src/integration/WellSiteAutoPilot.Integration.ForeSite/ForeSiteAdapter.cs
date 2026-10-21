@@ -24,8 +24,18 @@ public static class ForeSiteAdapter
     /// </summary>
     public const string CheckPath = "SurfaceNetworkService/Asset/All";
 
-    public const string WellsPath = "Wells/All";
     public const string TokenPath = "TokenService/CreateToken";
+    public const string UserAssetsPath = "Wells/UserAssets";
+    public const string WellsFilterPath = "Wells/Well/Filter";
+    public const string DeviceTypesPath = "WellConfig/GetWellAutonomousControlGroupData";
+
+    // Lift classification from ForeSite's WellTypeId, not the controller device type.
+    private static readonly Dictionary<long, string> WellTypes = new()
+    {
+        [1] = "RRL", [2] = "ESP", [3] = "GInj", [4] = "GLift", [5] = "NF",
+        [6] = "WInj", [7] = "WGInj", [8] = "PLift", [9] = "OT", [10] = "PCP",
+        [12] = "SInj", [13] = "CInj"
+    };
 
     public static AdapterDescriptor Descriptor { get; } = new(
         Key,
@@ -44,14 +54,6 @@ public static class ForeSiteAdapter
             new DiscoveryField("field", "Field", "Unspecified field"),
             new DiscoveryField("lease", "Lease", "Unspecified lease")
         ]);
-
-    // ForeSite's WellTypeId enum: stable numeric ids on the wire, abbreviations for people.
-    private static readonly Dictionary<long, string> WellTypes = new()
-    {
-        [1] = "RRL", [2] = "ESP", [3] = "GInj", [4] = "GLift", [5] = "NF",
-        [6] = "WInj", [7] = "WGInj", [8] = "PLift", [9] = "OT", [10] = "PCP",
-        [12] = "SInj", [13] = "CInj"
-    };
 
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web) { NumberHandling = JsonNumberHandling.AllowReadingFromString };
@@ -99,25 +101,73 @@ public static class ForeSiteAdapter
     }
 
     /// <summary>
-    /// Lists the wells ForeSite lets this account see. A failure is a result, not an exception: an incomplete
-    /// answer with the reason, so nothing downstream treats it as "there are no wells".
+    /// Discover only wells selected by ForeSite's own user-asset filter. Wells/All is unscoped
+    /// and must never be used as an access boundary or discovery fallback.
     /// </summary>
     public static async Task<DiscoveryResult> DiscoverAsync(
         HttpClient client, string actingAs, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
-        var warnings = new List<string>();
-        ForeSiteWell[] wells;
         var session = new ForeSiteSession(client);
         try
         {
-            using var response = await session.GetAsync(WellsPath, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            using var assetResponse = await session.GetAsync(UserAssetsPath, cancellationToken);
+            if (!assetResponse.IsSuccessStatusCode)
+                return Incomplete(await ExplainAsync(assetResponse, actingAs, cancellationToken), actingAs);
+
+            var assets = await assetResponse.Content.ReadFromJsonAsync<ForeSiteAsset[]>(JsonOptions, cancellationToken);
+            if (assets is null || assets.Any(asset => asset is null || asset.Id is null or < 0))
+                return Incomplete("ForeSite returned an invalid accessible asset list.", actingAs);
+
+            // UserAssets includes pseudo-asset 0 only if ForeSite grants access to unmapped wells.
+            // A blank AssetIds filter could mean ALL wells; never POST a blank filter.
+            var ids = assets.Select(asset => asset.Id!.Value).Distinct().ToArray();
+            if (ids.Length == 0)
+                return new DiscoveryResult(true, [], [], actingAs);
+            var allowedIds = ids.ToHashSet();
+            var names = assets
+                .Where(asset => !string.IsNullOrWhiteSpace(asset.Name))
+                .GroupBy(asset => asset.Id!.Value)
+                .ToDictionary(group => group.Key, group => group.First().Name!);
+            var filter = new ForeSiteWellFilter(ids);
+
+            using var wellResponse = await session.PostAsync(WellsFilterPath, filter, cancellationToken);
+            if (!wellResponse.IsSuccessStatusCode)
+                return Incomplete(await ExplainAsync(wellResponse, actingAs, cancellationToken), actingAs);
+            var wells = await wellResponse.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken);
+            if (wells is null)
+                return Incomplete("ForeSite returned an invalid filtered well list.", actingAs);
+
+            var matched = new List<(ForeSiteWell Well, long AssetId)>();
+            var invalidWellIds = 0;
+            foreach (var well in wells)
             {
-                return Incomplete(await ExplainAsync(response, actingAs, cancellationToken), actingAs);
+                if (well is null || well.Id is null or <= 0)
+                {
+                    invalidWellIds++;
+                    continue;
+                }
+
+                // A null WellDTO.AssetId represents ForeSite's Not Mapped asset (0).
+                var assetId = ReadAssetId(well.AssetId);
+                if (assetId is null || !allowedIds.Contains(assetId.Value))
+                    return Incomplete("ForeSite returned wells outside this account's accessible assets.", actingAs);
+                matched.Add((well, assetId.Value));
             }
 
-            wells = await response.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken) ?? [];
+            var warnings = new List<string>();
+            if (invalidWellIds > 0)
+                warnings.Add($"{invalidWellIds} well(s) had no valid id and were skipped.");
+            var distinct = matched.DistinctBy(item => item.Well.Id).ToArray();
+            if (distinct.Length < matched.Count)
+                warnings.Add($"{matched.Count - distinct.Length} duplicate well(s) were skipped.");
+
+            // Autonomous-control group classification is optional: a failure cannot expand scope,
+            // and does not turn an otherwise complete inventory into a false "missing" result.
+            var deviceTypes = await ReadDeviceTypesAsync(session, filter, warnings, cancellationToken);
+            return new DiscoveryResult(true,
+                distinct.Select(item => ToDiscovered(item.Well, item.AssetId, names, deviceTypes)).ToArray(),
+                warnings, actingAs);
         }
         catch (ForeSiteTokenException error)
         {
@@ -133,23 +183,81 @@ public static class ForeSiteAdapter
         }
         catch (JsonException)
         {
-            return Incomplete("ForeSite answered with something that is not a list of wells. Check the address.", actingAs);
+            return Incomplete("ForeSite returned an invalid discovery response.", actingAs);
         }
+    }
 
-        var assetNames = await ReadAssetNamesAsync(session, cancellationToken);
-        if (assetNames is null)
+    private static long? ReadAssetId(JsonElement? value)
+    {
+        if (value is null or { ValueKind: JsonValueKind.Null or JsonValueKind.Undefined })
+            return 0;
+        if (value is not { ValueKind: JsonValueKind.Number or JsonValueKind.String } scalar)
+            return null;
+        return long.TryParse(scalar.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) && id >= 0
+            ? id : null;
+    }
+
+    private static async Task<Dictionary<long, string>> ReadDeviceTypesAsync(
+        ForeSiteSession session, ForeSiteWellFilter filter, List<string> warnings, CancellationToken cancellationToken)
+    {
+        try
         {
-            warnings.Add("ForeSite's asset names could not be read, so wells will not show which ForeSite asset they belong to.");
-            assetNames = [];
+            using var response = await session.PostAsync(DeviceTypesPath, filter, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var group = await response.Content.ReadFromJsonAsync<ForeSiteControlGroupData>(JsonOptions, cancellationToken);
+                if (group?.Values is not null)
+                {
+                    var rows = group.Values
+                        .Where(row => row is not null && row.WellId is >= 0 && !string.IsNullOrWhiteSpace(row.DeviceType))
+                        .GroupBy(row => row.WellId!.Value).ToArray();
+                    var conflicting = rows.Where(groupRows =>
+                        groupRows.Select(row => row.DeviceType!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any())
+                        .Select(groupRows => groupRows.Key).ToHashSet();
+                    if (conflicting.Count > 0)
+                        warnings.Add($"{conflicting.Count} well(s) returned conflicting device-type records.");
+                    return rows.Where(groupRows => !conflicting.Contains(groupRows.Key))
+                        .ToDictionary(groupRows => groupRows.Key, groupRows => groupRows.First().DeviceType!.Trim());
+                }
+            }
         }
+        catch (HttpRequestException) { }
+        catch (JsonException) { }
+        catch (ForeSiteTokenException) { }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
+        warnings.Add("ForeSite control-group device types could not be read; wells remain discoverable.");
+        return [];
+    }
 
-        var withId = wells.Where(well => well.Id is not null).ToArray();
-        if (withId.Length < wells.Length)
-        {
-            warnings.Add($"{wells.Length - withId.Length} well(s) had no id and were skipped.");
-        }
+    private static DiscoveredAsset ToDiscovered(
+        ForeSiteWell well, long assetId, Dictionary<long, string> names, Dictionary<long, string> types)
+    {
+        var id = well.Id!.Value.ToString(CultureInfo.InvariantCulture);
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["wellId"] = id };
+        if (assetId > 0) metadata["assetId"] = assetId.ToString(CultureInfo.InvariantCulture);
+        if (names.TryGetValue(assetId, out var name)) metadata["assetName"] = name;
+        else if (assetId == 0) metadata["assetName"] = "Not Mapped";
+        if (!string.IsNullOrWhiteSpace(well.Name)) metadata["wellName"] = well.Name;
+        if (types.TryGetValue(well.Id.Value, out var type)) metadata["deviceType"] = type;
+        else if (!string.IsNullOrWhiteSpace(well.PrincipalDeviceType)) metadata["deviceType"] = well.PrincipalDeviceType.Trim();
+        Put(metadata, "wellTypeId", well.WellType);
+        if (well.WellType is { ValueKind: JsonValueKind.Number or JsonValueKind.String } wellType &&
+            long.TryParse(wellType.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var typeId) &&
+            WellTypes.TryGetValue(typeId, out var wellTypeName))
+            metadata["wellType"] = wellTypeName;
+        Put(metadata, "field", well.Field);
+        Put(metadata, "lease", well.Lease);
+        Put(metadata, "facilityId", well.FacilityId);
+        return new DiscoveredAsset(id,
+            string.IsNullOrWhiteSpace(well.Name) ? $"Well {id}" : well.Name,
+            WellResourceKind, null, metadata);
+    }
 
-        return new DiscoveryResult(true, withId.Select(well => ToDiscovered(well, assetNames)).ToArray(), warnings, actingAs);
+    private static void Put(Dictionary<string, string> metadata, string key, JsonElement? element)
+    {
+        if (element is not { ValueKind: JsonValueKind.String or JsonValueKind.Number } value) return;
+        var text = value.ToString();
+        if (!string.IsNullOrWhiteSpace(text)) metadata[key] = text;
     }
 
     private const string SlowMessage =
@@ -174,29 +282,38 @@ public static class ForeSiteAdapter
         private CookieContainer _cookies = new();
         private bool _initialized;
 
-        public async Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct)
+        public Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct) =>
+            SendAuthenticatedAsync(HttpMethod.Get, path, null, ct);
+
+        public Task<HttpResponseMessage> PostAsync(string path, ForeSiteWellFilter filter, CancellationToken ct) =>
+            SendAuthenticatedAsync(HttpMethod.Post, path, filter, ct);
+
+        private async Task<HttpResponseMessage> SendAuthenticatedAsync(
+            HttpMethod method, string path, ForeSiteWellFilter? body, CancellationToken ct)
         {
             if (!_initialized) await CreateTokenAsync(ct);
-            var response = await SendAsync(path, ct);
+            var response = await SendAsync(method, path, body, ct);
             if (response.StatusCode != HttpStatusCode.Unauthorized) return response;
             response.Dispose();
             _cookies = new CookieContainer();
             _initialized = false;
             await CreateTokenAsync(ct);
-            return await SendAsync(path, ct);
+            return await SendAsync(method, path, body, ct);
         }
 
         private async Task CreateTokenAsync(CancellationToken ct)
         {
-            using var response = await SendAsync(TokenPath, ct);
+            using var response = await SendAsync(HttpMethod.Get, TokenPath, null, ct);
             if (!response.IsSuccessStatusCode)
                 throw new ForeSiteTokenException(await ExplainAsync(response, "the Gateway Windows account", ct));
             _initialized = true;
         }
 
-        private async Task<HttpResponseMessage> SendAsync(string path, CancellationToken ct)
+        private async Task<HttpResponseMessage> SendAsync(
+            HttpMethod method, string path, ForeSiteWellFilter? body, CancellationToken ct)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, path);
+            using var request = new HttpRequestMessage(method, path);
+            if (body is not null) request.Content = JsonContent.Create(body, options: JsonOptions);
             var uri = new Uri(client.BaseAddress ?? throw new InvalidOperationException("ForeSite requires a base address."), path);
             var cookies = _cookies.GetCookieHeader(uri);
             if (!string.IsNullOrEmpty(cookies)) request.Headers.TryAddWithoutValidation("Cookie", cookies);
@@ -239,71 +356,10 @@ public static class ForeSiteAdapter
         return Explain(response.StatusCode, actingAs);
     }
 
-    // Names only add context for grouping, so a failure here costs a warning, never the discovery.
-    private static async Task<Dictionary<string, string>?> ReadAssetNamesAsync(ForeSiteSession session, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var response = await session.GetAsync(CheckPath, cancellationToken);
-            if (!response.IsSuccessStatusCode) return null;
-            var assets = await response.Content.ReadFromJsonAsync<ForeSiteAsset[]>(JsonOptions, cancellationToken) ?? [];
-            return assets
-                .Where(asset => asset.Id is not null && !string.IsNullOrWhiteSpace(asset.Name))
-                .GroupBy(asset => asset.Id!.Value.ToString(CultureInfo.InvariantCulture))
-                .ToDictionary(group => group.Key, group => group.First().Name!, StringComparer.Ordinal);
-        }
-        catch (HttpRequestException)
-        {
-            return null;
-        }
-        catch (ForeSiteTokenException)
-        {
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return null;
-        }
-    }
-
-    private static DiscoveredAsset ToDiscovered(ForeSiteWell well, Dictionary<string, string> assetNames)
-    {
-        var id = well.Id!.Value.ToString(CultureInfo.InvariantCulture);
-        var metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["wellId"] = id };
-        Put(metadata, "assetId", well.AssetId);
-        if (metadata.TryGetValue("assetId", out var assetId) && assetNames.TryGetValue(assetId, out var assetName))
-        {
-            metadata["assetName"] = assetName;
-        }
-
-        if (!string.IsNullOrWhiteSpace(well.Name)) metadata["wellName"] = well.Name;
-        if (!string.IsNullOrWhiteSpace(well.PrincipalDeviceType)) metadata["deviceType"] = well.PrincipalDeviceType;
-        Put(metadata, "wellTypeId", well.WellType);
-        if (well.WellType is { ValueKind: JsonValueKind.Number } type && type.TryGetInt64(out var typeId) &&
-            WellTypes.TryGetValue(typeId, out var abbreviation))
-        {
-            metadata["wellType"] = abbreviation;
-        }
-
-        Put(metadata, "field", well.Field);
-        Put(metadata, "lease", well.Lease);
-        Put(metadata, "facilityId", well.FacilityId);
-        return new DiscoveredAsset(id, string.IsNullOrWhiteSpace(well.Name) ? $"Well {id}" : well.Name, WellResourceKind, null, metadata);
-    }
-
-    // Unexpected shapes are left out rather than fatal: ForeSite's WellDTO has about 70 fields and we read a few.
-    private static void Put(Dictionary<string, string> metadata, string key, JsonElement? value)
-    {
-        var text = value is { ValueKind: JsonValueKind.String or JsonValueKind.Number } element ? element.ToString() : null;
-        if (!string.IsNullOrWhiteSpace(text)) metadata[key] = text;
-    }
-
     private sealed record ForeSiteAsset(long? Id, string? Name);
-
+    private sealed record ForeSiteWellFilter(long[] AssetIds);
+    private sealed record ForeSiteControlGroupData(ForeSiteControlGroupRow[]? Values);
+    private sealed record ForeSiteControlGroupRow(long? WellId, string? DeviceType);
     private sealed record ForeSiteWell(
         long? Id, string? Name, JsonElement? AssetId, JsonElement? WellType, JsonElement? Field,
         JsonElement? Lease, JsonElement? FacilityId, string? PrincipalDeviceType);
