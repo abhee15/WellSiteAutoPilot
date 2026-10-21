@@ -104,6 +104,25 @@ describe('Connections page', () => {
     expect(screen.getByText('Enable')).toBeTruthy();
   });
 
+  it('groups actions by purpose and lets unsaved edits be discarded', async () => {
+    vi.mocked(api.loadConnections).mockResolvedValue([saved()]);
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    const name = await screen.findByLabelText('Name') as HTMLInputElement;
+    expect(screen.queryByText('Discard changes')).toBeNull();
+    const checks = screen.getByRole('group', { name: 'Check this connection' });
+    expect(checks.textContent).toContain('Test connection');
+    const manage = screen.getByRole('region', { name: 'Manage connection' });
+    expect(manage.textContent).toContain('Disable');
+    expect(manage.textContent).toContain('Delete');
+    await userEvent.type(name, ' 2');
+    expect(name.value).toBe('Field simulator 2');
+    expect(checks.textContent).toContain('Save your changes before testing.');
+    await userEvent.click(screen.getByText('Discard changes'));
+    expect(name.value).toBe('Field simulator');
+    expect(screen.queryByText('Discard changes')).toBeNull();
+  });
+
   it('asks before deleting', async () => {
     vi.mocked(api.loadConnections).mockResolvedValueOnce([saved()]).mockResolvedValue([]);
     vi.mocked(api.deleteConnection).mockResolvedValue();
