@@ -26,6 +26,7 @@ public static class ForeSiteAdapter
 
     public const string WellsPath = "Wells/All";
     public const string UserAssetsPath = "Wells/UserAssets";
+    public const string WellsByAssetsPath = "Wells/GetWellsByUserAssetIds";
     public const string WellsFilterPath = "Wells/Well/Filter";
     public const string DeviceTypesPath = "WellConfig/GetWellAutonomousControlGroupData";
 
@@ -99,20 +100,42 @@ public static class ForeSiteAdapter
         Dictionary<string, string>? assetNames;
         try
         {
-            // Well/Filter applies ForeSite's own access rules (the user's assets, and Not Mapped wells only where
-            // allowed). Wells/All applies none, so it must not be the source of "what this user can see".
-            using var filtered = await client.PostAsJsonAsync(WellsFilterPath, new { }, cancellationToken);
-            if (!filtered.IsSuccessStatusCode)
+            // Only what ForeSite says this user may see is asked for: the user's assets first, then the wells under
+            // them. "Not Mapped" (id 0) is listed among the assets when allowed, but the by-asset call returns
+            // nothing for it, so those wells come from the filter query, which applies the same access rules.
+            using var assetsResponse = await client.GetAsync(UserAssetsPath, cancellationToken);
+            if (!assetsResponse.IsSuccessStatusCode)
             {
-                return Incomplete(Explain(filtered.StatusCode, actingAs), actingAs);
+                return Incomplete(Explain(assetsResponse.StatusCode, actingAs), actingAs);
             }
 
-            wells.AddRange(await filtered.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken) ?? []);
-            assetNames = await ReadAssetNamesAsync(client, cancellationToken);
-            if (assetNames is null)
+            var assets = await assetsResponse.Content.ReadFromJsonAsync<ForeSiteAsset[]>(JsonOptions, cancellationToken) ?? [];
+            var assetIds = assets.Where(asset => asset.Id is > 0).Select(asset => asset.Id!.Value).Distinct().ToArray();
+            assetNames = assets
+                .Where(asset => asset.Id is > 0 && !string.IsNullOrWhiteSpace(asset.Name))
+                .GroupBy(asset => asset.Id!.Value.ToString(CultureInfo.InvariantCulture))
+                .ToDictionary(group => group.Key, group => group.First().Name!, StringComparer.Ordinal);
+
+            if (assetIds.Length > 0)
             {
-                warnings.Add("ForeSite's asset names could not be read, so wells will not show which ForeSite asset they belong to.");
-                assetNames = [];
+                using var mapped = await client.PostAsJsonAsync(WellsByAssetsPath, assetIds, cancellationToken);
+                if (!mapped.IsSuccessStatusCode)
+                {
+                    return Incomplete(Explain(mapped.StatusCode, actingAs), actingAs);
+                }
+
+                wells.AddRange(await mapped.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken) ?? []);
+            }
+
+            if (assets.Any(asset => asset.Id == 0))
+            {
+                using var unmapped = await client.PostAsJsonAsync(WellsFilterPath, new { AssetIds = new long[] { 0 } }, cancellationToken);
+                if (!unmapped.IsSuccessStatusCode)
+                {
+                    return Incomplete(Explain(unmapped.StatusCode, actingAs), actingAs);
+                }
+
+                wells.AddRange(await unmapped.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken) ?? []);
             }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -147,32 +170,6 @@ public static class ForeSiteAdapter
             true, withId.Select(well => ToDiscovered(well, assetNames, deviceTypes)).ToArray(), warnings, actingAs);
     }
 
-    // Names only add context for grouping, so a failure here costs a warning, never the discovery.
-    private static async Task<Dictionary<string, string>?> ReadAssetNamesAsync(HttpClient client, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var response = await client.GetAsync(UserAssetsPath, cancellationToken);
-            if (!response.IsSuccessStatusCode) return null;
-            var assets = await response.Content.ReadFromJsonAsync<ForeSiteAsset[]>(JsonOptions, cancellationToken) ?? [];
-            return assets
-                .Where(asset => asset.Id is > 0 && !string.IsNullOrWhiteSpace(asset.Name))
-                .GroupBy(asset => asset.Id!.Value.ToString(CultureInfo.InvariantCulture))
-                .ToDictionary(group => group.Key, group => group.First().Name!, StringComparer.Ordinal);
-        }
-        catch (HttpRequestException)
-        {
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return null;
-        }
-    }
     private static async Task<Dictionary<string, string>?> ReadDeviceTypesAsync(HttpClient client, CancellationToken cancellationToken)
     {
         try

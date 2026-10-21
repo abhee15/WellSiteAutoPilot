@@ -106,10 +106,13 @@ static async Task DiscoveryChecks()
     Expect(third.DisplayName == "Well 103" && !third.Metadata.ContainsKey("wellType") && third.Metadata["wellTypeId"] == "77" &&
            !third.Metadata.ContainsKey("deviceType"), "unknown type ids and blank device types are not guessed");
 
-    var noNames = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, null, deviceTypes)), Account, CancellationToken.None);
-    Expect(noNames.Complete && noNames.Items.Count == 4 && noNames.Warnings.Any(item => item.Contains("asset names", StringComparison.Ordinal)),
-        "unreadable asset names cost a warning, not the discovery");
-    Expect(noNames.Items.All(item => !item.Metadata.ContainsKey("assetName")), "no names are invented");
+    var noAssets = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, null, deviceTypes)), Account, CancellationToken.None);
+    Expect(!noAssets.Complete && noAssets.Items.Count == 0, "wells are only asked for under assets ForeSite lists, so no asset list means incomplete");
+
+    var noUnmapped = await ForeSiteAdapter.DiscoverAsync(
+        Client(new Routes(wells, """[{"id":1,"name":"North"},{"id":2,"name":"South"}]""", deviceTypes)), Account, CancellationToken.None);
+    Expect(noUnmapped.Complete && noUnmapped.Items.Select(item => item.ExternalId).Order().SequenceEqual(["101", "102", "103"]),
+        "without Not Mapped among the user's assets, unmapped wells are not requested");
 
     var noDevices = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, assets, null)), Account, CancellationToken.None);
     Expect(noDevices.Complete && noDevices.Items.Count == 4 && noDevices.Warnings.Any(item => item.Contains("device types", StringComparison.Ordinal)),
@@ -188,7 +191,27 @@ internal sealed class Routes(string wells, string? assets, string? deviceTypes) 
         string? body = null;
         if (path.EndsWith("/Wells/UserAssets", StringComparison.Ordinal)) body = assets;
         else if (path.EndsWith("/WellConfig/GetWellAutonomousControlGroupData", StringComparison.Ordinal)) body = deviceTypes;
-        else if (path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal)) body = wells;
+        else if (path.EndsWith("/Wells/GetWellsByUserAssetIds", StringComparison.Ordinal) || path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal))
+        {
+            // Like ForeSite: by-asset returns only wells under the posted assets (id 0 matches nothing); the filter with
+            // AssetIds [0] returns the unmapped wells. The wells JSON may be garbage to test the failure path.
+            var posted = await request.Content!.ReadAsStringAsync(cancellationToken);
+            var byFilter = path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal);
+            try
+            {
+                var ids = byFilter ? [] : System.Text.Json.JsonSerializer.Deserialize<long[]>(posted) ?? [];
+                var list = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[]>(wells) ?? [];
+                body = System.Text.Json.JsonSerializer.Serialize(list.Where(well =>
+                {
+                    var hasAsset = well.TryGetProperty("assetId", out var asset) && asset.ValueKind == System.Text.Json.JsonValueKind.Number;
+                    return byFilter ? !hasAsset : hasAsset && ids.Contains(asset.GetInt64());
+                }));
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                body = wells;
+            }
+        }
 
         return body is null
             ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
