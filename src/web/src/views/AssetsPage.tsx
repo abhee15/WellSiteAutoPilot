@@ -25,7 +25,7 @@ import { loadViews } from './assetViewsApi';
 import type { AssetView, ViewDefinition } from './assetViewsApi';
 import type { ViewGroup } from './assetViewsApi';
 import type { OwnerGroup } from './assetHierarchy';
-import { ownerLabel } from './AssetOwnerRow';
+import { ownerLabel, ownerNameFor } from './AssetOwnerRow';
 import { AssetBrowser, AssetSearchResults } from './AssetBrowser';
 import { useAssetContext } from './useAssetContext';
 import './splitLayout.css';
@@ -315,18 +315,18 @@ export function AssetsPage({
                   </>
                 ) : activeView && !criteria.search.trim() ? (
                   <AssetViewBrowser key={activeView.id + ':' + activeView.revision + ':' + localRefresh} viewId={activeView.id}
-                    selectedId={selectedId} onSelect={select} translateGroup={groupLabel} />
+                    selectedId={selectedId} onSelect={select} translateGroup={groupLabel} typeNames={typeNames} />
                 ) : lazy ? (
                   criteria.search.trim()
                     ? <AssetSearchResults query={criteria.search.trim()} selectedId={selectedId}
-                      typeNames={typeNames} onSelect={select} />
+                      typeNames={typeNames} onSelect={select} owners={owners} />
                     : <AssetBrowser key={focusId ?? 'all'} rootId={focusId} selectedId={selectedId} refreshKey={refreshKey} onSelect={select}
                       selectedOwnerId={context.asset ? context.asset.ownerConnectionId ?? null : undefined}
-                      canOpenConnection={canOpenConnection}
+                      canOpenConnection={canOpenConnection} typeNames={typeNames}
                       ancestorIds={context.ancestors.map(item => item.id ?? '')} />
                 ) : !filtering ? (
                   <AssetTree assets={focusId ? descendantsOf(assets, focusId) : assets} selectedId={selectedId} onSelect={select}
-                    owners={owners} canOpenConnection={canOpenConnection} />
+                    owners={owners} canOpenConnection={canOpenConnection} typeNames={typeNames} />
                 ) : visibleAssets.length === 0 ? (
                   <p className="split-note">{t('assets.noMatches')}</p>
                 ) : (
@@ -334,7 +334,8 @@ export function AssetsPage({
                     <ul className="split-results" aria-label={t('assets.results')}>
                       {visibleAssets.slice(0, RESULT_LIMIT).map(asset => {
                         const id = asset.id ?? '';
-                        const path = assetAncestors(assets, id).map(a => a.name ?? '—').join(' › ');
+                        const ownerName = ownerNameFor(owners, (asset as { ownerConnectionId?: string | null }).ownerConnectionId);
+                        const path = [...(ownerName ? [ownerName] : []), ...assetAncestors(assets, id).map(a => a.name ?? '—')].join(' › ');
                         return (
                           <li key={id} data-selected={id === selectedId}>
                             <button type="button" className="asset-select"

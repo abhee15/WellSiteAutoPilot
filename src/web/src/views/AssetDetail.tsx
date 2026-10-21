@@ -42,6 +42,8 @@ export function AssetDetail({
   const assetId = asset.id ?? '';
   const ancestors = assetAncestors(assets, assetId);
   const children = assetChildren(assets, assetId);
+  // The path starts at the owning Connection, so equally named Assets in two Connections stay distinguishable.
+  const where = [...(owner && owner.connectionId !== null ? [owner.name] : []), ...ancestors.map(a => a.name ?? '—')];
   const logic = logicOnAsset(configuredLogic, assetId);
   const [activity, setActivity] = useState<Activity>({ runs: [], recommendations: [], state: 'loading' });
 
@@ -82,8 +84,8 @@ export function AssetDetail({
           </p>}
           <p className="asset-page-meta"><code>{assetId}</code></p>
           <p className="asset-page-meta">
-            {ancestors.length === 0 ? t('assetPage.topLevel')
-              : t('assetPage.locatedUnder', { path: ancestors.map(a => a.name ?? '—').join(' › ') })}
+            {where.length === 0 ? t('assetPage.topLevel')
+              : t('assetPage.locatedUnder', { path: where.join(' › ') })}
           </p>
         </div>
         <button type="button" className="secondary-button" onClick={onClose}>

@@ -53,6 +53,8 @@ it('opens a saved View: groups load when opened and a chosen asset opens the ass
   expect(requests.some(request => request.url.includes('path=' + connectionId))).toBe(true);
   await userEvent.setup().click(asset);
   expect(window.location.hash).toBe('#assets/' + wellId);
+  // The location starts at the owning Connection, so equal names in two Connections stay distinguishable.
+  expect(await screen.findByText('Located under Houston Production')).toBeTruthy();
 });
 
 it('creates a View from the dedicated flow and selects it', async () => {

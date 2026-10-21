@@ -1,5 +1,6 @@
 import { hashFor } from '../routing';
 import { t } from '../localization';
+import { AssetNodeIcon } from './AssetNodeIcon';
 import type { OwnerGroup } from './assetHierarchy';
 
 /** The name shown for a root: the Connection's name, or Standalone for assets no Connection owns. */
@@ -30,8 +31,8 @@ export function AssetOwnerRow({
         onClick={onToggle}>{expanded ? '−' : '+'}</button>
       <button type="button" className="asset-select asset-tree-name" onClick={onToggle}
         aria-label={t('assetTree.open', { name: label })}>
-        <span className="asset-owner-icon" aria-hidden="true">{owner.connectionId === null ? '▭' : '⏚'}</span>
-        {' '}{label}
+        <AssetNodeIcon kind={owner.connectionId === null ? 'standalone' : 'connection'} />
+        {label}
       </button>
       <small>{t('assetOwner.count', { count: String(owner.assetCount) })}</small>
       {owner.connectionId !== null && !owner.isEnabled && <small>{t('assetOwner.disabled')}</small>}
@@ -39,4 +40,11 @@ export function AssetOwnerRow({
         <a className="asset-owner-link" href={hashFor('connections', owner.connectionId)}>{t('assetOwner.open')}</a>}
     </div>
   );
+}
+
+/** The Connection name to show next to an Asset, or null when no Connection owns anything (so nothing is added). */
+export function ownerNameFor(owners: readonly OwnerGroup[], connectionId: string | null | undefined): string | null {
+  if (!owners.some(owner => owner.connectionId !== null)) return null;
+  const owner = owners.find(item => item.connectionId === (connectionId ?? null));
+  return owner ? ownerLabel(owner) : connectionId ? t('assetOwner.unknown') : t('assetOwner.standalone');
 }

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import { BROWSE_PAGE_SIZE, SEARCH_PAGE_SIZE, fetchChildren, fetchOwners, fetchSearch } from './assetBrowseApi';
 import type { OwnerGroup } from './assetHierarchy';
-import { AssetOwnerRow, ownerKey } from './AssetOwnerRow';
+import { AssetOwnerRow, ownerKey, ownerNameFor } from './AssetOwnerRow';
+import { AssetNodeIcon, assetNodeKind } from './AssetNodeIcon';
 import type { BrowseNode, SearchHit } from './assetBrowseApi';
 import './assetTree.css';
 
@@ -15,7 +16,7 @@ type Level = { items: BrowseNode[]; hasMore: boolean; loading: boolean; failed: 
  * when it is opened, so a very large hierarchy never has to be loaded at once.
  */
 export function AssetBrowser({
-  selectedId, ancestorIds, refreshKey, onSelect, rootId, selectedOwnerId, canOpenConnection = false,
+  selectedId, ancestorIds, refreshKey, onSelect, rootId, selectedOwnerId, canOpenConnection = false, typeNames,
 }: {
   selectedId: string | null;
   /** Ancestors of the selected asset, top first; they are opened so the selection is visible. */
@@ -28,6 +29,7 @@ export function AssetBrowser({
   /** The Connection that owns the selected asset (null: Standalone; undefined: unknown). */
   selectedOwnerId?: string | null;
   canOpenConnection?: boolean;
+  typeNames?: ReadonlyMap<string | undefined, string | null | undefined>;
 }) {
   const top = rootId ?? ROOT;
   const levels = useRef<Record<string, Level>>({});
@@ -130,7 +132,8 @@ export function AssetBrowser({
                     onClick={() => toggle(node.id)}>{open ? '−' : '+'}</button>
                 ) : <span className="asset-tree-toggle" aria-hidden="true" />}
                 <button type="button" className="asset-select asset-tree-name" data-selected={node.id === selectedId}
-                  aria-label={t('assetTree.open', { name })} onClick={() => onSelect(node.id)}>{name}</button>
+                  aria-label={t('assetTree.open', { name })} onClick={() => onSelect(node.id)}>
+                  <AssetNodeIcon kind={assetNodeKind(hasChildren, typeNames?.get(node.assetTypeId))} />{name}</button>
                 {hasChildren && <small>{t('assetTree.count', { count: String(node.childCount) })}</small>}
               </div>
               {open && <ul role="group">{renderLevel(node.id)}</ul>}
@@ -170,12 +173,13 @@ export function AssetBrowser({
 
 /** Matches found by the server, each with where it sits. */
 export function AssetSearchResults({
-  query, selectedId, typeNames, onSelect,
+  query, selectedId, typeNames, onSelect, owners = [],
 }: {
   query: string;
   selectedId: string | null;
   typeNames: ReadonlyMap<string | undefined, string | null | undefined>;
   onSelect: (id: string) => void;
+  owners?: readonly OwnerGroup[];
 }) {
   const [state, setState] = useState<{ hits: SearchHit[]; hasMore: boolean; loading: boolean; failed: boolean }>(
     { hits: [], hasMore: false, loading: true, failed: false });
@@ -206,7 +210,8 @@ export function AssetSearchResults({
     <>
       <ul className="split-results" aria-label={t('assets.results')}>
         {state.hits.map(hit => {
-          const path = hit.path.map(step => step.name).join(' › ');
+          const owner = ownerNameFor(owners, hit.ownerConnectionId);
+          const path = [...(owner ? [owner] : []), ...hit.path.map(step => step.name)].join(' › ');
           return (
             <li key={hit.id} data-selected={hit.id === selectedId}>
               <button type="button" className="asset-select"

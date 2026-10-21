@@ -4,6 +4,7 @@ import { t } from '../localization';
 import { ancestorIds, buildAssetTree, groupRootsByOwner } from './assetHierarchy';
 import type { AssetTreeNode, OwnerGroup } from './assetHierarchy';
 import { AssetOwnerRow, ownerKey } from './AssetOwnerRow';
+import { AssetNodeIcon, assetNodeKind } from './AssetNodeIcon';
 import './assetTree.css';
 
 export function AssetTree({
@@ -12,6 +13,7 @@ export function AssetTree({
   onSelect,
   owners = [],
   canOpenConnection = false,
+  typeNames,
 }: {
   assets: AssetResponse[];
   selectedId: string | null | undefined;
@@ -19,6 +21,7 @@ export function AssetTree({
   /** Connections that own assets; when any do, the top level is grouped under them. */
   owners?: readonly OwnerGroup[];
   canOpenConnection?: boolean;
+  typeNames?: ReadonlyMap<string | undefined, string | null | undefined>;
 }) {
   const tree = useMemo(() => buildAssetTree(assets), [assets]);
   const grouped = useMemo(() => groupRootsByOwner(tree, owners), [tree, owners]);
@@ -45,6 +48,7 @@ export function AssetTree({
           ) : <span className="asset-tree-toggle" aria-hidden="true" />}
           <button type="button" className="asset-select asset-tree-name" data-selected={id === selectedId}
             aria-label={t('assetTree.open', { name })} onClick={() => onSelect(id)}>
+            <AssetNodeIcon kind={assetNodeKind(hasChildren, typeNames?.get(node.asset.assetTypeId))} />
             {name}
           </button>
           {hasChildren && <small>{t('assetTree.count', { count: String(node.children.length) })}</small>}
