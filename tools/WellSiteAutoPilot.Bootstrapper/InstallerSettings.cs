@@ -523,6 +523,13 @@ internal static class InstallerSettings
     }
 
     /// <summary>Removes every occurrence of the given secrets so output is safe to print.</summary>
+    /// <summary>The sc.exe arguments that make Windows restart a service that stops unexpectedly: after 5, 15 and 60 seconds, counting failures afresh after a day.</summary>
+    public static string[] ServiceRecoveryArguments(string serviceName) =>
+        ["failure", serviceName, "reset=", "86400", "actions=", "restart/5000/restart/15000/restart/60000"];
+
+    /// <summary>Without this flag Windows treats only a crash as a failure; a service that stops itself with an error code would stay down.</summary>
+    public static string[] ServiceRecoveryOnErrorExitArguments(string serviceName) => ["failureflag", serviceName, "1"];
+
     public static string Redact(string text, params string?[] secrets)
     {
         ArgumentNullException.ThrowIfNull(text);

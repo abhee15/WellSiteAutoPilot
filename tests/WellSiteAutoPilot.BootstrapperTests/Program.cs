@@ -237,5 +237,13 @@ Expect(missingLine.Changed && missingLine.Content.Contains("SeServiceLogonRight 
 Expect(InstallerSettings.WithServiceLogonRight("[Unicode]\r\nUnicode=yes\r\n", "*S-1-5-21-5").Content.Contains("[Privilege Rights]", StringComparison.Ordinal),
     "a policy without the section must gain it");
 
+// Services restart themselves when they stop unexpectedly, including after an error exit.
+var recovery = InstallerSettings.ServiceRecoveryArguments("WellSiteAutoPilotGateway");
+Expect(recovery[0] == "failure" && recovery[1] == "WellSiteAutoPilotGateway" &&
+       recovery[^1] == "restart/5000/restart/15000/restart/60000" && recovery.Contains("86400"),
+    "a service must be restarted after 5, 15 and 60 seconds, with the count reset after a day");
+Expect(string.Join(' ', InstallerSettings.ServiceRecoveryOnErrorExitArguments("X")) == "failureflag X 1",
+    "an error exit must count as a failure");
+
 Console.WriteLine("Installer settings checks passed.");
 return 0;

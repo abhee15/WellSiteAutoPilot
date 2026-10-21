@@ -50,6 +50,20 @@ and by no other service. An ordinary account's password is never stored, so an u
 has started under it. Connection settings can never select the account, and a connection's test
 result states which account the Gateway used.
 
+### Changing the Gateway's account later
+
+Re-run the installer, or the bootstrapper's `install-services --install-root <path>`, with the new choice from the table
+above (for an ordinary account, put its password in `WSA_GATEWAY_ACCOUNT_PASSWORD`). Every service is recreated and
+restarted, so the platform is briefly unavailable. Do not change the account on the service's Log On tab in Services: that
+does not grant the log-on-as-a-service right, does not give the new account the Gateway's key file, and the next
+install or upgrade puts the remembered account back. Starting, stopping and restarting services from Services is fine.
+
+### Restart on failure
+
+Each service is set to restart itself if it stops unexpectedly (after 5, 15 and then 60 seconds; the count
+starts again after a day), including when it exits with an error. Stopping a service from Services (or `sc stop`)
+is a normal stop and is not restarted. Re-running the installer sets this up again.
+
 ## HTTPS
 
 The installed Server serves **HTTPS only**; there is no plain HTTP option. (Development runs keep plain
