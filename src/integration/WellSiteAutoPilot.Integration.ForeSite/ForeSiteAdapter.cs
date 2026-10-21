@@ -25,6 +25,7 @@ public static class ForeSiteAdapter
     public const string CheckPath = "SurfaceNetworkService/Asset/All";
 
     public const string WellsPath = "Wells/All";
+    public const string TokenPath = "TokenService/CreateToken";
 
     public static AdapterDescriptor Descriptor { get; } = new(
         Key,
@@ -61,17 +62,31 @@ public static class ForeSiteAdapter
         return new Uri(baseUrl.Trim().TrimEnd('/') + "/");
     }
 
-    /// <summary>Tries the connection and says plainly what was found. Never includes anything ForeSite sent back.</summary>
-    public static async Task<AdapterTestResult> CheckAsync(
-        HttpClient client, string actingAs, CancellationToken cancellationToken)
+    /// <summary>Token handshake followed by JSON validation as the Gateway Windows account.</summary>
+    public static async Task<AdapterTestResult> CheckAsync(HttpClient client, string actingAs, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
         try
         {
-            using var response = await client.GetAsync(CheckPath, cancellationToken);
-            return response.StatusCode == HttpStatusCode.OK
-                ? new(AdapterTestOutcomes.Healthy, "ForeSite answered and allowed this account to read its assets.", actingAs)
-                : new(AdapterTestOutcomes.NeedsAttention, Explain(response.StatusCode, actingAs), actingAs);
+            using var response = await new ForeSiteSession(client).GetAsync(CheckPath, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return new(AdapterTestOutcomes.NeedsAttention, await ExplainAsync(response, actingAs, cancellationToken), actingAs);
+            try
+            {
+                using var json = await JsonDocument.ParseAsync(
+                    await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+                return json.RootElement.ValueKind == JsonValueKind.Array
+                    ? new(AdapterTestOutcomes.Healthy, "ForeSite returned a readable JSON asset list.", actingAs)
+                    : new(AdapterTestOutcomes.NeedsAttention, "ForeSite returned JSON but not an asset list.", actingAs);
+            }
+            catch (JsonException)
+            {
+                return new(AdapterTestOutcomes.NeedsAttention, "ForeSite did not return valid JSON.", actingAs);
+            }
+        }
+        catch (ForeSiteTokenException error)
+        {
+            return new(AdapterTestOutcomes.NeedsAttention, error.Message, actingAs);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -93,15 +108,20 @@ public static class ForeSiteAdapter
         ArgumentNullException.ThrowIfNull(client);
         var warnings = new List<string>();
         ForeSiteWell[] wells;
+        var session = new ForeSiteSession(client);
         try
         {
-            using var response = await client.GetAsync(WellsPath, cancellationToken);
+            using var response = await session.GetAsync(WellsPath, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return Incomplete(Explain(response.StatusCode, actingAs), actingAs);
+                return Incomplete(await ExplainAsync(response, actingAs, cancellationToken), actingAs);
             }
 
             wells = await response.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken) ?? [];
+        }
+        catch (ForeSiteTokenException error)
+        {
+            return Incomplete(error.Message, actingAs);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -116,7 +136,7 @@ public static class ForeSiteAdapter
             return Incomplete("ForeSite answered with something that is not a list of wells. Check the address.", actingAs);
         }
 
-        var assetNames = await ReadAssetNamesAsync(client, cancellationToken);
+        var assetNames = await ReadAssetNamesAsync(session, cancellationToken);
         if (assetNames is null)
         {
             warnings.Add("ForeSite's asset names could not be read, so wells will not show which ForeSite asset they belong to.");
@@ -148,12 +168,83 @@ public static class ForeSiteAdapter
         _ => $"ForeSite answered with an error (status {(int)status}). If it has only just started, wait a few minutes and try again."
     };
 
-    // Names only add context for grouping, so a failure here costs a warning, never the discovery.
-    private static async Task<Dictionary<string, string>?> ReadAssetNamesAsync(HttpClient client, CancellationToken cancellationToken)
+    /// <summary>Per-operation cookie jar; Windows auth remains attached by HttpClient's handler.</summary>
+    private sealed class ForeSiteSession(HttpClient client)
+    {
+        private CookieContainer _cookies = new();
+        private bool _initialized;
+
+        public async Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct)
+        {
+            if (!_initialized) await CreateTokenAsync(ct);
+            var response = await SendAsync(path, ct);
+            if (response.StatusCode != HttpStatusCode.Unauthorized) return response;
+            response.Dispose();
+            _cookies = new CookieContainer();
+            _initialized = false;
+            await CreateTokenAsync(ct);
+            return await SendAsync(path, ct);
+        }
+
+        private async Task CreateTokenAsync(CancellationToken ct)
+        {
+            using var response = await SendAsync(TokenPath, ct);
+            if (!response.IsSuccessStatusCode)
+                throw new ForeSiteTokenException(await ExplainAsync(response, "the Gateway Windows account", ct));
+            _initialized = true;
+        }
+
+        private async Task<HttpResponseMessage> SendAsync(string path, CancellationToken ct)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, path);
+            var uri = new Uri(client.BaseAddress ?? throw new InvalidOperationException("ForeSite requires a base address."), path);
+            var cookies = _cookies.GetCookieHeader(uri);
+            if (!string.IsNullOrEmpty(cookies)) request.Headers.TryAddWithoutValidation("Cookie", cookies);
+            var response = await client.SendAsync(request, ct);
+            if (response.Headers.TryGetValues("Set-Cookie", out var headers))
+            {
+                try
+                {
+                    foreach (var header in headers) _cookies.SetCookies(uri, header);
+                }
+                catch (CookieException)
+                {
+                    response.Dispose();
+                    throw new ForeSiteTokenException("ForeSite returned an invalid session cookie.");
+                }
+            }
+            return response;
+        }
+    }
+
+    private sealed class ForeSiteTokenException(string message) : Exception(message) { }
+
+    private static async Task<string> ExplainAsync(HttpResponseMessage response, string actingAs, CancellationToken ct)
     {
         try
         {
-            using var response = await client.GetAsync(CheckPath, cancellationToken);
+            using var document = await JsonDocument.ParseAsync(
+                await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("FullErrorMessage", out var detail) &&
+                detail.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(detail.GetString()))
+            {
+                var message = detail.GetString()!;
+                // Avoid echoing excessively long server-provided text in the UI.
+                return message.Length > 1024 ? message[..1024] : message;
+            }
+        }
+        catch (JsonException) { }
+        return Explain(response.StatusCode, actingAs);
+    }
+
+    // Names only add context for grouping, so a failure here costs a warning, never the discovery.
+    private static async Task<Dictionary<string, string>?> ReadAssetNamesAsync(ForeSiteSession session, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await session.GetAsync(CheckPath, cancellationToken);
             if (!response.IsSuccessStatusCode) return null;
             var assets = await response.Content.ReadFromJsonAsync<ForeSiteAsset[]>(JsonOptions, cancellationToken) ?? [];
             return assets
@@ -162,6 +253,10 @@ public static class ForeSiteAdapter
                 .ToDictionary(group => group.Key, group => group.First().Name!, StringComparer.Ordinal);
         }
         catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (ForeSiteTokenException)
         {
             return null;
         }

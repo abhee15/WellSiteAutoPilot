@@ -177,6 +177,10 @@ internal static class Bootstrapper
                 service.ServiceName,
                 $"Weatherford {service.DisplayName}.");
 
+            // A site machine runs unattended: restart a service that stops unexpectedly instead of leaving it down.
+            RunSc(InstallerSettings.ServiceRecoveryArguments(service.ServiceName));
+            RunSc(InstallerSettings.ServiceRecoveryOnErrorExitArguments(service.ServiceName));
+
             RunSc("start", service.ServiceName);
             WaitForState(service.ServiceName, "RUNNING", TimeSpan.FromSeconds(30));
         }
