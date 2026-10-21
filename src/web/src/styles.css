@@ -1111,3 +1111,8 @@ button:disabled {
   color: var(--color-text-disabled);
   opacity: 1;
 }
+
+/* Text blocks inside grid/flex forms get their spacing from the container's gap, not default paragraph margins. */
+:where(.connection-form, .connection-import, .connection-found, .connection-manage, .connection-test, .asset-view-editor) p {
+  margin: 0;
+}
