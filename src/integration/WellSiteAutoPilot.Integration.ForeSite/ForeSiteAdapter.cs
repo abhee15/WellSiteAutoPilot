@@ -109,13 +109,14 @@ public static class ForeSiteAdapter
             if (assets is null)
                 return Incomplete("ForeSite did not return a valid accessible-asset list.", actingAs);
 
+            // An invalid asset ID must not masquerade as an empty, complete result.
+            if (assets.Any(asset => asset.Id is null or < 0))
+                return Incomplete("ForeSite returned an accessible asset without a valid ID.", actingAs);
+
             // Only ForeSite's returned, accessible asset IDs may be passed to subsequent scoped reads.
             // In particular, 0 represents unassigned wells but must not be added unconditionally:
             // the service must explicitly include it in this account's accessible scope.
-            var allowedAssetIds = assets.Where(asset => asset.Id is >= 0)
-                .Select(asset => asset.Id!.Value)
-                .Distinct()
-                .ToArray();
+            var allowedAssetIds = assets.Select(asset => asset.Id!.Value).Distinct().ToArray();
 
             if (allowedAssetIds.Length == 0)
                 return new DiscoveryResult(true, [], [], actingAs);
