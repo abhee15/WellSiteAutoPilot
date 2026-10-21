@@ -91,6 +91,9 @@
   --color-text-selected: var(--palette-accent-700);
   --color-border-permission-group: var(--palette-slate-200);
   --color-text-permission-hint: var(--palette-slate-500);
+  --color-surface-disabled: var(--palette-slate-150);
+  --color-text-disabled: var(--palette-slate-500);
+  --color-text-placeholder: var(--palette-slate-500);
 
   /* Spacing, shape, typography, and elevation primitives. */
   --space-4: 4px;

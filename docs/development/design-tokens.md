@@ -161,3 +161,12 @@ The UI uses **Roboto** (SIL Open Font License 1.1), self-hosted from the `@fonts
 400, 500 and 700, Latin subset. Nothing is fetched from the Internet at run time, which the on-premises runtime
 requires. The licence text ships with the app at `/licenses/roboto-OFL-1.1.txt`. CSS asks for 600 in places; Roboto
 has no 600, so those render at 700. Add the `latin-ext` files when a non-English locale needs them.
+
+## Control primitives and disabled states
+
+`styles.css` ends with zero-specificity (`:where`) primitives so no control falls back to the browser's native look:
+links use `--color-text-link`; text inputs, selects and textareas share one box (36px minimum height, 0.875rem text,
+`--color-border-control` border, `--radius-6`); checkboxes and radios take the accent colour; every focusable element
+shares one focus ring; placeholder text uses `--color-text-placeholder`. Component rules still override them.
+A disabled primary action uses `--color-surface-disabled` with `--color-text-disabled` (kept at 4.5:1 or better)
+instead of fading the accent, and `tests/style-tokens.test.mjs` checks those pairs against every surface.
