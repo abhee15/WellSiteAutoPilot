@@ -333,8 +333,8 @@ alone_tops = request("GET", "/assets/children?standalone=true")
 assert "Standalone by hand" in {item["name"] for item in alone_tops} and not any(item["ownerConnectionId"] for item in alone_tops), alone_tops
 request("GET", "/assets/children?ownerConnectionId=" + twin["id"] + "&standalone=true", expected=400)
 assert request("GET", "/assets/children?ownerConnectionId=" + str(uuid.uuid4())) == []
-# A person who may see only their own Assets is not told which connections exist.
-assert all(item["connectionId"] is None for item in request("GET", "/assets/owners", OPERATOR)), "owners must not leak connections"
+# A person without asset read access is not told which connections exist.
+request("GET", "/assets/owners", OPERATOR, expected=403)
 request("DELETE", "/connections/" + stand_in["id"], expected=409)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)
