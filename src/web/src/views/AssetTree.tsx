@@ -1,20 +1,27 @@
 import { useMemo, useState } from 'react';
 import type { AssetResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { ancestorIds, buildAssetTree } from './assetHierarchy';
-import type { AssetTreeNode } from './assetHierarchy';
+import { ancestorIds, buildAssetTree, groupRootsByOwner } from './assetHierarchy';
+import type { AssetTreeNode, OwnerGroup } from './assetHierarchy';
+import { AssetOwnerRow, ownerKey } from './AssetOwnerRow';
 import './assetTree.css';
 
 export function AssetTree({
   assets,
   selectedId,
   onSelect,
+  owners = [],
+  canOpenConnection = false,
 }: {
   assets: AssetResponse[];
   selectedId: string | null | undefined;
   onSelect: (id: string) => void;
+  /** Connections that own assets; when any do, the top level is grouped under them. */
+  owners?: readonly OwnerGroup[];
+  canOpenConnection?: boolean;
 }) {
   const tree = useMemo(() => buildAssetTree(assets), [assets]);
+  const grouped = useMemo(() => groupRootsByOwner(tree, owners), [tree, owners]);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const forcedOpen = useMemo(() => ancestorIds(assets, selectedId), [assets, selectedId]);
   const toggle = (id: string) => setCollapsed(current => {
@@ -47,9 +54,25 @@ export function AssetTree({
     );
   };
   if (tree.length === 0) return null;
+  // The Connection that owns the selection stays open so the selection is visible.
+  const selectedRoot = grouped?.find(group => group.roots.some(root => selectedIn(root, selectedId)));
   return (
     <nav className="asset-tree" aria-label={t('assetTree.label')}>
-      <ul role="tree">{tree.map(renderNode)}</ul>
+      <ul role="tree">{grouped ? grouped.map(group => {
+        const key = ownerKey(group.owner.connectionId);
+        const expanded = !collapsed.has(key) || selectedRoot === group;
+        return (
+          <li key={key} role="treeitem" aria-expanded={expanded}>
+            <AssetOwnerRow owner={group.owner} expanded={expanded} canOpenConnection={canOpenConnection}
+              onToggle={() => toggle(key)} />
+            {expanded && <ul role="group">{group.roots.map(renderNode)}</ul>}
+          </li>
+        );
+      }) : tree.map(renderNode)}</ul>
     </nav>
   );
+}
+
+function selectedIn(node: AssetTreeNode, id: string | null | undefined): boolean {
+  return !!id && (node.asset.id === id || node.children.some(child => selectedIn(child, id)));
 }

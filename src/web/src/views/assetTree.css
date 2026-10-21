@@ -7,3 +7,6 @@
 .asset-tree-toggle { width: var(--space-20); flex: none; text-align: center; }
 .asset-tree-name[data-selected='true'] { font-weight: 600; }
 .asset-tree-status { padding: var(--space-4) 0 var(--space-4) var(--space-24); color: var(--color-text-subtle); }
+.asset-owner-row { font-weight: 600; }
+.asset-owner-icon { color: var(--color-text-subtle); }
+.asset-owner-link { font-size: var(--font-size-label); }

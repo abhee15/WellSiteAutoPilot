@@ -74,3 +74,44 @@ export function descendantsOf(assets: readonly AssetResponse[], rootId: string):
   }
   return found;
 }
+
+/** One owning Connection (or the Standalone group, connectionId null) and what it holds. */
+export interface OwnerGroup {
+  connectionId: string | null;
+  name: string | null;
+  isEnabled: boolean;
+  topLevelCount: number;
+  assetCount: number;
+}
+
+/** A Connection (or Standalone) root with the top-level assets it owns. */
+export interface OwnerRoot {
+  owner: OwnerGroup;
+  roots: AssetTreeNode[];
+}
+
+/**
+ * Groups the top-level entries of a tree under their owning Connection. Owners come from the server
+ * (connection names); an owner the server did not list is still shown, named by the caller's fallback.
+ * Returns null when no Connection owns anything, so the tree stays flat as before.
+ */
+export function groupRootsByOwner(
+  tree: readonly AssetTreeNode[], owners: readonly OwnerGroup[],
+): OwnerRoot[] | null {
+  if (!owners.some(owner => owner.connectionId !== null)) return null;
+  const known = new Map(owners.map(owner => [owner.connectionId, owner]));
+  const grouped = new Map<string | null, AssetTreeNode[]>();
+  for (const node of tree) {
+    const key = (node.asset as { ownerConnectionId?: string | null }).ownerConnectionId ?? null;
+    grouped.set(key, [...(grouped.get(key) ?? []), node]);
+  }
+  const result: OwnerRoot[] = [];
+  for (const [connectionId, roots] of grouped) {
+    const owner = known.get(connectionId)
+      ?? { connectionId, name: null, isEnabled: true, topLevelCount: roots.length, assetCount: roots.length };
+    result.push({ owner, roots });
+  }
+  // Connections by name, Standalone last.
+  return result.sort((a, b) => (a.owner.connectionId === null ? 1 : 0) - (b.owner.connectionId === null ? 1 : 0)
+    || (a.owner.name ?? '').localeCompare(b.owner.name ?? ''));
+}

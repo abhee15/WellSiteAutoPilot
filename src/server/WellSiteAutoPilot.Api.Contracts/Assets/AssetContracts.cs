@@ -48,7 +48,19 @@ public sealed record AssetTreeNodeResponse(
     string Name,
     Guid? ParentAssetId,
     bool IsActive,
-    int ChildCount);
+    int ChildCount,
+    Guid? OwnerConnectionId = null);
+
+/// <summary>
+/// A top-level group of the hierarchy: one Connection (its current name) or, with no <c>ConnectionId</c>, the
+/// standalone Assets. Only groups holding at least one Asset the caller may see are listed.
+/// </summary>
+public sealed record AssetOwnerResponse(
+    Guid? ConnectionId,
+    string? ConnectionName,
+    bool IsEnabled,
+    int TopLevelCount,
+    int AssetCount);
 
 public sealed record AssetPathSegmentResponse(Guid Id, string Name);
 
@@ -59,4 +71,5 @@ public sealed record AssetSearchResultResponse(
     string Name,
     Guid? ParentAssetId,
     bool IsActive,
-    AssetPathSegmentResponse[] Path);
+    AssetPathSegmentResponse[] Path,
+    Guid? OwnerConnectionId = null);

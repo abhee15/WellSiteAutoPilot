@@ -319,6 +319,22 @@ assert inside["ownerConnectionId"] == stand_in["id"], inside
 alone = request("POST", "/assets", body={"assetTypeId": well_type["id"], "name": "Standalone by hand", "parentAssetId": None,
     "attributeValuesJson": "{}"}, expected=201)
 assert alone.get("ownerConnectionId") is None, alone
+# The top level of the hierarchy is the owners: each connection (with its name) and the standalone Assets.
+owners = request("GET", "/assets/owners")
+by_owner = {item["connectionId"]: item for item in owners}
+assert stand_in["id"] in by_owner and twin["id"] in by_owner and None in by_owner, owners
+assert by_owner[stand_in["id"]]["connectionName"].endswith("renamed stand-in") and by_owner[twin["id"]]["connectionName"].endswith("foresite twin"), owners
+assert by_owner[twin["id"]]["topLevelCount"] == 2 and by_owner[twin["id"]]["assetCount"] == 8, by_owner[twin["id"]]
+assert by_owner[None]["connectionName"] is None and by_owner[None]["topLevelCount"] >= 1, by_owner[None]
+assert owners[-1]["connectionId"] is None, "standalone is listed last"
+tops = request("GET", "/assets/children?ownerConnectionId=" + twin["id"])
+assert sorted(item["name"] for item in tops) == ["North Field", "South Field"] and all(item["ownerConnectionId"] == twin["id"] for item in tops), tops
+alone_tops = request("GET", "/assets/children?standalone=true")
+assert "Standalone by hand" in {item["name"] for item in alone_tops} and not any(item["ownerConnectionId"] for item in alone_tops), alone_tops
+request("GET", "/assets/children?ownerConnectionId=" + twin["id"] + "&standalone=true", expected=400)
+assert request("GET", "/assets/children?ownerConnectionId=" + str(uuid.uuid4())) == []
+# A person without asset read access is not told which connections exist.
+request("GET", "/assets/owners", OPERATOR, expected=403)
 request("DELETE", "/connections/" + stand_in["id"], expected=409)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)
