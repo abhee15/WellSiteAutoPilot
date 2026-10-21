@@ -86,7 +86,7 @@ app.MapGet("/foresite/TokenService/CreateToken", (HttpContext context) =>
     return Results.Json(new { authenticated = true });
 });
 
-static bool HasForeSiteSession(HttpContext context) =>
+bool HasForeSiteSession(HttpContext context) =>
     context.Request.Cookies.TryGetValue(ForeSiteCiCookie, out var cookie) && cookie == ForeSiteCiValue;
 
 app.MapGet("/foresite/SurfaceNetworkService/Asset/All", (HttpContext context) =>
