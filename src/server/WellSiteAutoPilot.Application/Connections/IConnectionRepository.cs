@@ -11,10 +11,14 @@ public interface IConnectionRepository
     Task CreateAuthorizedAsync(ConnectionRecord connection, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Refused as stale when <paramref name="expectedRevision"/> is not the stored revision.</summary>
+    /// <summary>
+    /// Refused as stale when <paramref name="expectedRevision"/> is not the stored revision. Once Assets were imported
+    /// from the connection, changing any of <paramref name="sourceSettingKeys"/> (the settings that say which system it
+    /// reads) is refused, because the stored external identities only mean something in that system.
+    /// </summary>
     Task<ConnectionRecord> UpdateAuthorizedAsync(Guid id, int expectedRevision, string name, int settingsVersion,
-        IReadOnlyDictionary<string, string> settings, AccessSubject subject, SecurityActorContext actor,
-        CancellationToken cancellationToken = default);
+        IReadOnlyDictionary<string, string> settings, IReadOnlyCollection<string> sourceSettingKeys, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default);
 
     Task<ConnectionRecord> SetEnabledAuthorizedAsync(Guid id, int expectedRevision, bool enabled, AccessSubject subject,
         SecurityActorContext actor, CancellationToken cancellationToken = default);

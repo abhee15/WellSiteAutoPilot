@@ -16,7 +16,8 @@ public sealed record ImportPreview(
     IReadOnlyList<string> TypesToCreate,
     bool CanImport,
     string? ActingAs,
-    int AlreadyImported);
+    int AlreadyImported,
+    int ConnectionRevision);
 
 /// <summary>What an import did. Wells and groups created, and groups that already existed and were reused.</summary>
 public sealed record ImportOutcome(int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported,
@@ -97,7 +98,7 @@ public sealed class ConnectionImportService(
             warnings.Add("Importing needs to create the asset types " + string.Join(" and ", typesToCreate) +
                 ", which needs permission to manage asset types.");
         return new ImportPreview(plan, warnings, conflicts, typesToCreate, canCreateTypes && conflicts.Count == 0, found.ActingAs,
-            alreadyImported);
+            alreadyImported, connection.Revision);
     }
 
     /// <summary>
@@ -133,10 +134,14 @@ public sealed class ConnectionImportService(
         }
 
         var types = (await assets.ListAssetTypesAsync(cancellationToken)).ToDictionary(type => type.Key, StringComparer.Ordinal);
-        if (!types.TryGetValue(WellTypeKey, out var well) || !types.TryGetValue(GroupTypeKey, out var group))
+        // The Group type is only needed when the plan really has groups; a flat import must not require it.
+        var needsGroups = preview.Plan.GroupCount > 0;
+        if (!types.TryGetValue(WellTypeKey, out var well) || (needsGroups && !types.ContainsKey(GroupTypeKey)))
             throw new WellSiteAutoPilotException("ASSET_TYPE_NOT_FOUND", FailureKind.NotFound,
                 "The asset types for this import are unavailable.");
-        var applied = await imports.ApplyAuthorizedAsync(new ImportApplyRequest(connectionId, preview.Plan, well.Id, group.Id),
+        var groupTypeId = needsGroups ? types[GroupTypeKey].Id : well.Id;
+        var applied = await imports.ApplyAuthorizedAsync(
+            new ImportApplyRequest(connectionId, preview.Plan, well.Id, groupTypeId, preview.ConnectionRevision),
             subject, actor, cancellationToken);
         return new ImportOutcome(applied.WellsCreated, applied.GroupsCreated, applied.GroupsReused, preview.AlreadyImported, created);
     }
