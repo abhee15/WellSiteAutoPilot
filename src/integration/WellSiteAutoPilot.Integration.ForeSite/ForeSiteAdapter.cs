@@ -26,7 +26,6 @@ public static class ForeSiteAdapter
 
     public const string WellsPath = "Wells/All";
     public const string UserAssetsPath = "Wells/UserAssets";
-    public const string WellsByAssetsPath = "Wells/GetWellsByUserAssetIds";
     public const string WellsFilterPath = "Wells/Well/Filter";
     public const string DeviceTypesPath = "WellConfig/GetWellAutonomousControlGroupData";
 
@@ -98,11 +97,12 @@ public static class ForeSiteAdapter
         var warnings = new List<string>();
         var wells = new List<ForeSiteWell>();
         Dictionary<string, string>? assetNames;
+        object scope;
         try
         {
             // Only what ForeSite says this user may see is asked for: the user's assets first, then the wells under
-            // them. "Not Mapped" (id 0) is listed among the assets when allowed, but the by-asset call returns
-            // nothing for it, so those wells come from the filter query, which applies the same access rules.
+            // them. Id 0 is always sent: it is "Not Mapped", and a user with no assets of their own can still see
+            // those wells (ForeSite applies its own access rules to the filter, so asking never widens access).
             using var assetsResponse = await client.GetAsync(UserAssetsPath, cancellationToken);
             if (!assetsResponse.IsSuccessStatusCode)
             {
@@ -110,33 +110,19 @@ public static class ForeSiteAdapter
             }
 
             var assets = await assetsResponse.Content.ReadFromJsonAsync<ForeSiteAsset[]>(JsonOptions, cancellationToken) ?? [];
-            var assetIds = assets.Where(asset => asset.Id is > 0).Select(asset => asset.Id!.Value).Distinct().ToArray();
+            scope = new { AssetIds = assets.Where(asset => asset.Id is > 0).Select(asset => asset.Id!.Value).Append(0L).Distinct().ToArray() };
             assetNames = assets
                 .Where(asset => asset.Id is > 0 && !string.IsNullOrWhiteSpace(asset.Name))
                 .GroupBy(asset => asset.Id!.Value.ToString(CultureInfo.InvariantCulture))
                 .ToDictionary(group => group.Key, group => group.First().Name!, StringComparer.Ordinal);
 
-            if (assetIds.Length > 0)
+            using var found = await client.PostAsJsonAsync(WellsFilterPath, scope, cancellationToken);
+            if (!found.IsSuccessStatusCode)
             {
-                using var mapped = await client.PostAsJsonAsync(WellsByAssetsPath, assetIds, cancellationToken);
-                if (!mapped.IsSuccessStatusCode)
-                {
-                    return Incomplete(Explain(mapped.StatusCode, actingAs), actingAs);
-                }
-
-                wells.AddRange(await mapped.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken) ?? []);
+                return Incomplete(Explain(found.StatusCode, actingAs), actingAs);
             }
 
-            if (assets.Any(asset => asset.Id == 0))
-            {
-                using var unmapped = await client.PostAsJsonAsync(WellsFilterPath, new { AssetIds = new long[] { 0 } }, cancellationToken);
-                if (!unmapped.IsSuccessStatusCode)
-                {
-                    return Incomplete(Explain(unmapped.StatusCode, actingAs), actingAs);
-                }
-
-                wells.AddRange(await unmapped.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken) ?? []);
-            }
+            wells.AddRange(await found.Content.ReadFromJsonAsync<ForeSiteWell[]>(JsonOptions, cancellationToken) ?? []);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -159,7 +145,7 @@ public static class ForeSiteAdapter
         }
 
         // The well lists leave PrincipalDeviceType empty; the autonomous-control group data carries it for every well.
-        var deviceTypes = await ReadDeviceTypesAsync(client, cancellationToken);
+        var deviceTypes = await ReadDeviceTypesAsync(client, scope, cancellationToken);
         if (deviceTypes is null)
         {
             warnings.Add("ForeSite's device types could not be read, so wells will not show their device type.");
@@ -170,11 +156,11 @@ public static class ForeSiteAdapter
             true, withId.Select(well => ToDiscovered(well, assetNames, deviceTypes)).ToArray(), warnings, actingAs);
     }
 
-    private static async Task<Dictionary<string, string>?> ReadDeviceTypesAsync(HttpClient client, CancellationToken cancellationToken)
+    private static async Task<Dictionary<string, string>?> ReadDeviceTypesAsync(HttpClient client, object scope, CancellationToken cancellationToken)
     {
         try
         {
-            using var response = await client.PostAsJsonAsync(DeviceTypesPath, new { }, cancellationToken);
+            using var response = await client.PostAsJsonAsync(DeviceTypesPath, scope, cancellationToken);
             if (!response.IsSuccessStatusCode) return null;
             var data = await response.Content.ReadFromJsonAsync<ForeSiteControlGroupData>(JsonOptions, cancellationToken);
             return (data?.Values ?? [])

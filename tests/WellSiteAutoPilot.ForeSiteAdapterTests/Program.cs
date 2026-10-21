@@ -109,11 +109,9 @@ static async Task DiscoveryChecks()
     var noAssets = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, null, deviceTypes)), Account, CancellationToken.None);
     Expect(!noAssets.Complete && noAssets.Items.Count == 0, "wells are only asked for under assets ForeSite lists, so no asset list means incomplete");
 
-    var noUnmapped = await ForeSiteAdapter.DiscoverAsync(
-        Client(new Routes(wells, """[{"id":1,"name":"North"},{"id":2,"name":"South"}]""", deviceTypes)), Account, CancellationToken.None);
-    Expect(noUnmapped.Complete && noUnmapped.Items.Select(item => item.ExternalId).Order().SequenceEqual(["101", "102", "103"]),
-        "without Not Mapped among the user's assets, unmapped wells are not requested");
-
+    var userAssetsOnly = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, "[]", deviceTypes)), Account, CancellationToken.None);
+    Expect(userAssetsOnly.Complete && userAssetsOnly.Items.Select(item => item.ExternalId).SequenceEqual(["104"]),
+        "a user with no assets of their own still gets the Not Mapped wells, and nothing under assets they lack");
     var noDevices = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, assets, null)), Account, CancellationToken.None);
     Expect(noDevices.Complete && noDevices.Items.Count == 4 && noDevices.Warnings.Any(item => item.Contains("device types", StringComparison.Ordinal)),
         "unreadable device types cost a warning, not the discovery");
@@ -191,20 +189,19 @@ internal sealed class Routes(string wells, string? assets, string? deviceTypes) 
         string? body = null;
         if (path.EndsWith("/Wells/UserAssets", StringComparison.Ordinal)) body = assets;
         else if (path.EndsWith("/WellConfig/GetWellAutonomousControlGroupData", StringComparison.Ordinal)) body = deviceTypes;
-        else if (path.EndsWith("/Wells/GetWellsByUserAssetIds", StringComparison.Ordinal) || path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal))
+        else if (path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal))
         {
-            // Like ForeSite: by-asset returns only wells under the posted assets (id 0 matches nothing); the filter with
-            // AssetIds [0] returns the unmapped wells. The wells JSON may be garbage to test the failure path.
+            // Like ForeSite: only wells under the posted assets; id 0 means the wells that belong to no asset.
+            // The wells JSON may be garbage to test the failure path.
             var posted = await request.Content!.ReadAsStringAsync(cancellationToken);
-            var byFilter = path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal);
             try
             {
-                var ids = byFilter ? [] : System.Text.Json.JsonSerializer.Deserialize<long[]>(posted) ?? [];
+                var ids = System.Text.Json.JsonSerializer.Deserialize<long[]>(System.Text.Json.JsonDocument.Parse(posted).RootElement.GetProperty("assetIds").GetRawText()) ?? [];
                 var list = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[]>(wells) ?? [];
                 body = System.Text.Json.JsonSerializer.Serialize(list.Where(well =>
                 {
                     var hasAsset = well.TryGetProperty("assetId", out var asset) && asset.ValueKind == System.Text.Json.JsonValueKind.Number;
-                    return byFilter ? !hasAsset : hasAsset && ids.Contains(asset.GetInt64());
+                    return hasAsset ? ids.Contains(asset.GetInt64()) : ids.Contains(0);
                 }));
             }
             catch (System.Text.Json.JsonException)
@@ -212,7 +209,6 @@ internal sealed class Routes(string wells, string? assets, string? deviceTypes) 
                 body = wells;
             }
         }
-
         return body is null
             ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
             : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
