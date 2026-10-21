@@ -15,6 +15,7 @@ using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Audit;
 using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Connections;
+using WellSiteAutoPilot.Application.Connections.Discovery;
 using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
@@ -182,6 +183,7 @@ builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
     // A test is limited to 10 seconds and a discovery to 120 by the Gateway; this allows a little over the longer one.
     client.Timeout = TimeSpan.FromSeconds(150);
 });
+builder.Services.AddSingleton<DiscoverySnapshotStore>();
 builder.Services.AddScoped<ConnectionService>();
 builder.Services.AddScoped<ConnectionImportService>();
 builder.Services.AddScoped<ExecutionService>();
@@ -1098,7 +1100,7 @@ v1.MapPost(
     "/connections/{connectionId:guid}/discover",
     async (Guid connectionId, ConnectionService connections, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>
-        ConnectionMapping.ToResponse(await connections.DiscoverAsync(connectionId, access.Subject,
+        ConnectionMapping.ToResponse(await connections.FindAsync(connectionId, access.Subject,
             access.CreateActor(context), cancellationToken)))
     .WithName("DiscoverConnection")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
@@ -1109,10 +1111,25 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
 
 v1.MapPost(
+    "/connections/{connectionId:guid}/discover/search",
+    (Guid connectionId, DiscoverySearchRequest request, ConnectionService connections, RequestAccessContext access) =>
+    {
+        var snapshot = connections.GetSnapshot(connectionId, request.SnapshotId, access.Subject);
+        var scope = ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets).Scope;
+        return ConnectionMapping.ToResponse(DiscoveryScopes.Apply(snapshot.Result.Items, scope, snapshot.Fields));
+    })
+    .WithName("SearchDiscoveredObjects")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<DiscoverySearchResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
     "/connections/{connectionId:guid}/import/preview",
     async (Guid connectionId, ImportPreviewRequest request, ConnectionImportService imports, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>
-        ConnectionMapping.ToResponse(await imports.PreviewAsync(connectionId, request.Levels, access.Subject,
+        ConnectionMapping.ToResponse(await imports.PreviewAsync(connectionId, request.Levels,
+            ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets), access.Subject,
             access.CreateActor(context), cancellationToken)))
     .WithName("PreviewConnectionImport")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
@@ -1127,7 +1144,8 @@ v1.MapPost(
     "/connections/{connectionId:guid}/import",
     async (Guid connectionId, ImportConnectionRequest request, ConnectionImportService imports, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>
-        ConnectionMapping.ToResponse(await imports.ImportAsync(connectionId, request.Levels, request.ExpectedFingerprint,
+        ConnectionMapping.ToResponse(await imports.ImportAsync(connectionId, request.Levels,
+            ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets), request.ExpectedFingerprint,
             access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("ImportFromConnection")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using WellSiteAutoPilot.Application.Assets;
+using WellSiteAutoPilot.Application.Connections.Discovery;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Assets;
 using WellSiteAutoPilot.Failures;
@@ -21,6 +22,12 @@ public sealed record ImportPreview(
 public sealed record ImportOutcome(int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported,
     IReadOnlyList<string> TypesCreated);
 
+/// <summary>
+/// What to import from: a snapshot the person already looked at (so review and import see the same list) and the
+/// part of it they chose. With no snapshot the connection is read afresh and everything found is used.
+/// </summary>
+public sealed record ImportSelection(Guid? SnapshotId, DiscoveryScope? Scope);
+
 /// <summary>Plans an import of what a connection holds into the Asset tree.</summary>
 public sealed class ConnectionImportService(
     ConnectionService connections,
@@ -37,7 +44,7 @@ public sealed class ConnectionImportService(
     private const int ConflictsShown = 5;
 
     public async Task<ImportPreview> PreviewAsync(Guid connectionId, IReadOnlyList<string>? requestedLevels,
-        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+        ImportSelection? selection, AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
         // Imported Assets are created under groups the importer must be able to see and manage afterwards, so for now
@@ -54,15 +61,22 @@ public sealed class ConnectionImportService(
         var fields = descriptor.GroupingFields ?? [];
         var levels = ValidateLevels(requestedLevels, fields);
 
-        var found = await connections.DiscoverAsync(connectionId, subject, actor, cancellationToken);
+        var found = selection?.SnapshotId is { } snapshotId
+            ? connections.GetSnapshot(connectionId, snapshotId, subject).Result
+            : await connections.DiscoverAsync(connectionId, subject, actor, cancellationToken);
         if (!found.Complete)
             throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryIncomplete, FailureKind.Conflict,
                 "The system did not give a complete answer, so nothing can be planned from it. " + string.Join(" ", found.Warnings));
 
         var warnings = found.Warnings.ToList();
-        var distinct = found.Items.GroupBy(item => item.ExternalId, StringComparer.Ordinal).Select(group => group.First()).ToArray();
-        if (distinct.Length < found.Items.Count)
-            warnings.Add($"{found.Items.Count - distinct.Length} object(s) were listed more than once and are counted once.");
+        var chosen = DiscoveryScopes.Apply(found.Items, selection?.Scope, fields);
+        if (chosen.Count > ConnectionService.MaximumImportedObjects)
+            throw new WellSiteAutoPilotException(ConnectionFailureCodes.ImportTooLarge, FailureKind.Validation,
+                $"{chosen.Count} objects are selected, but one import takes at most {ConnectionService.MaximumImportedObjects}. " +
+                "Narrow the selection by field, lease or search and import the rest afterwards.");
+        var distinct = chosen.GroupBy(item => item.ExternalId, StringComparer.Ordinal).Select(group => group.First()).ToArray();
+        if (distinct.Length < chosen.Count)
+            warnings.Add($"{chosen.Count - distinct.Length} object(s) were listed more than once and are counted once.");
         // Objects that already have an Asset are left alone: bindings, not names, say what was imported.
         var bound = await imports.BoundKeysAsync(connectionId, cancellationToken);
         var items = distinct.Where(item => !bound.Contains(IConnectionImportRepository.BindingKey(item.ProviderType, item.ExternalId))).ToArray();
@@ -91,9 +105,10 @@ public sealed class ConnectionImportService(
     /// the plan the person reviewed (<paramref name="expectedFingerprint"/>), nothing is written.
     /// </summary>
     public async Task<ImportOutcome> ImportAsync(Guid connectionId, IReadOnlyList<string>? requestedLevels,
-        string? expectedFingerprint, AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+        ImportSelection? selection, string? expectedFingerprint, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
     {
-        var preview = await PreviewAsync(connectionId, requestedLevels, subject, actor, cancellationToken);
+        var preview = await PreviewAsync(connectionId, requestedLevels, selection, subject, actor, cancellationToken);
         if (!string.Equals(preview.Plan.Fingerprint, expectedFingerprint, StringComparison.Ordinal))
             throw new WellSiteAutoPilotException(ConnectionFailureCodes.ImportPlanChanged, FailureKind.Conflict,
                 "What the system holds has changed since you reviewed it. Review the import again.");

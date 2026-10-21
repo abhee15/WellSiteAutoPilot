@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Application.Connections.Discovery;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
@@ -7,6 +8,7 @@ namespace WellSiteAutoPilot.Application.Connections;
 public sealed class ConnectionService(
     IConnectionRepository repository,
     IGatewayAdapters gateway,
+    DiscoverySnapshotStore snapshots,
     TimeProvider timeProvider)
 {
     public const int MaximumNameLength = 100;
@@ -68,8 +70,17 @@ public sealed class ConnectionService(
         return await repository.RecordTestAuthorizedAsync(id, record, subject, actor, cancellationToken);
     }
 
-    /// <summary>Hard ceiling on one discovery: a preview and an import are computed in a single request.</summary>
-    public const int MaximumDiscoveredObjects = 5000;
+    /// <summary>
+    /// Hard ceiling on one discovery. The cost is in transferring and holding the list, so this is generous; what one
+    /// import may take is limited separately (<see cref="MaximumImportedObjects"/>).
+    /// </summary>
+    public const int MaximumDiscoveredObjects = 50000;
+
+    /// <summary>One import writes everything in a single transaction, so it takes at most this many objects.</summary>
+    public const int MaximumImportedObjects = 5000;
+
+    /// <summary>How many found objects a person is shown at once; the rest is reached by searching and filtering.</summary>
+    public const int SampleSize = 1000;
 
     public async Task<DiscoveryResult> DiscoverAsync(Guid id, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default)
@@ -84,11 +95,35 @@ public sealed class ConnectionService(
                 "This connection's adapter cannot list what it holds.");
         if (result.Items.Count > MaximumDiscoveredObjects)
             throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryTooLarge, FailureKind.Validation,
-                $"That system holds more than {MaximumDiscoveredObjects} objects, which is more than one import handles. " +
-                "Narrow what the connection's account can see and try again.");
+                $"That system holds {result.Items.Count} objects, more than the {MaximumDiscoveredObjects} this can list at once. " +
+                "Ask for a smaller set to be exposed to the connection's account, or tell the people who maintain this system.");
         await repository.RecordDiscoveryAuthorizedAsync(id, result.Items.Count, result.Warnings.Count, result.Complete,
             subject, actor, cancellationToken);
         return result;
+    }
+
+    /// <summary>
+    /// Finds what the connection holds and keeps the answer for a while, so it can be searched, reviewed and imported
+    /// without asking the outside system again.
+    /// </summary>
+    public async Task<DiscoverySnapshot> FindAsync(Guid id, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        var connection = await GetAsync(id, cancellationToken);
+        var result = await DiscoverAsync(id, subject, actor, cancellationToken);
+        var fields = (await gateway.ListAsync(cancellationToken))
+            .FirstOrDefault(item => string.Equals(item.Key, connection.AdapterKey, StringComparison.Ordinal))?.GroupingFields ?? [];
+        return snapshots.Add(id, subject.UserId, result, fields);
+    }
+
+    /// <summary>What this person found earlier, or an explanation that they need to find again.</summary>
+    public DiscoverySnapshot GetSnapshot(Guid connectionId, Guid snapshotId, AccessSubject subject)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        return snapshots.Find(snapshotId, connectionId, subject.UserId)
+            ?? throw new WellSiteAutoPilotException(ConnectionFailureCodes.SnapshotExpired, FailureKind.Conflict,
+                "What was found has expired or was replaced. Find what the connection holds again.");
     }
 
     public Task DeleteAsync(Guid id, AccessSubject subject, SecurityActorContext actor,

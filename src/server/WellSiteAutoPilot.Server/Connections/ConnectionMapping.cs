@@ -1,5 +1,6 @@
 using WellSiteAutoPilot.Api.Contracts.Connections;
 using WellSiteAutoPilot.Application.Connections;
+using WellSiteAutoPilot.Application.Connections.Discovery;
 using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 
@@ -15,11 +16,25 @@ internal static class ConnectionMapping
         adapter.CanDiscover,
         (adapter.GroupingFields ?? []).Select(field => new DiscoveryFieldResponse(field.Key, field.Label)).ToArray());
 
-    public static DiscoveryResponse ToResponse(DiscoveryResult result) => new(
-        result.Complete,
-        result.Items.Select(item => new DiscoveredObjectResponse(
-            item.ExternalId, item.DisplayName, item.ProviderType, item.Metadata)).ToArray(),
-        result.Warnings, result.ActingAs);
+    /// <summary>The summary a person starts from: totals, facets and the first <see cref="ConnectionService.SampleSize"/> objects.</summary>
+    public static DiscoveryResponse ToResponse(DiscoverySnapshot snapshot) => new(
+        snapshot.Result.Complete,
+        snapshot.Result.Items.Take(ConnectionService.SampleSize).Select(ToObject).ToArray(),
+        snapshot.Result.Warnings, snapshot.Result.ActingAs, snapshot.Result.Items.Count, snapshot.Id,
+        DiscoveryScopes.Summarize(snapshot.Result.Items, snapshot.Fields).Select(facet => new DiscoveryFacetResponse(
+            facet.Key, facet.Label, facet.Values.Select(value => new DiscoveryFacetValueResponse(value.Value, value.Count)).ToArray(),
+            facet.HasMore)).ToArray(),
+        snapshot.CreatedAtUtc + DiscoverySnapshotStore.Lifetime);
+
+    public static DiscoverySearchResponse ToResponse(IReadOnlyList<DiscoveredAsset> matches) => new(
+        matches.Count, matches.Take(ConnectionService.SampleSize).Select(ToObject).ToArray());
+
+    private static DiscoveredObjectResponse ToObject(DiscoveredAsset item) => new(
+        item.ExternalId, item.DisplayName, item.ProviderType, item.Metadata);
+
+    public static ImportSelection ToSelection(Guid? snapshotId, string? query, Dictionary<string, List<string>>? facets) => new(
+        snapshotId,
+        new DiscoveryScope(query, facets?.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value, StringComparer.Ordinal)));
 
     public static ImportPreviewResponse ToResponse(ImportPreview preview) => new(
         preview.Plan.Fingerprint, preview.Plan.Levels, preview.Plan.Placements.Count, preview.Plan.GroupCount,

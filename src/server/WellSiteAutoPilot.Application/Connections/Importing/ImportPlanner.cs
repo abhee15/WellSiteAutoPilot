@@ -148,6 +148,14 @@ public static class ImportPlanner
         return Clean(field.EmptyGroupName) ?? "Unspecified: " + field.Label;
     }
 
+    /// <summary>The group name an object would get for a field: its own value, or the field's fallback when it has none.</summary>
+    public static string ValueOf(DiscoveredAsset item, DiscoveryField field)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(field);
+        return Clean(item.Metadata.GetValueOrDefault(field.Key)) ?? FallbackName(field);
+    }
+
     private static string? Clean(string? value)
     {
         var trimmed = value?.Trim();

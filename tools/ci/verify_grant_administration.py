@@ -212,6 +212,21 @@ alpha = next(item for item in found["items"] if item["externalId"] == "102")
 assert alpha["kind"] == "foresite.well" and alpha["metadata"]["assetName"] == "North Field", alpha
 assert alpha["metadata"]["wellType"] == "ESP" and alpha["metadata"]["deviceType"] == "ESP", alpha
 assert alpha["metadata"]["field"] == "Alpha" and alpha["metadata"]["lease"] == "L-1", alpha
+# What was found is kept briefly: totals, counts per grouping fact and a sample, then searching and scoping within it.
+assert found["totalCount"] == 3 and found["snapshotId"] and found["expiresAtUtc"], found
+assert [facet["key"] for facet in found["facets"]] == ["assetName", "wellType", "deviceType", "field", "lease"], found["facets"]
+field_facet = next(facet for facet in found["facets"] if facet["key"] == "field")
+assert sum(value["count"] for value in field_facet["values"]) == 3 and not field_facet["hasMore"], field_facet
+search_url = "/connections/" + stand_in["id"] + "/discover/search"
+snapshot = found["snapshotId"]
+by_word = request("POST", search_url, body={"snapshotId": snapshot, "query": "alpha"})
+assert by_word["matchCount"] == 2 and sorted(item["displayName"] for item in by_word["items"]) == ["Alpha 1", "Alpha 2"], by_word
+by_fact = request("POST", search_url, body={"snapshotId": snapshot, "facets": {"assetName": ["South Field"]}})
+assert by_fact["matchCount"] == 1 and by_fact["items"][0]["displayName"] == "Bravo 1", by_fact
+assert request("POST", search_url, body={"snapshotId": snapshot})["matchCount"] == 3
+request("POST", search_url, body={"snapshotId": snapshot, "facets": {"nonsense": ["x"]}}, expected=400)
+request("POST", search_url, body={"snapshotId": str(uuid.uuid4())}, expected=409)
+request("POST", search_url, OPERATOR, {"snapshotId": snapshot}, expected=403)
 # A wrong address is an incomplete answer with a reason, never an empty "complete" list.
 lost = request("POST", "/connections/" + not_foresite["id"] + "/discover")
 assert lost["complete"] is False and lost["items"] == [] and lost["warnings"], lost
@@ -233,6 +248,15 @@ assert not (preview["conflicts"] and preview["canImport"]), preview
 assert preview["actingAs"], preview
 assert request("POST", plan_url, body={"levels": ["assetName", "wellType"]})["fingerprint"] == preview["fingerprint"]
 assert request("POST", plan_url, body={"levels": ["assetName"]})["fingerprint"] != preview["fingerprint"]
+# The same review can be made of a chosen part of what was found, from the kept list rather than a fresh look.
+scoped = request("POST", plan_url, body={"levels": ["assetName"], "snapshotId": snapshot,
+    "facets": {"assetName": ["South Field"]}})
+assert scoped["objectCount"] == 1 and scoped["groupCount"] == 1 and scoped["groups"][0]["name"] == "South Field", scoped
+whole = request("POST", plan_url, body={"levels": ["assetName", "wellType"], "snapshotId": snapshot})
+assert whole["fingerprint"] == preview["fingerprint"] and whole["objectCount"] == 3, whole
+request("POST", plan_url, body={"levels": [], "snapshotId": str(uuid.uuid4())}, expected=409)
+request("POST", "/connections/" + stand_in["id"] + "/import", body={"levels": [], "snapshotId": str(uuid.uuid4()),
+    "expectedFingerprint": scoped["fingerprint"]}, expected=409)
 flat = request("POST", plan_url, body={})
 assert flat["groups"] == [] and flat["rootObjectCount"] == 3 and flat["groupCount"] == 0, flat
 request("POST", plan_url, body={"levels": ["nonsense"]}, expected=400)
