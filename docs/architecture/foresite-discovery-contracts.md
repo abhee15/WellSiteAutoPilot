@@ -8,7 +8,7 @@ Every call needs Windows authentication plus the cookie from `GET TokenService/C
 ## Flow
 
 1. `GET Wells/UserAssets` lists the assets this user may see.
-2. `POST Wells/Well/Filter` with those asset ids plus `0` returns the wells and their details.
+2. `POST Wells/Well/Filter` with those exact user asset ids (including `0` only when returned) retrieves the wells and their details.
 3. `POST WellConfig/GetWellAutonomousControlGroupData` with the same body returns each well's device type.
 
 Wells are joined on well id. The asset list only supplies names; the other two calls carry everything else.
