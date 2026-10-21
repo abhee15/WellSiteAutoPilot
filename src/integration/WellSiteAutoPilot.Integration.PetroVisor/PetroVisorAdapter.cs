@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Security.Authentication;
+using MyrConn.PetroVisorFramework.API.Authorization;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Integration.PetroVisor;
@@ -18,12 +19,12 @@ public static class PetroVisorAdapter
 
     public static AdapterDescriptor Descriptor { get; } = new(
         Key, "PetroVisor",
-        "PetroVisor workspace entities using the Integration Gateway Windows service identity. " +
-        "POC: connection discovery requires a validated PetroVisor SDK Windows SSO session factory.",
+        "Entities held in one PetroVisor workspace. The Integration Gateway signs in to PetroVisor; " +
+        "which identity it uses is set up on the Gateway computer, never in a connection.",
         1,
         [
             new AdapterSettingField(EndpointSetting, "PetroVisor address",
-                "The approved PetroVisor Web API endpoint. The SDK authentication endpoint mapping must be tested.",
+                "The PetroVisor discovery service address, for example https://petrovisor.example.com/discovery.",
                 AdapterSettingKind.Url, true),
             new AdapterSettingField(WorkspaceSetting, "Workspace",
                 "Exact PetroVisor workspace name. Each saved connection is bound to one workspace.",
@@ -31,6 +32,13 @@ public static class PetroVisorAdapter
         ],
         [new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Workspace entities")],
         [new DiscoveryField("entityType", "Entity type", "Unspecified type")]);
+
+    /// <summary>The discovery service address as the SDK wants it: absolute, with the trailing slash dropped.</summary>
+    public static Uri DiscoveryAddress(string setting)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(setting);
+        return new Uri(setting.Trim().TrimEnd('/'), UriKind.Absolute);
+    }
 
     public static async Task<DiscoveryResult> DiscoverAsync(
         IPetroVisorEntityReader reader,
@@ -57,13 +65,17 @@ public static class PetroVisorAdapter
         {
             return Incomplete("PetroVisor did not answer before the connection timed out.", actingAs);
         }
-        catch (UnauthorizedAccessException)
+        catch (PetroVisorSignInUnavailableException exception)
         {
-            return Incomplete("The Gateway Windows account is not permitted to read this PetroVisor workspace.", actingAs);
+            return Incomplete(exception.Message, actingAs);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or AuthorizationException)
+        {
+            return Incomplete("The signed-in PetroVisor account is not permitted to read this workspace.", actingAs);
         }
         catch (AuthenticationException)
         {
-            return Incomplete("PetroVisor did not accept the Gateway Windows account.", actingAs);
+            return Incomplete("PetroVisor did not accept the Gateway's sign-in.", actingAs);
         }
         catch (HttpRequestException)
         {
@@ -73,6 +85,50 @@ public static class PetroVisorAdapter
         {
             // Do not expose vendor error responses, credentials, paths, or stack traces through discovery.
             return Incomplete("PetroVisor entity discovery failed. Check the Gateway logs.", actingAs);
+        }
+    }
+
+    /// <summary>Tries the connection: signs in and reads the workspace's entity types. Failures are results, never exceptions.</summary>
+    public static async Task<AdapterTestResult> CheckAsync(
+        IPetroVisorEntityReader reader, string workspace, string actingAs, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspace);
+        try
+        {
+            var count = await reader.CountEntityTypesAsync(workspace, cancellationToken);
+            return new(AdapterTestOutcomes.Healthy,
+                $"PetroVisor answered and this account can read the workspace ({count} entity types).", actingAs);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return new(AdapterTestOutcomes.Unreachable, "PetroVisor did not answer in time.", actingAs);
+        }
+        catch (PetroVisorSignInUnavailableException exception)
+        {
+            return new(AdapterTestOutcomes.NeedsAttention, exception.Message, actingAs);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or AuthorizationException)
+        {
+            return new(AdapterTestOutcomes.NeedsAttention,
+                "The signed-in PetroVisor account is not permitted to read this workspace.", actingAs);
+        }
+        catch (AuthenticationException)
+        {
+            return new(AdapterTestOutcomes.NeedsAttention, "PetroVisor did not accept the Gateway's sign-in.", actingAs);
+        }
+        catch (HttpRequestException)
+        {
+            return new(AdapterTestOutcomes.Unreachable, "PetroVisor could not be reached or refused the connection.", actingAs);
+        }
+        catch (Exception)
+        {
+            // Vendor error text can carry addresses or tokens, so it is not passed on.
+            return new(AdapterTestOutcomes.NeedsAttention, "The PetroVisor check failed. Check the Gateway logs.", actingAs);
         }
     }
 
@@ -131,4 +187,7 @@ public interface IPetroVisorEntityReader
 {
     Task<IReadOnlyCollection<PetroVisorEntitySnapshot>> ReadEntitiesAsync(
         string workspace, CancellationToken cancellationToken);
+
+    /// <summary>Signs in and counts the workspace's entity types: the cheapest read that proves access.</summary>
+    Task<int> CountEntityTypesAsync(string workspace, CancellationToken cancellationToken);
 }

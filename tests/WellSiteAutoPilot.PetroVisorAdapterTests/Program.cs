@@ -55,6 +55,27 @@ using (var cts = new CancellationTokenSource())
     catch (OperationCanceledException) { }
 }
 
+var healthy = await PetroVisorAdapter.CheckAsync(new FixtureReader(entities), "Production", account);
+Check(healthy.Outcome == AdapterTestOutcomes.Healthy && healthy.ActingAs == account && healthy.Message.Contains("3 entity types", StringComparison.Ordinal),
+    "a readable workspace tests healthy");
+var checkDenied = await PetroVisorAdapter.CheckAsync(new FailingReader(new UnauthorizedAccessException("TOKEN-DO-NOT-LEAK")), "Production", account);
+Check(checkDenied.Outcome == AdapterTestOutcomes.NeedsAttention && !checkDenied.Message.Contains("TOKEN-DO-NOT-LEAK", StringComparison.Ordinal),
+    "a refused account needs attention without leaking vendor text");
+var checkOffline = await PetroVisorAdapter.CheckAsync(new FailingReader(new HttpRequestException("SECRET-URL")), "Production", account);
+Check(checkOffline.Outcome == AdapterTestOutcomes.Unreachable && !checkOffline.Message.Contains("SECRET-URL", StringComparison.Ordinal),
+    "an unreachable server is reported as unreachable");
+var noSignIn = await PetroVisorAdapter.CheckAsync(
+    new FailingReader(new PetroVisorSignInUnavailableException("The Gateway has no PetroVisor sign-in yet.")), "Production", account);
+Check(noSignIn.Outcome == AdapterTestOutcomes.NeedsAttention && noSignIn.Message.Contains("no PetroVisor sign-in", StringComparison.Ordinal),
+    "a missing sign-in is explained");
+var noEnv = new PetroVisorPasswordSessionFactory(_ => null);
+try { noEnv.Create(new Uri("https://petrovisor.example/discovery"), "Production"); throw new InvalidOperationException("created a session without a sign-in"); }
+catch (PetroVisorSignInUnavailableException exception)
+{
+    Check(exception.Message.Contains(PetroVisorPasswordSessionFactory.PasswordVariable, StringComparison.Ordinal) &&
+          noEnv.Identity.Contains("no PetroVisor sign-in", StringComparison.Ordinal), "the stopgap sign-in names what is missing");
+}
+
 // This inspects installed package types without credentials/network or guessing SSO semantics.
 var sdk = PetroVisorSdkProbe.Inspect();
 Check(sdk.ProviderConstructorParameterTypes.Count > 0, "SDK exposes provider constructors");
@@ -73,6 +94,8 @@ sealed class FixtureReader(IReadOnlyCollection<PetroVisorEntitySnapshot> entitie
 {
     public Task<IReadOnlyCollection<PetroVisorEntitySnapshot>> ReadEntitiesAsync(
         string workspace, CancellationToken cancellationToken) => Task.FromResult(entities);
+
+    public Task<int> CountEntityTypesAsync(string workspace, CancellationToken cancellationToken) => Task.FromResult(3);
 }
 
 sealed class FailingReader(Exception exception) : IPetroVisorEntityReader
@@ -80,4 +103,6 @@ sealed class FailingReader(Exception exception) : IPetroVisorEntityReader
     public Task<IReadOnlyCollection<PetroVisorEntitySnapshot>> ReadEntitiesAsync(
         string workspace, CancellationToken cancellationToken) =>
         Task.FromException<IReadOnlyCollection<PetroVisorEntitySnapshot>>(exception);
+
+    public Task<int> CountEntityTypesAsync(string workspace, CancellationToken cancellationToken) => Task.FromException<int>(exception);
 }

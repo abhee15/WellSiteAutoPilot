@@ -17,6 +17,8 @@ builder.Services.AddSingleton<AdapterCatalog>();
 builder.Services.AddHttpClient("adapter-test");
 builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true });
+builder.Services.AddSingleton<IPetroVisorSessionFactory>(
+    new PetroVisorPasswordSessionFactory(Environment.GetEnvironmentVariable));
 builder.Services.AddTransient<AdapterConnectionTester>();
 builder.Services.AddTransient<AdapterDiscoverer>();
 
