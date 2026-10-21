@@ -48,6 +48,10 @@ public sealed class ConnectionImportRepository(WellSiteAutoPilotDbContext dbCont
             if (!connection.IsEnabled)
                 throw new WellSiteAutoPilotException(ConnectionFailureCodes.Disabled, FailureKind.Conflict,
                     "Enable the connection before importing from it.");
+            // The plan was made from the connection as it was then; if it has been edited since, it is not the plan reviewed.
+            if (connection.Revision != request.ExpectedConnectionRevision)
+                throw new WellSiteAutoPilotException(ConnectionFailureCodes.ImportPlanChanged, FailureKind.Conflict,
+                    "The connection was changed since you reviewed this import. Review the import again.");
 
             // Hold the exact schemas being validated against, so a type cannot change or be hidden mid-import.
             var types = await dbContext.AssetTypes.FromSqlInterpolated($"""
@@ -61,10 +65,13 @@ public sealed class ConnectionImportRepository(WellSiteAutoPilotDbContext dbCont
             var attributeJson = request.Plan.Placements.ToDictionary(item => item.ExternalId,
                 item => JsonSerializer.Serialize(item.Attributes), StringComparer.Ordinal);
             await ValidateAsync(wellType.AttributeSchemaJson, attributeJson.Values.Distinct(StringComparer.Ordinal), cancellationToken);
-            await ValidateAsync(groupType.AttributeSchemaJson, [EmptyAttributes], cancellationToken);
+            var hasGroups = request.Plan.GroupCount > 0;
+            if (hasGroups) await ValidateAsync(groupType.AttributeSchemaJson, [EmptyAttributes], cancellationToken);
 
             var now = Time.GetUtcNow();
-            var existingGroups = await LoadGroupsAsync(request.GroupTypeId, cancellationToken);
+            var existingGroups = hasGroups
+                ? await LoadGroupsAsync(request.GroupTypeId, cancellationToken)
+                : new Dictionary<(Guid? Parent, string Name), Guid>();
             var reused = new HashSet<Guid>();
             var groupsCreated = 0;
             var groupIds = new Dictionary<string, Guid>(StringComparer.Ordinal);

@@ -285,6 +285,13 @@ again = request("POST", plan_url, body={"levels": levels})
 assert again["objectCount"] == 0 and again["alreadyImported"] == 3 and again["groupCount"] == 0, again
 repeat = request("POST", import_url, body={"levels": levels, "expectedFingerprint": again["fingerprint"]})
 assert repeat["wellsCreated"] == 0 and repeat["groupsCreated"] == 0 and repeat["alreadyImported"] == 3, repeat
+# Once Assets were imported the connection cannot be pointed at another system, but can still be renamed.
+current = request("GET", "/connections/" + stand_in["id"])
+request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": current["revision"], "name": current["name"],
+    "settings": {"baseUrl": "http://127.0.0.1:5091/other"}}, expected=409)
+renamed = request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": current["revision"],
+    "name": conn_name + " renamed stand-in", "settings": {"baseUrl": "http://127.0.0.1:5091/foresite"}})
+assert renamed["revision"] == current["revision"] + 1 and renamed["name"].endswith("renamed stand-in"), renamed
 request("DELETE", "/connections/" + stand_in["id"], expected=409)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)

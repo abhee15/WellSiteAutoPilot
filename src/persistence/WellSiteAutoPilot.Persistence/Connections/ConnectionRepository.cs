@@ -45,13 +45,21 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
     }
 
     public async Task<ConnectionRecord> UpdateAuthorizedAsync(Guid id, int expectedRevision, string name, int settingsVersion,
-        IReadOnlyDictionary<string, string> settings, AccessSubject subject, SecurityActorContext actor,
-        CancellationToken cancellationToken = default)
+        IReadOnlyDictionary<string, string> settings, IReadOnlyCollection<string> sourceSettingKeys, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(sourceSettingKeys);
         await WriteAsync(subject, actor, async () =>
         {
             var entity = await LockAsync(id, expectedRevision, cancellationToken);
+            var before = JsonSerializer.Deserialize<Dictionary<string, string>>(entity.SettingsJson) ?? [];
+            var moved = sourceSettingKeys.Any(key =>
+                !string.Equals(before.GetValueOrDefault(key), settings.GetValueOrDefault(key), StringComparison.Ordinal));
+            if (moved && await dbContext.SourceBindings.AnyAsync(binding => binding.ConnectionId == id, cancellationToken))
+                throw new WellSiteAutoPilotException(ConnectionFailureCodes.SourceLocked, FailureKind.Conflict,
+                    "Assets were imported from this connection, so it cannot be pointed at a different system. " +
+                    "Create a new connection for the other system instead.");
             entity.Name = name;
             entity.NormalizedName = Normalize(name);
             entity.SettingsVersion = settingsVersion;

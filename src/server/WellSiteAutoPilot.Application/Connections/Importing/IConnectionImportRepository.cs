@@ -3,7 +3,9 @@ using WellSiteAutoPilot.Application.Security;
 namespace WellSiteAutoPilot.Application.Connections.Importing;
 
 /// <summary>Everything the write needs, already decided: the plan to apply and the types to create Assets with.</summary>
-public sealed record ImportApplyRequest(Guid ConnectionId, ImportPlan Plan, Guid WellTypeId, Guid GroupTypeId);
+/// <param name="ExpectedConnectionRevision">The connection revision the plan was made from; a changed connection is refused.</param>
+public sealed record ImportApplyRequest(Guid ConnectionId, ImportPlan Plan, Guid WellTypeId, Guid GroupTypeId,
+    int ExpectedConnectionRevision);
 
 public sealed record ImportApplyResult(int WellsCreated, int GroupsCreated, int GroupsReused);
 

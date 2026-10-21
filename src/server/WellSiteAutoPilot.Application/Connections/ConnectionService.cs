@@ -43,8 +43,12 @@ public sealed class ConnectionService(
         var name = CleanName(command.Name);
         // The adapter is fixed when a connection is created; switching adapters means a new connection.
         var (settings, version) = await ValidateSettingsAsync(existing.AdapterKey, command.Settings, cancellationToken);
-        return await repository.UpdateAuthorizedAsync(id, command.ExpectedRevision, name, version, settings, subject, actor,
-            cancellationToken);
+        // The required settings are the ones that say which system this is (an address, a workspace, a site).
+        var sourceKeys = (await gateway.ListAsync(cancellationToken))
+            .FirstOrDefault(item => string.Equals(item.Key, existing.AdapterKey, StringComparison.Ordinal))?.Fields
+            .Where(field => field.Required).Select(field => field.Key).ToArray() ?? [];
+        return await repository.UpdateAuthorizedAsync(id, command.ExpectedRevision, name, version, settings, sourceKeys, subject,
+            actor, cancellationToken);
     }
 
     public Task<ConnectionRecord> SetEnabledAsync(Guid id, int expectedRevision, bool enabled, AccessSubject subject,
