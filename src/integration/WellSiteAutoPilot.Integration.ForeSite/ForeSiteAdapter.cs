@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -43,14 +42,6 @@ public static class ForeSiteAdapter
             new DiscoveryField("field", "Field", "Unspecified field"),
             new DiscoveryField("lease", "Lease", "Unspecified lease")
         ]);
-
-    // ForeSite's WellTypeId enum: stable numeric ids on the wire, abbreviations for people.
-    private static readonly Dictionary<long, string> WellTypes = new()
-    {
-        [1] = "RRL", [2] = "ESP", [3] = "GInj", [4] = "GLift", [5] = "NF",
-        [6] = "WInj", [7] = "WGInj", [8] = "PLift", [9] = "OT", [10] = "PCP",
-        [12] = "SInj", [13] = "CInj"
-    };
 
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web) { NumberHandling = JsonNumberHandling.AllowReadingFromString };
