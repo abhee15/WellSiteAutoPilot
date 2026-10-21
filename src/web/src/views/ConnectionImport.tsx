@@ -75,7 +75,9 @@ export function ConnectionImport({ connection, adapter, selection = null, select
 
   return (
     <section className="connection-import" aria-label={t('connections.importHeading')}>
+      <p className="connection-step">{t('connections.stageImport')}</p>
       <h3>{t('connections.importHeading')}</h3>
+      <p className="connection-help">{t('connections.importDestination', { name: connection.name })}</p>
       <p className="connection-help">{t('connections.importHelp')}</p>
       {selection && selectedCount !== null && totalCount !== null && (
         <p role="status" className="connection-help">

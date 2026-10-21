@@ -154,6 +154,25 @@ describe('Connections page', () => {
     expect((screen.getByText('New connection') as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('shows when the found list is kept until and warns when settings changed after looking', async () => {
+    const finder: Adapter = { ...adapter, key: 'foresite', displayName: 'ForeSite', canDiscover: true };
+    vi.mocked(api.loadAdapters).mockResolvedValue([finder]);
+    vi.mocked(api.loadConnections).mockResolvedValue([saved({ adapterKey: 'foresite' })]);
+    vi.mocked(api.discoverConnection).mockResolvedValue({
+      complete: true, actingAs: null, warnings: [], totalCount: 1, snapshotId, expiresAtUtc: '2026-10-21T10:15:00Z',
+      facets: [], items: [{ externalId: '1', displayName: 'Alpha 1', kind: 'foresite.well', metadata: {} }],
+    });
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await userEvent.click(await screen.findByText('Find what it holds'));
+    await screen.findByText('Alpha 1');
+    expect(screen.getByText(/This list is kept until/)).toBeTruthy();
+    expect(screen.getByText('Step 1 of 2 · Discover')).toBeTruthy();
+    expect(screen.queryByText(/You have unsaved changes\. This list was read/)).toBeNull();
+    await userEvent.type(screen.getByLabelText('Name'), ' 2');
+    expect(screen.getByText(/You have unsaved changes\. This list was read/)).toBeTruthy();
+  });
+
   it('finds what a connection holds, searchable, and says who it looked as', async () => {
     const finder: Adapter = { ...adapter, key: 'foresite', displayName: 'ForeSite', canDiscover: true,
       groupingFields: [{ key: 'wellType', label: 'Well type' }] };
