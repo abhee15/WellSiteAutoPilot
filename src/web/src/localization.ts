@@ -884,6 +884,8 @@ export const englishMessages = {
   'connections.importDone': 'Imported {wells} and created {groups} groups.',
   'connections.importReused': '{count} groups already existed and were reused.',
   'connections.importOpenAssets': 'Open Assets',
+  'connections.importCreateView': 'Create View from these Assets',
+  'connections.importCreateViewScope': 'The View will include Assets from this Connection, including earlier imports. You can review the filters before saving.',
   'connections.importNeedsAllAssets': 'Importing creates Assets, so it needs permission to manage all Assets. Ask an administrator to import, or to widen your access.',
   'connections.importPlanChanged': 'What the system holds has changed since you reviewed it. Nothing was imported. Review it again.',
   'connections.importNotAllowed': 'This import cannot go ahead until the conflicts and warnings shown are resolved.',
