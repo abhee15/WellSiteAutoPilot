@@ -45,6 +45,27 @@ The two "Well A" entries must remain separate in search, views, imports, logic a
 
 Show standalone Assets under a separate virtual **Standalone** root (not "Unassigned", which already names missing grouping facts in import). Connection nodes and standalone nodes must respect existing RBAC; a Connection label, endpoint, or total must not leak to someone lacking appropriate access.
 
+### Connection-root name and hierarchy ordering (agreed 2026-10-21)
+
+- The **Connection node is the top-level root** for imported Assets in the default WSA Asset hierarchy and in import previews. Do not assume Well/Lift Type is the first level.
+- **Use the user-selected Connection name as its root label**, not a second independently managed "root Group name". Connection setup may **suggest** a friendly default with an optional provider prefix/short identifier such as `FS-001 · ForeSite POP`; the person can name it `Houston Production` or otherwise rename it to their liking. The prefix is a **display suggestion only**, not the canonical Connection ID or an immutable source key, and must still pass Connection-name validation.
+- The underlying WSA Connection ID remains the stable key for ownership, bindings, permissions and links. Renaming the Connection changes only the displayed root label; it does not rename Groups or reparent Assets.
+- The hierarchy **below** the Connection follows the selected provider grouping/template. For ForeSite, a natural example is **Connection -> ForeSite Asset -> Lift/Well Type (e.g. ESP) -> Well**. Lift Type is a *lower grouping level after the source Asset*, not an assumed root. Other providers may use different levels or omit Lift Type entirely. Users retain their grouping choices, including a flat import under the Connection node.
+- Do not confuse ForeSite's **source "Asset" grouping field** with the WSA `Asset Type` catalog or the unique WSA Asset ID. Icons, subtitles and preview headings should make the level's meaning clear.
+
+~~~text
+Assets
+  [Connection] FS-001 · ForeSite POP   (user-editable Connection name; ID: F)
+    [Group: Source Asset] Asset A
+      [Group: Lift Type] ESP
+        [Well] Well A                 (WSA Asset ID: 101; owner F)
+  [Connection] Houston Production     (custom Connection name; ID: P)
+    [Group] Production
+      [Well] Well A                   (WSA Asset ID: 202; owner P)
+~~~
+
+The same name "Well A" can appear in both Connections without implying any relationship or merge.
+
 ## 4. Data model and import implications (implementation proposal)
 
 - Consider adding an optional owning Connection ID to persisted Assets (including Groups), with a foreign key and appropriate indexes. Enforce one owner in the domain/service/repository boundary and database where possible.
