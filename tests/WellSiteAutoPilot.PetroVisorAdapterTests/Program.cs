@@ -76,6 +76,49 @@ catch (PetroVisorSignInUnavailableException exception)
           noEnv.Identity.Contains("no PetroVisor sign-in", StringComparison.Ordinal), "the stopgap sign-in names what is missing");
 }
 
+// Keycloak service-account sign-in: where tokens come from, what is asked, and that nothing secret is echoed.
+Check(PetroVisorKeycloakSessionFactory.TokenEndpoint(null) is null, "no identity address asks PetroVisor");
+Check(PetroVisorKeycloakSessionFactory.TokenEndpoint(new Uri("https://login.example/realms/pv/"))!.AbsoluteUri ==
+      "https://login.example/realms/pv/protocol/openid-connect/token", "a realm address gets the token path");
+Check(PetroVisorKeycloakSessionFactory.TokenEndpoint(new Uri("https://login.example/custom/token"))!.AbsoluteUri ==
+      "https://login.example/custom/token", "a token address is used as given");
+Check(PetroVisorAdapter.IdentityAddress(new Dictionary<string, string?>()) is null &&
+      PetroVisorAdapter.IdentityAddress(new Dictionary<string, string?> { [PetroVisorAdapter.IdentitySetting] = " " }) is null &&
+      PetroVisorAdapter.IdentityAddress(new Dictionary<string, string?> { [PetroVisorAdapter.IdentitySetting] = " https://login.example/realms/pv " })!.Host == "login.example",
+    "the identity address is optional and trimmed");
+Check(!PetroVisorKeycloakSessionFactory.IsConfigured(_ => null) &&
+      PetroVisorKeycloakSessionFactory.IsConfigured(name => name == PetroVisorKeycloakSessionFactory.ClientIdVariable ? "wsa" : "pw"),
+    "the service account is configured only with both a client id and a secret");
+var noClient = new PetroVisorKeycloakSessionFactory(_ => null);
+try { noClient.Create(new Uri("https://petrovisor.example/discovery"), "Production"); throw new InvalidOperationException("created a session without a client"); }
+catch (PetroVisorSignInUnavailableException exception)
+{
+    Check(exception.Message.Contains(PetroVisorKeycloakSessionFactory.ClientSecretVariable, StringComparison.Ordinal), "a missing client names what to set");
+}
+string? formSeen = null;
+using var tokenHandler = new RecordingHandler(async request =>
+{
+    formSeen = request.Content is null ? null : await request.Content.ReadAsStringAsync();
+    return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("{\"access_token\":\"ACCESS-1\",\"expires_in\":300}") };
+});
+using var keycloak = new PetroVisorKeycloakSessionFactory(name => name == "WSA_PETROVISOR_CLIENT_ID" ? "wsa-gateway" : "s3cret", tokenHandler);
+Check(keycloak.Identity == "service account wsa-gateway", "the identity names the service account, never the secret");
+var issued = keycloak.RequestAccessToken(new Uri("https://login.example/realms/pv/protocol/openid-connect/token"), "wsa-gateway", "s3cret");
+Check(issued == "ACCESS-1" && formSeen is not null && formSeen.Contains("grant_type=client_credentials", StringComparison.Ordinal) &&
+      formSeen.Contains("client_id=wsa-gateway", StringComparison.Ordinal), "a service-account token is requested with the client credentials grant");
+foreach (var (status, body) in new[] { (System.Net.HttpStatusCode.Unauthorized, "{\"error\":\"SECRET-BODY\"}"),
+             (System.Net.HttpStatusCode.OK, "{}"), (System.Net.HttpStatusCode.OK, "not json SECRET-BODY"),
+             (System.Net.HttpStatusCode.BadGateway, "SECRET-BODY") })
+{
+    using var failing = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) }));
+    using var failingFactory = new PetroVisorKeycloakSessionFactory(_ => "x", failing);
+    try { failingFactory.RequestAccessToken(new Uri("https://login.example/token"), "x", "x"); throw new InvalidOperationException("accepted a bad answer"); }
+    catch (PetroVisorSignInUnavailableException exception)
+    {
+        Check(!exception.Message.Contains("SECRET-BODY", StringComparison.Ordinal), $"a {(int)status} answer is explained without echoing the body");
+    }
+}
+
 // This inspects installed package types without credentials/network or guessing SSO semantics.
 var sdk = PetroVisorSdkProbe.Inspect();
 Check(sdk.ProviderConstructorParameterTypes.Count > 0, "SDK exposes provider constructors");
@@ -105,4 +148,12 @@ sealed class FailingReader(Exception exception) : IPetroVisorEntityReader
         Task.FromException<IReadOnlyCollection<PetroVisorEntitySnapshot>>(exception);
 
     public Task<int> CountEntityTypesAsync(string workspace, CancellationToken cancellationToken) => Task.FromException<int>(exception);
+}
+
+sealed class RecordingHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => respond(request);
+
+    protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        respond(request).GetAwaiter().GetResult();
 }
