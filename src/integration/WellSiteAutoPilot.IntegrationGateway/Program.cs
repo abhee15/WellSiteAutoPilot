@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Http.ServiceCallers;
 using WellSiteAutoPilot.IntegrationGateway.Adapters;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.PetroVisor;
 using WellSiteAutoPilot.IntegrationGateway.Providers;
 using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Telemetry;
