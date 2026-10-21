@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { t } from '../localization';
 import { ConnectionsError, importFromConnection, previewImport } from './connections';
+import { createViewFromConnectionHash } from './assetViewNavigation';
 import type { Adapter, Connection, ImportGroup, ImportPreview, ImportResult, ImportSelection } from './connections';
 
 const renderBudget = 400;
@@ -124,7 +125,15 @@ export function ConnectionImport({ connection, adapter, selection = null, select
           <strong>{t('connections.importDone', { wells: result.wellsCreated, groups: result.groupsCreated })}</strong>
           {result.groupsReused > 0 && <span>{t('connections.importReused', { count: result.groupsReused })}</span>}
           {result.alreadyImported > 0 && <span>{t('connections.importSkipped', { count: result.alreadyImported })}</span>}
-          <a href="#assets">{t('connections.importOpenAssets')}</a>
+          <div className="connection-actions">
+            <a href="#assets">{t('connections.importOpenAssets')}</a>
+            {(result.wellsCreated > 0 || result.groupsCreated > 0) && (
+              <a href={createViewFromConnectionHash(connection.id)}>{t('connections.importCreateView')}</a>
+            )}
+          </div>
+          {(result.wellsCreated > 0 || result.groupsCreated > 0) && (
+            <small>{t('connections.importCreateViewScope')}</small>
+          )}
         </div>
       )}
     </section>
