@@ -115,6 +115,7 @@ public sealed class AssetService(
         await AssetAttributeSchemaValidator.ValidateValuesAsync(
             assetType.AttributeSchemaJson, command.AttributeValuesJson, cancellationToken);
 
+        Guid? ownerConnectionId = null;
         if (command.ParentAssetId is not null)
         {
             var parent = await repository.GetAssetAsync(command.ParentAssetId.Value, cancellationToken);
@@ -125,6 +126,9 @@ public sealed class AssetService(
                     FailureKind.NotFound,
                     "The selected parent asset was not found.");
             }
+
+            // Creating beneath a Connection's Asset keeps the owner: one Asset never belongs to two Connections.
+            ownerConnectionId = parent.OwnerConnectionId;
         }
 
         var asset = new Asset(
@@ -134,7 +138,8 @@ public sealed class AssetService(
             command.ParentAssetId,
             command.AttributeValuesJson,
             true,
-            timeProvider.GetUtcNow());
+            timeProvider.GetUtcNow(),
+            ownerConnectionId);
 
         return asset;
     }

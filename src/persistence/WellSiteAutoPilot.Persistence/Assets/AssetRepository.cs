@@ -182,7 +182,8 @@ public sealed partial class AssetRepository(
             ParentAssetId = asset.ParentAssetId,
             AttributeValuesJson = asset.AttributeValuesJson,
             IsActive = asset.IsActive,
-            CreatedAtUtc = asset.CreatedAtUtc
+            CreatedAtUtc = asset.CreatedAtUtc,
+            OwnerConnectionId = asset.OwnerConnectionId
         });
     }
 
@@ -205,5 +206,6 @@ public sealed partial class AssetRepository(
         entity.ParentAssetId,
         entity.AttributeValuesJson,
         entity.IsActive,
-        entity.CreatedAtUtc);
+        entity.CreatedAtUtc,
+        entity.OwnerConnectionId);
 }

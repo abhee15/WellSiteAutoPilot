@@ -1201,7 +1201,8 @@ static AssetResponse ToAssetResponse(WellSiteAutoPilot.Domain.Assets.Asset asset
     asset.ParentAssetId,
     asset.AttributeValuesJson,
     asset.IsActive,
-    asset.CreatedAtUtc);
+    asset.CreatedAtUtc,
+    asset.OwnerConnectionId);
 
 static ConfiguredLogicResponse ToConfiguredLogicResponse(ConfiguredLogicDefinition configuredLogic) => new(
     configuredLogic.Id,

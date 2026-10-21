@@ -33,7 +33,8 @@ public sealed record AssetResponse(
     Guid? ParentAssetId,
     string AttributeValuesJson,
     bool IsActive,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    Guid? OwnerConnectionId = null);
 
 /// <summary>Presentation hint only; POST /assets remains authoritative.</summary>
 public sealed record AssetCreationCapabilitiesResponse(

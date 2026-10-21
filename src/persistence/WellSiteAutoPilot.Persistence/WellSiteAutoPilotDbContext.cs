@@ -107,6 +107,11 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         var asset = modelBuilder.Entity<AssetEntity>();
         asset.ToTable("assets", "assets");
         asset.HasKey(x => x.Id);
+        asset.HasIndex(x => x.OwnerConnectionId);
+        asset.HasOne<ConnectionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.OwnerConnectionId)
+            .OnDelete(DeleteBehavior.Restrict);
         asset.Property(x => x.Name).HasMaxLength(256).IsRequired();
         asset.Property(x => x.AttributeValuesJson).IsRequired();
         asset.Property(x => x.IsActive).IsRequired();

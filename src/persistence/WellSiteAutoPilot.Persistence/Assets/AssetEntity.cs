@@ -9,4 +9,5 @@ public sealed class AssetEntity
     public string AttributeValuesJson { get; set; } = "{}";
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAtUtc { get; init; }
+    public Guid? OwnerConnectionId { get; init; }
 }
