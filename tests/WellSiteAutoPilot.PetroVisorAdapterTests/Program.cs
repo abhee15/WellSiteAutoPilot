@@ -62,9 +62,31 @@ Check(healthy.Outcome == AdapterTestOutcomes.Healthy && healthy.ActingAs == acco
 var checkDenied = await PetroVisorAdapter.CheckAsync(new FailingReader(new UnauthorizedAccessException("TOKEN-DO-NOT-LEAK")), "Production", account);
 Check(checkDenied.Outcome == AdapterTestOutcomes.NeedsAttention && !checkDenied.Message.Contains("TOKEN-DO-NOT-LEAK", StringComparison.Ordinal),
     "a refused account needs attention without leaking vendor text");
-var checkOffline = await PetroVisorAdapter.CheckAsync(new FailingReader(new HttpRequestException("SECRET-URL")), "Production", account);
-Check(checkOffline.Outcome == AdapterTestOutcomes.Unreachable && !checkOffline.Message.Contains("SECRET-URL", StringComparison.Ordinal),
-    "an unreachable server is reported as unreachable");
+var checkOffline = await PetroVisorAdapter.CheckAsync(
+    new FailingReader(new HttpRequestException("No such host is known https://secret.example/x?token=abc")), "Production", account);
+Check(checkOffline.Outcome == AdapterTestOutcomes.Unreachable && !checkOffline.Message.Contains("secret.example", StringComparison.Ordinal) &&
+      checkOffline.Message.Contains("No such host is known", StringComparison.Ordinal),
+    "an unreachable server is reported as unreachable with its reason but without addresses");
+var checkUnknown = await PetroVisorAdapter.CheckAsync(
+    new FailingReader(new InvalidOperationException("The user alice was not found.\r\nTOKENTOKENTOKENTOKENTOKENTOKENTOKENTOKENTOKEN")), "Production", account);
+Check(checkUnknown.Outcome == AdapterTestOutcomes.NeedsAttention && checkUnknown.Message.Contains("The user alice was not found.", StringComparison.Ordinal) &&
+      !checkUnknown.Message.Contains("TOKENTOKEN", StringComparison.Ordinal) && !checkUnknown.Message.Contains('\n'),
+    "an unexpected failure shows PetroVisor's own reason, one line, without token-like words");
+var discoverUnknown = await PetroVisorAdapter.DiscoverAsync(
+    new FailingReader(new InvalidOperationException("The password for user alice is not valid.")), "Production", account);
+Check(!discoverUnknown.Complete && discoverUnknown.Warnings.Single().Contains("not valid", StringComparison.Ordinal),
+    "discovery also says why it failed");
+Check(PetroVisorAdapter.SafeVendorReason(new InvalidOperationException(new string('x', 500) + " " + string.Join(' ', Enumerable.Repeat("word", 100)))).Length <= 203 &&
+      PetroVisorAdapter.SafeVendorReason(new InvalidOperationException(string.Empty)) == "PetroVisor gave no reason.",
+    "the reason is short and never empty");
+// People paste what they have open in the browser; only the server part is used, and the web app is called out.
+Check(PetroVisorAdapter.DiscoveryAddress(" https://identity.us1.petrovisor.com/account/login?returnUrl=%2Fx ").AbsoluteUri == "https://identity.us1.petrovisor.com/",
+    "a pasted page address is reduced to the server");
+Check(PetroVisorAdapter.DiscoveryAddress("https://identity.example:8443/discovery/").AbsoluteUri == "https://identity.example:8443/",
+    "the port is kept and the path dropped");
+Check(PetroVisorAdapter.AddressProblem(new Uri("https://app.petrovisor.com/")) is { } appProblem && appProblem.Contains("identity server", StringComparison.Ordinal) &&
+      PetroVisorAdapter.AddressProblem(new Uri("https://identity.us1.petrovisor.com/")) is null,
+    "the web app address is refused with a plain explanation");
 var noSignIn = await PetroVisorAdapter.CheckAsync(
     new FailingReader(new PetroVisorSignInUnavailableException("The Gateway has no PetroVisor sign-in yet.")), "Production", account);
 Check(noSignIn.Outcome == AdapterTestOutcomes.NeedsAttention && noSignIn.Message.Contains("no PetroVisor sign-in", StringComparison.Ordinal),
