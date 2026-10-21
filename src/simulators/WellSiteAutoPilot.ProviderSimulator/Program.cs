@@ -96,14 +96,48 @@ app.MapGet("/foresite/SurfaceNetworkService/Asset/All", (HttpContext context) =>
     new { Id = 2, Name = "South Field" }
 }));
 
-app.MapGet("/foresite/Wells/All", (HttpContext context) =>
+// The real ForeSite UserAssets API includes pseudo-asset 0 only if this account is
+// permitted to discover unmapped wells. The simulator exercises the authorized case.
+app.MapGet("/foresite/Wells/UserAssets", (HttpContext context) =>
     !HasForeSiteSession(context) ? Results.Unauthorized() : Results.Json(new object[]
 {
-    new { Id = 101, Name = "Alpha 1", AssetId = 1, WellType = 1, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = "RPC" },
-    new { Id = 102, Name = "Alpha 2", AssetId = 1, WellType = 2, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = "ESP" },
-    new { Id = 103, Name = "Bravo 1", AssetId = 2, WellType = 1, Field = "Bravo", Lease = "L-2", FacilityId = 8, PrincipalDeviceType = "RPC" }
+    new { Id = 0, Name = "Not Mapped" },
+    new { Id = 1, Name = "North Field" },
+    new { Id = 2, Name = "South Field" }
 }));
+
+app.MapPost("/foresite/Wells/Well/Filter", (HttpContext context, ForeSiteCiAssetFilter filter) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    // An empty filter is dangerous in ForeSite: it can mean every well.
+    if (filter.AssetIds is not { Length: > 0 }) return Results.BadRequest();
+    var wells = new[]
+    {
+        new { Id = 101, Name = "Alpha 1", AssetId = 1, WellType = 1, Field = "Alpha", Lease = "L-1", FacilityId = "7", PrincipalDeviceType = (string?)null },
+        new { Id = 102, Name = "Alpha 2", AssetId = 1, WellType = 2, Field = "Alpha", Lease = "L-1", FacilityId = "7", PrincipalDeviceType = (string?)null },
+        new { Id = 103, Name = "Bravo 1", AssetId = 2, WellType = 1, Field = "Bravo", Lease = "L-2", FacilityId = "8", PrincipalDeviceType = (string?)null }
+    };
+    return Results.Json(wells.Where(well => filter.AssetIds.Contains(well.AssetId)));
+});
+
+app.MapPost("/foresite/WellConfig/GetWellAutonomousControlGroupData",
+    (HttpContext context, ForeSiteCiAssetFilter filter) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (filter.AssetIds is not { Length: > 0 }) return Results.BadRequest();
+    var controls = new[]
+    {
+        new { WellId = 101, AssetId = 1, DeviceType = "LufkinSam" },
+        new { WellId = 102, AssetId = 1, DeviceType = "WFordKS" },
+        new { WellId = 103, AssetId = 2, DeviceType = "LufkinSam" }
+    };
+    return Results.Json(new { Units = (object?)null,
+        Values = controls.Where(item => filter.AssetIds.Contains(item.AssetId))
+            .Select(item => new { item.WellId, item.DeviceType }) });
+});
 
 app.Run();
 
 public partial class Program;
+
+public sealed record ForeSiteCiAssetFilter(long[]? AssetIds);
