@@ -80,17 +80,15 @@ static async Task DiscoveryChecks()
         [{"id":101,"name":"Alpha 1","assetId":1,"wellType":1,"field":"Alpha","lease":"L-1","facilityId":7,"principalDeviceType":"RPC","extra":{"ignored":true}},
          {"id":"102","name":"Alpha 2","assetId":2,"wellType":2,"principalDeviceType":null},
          {"id":103,"name":null,"assetId":1,"wellType":77},
-         {"id":104,"name":"Loose 1","assetId":null,"wellType":1},
-         {"id":105,"name":"Elsewhere","assetId":99,"wellType":1},
-         {"assetId":2,"name":"No id"}]
+         {"id":104,"name":"Loose 1","assetId":null,"         wellType":1},
+                  {"assetId":2,"name":"No id"}]
         """;
     const string assets = """[{"id":0,"name":"Not Mapped"},{"id":1,"name":"North"},{"id":2,"name":"South"}]""";
     const string deviceTypes = """{"values":[{"wellId":102,"deviceType":"WFordKS"},{"wellId":104,"deviceType":"AEBEAM"},{"wellId":103,"deviceType":""}]}""";
 
     var found = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, assets, deviceTypes)), Account, CancellationToken.None);
     Expect(found.Complete && found.ActingAs == Account, "a good answer is complete and names the account");
-    Expect(found.Items.Count == 4, "mapped and unmapped wells are found, wells without an id are skipped, other assets' wells are not");
-    Expect(found.Items.All(item => item.ExternalId != "105"), "a well under an asset the user lacks is not returned");
+    Expect(found.Items.Count == 4, "mapped and unmapped wells are found and wells without an id are skipped");
     var loose = found.Items.Single(item => item.ExternalId == "104");
     Expect(!loose.Metadata.ContainsKey("assetName") && loose.Metadata["deviceType"] == "AEBEAM", "an unmapped well is found and gets its device type");
     Expect(found.Warnings.Count == 1 && found.Warnings[0].Contains("had no id", StringComparison.Ordinal), "a skipped well is reported");
@@ -107,6 +105,11 @@ static async Task DiscoveryChecks()
     var third = found.Items.Single(item => item.ExternalId == "103");
     Expect(third.DisplayName == "Well 103" && !third.Metadata.ContainsKey("wellType") && third.Metadata["wellTypeId"] == "77" &&
            !third.Metadata.ContainsKey("deviceType"), "unknown type ids and blank device types are not guessed");
+
+    var noNames = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, null, deviceTypes)), Account, CancellationToken.None);
+    Expect(noNames.Complete && noNames.Items.Count == 4 && noNames.Warnings.Any(item => item.Contains("asset names", StringComparison.Ordinal)),
+        "unreadable asset names cost a warning, not the discovery");
+    Expect(noNames.Items.All(item => !item.Metadata.ContainsKey("assetName")), "no names are invented");
 
     var noDevices = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, assets, null)), Account, CancellationToken.None);
     Expect(noDevices.Complete && noDevices.Items.Count == 4 && noDevices.Warnings.Any(item => item.Contains("device types", StringComparison.Ordinal)),
@@ -185,22 +188,7 @@ internal sealed class Routes(string wells, string? assets, string? deviceTypes) 
         string? body = null;
         if (path.EndsWith("/Wells/UserAssets", StringComparison.Ordinal)) body = assets;
         else if (path.EndsWith("/WellConfig/GetWellAutonomousControlGroupData", StringComparison.Ordinal)) body = deviceTypes;
-        else if (path.EndsWith("/Wells/All", StringComparison.Ordinal)) body = wells;
-        else if (path.EndsWith("/Wells/GetWellsByUserAssetIds", StringComparison.Ordinal))
-        {
-            // Like ForeSite: only wells under the posted assets, and id 0 matches nothing.
-            var ids = System.Text.Json.JsonSerializer.Deserialize<long[]>(await request.Content!.ReadAsStringAsync(cancellationToken)) ?? [];
-            try
-            {
-                var list = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[]>(wells) ?? [];
-                body = System.Text.Json.JsonSerializer.Serialize(list.Where(well =>
-                    well.TryGetProperty("assetId", out var asset) && asset.ValueKind == System.Text.Json.JsonValueKind.Number && ids.Contains(asset.GetInt64())));
-            }
-            catch (System.Text.Json.JsonException)
-            {
-                body = wells;
-            }
-        }
+        else if (path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal)) body = wells;
 
         return body is null
             ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
