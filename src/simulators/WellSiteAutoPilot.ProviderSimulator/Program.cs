@@ -74,13 +74,30 @@ app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
 // A stand-in for the parts of ForeSite's web services that discovery reads, so CI can exercise the whole path
 // without ForeSite. It lives under its own prefix: the simulator's root address must keep answering 404 to a
 // ForeSite connection, which is how the "this is not ForeSite" check works.
-app.MapGet("/foresite/SurfaceNetworkService/Asset/All", () => Results.Json(new object[]
+// The real ForeSite service issues an authenticated session cookie before inventory calls.
+// This stand-in deliberately requires the cookie so CI tests the adapter's token handshake,
+// rather than silently passing on a bare HTTP GET. No real Windows credentials are used here.
+const string ForeSiteCiCookie = "ForeSiteCiSession";
+const string ForeSiteCiValue = "ci-token";
+app.MapGet("/foresite/TokenService/CreateToken", (HttpContext context) =>
+{
+    context.Response.Cookies.Append(ForeSiteCiCookie, ForeSiteCiValue,
+        new CookieOptions { Path = "/foresite", HttpOnly = true, SameSite = SameSiteMode.Lax });
+    return Results.Json(new { authenticated = true });
+});
+
+bool HasForeSiteSession(HttpContext context) =>
+    context.Request.Cookies.TryGetValue(ForeSiteCiCookie, out var cookie) && cookie == ForeSiteCiValue;
+
+app.MapGet("/foresite/SurfaceNetworkService/Asset/All", (HttpContext context) =>
+    !HasForeSiteSession(context) ? Results.Unauthorized() : Results.Json(new object[]
 {
     new { Id = 1, Name = "North Field" },
     new { Id = 2, Name = "South Field" }
 }));
 
-app.MapGet("/foresite/Wells/All", () => Results.Json(new object[]
+app.MapGet("/foresite/Wells/All", (HttpContext context) =>
+    !HasForeSiteSession(context) ? Results.Unauthorized() : Results.Json(new object[]
 {
     new { Id = 101, Name = "Alpha 1", AssetId = 1, WellType = 1, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = "RPC" },
     new { Id = 102, Name = "Alpha 2", AssetId = 1, WellType = 2, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = "ESP" },
