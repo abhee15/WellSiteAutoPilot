@@ -23,18 +23,20 @@ const errorKey = (error: unknown): MessageKey => {
 
 /** Create or change one View: what it shows and how it is grouped. A View never moves or copies Assets. */
 export function AssetViewEditor({
-  view, owners, assetTypes, onSaved, onDeleted, onCancel,
+  view, owners, assetTypes, onSaved, onDeleted, onCancel, initial,
 }: {
   view: AssetView | null;
+  /** Starting point for a new View, such as a browser-local filter being converted. `lossy` says part of it cannot carry over. */
+  initial?: { name: string; definition: ViewDefinition; lossy: boolean } | null;
   owners: readonly OwnerGroup[];
   assetTypes: readonly { id: string; name: string }[];
   onSaved: (saved: AssetView) => void;
   onDeleted: () => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(view?.name ?? '');
-  const [definition, setDefinition] = useState<ViewDefinition>(view?.definition ?? { version: 1, connections: [],
-    assetTypeIds: [], activity: 'all', search: null, grouping: [] });
+  const [name, setName] = useState(view?.name ?? initial?.name ?? '');
+  const [definition, setDefinition] = useState<ViewDefinition>(view?.definition ?? initial?.definition ?? { version: 1,
+    connections: [], assetTypeIds: [], activity: 'all', search: null, grouping: [] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -68,6 +70,7 @@ export function AssetViewEditor({
       onSubmit={event => { event.preventDefault(); void save(); }}>
       <h3>{t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}</h3>
       <p className="connection-help">{t('assetViews.intro')}</p>
+      {!view && initial?.lossy && <p className="connection-help" role="note">{t('assetViews.lossyNote')}</p>}
       <label>
         <span>{t('assetViews.name')}</span>
         <input type="text" value={name} maxLength={MAX_VIEW_NAME} disabled={busy}
