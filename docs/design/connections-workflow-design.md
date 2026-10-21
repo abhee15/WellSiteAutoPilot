@@ -444,3 +444,37 @@ import (13.1a); no check for changes yet.
 - **Split.** `GET /system/info` (names, versions, state) requires `system-status.read`, an any-of policy satisfied by `connections.read` or `security.manage`. A new `GET /system/health` returns only an overall state and counts (`status`, `componentCount`, `unhealthyCount`) to any signed-in person, so operators keep the health indicator on Runs and Overview without seeing component names.
 - **Status page** (Administer group, opens for the same two permissions). Two independent parts: platform services from `/system/info`, and each connection's last test result from `/connections`. A part the person cannot see is not requested; a part that fails to load says so rather than appearing empty. It refreshes every 30 s and on demand.
 - **Not built yet.** Scheduled connection checks. A connection's state only reflects the last manual test, which the page states as "Last tested …" or "Never tested". Background checks need a system actor, a frequency and audit-on-change rules, and get their own design first.
+
+## 15. Systems that hold more than one import can handle
+
+**Observed.** A real ForeSite server holds more wells than the 5,000-object ceiling (13.3). Find and Review both stop with
+"holds more than one import can handle", and the advice in that message ("narrow what the connection's account can see")
+is not something the person can act on.
+
+**Why there is a ceiling at all.** Discovery, the plan and the preview run in one request; the browser receives the whole
+list; Import re-reads the system and writes everything in one serializable transaction. The cost is in the transfer and the
+single transaction, not in storing what was found.
+
+**Rejected.**
+- *Show the first 1,000 and import those.* A cut-off list reads as a complete one, and nobody can tell which wells were left
+  out. A partial answer must never look like everything (the rule already used for incomplete discovery).
+- *Import the found objects into the system so they can be reviewed.* Importing creates Assets. Review needs the list held
+  briefly, not created.
+
+**Decided.**
+1. **Raise the limit on what may be found** to 50,000 objects and put the real number in the message when it is exceeded.
+2. **Find returns a summary and a sample, not the whole list.** The total, the count per value of each grouping field, and
+   the first 1,000 objects for browsing and searching. The browser never receives tens of thousands of rows.
+3. **Scope before import.** The person narrows by grouping-field values and by search text. Review and Import work on that
+   selection. The 5,000 ceiling then applies to what is imported at once; imports are repeatable (bindings make them
+   idempotent), so a large system goes in by field or lease.
+4. **A short-lived snapshot.** The Server holds what discovery returned, in memory, keyed by connection and person, for about
+   15 minutes. Browsing, filtering, Review and Import read the snapshot, so what was reviewed is exactly what is imported and
+   the system is not re-read (ForeSite can take over a minute) for every change of filter. An expired or lost snapshot (for
+   example after a restart) says "find again". Import still re-plans the selection and refuses on a changed fingerprint.
+5. **Memory is bounded**: one snapshot per person and connection, a ceiling on the number held, and snapshots are never
+   written to storage.
+
+**Not part of this.** Per-group lazy browsing of the review tree, a configurable limit, and scoped (non-all-assets) import.
+
+**Open.** How many objects real systems hold (the 50,000 figure is a guess to be replaced by a measured one).
