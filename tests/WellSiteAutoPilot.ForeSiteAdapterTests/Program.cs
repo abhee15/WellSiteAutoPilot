@@ -79,14 +79,20 @@ static async Task DiscoveryChecks()
     const string wells = """
         [{"id":101,"name":"Alpha 1","assetId":1,"wellType":1,"field":"Alpha","lease":"L-1","facilityId":7,"principalDeviceType":"RPC","extra":{"ignored":true}},
          {"id":"102","name":"Alpha 2","assetId":2,"wellType":2,"principalDeviceType":null},
-         {"id":103,"name":null,"assetId":99,"wellType":77},
-         {"name":"No id"}]
+         {"id":103,"name":null,"assetId":1,"wellType":77},
+         {"id":104,"name":"Loose 1","assetId":null,"wellType":1},
+         {"id":105,"name":"Elsewhere","assetId":99,"wellType":1},
+         {"assetId":2,"name":"No id"}]
         """;
-    const string assets = """[{"id":1,"name":"North"},{"id":2,"name":"South"}]""";
+    const string assets = """[{"id":0,"name":"Not Mapped"},{"id":1,"name":"North"},{"id":2,"name":"South"}]""";
+    const string deviceTypes = """{"values":[{"wellId":102,"deviceType":"WFordKS"},{"wellId":104,"deviceType":"AEBEAM"},{"wellId":103,"deviceType":""}]}""";
 
-    var found = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, assets)), Account, CancellationToken.None);
+    var found = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, assets, deviceTypes)), Account, CancellationToken.None);
     Expect(found.Complete && found.ActingAs == Account, "a good answer is complete and names the account");
-    Expect(found.Items.Count == 3, "wells without an id are skipped");
+    Expect(found.Items.Count == 4, "mapped and unmapped wells are found, wells without an id are skipped, other assets' wells are not");
+    Expect(found.Items.All(item => item.ExternalId != "105"), "a well under an asset the user lacks is not returned");
+    var loose = found.Items.Single(item => item.ExternalId == "104");
+    Expect(!loose.Metadata.ContainsKey("assetName") && loose.Metadata["deviceType"] == "AEBEAM", "an unmapped well is found and gets its device type");
     Expect(found.Warnings.Count == 1 && found.Warnings[0].Contains("had no id", StringComparison.Ordinal), "a skipped well is reported");
     var first = found.Items.Single(item => item.ExternalId == "101");
     Expect(first.DisplayName == "Alpha 1" && first.ProviderType == ForeSiteAdapter.WellResourceKind && first.ParentExternalId is null,
@@ -97,15 +103,16 @@ static async Task DiscoveryChecks()
            first.Metadata["wellName"] == "Alpha 1", "mapped facts");
     var second = found.Items.Single(item => item.ExternalId == "102");
     Expect(second.Metadata["assetName"] == "South" && second.Metadata["wellType"] == "ESP" &&
-           !second.Metadata.ContainsKey("deviceType") && !second.Metadata.ContainsKey("field"), "missing facts are left out");
+           second.Metadata["deviceType"] == "WFordKS" && !second.Metadata.ContainsKey("field"), "device type comes from the control group data");
     var third = found.Items.Single(item => item.ExternalId == "103");
     Expect(third.DisplayName == "Well 103" && !third.Metadata.ContainsKey("wellType") && third.Metadata["wellTypeId"] == "77" &&
-           !third.Metadata.ContainsKey("assetName"), "unknown type ids and unknown assets are not guessed");
+           !third.Metadata.ContainsKey("deviceType"), "unknown type ids and blank device types are not guessed");
 
-    var noNames = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, null)), Account, CancellationToken.None);
-    Expect(noNames.Complete && noNames.Items.Count == 3 && noNames.Warnings.Any(item => item.Contains("asset names", StringComparison.Ordinal)),
-        "unreadable asset names cost a warning, not the discovery");
-    Expect(noNames.Items.All(item => !item.Metadata.ContainsKey("assetName")), "no names are invented");
+    var noDevices = await ForeSiteAdapter.DiscoverAsync(Client(new Routes(wells, assets, null)), Account, CancellationToken.None);
+    Expect(noDevices.Complete && noDevices.Items.Count == 4 && noDevices.Warnings.Any(item => item.Contains("device types", StringComparison.Ordinal)),
+        "unreadable device types cost a warning, not the discovery");
+    Expect(noDevices.Items.Single(item => item.ExternalId == "101").Metadata["deviceType"] == "RPC" &&
+           !noDevices.Items.Single(item => item.ExternalId == "102").Metadata.ContainsKey("deviceType"), "no device types are invented");
 
     foreach (var status in new[] { HttpStatusCode.Unauthorized, HttpStatusCode.NotFound, HttpStatusCode.InternalServerError })
     {
@@ -119,10 +126,10 @@ static async Task DiscoveryChecks()
         "an unreachable ForeSite is incomplete and does not leak exception text");
     var timedOut = await ForeSiteAdapter.DiscoverAsync(Client(new Failing(new TaskCanceledException())), Account, CancellationToken.None);
     Expect(!timedOut.Complete && timedOut.Warnings[0].Contains("90 seconds", StringComparison.Ordinal), "a timeout is incomplete");
-    var garbage = await ForeSiteAdapter.DiscoverAsync(Client(new Routes("<html>not json</html>", assets)), Account, CancellationToken.None);
+    var garbage = await ForeSiteAdapter.DiscoverAsync(Client(new Routes("<html>not json</html>", assets, deviceTypes)), Account, CancellationToken.None);
     Expect(!garbage.Complete && garbage.Items.Count == 0, "an answer that is not a list of wells is incomplete");
 
-    var empty = await ForeSiteAdapter.DiscoverAsync(Client(new Routes("[]", assets)), Account, CancellationToken.None);
+    var empty = await ForeSiteAdapter.DiscoverAsync(Client(new Routes("[]", assets, """{"values":[]}""")), Account, CancellationToken.None);
     Expect(empty.Complete && empty.Items.Count == 0 && empty.Warnings.Count == 0, "a genuinely empty ForeSite is complete");
 
     Expect(ForeSiteAdapter.Descriptor.CanDiscover && ForeSiteAdapter.Descriptor.GroupingFields!.Select(item => item.Key)
@@ -170,15 +177,33 @@ internal sealed class Recording : HttpMessageHandler
     }
 }
 
-internal sealed class Routes(string wells, string? assets) : HttpMessageHandler
+internal sealed class Routes(string wells, string? assets, string? deviceTypes) : HttpMessageHandler
 {
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var path = request.RequestUri!.AbsolutePath;
-        var body = path.EndsWith("/Wells/All", StringComparison.Ordinal) ? wells
-            : path.EndsWith("/SurfaceNetworkService/Asset/All", StringComparison.Ordinal) ? assets : null;
-        return Task.FromResult(body is null
+        string? body = null;
+        if (path.EndsWith("/Wells/UserAssets", StringComparison.Ordinal)) body = assets;
+        else if (path.EndsWith("/WellConfig/GetWellAutonomousControlGroupData", StringComparison.Ordinal)) body = deviceTypes;
+        else if (path.EndsWith("/Wells/All", StringComparison.Ordinal)) body = wells;
+        else if (path.EndsWith("/Wells/GetWellsByUserAssetIds", StringComparison.Ordinal))
+        {
+            // Like ForeSite: only wells under the posted assets, and id 0 matches nothing.
+            var ids = System.Text.Json.JsonSerializer.Deserialize<long[]>(await request.Content!.ReadAsStringAsync(cancellationToken)) ?? [];
+            try
+            {
+                var list = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[]>(wells) ?? [];
+                body = System.Text.Json.JsonSerializer.Serialize(list.Where(well =>
+                    well.TryGetProperty("assetId", out var asset) && asset.ValueKind == System.Text.Json.JsonValueKind.Number && ids.Contains(asset.GetInt64())));
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                body = wells;
+            }
+        }
+
+        return body is null
             ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
-            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
     }
 }
