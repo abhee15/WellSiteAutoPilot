@@ -266,7 +266,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
           selection={found ? selection?.value ?? null : null} selectedCount={found ? selection?.count ?? null : null}
           totalCount={found?.totalCount ?? null} />
       )}
-      {found && connection && <FoundList key={found.snapshotId} connection={connection} found={found}
+      {found && connection && <FoundList key={found.snapshotId} connection={connection} found={found} stale={dirty}
         onSelect={(value, count) => setSelection({ value, count })} />}
       {canManage && connection && (
         <section className="connection-manage" aria-label={t('connections.manageHeading')}>
@@ -296,8 +296,8 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
   );
 }
 
-function FoundList({ connection, found, onSelect }: {
-  connection: Connection; found: Discovery; onSelect: (selection: ImportSelection, count: number) => void;
+function FoundList({ connection, found, stale, onSelect }: {
+  connection: Connection; found: Discovery; stale: boolean; onSelect: (selection: ImportSelection, count: number) => void;
 }) {
   const [query, setQuery] = useState('');
   const [facets, setFacets] = useState<Record<string, string>>({});
@@ -326,7 +326,10 @@ function FoundList({ connection, found, onSelect }: {
   const shown = items.slice(0, shownLimit);
   return (
     <section className="connection-found" aria-label={t('connections.findHeading')}>
+      <p className="connection-step">{t('connections.stageDiscover')}</p>
       <h3>{t('connections.findHeading')}</h3>
+      {stale && <p role="status" className="connection-help">{t('connections.findStale')}</p>}
+      <p className="connection-help">{t('connections.findKeptUntil', { time: formatTimestamp(found.expiresAtUtc) })}</p>
       {!found.complete && <p role="alert" className="status-error">{t('connections.findIncomplete')}</p>}
       {found.warnings.map(warning => <p key={warning} role="status" className="connection-help">{warning}</p>)}
       {found.complete && found.totalCount === 0 && <p className="empty-state">{t('connections.findEmpty')}</p>}
