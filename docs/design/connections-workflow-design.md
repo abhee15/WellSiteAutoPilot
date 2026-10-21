@@ -514,3 +514,39 @@ root row: the top level is derived from the owner field.
   carries a count, and links to the Connection. When no Connection owns anything the tree stays flat as before.
 - The Asset page says which Connection owns the Asset; search results and children carry the owner.
 - Not in this slice: moving Assets between roots, Views, drag and drop (later slices).
+
+## 18. Views (slice C): design
+
+A View is a saved, server-evaluated arrangement of the Assets a person may already see. It never copies, moves or
+creates Assets or Groups, and never grants access: every query starts from the caller's visible Assets.
+
+**Definition (versioned JSON, `version: 1`).**
+
+- `connections`: owners to include. Each entry is a Connection id or the literal `standalone`; empty means all visible.
+- `assetTypeIds`: optional list. `activity`: `all | active | inactive`. `search`: optional name text (max 120).
+- `grouping`: ordered levels, each one of `connection`, `assetType`, `status` (at most 3, no repeats). Empty means a
+  flat, name-sorted list. Sorting is fixed: group values by label, Assets by name then id.
+- Grouping by Asset attribute or source fact is **not in v1**. Attributes are free JSON text today; grouping on them
+  needs a typed/indexed projection, which is its own decision. Adapters' facts are already available as the
+  persisted Groups of the default hierarchy.
+
+**Storage.** `assets.asset_views(id, owner_user_id, name, definition_json, revision, created/updated)`; name unique
+per owner (case-insensitive); at most 50 per person. A Connection that is later deleted or disabled leaves the View
+valid: a dangling id simply matches nothing and the editor says so.
+
+**API (all `AssetsRead`, owner-scoped).** `GET/POST /asset-views`, `GET/PUT/DELETE /asset-views/{id}` (PUT/DELETE
+carry the revision, stale writes are refused like Connections), and `GET /asset-views/{id}/nodes?path=` which returns
+the next level for a path of already-chosen group values: groups (`label`, `key`, `count`) or, at the last level,
+Assets (the same node shape as `/assets/children`, paged). One level per call keeps very large sets lazy.
+
+**Sharing is deliberately not in v1.** Views are personal. Sharing needs its own permission (who may publish, whether
+a shared View can name Connections its viewers cannot see) and is designed when asked for; the schema keeps
+`owner_user_id` so a later `shared` flag does not rewrite rows.
+
+**Web.** A visible *Create View* action and a View selector at the top of Assets ("Default hierarchy" is the
+selector's first entry). The editor: name, Connections, types, activity, grouping order (Up/Down buttons, no
+drag-and-drop), live preview of the top level. The browser-local saved filters stay, labelled as local filters
+of this browser, with a one-click *Save as View* that converts a filter into a View.
+
+**Slices.** C1 server model, API, guards and live checks. C2 selector plus Create/Edit View in the web. C3 convert
+local filters. C4 sharing (needs a decision first).
