@@ -7,7 +7,7 @@ using WellSiteAutoPilot.Integration.ForeSite;
 const string Account = @"CORP\svc-wsa";
 const string Leaky = "SECRET-BODY-TEXT";
 
-await Case(HttpStatusCode.OK, AdapterTestOutcomes.Healthy, "allowed");
+await Case(HttpStatusCode.OK, AdapterTestOutcomes.Healthy, "readable JSON");
 await Case(HttpStatusCode.Unauthorized, AdapterTestOutcomes.NeedsAttention, Account);
 await Case(HttpStatusCode.Forbidden, AdapterTestOutcomes.NeedsAttention, Account);
 await Case(HttpStatusCode.NotFound, AdapterTestOutcomes.NeedsAttention, "does not look like ForeSite");
@@ -39,7 +39,7 @@ using (var cancelled = new CancellationTokenSource())
 
 var requested = new Recording();
 await ForeSiteAdapter.CheckAsync(Client(requested), Account, CancellationToken.None);
-Expect(requested.Path == "/prefix/SurfaceNetworkService/Asset/All" && requested.Method == HttpMethod.Get,
+Expect(requested.Paths.SequenceEqual(["/prefix/TokenService/CreateToken", "/prefix/SurfaceNetworkService/Asset/All"]) && requested.Method == HttpMethod.Get,
     "the check must be one read of the asset list under the connection's address");
 
 Expect(ForeSiteAdapter.BaseAddress(" http://fs.example/prefix ").AbsoluteUri == "http://fs.example/prefix/",
@@ -125,8 +125,30 @@ static async Task DiscoveryChecks()
     var empty = await ForeSiteAdapter.DiscoverAsync(Client(new Routes("[]", assets)), Account, CancellationToken.None);
     Expect(empty.Complete && empty.Items.Count == 0 && empty.Warnings.Count == 0, "a genuinely empty ForeSite is complete");
 
+    await TokenAndRefreshChecks();
     Expect(ForeSiteAdapter.Descriptor.CanDiscover && ForeSiteAdapter.Descriptor.GroupingFields!.Select(item => item.Key)
         .SequenceEqual(["assetName", "wellType", "deviceType", "field", "lease"]), "ForeSite declares discovery and its grouping facts");
+}
+
+
+static async Task TokenAndRefreshChecks()
+{
+    var flow = new TokenFlow();
+    using var client = Client(flow);
+    var result = await ForeSiteAdapter.CheckAsync(client, Account, CancellationToken.None);
+    Expect(result.Outcome == AdapterTestOutcomes.Healthy, "refresh handshake should pass");
+    Expect(flow.Paths.SequenceEqual([
+        "/prefix/TokenService/CreateToken", "/prefix/SurfaceNetworkService/Asset/All",
+        "/prefix/TokenService/CreateToken", "/prefix/SurfaceNetworkService/Asset/All"
+    ]), "one 401 causes exactly one refreshed token and one retry");
+    Expect(flow.Cookies.SequenceEqual(["", "session=first", "", "session=second"]),
+        "renewed cookie is sent only on subsequent requests");
+    var invalid = await ForeSiteAdapter.CheckAsync(Client(new Routes("[]", "<html>invalid</html>")), Account, CancellationToken.None);
+    Expect(invalid.Outcome == AdapterTestOutcomes.NeedsAttention && invalid.Message.Contains("valid JSON", StringComparison.Ordinal),
+        "HTML is not a healthy connection response");
+    var problem = await ForeSiteAdapter.CheckAsync(Client(new ErrorFlow()), Account, CancellationToken.None);
+    Expect(problem.Outcome == AdapterTestOutcomes.NeedsAttention &&
+        problem.Message.Contains("Known ForeSite problem", StringComparison.Ordinal), "FullErrorMessage is reported");
 }
 
 static async Task LiveIfConfigured()
@@ -145,10 +167,50 @@ static async Task LiveIfConfigured()
     Expect(result.Outcome == AdapterTestOutcomes.Healthy, "the live ForeSite did not report Healthy");
 }
 
+
+internal sealed class TokenFlow : HttpMessageHandler
+{
+    public List<string> Paths { get; } = [];
+    public List<string> Cookies { get; } = [];
+    private int _tokenCount;
+    private int _assetCount;
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var path = request.RequestUri!.AbsolutePath;
+        Paths.Add(path);
+        Cookies.Add(request.Headers.TryGetValues("Cookie", out var cookies) ? string.Join(";", cookies) : "");
+        if (path.EndsWith("/TokenService/CreateToken", StringComparison.Ordinal))
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK);
+            response.Headers.TryAddWithoutValidation("Set-Cookie", "session=" + (++_tokenCount == 1 ? "first" : "second") + "; Path=/");
+            return Task.FromResult(response);
+        }
+        if (++_assetCount == 1) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("[]", System.Text.Encoding.UTF8, "application/json")
+        });
+    }
+}
+
+internal sealed class ErrorFlow : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Task.FromResult(request.RequestUri!.AbsolutePath.EndsWith("/TokenService/CreateToken", StringComparison.Ordinal)
+            ? new HttpResponseMessage(HttpStatusCode.OK)
+            : new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent("""{"FullErrorMessage":"Known ForeSite problem"}""", System.Text.Encoding.UTF8, "application/json")
+            });
+}
+
 internal sealed class Stub(HttpStatusCode status) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-        Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("SECRET-BODY-TEXT") });
+        Task.FromResult(request.RequestUri!.AbsolutePath.EndsWith("/TokenService/CreateToken", StringComparison.Ordinal)
+            ? new HttpResponseMessage(HttpStatusCode.OK)
+            : new HttpResponseMessage(status) { Content = new StringContent(status == HttpStatusCode.OK ? "[]" : "SECRET-BODY-TEXT") });
 }
 
 internal sealed class Failing(Exception failure) : HttpMessageHandler
@@ -159,14 +221,14 @@ internal sealed class Failing(Exception failure) : HttpMessageHandler
 
 internal sealed class Recording : HttpMessageHandler
 {
-    public string? Path { get; private set; }
+    public List<string> Paths { get; } = [];
     public HttpMethod? Method { get; private set; }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        Path = request.RequestUri?.AbsolutePath;
+        Paths.Add(request.RequestUri!.AbsolutePath);
         Method = request.Method;
-        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") });
     }
 }
 
@@ -175,7 +237,8 @@ internal sealed class Routes(string wells, string? assets) : HttpMessageHandler
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var path = request.RequestUri!.AbsolutePath;
-        var body = path.EndsWith("/Wells/All", StringComparison.Ordinal) ? wells
+        var body = path.EndsWith("/TokenService/CreateToken", StringComparison.Ordinal) ? "{}"
+            : path.EndsWith("/Wells/All", StringComparison.Ordinal) ? wells
             : path.EndsWith("/SurfaceNetworkService/Asset/All", StringComparison.Ordinal) ? assets : null;
         return Task.FromResult(body is null
             ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
