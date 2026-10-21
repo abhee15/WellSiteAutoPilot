@@ -64,6 +64,25 @@ Each service is set to restart itself if it stops unexpectedly (after 5, 15 and 
 starts again after a day), including when it exits with an error. Stopping a service from Services (or `sc stop`)
 is a normal stop and is not restarted. Re-running the installer sets this up again.
 
+### PetroVisor sign-in for the Gateway
+
+The Integration Gateway signs in to PetroVisor as a service client on PetroVisor's identity server (the OAuth
+client-credentials grant), so it works unattended whatever way people sign in. A PetroVisor administrator creates
+the client with read access to the workspace; its id and secret are set for the Gateway service only, never in a
+connection. Until a protected setting is added to the installer, set them for the service (run as administrator):
+
+```powershell
+$key = 'HKLM:\SYSTEM\CurrentControlSet\Services\Weatherford.WellSiteAutoPilot.IntegrationGateway'
+Set-ItemProperty $key -Name Environment -Type MultiString -Value @(
+  'WSA_PETROVISOR_CLIENT_ID=<client id>', 'WSA_PETROVISOR_CLIENT_SECRET=<client secret>')
+Restart-Service Weatherford.WellSiteAutoPilot.IntegrationGateway
+```
+
+This replaces any other values already set for the service. Re-running the installer recreates the service, so run
+this again afterwards. Anyone who can read that registry key can read the secret; treat the client as read-only and
+rotate it if the computer is shared. In the connection, enter the identity server address (for example
+`https://identity.us1.petrovisor.com`, not the web app address) and the workspace name.
+
 ## HTTPS
 
 The installed Server serves **HTTPS only**; there is no plain HTTP option. (Development runs keep plain

@@ -25,8 +25,10 @@ public sealed class AdapterDiscoverer(IHttpClientFactory clients, IPetroVisorSes
         timeout.CancelAfter(Timeout);
         if (descriptor.Key == PetroVisorAdapter.Key)
         {
-            var reader = new PetroVisorSdkEntityReader(
-                petroVisorSessions, PetroVisorAdapter.DiscoveryAddress(settings[PetroVisorAdapter.EndpointSetting]!), PetroVisorAdapter.IdentityAddress(settings));
+            var address = PetroVisorAdapter.DiscoveryAddress(settings[PetroVisorAdapter.EndpointSetting]!);
+            if (PetroVisorAdapter.AddressProblem(address) is { } problem)
+                return new(false, [], [problem], petroVisorSessions.Identity);
+            var reader = new PetroVisorSdkEntityReader(petroVisorSessions, address, PetroVisorAdapter.IdentityAddress(settings));
             return await PetroVisorAdapter.DiscoverAsync(
                 reader, settings[PetroVisorAdapter.WorkspaceSetting]!.Trim(), petroVisorSessions.Identity, timeout.Token);
         }

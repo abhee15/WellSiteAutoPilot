@@ -24,15 +24,16 @@ public static class PetroVisorAdapter
         "which identity it uses is set up on the Gateway computer, never in a connection.",
         1,
         [
-            new AdapterSettingField(EndpointSetting, "PetroVisor address",
-                "The PetroVisor discovery service address, for example https://petrovisor.example.com/discovery.",
+            new AdapterSettingField(EndpointSetting, "PetroVisor identity server address",
+                "The address of the PetroVisor identity server, for example https://identity.us1.petrovisor.com. " +
+                "Not the web app or login page address; only the server part of what you enter is used.",
                 AdapterSettingKind.Url, true),
             new AdapterSettingField(WorkspaceSetting, "Workspace",
                 "Exact PetroVisor workspace name. Each saved connection is bound to one workspace.",
                 AdapterSettingKind.Text, true),
-            new AdapterSettingField(IdentitySetting, "Identity provider address",
-                "Where the Gateway signs in: the Keycloak realm address (for example https://login.example.com/realms/petrovisor) " +
-                "or its token address. Leave empty to ask PetroVisor.",
+            new AdapterSettingField(IdentitySetting, "Token address (optional)",
+                "Leave empty: the Gateway asks the identity server where to sign in. Only fill this in if the sign-in " +
+                "cannot be found automatically, with the full token address or the Keycloak realm address.",
                 AdapterSettingKind.Url, false)
         ],
         [new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Workspace entities")],
@@ -47,11 +48,44 @@ public static class PetroVisorAdapter
             : null;
     }
 
-    /// <summary>The discovery service address as the SDK wants it: absolute, with the trailing slash dropped.</summary>
+    /// <summary>
+    /// The identity server address as the SDK wants it. People paste whatever they have open in the browser (a login
+    /// page, a page of the app), so only the server part (scheme, host and port) is kept.
+    /// </summary>
     public static Uri DiscoveryAddress(string setting)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(setting);
-        return new Uri(setting.Trim().TrimEnd('/'), UriKind.Absolute);
+        var given = new Uri(setting.Trim(), UriKind.Absolute);
+        return new Uri(given.GetLeftPart(UriPartial.Authority), UriKind.Absolute);
+    }
+
+    /// <summary>
+    /// A plain-words reason when the address is the PetroVisor web app rather than its identity server, else null.
+    /// The web app is served from an "app." host; sign-in is not.
+    /// </summary>
+    public static string? AddressProblem(Uri address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return address.Host.StartsWith("app.", StringComparison.OrdinalIgnoreCase)
+            ? "That is the PetroVisor web app address, not its identity server. Enter the identity server address, for example https://identity.us1.petrovisor.com."
+            : null;
+    }
+
+    /// <summary>
+    /// What PetroVisor itself said, made safe to show: one line, no control characters, long token-like words and
+    /// addresses removed, and short. Used only when the failure has no better explanation.
+    /// </summary>
+    public static string SafeVendorReason(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        var words = (exception.Message ?? string.Empty)
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Where(word => word.Length < 40 && !word.Contains("://", StringComparison.Ordinal))
+            .Select(word => new string(word.Where(character => !char.IsControl(character)).ToArray()));
+        var text = string.Join(' ', words).Trim();
+        if (text.Length == 0)
+            return "PetroVisor gave no reason.";
+        return text.Length <= 200 ? text : text[..200] + "...";
     }
 
     public static async Task<DiscoveryResult> DiscoverAsync(
@@ -87,18 +121,18 @@ public static class PetroVisorAdapter
         {
             return Incomplete("The signed-in PetroVisor account is not permitted to read this workspace.", actingAs);
         }
-        catch (AuthenticationException)
+        catch (AuthenticationException exception)
         {
-            return Incomplete("PetroVisor did not accept the Gateway's sign-in.", actingAs);
+            return Incomplete("PetroVisor did not accept the Gateway's sign-in: " + SafeVendorReason(exception), actingAs);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
-            return Incomplete("PetroVisor could not be reached or refused the connection.", actingAs);
+            return Incomplete("PetroVisor could not be reached or refused the connection: " + SafeVendorReason(exception), actingAs);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // Do not expose vendor error responses, credentials, paths, or stack traces through discovery.
-            return Incomplete("PetroVisor entity discovery failed. Check the Gateway logs.", actingAs);
+            // The vendor's own reason (for example "user not found"), cleaned of anything token-like, so it can be acted on.
+            return Incomplete("PetroVisor entity discovery failed: " + SafeVendorReason(exception), actingAs);
         }
     }
 
@@ -131,18 +165,20 @@ public static class PetroVisorAdapter
             return new(AdapterTestOutcomes.NeedsAttention,
                 "The signed-in PetroVisor account is not permitted to read this workspace.", actingAs);
         }
-        catch (AuthenticationException)
+        catch (AuthenticationException exception)
         {
-            return new(AdapterTestOutcomes.NeedsAttention, "PetroVisor did not accept the Gateway's sign-in.", actingAs);
+            return new(AdapterTestOutcomes.NeedsAttention,
+                "PetroVisor did not accept the Gateway's sign-in: " + SafeVendorReason(exception), actingAs);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
-            return new(AdapterTestOutcomes.Unreachable, "PetroVisor could not be reached or refused the connection.", actingAs);
+            return new(AdapterTestOutcomes.Unreachable,
+                "PetroVisor could not be reached or refused the connection: " + SafeVendorReason(exception), actingAs);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // Vendor error text can carry addresses or tokens, so it is not passed on.
-            return new(AdapterTestOutcomes.NeedsAttention, "The PetroVisor check failed. Check the Gateway logs.", actingAs);
+            // The vendor's own reason (for example "user not found"), cleaned of anything token-like, so it can be acted on.
+            return new(AdapterTestOutcomes.NeedsAttention, "The PetroVisor check failed: " + SafeVendorReason(exception), actingAs);
         }
     }
 

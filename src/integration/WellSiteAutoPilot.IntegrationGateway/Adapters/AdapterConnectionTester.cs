@@ -68,8 +68,10 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients, IPetroVi
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Timeout);
-        var reader = new PetroVisorSdkEntityReader(
-            petroVisorSessions, PetroVisorAdapter.DiscoveryAddress(settings[PetroVisorAdapter.EndpointSetting]!), PetroVisorAdapter.IdentityAddress(settings));
+        var address = PetroVisorAdapter.DiscoveryAddress(settings[PetroVisorAdapter.EndpointSetting]!);
+        if (PetroVisorAdapter.AddressProblem(address) is { } problem)
+            return new(AdapterTestOutcomes.NeedsAttention, problem, petroVisorSessions.Identity);
+        var reader = new PetroVisorSdkEntityReader(petroVisorSessions, address, PetroVisorAdapter.IdentityAddress(settings));
         return await PetroVisorAdapter.CheckAsync(
             reader, settings[PetroVisorAdapter.WorkspaceSetting]!.Trim(), petroVisorSessions.Identity, timeout.Token);
     }
