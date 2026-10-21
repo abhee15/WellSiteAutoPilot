@@ -76,51 +76,117 @@ static async Task Case(HttpStatusCode status, string outcome, string messagePart
 
 static async Task DiscoveryChecks()
 {
-    var scoped = new AssetScopeRoutes("""[{"id":7,"name":"North"},{"id":0,"name":"Unassigned"}]""");
-    var found = await ForeSiteAdapter.DiscoverAsync(Client(scoped), Account, CancellationToken.None);
-    Expect(!found.Complete && found.Items.Count == 0 && found.Warnings.Count == 1 &&
-           found.Warnings[0].Contains("asset-scoped", StringComparison.Ordinal),
-        "discovery remains incomplete until the verified asset-filtered well and control-group contracts exist");
-    Expect(scoped.Paths.SequenceEqual([
-        "/prefix/TokenService/CreateToken", "/prefix/SurfaceNetworkService/Asset/All"
-    ]), "discovery reads accessible assets first and never calls the global Wells/All endpoint");
+    // Sanitized ForeSite DTO shapes from poc/foresite-asset-discovery (WellFilterDTO and
+    // WellConfig.GetWellAutonomousControlGroupData). Neither endpoint enumerates Wells/All.
+    const string assets = """[{"Id":0,"Name":"Not Mapped"},{"Id":1,"Name":"North"},{"Id":2,"Name":"South"}]""";
+    const string wells = """
+        [{"Id":101,"Name":"Alpha 1","AssetId":1,"WellType":1,"Field":"Alpha","Lease":"L-1","FacilityId":"RPOC_0070"},
+         {"Id":102,"Name":"Alpha 2","AssetId":2,"WellType":2,"PrincipalDeviceType":"RPC"},
+         {"Id":103,"Name":"Loose 1","AssetId":null,"WellType":10},
+         {"Id":104,"Name":"Alpha 4","AssetId":1,"WellType":1,"PrincipalDeviceType":"WFordKS"},
+         {"AssetId":2,"Name":"No ID"}]
+        """;
+    const string devices = """
+        {"Units":null,"Values":[
+          {"WellId":101,"DeviceType":"LufkinSam","LogicEnabled":true},
+          {"WellId":102,"DeviceType":"AEBEAM"},
+          {"WellId":103,"DeviceType":null},
+          {"WellId":104,"DeviceType":""}]}
+        """;
 
-    var empty = await ForeSiteAdapter.DiscoverAsync(Client(new AssetScopeRoutes("[]")), Account, CancellationToken.None);
-    Expect(empty.Complete && empty.Items.Count == 0 && empty.Warnings.Count == 0,
-        "an explicitly empty accessible-asset list is a complete empty result");
+    var routes = new ScopedRoutes(assets, wells, devices);
+    var found = await ForeSiteAdapter.DiscoverAsync(Client(routes), Account, CancellationToken.None);
+    Expect(found.Complete && found.ActingAs == Account && found.Items.Count == 4,
+        "scoped discovery includes mapped/unmapped wells and skips entries without id");
+    Expect(found.Warnings.Count == 1 && found.Warnings[0].Contains("valid id", StringComparison.Ordinal),
+        "an invalid well id gets a safe warning");
+    Expect(routes.Paths.SequenceEqual([
+        "/prefix/TokenService/CreateToken", "/prefix/Wells/UserAssets",
+        "/prefix/Wells/Well/Filter", "/prefix/WellConfig/GetWellAutonomousControlGroupData"
+    ]), "discovery performs token, UserAssets and two scoped POSTs; never Wells/All");
+    Expect(routes.Methods.SequenceEqual(["GET", "GET", "POST", "POST"]),
+        "the ForeSite filtered wells and control-group operations require POST");
+    Expect(routes.FilterBodies.Count == 2 &&
+           routes.FilterBodies.All(body => body == "[0,1,2]"),
+        "exact accessible asset scope including 0 is passed to both APIs");
 
-    foreach (var malformedScope in new[] { """[{"name":"No ID"}]""", """[{"id":-1}]""", "null" })
+    var first = found.Items.Single(item => item.ExternalId == "101");
+    Expect(first.ProviderType == ForeSiteAdapter.WellResourceKind && first.DisplayName == "Alpha 1" &&
+           first.Metadata["assetName"] == "North" && first.Metadata["assetId"] == "1" &&
+           first.Metadata["wellType"] == "RRL" && first.Metadata["wellTypeId"] == "1" &&
+           first.Metadata["deviceType"] == "LufkinSam" && first.Metadata["facilityId"] == "RPOC_0070" &&
+           first.Metadata["field"] == "Alpha" && first.Metadata["lease"] == "L-1",
+        "well details and autonomous-control device type are joined by WellId");
+    var second = found.Items.Single(item => item.ExternalId == "102");
+    Expect(second.Metadata["wellType"] == "ESP" && second.Metadata["deviceType"] == "AEBEAM",
+        "control-group device type takes precedence over the WellDTO fallback");
+    var unmapped = found.Items.Single(item => item.ExternalId == "103");
+    Expect(unmapped.Metadata["assetName"] == "Not Mapped" && !unmapped.Metadata.ContainsKey("assetId") &&
+           !unmapped.Metadata.ContainsKey("deviceType") && unmapped.Metadata["wellType"] == "PCP",
+        "null AssetId belongs to explicitly authorized pseudo-asset 0 and blank device type stays unknown");
+    Expect(found.Items.Single(item => item.ExternalId == "104").Metadata["deviceType"] == "WFordKS",
+        "a populated PrincipalDeviceType is only the fallback when control-group device type is blank");
+
+    var zeroOnly = new ScopedRoutes("""[{"Id":0,"Name":"Not Mapped"}]""",
+        """[{"Id":50,"Name":"Loose","AssetId":null}]""", """{"Values":[]}""");
+    var zeroResult = await ForeSiteAdapter.DiscoverAsync(Client(zeroOnly), Account, CancellationToken.None);
+    Expect(zeroResult.Complete && zeroResult.Items.Single().ExternalId == "50" &&
+           zeroOnly.FilterBodies.All(body => body == "[0]"), "0-only authorized scope is supported");
+
+    var emptyRoutes = new ScopedRoutes("[]", wells, devices);
+    var empty = await ForeSiteAdapter.DiscoverAsync(Client(emptyRoutes), Account, CancellationToken.None);
+    Expect(empty.Complete && empty.Items.Count == 0 && emptyRoutes.Paths.Count == 2,
+        "zero accessible assets returns no wells and never sends an empty filter (which can mean all wells)");
+
+    var unauthorized = new ScopedRoutes("""[{"Id":1,"Name":"North"}]""",
+        """[{"Id":99,"AssetId":2}]""", devices);
+    var refusedScope = await ForeSiteAdapter.DiscoverAsync(Client(unauthorized), Account, CancellationToken.None);
+    Expect(!refusedScope.Complete && refusedScope.Items.Count == 0 && unauthorized.FilterBodies.SequenceEqual(["[1]"]),
+        "even an out-of-scope record returned by ForeSite is rejected before discovery");
+
+    var unauthorizedUnmapped = new ScopedRoutes("""[{"Id":1,"Name":"North"}]""",
+        """[{"Id":99,"AssetId":null}]""", devices);
+    var rejectedUnmapped = await ForeSiteAdapter.DiscoverAsync(Client(unauthorizedUnmapped), Account, CancellationToken.None);
+    Expect(!rejectedUnmapped.Complete && rejectedUnmapped.Items.Count == 0,
+        "unmapped wells must not be included when UserAssets did not authorize 0");
+
+    var noDevices = await ForeSiteAdapter.DiscoverAsync(
+        Client(new ScopedRoutes(assets, wells, "{}", deviceStatus: HttpStatusCode.ServiceUnavailable)),
+        Account, CancellationToken.None);
+    Expect(noDevices.Complete && noDevices.Items.Count == 4 &&
+           noDevices.Warnings.Any(item => item.Contains("control-group", StringComparison.Ordinal)) &&
+           noDevices.Items.Single(item => item.ExternalId == "104").Metadata["deviceType"] == "WFordKS",
+        "a failed optional device-type read warns but retains a complete scoped well inventory");
+
+    var brokenWells = await ForeSiteAdapter.DiscoverAsync(
+        Client(new ScopedRoutes(assets, wells, devices, wellStatus: HttpStatusCode.ServiceUnavailable)),
+        Account, CancellationToken.None);
+    Expect(!brokenWells.Complete && brokenWells.Items.Count == 0,
+        "a failed scoped well filter never becomes an empty complete inventory");
+
+    foreach (var malformed in new[] { "null", """[{"Name":"No ID"}]""", """[{"Id":-1}]""", "<html>broken</html>" })
     {
         var invalid = await ForeSiteAdapter.DiscoverAsync(
-            Client(new AssetScopeRoutes(malformedScope)), Account, CancellationToken.None);
-        Expect(!invalid.Complete && invalid.Items.Count == 0 && invalid.Warnings.Count == 1,
-            "malformed scope must never masquerade as an empty complete discovery");
+            Client(new ScopedRoutes(malformed, wells, devices)), Account, CancellationToken.None);
+        Expect(!invalid.Complete && invalid.Items.Count == 0, "invalid accessible asset list must fail closed");
     }
-
     foreach (var status in new[] { HttpStatusCode.Unauthorized, HttpStatusCode.NotFound, HttpStatusCode.InternalServerError })
     {
         var failed = await ForeSiteAdapter.DiscoverAsync(Client(new Stub(status)), Account, CancellationToken.None);
-        Expect(!failed.Complete && failed.Items.Count == 0 && failed.Warnings.Count == 1,
-            "failed asset-scope discovery is incomplete");
-        Expect(!failed.Warnings[0].Contains(Leaky, StringComparison.Ordinal),
-            "provider error body must not leak to discovery warnings");
+        Expect(!failed.Complete && failed.Items.Count == 0 && failed.Warnings.Count == 1 &&
+               !failed.Warnings[0].Contains(Leaky, StringComparison.Ordinal),
+            "non-success asset scope stays incomplete with no provider-body disclosure");
     }
-
-    var badResponse = await ForeSiteAdapter.DiscoverAsync(
-        Client(new AssetScopeRoutes("<html>not-json</html>")), Account, CancellationToken.None);
-    Expect(!badResponse.Complete && badResponse.Items.Count == 0,
-        "non-JSON accessible-asset responses never become complete inventories");
 
     var unreachable = await ForeSiteAdapter.DiscoverAsync(
         Client(new Failing(new HttpRequestException("no route"))), Account, CancellationToken.None);
-    Expect(!unreachable.Complete && unreachable.Items.Count == 0 &&
-           !unreachable.Warnings[0].Contains("no route", StringComparison.Ordinal),
-        "transport failures do not leak details or become complete inventories");
+    Expect(!unreachable.Complete && !unreachable.Warnings[0].Contains("no route", StringComparison.Ordinal),
+        "transport failures do not expose internal messages");
 
     await TokenAndRefreshChecks();
     Expect(ForeSiteAdapter.Descriptor.CanDiscover && ForeSiteAdapter.Descriptor.GroupingFields!.Select(item => item.Key)
         .SequenceEqual(["assetName", "wellType", "deviceType", "field", "lease"]),
-        "existing descriptor remains available while scoped discovery is being verified");
+        "ForeSite discovery exposes unchanged grouping fields");
 }
 
 static async Task TokenAndRefreshChecks()
@@ -135,7 +201,7 @@ static async Task TokenAndRefreshChecks()
     ]), "one 401 causes exactly one refreshed token and one retry");
     Expect(flow.Cookies.SequenceEqual(["", "session=first", "", "session=second"]),
         "renewed cookie is sent only on subsequent requests");
-    var invalid = await ForeSiteAdapter.CheckAsync(Client(new Routes("[]", "<html>invalid</html>")), Account, CancellationToken.None);
+    var invalid = await ForeSiteAdapter.CheckAsync(Client(new ScopedRoutes("[]", "[]", """{"Values":[]}""", health: "<html>invalid</html>")), Account, CancellationToken.None);
     Expect(invalid.Outcome == AdapterTestOutcomes.NeedsAttention && invalid.Message.Contains("valid JSON", StringComparison.Ordinal),
         "HTML is not a healthy connection response");
     var problem = await ForeSiteAdapter.CheckAsync(Client(new ErrorFlow()), Account, CancellationToken.None);
@@ -224,35 +290,51 @@ internal sealed class Recording : HttpMessageHandler
     }
 }
 
-internal sealed class AssetScopeRoutes(string assets) : HttpMessageHandler
+internal sealed class ScopedRoutes(
+    string assets, string wells, string devices,
+    HttpStatusCode? wellStatus = null, HttpStatusCode? deviceStatus = null, string? health = null) : HttpMessageHandler
 {
     public List<string> Paths { get; } = [];
+    public List<string> Methods { get; } = [];
+    public List<string> FilterBodies { get; } = [];
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var path = request.RequestUri!.AbsolutePath;
         Paths.Add(path);
-        var body = path.EndsWith("/TokenService/CreateToken", StringComparison.Ordinal) ? "{}"
-            : path.EndsWith("/SurfaceNetworkService/Asset/All", StringComparison.Ordinal) ? assets : null;
-        return Task.FromResult(body is null
-            ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
-            : new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
-            });
-    }
-}
+        Methods.Add(request.Method.Method);
+        if (path.EndsWith("/TokenService/CreateToken", StringComparison.Ordinal))
+            return Json("{}");
 
-internal sealed class Routes(string wells, string? assets) : HttpMessageHandler
-{
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        var path = request.RequestUri!.AbsolutePath;
-        var body = path.EndsWith("/TokenService/CreateToken", StringComparison.Ordinal) ? "{}"
-            : path.EndsWith("/Wells/All", StringComparison.Ordinal) ? wells
-            : path.EndsWith("/SurfaceNetworkService/Asset/All", StringComparison.Ordinal) ? assets : null;
-        return Task.FromResult(body is null
-            ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
-            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+        if (path.EndsWith("/SurfaceNetworkService/Asset/All", StringComparison.Ordinal))
+            return Json(health ?? "[]");
+
+        if (path.EndsWith("/Wells/UserAssets", StringComparison.Ordinal))
+            return Json(assets);
+
+        if (path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal) ||
+            path.EndsWith("/WellConfig/GetWellAutonomousControlGroupData", StringComparison.Ordinal))
+        {
+            Expect(request.Method == HttpMethod.Post && request.Content is not null,
+                "ForeSite scoped endpoints require POST with a JSON body");
+            using var doc = System.Text.Json.JsonDocument.Parse(
+                await request.Content!.ReadAsStringAsync(cancellationToken));
+            var ids = doc.RootElement.GetProperty("assetIds")
+                .EnumerateArray().Select(item => item.GetInt64()).ToArray();
+            FilterBodies.Add(System.Text.Json.JsonSerializer.Serialize(ids));
+
+            if (path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal))
+                return wellStatus is { } badWell ? new HttpResponseMessage(badWell) : Json(wells);
+            return deviceStatus is { } badDevice ? new HttpResponseMessage(badDevice) : Json(devices);
+        }
+
+        // In particular, a request to Wells/All is never allowed.
+        throw new InvalidOperationException("Unexpected ForeSite request: " + path);
     }
+
+    private static HttpResponseMessage Json(string content) => new(HttpStatusCode.OK)
+    {
+        Content = new StringContent(content, System.Text.Encoding.UTF8, "application/json")
+    };
 }
