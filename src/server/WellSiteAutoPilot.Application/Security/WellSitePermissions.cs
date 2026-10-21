@@ -17,6 +17,7 @@ public static class WellSitePermissions
     public const string AssetTypesHide = "asset-types.hide";
     public const string ConnectionsRead = "connections.read";
     public const string ConnectionsManage = "connections.manage";
+    public const string AssetViewsShare = "asset-views.share";
 
     public static IReadOnlyCollection<string> All { get; } =
     [
@@ -34,6 +35,7 @@ public static class WellSitePermissions
         AssetTypesManage,
         AssetTypesHide,
         ConnectionsRead,
-        ConnectionsManage
+        ConnectionsManage,
+        AssetViewsShare
     ];
 }

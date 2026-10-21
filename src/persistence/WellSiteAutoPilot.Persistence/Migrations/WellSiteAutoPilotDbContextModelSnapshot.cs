@@ -68,7 +68,9 @@ sealed partial class WellSiteAutoPilotDbContextModelSnapshot : ModelSnapshot
                 entity.Property<Guid>("OwnerUserId").HasColumnType("uuid");
                 entity.Property<int>("Revision").HasColumnType("integer");
                 entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                entity.Property<int>("Visibility").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(0);
                 entity.HasKey("Id");
+                entity.HasIndex("NormalizedName", "IX_asset_views_NormalizedName_Shared").IsUnique().HasFilter("\"Visibility\" = 1");
                 entity.HasIndex("OwnerUserId", "NormalizedName").IsUnique();
                 entity.ToTable("asset_views", "assets");
             });

@@ -6,6 +6,7 @@ public sealed class AssetViewEntity
     public Guid OwnerUserId { get; init; }
     public string Name { get; set; } = string.Empty;
     public string NormalizedName { get; set; } = string.Empty;
+    public int Visibility { get; set; }
     public string DefinitionJson { get; set; } = "{}";
     public int Revision { get; set; }
     public DateTimeOffset CreatedAtUtc { get; init; }

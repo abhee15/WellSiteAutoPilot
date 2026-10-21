@@ -20,6 +20,7 @@ public static class WellSitePolicies
     public const string AssetTypesHide = WellSitePermissions.AssetTypesHide;
     public const string ConnectionsRead = WellSitePermissions.ConnectionsRead;
     public const string ConnectionsManage = WellSitePermissions.ConnectionsManage;
+    public const string AssetViewsShare = WellSitePermissions.AssetViewsShare;
 
     /// <summary>Platform service detail: for people who administer connections or security.</summary>
     public const string SystemStatusRead = "system-status.read";

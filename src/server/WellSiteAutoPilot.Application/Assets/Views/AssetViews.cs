@@ -8,6 +8,16 @@ public static class AssetViewFailureCodes
     public const string NameConflict = "ASSET_VIEW_NAME_CONFLICT";
     public const string StaleRevision = "ASSET_VIEW_REVISION_STALE";
     public const string LimitReached = "ASSET_VIEW_LIMIT_REACHED";
+    public const string ShareForbidden = "ASSET_VIEW_SHARE_FORBIDDEN";
+    public const string SharedNameConflict = "ASSET_VIEW_SHARED_NAME_CONFLICT";
+    public const string SharedLimitReached = "ASSET_VIEW_SHARED_LIMIT_REACHED";
+}
+
+/// <summary>Who can see a View. Personal is the owner alone; Shared is everyone who may read Assets (each seeing only what they may already see).</summary>
+public enum AssetViewVisibility
+{
+    Personal = 0,
+    Shared = 1
 }
 
 /// <summary>
@@ -24,8 +34,8 @@ public sealed record AssetViewDefinition(
     IReadOnlyList<string> Grouping);
 
 public sealed record AssetViewRecord(
-    Guid Id, Guid OwnerUserId, string Name, AssetViewDefinition Definition, int Revision,
-    DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc);
+    Guid Id, Guid OwnerUserId, string OwnerName, AssetViewVisibility Visibility, string Name, AssetViewDefinition Definition,
+    int Revision, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc);
 
 /// <summary>One group at the next level of a View: a stable key to pass back, a readable label and how many Assets it holds.</summary>
 public sealed record AssetViewGroup(string Key, string Label, int Count);
@@ -42,6 +52,7 @@ public static class AssetViewDefinitionRules
     public const string ByStatus = "status";
     public const int MaximumNameLength = 48;
     public const int MaximumViewsPerPerson = 50;
+    public const int MaximumSharedViews = 100;
     public const int MaximumSearchLength = 120;
     private const int MaximumGroupingLevels = 3;
     private const int MaximumListed = 100;
@@ -87,19 +98,29 @@ public static class AssetViewDefinitionRules
         new(FailureCodes.ValidationFailed, FailureKind.Validation, message);
 }
 
-/// <summary>Views are personal: every call is scoped to the owner, so one person can never read or change another's.</summary>
+/// <summary>
+/// Views are personal unless their owner shares them. Reads are by viewer (own Views plus Shared ones); writes are by
+/// owner, with an administrator exception to remove or unshare someone else's Shared View.
+/// </summary>
 public interface IAssetViewRepository
 {
-    Task<IReadOnlyList<AssetViewRecord>> ListAsync(Guid ownerUserId, CancellationToken cancellationToken = default);
+    /// <summary>The viewer's own Views and everyone's Shared Views, own first then by name.</summary>
+    Task<IReadOnlyList<AssetViewRecord>> ListAsync(Guid viewerUserId, CancellationToken cancellationToken = default);
 
-    Task<AssetViewRecord?> FindAsync(Guid ownerUserId, Guid id, CancellationToken cancellationToken = default);
+    /// <summary>The viewer's own View, or a Shared one. Another person's Personal View is never returned.</summary>
+    Task<AssetViewRecord?> FindAsync(Guid viewerUserId, Guid id, CancellationToken cancellationToken = default);
 
     Task<AssetViewRecord> CreateAsync(Guid ownerUserId, string name, AssetViewDefinition definition,
+        AssetViewVisibility visibility, CancellationToken cancellationToken = default);
+
+    /// <summary>Owner only. Refused as stale when <paramref name="expectedRevision"/> is not the stored revision.</summary>
+    Task<AssetViewRecord> UpdateAsync(Guid ownerUserId, Guid id, int expectedRevision, string name,
+        AssetViewDefinition definition, AssetViewVisibility visibility, CancellationToken cancellationToken = default);
+
+    /// <summary>The owner, or an administrator for a Shared View.</summary>
+    Task DeleteAsync(Guid callerUserId, bool asAdministrator, Guid id, int expectedRevision,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Refused as stale when <paramref name="expectedRevision"/> is not the stored revision.</summary>
-    Task<AssetViewRecord> UpdateAsync(Guid ownerUserId, Guid id, int expectedRevision, string name,
-        AssetViewDefinition definition, CancellationToken cancellationToken = default);
-
-    Task DeleteAsync(Guid ownerUserId, Guid id, int expectedRevision, CancellationToken cancellationToken = default);
+    /// <summary>An administrator makes someone's Shared View Personal again. Does nothing to a Personal View.</summary>
+    Task<AssetViewRecord> UnshareAsync(Guid id, CancellationToken cancellationToken = default);
 }
