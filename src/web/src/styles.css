@@ -1053,3 +1053,61 @@ button:disabled {
     min-height: 44px;
   }
 }
+
+/* Shared control primitives. Zero specificity (:where), so any component rule still wins; they only
+   replace the browser defaults that used to show through (native boxes, 13px text, default-blue links). */
+:where(a) {
+  color: var(--color-text-link);
+  text-underline-offset: 0.18em;
+}
+
+:where(a:hover) {
+  color: var(--color-text-selected);
+}
+
+:where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='hidden']), select, textarea) {
+  min-height: 36px;
+  padding: 7px var(--space-10);
+  border: var(--border-width-thin) solid var(--color-border-control);
+  border-radius: var(--radius-6);
+  background: var(--color-surface-input);
+  color: var(--color-text-control);
+  font: inherit;
+  font-size: var(--font-size-body-small);
+}
+
+:where(textarea) {
+  min-height: 72px;
+}
+
+:where(input, textarea)::placeholder {
+  color: var(--color-text-placeholder);
+  opacity: 1;
+}
+
+:where(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--color-surface-accent);
+  inline-size: 16px;
+  block-size: 16px;
+  margin: 0;
+  flex: none;
+}
+
+:where(input, select, textarea, button, summary, a, [tabindex]):focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(input, select, textarea):disabled {
+  background: var(--color-surface-disabled);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+/* A disabled primary action reads as unavailable without fading to a washed-out accent. */
+.primary-button:disabled {
+  background: var(--color-surface-disabled);
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-disabled);
+  opacity: 1;
+}

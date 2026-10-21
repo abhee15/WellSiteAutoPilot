@@ -49,9 +49,9 @@ const color = name => {
 
 test('text meets 4.5:1 on every surface it is drawn on', () => {
   const surfaces = ['canvas', 'panel', 'input', 'detail', 'table-head', 'row-hover', 'navigation-active',
-    'secondary-hover', 'control-hover', 'code'].map(name => '--color-surface-' + name);
+    'secondary-hover', 'control-hover', 'code', 'disabled'].map(name => '--color-surface-' + name);
   const text = ['primary', 'muted', 'secondary', 'subtle', 'tertiary', 'detail-label', 'permission-hint',
-    'navigation', 'control', 'link', 'selected', 'warning', 'warning-strong'].map(name => '--color-text-' + name);
+    'navigation', 'control', 'link', 'selected', 'warning', 'warning-strong', 'disabled', 'placeholder'].map(name => '--color-text-' + name);
   for (const surface of surfaces) {
     for (const foreground of text) {
       // Muted/hint text is not drawn on the hover/active fills of controls.
