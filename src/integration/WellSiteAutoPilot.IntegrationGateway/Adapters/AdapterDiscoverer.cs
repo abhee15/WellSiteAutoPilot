@@ -26,7 +26,7 @@ public sealed class AdapterDiscoverer(IHttpClientFactory clients, IPetroVisorSes
         if (descriptor.Key == PetroVisorAdapter.Key)
         {
             var reader = new PetroVisorSdkEntityReader(
-                petroVisorSessions, PetroVisorAdapter.DiscoveryAddress(settings[PetroVisorAdapter.EndpointSetting]!));
+                petroVisorSessions, PetroVisorAdapter.DiscoveryAddress(settings[PetroVisorAdapter.EndpointSetting]!), PetroVisorAdapter.IdentityAddress(settings));
             return await PetroVisorAdapter.DiscoverAsync(
                 reader, settings[PetroVisorAdapter.WorkspaceSetting]!.Trim(), petroVisorSessions.Identity, timeout.Token);
         }

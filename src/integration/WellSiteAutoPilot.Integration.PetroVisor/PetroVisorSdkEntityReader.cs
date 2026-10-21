@@ -4,12 +4,12 @@ using MyrConn.PetroVisorFramework.API.Entities;
 namespace WellSiteAutoPilot.Integration.PetroVisor;
 
 /// <summary>Reads entity names and types from a workspace through the SDK. Read-only: it never calls Save, Delete or Acquire.</summary>
-public sealed class PetroVisorSdkEntityReader(IPetroVisorSessionFactory sessions, Uri discoveryServiceUrl) : IPetroVisorEntityReader
+public sealed class PetroVisorSdkEntityReader(IPetroVisorSessionFactory sessions, Uri discoveryServiceUrl, Uri? identityProvider = null) : IPetroVisorEntityReader
 {
     public async Task<IReadOnlyCollection<PetroVisorEntitySnapshot>> ReadEntitiesAsync(
         string workspace, CancellationToken cancellationToken)
     {
-        var provider = sessions.Create(discoveryServiceUrl, workspace);
+        var provider = sessions.Create(discoveryServiceUrl, workspace, identityProvider);
         try
         {
             var service = provider.RepositoryServices.Get<Entity>();
@@ -26,7 +26,7 @@ public sealed class PetroVisorSdkEntityReader(IPetroVisorSessionFactory sessions
 
     public async Task<int> CountEntityTypesAsync(string workspace, CancellationToken cancellationToken)
     {
-        var provider = sessions.Create(discoveryServiceUrl, workspace);
+        var provider = sessions.Create(discoveryServiceUrl, workspace, identityProvider);
         try
         {
             var service = provider.RepositoryServices.Get<EntityType>();

@@ -19,7 +19,9 @@ builder.Services.AddHttpClient("adapter-test");
 builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true, UseCookies = false });
 builder.Services.AddSingleton<IPetroVisorSessionFactory>(
-    new PetroVisorPasswordSessionFactory(Environment.GetEnvironmentVariable));
+    PetroVisorKeycloakSessionFactory.IsConfigured(Environment.GetEnvironmentVariable)
+        ? new PetroVisorKeycloakSessionFactory(Environment.GetEnvironmentVariable)
+        : new PetroVisorPasswordSessionFactory(Environment.GetEnvironmentVariable));
 builder.Services.AddTransient<AdapterConnectionTester>();
 builder.Services.AddTransient<AdapterDiscoverer>();
 

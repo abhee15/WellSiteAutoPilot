@@ -11,7 +11,7 @@ public interface IPetroVisorSessionFactory
     /// <summary>The identity PetroVisor will see, stated on connection tests. Never a secret.</summary>
     string Identity { get; }
 
-    PetroVisorServiceProvider Create(Uri discoveryServiceUrl, string workspace);
+    PetroVisorServiceProvider Create(Uri discoveryServiceUrl, string workspace, Uri? identityProvider = null);
 }
 
 /// <summary>The Gateway has no way to sign in to PetroVisor yet. The message is safe to show.</summary>
@@ -29,7 +29,7 @@ public sealed class PetroVisorPasswordSessionFactory(Func<string, string?> envir
 
     public string Identity => environment(UserVariable) is { Length: > 0 } user ? user : "(no PetroVisor sign-in configured)";
 
-    public PetroVisorServiceProvider Create(Uri discoveryServiceUrl, string workspace)
+    public PetroVisorServiceProvider Create(Uri discoveryServiceUrl, string workspace, Uri? identityProvider = null)
     {
         ArgumentNullException.ThrowIfNull(discoveryServiceUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(workspace);

@@ -482,3 +482,21 @@ single transaction, not in storing what was found.
 ### 15.x Built (web)
 
 The Find screen now shows the total found, a filter per grouping field (with counts) and a search box. Both ask the Server to narrow the kept list (`/discover/search`) rather than filtering the first 1,000 in the browser. Review and Import pass the same snapshot, words and chosen values, so only the chosen part is planned and imported. Changing the choice discards a review that no longer matches. An expired list asks the user to find again.
+
+## 16. PetroVisor sign-in
+
+PetroVisor is deployed in the vendor's cloud and sends people to an identity provider (Keycloak), which decides whether
+they sign in with its own accounts or with federated Windows identity. The Gateway runs unattended, so it cannot follow
+that browser redirect. Decision:
+
+- The Gateway signs in as a **service account on the same identity provider** (OAuth client-credentials grant). The
+  identity provider's own people-facing methods do not matter to it.
+- The connection carries only the PetroVisor address, the workspace and an optional **identity provider address** (the
+  Keycloak realm address, or its token address). Left empty, PetroVisor's discovery service says where to sign in.
+- The client id and secret are set in the Gateway service's environment (`WSA_PETROVISOR_CLIENT_ID`,
+  `WSA_PETROVISOR_CLIENT_SECRET`), never in a connection, like the other adapters' credentials.
+- The screen states the identity PetroVisor sees ("service account ..."). Per-person identity (a person signing in once
+  and the Gateway holding their refresh token) is deliberately not built: it stores a per-person secret and needs a
+  "sign in again" flow. It can be added later behind the same seam.
+- The testing-only user name and password sign-in stays as a fallback while no client is configured, and is removed
+  once the service account is proven in the user's environment.

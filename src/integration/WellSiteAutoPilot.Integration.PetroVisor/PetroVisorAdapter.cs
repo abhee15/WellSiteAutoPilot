@@ -15,6 +15,7 @@ public static class PetroVisorAdapter
     public const string Key = "petrovisor";
     public const string WorkspaceSetting = "workspace";
     public const string EndpointSetting = "baseUrl";
+    public const string IdentitySetting = "identityUrl";
     public const string ResourceKind = "petrovisor.entity";
 
     public static AdapterDescriptor Descriptor { get; } = new(
@@ -28,10 +29,23 @@ public static class PetroVisorAdapter
                 AdapterSettingKind.Url, true),
             new AdapterSettingField(WorkspaceSetting, "Workspace",
                 "Exact PetroVisor workspace name. Each saved connection is bound to one workspace.",
-                AdapterSettingKind.Text, true)
+                AdapterSettingKind.Text, true),
+            new AdapterSettingField(IdentitySetting, "Identity provider address",
+                "Where the Gateway signs in: the Keycloak realm address (for example https://login.example.com/realms/petrovisor) " +
+                "or its token address. Leave empty to ask PetroVisor.",
+                AdapterSettingKind.Url, false)
         ],
         [new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Workspace entities")],
         [new DiscoveryField("entityType", "Entity type", "Unspecified type")]);
+
+    /// <summary>The identity provider address from the connection, or null when it was left empty.</summary>
+    public static Uri? IdentityAddress(IReadOnlyDictionary<string, string?> settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return settings.TryGetValue(IdentitySetting, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? new Uri(value.Trim(), UriKind.Absolute)
+            : null;
+    }
 
     /// <summary>The discovery service address as the SDK wants it: absolute, with the trailing slash dropped.</summary>
     public static Uri DiscoveryAddress(string setting)
