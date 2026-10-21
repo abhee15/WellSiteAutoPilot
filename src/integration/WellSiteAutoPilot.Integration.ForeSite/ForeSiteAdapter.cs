@@ -25,6 +25,9 @@ public static class ForeSiteAdapter
     public const string CheckPath = "SurfaceNetworkService/Asset/All";
 
     public const string WellsPath = "Wells/All";
+    public const string WellDetailsPath = "Wells/Well/";
+    // Avoid an unbounded request per well in large installations.
+    private const int MaxDeviceDetailLookups = 25;
     public const string TokenPath = "TokenService/CreateToken";
 
     public static AdapterDescriptor Descriptor { get; } = new(
@@ -149,7 +152,12 @@ public static class ForeSiteAdapter
             warnings.Add($"{wells.Length - withId.Length} well(s) had no id and were skipped.");
         }
 
-        return new DiscoveryResult(true, withId.Select(well => ToDiscovered(well, assetNames)).ToArray(), warnings, actingAs);
+        // Prefer the bulk response; a bounded detail fallback fills missing device types without
+        // turning a large discovery into thousands of HTTP calls.
+        var details = await ReadMissingDeviceTypesAsync(session, withId, warnings, cancellationToken);
+        return new DiscoveryResult(true,
+            withId.Select(well => ToDiscovered(well, assetNames, details.GetValueOrDefault(well.Id!.Value))).ToArray(),
+            warnings, actingAs);
     }
 
     private const string SlowMessage =
@@ -270,7 +278,61 @@ public static class ForeSiteAdapter
         }
     }
 
-    private static DiscoveredAsset ToDiscovered(ForeSiteWell well, Dictionary<string, string> assetNames)
+    private static async Task<Dictionary<long, ForeSiteWell>> ReadMissingDeviceTypesAsync(
+        ForeSiteSession session, ForeSiteWell[] wells, List<string> warnings, CancellationToken cancellationToken)
+    {
+        var missing = wells.Where(well => DeviceTypeName(well) is null).ToArray();
+        var details = new Dictionary<long, ForeSiteWell>();
+        var failures = 0;
+        foreach (var well in missing.Take(MaxDeviceDetailLookups))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var id = well.Id!.Value;
+                using var response = await session.GetAsync(WellDetailsPath + id.ToString(CultureInfo.InvariantCulture), cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    failures++;
+                    continue;
+                }
+
+                var detail = await response.Content.ReadFromJsonAsync<ForeSiteWell>(JsonOptions, cancellationToken);
+                if (detail is null || DeviceTypeName(detail) is null)
+                {
+                    failures++;
+                    continue;
+                }
+                details.Add(id, detail);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                failures++;
+            }
+            catch (HttpRequestException)
+            {
+                failures++;
+            }
+            catch (ForeSiteTokenException)
+            {
+                failures++;
+            }
+            catch (JsonException)
+            {
+                failures++;
+            }
+        }
+
+        if (failures > 0)
+            warnings.Add($"Device type details could not be read for {failures} well(s); those wells remain discoverable.");
+        if (missing.Length > MaxDeviceDetailLookups)
+            warnings.Add($"Device type detail lookup was limited to {MaxDeviceDetailLookups} wells; " +
+                $"{missing.Length - MaxDeviceDetailLookups} additional well(s) have no discovered device type.");
+        return details;
+    }
+
+    private static DiscoveredAsset ToDiscovered(
+        ForeSiteWell well, Dictionary<string, string> assetNames, ForeSiteWell? detail)
     {
         var id = well.Id!.Value.ToString(CultureInfo.InvariantCulture);
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["wellId"] = id };
@@ -281,7 +343,14 @@ public static class ForeSiteAdapter
         }
 
         if (!string.IsNullOrWhiteSpace(well.Name)) metadata["wellName"] = well.Name;
-        if (!string.IsNullOrWhiteSpace(well.PrincipalDeviceType)) metadata["deviceType"] = well.PrincipalDeviceType;
+        AddDeviceFacts(metadata, well);
+        // Bulk facts win; the per-well response only fills absent fields.
+        if (detail is not null)
+        {
+            var detailFacts = new Dictionary<string, string>(StringComparer.Ordinal);
+            AddDeviceFacts(detailFacts, detail);
+            foreach (var fact in detailFacts) metadata.TryAdd(fact.Key, fact.Value);
+        }
         Put(metadata, "wellTypeId", well.WellType);
         if (well.WellType is { ValueKind: JsonValueKind.Number } type && type.TryGetInt64(out var typeId) &&
             WellTypes.TryGetValue(typeId, out var abbreviation))
@@ -295,6 +364,40 @@ public static class ForeSiteAdapter
         return new DiscoveredAsset(id, string.IsNullOrWhiteSpace(well.Name) ? $"Well {id}" : well.Name, WellResourceKind, null, metadata);
     }
 
+    private static void AddDeviceFacts(Dictionary<string, string> metadata, ForeSiteWell well)
+    {
+        var deviceType = DeviceTypeName(well);
+        if (deviceType is not null) metadata["deviceType"] = deviceType;
+        var typeId = Scalar(well.DeviceTypeId) ?? Member(well.PrincipalDeviceType, "Id") ?? Member(well.DeviceType, "Id");
+        if (typeId is not null) metadata["deviceTypeId"] = typeId;
+        var deviceName = Scalar(well.DeviceName) ?? Member(well.PrincipalDevice, "Name");
+        if (deviceName is not null) metadata["deviceName"] = deviceName;
+        var deviceId = Scalar(well.PrincipalDeviceId) ?? Member(well.PrincipalDevice, "Id");
+        if (deviceId is not null) metadata["deviceId"] = deviceId;
+    }
+
+    private static string? DeviceTypeName(ForeSiteWell well) =>
+        Scalar(well.PrincipalDeviceType) ?? Member(well.PrincipalDeviceType, "Name") ??
+        Scalar(well.DeviceType) ?? Member(well.DeviceType, "Name");
+
+    private static string? Scalar(JsonElement? value)
+    {
+        if (value is not { ValueKind: JsonValueKind.String or JsonValueKind.Number } element) return null;
+        var text = element.ToString().Trim();
+        return text.Length == 0 ? null : text;
+    }
+
+    private static string? Member(JsonElement? value, string member)
+    {
+        if (value is not { ValueKind: JsonValueKind.Object } element) return null;
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, member, StringComparison.OrdinalIgnoreCase))
+                return Scalar(property.Value);
+        }
+        return null;
+    }
+
     // Unexpected shapes are left out rather than fatal: ForeSite's WellDTO has about 70 fields and we read a few.
     private static void Put(Dictionary<string, string> metadata, string key, JsonElement? value)
     {
@@ -306,5 +409,8 @@ public static class ForeSiteAdapter
 
     private sealed record ForeSiteWell(
         long? Id, string? Name, JsonElement? AssetId, JsonElement? WellType, JsonElement? Field,
-        JsonElement? Lease, JsonElement? FacilityId, string? PrincipalDeviceType);
+        JsonElement? Lease, JsonElement? FacilityId, JsonElement? PrincipalDeviceType,
+        JsonElement? DeviceType = null, JsonElement? DeviceTypeId = null,
+        JsonElement? PrincipalDevice = null, JsonElement? PrincipalDeviceId = null,
+        JsonElement? DeviceName = null);
 }
