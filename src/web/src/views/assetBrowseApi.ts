@@ -1,4 +1,5 @@
 import type { AssetResponse } from '../api/generated/v1/types.gen';
+import type { OwnerGroup } from './assetHierarchy';
 
 /**
  * The workspace snapshot loads at most this many assets. When a deployment has that many or more
@@ -15,6 +16,7 @@ export interface BrowseNode {
   assetTypeId: string;
   name: string;
   parentAssetId: string | null;
+  ownerConnectionId: string | null;
   isActive: boolean;
   childCount: number;
 }
@@ -33,6 +35,7 @@ function toNode(value: unknown): BrowseNode | null {
     assetTypeId: typeof value.assetTypeId === 'string' ? value.assetTypeId : '',
     name: value.name,
     parentAssetId: typeof value.parentAssetId === 'string' ? value.parentAssetId : null,
+    ownerConnectionId: typeof value.ownerConnectionId === 'string' ? value.ownerConnectionId : null,
     isActive: value.isActive !== false,
     childCount: typeof value.childCount === 'number' ? value.childCount : 0,
   };
@@ -50,12 +53,17 @@ function nodes(value: unknown): BrowseNode[] {
   return value.map(toNode).filter((node): node is BrowseNode => node !== null);
 }
 
-/** The top level (parentId null) or the children of one asset. */
+/** Which top level to read: a Connection's assets, or the ones no Connection owns. */
+export type OwnerScope = { connectionId: string | null };
+
+/** The top level (parentId null) or the children of one asset; an owner scope narrows the top level. */
 export async function fetchChildren(
-  parentId: string | null, offset: number, signal: AbortSignal,
+  parentId: string | null, offset: number, signal: AbortSignal, owner?: OwnerScope,
 ): Promise<BrowseNode[]> {
   const query = `limit=${BROWSE_PAGE_SIZE}&offset=${offset}` +
-    (parentId ? `&parentAssetId=${encodeURIComponent(parentId)}` : '');
+    (parentId ? `&parentAssetId=${encodeURIComponent(parentId)}` : '') +
+    (!parentId && owner ? (owner.connectionId
+      ? `&ownerConnectionId=${encodeURIComponent(owner.connectionId)}` : '&standalone=true') : '');
   return nodes(await getJson(`/api/v1/assets/children?${query}`, signal));
 }
 
@@ -71,7 +79,7 @@ export async function fetchSearch(text: string, offset: number, signal: AbortSig
         ? [{ id: step.id, name: step.name }] : [])
       : [];
     return [{ id: node.id, assetTypeId: node.assetTypeId, name: node.name, parentAssetId: node.parentAssetId,
-      isActive: node.isActive, path }];
+      ownerConnectionId: node.ownerConnectionId, isActive: node.isActive, path }];
   });
 }
 
@@ -99,5 +107,23 @@ export async function fetchAncestors(asset: AssetResponse, signal: AbortSignal):
 /** A hierarchy node in the shape the asset page already understands. */
 export function nodeAsAsset(node: BrowseNode): AssetResponse {
   return { id: node.id, assetTypeId: node.assetTypeId, name: node.name, parentAssetId: node.parentAssetId,
+    ownerConnectionId: node.ownerConnectionId,
     attributeValuesJson: '{}', isActive: node.isActive, createdAtUtc: '' } as unknown as AssetResponse;
+}
+
+/** The Connections that own assets this person can see, then Standalone; empty when unavailable. */
+export async function fetchOwners(signal: AbortSignal): Promise<OwnerGroup[]> {
+  const value = await getJson('/api/v1/assets/owners', signal);
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    if (!isObject(item)) return [];
+    const connectionId = typeof item.connectionId === 'string' ? item.connectionId : null;
+    return [{
+      connectionId,
+      name: typeof item.connectionName === 'string' ? item.connectionName : null,
+      isEnabled: item.isEnabled !== false,
+      topLevelCount: typeof item.topLevelCount === 'number' ? item.topLevelCount : 0,
+      assetCount: typeof item.assetCount === 'number' ? item.assetCount : 0,
+    }];
+  });
 }

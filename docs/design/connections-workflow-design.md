@@ -500,3 +500,17 @@ that browser redirect. Decision:
   "sign in again" flow. It can be added later behind the same seam.
 - The testing-only user name and password sign-in stays as a fallback while no client is configured, and is removed
   once the service account is proven in the user's environment.
+
+## 17. Connection roots in the Assets tree (built)
+
+Each Asset has at most one owning Connection (section on ownership above). The Assets tree shows that without a stored
+root row: the top level is derived from the owner field.
+
+- `GET /assets/owners` lists the Connections that own Assets the caller may see, then **Standalone**, with counts. A
+  group with no visible Asset is not listed, so the list leaks nothing; `ownerConnectionId` or `standalone=true` on
+  `GET /assets/children` narrows the top level (both together is a validation error).
+- The tree groups top-level Assets under their Connection root in both browse modes (the in-memory tree and the lazy
+  server browse). A root is a label, not an Asset: it is named after the Connection (renaming changes only the label),
+  carries a count, and links to the Connection. When no Connection owns anything the tree stays flat as before.
+- The Asset page says which Connection owns the Asset; search results and children carry the owner.
+- Not in this slice: moving Assets between roots, Views, drag and drop (later slices).

@@ -624,16 +624,33 @@ v1.MapGet(
 
 v1.MapGet(
     "/assets/children",
-    async (Guid? parentAssetId, int? offset, int? limit, IAssetRepository assets,
+    async (Guid? parentAssetId, Guid? ownerConnectionId, bool? standalone, int? offset, int? limit, IAssetRepository assets,
         RequestAccessContext access, CancellationToken cancellationToken) =>
-        (await assets.ListChildrenAuthorizedAsync(access.Subject, parentAssetId, PageOffset(offset),
+    {
+        if (ownerConnectionId is not null && standalone == true)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Choose either one Connection or the standalone Assets, not both.");
+        var owner = ownerConnectionId is { } connectionId ? new AssetOwnerScope(connectionId)
+            : standalone == true ? new AssetOwnerScope(null) : null;
+        return (await assets.ListChildrenAuthorizedAsync(access.Subject, parentAssetId, owner, PageOffset(offset),
             PageLimit(limit ?? 100), cancellationToken))
             .Select(node => new AssetTreeNodeResponse(node.Asset.Id, node.Asset.AssetTypeId, node.Asset.Name,
-                node.Asset.ParentAssetId, node.Asset.IsActive, node.ChildCount)).ToArray())
+                node.Asset.ParentAssetId, node.Asset.IsActive, node.ChildCount, node.Asset.OwnerConnectionId)).ToArray();
+    })
     .WithName("ListAssetChildren")
     .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetTreeNodeResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapGet(
+    "/assets/owners",
+    async (IAssetRepository assets, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await assets.ListOwnersAuthorizedAsync(access.Subject, cancellationToken))
+            .Select(owner => new AssetOwnerResponse(owner.ConnectionId, owner.ConnectionName, owner.IsEnabled,
+                owner.TopLevelCount, owner.AssetCount)).ToArray())
+    .WithName("ListAssetOwners")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .Produces<AssetOwnerResponse[]>(StatusCodes.Status200OK);
 
 v1.MapGet(
     "/assets/search",
@@ -643,7 +660,8 @@ v1.MapGet(
             PageLimit(limit ?? 50), cancellationToken))
             .Select(hit => new AssetSearchResultResponse(hit.Asset.Id, hit.Asset.AssetTypeId, hit.Asset.Name,
                 hit.Asset.ParentAssetId, hit.Asset.IsActive,
-                hit.Path.Select(step => new AssetPathSegmentResponse(step.Id, step.Name)).ToArray())).ToArray())
+                hit.Path.Select(step => new AssetPathSegmentResponse(step.Id, step.Name)).ToArray(),
+                hit.Asset.OwnerConnectionId)).ToArray())
     .WithName("SearchAssets")
     .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetSearchResultResponse[]>(StatusCodes.Status200OK)

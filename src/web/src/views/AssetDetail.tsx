@@ -24,6 +24,7 @@ type Activity = {
 /** One asset explained in words: where it sits, what is on it, what it has done. */
 export function AssetDetail({
   asset, assets, typeName, configuredLogic, canReadRuns, canReadRecommendations, canConfigureLogic, onSelect, onClose,
+  owner = null, canOpenConnection = false,
 }: {
   asset: AssetResponse;
   assets: readonly AssetResponse[];
@@ -34,6 +35,9 @@ export function AssetDetail({
   canReadRecommendations: boolean;
   onSelect: (assetId: string) => void;
   onClose: () => void;
+  /** The Connection that owns this asset, or Standalone (connectionId null); null when no Connection owns anything. */
+  owner?: { connectionId: string | null; name: string } | null;
+  canOpenConnection?: boolean;
 }) {
   const assetId = asset.id ?? '';
   const ancestors = assetAncestors(assets, assetId);
@@ -71,6 +75,11 @@ export function AssetDetail({
           <p className="asset-page-meta">
             {typeName} · <StatusPill value={asset.isActive ? 'Active' : 'Inactive'} />
           </p>
+          {owner && <p className="asset-page-meta">
+            {owner.connectionId === null ? t('assetOwner.standalone') : <>
+              {t('assetOwner.ownedBy')}{' '}
+              {canOpenConnection ? <a href={hashFor('connections', owner.connectionId)}>{owner.name}</a> : owner.name}</>}
+          </p>}
           <p className="asset-page-meta"><code>{assetId}</code></p>
           <p className="asset-page-meta">
             {ancestors.length === 0 ? t('assetPage.topLevel')

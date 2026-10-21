@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetCreationCapabilitiesResponse,
@@ -18,7 +18,9 @@ import { AssetInventoryControls } from './AssetInventoryControls';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetInventory';
 import type { AssetInventoryCriteria } from './assetInventory';
 import { assetAncestors } from './assetPage';
-import { SNAPSHOT_ASSET_LIMIT } from './assetBrowseApi';
+import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
+import type { OwnerGroup } from './assetHierarchy';
+import { ownerLabel } from './AssetOwnerRow';
 import { AssetBrowser, AssetSearchResults } from './AssetBrowser';
 import { useAssetContext } from './useAssetContext';
 import './splitLayout.css';
@@ -56,6 +58,13 @@ export function AssetsPage({
     () => assets.map(asset => `${asset.id}|${asset.name}|${asset.isActive}`).join(',') + ':' + localRefresh,
     [assets, localRefresh],
   );
+  const [owners, setOwners] = useState<OwnerGroup[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchOwners(controller.signal).then(list => { if (!controller.signal.aborted) setOwners(list); })
+      .catch(() => { if (!controller.signal.aborted) setOwners([]); });
+    return () => controller.abort();
+  }, [refreshKey]);
   const context = useAssetContext(selectedId, assets, lazy, refreshKey);
   const selectedAuthorized = lazy ? context.asset ?? undefined : assets.find(asset => asset.id === selectedId);
   useForgetVanishedSelection(selectedId, Boolean(selectedAuthorized), () => setDetail(null));
@@ -69,6 +78,13 @@ export function AssetsPage({
       return true;
     });
   }, [lazy, context.asset, context.ancestors, context.children, assets]);
+  const owningConnection = useMemo(() => {
+    const id = (selectedAuthorized as { ownerConnectionId?: string | null } | undefined)?.ownerConnectionId ?? null;
+    const owner = owners.find(item => item.connectionId === id);
+    return selectedAuthorized && owners.some(item => item.connectionId !== null)
+      ? { connectionId: id, name: owner ? ownerLabel(owner) : t('assetOwner.unknown') } : null;
+  }, [owners, selectedAuthorized]);
+  const canOpenConnection = permissions.includes('connections.read');
   const typeNames = useMemo(
     () => new Map(assetTypes.map(type => [type.id, type.displayName])),
     [assetTypes],
@@ -240,9 +256,12 @@ export function AssetsPage({
                     ? <AssetSearchResults query={criteria.search.trim()} selectedId={selectedId}
                       typeNames={typeNames} onSelect={select} />
                     : <AssetBrowser key={focusId ?? 'all'} rootId={focusId} selectedId={selectedId} refreshKey={refreshKey} onSelect={select}
+                      selectedOwnerId={context.asset ? context.asset.ownerConnectionId ?? null : undefined}
+                      canOpenConnection={canOpenConnection}
                       ancestorIds={context.ancestors.map(item => item.id ?? '')} />
                 ) : !filtering ? (
-                  <AssetTree assets={focusId ? descendantsOf(assets, focusId) : assets} selectedId={selectedId} onSelect={select} />
+                  <AssetTree assets={focusId ? descendantsOf(assets, focusId) : assets} selectedId={selectedId} onSelect={select}
+                    owners={owners} canOpenConnection={canOpenConnection} />
                 ) : visibleAssets.length === 0 ? (
                   <p className="split-note">{t('assets.noMatches')}</p>
                 ) : (
@@ -280,6 +299,8 @@ export function AssetsPage({
                 canReadRuns={permissions.includes('executions.read')}
                 canConfigureLogic={permissions.includes('configured-logic.manage') && permissions.includes('configured-logic.read')}
                 canReadRecommendations={permissions.includes('recommendations.read')}
+                owner={owningConnection}
+                canOpenConnection={canOpenConnection}
                 onSelect={select}
                 onClose={() => select(null)}
               /> : <p className="split-note">{t('assets.pickOne')}</p>}

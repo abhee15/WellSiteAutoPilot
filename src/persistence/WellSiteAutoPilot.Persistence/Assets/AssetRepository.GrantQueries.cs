@@ -53,8 +53,40 @@ public sealed partial class AssetRepository
         ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
             subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow());
 
+    public Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject,
+        Guid? parentAssetId, int offset, int limit, CancellationToken cancellationToken = default) =>
+        ListChildrenAuthorizedAsync(subject, parentAssetId, null, offset, limit, cancellationToken);
+
+    public async Task<IReadOnlyCollection<AssetOwnerSummary>> ListOwnersAuthorizedAsync(AccessSubject subject,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        var visible = VisibleAssets(subject);
+        var topLevel = visible.Where(item => item.ParentAssetId == null ||
+            !visible.Any(parent => parent.Id == item.ParentAssetId));
+        var totals = await visible.GroupBy(item => item.OwnerConnectionId)
+            .Select(group => new { Owner = group.Key, Count = group.Count() }).ToArrayAsync(cancellationToken);
+        var tops = (await topLevel.GroupBy(item => item.OwnerConnectionId)
+            .Select(group => new { Owner = group.Key, Count = group.Count() }).ToArrayAsync(cancellationToken))
+            .ToDictionary(row => row.Owner ?? Guid.Empty, row => row.Count);
+        var ids = totals.Where(row => row.Owner != null).Select(row => row.Owner!.Value).ToArray();
+        var names = ids.Length == 0
+            ? new Dictionary<Guid, (string Name, bool IsEnabled)>()
+            : (await dbContext.Connections.AsNoTracking().Where(item => ids.Contains(item.Id))
+                .Select(item => new { item.Id, item.Name, item.IsEnabled }).ToArrayAsync(cancellationToken))
+                .ToDictionary(row => row.Id, row => (row.Name, row.IsEnabled));
+        return totals
+            .Select(row => new AssetOwnerSummary(row.Owner,
+                row.Owner is { } owner && names.TryGetValue(owner, out var found) ? found.Name : null,
+                row.Owner is { } own && names.TryGetValue(own, out var state) && state.IsEnabled,
+                tops.GetValueOrDefault(row.Owner ?? Guid.Empty), row.Count))
+            .OrderBy(row => row.ConnectionId == null).ThenBy(row => row.ConnectionName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(row => row.ConnectionId)
+            .ToArray();
+    }
+
     public async Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject,
-        Guid? parentAssetId, int offset, int limit, CancellationToken cancellationToken = default)
+        Guid? parentAssetId, AssetOwnerScope? owner, int offset, int limit, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
         ValidatePage(offset, limit);
@@ -63,6 +95,11 @@ public sealed partial class AssetRepository
             ? visible.Where(item => item.ParentAssetId == parentId)
             : visible.Where(item => item.ParentAssetId == null ||
                 !visible.Any(parent => parent.Id == item.ParentAssetId));
+        // Only the top level is narrowed; below a node everything already belongs to that node's owner.
+        if (parentAssetId is null && owner is not null)
+            level = owner.ConnectionId is { } connectionId
+                ? level.Where(item => item.OwnerConnectionId == connectionId)
+                : level.Where(item => item.OwnerConnectionId == null);
         var page = await level
             .OrderBy(item => item.Name).ThenBy(item => item.Id)
             .Skip(offset).Take(limit)

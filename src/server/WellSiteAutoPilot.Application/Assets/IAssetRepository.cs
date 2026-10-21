@@ -40,6 +40,14 @@ public interface IAssetRepository
     Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject, Guid? parentAssetId,
         int offset, int limit, CancellationToken cancellationToken = default);
 
+    /// <summary>The top level narrowed to one owner (a Connection, or the standalone Assets).</summary>
+    Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject, Guid? parentAssetId,
+        AssetOwnerScope? owner, int offset, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>The Connections (and the standalone group) that own at least one Asset this subject may see.</summary>
+    Task<IReadOnlyCollection<AssetOwnerSummary>> ListOwnersAuthorizedAsync(AccessSubject subject,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Authorized assets whose name contains <paramref name="text"/>, each with its visible location.</summary>
     Task<IReadOnlyCollection<AssetSearchHit>> SearchAuthorizedAsync(AccessSubject subject, string text,
         Guid? assetTypeId, int offset, int limit, CancellationToken cancellationToken = default);

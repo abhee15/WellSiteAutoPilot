@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
-import { BROWSE_PAGE_SIZE, SEARCH_PAGE_SIZE, fetchChildren, fetchSearch } from './assetBrowseApi';
+import { BROWSE_PAGE_SIZE, SEARCH_PAGE_SIZE, fetchChildren, fetchOwners, fetchSearch } from './assetBrowseApi';
+import type { OwnerGroup } from './assetHierarchy';
+import { AssetOwnerRow, ownerKey } from './AssetOwnerRow';
 import type { BrowseNode, SearchHit } from './assetBrowseApi';
 import './assetTree.css';
 
@@ -13,7 +15,7 @@ type Level = { items: BrowseNode[]; hasMore: boolean; loading: boolean; failed: 
  * when it is opened, so a very large hierarchy never has to be loaded at once.
  */
 export function AssetBrowser({
-  selectedId, ancestorIds, refreshKey, onSelect, rootId,
+  selectedId, ancestorIds, refreshKey, onSelect, rootId, selectedOwnerId, canOpenConnection = false,
 }: {
   selectedId: string | null;
   /** Ancestors of the selected asset, top first; they are opened so the selection is visible. */
@@ -23,11 +25,16 @@ export function AssetBrowser({
   onSelect: (id: string) => void;
   /** When set, only this asset's descendants are browsed. */
   rootId?: string | null;
+  /** The Connection that owns the selected asset (null: Standalone; undefined: unknown). */
+  selectedOwnerId?: string | null;
+  canOpenConnection?: boolean;
 }) {
   const top = rootId ?? ROOT;
   const levels = useRef<Record<string, Level>>({});
   const [, redraw] = useState(0);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [owners, setOwners] = useState<OwnerGroup[] | null>(null);
+  const grouped = !rootId && owners !== null && owners.some(owner => owner.connectionId !== null);
   const generation = useRef(0);
   const controller = useRef<AbortController>(new AbortController());
 
@@ -39,7 +46,9 @@ export function AssetBrowser({
     const offset = append ? previous.length : 0;
     put(key, { items: previous, hasMore: false, loading: true, failed: false });
     try {
-      const page = await fetchChildren(key === ROOT ? null : key, offset, controller.current.signal);
+      const scope = key.startsWith('owner:')
+        ? { connectionId: key === ownerKey(null) ? null : key.slice('owner:'.length) } : undefined;
+      const page = await fetchChildren(key === ROOT || scope ? null : key, offset, controller.current.signal, scope);
       if (turn !== generation.current) return;
       put(key, { items: append ? [...previous, ...page] : page, hasMore: page.length === BROWSE_PAGE_SIZE,
         loading: false, failed: false });
@@ -54,7 +63,23 @@ export function AssetBrowser({
     controller.current.abort();
     controller.current = new AbortController();
     // Re-read the top level and every open level in place; old rows stay until the new ones arrive.
-    for (const key of [top, ...expanded]) void load(key, false);
+    const signal = controller.current.signal;
+    const reload = (withOwners: boolean) => {
+      for (const key of [top, ...expanded]) if (!(key === ROOT && withOwners)) void load(key, false);
+    };
+    if (rootId) reload(false);
+    else {
+      // Learn which Connections own assets first, so the top level is read once, in its final shape.
+      fetchOwners(signal).then(list => {
+        if (signal.aborted) return;
+        setOwners(list);
+        reload(list.some(owner => owner.connectionId !== null));
+      }).catch(() => {
+        if (signal.aborted) return;
+        setOwners([]);
+        reload(false);
+      });
+    }
     return () => controller.current.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
@@ -66,6 +91,15 @@ export function AssetBrowser({
     for (const id of ancestorIds) if (!levels.current[id]) void load(id, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealKey]);
+
+  // Open the Connection that owns the selection so the selected asset can be found.
+  useEffect(() => {
+    if (!grouped || selectedOwnerId === undefined) return;
+    const key = ownerKey(selectedOwnerId);
+    setExpanded(current => new Set([...current, key]));
+    if (!levels.current[key]) void load(key, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grouped, selectedOwnerId]);
 
   const toggle = (id: string) => {
     const open = expanded.has(id);
@@ -119,7 +153,17 @@ export function AssetBrowser({
 
   return (
     <nav className="asset-tree" aria-label={t('assetTree.label')}>
-      <ul role="tree">{renderLevel(top)}</ul>
+      <ul role="tree">{grouped && owners ? owners.map(owner => {
+        const key = ownerKey(owner.connectionId);
+        const open = expanded.has(key);
+        return (
+          <li key={key} role="treeitem" aria-expanded={open}>
+            <AssetOwnerRow owner={owner} expanded={open} canOpenConnection={canOpenConnection}
+              onToggle={() => toggle(key)} />
+            {open && <ul role="group">{renderLevel(key)}</ul>}
+          </li>
+        );
+      }) : renderLevel(top)}</ul>
     </nav>
   );
 }
