@@ -1,5 +1,15 @@
 # Connections: workflow, permissions and asset import design
 
+
+> **Design supersession — 2026-10-21 (owner-agreed).**
+> The source-of-truth for **Asset ownership, Connection nodes, and server-backed Views** is
+> [Connection-owned Assets and Views](connection-owned-assets-and-views-20261021.md), with UI findings in
+> [Connections / Assets UX refinement](connections-assets-ux-refinement-20261021.md).
+> **One Asset belongs to at most one Connection.** An identically named well in ForeSite and PetroVisor
+> is **two distinct WSA Assets**, never a shared Asset with two Connection bindings.
+> Prior D10, cross-source linking and multi-Connection source-binding proposals below are superseded.
+> Existing implemented code may not yet satisfy these newer requirements; this branch is documentation only.
+
 Updated: 2026-10-20.
 Status: **proposal for owner review.** Nothing here is implemented. It builds on the owner-agreed simple-first
 direction in PR #205 (`docs/architecture/connections-and-asset-discovery.md` and
