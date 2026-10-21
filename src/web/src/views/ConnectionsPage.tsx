@@ -6,10 +6,10 @@ import type { MessageKey } from '../localization';
 import { formatTimestamp } from '../format';
 import { useHashDetail } from '../routing';
 import {
-  ConnectionsError, connectionStatus, createConnection, deleteConnection, discoverConnection, filterDiscovered, isDirty, loadAdapters, loadConnections,
-  setConnectionEnabled, testConnection, updateConnection,
+  ConnectionsError, connectionStatus, createConnection, deleteConnection, discoverConnection, isDirty, loadAdapters, loadConnections,
+  searchDiscovered, setConnectionEnabled, testConnection, updateConnection,
 } from './connections';
-import type { Adapter, Connection, ConnectionDraft, ConnectionStatus, Discovery } from './connections';
+import type { Adapter, Connection, ConnectionDraft, ConnectionStatus, Discovery, DiscoveredObject, ImportSelection } from './connections';
 
 const shownLimit = 200;
 
@@ -30,7 +30,8 @@ function errorMessage(error: unknown): string {
     case 'invalidSettings': return t('connections.errSettings', { detail: error.detail ?? '' });
     case 'unsupported': return t('connections.errUnsupported');
     case 'hasImports': return t('connections.errHasImports');
-    case 'tooLarge': return t('connections.errTooLarge');
+    case 'tooLarge': return t('connections.errTooLarge', { detail: error.detail ?? '' });
+    case 'snapshotExpired': return t('connections.errSnapshotExpired');
     case 'invalid': return t('connections.errInvalid');
     case 'gatewayUnavailable': return t('connections.errGateway');
     default: return t('connections.errUncertain');
@@ -144,7 +145,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
   });
   const [busy, setBusy] = useState<'save' | 'test' | 'toggle' | 'delete' | 'find' | null>(null);
   const [found, setFound] = useState<Discovery | null>(null);
-  const [query, setQuery] = useState('');
+  const [selection, setSelection] = useState<{ value: ImportSelection; count: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const adapter = adapters.find(item => item.key === adapterKey) ?? null;
@@ -239,7 +240,11 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
             {adapter?.canDiscover && (
               <button type="button" className="secondary-button"
                 disabled={disabled || dirty || !connection.isEnabled}
-                onClick={() => void run('find', async () => { setFound(await discoverConnection(connection)); setQuery(''); })}>
+                onClick={() => void run('find', async () => {
+                  const result = await discoverConnection(connection);
+                  setFound(result);
+                  setSelection({ value: { snapshotId: result.snapshotId, query: '', facets: {} }, count: result.totalCount });
+                })}>
                 {busy === 'find' ? t('connections.finding') : t('connections.find')}
               </button>
             )}
@@ -261,31 +266,82 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
         </div>
       )}
       {canManage && connection && adapter?.canDiscover && adapter.groupingFields.length > 0 && connection.isEnabled && !dirty && (
-        <ConnectionImport connection={connection} adapter={adapter} />
+        <ConnectionImport connection={connection} adapter={adapter}
+          selection={found ? selection?.value ?? null : null} selectedCount={found ? selection?.count ?? null : null}
+          totalCount={found?.totalCount ?? null} />
       )}
-      {found && <FoundList found={found} query={query} onQuery={setQuery} />}
+      {found && connection && <FoundList key={found.snapshotId} connection={connection} found={found}
+        onSelect={(value, count) => setSelection({ value, count })} />}
       {connection && dirty && canManage && <p className="connection-help">{t('connections.testDirty')}</p>}
       {connection && !connection.isEnabled && <p className="connection-help">{t('connections.testDisabled')}</p>}
     </form>
   );
 }
 
-function FoundList({ found, query, onQuery }: { found: Discovery; query: string; onQuery: (value: string) => void }) {
-  const matches = filterDiscovered(found.items, query);
-  const shown = matches.slice(0, shownLimit);
+function FoundList({ connection, found, onSelect }: {
+  connection: Connection; found: Discovery; onSelect: (selection: ImportSelection, count: number) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [facets, setFacets] = useState<Record<string, string>>({});
+  const [matches, setMatches] = useState<{ count: number; items: DiscoveredObject[] } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const search = async (nextQuery: string, nextFacets: Record<string, string>) => {
+    const chosen: Record<string, string[]> = {};
+    for (const [key, value] of Object.entries(nextFacets)) if (value) chosen[key] = [value];
+    const selection: ImportSelection = { snapshotId: found.snapshotId, query: nextQuery.trim(), facets: chosen };
+    setProblem(null);
+    if (!selection.query && Object.keys(chosen).length === 0) {
+      setMatches(null); onSelect(selection, found.totalCount); return;
+    }
+    setSearching(true);
+    try {
+      const result = await searchDiscovered(connection, selection);
+      setMatches({ count: result.matchCount, items: result.items });
+      onSelect(selection, result.matchCount);
+    } catch (caught) { setProblem(errorMessage(caught)); } finally { setSearching(false); }
+  };
+
+  const items = matches ? matches.items : found.items;
+  const count = matches ? matches.count : found.totalCount;
+  const shown = items.slice(0, shownLimit);
   return (
     <section className="connection-found" aria-label={t('connections.findHeading')}>
       <h3>{t('connections.findHeading')}</h3>
       {!found.complete && <p role="alert" className="status-error">{t('connections.findIncomplete')}</p>}
       {found.warnings.map(warning => <p key={warning} role="status" className="connection-help">{warning}</p>)}
-      {found.complete && found.items.length === 0 && <p className="empty-state">{t('connections.findEmpty')}</p>}
-      {found.items.length > 0 && <>
-        <p role="status">{t('connections.findCount', { count: found.items.length })}</p>
-        <label>
-          <span>{t('connections.findSearch')}</span>
-          <input type="search" value={query} onChange={event => onQuery(event.target.value)} />
-        </label>
-        {matches.length === 0 && <p className="empty-state">{t('connections.findNone')}</p>}
+      {found.complete && found.totalCount === 0 && <p className="empty-state">{t('connections.findEmpty')}</p>}
+      {found.totalCount > 0 && <>
+        <p role="status">{t('connections.findCount', { count: found.totalCount })}</p>
+        <div className="connection-facets">
+          {found.facets.filter(facet => facet.values.length > 1).map(facet => (
+            <label key={facet.key}>
+              <span>{facet.label}</span>
+              <select value={facets[facet.key] ?? ''} disabled={searching}
+                onChange={event => { const next = { ...facets, [facet.key]: event.target.value }; setFacets(next); void search(query, next); }}>
+                <option value="">{t('connections.findFacetAny')}</option>
+                {facet.values.map(entry => (
+                  <option key={entry.value} value={entry.value}>{t('connections.findFacetOption', { value: entry.value, count: entry.count })}</option>
+                ))}
+              </select>
+              {facet.hasMore && <small className="connection-help">{t('connections.findFacetMore')}</small>}
+            </label>
+          ))}
+        </div>
+        <div className="connection-actions">
+          <label>
+            <span>{t('connections.findSearch')}</span>
+            <input type="search" value={query} onChange={event => setQuery(event.target.value)}
+              onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void search(query, facets); } }} />
+          </label>
+          <button type="button" className="secondary-button" disabled={searching} onClick={() => void search(query, facets)}>
+            {t('connections.findSearchButton')}
+          </button>
+        </div>
+        {problem && <p role="alert" className="status-error">{problem}</p>}
+        {count === 0 && <p className="empty-state">{t('connections.findNone')}</p>}
+        {count > 0 && count < found.totalCount && <p role="status">{t('connections.findMatching', { count, total: found.totalCount })}</p>}
         <ul className="connection-found-list">
           {shown.map(item => (
             <li key={item.externalId}>
@@ -294,8 +350,8 @@ function FoundList({ found, query, onQuery }: { found: Discovery; query: string;
             </li>
           ))}
         </ul>
-        {matches.length > shown.length && <p className="connection-help">
-          {t('connections.findShowing', { shown: shown.length, count: matches.length })}</p>}
+        {count > shown.length && <p className="connection-help">
+          {t('connections.findShowing', { shown: shown.length, count })}</p>}
       </>}
       {found.actingAs && <p className="connection-help">{t('connections.findActingAs', { account: found.actingAs })}</p>}
     </section>

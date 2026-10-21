@@ -70,15 +70,24 @@ test('dirty detection ignores whitespace and empty optional values', () => {
 });
 
 test('discovery is validated, filtered by name or any fact, and its refusals are classified', async () => {
-  const good = { complete: true, actingAs: 'A\\b', warnings: [], items: [
-    { externalId: '1', displayName: 'Alpha 1', kind: 'k', metadata: { wellType: 'ESP' } },
-    { externalId: '2', displayName: 'Bravo', kind: 'k', metadata: {} }] };
+  const snapshotId = '11111111-1111-4111-8111-111111111111';
+  const good = { complete: true, actingAs: 'A\\b', warnings: [], totalCount: 2, snapshotId, expiresAtUtc: '2026-10-21T10:15:00Z',
+    facets: [{ key: 'wellType', label: 'Well type', hasMore: false, values: [{ value: 'ESP', count: 1 }, { value: 'Unknown type', count: 1 }] }],
+    items: [
+      { externalId: '1', displayName: 'Alpha 1', kind: 'k', metadata: { wellType: 'ESP' } },
+      { externalId: '2', displayName: 'Bravo', kind: 'k', metadata: {} }] };
   const found = await api.discoverConnection(connection, async (url, init) => {
     assert.equal(String(url), `/api/v1/connections/${connection.id}/discover`);
     assert.equal(init.method, 'POST');
     return new Response(JSON.stringify(good));
   });
   assert.equal(found.items.length, 2);
+  assert.equal(found.totalCount, 2);
+  assert.equal(found.snapshotId, snapshotId);
+  assert.equal(found.facets[0].values[0].count, 1);
+  for (const bad of [{ ...good, totalCount: 1 }, { ...good, snapshotId: 'nope' }, { ...good, facets: [{ key: 'x' }] }, { ...good, totalCount: undefined }]) {
+    await assert.rejects(api.discoverConnection(connection, async () => new Response(JSON.stringify(bad))), { kind: 'invalidResponse' });
+  }
   assert.deepEqual(api.filterDiscovered(found.items, ' esp ').map(i => i.externalId), ['1']);
   assert.deepEqual(api.filterDiscovered(found.items, 'brav').map(i => i.externalId), ['2']);
   assert.equal(api.filterDiscovered(found.items, '').length, 2);
@@ -89,7 +98,30 @@ test('discovery is validated, filtered by name or any fact, and its refusals are
   assert.equal(await refuse(409, 'CONNECTION_DISABLED'), 'disabled');
   assert.equal(await refuse(400, 'CONNECTION_DISCOVERY_TOO_LARGE'), 'tooLarge');
   assert.equal(await refuse(409, 'CONNECTION_HAS_IMPORTS'), 'hasImports');
+  assert.equal(await refuse(409, 'CONNECTION_SNAPSHOT_EXPIRED'), 'snapshotExpired');
+  assert.equal(await refuse(400, 'CONNECTION_IMPORT_TOO_LARGE'), 'importTooLarge');
   assert.equal(await refuse(503, undefined), 'gatewayUnavailable');
+});
+
+test('searching what was found sends the kept list, words and chosen values, and validates the answer', async () => {
+  const selection = { snapshotId: '11111111-1111-4111-8111-111111111111', query: 'alpha', facets: { field: ['Alpha'] } };
+  const seen = [];
+  const found = await api.searchDiscovered(connection, selection, async (url, init) => {
+    seen.push([String(url), init.method, init.body]);
+    return new Response(JSON.stringify({ matchCount: 5, items: [{ externalId: '1', displayName: 'A', kind: 'k', metadata: {} }] }));
+  });
+  assert.equal(found.matchCount, 5);
+  assert.deepEqual(seen[0], [`/api/v1/connections/${connection.id}/discover/search`, 'POST',
+    '{"snapshotId":"11111111-1111-4111-8111-111111111111","query":"alpha","facets":{"field":["Alpha"]}}']);
+  await api.searchDiscovered(connection, { ...selection, query: '', facets: {} }, async (_url, init) => {
+    assert.equal(init.body, '{"snapshotId":"11111111-1111-4111-8111-111111111111","query":null,"facets":null}');
+    return new Response(JSON.stringify({ matchCount: 0, items: [] }));
+  });
+  await assert.rejects(api.searchDiscovered(connection, selection, async () => new Response('{"matchCount":0,"items":[{}]}')), { kind: 'invalidResponse' });
+  await assert.rejects(api.searchDiscovered(connection, selection, async () => new Response('{"matchCount":0,"items":[{"externalId":"1","displayName":"A","kind":"k","metadata":{}}]}')), { kind: 'invalidResponse' });
+  await assert.rejects(api.searchDiscovered(connection, selection, async () => new Response('{}', { status: 409 })), { kind: 'stale' });
+  await assert.rejects(api.searchDiscovered(connection, selection, async () =>
+    new Response(JSON.stringify({ code: 'CONNECTION_SNAPSHOT_EXPIRED' }), { status: 409 })), { kind: 'snapshotExpired' });
 });
 
 test('import preview and result are validated, and refusals are classified', async () => {
@@ -97,22 +129,31 @@ test('import preview and result are validated, and refusals are classified', asy
   const good = { fingerprint: 'F', levels: ['x'], objectCount: 2, groupCount: 1, fallbackObjectCount: 0, rootObjectCount: 0,
     groups: [group], warnings: [], conflicts: [], typesToCreate: ['well'], canImport: true, actingAs: null, alreadyImported: 0 };
   const seen = [];
-  const preview = await api.previewImport(connection, ['x'], async (url, init) => {
+  const preview = await api.previewImport(connection, ['x'], null, async (url, init) => {
     seen.push([String(url), init.method, init.body]);
     return new Response(JSON.stringify(good));
   });
   assert.equal(preview.fingerprint, 'F');
   assert.deepEqual(seen[0], [`/api/v1/connections/${connection.id}/import/preview`, 'POST', '{"levels":["x"]}']);
-  await assert.rejects(api.previewImport(connection, [], async () => new Response(JSON.stringify({ ...good, fingerprint: '' }))), { kind: 'invalidResponse' });
-  await assert.rejects(api.previewImport(connection, [], async () => new Response(JSON.stringify({ ...good, groups: [{ name: 1 }] }))), { kind: 'invalidResponse' });
+  await assert.rejects(api.previewImport(connection, [], null, async () => new Response(JSON.stringify({ ...good, fingerprint: '' }))), { kind: 'invalidResponse' });
+  await assert.rejects(api.previewImport(connection, [], null, async () => new Response(JSON.stringify({ ...good, groups: [{ name: 1 }] }))), { kind: 'invalidResponse' });
+  const chosen = { snapshotId: '11111111-1111-4111-8111-111111111111', query: 'alpha', facets: { field: ['Alpha'] } };
+  await api.previewImport(connection, ['x'], chosen, async (_url, init) => {
+    assert.equal(init.body, '{"levels":["x"],"snapshotId":"11111111-1111-4111-8111-111111111111","query":"alpha","facets":{"field":["Alpha"]}}');
+    return new Response(JSON.stringify(good));
+  });
   const done = { wellsCreated: 2, groupsCreated: 1, groupsReused: 0, alreadyImported: 0, typesCreated: [] };
-  const result = await api.importFromConnection(connection, ['x'], 'F', async (url, init) => {
+  const result = await api.importFromConnection(connection, ['x'], 'F', null, async (url, init) => {
     assert.equal(init.body, '{"levels":["x"],"expectedFingerprint":"F"}');
     return new Response(JSON.stringify(done));
   });
   assert.equal(result.wellsCreated, 2);
-  await assert.rejects(api.importFromConnection(connection, [], 'F', async () => new Response('{"wellsCreated":-1}')), { kind: 'invalidResponse' });
-  const refuse = (status, code) => api.importFromConnection(connection, [], 'F', async () =>
+  await api.importFromConnection(connection, ['x'], 'F', chosen, async (_url, init) => {
+    assert.equal(init.body, '{"levels":["x"],"expectedFingerprint":"F","snapshotId":"11111111-1111-4111-8111-111111111111","query":"alpha","facets":{"field":["Alpha"]}}');
+    return new Response(JSON.stringify(done));
+  });
+  await assert.rejects(api.importFromConnection(connection, [], 'F', null, async () => new Response('{"wellsCreated":-1}')), { kind: 'invalidResponse' });
+  const refuse = (status, code) => api.importFromConnection(connection, [], 'F', null, async () =>
     new Response(JSON.stringify({ code }), { status })).catch(e => e.kind);
   assert.equal(await refuse(403, 'CONNECTION_IMPORT_NEEDS_ALL_ASSETS'), 'needsAllAssets');
   assert.equal(await refuse(403, undefined), 'accessDenied');

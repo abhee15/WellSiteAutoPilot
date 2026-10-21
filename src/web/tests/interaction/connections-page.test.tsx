@@ -9,9 +9,10 @@ vi.mock('../../src/views/connections', async importOriginal => ({
   ...await importOriginal<typeof import('../../src/views/connections')>(),
   loadConnections: vi.fn(), loadAdapters: vi.fn(), createConnection: vi.fn(), updateConnection: vi.fn(),
   setConnectionEnabled: vi.fn(), testConnection: vi.fn(), deleteConnection: vi.fn(), discoverConnection: vi.fn(),
-  previewImport: vi.fn(), importFromConnection: vi.fn(),
+  previewImport: vi.fn(), importFromConnection: vi.fn(), searchDiscovered: vi.fn(),
 }));
 
+const snapshotId = '11111111-1111-4111-8111-111111111111';
 const adapter: Adapter = {
   key: 'simulator', displayName: 'Provider Simulator', description: 'A built-in simulated provider.',
   settingsVersion: 1, capabilities: ['Current engineering data'], canDiscover: false, groupingFields: [],
@@ -141,6 +142,8 @@ describe('Connections page', () => {
     vi.mocked(api.loadConnections).mockResolvedValue([saved({ adapterKey: 'foresite' })]);
     vi.mocked(api.discoverConnection).mockResolvedValue({
       complete: true, actingAs: 'CORP\\svc-wsa', warnings: ['Asset names were not available.'],
+      totalCount: 2, snapshotId, expiresAtUtc: '2026-10-21T10:15:00Z',
+      facets: [{ key: 'wellType', label: 'Well type', hasMore: false, values: [{ value: 'ESP', count: 1 }, { value: 'RRL', count: 1 }] }],
       items: [
         { externalId: '1', displayName: 'Alpha 1', kind: 'foresite.well', metadata: { wellType: 'RRL', field: 'Alpha' } },
         { externalId: '2', displayName: 'Bravo 1', kind: 'foresite.well', metadata: { wellType: 'ESP', field: 'Bravo' } },
@@ -154,9 +157,68 @@ describe('Connections page', () => {
     expect(screen.getByText('Asset names were not available.')).toBeTruthy();
     expect(screen.getByText(/Found as CORP/)).toBeTruthy();
     expect(screen.queryByText(/list is incomplete/)).toBeNull();
+    vi.mocked(api.searchDiscovered).mockResolvedValue({
+      matchCount: 1, items: [{ externalId: '2', displayName: 'Bravo 1', kind: 'foresite.well', metadata: { wellType: 'ESP', field: 'Bravo' } }],
+    });
     await userEvent.type(screen.getByLabelText('Search what was found'), 'esp');
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await screen.findByText('1 of the 2 found match.');
+    expect(vi.mocked(api.searchDiscovered).mock.calls[0][1]).toEqual({ snapshotId, query: 'esp', facets: {} });
     expect(screen.queryByText('Alpha 1')).toBeNull();
     expect(screen.getByText('Bravo 1')).toBeTruthy();
+  });
+
+  it('shows how many were found, narrows by a fact value, and imports only the chosen part', async () => {
+    const finder: Adapter = { ...adapter, key: 'foresite', displayName: 'ForeSite', canDiscover: true,
+      groupingFields: [{ key: 'wellType', label: 'Well type' }] };
+    vi.mocked(api.loadAdapters).mockResolvedValue([finder]);
+    vi.mocked(api.loadConnections).mockResolvedValue([saved({ adapterKey: 'foresite' })]);
+    vi.mocked(api.discoverConnection).mockResolvedValue({
+      complete: true, actingAs: 'CORP\\svc', warnings: [], totalCount: 12000, snapshotId, expiresAtUtc: '2026-10-21T10:15:00Z',
+      facets: [{ key: 'wellType', label: 'Well type', hasMore: false, values: [{ value: 'ESP', count: 4000 }, { value: 'RRL', count: 8000 }] }],
+      items: [{ externalId: '1', displayName: 'Alpha 1', kind: 'foresite.well', metadata: { wellType: 'RRL' } }],
+    });
+    vi.mocked(api.searchDiscovered).mockResolvedValue({ matchCount: 4000, items: [] });
+    vi.mocked(api.previewImport).mockResolvedValue({
+      fingerprint: 'F', levels: [], objectCount: 4000, groupCount: 0, fallbackObjectCount: 0, rootObjectCount: 4000, groups: [],
+      warnings: [], conflicts: [], typesToCreate: [], canImport: true, actingAs: null, alreadyImported: 0,
+    });
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await userEvent.click(await screen.findByText('Find what it holds'));
+    await screen.findByText('Found 12000.');
+    expect(screen.getByText('Showing the first 1 of 12000. Search or choose a value to narrow the list.')).toBeTruthy();
+    expect(screen.getByText('Everything found (12000) is selected for import.')).toBeTruthy();
+    await userEvent.selectOptions(screen.getByLabelText('Well type'), 'ESP');
+    await screen.findByText('4000 of the 12000 found match.');
+    expect(vi.mocked(api.searchDiscovered).mock.calls[0][1]).toEqual({ snapshotId, query: '', facets: { wellType: ['ESP'] } });
+    expect(screen.getByText('4000 of the 12000 found are selected for import.')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Review import' }));
+    await waitFor(() => expect(api.previewImport).toHaveBeenCalled());
+    expect(vi.mocked(api.previewImport).mock.calls[0][2]).toEqual({ snapshotId, query: '', facets: { wellType: ['ESP'] } });
+    // Choosing something else makes the review stale, so it is not left on screen.
+    await screen.findByLabelText('Import review');
+    await userEvent.selectOptions(screen.getByLabelText('Well type'), 'RRL');
+    await waitFor(() => expect(screen.queryByLabelText('Import review')).toBeNull());
+  });
+
+  it('says to find again when the kept list has expired', async () => {
+    const finder: Adapter = { ...adapter, key: 'foresite', displayName: 'ForeSite', canDiscover: true,
+      groupingFields: [{ key: 'wellType', label: 'Well type' }] };
+    vi.mocked(api.loadAdapters).mockResolvedValue([finder]);
+    vi.mocked(api.loadConnections).mockResolvedValue([saved({ adapterKey: 'foresite' })]);
+    vi.mocked(api.discoverConnection).mockResolvedValue({
+      complete: true, actingAs: null, warnings: [], totalCount: 2, snapshotId, expiresAtUtc: '2026-10-21T10:15:00Z',
+      facets: [], items: [{ externalId: '1', displayName: 'Alpha 1', kind: 'foresite.well', metadata: {} },
+        { externalId: '2', displayName: 'Bravo 1', kind: 'foresite.well', metadata: {} }],
+    });
+    vi.mocked(api.searchDiscovered).mockRejectedValue(new api.ConnectionsError('snapshotExpired'));
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await userEvent.click(await screen.findByText('Find what it holds'));
+    await userEvent.type(await screen.findByLabelText('Search what was found'), 'x');
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/expired/);
   });
 
   it('never presents an incomplete answer as "nothing there"', async () => {
@@ -165,6 +227,7 @@ describe('Connections page', () => {
     vi.mocked(api.loadConnections).mockResolvedValue([saved()]);
     vi.mocked(api.discoverConnection).mockResolvedValue({
       complete: false, actingAs: null, warnings: ['The system could not be reached.'], items: [],
+      totalCount: 0, snapshotId, facets: [], expiresAtUtc: '2026-10-21T10:15:00Z',
     });
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
@@ -220,7 +283,7 @@ describe('Connections page', () => {
     expect(api.importFromConnection).not.toHaveBeenCalled();
     await userEvent.click(screen.getByText('Yes, import'));
     await screen.findByText('Imported 3 and created 2 groups.');
-    expect(vi.mocked(api.importFromConnection).mock.calls[0].slice(1)).toEqual([['assetName'], 'ABC']);
+    expect(vi.mocked(api.importFromConnection).mock.calls[0].slice(1)).toEqual([['assetName'], 'ABC', null]);
     expect(screen.getByText('1 groups already existed and were reused.')).toBeTruthy();
     expect(screen.queryByText('3 to import in 2 groups.')).toBeNull();
   });

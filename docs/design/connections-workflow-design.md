@@ -478,3 +478,7 @@ single transaction, not in storing what was found.
 **Not part of this.** Per-group lazy browsing of the review tree, a configurable limit, and scoped (non-all-assets) import.
 
 **Open.** How many objects real systems hold (the 50,000 figure is a guess to be replaced by a measured one).
+
+### 15.x Built (web)
+
+The Find screen now shows the total found, a filter per grouping field (with counts) and a search box. Both ask the Server to narrow the kept list (`/discover/search`) rather than filtering the first 1,000 in the browser. Review and Import pass the same snapshot, words and chosen values, so only the chosen part is planned and imported. Changing the choice discards a review that no longer matches. An expired list asks the user to find again.

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { t } from '../localization';
 import { ConnectionsError, importFromConnection, previewImport } from './connections';
-import type { Adapter, Connection, ImportGroup, ImportPreview, ImportResult } from './connections';
+import type { Adapter, Connection, ImportGroup, ImportPreview, ImportResult, ImportSelection } from './connections';
 
 const renderBudget = 400;
 
@@ -13,7 +13,9 @@ function importError(error: unknown): string {
     case 'importNotAllowed': return t('connections.importNotAllowed');
     case 'incomplete': return t('connections.importIncomplete', { detail: error.detail ?? '' });
     case 'invalidLevels': return t('connections.importLevelsInvalid');
-    case 'tooLarge': return t('connections.errTooLarge');
+    case 'tooLarge': return t('connections.errTooLarge', { detail: error.detail ?? '' });
+    case 'importTooLarge': return error.detail ?? t('connections.importTooLarge');
+    case 'snapshotExpired': return t('connections.errSnapshotExpired');
     case 'disabled': return t('connections.errDisabled');
     case 'accessDenied': return t('connections.errDenied');
     case 'notFound': return t('connections.errNotFound');
@@ -23,16 +25,24 @@ function importError(error: unknown): string {
 }
 
 /** Choose how discovered objects are grouped, review exactly what would be created, then import it. */
-export function ConnectionImport({ connection, adapter }: { connection: Connection; adapter: Adapter }) {
+export function ConnectionImport({ connection, adapter, selection = null, selectedCount = null, totalCount = null }: {
+  connection: Connection; adapter: Adapter;
+  /** The part of what was found that the person chose; null means import everything the connection holds. */
+  selection?: ImportSelection | null; selectedCount?: number | null; totalCount?: number | null;
+}) {
   const fields = adapter.groupingFields;
   const label = (key: string) => fields.find(field => field.key === key)?.label ?? key;
   const [levels, setLevels] = useState<string[]>([]);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [reviewed, setReviewed] = useState<{ plan: ImportPreview; key: string } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [busy, setBusy] = useState<'review' | 'import' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const unused = fields.filter(field => !levels.includes(field.key));
+  // A review belongs to the selection it was made for; choosing something else makes it stale.
+  const selectionKey = JSON.stringify(selection);
+  const preview = reviewed && reviewed.key === selectionKey ? reviewed.plan : null;
+  const setPreview = (plan: ImportPreview | null) => setReviewed(plan ? { plan, key: selectionKey } : null);
 
   const changeLevels = (next: string[]) => {
     setLevels(next); setPreview(null); setResult(null); setConfirming(false); setError(null);
@@ -45,7 +55,7 @@ export function ConnectionImport({ connection, adapter }: { connection: Connecti
 
   const review = async () => {
     setBusy('review'); setError(null); setResult(null); setConfirming(false);
-    try { setPreview(await previewImport(connection, levels)); } catch (caught) {
+    try { setPreview(await previewImport(connection, levels, selection)); } catch (caught) {
       setPreview(null); setError(importError(caught));
     } finally { setBusy(null); }
   };
@@ -54,12 +64,12 @@ export function ConnectionImport({ connection, adapter }: { connection: Connecti
     if (!preview) return;
     setBusy('import'); setError(null);
     try {
-      setResult(await importFromConnection(connection, levels, preview.fingerprint));
+      setResult(await importFromConnection(connection, levels, preview.fingerprint, selection));
       setPreview(null); setConfirming(false);
     } catch (caught) {
       setError(importError(caught)); setConfirming(false);
       // The source or the Assets moved on: the reviewed plan no longer applies, so it is not left on screen.
-      if (caught instanceof ConnectionsError && caught.kind === 'planChanged') setPreview(null);
+      if (caught instanceof ConnectionsError && (caught.kind === 'planChanged' || caught.kind === 'snapshotExpired')) setPreview(null);
     } finally { setBusy(null); }
   };
 
@@ -67,6 +77,13 @@ export function ConnectionImport({ connection, adapter }: { connection: Connecti
     <section className="connection-import" aria-label={t('connections.importHeading')}>
       <h3>{t('connections.importHeading')}</h3>
       <p className="connection-help">{t('connections.importHelp')}</p>
+      {selection && selectedCount !== null && totalCount !== null && (
+        <p role="status" className="connection-help">
+          {selectedCount === totalCount
+            ? t('connections.importSelectedAll', { total: totalCount })
+            : t('connections.importSelected', { count: selectedCount, total: totalCount })}
+        </p>
+      )}
       {levels.length === 0
         ? <p className="connection-help">{t('connections.importNoLevels')}</p>
         : <ol className="connection-levels">
