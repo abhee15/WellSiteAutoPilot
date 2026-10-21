@@ -112,7 +112,7 @@ public static class ForeSiteAdapter
             var assets = await assetsResponse.Content.ReadFromJsonAsync<ForeSiteAsset[]>(JsonOptions, cancellationToken) ?? [];
             scope = new { AssetIds = assets.Where(asset => asset.Id is > 0).Select(asset => asset.Id!.Value).Append(0L).Distinct().ToArray() };
             assetNames = assets
-                .Where(asset => asset.Id is > 0 && !string.IsNullOrWhiteSpace(asset.Name))
+                .Where(asset => asset.Id is >= 0 && !string.IsNullOrWhiteSpace(asset.Name))
                 .GroupBy(asset => asset.Id!.Value.ToString(CultureInfo.InvariantCulture))
                 .ToDictionary(group => group.Key, group => group.First().Name!, StringComparer.Ordinal);
 
@@ -203,7 +203,9 @@ public static class ForeSiteAdapter
         var id = well.Id!.Value.ToString(CultureInfo.InvariantCulture);
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["wellId"] = id };
         Put(metadata, "assetId", well.AssetId);
-        if (metadata.TryGetValue("assetId", out var assetId) && assetNames.TryGetValue(assetId, out var assetName))
+        // Wells with no asset belong to ForeSite's "Not Mapped" pseudo-asset (id 0).
+        var lookup = metadata.TryGetValue("assetId", out var assetId) ? assetId : "0";
+        if (assetNames.TryGetValue(lookup, out var assetName))
         {
             metadata["assetName"] = assetName;
         }

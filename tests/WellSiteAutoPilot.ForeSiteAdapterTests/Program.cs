@@ -90,7 +90,8 @@ static async Task DiscoveryChecks()
     Expect(found.Complete && found.ActingAs == Account, "a good answer is complete and names the account");
     Expect(found.Items.Count == 4, "mapped and unmapped wells are found and wells without an id are skipped");
     var loose = found.Items.Single(item => item.ExternalId == "104");
-    Expect(!loose.Metadata.ContainsKey("assetName") && loose.Metadata["deviceType"] == "AEBEAM", "an unmapped well is found and gets its device type");
+    Expect(loose.Metadata["assetName"] == "Not Mapped" && !loose.Metadata.ContainsKey("assetId") && loose.Metadata["deviceType"] == "AEBEAM",
+        "an unmapped well is found, named for the Not Mapped asset, and gets its device type");
     Expect(found.Warnings.Count == 1 && found.Warnings[0].Contains("had no id", StringComparison.Ordinal), "a skipped well is reported");
     var first = found.Items.Single(item => item.ExternalId == "101");
     Expect(first.DisplayName == "Alpha 1" && first.ProviderType == ForeSiteAdapter.WellResourceKind && first.ParentExternalId is null,
