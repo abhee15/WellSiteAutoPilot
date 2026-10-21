@@ -89,6 +89,14 @@ static async Task DiscoveryChecks()
     Expect(empty.Complete && empty.Items.Count == 0 && empty.Warnings.Count == 0,
         "an explicitly empty accessible-asset list is a complete empty result");
 
+    foreach (var malformedScope in new[] { """[{"name":"No ID"}]""", """[{"id":-1}]""", "null" })
+    {
+        var invalid = await ForeSiteAdapter.DiscoverAsync(
+            Client(new AssetScopeRoutes(malformedScope)), Account, CancellationToken.None);
+        Expect(!invalid.Complete && invalid.Items.Count == 0 && invalid.Warnings.Count == 1,
+            "malformed scope must never masquerade as an empty complete discovery");
+    }
+
     foreach (var status in new[] { HttpStatusCode.Unauthorized, HttpStatusCode.NotFound, HttpStatusCode.InternalServerError })
     {
         var failed = await ForeSiteAdapter.DiscoverAsync(Client(new Stub(status)), Account, CancellationToken.None);
