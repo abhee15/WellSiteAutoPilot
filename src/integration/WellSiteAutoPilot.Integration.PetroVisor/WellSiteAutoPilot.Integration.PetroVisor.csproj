@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="MyrConn.PetroVisor.API" />
+    <PackageReference Include="MyrConn.PetroVisor.Web.Client" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
+  </ItemGroup>
+</Project>

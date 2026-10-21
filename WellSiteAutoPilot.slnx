@@ -27,6 +27,7 @@
   <Folder Name="/src/integration/">
     <Project Path="src/integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.Integration.ForeSite/WellSiteAutoPilot.Integration.ForeSite.csproj" />
+    <Project Path="src/integration/WellSiteAutoPilot.Integration.PetroVisor/WellSiteAutoPilot.Integration.PetroVisor.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj" />
   </Folder>
   <Folder Name="/src/workers/">
@@ -52,6 +53,7 @@
     <Project Path="tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ForeSiteAdapterTests/WellSiteAutoPilot.ForeSiteAdapterTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.PetroVisorAdapterTests/WellSiteAutoPilot.PetroVisorAdapterTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ConnectionImportTests/WellSiteAutoPilot.ConnectionImportTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.LogicModuleCatalogTests/WellSiteAutoPilot.LogicModuleCatalogTests.csproj" />
