@@ -15,15 +15,29 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
     private const int Shared = (int)AssetViewVisibility.Shared;
     private TimeProvider Time => clock ?? TimeProvider.System;
 
-    public async Task<IReadOnlyList<AssetViewRecord>> ListAsync(Guid viewerUserId, CancellationToken cancellationToken = default) =>
-        (await Readable(viewerUserId).OrderBy(item => item.OwnerUserId == viewerUserId ? 0 : 1)
-            .ThenBy(item => item.View.NormalizedName).ThenBy(item => item.View.Id).ToArrayAsync(cancellationToken))
-            .Select(ToRecord).ToArray();
+    public async Task<IReadOnlyList<AssetViewRecord>> ListAsync(Guid viewerUserId, CancellationToken cancellationToken = default)
+    {
+        var views = await dbContext.AssetViews.AsNoTracking()
+            .Where(item => item.OwnerUserId == viewerUserId || item.Visibility == Shared)
+            .OrderBy(item => item.NormalizedName).ThenBy(item => item.Id).ToArrayAsync(cancellationToken);
+        var names = await OwnerNamesAsync(views, cancellationToken);
+        return views.OrderBy(item => item.OwnerUserId == viewerUserId ? 0 : 1).Select(item => ToRecord(item, names)).ToArray();
+    }
 
     public async Task<AssetViewRecord?> FindAsync(Guid viewerUserId, Guid id, CancellationToken cancellationToken = default)
     {
-        var row = await Readable(viewerUserId).SingleOrDefaultAsync(item => item.View.Id == id, cancellationToken);
-        return row is null ? null : ToRecord(row);
+        var entity = await dbContext.AssetViews.AsNoTracking().SingleOrDefaultAsync(
+            item => item.Id == id && (item.OwnerUserId == viewerUserId || item.Visibility == Shared), cancellationToken);
+        return entity is null ? null : ToRecord(entity, await OwnerNamesAsync([entity], cancellationToken));
+    }
+
+    private async Task<Dictionary<Guid, string>> OwnerNamesAsync(IReadOnlyCollection<AssetViewEntity> views,
+        CancellationToken cancellationToken)
+    {
+        var owners = views.Select(item => item.OwnerUserId).Distinct().ToArray();
+        return (await dbContext.Users.AsNoTracking().Where(item => owners.Contains(item.Id))
+            .Select(item => new { item.Id, item.DisplayName, item.IdentityName }).ToArrayAsync(cancellationToken))
+            .ToDictionary(item => item.Id, item => item.DisplayName ?? item.IdentityName);
     }
 
     public async Task<AssetViewRecord> CreateAsync(Guid ownerUserId, string name, AssetViewDefinition definition,
@@ -88,13 +102,6 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
         return (await FindAsync(owner, id, cancellationToken))!;
     }
 
-    private IQueryable<ViewRow> Readable(Guid viewerUserId) =>
-        from view in dbContext.AssetViews.AsNoTracking()
-        where view.OwnerUserId == viewerUserId || view.Visibility == Shared
-        join user in dbContext.Users.AsNoTracking() on view.OwnerUserId equals user.Id into owners
-        from owner in owners.DefaultIfEmpty()
-        select new ViewRow(view, owner == null ? string.Empty : owner.DisplayName ?? owner.IdentityName, view.OwnerUserId);
-
     private async Task EnsureSharedRoomAsync(AssetViewVisibility visibility, Guid? excluding, CancellationToken cancellationToken)
     {
         if (visibility != AssetViewVisibility.Shared) return;
@@ -146,10 +153,9 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
 
     private static string Normalize(string name) => name.Trim().ToUpperInvariant();
 
-    private sealed record ViewRow(AssetViewEntity View, string OwnerName, Guid OwnerUserId);
-
-    private static AssetViewRecord ToRecord(ViewRow row) => new(row.View.Id, row.View.OwnerUserId, row.OwnerName,
-        (AssetViewVisibility)row.View.Visibility, row.View.Name,
-        JsonSerializer.Deserialize<AssetViewDefinition>(row.View.DefinitionJson)!, row.View.Revision, row.View.CreatedAtUtc,
-        row.View.UpdatedAtUtc);
+    private static AssetViewRecord ToRecord(AssetViewEntity entity, IReadOnlyDictionary<Guid, string> ownerNames) =>
+        new(entity.Id, entity.OwnerUserId, ownerNames.GetValueOrDefault(entity.OwnerUserId, string.Empty),
+            (AssetViewVisibility)entity.Visibility, entity.Name,
+            JsonSerializer.Deserialize<AssetViewDefinition>(entity.DefinitionJson)!, entity.Revision, entity.CreatedAtUtc,
+            entity.UpdatedAtUtc);
 }
