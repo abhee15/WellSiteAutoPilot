@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Application.Connections.Discovery;
 using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.ForeSite;
@@ -64,6 +65,68 @@ Expect(long256.Placements[0].Name.Length == 256 && long256.Groups[0].Name.Length
 var generic = ImportPlanner.FallbackName(new DiscoveryField("k", "Some fact"));
 Expect(generic == "Unspecified: Some fact", "a field without its own label gets a generic one");
 
+// Scope: words, facets and the counts a person sees before choosing.
+string[] alphaOnly = ["Alpha"];
+string[] espOrRrl = ["ESP", "RRL"];
+string[] noLease = ["Unspecified lease"];
+string[] anything = ["x"];
+var all = DiscoveryScopes.Apply(wells, DiscoveryScope.Everything, fields);
+Expect(all.Count == 4, "no scope keeps everything");
+Expect(Join(DiscoveryScopes.Apply(wells, new DiscoveryScope("alpha", null), fields).Select(item => item.ExternalId)) == "1,2",
+    "a word matches names and facts regardless of case, in the order found");
+Expect(DiscoveryScopes.Apply(wells, new DiscoveryScope("alpha rrl", null), fields).Count == 1, "every word must match");
+var byField = new Dictionary<string, IReadOnlyList<string>> { ["field"] = alphaOnly, ["wellType"] = espOrRrl };
+Expect(Join(DiscoveryScopes.Apply(wells, new DiscoveryScope(null, byField), fields).Select(item => item.ExternalId)) == "1,2",
+    "any chosen value within a fact, all facts together");
+var unspecified = new Dictionary<string, IReadOnlyList<string>> { ["lease"] = noLease };
+Expect(DiscoveryScopes.Apply(wells, new DiscoveryScope(null, unspecified), fields).Count == 2,
+    "objects with no value are chosen by the name their group would have");
+Expect(DiscoveryScopes.Apply(wells, new DiscoveryScope(null, new Dictionary<string, IReadOnlyList<string>>()), fields).Count == 4,
+    "an empty facet choice is no scope");
+var unknown = false;
+try { DiscoveryScopes.Apply(wells, new DiscoveryScope(null, new Dictionary<string, IReadOnlyList<string>> { ["nonsense"] = anything }), fields); }
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException) { unknown = true; }
+Expect(unknown, "a fact the system does not offer is refused");
+var tooMany = false;
+try { DiscoveryScopes.Apply(wells, new DiscoveryScope(string.Join(' ', Enumerable.Range(0, 11).Select(n => "w" + n)), null), fields); }
+catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException) { tooMany = true; }
+Expect(tooMany, "too many search words are refused");
+
+var facets = DiscoveryScopes.Summarize(wells, fields);
+var fieldFacet = facets.Single(facet => facet.Key == "field");
+Expect(Join(fieldFacet.Values.Select(value => value.Value + ":" + value.Count)) == "Alpha:2,Bravo:1,Unspecified field:1" && !fieldFacet.HasMore,
+    "counts per value, most common first, blanks under their group name");
+var many = Enumerable.Range(0, 250).Select(n => Well("m" + n, "M" + n, ("field", "F" + n.ToString("000", System.Globalization.CultureInfo.InvariantCulture)))).ToArray();
+var cut = DiscoveryScopes.Summarize(many, fields).Single(facet => facet.Key == "field");
+Expect(cut.Values.Count == DiscoveryScopes.MaximumFacetValues && cut.HasMore, "a long list of values is cut and says so");
+
+// Snapshots: kept briefly, only for the person and connection that found them, replaced by a new find.
+var clock = new ManualClock(DateTimeOffset.Parse("2026-10-21T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
+var store = new DiscoverySnapshotStore(clock);
+var me = Guid.NewGuid();
+var other = Guid.NewGuid();
+var result = new DiscoveryResult(true, wells, [], "WFT\\svc");
+var first = store.Add(connection, me, result, fields);
+Expect(store.Find(first.Id, connection, me) is not null, "the finder can read it back");
+Expect(store.Find(first.Id, connection, other) is null, "another person cannot");
+Expect(store.Find(first.Id, Guid.NewGuid(), me) is null, "another connection cannot");
+clock.Advance(DiscoverySnapshotStore.Lifetime - TimeSpan.FromSeconds(1));
+Expect(store.Find(first.Id, connection, me) is not null, "it lasts its whole lifetime");
+clock.Advance(TimeSpan.FromSeconds(2));
+Expect(store.Find(first.Id, connection, me) is null, "it expires after its lifetime");
+var second = store.Add(connection, me, result, fields);
+var third = store.Add(connection, me, result, fields);
+Expect(store.Find(second.Id, connection, me) is null && store.Find(third.Id, connection, me) is not null, "a new find replaces the old one");
+var held = new List<DiscoverySnapshot>();
+for (var n = 0; n < DiscoverySnapshotStore.MaximumSnapshots + 5; n++)
+{
+    held.Add(store.Add(Guid.NewGuid(), Guid.NewGuid(), result, fields));
+    clock.Advance(TimeSpan.FromSeconds(1));
+}
+Expect(held.Count(snapshot => store.Find(snapshot.Id, snapshot.ConnectionId, snapshot.UserId) is not null) <= DiscoverySnapshotStore.MaximumSnapshots,
+    "only a bounded number are held, oldest first out");
+Expect(store.Find(held[^1].Id, held[^1].ConnectionId, held[^1].UserId) is not null, "the newest survives");
+
 Console.WriteLine("Connection import planner checks passed.");
 return 0;
 
@@ -72,4 +135,13 @@ static string Join(IEnumerable<string> values) => string.Join(",", values);
 static void Expect(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException("Import planner check failed: " + message + ".");
+}
+
+sealed class ManualClock(DateTimeOffset start) : TimeProvider
+{
+    private DateTimeOffset _now = start;
+
+    public void Advance(TimeSpan by) => _now += by;
+
+    public override DateTimeOffset GetUtcNow() => _now;
 }
