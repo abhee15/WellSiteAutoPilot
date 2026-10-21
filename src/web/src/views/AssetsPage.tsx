@@ -19,6 +19,11 @@ import { DEFAULT_ASSET_INVENTORY_CRITERIA, filterAssetInventory } from './assetI
 import type { AssetInventoryCriteria } from './assetInventory';
 import { assetAncestors } from './assetPage';
 import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
+import { AssetViewBrowser } from './AssetViewBrowser';
+import { AssetViewEditor } from './AssetViewEditor';
+import { loadViews } from './assetViewsApi';
+import type { AssetView } from './assetViewsApi';
+import type { ViewGroup } from './assetViewsApi';
 import type { OwnerGroup } from './assetHierarchy';
 import { ownerLabel } from './AssetOwnerRow';
 import { AssetBrowser, AssetSearchResults } from './AssetBrowser';
@@ -58,6 +63,19 @@ export function AssetsPage({
     () => assets.map(asset => `${asset.id}|${asset.name}|${asset.isActive}`).join(',') + ':' + localRefresh,
     [assets, localRefresh],
   );
+  const [views, setViews] = useState<AssetView[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string>('');
+  const [editingView, setEditingView] = useState<'new' | AssetView | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    loadViews(controller.signal).then(list => { if (!controller.signal.aborted) setViews(list); })
+      .catch(() => { if (!controller.signal.aborted) setViews([]); });
+    return () => controller.abort();
+  }, []);
+  const activeView = views.find(view => view.id === activeViewId) ?? null;
+  const groupLabel = (group: ViewGroup) => group.key === 'standalone' ? t('assetOwner.standalone')
+    : group.key === 'active' ? t('assetViews.statusActive')
+      : group.key === 'inactive' ? t('assetViews.statusInactive') : group.label;
   const [owners, setOwners] = useState<OwnerGroup[]>([]);
   useEffect(() => {
     const controller = new AbortController();
@@ -213,6 +231,36 @@ export function AssetsPage({
             onRefresh={onRefresh}
             onCancel={() => setAdding(false)}
           />}
+          {editingView && <AssetViewEditor
+            key={editingView === 'new' ? 'new' : editingView.id}
+            view={editingView === 'new' ? null : editingView}
+            owners={owners}
+            assetTypes={activeTypes.map(type => ({ id: type.id ?? '', name: type.displayName ?? type.key ?? '' }))}
+            onSaved={saved => {
+              setViews(current => [...current.filter(view => view.id !== saved.id), saved]
+                .sort((a, b) => a.name.localeCompare(b.name)));
+              setActiveViewId(saved.id);
+              setEditingView(null);
+            }}
+            onDeleted={() => {
+              if (editingView !== 'new') setViews(current => current.filter(view => view.id !== editingView.id));
+              setActiveViewId('');
+              setEditingView(null);
+            }}
+            onCancel={() => setEditingView(null)} />}
+          <div className="asset-view-bar">
+            <label>
+              <span>{t('assetViews.selector')}</span>{' '}
+              <select value={activeView ? activeView.id : ''} onChange={event => { setActiveViewId(event.target.value); setFocus(null); }}>
+                <option value="">{t('assetViews.default')}</option>
+                {views.map(view => <option key={view.id} value={view.id}>{view.name}</option>)}
+              </select>
+            </label>
+            <button type="button" className="secondary-button" onClick={() => setEditingView('new')}>
+              {t('assetViews.create')}</button>
+            {activeView && <button type="button" className="secondary-button" onClick={() => setEditingView(activeView)}>
+              {t('assetViews.edit')}</button>}
+          </div>
           <div className="split-panes">
             <section className="panel split-browse" aria-label={t('assets.browse')}>
               <div className="split-search">
@@ -231,7 +279,7 @@ export function AssetsPage({
                   hideSearch
                 />
               </details>}
-              {focus ? (
+              {activeView && !criteria.search.trim() ? null : focus ? (
                 <p className="split-focus">
                   <span>{t('assets.focusedOn', { name: focus.name })}</span>
                   <button type="button" className="secondary-button" onClick={() => setFocus(null)}>
@@ -251,6 +299,9 @@ export function AssetsPage({
                     {permissions.includes('connections.manage') && permissions.includes('connections.read') &&
                       <p className="split-note"><a href="#connections">{t('assets.importFromConnection')}</a></p>}
                   </>
+                ) : activeView && !criteria.search.trim() ? (
+                  <AssetViewBrowser key={activeView.id + ':' + activeView.revision + ':' + localRefresh} viewId={activeView.id}
+                    selectedId={selectedId} onSelect={select} translateGroup={groupLabel} />
                 ) : lazy ? (
                   criteria.search.trim()
                     ? <AssetSearchResults query={criteria.search.trim()} selectedId={selectedId}
