@@ -96,3 +96,28 @@ it('says so when the name is already used and keeps what was typed', async () =>
   expect((await within(form).findByRole('alert')).textContent).toBe('You already have a View with that name.');
   expect((within(form).getByLabelText('View name') as HTMLInputElement).value).toBe('Taken');
 });
+
+it('turns the browser-local filters into a View: only what can carry over, and nothing saved until confirmed', async () => {
+  const requests: { url: string; init?: RequestInit }[] = [];
+  host(requests, []);
+  window.location.hash = '#assets';
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(await screen.findByText('Filters and saved views'));
+  await user.type(await screen.findByLabelText('Filter name'), 'Pumps');
+  await user.selectOptions(screen.getByLabelText('Status'), 'active');
+  await user.selectOptions(screen.getByLabelText('Hierarchy'), 'roots');
+  await user.click(screen.getByRole('button', { name: 'Save as View…' }));
+  const form = await screen.findByRole('form', { name: 'Create a View' });
+  expect((within(form).getByLabelText('View name') as HTMLInputElement).value).toBe('Pumps');
+  expect((within(form).getByLabelText('Show') as HTMLSelectElement).value).toBe('active');
+  expect(within(form).getByRole('note').textContent).toContain('carry over');
+  expect(requests.some(request => request.init?.method === 'POST')).toBe(false);
+  await user.click(within(form).getByRole('button', { name: 'Save View' }));
+  await waitFor(() => expect(requests.some(request => request.init?.method === 'POST')).toBe(true));
+  const post = requests.find(request => request.init?.method === 'POST')!;
+  const body = JSON.parse(String(post.init?.body)) as { name: string; definition: { activity: string; grouping: string[] } };
+  expect(body.name).toBe('Pumps');
+  expect(body.definition.activity).toBe('active');
+  expect(body.definition.grouping).toEqual([]);
+});

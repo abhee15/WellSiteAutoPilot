@@ -40,10 +40,10 @@ describe('Asset saved-view interaction', () => {
 
     const search = screen.getByRole('searchbox', { name: 'Search assets' });
     await user.type(search, 'pump');
-    await user.type(screen.getByRole('textbox', { name: 'View name' }), 'Pump wells');
-    await user.click(screen.getByRole('button', { name: 'Save view' }));
+    await user.type(screen.getByRole('textbox', { name: 'Filter name' }), 'Pump wells');
+    await user.click(screen.getByRole('button', { name: 'Save filter' }));
 
-    expect(screen.getByRole('status').textContent).toBe('Asset view saved.');
+    expect(screen.getByRole('status').textContent).toBe('Filter saved.');
 
     const raw = window.localStorage.getItem(assetViewsKey(primaryUserId));
     expect(raw).not.toBeNull();
@@ -59,7 +59,7 @@ describe('Asset saved-view interaction', () => {
     await user.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect((search as HTMLInputElement).value).toBe('');
     await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Saved Asset views' }),
+      screen.getByRole('combobox', { name: 'Saved filters (this browser only)' }),
       screen.getByRole('option', { name: 'Pump wells' })
     );
     expect((search as HTMLInputElement).value).toBe('pump');
@@ -69,14 +69,14 @@ describe('Asset saved-view interaction', () => {
     const user = userEvent.setup();
     render(<AssetViewHarness />);
 
-    await user.click(screen.getByRole('button', { name: 'Save view' }));
+    await user.click(screen.getByRole('button', { name: 'Save filter' }));
     expect(screen.getByRole('status').textContent)
       .toBe('Enter a name of up to 48 characters.');
     expect(window.localStorage.getItem(assetViewsKey(primaryUserId))).toBeNull();
 
-    await user.type(screen.getByRole('textbox', { name: 'View name' }), 'Working set');
-    await user.click(screen.getByRole('button', { name: 'Save view' }));
-    await user.click(screen.getByRole('button', { name: 'Save view' }));
+    await user.type(screen.getByRole('textbox', { name: 'Filter name' }), 'Working set');
+    await user.click(screen.getByRole('button', { name: 'Save filter' }));
+    await user.click(screen.getByRole('button', { name: 'Save filter' }));
     expect(screen.getByRole('status').textContent)
       .toBe('A view with that name already exists.');
 
@@ -89,8 +89,8 @@ describe('Asset saved-view interaction', () => {
     const user = userEvent.setup();
     render(<AssetViewHarness userId={null} />);
 
-    const save = screen.getByRole('button', { name: 'Save view' });
-    const savedViews = screen.getByRole('combobox', { name: 'Saved Asset views' });
+    const save = screen.getByRole('button', { name: 'Save filter' });
+    const savedViews = screen.getByRole('combobox', { name: 'Saved filters (this browser only)' });
     expect((save as HTMLButtonElement).disabled).toBe(true);
     expect((savedViews as HTMLSelectElement).disabled).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Reset filters' }));

@@ -22,7 +22,7 @@ import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
 import { AssetViewBrowser } from './AssetViewBrowser';
 import { AssetViewEditor } from './AssetViewEditor';
 import { loadViews } from './assetViewsApi';
-import type { AssetView } from './assetViewsApi';
+import type { AssetView, ViewDefinition } from './assetViewsApi';
 import type { ViewGroup } from './assetViewsApi';
 import type { OwnerGroup } from './assetHierarchy';
 import { ownerLabel } from './AssetOwnerRow';
@@ -66,6 +66,17 @@ export function AssetsPage({
   const [views, setViews] = useState<AssetView[]>([]);
   const [activeViewId, setActiveViewId] = useState<string>('');
   const [editingView, setEditingView] = useState<'new' | AssetView | null>(null);
+  const [viewDraft, setViewDraft] = useState<{ name: string; definition: ViewDefinition; lossy: boolean } | null>(null);
+  const startViewFromFilters = (filters: AssetInventoryCriteria, suggestedName: string) => {
+    setViewDraft({
+      name: suggestedName,
+      definition: { version: 1, connections: [], assetTypeIds: [], activity: filters.activity,
+        search: filters.search.trim() || null, grouping: [] },
+      // A View lists by name and has no root-only or newest-first option, so those choices cannot carry over.
+      lossy: filters.hierarchy !== 'all' || filters.sort !== 'name',
+    });
+    setEditingView('new');
+  };
   useEffect(() => {
     const controller = new AbortController();
     loadViews(controller.signal).then(list => { if (!controller.signal.aborted) setViews(list); })
@@ -234,6 +245,7 @@ export function AssetsPage({
           {editingView && <AssetViewEditor
             key={editingView === 'new' ? 'new' : editingView.id}
             view={editingView === 'new' ? null : editingView}
+            initial={editingView === 'new' ? viewDraft : null}
             owners={owners}
             assetTypes={activeTypes.map(type => ({ id: type.id ?? '', name: type.displayName ?? type.key ?? '' }))}
             onSaved={saved => {
@@ -241,13 +253,14 @@ export function AssetsPage({
                 .sort((a, b) => a.name.localeCompare(b.name)));
               setActiveViewId(saved.id);
               setEditingView(null);
+              setViewDraft(null);
             }}
             onDeleted={() => {
               if (editingView !== 'new') setViews(current => current.filter(view => view.id !== editingView.id));
               setActiveViewId('');
               setEditingView(null);
             }}
-            onCancel={() => setEditingView(null)} />}
+            onCancel={() => { setEditingView(null); setViewDraft(null); }} />}
           <div className="asset-view-bar">
             <label>
               <span>{t('assetViews.selector')}</span>{' '}
@@ -256,7 +269,7 @@ export function AssetsPage({
                 {views.map(view => <option key={view.id} value={view.id}>{view.name}</option>)}
               </select>
             </label>
-            <button type="button" className="secondary-button" onClick={() => setEditingView('new')}>
+            <button type="button" className="secondary-button" onClick={() => { setViewDraft(null); setEditingView('new'); }}>
               {t('assetViews.create')}</button>
             {activeView && <button type="button" className="secondary-button" onClick={() => setEditingView(activeView)}>
               {t('assetViews.edit')}</button>}
@@ -277,6 +290,7 @@ export function AssetsPage({
                   matchingCount={visibleAssets.length}
                   totalCount={assets.length}
                   hideSearch
+                  onSaveAsView={startViewFromFilters}
                 />
               </details>}
               {activeView && !criteria.search.trim() ? null : focus ? (
