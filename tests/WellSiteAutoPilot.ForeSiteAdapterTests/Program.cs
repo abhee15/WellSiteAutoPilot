@@ -316,8 +316,8 @@ internal sealed class ScopedRoutes(
         if (path.EndsWith("/Wells/Well/Filter", StringComparison.Ordinal) ||
             path.EndsWith("/WellConfig/GetWellAutonomousControlGroupData", StringComparison.Ordinal))
         {
-            Expect(request.Method == HttpMethod.Post && request.Content is not null,
-                "ForeSite scoped endpoints require POST with a JSON body");
+            if (request.Method != HttpMethod.Post || request.Content is null)
+                throw new InvalidOperationException("ForeSite scoped endpoints require POST with a JSON body.");
             using var doc = System.Text.Json.JsonDocument.Parse(
                 await request.Content!.ReadAsStringAsync(cancellationToken));
             var ids = doc.RootElement.GetProperty("assetIds")
