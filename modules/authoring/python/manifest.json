@@ -1,0 +1,34 @@
+{
+  "manifestVersion": 1,
+  "moduleId": "weatherford.foresite-well-input-check.python",
+  "version": "1.0.0",
+  "displayName": "ForeSite Well Input Check (python)",
+  "publisher": "Weatherford",
+  "runtime": "Python",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "well_input_check:execute",
+  "minimumSdkVersion": "1.0.0",
+  "requiredAdapterKey": "foresite",
+  "description": "Observe one supplied pump-fillage input in Shadow. No provider writes. Live ForeSite mapping is a separate prerequisite.",
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": "well",
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "pump-fillage",
+      "assetRole": "well",
+      "quantity": "PumpFillage",
+      "access": "Current",
+      "canonicalUnit": "%",
+      "maximumAgeSeconds": 60,
+      "allowUncertainQuality": false
+    }
+  ],
+  "commandRequirements": []
+}

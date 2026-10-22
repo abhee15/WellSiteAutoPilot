@@ -1,0 +1,47 @@
+name: Module authoring kit
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'modules/authoring/**'
+      - 'src/modules/WellSiteAutoPilot.ModuleSdk/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/module-authoring-kit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: module-authoring-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-parity:
+    name: Offline module contract (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build template and offline host against product SDK
+        run: dotnet build modules/authoring/dotnet/OfflineRunner/OfflineRunner.csproj --configuration Release
+      - name: Validate manifests with product CLI
+        run: |
+          dotnet run --project tools/WellSiteAutoPilot.Cli --configuration Release -- module validate modules/authoring/dotnet/manifest.json
+          dotnet run --project tools/WellSiteAutoPilot.Cli --configuration Release --no-build -- module validate modules/authoring/python/manifest.json
+      - name: Check both runtimes against identical cases
+        env:
+          WSA_TEST_DOTNET: '1'
+        run: python -m unittest discover -s modules/authoring/tests -p 'test_*.py' -v
