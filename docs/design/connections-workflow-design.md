@@ -548,3 +548,20 @@ module requires a one-well View; automatic per-well fan-out from a larger View i
 hierarchy discovery/import is available, but the live engineering read/write provider remains separate adapter
 work; the Gateway currently registers simulator current-data routing. Saving an assignment does not implement
 that provider or start execution. Existing validation, activation, licensing and execution checks remain in force.
+
+## 20. Live connection status (scheduled checks)
+
+**Why.** Today a Connection's state is only what the last manual test said ("Last tested …"). People keep the Status page open to see whether the outside systems are up, so the page should show what is true now and update by itself, not what someone last clicked.
+
+**What a check is.** The same adapter test a person runs today, run by the Server on a schedule against every enabled Connection. It changes nothing in the outside system and nothing in the Assets.
+
+**Rules.**
+- **Who runs it.** A background service in the Server, like the scheduled Shadow dispatcher. It acts as a named system actor (`system:connection-monitor`) that holds no grants of its own; it can only call the adapter test for Connections that exist and are enabled.
+- **How often.** One interval for the installation, default 5 minutes, setting `ConnectionMonitor:IntervalSeconds` (minimum 60). Disabled Connections are skipped. Checks are spread out (a small random delay per Connection) and at most 4 run at once, each with the adapter's own timeout.
+- **Several Server instances.** Only one instance runs a sweep: it takes a PostgreSQL advisory lock for the sweep and skips it when another instance holds it. The result is written to the same row everyone reads, so every instance shows the same state.
+- **Do not lock accounts.** A Connection that fails back off: after each consecutive failure the next check waits twice as long, up to 30 minutes, and goes back to the normal interval after one success. A wrong password is therefore not retried every 5 minutes against a system that locks accounts. A person's manual test always runs immediately and resets the back-off.
+- **Recording.** Every check updates the Connection's last result (outcome, message, time, source `scheduled` or `manual`). An audit event is written only when the outcome changes (for example Healthy to Unreachable), not for every check, so the audit log is not flooded. The existing "outdated" rule stays: a result is outdated once the settings changed after it.
+- **Telling the browser.** A new change area `connections` (wire name `connections`) is signalled after a check that changed anything a person can see (outcome or message). It carries no values, like the other areas, and maps to the `connections.read` permission. The Status page subscribes to it and to its own slower refresh, and shows "Checked <time>" per Connection instead of "Last tested". Platform services keep refreshing on the page's interval, because they are read live from the Server.
+- **What it does not do.** It does not re-find or re-import anything, change Assets, or send any command to equipment. It does not keep a history of checks; the audit log of outcome changes is the history.
+
+**Build order.** (1) Server: the monitor service, `source` on the recorded result, audit on change, the `connections` area and its permission mapping, tests. (2) Web: subscribe the Status page and the Connections list, label results "Checked", show the source. (3) Later, if wanted: a per-Connection interval and a notification when a Connection stays down.
