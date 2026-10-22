@@ -6,174 +6,140 @@ import { App } from '../../src/App';
 const userId = '66666666-6666-4666-8666-666666666666';
 const typeId = '88888888-8888-4888-8888-888888888888';
 const connectionId = '99999999-9999-4999-8999-999999999999';
+const otherConnection = '99999999-9999-4999-8999-999999999998';
 const wellId = '77777777-7777-4777-8777-000000000001';
+const otherWellId = '77777777-7777-4777-8777-000000000002';
+const groupId = '77777777-7777-4777-8777-000000000003';
 const viewId = '55555555-5555-4555-8555-555555555555';
-const response = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
+const response = (value: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(value), { status });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.location.hash = ''; localStorage.clear(); });
-
-const well = { id: wellId, assetTypeId: typeId, name: 'North Well', parentAssetId: null, ownerConnectionId: connectionId, isActive: true };
-const definition = { version: 1, connections: [], assetTypeIds: [], activity: 'all', search: null, grouping: ['connection'] };
-const saved = { id: viewId, name: 'By owner', definition, revision: 1, createdAtUtc: '2026-10-21T10:00:00Z', updatedAtUtc: '2026-10-21T10:00:00Z' };
-
-function host(requests: { url: string; init?: RequestInit }[], existing: unknown[], permissions: string[] = ['assets.read']) {
+const well = { id: wellId, assetTypeId: typeId, name: 'North Well', parentAssetId: groupId, ownerConnectionId: connectionId, isActive: true, childCount: 0 };
+const south = { ...well, id: otherWellId, name: 'South Well' };
+const group = { ...well, id: groupId, assetTypeId: 'group-type', name: 'Field', parentAssetId: null, childCount: 2 };
+const saved = { id: viewId, connectionId, name: 'ESP Wells', revision: 1, memberCount: 1, hasUnavailableMembers: false,
+  createdAtUtc: '2026-10-21T10:00:00Z', updatedAtUtc: '2026-10-21T10:00:00Z', canEdit: true, canDelete: true };
+const allPermissions = ['assets.read', 'connections.read', 'asset-views.create', 'asset-views.edit', 'asset-views.delete'];
+type Request = { url: string; init?: RequestInit };
+function host(requests: Request[], existing: unknown[] = [], permissions = allPermissions, conflict = false) {
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     requests.push({ url, init });
     if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\link', isActive: true, roles: [], permissions, assetScopeIds: [] });
     if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
-    if (url.includes('/asset-types')) return response([{ id: typeId, key: 'well', displayName: 'Well', schemaVersion: 1, isActive: true }]);
-    if (url === `/api/v1/asset-views/${viewId}/copy` && init?.method === 'POST') {
-      const body = JSON.parse(String(init.body)) as { name: string };
-      return response({ ...saved, id: '55555555-5555-4555-8555-555555555557', name: body.name, visibility: 'personal', isOwner: true, canEdit: true }, 201);
-    }
+    if (url.includes('/asset-types')) return response([{ id: typeId, key: 'well', displayName: 'Well', schemaVersion: 1, isActive: true },
+      { id: 'group-type', key: 'group', displayName: 'Group', schemaVersion: 1, isActive: true }]);
     if (url === '/api/v1/asset-views' && init?.method === 'POST') {
-      const body = JSON.parse(String(init.body)) as { name: string; definition: unknown };
-      return response({ ...saved, id: '55555555-5555-4555-8555-555555555556', name: body.name, definition: body.definition }, 201);
+      if (conflict) return response({ code: 'ASSET_VIEW_NAME_CONFLICT' }, 409);
+      const body = JSON.parse(String(init.body)) as { name: string; assetIds: string[] };
+      return response({ ...saved, name: body.name, memberCount: body.assetIds.length }, 201);
     }
     if (url === '/api/v1/asset-views') return response(existing);
-    if (url.startsWith(`/api/v1/asset-views/${viewId}/nodes`)) {
-      return url.includes('path=') ? response({ level: null, groups: [], assets: [{ ...well, childCount: 0 }] })
-        : response({ level: 'connection', groups: [{ key: connectionId, label: 'Houston Production', count: 1 }], assets: [] });
+    if (url === `/api/v1/asset-views/${viewId}` && init?.method === 'PUT') {
+      const body = JSON.parse(String(init.body)) as { name: string; assetIds: string[] };
+      return response({ ...saved, name: body.name, revision: 2, memberCount: body.assetIds.length });
     }
-    if (url === '/api/v1/assets/owners') return response([{ connectionId, connectionName: 'Houston Production', isEnabled: true, topLevelCount: 1, assetCount: 1 }]);
-    if (url.includes('/assets?')) return response([well]);
-    if (url === '/api/v1/assets/' + wellId + '/source') return response({ connectionId, connectionName: 'Houston Production', resourceKind: 'foresite.well', externalId: 'FS-1001', importedAtUtc: '2026-10-21T10:00:00Z' });
+    if (url.startsWith(`/api/v1/asset-views/${viewId}?`) && init?.method === 'DELETE') return response(null, 204);
+    if (url === `/api/v1/asset-views/${viewId}/selection`) return response({ revision: 1, assetIds: [wellId] });
+    if (url.startsWith(`/api/v1/asset-views/${viewId}/members`)) return response([well]);
+    if (url === '/api/v1/assets/owners') return response([
+      { connectionId, connectionName: 'Houston Production', isEnabled: true, topLevelCount: 1, assetCount: 3 },
+      { connectionId: otherConnection, connectionName: 'Other Connection', isEnabled: true, topLevelCount: 0, assetCount: 0 }]);
+    if (url.startsWith('/api/v1/assets/children')) {
+      if (url.includes(otherConnection)) return response([]);
+      return response(url.includes('parentAssetId=' + groupId) ? [well, south] : [group]);
+    }
+    if (url.startsWith('/api/v1/assets/search')) return response([south]);
+    if (url.includes('/assets?')) return response([group, well, south]);
     if (url === '/api/v1/assets/' + wellId) return response(well);
     return response([]);
   }));
 }
-
-it('opens a saved View: groups load when opened and a chosen asset opens the asset page', async () => {
-  const requests: { url: string }[] = [];
-  host(requests, [saved]);
-  window.location.hash = '#assets';
-  render(<App />);
-  const selector = await screen.findByLabelText('View');
-  await waitFor(() => expect(within(selector).queryByText('By owner')).toBeTruthy());
-  await userEvent.setup().selectOptions(selector, viewId);
-  const tree = await screen.findByRole('navigation', { name: 'Assets in this View' });
-  const group = await within(tree).findByRole('button', { name: 'Open Houston Production from the hierarchy' });
-  expect(requests.some(request => request.url.includes('path='))).toBe(false);
-  await userEvent.setup().click(group);
-  const asset = await within(tree).findByRole('button', { name: 'Open North Well from the hierarchy' });
-  expect(requests.some(request => request.url.includes('path=' + connectionId))).toBe(true);
-  await userEvent.setup().click(asset);
-  expect(window.location.hash).toBe('#assets/' + wellId);
-  // The location starts at the owning Connection, so equal names in two Connections stay distinguishable.
-  expect(await screen.findByText('Located under Houston Production')).toBeTruthy();
-  // And where it came from in the outside system.
-  expect(await screen.findByText('FS-1001')).toBeTruthy();
-  expect(screen.getByText(/Source \(foresite\.well\):/)).toBeTruthy();
-});
-
-it('creates a View from the dedicated flow and selects it', async () => {
-  const requests: { url: string; init?: RequestInit }[] = [];
-  host(requests, []);
-  window.location.hash = '#assets';
-  const user = userEvent.setup();
-  render(<App />);
+async function createForm(requests: Request[], conflict = false) {
+  host(requests, [], allPermissions, conflict); window.location.hash = '#assets';
+  const user = userEvent.setup(); render(<App />);
   await user.click(await screen.findByRole('button', { name: 'Create View' }));
   const form = await screen.findByRole('form', { name: 'Create a View' });
-  await user.type(within(form).getByLabelText('View name'), '  Wells by owner ');
-  await user.click(within(form).getByLabelText('Houston Production'));
-  await user.click(within(form).getByRole('button', { name: 'Add Connection' }));
-  await user.click(within(form).getByRole('button', { name: 'Add Status' }));
-  await user.click(within(form).getByRole('button', { name: 'Move Status up' }));
-  await user.click(within(form).getByRole('button', { name: 'Save View' }));
-  await waitFor(() => expect(requests.some(request => request.init?.method === 'POST')).toBe(true));
-  const post = requests.find(request => request.init?.method === 'POST')!;
-  const body = JSON.parse(String(post.init?.body)) as { name: string; definition: { connections: string[]; grouping: string[] } };
-  expect(body.name).toBe('Wells by owner');
-  expect(body.definition.connections).toEqual([connectionId]);
-  expect(body.definition.grouping).toEqual(['status', 'connection']);
-  await waitFor(() => expect(screen.queryByRole('form', { name: 'Create a View' })).toBeNull());
-  expect((screen.getByLabelText('View') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Wells by owner');
-});
-
-it('says so when the name is already used and keeps what was typed', async () => {
-  const requests: { url: string; init?: RequestInit }[] = [];
-  host(requests, []);
-  const base = vi.mocked(fetch).getMockImplementation()!;
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) =>
-    url === '/api/v1/asset-views' && init?.method === 'POST'
-      ? response({ code: 'ASSET_VIEW_NAME_CONFLICT' }, 409) : base(url, init)));
-  window.location.hash = '#assets';
-  const user = userEvent.setup();
-  render(<App />);
-  await user.click(await screen.findByRole('button', { name: 'Create View' }));
-  const form = await screen.findByRole('form', { name: 'Create a View' });
-  await user.type(within(form).getByLabelText('View name'), 'Taken');
-  await user.click(within(form).getByRole('button', { name: 'Save View' }));
-  expect((await within(form).findByRole('alert')).textContent).toBe('You already have a View with that name.');
-  expect((within(form).getByLabelText('View name') as HTMLInputElement).value).toBe('Taken');
-});
-
-it('turns the browser-local filters into a View: only what can carry over, and nothing saved until confirmed', async () => {
-  const requests: { url: string; init?: RequestInit }[] = [];
-  host(requests, []);
-  window.location.hash = '#assets';
-  const user = userEvent.setup();
-  render(<App />);
-  await user.click(await screen.findByText('Filters and saved views'));
-  await user.type(await screen.findByLabelText('Filter name'), 'Pumps');
-  await user.selectOptions(screen.getByLabelText('Status'), 'active');
-  await user.selectOptions(screen.getByLabelText('Hierarchy'), 'roots');
-  await user.click(screen.getByRole('button', { name: 'Save as View…' }));
-  const form = await screen.findByRole('form', { name: 'Create a View' });
-  expect((within(form).getByLabelText('View name') as HTMLInputElement).value).toBe('Pumps');
-  expect((within(form).getByLabelText('Show') as HTMLSelectElement).value).toBe('active');
-  expect(within(form).getByRole('note').textContent).toContain('carry over');
+  await user.selectOptions(within(form).getByLabelText('Connection'), connectionId);
+  return { user, form };
+}
+async function openBranch(form: HTMLElement) {
+  await userEvent.setup().click(await within(form).findByRole('button', { name: 'Open Field from the hierarchy' }));
+  return within(form).findByRole('checkbox', { name: 'Select North Well' });
+}
+it('saves one Connection and the explicit wells; parents remain navigation and there is no sharing toggle', async () => {
+  const requests: Request[] = []; const { user, form } = await createForm(requests);
+  expect((within(form).getByLabelText('Connection') as HTMLSelectElement).multiple).toBe(false);
+  expect(within(form).queryByText(/Share with everyone/)).toBeNull();
+  expect(within(form).queryByLabelText('Asset types')).toBeNull();
   expect(requests.some(request => request.init?.method === 'POST')).toBe(false);
+  await user.type(within(form).getByLabelText('View name'), '  Selected ESP wells ');
+  await user.click(await openBranch(form));
+  expect(within(form).queryByRole('checkbox', { name: 'Select Field' })).toBeNull();
   await user.click(within(form).getByRole('button', { name: 'Save View' }));
   await waitFor(() => expect(requests.some(request => request.init?.method === 'POST')).toBe(true));
-  const post = requests.find(request => request.init?.method === 'POST')!;
-  const body = JSON.parse(String(post.init?.body)) as { name: string; definition: { activity: string; grouping: string[] } };
-  expect(body.name).toBe('Pumps');
-  expect(body.definition.activity).toBe('active');
-  expect(body.definition.grouping).toEqual([]);
+  expect(JSON.parse(String(requests.find(request => request.init?.method === 'POST')!.init?.body)))
+    .toEqual({ name: 'Selected ESP wells', connectionId, assetIds: [wellId] });
 });
-
-it('shares a View only for people who may share, and says what that means', async () => {
-  const plain: { url: string; init?: RequestInit }[] = [];
-  host(plain, [], ['assets.read']);
-  window.location.hash = '#assets';
-  const user = userEvent.setup();
-  const first = render(<App />);
-  await user.click(await screen.findByRole('button', { name: 'Create View' }));
-  const form = await screen.findByRole('form', { name: 'Create a View' });
-  expect(within(form).queryByLabelText(/Share with everyone/)).toBeNull();
-  first.unmount();
-  cleanup();
-
-  const requests: { url: string; init?: RequestInit }[] = [];
-  host(requests, [], ['assets.read', 'asset-views.share']);
-  render(<App />);
-  await user.click(await screen.findByRole('button', { name: 'Create View' }));
-  const sharing = await screen.findByRole('form', { name: 'Create a View' });
-  await user.type(within(sharing).getByLabelText('View name'), 'For the team');
-  await user.click(within(sharing).getByLabelText(/Share with everyone who can read Assets/));
-  await user.click(within(sharing).getByRole('button', { name: 'Save View' }));
-  await waitFor(() => expect(requests.some(request => request.init?.method === 'POST')).toBe(true));
-  const body = JSON.parse(String(requests.find(request => request.init?.method === 'POST')!.init?.body)) as { visibility: string };
-  expect(body.visibility).toBe('shared');
+it('keeps selection across hierarchy collapse and scoped search, and clears it when changing Connection', async () => {
+  const requests: Request[] = []; const { user, form } = await createForm(requests);
+  await user.click(await openBranch(form));
+  await user.click(within(form).getByRole('button', { name: 'Hide children of Field' }));
+  await user.type(within(form).getByLabelText('Find wells in this Connection'), 'South');
+  await user.click(await within(form).findByRole('checkbox', { name: 'Select South Well' }));
+  expect(within(form).getByText('Selected wells (2)')).toBeTruthy();
+  expect(requests.some(request => request.url.includes('/assets/search?') && request.url.includes('ownerConnectionId=' + connectionId))).toBe(true);
+  await user.clear(within(form).getByLabelText('Find wells in this Connection'));
+  expect((await openBranch(form) as HTMLInputElement).checked).toBe(true);
+  await user.selectOptions(within(form).getByLabelText('Connection'), otherConnection);
+  expect(within(form).getByText('Selected wells (0)')).toBeTruthy();
 });
-
-it("someone else's shared View is read-only: it is listed under Shared views and can be copied", async () => {
-  const requests: { url: string; init?: RequestInit }[] = [];
-  host(requests, [{ ...saved, visibility: 'shared', ownerName: 'Pat Engineer', isOwner: false, canEdit: false, hiddenConnectionCount: 2 }]);
-  window.location.hash = '#assets';
-  const user = userEvent.setup();
-  render(<App />);
+it('selects descendant wells under an unopened group and allows exceptions', async () => {
+  const requests: Request[] = []; const { user, form } = await createForm(requests);
+  await user.click(await within(form).findByRole('button', { name: 'Select wells under Field' }));
+  await within(form).findByText('Selected wells (2)');
+  await user.click(within(form).getByRole('button', { name: 'Remove South Well from selection' }));
+  expect(within(form).getByText('Selected wells (1)')).toBeTruthy();
+});
+it('keeps the form and selection when a name conflicts', async () => {
+  const requests: Request[] = []; const { user, form } = await createForm(requests, true);
+  await user.type(within(form).getByLabelText('View name'), 'Taken'); await user.click(await openBranch(form));
+  await user.click(within(form).getByRole('button', { name: 'Save View' }));
+  expect((await within(form).findByRole('alert')).textContent).toContain('already exists in this Connection');
+  expect(within(form).getByText('Selected wells (1)')).toBeTruthy();
+});
+it('readers see Connection Views without a create or edit permission', async () => {
+  const requests: Request[] = []; host(requests, [{ ...saved, canEdit: false, canDelete: false }], ['assets.read', 'connections.read']);
+  window.location.hash = '#assets'; const user = userEvent.setup(); render(<App />);
   const selector = await screen.findByLabelText('View');
-  await waitFor(() => expect(within(selector).queryByText('By owner · Pat Engineer')).toBeTruthy());
+  await waitFor(() => expect(within(selector).queryByText('ESP Wells · Houston Production')).toBeTruthy());
+  expect(screen.queryByRole('button', { name: 'Create View' })).toBeNull();
   await user.selectOptions(selector, viewId);
+  expect(await screen.findByRole('navigation', { name: 'Assets in this View' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Edit view' })).toBeNull();
-  expect((await screen.findAllByText('2 Connection(s) named in this View are not visible to you.')).length).toBeGreaterThan(0);
-  await user.click(screen.getByRole('button', { name: 'Save a copy' }));
+  expect(screen.queryByText('My views')).toBeNull();
+});
+it('a permitted non-creator edits explicit membership with the expected revision', async () => {
+  const requests: Request[] = []; host(requests, [saved]); window.location.hash = '#assets';
+  const user = userEvent.setup(); render(<App />);
+  const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
+  await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
   const form = await screen.findByRole('form', { name: 'Edit view' });
-  expect(within(form).queryByRole('button', { name: 'Delete View' })).toBeNull();
-  expect((within(form).getByLabelText('View name') as HTMLInputElement).value).toBe('By owner (copy)');
-  await user.click(within(form).getByRole('button', { name: 'Save my copy' }));
-  await waitFor(() => expect(requests.some(request => request.url.endsWith('/copy'))).toBe(true));
-  const body = JSON.parse(String(requests.find(request => request.url.endsWith('/copy'))!.init?.body)) as { name: string };
-  expect(body.name).toBe('By owner (copy)');
+  await within(form).findByText('Selected wells (1)');
+  expect((within(form).getByLabelText('Connection') as HTMLSelectElement).disabled).toBe(true);
+  await user.click(await openBranch(form));
+  expect(within(form).getByText('Selected wells (0)')).toBeTruthy();
+  await user.click(within(form).getByRole('checkbox', { name: 'Select South Well' }));
+  await user.click(within(form).getByRole('button', { name: 'Save View' }));
+  await waitFor(() => expect(requests.some(request => request.init?.method === 'PUT')).toBe(true));
+  expect(JSON.parse(String(requests.find(request => request.init?.method === 'PUT')!.init?.body)))
+    .toEqual({ expectedRevision: 1, name: 'ESP Wells', assetIds: [otherWellId] });
+});
+it('post-import navigation preselects the Connection without selecting or saving wells', async () => {
+  const requests: Request[] = []; host(requests);
+  window.location.hash = '#assets/' + encodeURIComponent('new-view:' + connectionId); render(<App />);
+  const form = await screen.findByRole('form', { name: 'Create a View' });
+  expect((within(form).getByLabelText('Connection') as HTMLSelectElement).value).toBe(connectionId);
+  expect(within(form).getByText('Selected wells (0)')).toBeTruthy();
+  expect(requests.some(request => request.init?.method === 'POST')).toBe(false);
+  await userEvent.setup().click(within(form).getByRole('button', { name: 'Cancel' }));
+  expect(requests.some(request => request.init?.method === 'POST')).toBe(false);
 });

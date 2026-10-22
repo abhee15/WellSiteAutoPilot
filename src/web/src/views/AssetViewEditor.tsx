@@ -1,190 +1,169 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
-import { MAX_VIEW_LEVELS, MAX_VIEW_NAME, STANDALONE, VIEW_LEVELS, ViewsError, copyView, createView, deleteView, updateView } from './assetViewsApi';
-import type { AssetView, ViewActivity, ViewDefinition, ViewLevel, ViewVisibility } from './assetViewsApi';
+import { MAX_VIEW_NAME, ViewsError, createView, deleteView, loadViewMembers, loadViewSelection, updateView } from './assetViewsApi';
+import type { AssetView } from './assetViewsApi';
 import type { OwnerGroup } from './assetHierarchy';
+import { AssetBrowser } from './AssetBrowser';
+import { fetchSearch, SEARCH_PAGE_SIZE } from './assetBrowseApi';
+import type { BrowseNode } from './assetBrowseApi';
+import { wellsUnder } from './wellSelection';
 import './assetViews.css';
 
-const levelKey = (level: ViewLevel): MessageKey => `assetViews.level.${level}` as MessageKey;
+const errors: Record<string, MessageKey> = { accessDenied: 'assetViews.errDenied', notFound: 'assetViews.errNotFound',
+  nameTaken: 'assetViews.errNameTaken', stale: 'assetViews.errStale', invalid: 'assetViews.errInvalid' };
+const errorMessage = (error: unknown) => t(error instanceof ViewsError ? errors[error.kind] ?? 'assetViews.errUnavailable' : 'assetViews.errUnavailable');
 
-const errorKey = (error: unknown): MessageKey => {
-  if (!(error instanceof ViewsError)) return 'assetViews.errUnavailable';
-  switch (error.kind) {
-    case 'nameTaken': return 'assetViews.errNameTaken';
-    case 'sharedNameTaken': return 'assetViews.errSharedNameTaken';
-    case 'shareForbidden': return 'assetViews.errShareForbidden';
-    case 'stale': return 'assetViews.errStale';
-    case 'limit': return 'assetViews.errLimit';
-    case 'invalid': return 'assetViews.errInvalid';
-    case 'notFound': return 'assetViews.errNotFound';
-    case 'accessDenied': return 'assetViews.errDenied';
-    default: return 'assetViews.errUnavailable';
-  }
-};
-
-/** Create or change one View: what it shows and how it is grouped. A View never moves or copies Assets. */
-export function AssetViewEditor({
-  view, owners, assetTypes, canShare, onSaved, onDeleted, onCancel, initial,
-}: {
-  view: AssetView | null;
-  /** Whether this person holds asset-views.share. */
-  canShare: boolean;
-  /** Starting point for a new View, such as a browser-local filter being converted. `lossy` says part of it cannot carry over. */
-  initial?: { name: string; definition: ViewDefinition; lossy: boolean } | null;
-  owners: readonly OwnerGroup[];
-  assetTypes: readonly { id: string; name: string }[];
-  onSaved: (saved: AssetView) => void;
-  onDeleted: () => void;
-  onCancel: () => void;
+export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId, onSaved, onDeleted, onCancel }: {
+  view: AssetView | null; owners: readonly OwnerGroup[];
+  assetTypes: readonly { id: string; key: string; name: string }[]; initialConnectionId?: string | null;
+  onSaved: (saved: AssetView) => void; onDeleted: () => void; onCancel: () => void;
 }) {
-  const [name, setName] = useState(view ? (view.canEdit ? view.name : (view.name + ' (copy)').slice(0, MAX_VIEW_NAME)) : initial?.name ?? '');
-  const [definition, setDefinition] = useState<ViewDefinition>(view?.definition ?? initial?.definition ?? { version: 1,
-    connections: [], assetTypeIds: [], activity: 'all', search: null, grouping: [] });
-  const [visibility, setVisibility] = useState<ViewVisibility>(view?.visibility ?? 'personal');
-  const readOnly = !!view && !view.canEdit;
+  const [name, setName] = useState(view?.name ?? '');
+  const [connectionId, setConnectionId] = useState(view?.connectionId ?? initialConnectionId ?? '');
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [known, setKnown] = useState<ReadonlyMap<string, BrowseNode>>(new Map());
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<MessageKey | null>(null);
+  const [loading, setLoading] = useState(!!view?.canEdit);
+  const [selectionReady, setSelectionReady] = useState(!view);
+  const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState<BrowseNode[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [searchOffset, setSearchOffset] = useState(0);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const [reviewLimit, setReviewLimit] = useState(100);
+  const controller = useRef(new AbortController());
+  const pending = useRef(false);
+  const searchController = useRef(new AbortController());
+  const readOnly = !!view && !view.canEdit;
+  const wellTypeIds = useMemo(() => new Set(assetTypes.filter(type => type.key === 'well').map(type => type.id)), [assetTypes]);
+  const remember = useCallback((nodes: BrowseNode[]) => setKnown(current => new Map([...current, ...nodes.map(node => [node.id, node] as const)])), []);
 
-  const connectionChoices = [
-    ...owners.filter(owner => owner.connectionId !== null).map(owner =>
-      ({ key: owner.connectionId as string, label: owner.name ?? t('assetOwner.unknown') })),
-    { key: STANDALONE, label: t('assetOwner.standalone') },
-  ];
-  const toggle = (list: string[], value: string) =>
-    list.includes(value) ? list.filter(item => item !== value) : [...list, value];
-  const move = (index: number, by: -1 | 1) => setDefinition(current => {
-    const grouping = [...current.grouping];
-    const target = index + by;
-    if (target < 0 || target >= grouping.length) return current;
-    [grouping[index], grouping[target]] = [grouping[target], grouping[index]];
-    return { ...current, grouping };
-  });
-  const remaining = VIEW_LEVELS.filter(level => !definition.grouping.includes(level));
-  const run = async (action: () => Promise<void>) => {
-    setBusy(true); setError(null);
-    try { await action(); } catch (caught) { setError(errorKey(caught)); } finally { setBusy(false); }
+  useEffect(() => {
+    const request = new AbortController(); controller.current = request;
+    if (view?.canEdit) {
+      Promise.all([loadViewSelection(view, request.signal), loadViewMembers(view.id, 0, request.signal)]).then(([ids, members]) => {
+        if (request.signal.aborted) return;
+        setSelected(new Set(ids)); remember(members.map(member => ({ ...member, childCount: 0 })));
+        setSelectionReady(true);
+      }).catch(reason => { if (!request.signal.aborted) setError(errorMessage(reason)); })
+        .finally(() => { if (!request.signal.aborted) setLoading(false); });
+    }
+    return () => request.abort();
+  }, [view, remember]);
+
+  useEffect(() => {
+    const request = new AbortController(); searchController.current = request;
+    setHits([]); setSearchOffset(0); setHasMore(false); setSearchError(false);
+    if (!query.trim() || !connectionId) { setSearchLoading(false); return () => request.abort(); }
+    setSearchLoading(true);
+    const timer = setTimeout(() => {
+      fetchSearch(query.trim(), 0, request.signal, { connectionId }).then(rows => {
+        if (request.signal.aborted) return;
+        const nodes = rows.map(row => ({ ...row, childCount: 0 }));
+        setHits(nodes); remember(nodes); setHasMore(rows.length === SEARCH_PAGE_SIZE);
+      }).catch(() => { if (!request.signal.aborted) setSearchError(true); })
+        .finally(() => { if (!request.signal.aborted) setSearchLoading(false); });
+    }, 250);
+    return () => { clearTimeout(timer); request.abort(); };
+  }, [query, connectionId, remember]);
+
+  const toggle = (node: BrowseNode) => {
+    if (busy || loading || readOnly || node.ownerConnectionId !== connectionId || !wellTypeIds.has(node.assetTypeId)) return;
+    remember([node]);
+    setSelected(current => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next; });
   };
-  const save = () => run(async () => {
-    const cleaned = { ...definition, search: definition.search?.trim() ? definition.search.trim() : null };
-    if (readOnly && view) { onSaved(await copyView(view, name.trim())); return; }
-    onSaved(view ? await updateView(view, name.trim(), cleaned, visibility) : await createView(name.trim(), cleaned, visibility));
-  });
+  const selectBranch = async (id: string | null) => {
+    if (pending.current) return;
+    pending.current = true; setBusy(true); setError(null);
+    try {
+      const nodes = await wellsUnder(connectionId, id, wellTypeIds, controller.current.signal);
+      if (controller.current.signal.aborted) return;
+      remember(nodes); setSelected(current => new Set([...current, ...nodes.map(node => node.id)]));
+    } catch (reason) { if (!controller.current.signal.aborted) setError(errorMessage(reason)); }
+    finally { pending.current = false; if (!controller.current.signal.aborted) setBusy(false); }
+  };
+  const moreSearch = async () => {
+    const request = searchController.current;
+    setSearchLoading(true); setSearchError(false);
+    const offset = searchOffset + SEARCH_PAGE_SIZE;
+    try {
+      const rows = await fetchSearch(query.trim(), offset, request.signal, { connectionId });
+      if (request.signal.aborted) return;
+      const nodes = rows.map(row => ({ ...row, childCount: 0 }));
+      setHits(current => [...current, ...nodes]); remember(nodes); setSearchOffset(offset); setHasMore(rows.length === SEARCH_PAGE_SIZE);
+    } catch { if (!request.signal.aborted) setSearchError(true); }
+    finally { if (!request.signal.aborted) setSearchLoading(false); }
+  };
+  const run = async (action: () => Promise<void>) => {
+    if (pending.current) return;
+    pending.current = true; setBusy(true); setError(null);
+    try { await action(); } catch (reason) { if (!controller.current.signal.aborted) setError(errorMessage(reason)); }
+    finally { pending.current = false; if (!controller.current.signal.aborted) setBusy(false); }
+  };
+  const selectedIds = [...selected].sort((a, b) => Number(known.has(b)) - Number(known.has(a)) ||
+    (known.get(a)?.name ?? a).localeCompare(known.get(b)?.name ?? b));
 
-  return (
-    <form className="asset-view-editor panel" aria-label={t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}
-      onSubmit={event => { event.preventDefault(); void save(); }}>
-      <h3>{t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}</h3>
-      <p className="connection-help">{t('assetViews.intro')}</p>
-      {!view && initial?.lossy && <p className="connection-help" role="note">{t('assetViews.lossyNote')}</p>}
-      {readOnly && view && <p className="connection-help" role="note">
-        {t('assetViews.copyNote', { owner: view.ownerName || t('assetViews.someone') })}</p>}
-      {view && view.hiddenConnectionCount > 0 && <p className="connection-help" role="note">
-        {t('assetViews.hiddenConnections', { count: String(view.hiddenConnectionCount) })}</p>}
-      <label>
-        <span>{t('assetViews.name')}</span>
-        <input type="text" value={name} maxLength={MAX_VIEW_NAME} disabled={busy}
-          onChange={event => setName(event.target.value)} />
-      </label>
-
-      <fieldset disabled={busy || readOnly}>
-        <legend>{t('assetViews.connections')}</legend>
-        <p className="connection-help">{t('assetViews.connectionsHelp')}</p>
-        {connectionChoices.map(choice => (
-          <label key={choice.key} className="asset-view-check">
-            <input type="checkbox" checked={definition.connections.includes(choice.key)}
-              onChange={() => setDefinition(current => ({ ...current, connections: toggle(current.connections, choice.key) }))} />
-            {' '}{choice.label}
-          </label>
-        ))}
-      </fieldset>
-
-      {assetTypes.length > 0 && (
-        <fieldset disabled={busy || readOnly}>
-          <legend>{t('assetViews.types')}</legend>
-          <p className="connection-help">{t('assetViews.typesHelp')}</p>
-          {assetTypes.map(type => (
-            <label key={type.id} className="asset-view-check">
-              <input type="checkbox" checked={definition.assetTypeIds.includes(type.id)}
-                onChange={() => setDefinition(current => ({ ...current, assetTypeIds: toggle(current.assetTypeIds, type.id) }))} />
-              {' '}{type.name}
-            </label>
-          ))}
-        </fieldset>
-      )}
-
-      <label>
-        <span>{t('assetViews.activity')}</span>
-        <select value={definition.activity} disabled={busy || readOnly}
-          onChange={event => setDefinition(current => ({ ...current, activity: event.target.value as ViewActivity }))}>
-          <option value="all">{t('assetViews.activityAll')}</option>
-          <option value="active">{t('assetViews.activityActive')}</option>
-          <option value="inactive">{t('assetViews.activityInactive')}</option>
-        </select>
-      </label>
-      <label>
-        <span>{t('assetViews.search')}</span>
-        <input type="text" value={definition.search ?? ''} maxLength={120} disabled={busy || readOnly}
-          onChange={event => setDefinition(current => ({ ...current, search: event.target.value }))} />
-      </label>
-
-      {(canShare || visibility === 'shared') && !readOnly && (
-        <label className="asset-view-check">
-          <input type="checkbox" checked={visibility === 'shared'} disabled={busy || !canShare}
-            onChange={event => setVisibility(event.target.checked ? 'shared' : 'personal')} />
-          {' '}{t('assetViews.share')}
-          <span className="connection-help">{t('assetViews.shareHelp')}</span>
-        </label>
-      )}
-
-      <fieldset disabled={busy || readOnly}>
-        <legend>{t('assetViews.grouping')}</legend>
-        <p className="connection-help">{t('assetViews.groupingHelp')}</p>
-        {definition.grouping.length === 0 && <p className="split-note">{t('assetViews.flat')}</p>}
-        <ol className="asset-view-levels">
-          {definition.grouping.map((level, index) => (
-            <li key={level}>
-              <span>{t(levelKey(level))}</span>
-              <button type="button" className="secondary-button" disabled={index === 0}
-                aria-label={t('assetViews.moveUp', { name: t(levelKey(level)) })} onClick={() => move(index, -1)}>↑</button>
-              <button type="button" className="secondary-button" disabled={index === definition.grouping.length - 1}
-                aria-label={t('assetViews.moveDown', { name: t(levelKey(level)) })} onClick={() => move(index, 1)}>↓</button>
-              <button type="button" className="secondary-button"
-                aria-label={t('assetViews.removeLevel', { name: t(levelKey(level)) })}
-                onClick={() => setDefinition(current => ({ ...current, grouping: current.grouping.filter(item => item !== level) }))}>
-                {t('assetViews.remove')}</button>
-            </li>
-          ))}
-        </ol>
-        {remaining.length > 0 && definition.grouping.length < MAX_VIEW_LEVELS && (
-          <div className="connection-actions">
-            {remaining.map(level => (
-              <button key={level} type="button" className="secondary-button"
-                onClick={() => setDefinition(current => ({ ...current, grouping: [...current.grouping, level] }))}>
-                {t('assetViews.addLevel', { name: t(levelKey(level)) })}</button>
-            ))}
-          </div>
-        )}
-      </fieldset>
-
-      {error && <p role="alert" className="status-error">{t(error)}</p>}
-      <div className="connection-actions">
-        <button type="submit" className="primary-button" disabled={busy || !name.trim()}>
-          {t(readOnly ? 'assetViews.saveCopy' : 'assetViews.save')}</button>
-        <button type="button" className="secondary-button" disabled={busy} onClick={onCancel}>{t('assetViews.cancel')}</button>
-        {view && !readOnly && !confirmDelete && <button type="button" className="secondary-button" disabled={busy}
-          onClick={() => setConfirmDelete(true)}>{t('assetViews.delete')}</button>}
-      </div>
-      {view && !readOnly && confirmDelete && (
-        <div className="connection-actions connection-delete-confirm" role="alertdialog" aria-label={t('assetViews.delete')}>
-          <span>{t('assetViews.deleteConfirm', { name: view.name })}</span>
-          <button type="button" className="secondary-button" disabled={busy}
-            onClick={() => void run(async () => { await deleteView(view); onDeleted(); })}>{t('assetViews.deleteYes')}</button>
-          <button type="button" className="secondary-button" disabled={busy}
-            onClick={() => setConfirmDelete(false)}>{t('assetViews.deleteNo')}</button>
-        </div>
-      )}
-    </form>
-  );
+  return <form className="asset-view-editor panel" aria-label={t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}
+    onSubmit={event => { event.preventDefault(); if (!readOnly && selectionReady) void run(async () => {
+      onSaved(view ? await updateView(view, name.trim(), [...selected]) : await createView(name.trim(), connectionId, [...selected]));
+    }); }}>
+    <h3>{t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}</h3>
+    <p className="connection-help">{t('assetViews.intro')}</p>
+    <fieldset disabled={busy || loading || readOnly}>
+      <label><span>{t('assetViews.name')}</span><input value={name} maxLength={MAX_VIEW_NAME} onChange={event => setName(event.target.value)} /></label>
+      <label><span>{t('assetViews.connection')}</span><select value={connectionId} disabled={!!view}
+        onChange={event => { setConnectionId(event.target.value); setSelected(new Set()); setKnown(new Map()); setQuery(''); }}>
+        <option value="">{t('assetViews.chooseConnection')}</option>
+        {owners.filter(owner => owner.connectionId !== null).map(owner =>
+          <option key={owner.connectionId} value={owner.connectionId ?? ''}>{owner.name}</option>)}
+      </select></label>
+      {!view && <p className="connection-help">{t('assetViews.connectionHelp')}</p>}
+      {connectionId && <div className="well-selection-layout">
+        <section aria-label={t('assetViews.availableWells')}>
+          <label><span>{t('assetViews.findWells')}</span><input type="search" value={query} maxLength={120} onChange={event => setQuery(event.target.value)} /></label>
+          <button type="button" className="secondary-button" onClick={() => void selectBranch(null)}>{t('assetViews.selectAllWells')}</button>
+          {query.trim() ? <div>
+            {hits.filter(node => node.isActive && wellTypeIds.has(node.assetTypeId)).map(node =>
+              <label key={node.id} className="asset-view-check"><input type="checkbox" checked={selected.has(node.id)}
+                aria-label={t('assetViews.selectWell', { name: node.name })} onChange={() => toggle(node)} />{node.name}</label>)}
+            {searchLoading && <p role="status">{t('views.loading')}</p>}
+            {searchError && <p role="alert">{t('assetBrowse.failed')}</p>}
+            {hasMore && <button type="button" disabled={searchLoading} onClick={() => void moreSearch()}>{t('assetBrowse.more')}</button>}
+          </div> : <AssetBrowser key={connectionId} selectedId={null} ancestorIds={[]} refreshKey={connectionId} onSelect={() => undefined}
+            typeNames={new Map(assetTypes.map(type => [type.id, type.name]))}
+            selection={{ connectionId, wellTypeIds, selectedIds: selected, onToggle: toggle, onNodes: remember,
+              onSelectBranch: id => void selectBranch(id), busy }} />}
+        </section>
+        <section aria-label={t('assetViews.selectedWells')}>
+          <h4>{t('assetViews.selectedCount', { count: selected.size })}</h4>
+          <button type="button" className="secondary-button" onClick={() => setSelected(new Set())}>{t('assetViews.clearSelection')}</button>
+          <ul className="well-selection-list">{selectedIds.slice(0, reviewLimit).map(id => <li key={id}>
+            <span>{known.get(id)?.name ?? id}</span><button type="button" className="asset-select"
+              aria-label={t('assetViews.removeWell', { name: known.get(id)?.name ?? id })}
+              onClick={() => setSelected(current => new Set([...current].filter(item => item !== id)))}>{t('assetViews.remove')}</button>
+          </li>)}</ul>
+          {selected.size > reviewLimit && <button type="button" onClick={() => setReviewLimit(limit => limit + 100)}>{t('assetBrowse.more')}</button>}
+        </section>
+      </div>}
+    </fieldset>
+    {loading && <p role="status">{t('views.loading')}</p>}
+    {busy && <p role="status">{t('assetViews.working')}</p>}
+    {error && <p role="alert" className="status-error">{error}</p>}
+    <div className="connection-actions">
+      {!readOnly && <button type="submit" className="primary-button" disabled={busy || loading || !selectionReady || !name.trim() || !connectionId || selected.size === 0 || selected.size > 50_000}>
+        {t('assetViews.save')}</button>}
+      <button type="button" className="secondary-button" disabled={busy} onClick={onCancel}>{t('assetViews.cancel')}</button>
+      {view?.canDelete && !confirmDelete && <button type="button" className="secondary-button" disabled={busy}
+        onClick={() => setConfirmDelete(true)}>{t('assetViews.delete')}</button>}
+    </div>
+    {view?.canDelete && confirmDelete && <div role="alertdialog" aria-label={t('assetViews.delete')}>
+      <p>{t('assetViews.deleteConfirm', { name: view.name })}</p>
+      <button type="button" disabled={busy} onClick={() => void run(async () => { await deleteView(view); onDeleted(); })}>{t('assetViews.deleteYes')}</button>
+      <button type="button" disabled={busy} onClick={() => setConfirmDelete(false)}>{t('assetViews.deleteNo')}</button>
+    </div>}
+  </form>;
 }

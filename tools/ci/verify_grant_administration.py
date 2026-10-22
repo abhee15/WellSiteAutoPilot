@@ -374,51 +374,65 @@ assert "snapshot" not in json.dumps(source).lower(), source
 request("GET", "/assets/" + alone["id"] + "/source", expected=404)
 request("GET", "/assets/" + north["id"] + "/source", expected=404)
 request("GET", "/assets/" + alpha["id"] + "/source", OPERATOR, expected=403)
-# Views: a person's own saved arrangement, evaluated on the server one level at a time.
-definition = {"version": 1, "connections": [], "assetTypeIds": [], "activity": "all", "search": None,
-    "grouping": ["connection", "status"]}
-view = request("POST", "/asset-views", body={"name": "  By owner  ", "definition": definition}, expected=201)
-assert view["name"] == "By owner" and view["revision"] == 1, view
-request("POST", "/asset-views", body={"name": "by OWNER", "definition": definition}, expected=409)
-request("POST", "/asset-views", body={"name": "Bad", "definition": {**definition, "grouping": ["status", "status"]}}, expected=400)
-request("POST", "/asset-views", body={"name": "Bad", "definition": {**definition, "connections": ["not-a-guid"]}}, expected=400)
-assert [item["id"] for item in request("GET", "/asset-views")] == [view["id"]]
-top = request("GET", "/asset-views/" + view["id"] + "/nodes")
-assert top["level"] == "connection" and top["assets"] == [], top
-groups = {item["key"]: item for item in top["groups"]}
-assert groups[twin["id"]]["count"] == by_owner[twin["id"]]["assetCount"], (groups, by_owner)
-assert groups["standalone"]["label"] == "Standalone" and groups[stand_in["id"]]["label"].endswith("renamed stand-in"), groups
-by_status = request("GET", "/asset-views/" + view["id"] + "/nodes?path=" + twin["id"])
-assert by_status["level"] == "status" and [item["key"] for item in by_status["groups"]] == ["active"], by_status
-leaves = request("GET", "/asset-views/" + view["id"] + "/nodes?path=" + twin["id"] + "&path=active")
-assert leaves["level"] is None and len(leaves["assets"]) == groups[twin["id"]]["count"], leaves
-request("GET", "/asset-views/" + view["id"] + "/nodes?path=" + twin["id"] + "&path=active&path=x", expected=400)
-request("GET", "/asset-views/" + view["id"] + "/nodes?path=not-a-guid", expected=400)
-# Editing needs the current revision, and one person's Views are invisible to everyone else.
-renamed = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 1, "name": "By owner v2",
-    "definition": {**definition, "grouping": ["assetType"]}})
-assert renamed["revision"] == 2 and renamed["definition"]["grouping"] == ["assetType"], renamed
-request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 1, "name": "Late", "definition": definition}, expected=409)
-request("GET", "/asset-views/" + view["id"], OPERATOR, expected=403)
-# Sharing: the owner (an Admin, who holds asset-views.share) shares it; it stays a read-only query for others.
-assert "asset-views.share" in request("GET", "/security/me")["permissions"]
-shared = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 2, "name": "By owner v2",
-    "definition": definition, "visibility": "shared"})
-assert shared["visibility"] == "shared" and shared["isOwner"] and shared["canEdit"] and shared["hiddenConnectionCount"] == 0, shared
-assert request("GET", "/asset-views/" + view["id"])["visibility"] == "shared"
-request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 3, "name": "By owner v2",
-    "definition": definition, "visibility": "bogus"}, expected=400)
-request("POST", "/asset-views/" + view["id"] + "/copy", OPERATOR, body={"name": "Mine"}, expected=403)
-request("POST", "/asset-views/" + view["id"] + "/unshare", OPERATOR, expected=403)
-request("POST", "/asset-views", body={"name": "by owner v2", "definition": definition, "visibility": "shared"}, expected=409)
-copy = request("POST", "/asset-views/" + view["id"] + "/copy", body={"name": "My copy"}, expected=201)
-assert copy["visibility"] == "personal" and copy["id"] != view["id"] and copy["definition"] == shared["definition"], copy
-request("DELETE", "/asset-views/" + copy["id"] + "?expectedRevision=1", expected=204)
-unshared = request("POST", "/asset-views/" + view["id"] + "/unshare")
-assert unshared["visibility"] == "personal" and unshared["revision"] == 4, unshared
+# Views are explicit, connection-owned well selections. Creator identity does not control visibility.
+alpha2 = next(item for item in after if item["name"] == "Alpha 2" and item.get("ownerConnectionId") == twin["id"])
+selection = [alpha["id"], alpha2["id"]]
+view = request("POST", "/asset-views", body={"name": "  ESP Wells  ", "connectionId": twin["id"], "assetIds": selection}, expected=201)
+assert view["name"] == "ESP Wells" and view["revision"] == 1 and view["memberCount"] == 2, view
+assert view["connectionId"] == twin["id"] and view["canEdit"] and view["canDelete"] and not view["hasUnavailableMembers"], view
+assert "visibility" not in view and "definition" not in view, view
+request("POST", "/asset-views", body={"name": "esp WELLS", "connectionId": twin["id"], "assetIds": selection}, expected=409)
+# Names are unique within a Connection, not across the deployment.
+other_alpha = next(item for item in after if item["name"] == "Alpha 1" and item.get("ownerConnectionId") == stand_in["id"])
+other_view = request("POST", "/asset-views", body={"name": "ESP Wells", "connectionId": stand_in["id"], "assetIds": [other_alpha["id"]]}, expected=201)
+for ids in [[], [alpha["id"], alpha["id"]], [other_alpha["id"]], [alone["id"]], [north["id"]], [str(uuid.uuid4())]]:
+    request("POST", "/asset-views", body={"name": "Invalid", "connectionId": twin["id"], "assetIds": ids}, expected=400)
+request("POST", "/asset-views", body={"name": "Invalid", "connectionId": str(uuid.uuid4()), "assetIds": selection}, expected=400)
+assert request("GET", "/asset-views/" + view["id"] + "/selection") == {"revision": 1, "assetIds": sorted(selection)}
+for offset, name in enumerate(["Alpha 1", "Alpha 2"]):
+    page = request("GET", "/asset-views/" + view["id"] + "/members?limit=1&offset=" + str(offset))
+    assert [item["name"] for item in page] == [name], page
+assert [item["id"] for item in request("GET", "/asset-views/" + view["id"] + "/members?q=Alpha%202")] == [alpha2["id"]]
+assert request("GET", "/asset-views/" + view["id"] + "/members?q=%25") == []
+# A second user sees the same View automatically with Connection read, but needs explicit mutation permissions.
+connection_reader = role("Connection reader", ["connections.read"])
+well_reader = role("Well reader", ["assets.read"])
+connection_access = grant(other["userId"], connection_reader, "DeploymentWide")
+well_access = grant(other["userId"], well_reader, "ExactAssets", selection)
+visible_view = request("GET", "/asset-views/" + view["id"], OTHER)
+assert visible_view["memberCount"] == 2 and not visible_view["canEdit"] and not visible_view["canDelete"], visible_view
+assert view["id"] in {item["id"] for item in request("GET", "/asset-views", OTHER)}
+request("POST", "/asset-views", OTHER, {"name": "Denied", "connectionId": twin["id"], "assetIds": selection}, expected=403)
+request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 1, "name": "Denied", "assetIds": selection}, expected=403)
+request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=1", OTHER, expected=403)
+editor_role = role("View editor", ["asset-views.edit"])
+editor_access = grant(other["userId"], editor_role, "DeploymentWide")
+updated = request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 1, "name": "ESP subset", "assetIds": [alpha["id"]]})
+assert updated["revision"] == 2 and updated["memberCount"] == 1, updated
+request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 1, "name": "Stale", "assetIds": selection}, expected=409)
+assert request("GET", "/asset-views/" + view["id"] + "/selection")["assetIds"] == [alpha["id"]]
+# A restricted reader cannot obtain hidden IDs or erase the hidden portion through a replacement update.
+updated = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 2, "name": "ESP subset", "assetIds": selection})
+retire(other["userId"], well_access)
+partial_access = grant(other["userId"], well_reader, "ExactAssets", [alpha["id"]])
+partial = request("GET", "/asset-views/" + view["id"], OTHER)
+assert partial["memberCount"] == 1 and partial["hasUnavailableMembers"] and not partial["canEdit"], partial
+request("GET", "/asset-views/" + view["id"] + "/selection", OTHER, expected=400)
+request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "name": "Partial", "assetIds": [alpha["id"]]}, expected=400)
+# Losing Connection access removes all View routes, including mutations when edit is still granted.
+retire(other["userId"], connection_access)
+for suffix in ["", "/members", "/selection"]:
+    request("GET", "/asset-views/" + view["id"] + suffix, OTHER, expected=403)
+request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "name": "Denied", "assetIds": selection}, expected=403)
+request("GET", "/asset-views", OPERATOR, expected=403)
+retire(other["userId"], partial_access)
+retire(other["userId"], editor_access)
 request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=1", expected=409)
-request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=4", expected=204)
+request("DELETE", "/asset-views/" + view["id"] + "?expectedRevision=3", expected=204)
+request("DELETE", "/asset-views/" + other_view["id"] + "?expectedRevision=1", expected=204)
 request("GET", "/asset-views/" + view["id"], expected=404)
+view_audit = request("GET", "/security/audit-events?limit=100&actionPrefix=asset-view.")["items"]
+assert {"asset-view.created", "asset-view.updated", "asset-view.deleted"} <= {item["action"] for item in view_audit}
 request("DELETE", "/connections/" + stand_in["id"], expected=409)
 request("DELETE", "/connections/" + not_foresite["id"], expected=204)
 request("DELETE", "/connections/" + down["id"], expected=204)

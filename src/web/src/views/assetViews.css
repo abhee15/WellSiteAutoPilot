@@ -18,3 +18,9 @@
 .asset-view-bar label { display: flex; align-items: center; gap: var(--space-8); color: var(--color-text-secondary); font-size: var(--font-size-body-small); }
 .asset-view-bar select { min-inline-size: 220px; }
 .asset-view-bar .secondary-button, .asset-view-bar select { min-height: 36px; font-size: var(--font-size-body-small); }
+.well-selection-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); }
+.well-selection-layout > section { min-inline-size: 0; }
+.well-selection-list { list-style: none; padding: 0; max-block-size: 420px; overflow: auto; }
+.well-selection-list li { display: flex; justify-content: space-between; gap: var(--space-8); padding-block: var(--space-6); }
+.well-selection-list li > span { overflow-wrap: anywhere; }
+@media (max-width: 767px) { .well-selection-layout { grid-template-columns: minmax(0, 1fr); } }

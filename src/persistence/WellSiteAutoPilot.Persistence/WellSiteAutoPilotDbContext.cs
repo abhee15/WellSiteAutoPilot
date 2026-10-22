@@ -18,6 +18,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
     public DbSet<ConnectionEntity> Connections => Set<ConnectionEntity>();
+    public DbSet<AssetViewMemberEntity> AssetViewMembers => Set<AssetViewMemberEntity>();
     public DbSet<AssetViewEntity> AssetViews => Set<AssetViewEntity>();
     public DbSet<SourceBindingEntity> SourceBindings => Set<SourceBindingEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
@@ -98,8 +99,15 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         assetView.Property(x => x.Revision).IsRequired();
         assetView.Property(x => x.CreatedAtUtc).IsRequired();
         assetView.Property(x => x.UpdatedAtUtc).IsRequired();
-        assetView.HasIndex(x => new { x.OwnerUserId, x.NormalizedName }).IsUnique();
-        assetView.HasIndex(x => x.NormalizedName, "IX_asset_views_NormalizedName_Shared").IsUnique().HasFilter("\"Visibility\" = 1");
+        assetView.HasIndex(x => new { x.OwnerUserId, x.NormalizedName }).IsUnique().HasFilter("\"ConnectionId\" IS NULL");
+        assetView.HasIndex(x => new { x.ConnectionId, x.NormalizedName }).IsUnique().HasFilter("\"ConnectionId\" IS NOT NULL");
+        assetView.HasOne<ConnectionEntity>().WithMany().HasForeignKey(x => x.ConnectionId).OnDelete(DeleteBehavior.Restrict);
+
+        var viewMember = modelBuilder.Entity<AssetViewMemberEntity>();
+        viewMember.ToTable("asset_view_members", "assets");
+        viewMember.HasKey(x => new { x.ViewId, x.AssetId });
+        viewMember.HasOne<AssetViewEntity>().WithMany().HasForeignKey(x => x.ViewId).OnDelete(DeleteBehavior.Cascade);
+        viewMember.HasOne<AssetEntity>().WithMany().HasForeignKey(x => x.AssetId).OnDelete(DeleteBehavior.Restrict);
 
         var sourceBinding = modelBuilder.Entity<SourceBindingEntity>();
         sourceBinding.ToTable("source_bindings", "integration");

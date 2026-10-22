@@ -13,8 +13,7 @@ type Props = {
   totalCount: number;
   /** The page shows its own search box above, so leave it out here. */
   hideSearch?: boolean;
-  /** Turns the filters on screen into a server-side View (opens the View editor, nothing is saved yet). */
-  onSaveAsView?: (criteria: AssetInventoryCriteria, suggestedName: string) => void;
+
 };
 
 function browserStorage(): Storage | null {
@@ -26,7 +25,7 @@ function newViewId(): string {
     ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
 }
 export function AssetInventoryControls({
-  userId, criteria, onChange, matchingCount, totalCount, hideSearch = false, onSaveAsView,
+  userId, criteria, onChange, matchingCount, totalCount, hideSearch = false,
 }: Props) {
   const [views, setViews] = useState<SavedAssetView[]>(
     () => loadSavedAssetViews(userId, browserStorage()),
@@ -140,8 +139,6 @@ export function AssetInventoryControls({
         </label>
         <button type="button" disabled={!userId} onClick={save}>{t('assets.save')}</button>
         <button type="button" disabled={!selectedId} onClick={remove}>{t('assets.delete')}</button>
-        {onSaveAsView && <button type="button" onClick={() => onSaveAsView({ ...criteria }, name.trim())}>
-          {t('assets.saveAsView')}</button>}
         <button type="button" onClick={() => modify({ ...DEFAULT_ASSET_INVENTORY_CRITERIA })}>
           {t('assets.reset')}
         </button>

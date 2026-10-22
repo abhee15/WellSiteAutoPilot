@@ -117,7 +117,8 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
         {
             var entity = await LockAsync(id, null, cancellationToken);
             if (await dbContext.SourceBindings.AnyAsync(binding => binding.ConnectionId == id, cancellationToken) ||
-                await dbContext.Assets.AnyAsync(asset => asset.OwnerConnectionId == id, cancellationToken))
+                await dbContext.Assets.AnyAsync(asset => asset.OwnerConnectionId == id, cancellationToken) ||
+                await dbContext.AssetViews.AnyAsync(view => view.ConnectionId == id, cancellationToken))
                 throw new WellSiteAutoPilotException(ConnectionFailureCodes.HasImports, FailureKind.Conflict,
                     "Assets were imported from this connection, so it cannot be deleted. Disable it instead.");
             dbContext.Connections.Remove(entity);

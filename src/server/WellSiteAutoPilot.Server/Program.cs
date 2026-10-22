@@ -650,140 +650,80 @@ v1.MapGet(
     .RequireAuthorization(WellSitePolicies.AssetsRead)
     .Produces<AssetOwnerResponse[]>(StatusCodes.Status200OK);
 
-v1.MapGet(
-    "/asset-views",
-    async (IAssetViewRepository views, IAssetRepository assets, IRequestAccessRepository grants, RequestAccessContext access,
-        CancellationToken cancellationToken) =>
+v1.MapGet("/asset-views",
+    async (IAssetViewRepository views, IRequestAccessRepository grants, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var viewer = await AssetViewViewer.ForAsync(grants, assets, access.Subject, cancellationToken);
-        return (await views.ListAsync(access.Subject.UserId, cancellationToken))
-            .Select(view => viewer.Describe(view)).ToArray();
+        var held = await GrantPermissionChecker.HeldAsync(grants, access.Subject,
+            [WellSitePermissions.AssetViewsEdit, WellSitePermissions.AssetViewsDelete], cancellationToken);
+        return (await views.ListAsync(access.Subject, cancellationToken)).Select(view => AssetViewMapping.ToResponse(view, held)).ToArray();
     })
-    .WithName("ListAssetViews")
-    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .WithName("ListAssetViews").RequireAuthorization(WellSitePolicies.ConnectionsRead)
     .Produces<AssetViewResponse[]>(StatusCodes.Status200OK);
 
-v1.MapPost(
-    "/asset-views",
-    async (CreateAssetViewRequest request, IAssetViewRepository views, IAssetRepository assets,
-        IRequestAccessRepository grants, RequestAccessContext access, CancellationToken cancellationToken) =>
+v1.MapGet("/asset-views/{viewId:guid}",
+    async (Guid viewId, IAssetViewRepository views, IRequestAccessRepository grants, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var viewer = await AssetViewViewer.ForAsync(grants, assets, access.Subject, cancellationToken);
-        var visibility = AssetViewMapping.ToVisibility(request.Visibility) ?? AssetViewVisibility.Personal;
-        viewer.RequireMayShare(visibility);
-        var created = await views.CreateAsync(access.Subject.UserId, AssetViewDefinitionRules.NormalizeName(request.Name),
-            AssetViewDefinitionRules.Normalize(AssetViewMapping.ToDefinition(request.Definition)), visibility, cancellationToken);
-        return Results.Created($"/api/v1/asset-views/{created.Id}", viewer.Describe(created));
+        var held = await GrantPermissionChecker.HeldAsync(grants, access.Subject,
+            [WellSitePermissions.AssetViewsEdit, WellSitePermissions.AssetViewsDelete], cancellationToken);
+        return AssetViewMapping.ToResponse(RequireFound(await views.FindAsync(access.Subject, viewId, cancellationToken), AssetViewFailureCodes.NotFound), held);
     })
-    .WithName("CreateAssetView")
-    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .WithName("GetAssetView").RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<AssetViewResponse>(StatusCodes.Status200OK);
+
+v1.MapPost("/asset-views",
+    async (CreateAssetViewRequest request, IAssetViewRepository views, IRequestAccessRepository grants, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var created = await views.CreateAsync(access.Subject, access.CreateActor(context), request.ConnectionId,
+            request.Name, request.AssetIds, cancellationToken);
+        var held = await GrantPermissionChecker.HeldAsync(grants, access.Subject,
+            [WellSitePermissions.AssetViewsEdit, WellSitePermissions.AssetViewsDelete], cancellationToken);
+        return Results.Created($"/api/v1/asset-views/{created.Id}", AssetViewMapping.ToResponse(created, held));
+    })
+    .WithName("CreateAssetView").RequireAuthorization(WellSitePolicies.AssetViewsCreate)
     .Produces<AssetViewResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
-v1.MapGet(
-    "/asset-views/{viewId:guid}",
-    async (Guid viewId, IAssetViewRepository views, IAssetRepository assets, IRequestAccessRepository grants,
-        RequestAccessContext access, CancellationToken cancellationToken) =>
+v1.MapPut("/asset-views/{viewId:guid}",
+    async (Guid viewId, UpdateAssetViewRequest request, IAssetViewRepository views, IRequestAccessRepository grants,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
-        var viewer = await AssetViewViewer.ForAsync(grants, assets, access.Subject, cancellationToken);
-        return viewer.Describe(await views.FindAsync(access.Subject.UserId, viewId, cancellationToken)
-            ?? throw new WellSiteAutoPilotException(AssetViewFailureCodes.NotFound, FailureKind.NotFound, "The view was not found."));
+        var updated = await views.UpdateAsync(access.Subject, access.CreateActor(context), viewId, request.ExpectedRevision,
+            request.Name, request.AssetIds, cancellationToken);
+        var held = await GrantPermissionChecker.HeldAsync(grants, access.Subject,
+            [WellSitePermissions.AssetViewsEdit, WellSitePermissions.AssetViewsDelete], cancellationToken);
+        return AssetViewMapping.ToResponse(updated, held);
     })
-    .WithName("GetAssetView")
-    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .WithName("UpdateAssetView").RequireAuthorization(WellSitePolicies.AssetViewsEdit)
     .Produces<AssetViewResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
-
-v1.MapPut(
-    "/asset-views/{viewId:guid}",
-    async (Guid viewId, UpdateAssetViewRequest request, IAssetViewRepository views, IAssetRepository assets,
-        IRequestAccessRepository grants, RequestAccessContext access, CancellationToken cancellationToken) =>
-    {
-        var viewer = await AssetViewViewer.ForAsync(grants, assets, access.Subject, cancellationToken);
-        var visibility = AssetViewMapping.ToVisibility(request.Visibility) ??
-            (await views.FindAsync(access.Subject.UserId, viewId, cancellationToken))?.Visibility ?? AssetViewVisibility.Personal;
-        viewer.RequireMayShare(visibility);
-        return viewer.Describe(await views.UpdateAsync(access.Subject.UserId, viewId, request.ExpectedRevision,
-            AssetViewDefinitionRules.NormalizeName(request.Name),
-            AssetViewDefinitionRules.Normalize(AssetViewMapping.ToDefinition(request.Definition)), visibility, cancellationToken));
-    })
-    .WithName("UpdateAssetView")
-    .RequireAuthorization(WellSitePolicies.AssetsRead)
-    .Produces<AssetViewResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
-v1.MapDelete(
-    "/asset-views/{viewId:guid}",
-    async (Guid viewId, int expectedRevision, IAssetViewRepository views, IRequestAccessRepository grants,
-        RequestAccessContext access, CancellationToken cancellationToken) =>
+v1.MapDelete("/asset-views/{viewId:guid}",
+    async (Guid viewId, int expectedRevision, IAssetViewRepository views, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
     {
-        await views.DeleteAsync(access.Subject.UserId, await grants.HasAdministratorAsync(access.Subject, cancellationToken),
-            viewId, expectedRevision, cancellationToken);
+        await views.DeleteAsync(access.Subject, access.CreateActor(context), viewId, expectedRevision, cancellationToken);
         return Results.NoContent();
     })
-    .WithName("DeleteAssetView")
-    .RequireAuthorization(WellSitePolicies.AssetsRead)
-    .Produces(StatusCodes.Status204NoContent)
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+    .WithName("DeleteAssetView").RequireAuthorization(WellSitePolicies.AssetViewsDelete).Produces(StatusCodes.Status204NoContent);
 
-v1.MapPost(
-    "/asset-views/{viewId:guid}/copy",
-    async (Guid viewId, CopyAssetViewRequest request, IAssetViewRepository views, IAssetRepository assets,
-        IRequestAccessRepository grants, RequestAccessContext access, CancellationToken cancellationToken) =>
-    {
-        var viewer = await AssetViewViewer.ForAsync(grants, assets, access.Subject, cancellationToken);
-        var source = await views.FindAsync(access.Subject.UserId, viewId, cancellationToken)
-            ?? throw new WellSiteAutoPilotException(AssetViewFailureCodes.NotFound, FailureKind.NotFound, "The view was not found.");
-        var copy = await views.CreateAsync(access.Subject.UserId, AssetViewDefinitionRules.NormalizeName(request.Name),
-            viewer.Visible(source.OwnerUserId == access.Subject.UserId, source.Definition), AssetViewVisibility.Personal,
-            cancellationToken);
-        return Results.Created($"/api/v1/asset-views/{copy.Id}", viewer.Describe(copy));
-    })
-    .WithName("CopyAssetView")
-    .RequireAuthorization(WellSitePolicies.AssetsRead)
-    .Produces<AssetViewResponse>(StatusCodes.Status201Created)
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+v1.MapGet("/asset-views/{viewId:guid}/members",
+    async (Guid viewId, string? q, int? offset, int? limit, IAssetViewRepository views, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await views.MembersAsync(access.Subject, viewId, q, PageOffset(offset), PageLimit(limit ?? 100), cancellationToken))
+            .Select(ToAssetResponse).ToArray())
+    .WithName("ListAssetViewMembers").RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<AssetResponse[]>(StatusCodes.Status200OK);
 
-v1.MapPost(
-    "/asset-views/{viewId:guid}/unshare",
-    async (Guid viewId, IAssetViewRepository views, IAssetRepository assets, IRequestAccessRepository grants,
-        RequestAccessContext access, CancellationToken cancellationToken) =>
+v1.MapGet("/asset-views/{viewId:guid}/selection",
+    async (Guid viewId, IAssetViewRepository views, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        var viewer = await AssetViewViewer.ForAsync(grants, assets, access.Subject, cancellationToken);
-        return viewer.Describe(await views.UnshareAsync(viewId, cancellationToken));
+        var selection = await views.SelectionAsync(access.Subject, viewId, cancellationToken);
+        return new AssetViewSelectionResponse(selection.Revision, selection.AssetIds);
     })
-    .WithName("UnshareAssetView")
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
-    .Produces<AssetViewResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
-
-v1.MapGet(
-    "/asset-views/{viewId:guid}/nodes",
-    async (Guid viewId, string[]? path, int? offset, int? limit, IAssetViewRepository views, IAssetRepository assets,
-        RequestAccessContext access, CancellationToken cancellationToken) =>
-    {
-        var view = await views.FindAsync(access.Subject.UserId, viewId, cancellationToken)
-            ?? throw new WellSiteAutoPilotException(AssetViewFailureCodes.NotFound, FailureKind.NotFound, "The view was not found.");
-        var nodes = await assets.QueryViewAsync(access.Subject, view.Definition, path ?? [], PageOffset(offset),
-            PageLimit(limit ?? 100), cancellationToken);
-        return new AssetViewNodesResponse(nodes.Level,
-            nodes.Groups.Select(group => new AssetViewGroupResponse(group.Key, group.Label, group.Count)).ToArray(),
-            nodes.Assets.Select(node => new AssetTreeNodeResponse(node.Asset.Id, node.Asset.AssetTypeId, node.Asset.Name,
-                node.Asset.ParentAssetId, node.Asset.IsActive, node.ChildCount, node.Asset.OwnerConnectionId)).ToArray());
-    })
-    .WithName("ListAssetViewNodes")
-    .RequireAuthorization(WellSitePolicies.AssetsRead)
-    .Produces<AssetViewNodesResponse>(StatusCodes.Status200OK)
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
-    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+    .WithName("GetAssetViewSelection").RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<AssetViewSelectionResponse>(StatusCodes.Status200OK);
 
 v1.MapGet(
     "/assets/search",
