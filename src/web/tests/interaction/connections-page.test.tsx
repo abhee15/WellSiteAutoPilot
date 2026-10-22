@@ -164,7 +164,7 @@ describe('Connections page', () => {
     });
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
-    await userEvent.click(await screen.findByText('Find what it holds'));
+    await userEvent.click(await screen.findByText('Discover'));
     await screen.findByText('Alpha 1');
     expect(screen.getByText(/This list is kept until/)).toBeTruthy();
     expect(screen.getByText('Step 1 of 2 · Discover')).toBeTruthy();
@@ -189,7 +189,7 @@ describe('Connections page', () => {
     });
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
-    await userEvent.click(await screen.findByText('Find what it holds'));
+    await userEvent.click(await screen.findByText('Discover'));
     await screen.findByText('Wells discovered');
     expect(screen.getByText('Alpha 1')).toBeTruthy();
     expect(screen.getByText('Asset names were not available.')).toBeTruthy();
@@ -199,7 +199,7 @@ describe('Connections page', () => {
       matchCount: 1, items: [{ externalId: '2', displayName: 'Bravo 1', kind: 'foresite.well', metadata: { wellType: 'ESP', field: 'Bravo' } }],
     });
     await userEvent.type(screen.getByLabelText('Search what was found'), 'esp');
-    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
     await screen.findByText('Showing 1–1 of 1 matching wells.');
     expect(vi.mocked(api.searchDiscovered).mock.calls[0][1]).toEqual({ snapshotId, query: 'esp', facets: {} });
     expect(screen.queryByText('Alpha 1')).toBeNull();
@@ -223,12 +223,15 @@ describe('Connections page', () => {
     });
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
-    await userEvent.click(await screen.findByText('Find what it holds'));
+    await userEvent.click(await screen.findByText('Discover'));
     await screen.findByText('Wells discovered');
     expect(screen.getByText('Showing 1–1 of 12000 matching wells.')).toBeTruthy();
     expect(screen.getByText('Everything found (12000) is selected for import.')).toBeTruthy();
     await userEvent.click(screen.getByText('Filter discovered wells'));
-    await userEvent.selectOptions(screen.getByLabelText('Well type'), 'ESP');
+    await userEvent.click(screen.getByText('Well type', { selector: 'summary' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'ESP (4000)' }));
+    expect(api.searchDiscovered).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
     await screen.findByText('Showing 1–1 of 4000 matching wells.');
     expect(vi.mocked(api.searchDiscovered).mock.calls[0][1]).toEqual({ snapshotId, query: '', facets: { wellType: ['ESP'] } });
     expect(screen.getByText('4000 of the 12000 found are selected for import.')).toBeTruthy();
@@ -237,7 +240,7 @@ describe('Connections page', () => {
     expect(vi.mocked(api.previewImport).mock.calls[0][2]).toEqual({ snapshotId, query: '', facets: { wellType: ['ESP'] } });
     // Choosing something else makes the review stale, so it is not left on screen.
     await screen.findByLabelText('Import review');
-    await userEvent.selectOptions(screen.getByLabelText('Well type'), 'RRL');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'RRL (8000)' }));
     await waitFor(() => expect(screen.queryByLabelText('Import review')).toBeNull());
   });
 
@@ -254,9 +257,9 @@ describe('Connections page', () => {
     vi.mocked(api.searchDiscovered).mockRejectedValue(new api.ConnectionsError('snapshotExpired'));
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
-    await userEvent.click(await screen.findByText('Find what it holds'));
+    await userEvent.click(await screen.findByText('Discover'));
     await userEvent.type(await screen.findByLabelText('Search what was found'), 'x');
-    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
     expect((await screen.findByRole('alert')).textContent).toMatch(/expired/);
   });
 
@@ -270,7 +273,7 @@ describe('Connections page', () => {
     });
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
-    await userEvent.click(await screen.findByText('Find what it holds'));
+    await userEvent.click(await screen.findByText('Discover'));
     expect((await screen.findByRole('alert')).textContent).toMatch(/incomplete/);
     expect(screen.getByText('The system could not be reached.')).toBeTruthy();
     expect(screen.queryByText('Nothing was found.')).toBeNull();
@@ -281,7 +284,7 @@ describe('Connections page', () => {
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
     await screen.findByLabelText('Name');
-    expect(screen.queryByText('Find what it holds')).toBeNull();
+    expect(screen.queryByText('Discover')).toBeNull();
   });
 
   const importer: Adapter = {
@@ -301,11 +304,11 @@ describe('Connections page', () => {
     vi.mocked(api.loadConnections).mockResolvedValue([saved({ adapterKey: 'foresite' })]);
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
-    await screen.findByText('Import into Assets');
+    expect(screen.queryByText('Import into Assets')).toBeNull();
     vi.mocked(api.discoverConnection).mockResolvedValue({ complete: true, actingAs: null, warnings: [], totalCount: 3,
       snapshotId, expiresAtUtc: '2026-10-21T10:15:00Z', facets: [], items: [
         { externalId: '1', displayName: 'Sample well', kind: 'foresite.well', metadata: {} }] });
-    await userEvent.click(screen.getByText('Find what it holds'));
+    await userEvent.click(screen.getByText('Discover'));
     await screen.findByText('Wells discovered');
     await userEvent.click(screen.getByText('Flat wells'));
     await userEvent.click(screen.getByText('Customize grouping levels'));
@@ -386,4 +389,32 @@ describe('Connections page', () => {
     await screen.findByLabelText('Name');
     expect(screen.queryByText('Import into Assets')).toBeNull();
   });
+});
+
+it('shows inventory and hierarchy only after Discover and clears them when rediscovery fails or the Connection changes', async () => {
+  const discoverable: Adapter = { ...adapter, canDiscover: true, groupingFields: [{ key: 'wellType', label: 'Well type' }] };
+  vi.mocked(api.loadAdapters).mockResolvedValue([discoverable]);
+  vi.mocked(api.loadConnections).mockResolvedValue([saved(), saved({ id: '00000000-0000-4000-8000-000000000002', name: 'Other Connection' })]);
+  vi.mocked(api.discoverConnection).mockResolvedValueOnce({ complete: true, actingAs: null, warnings: [], totalCount: 1,
+    snapshotId, expiresAtUtc: '2026-10-22T10:15:00Z', facets: [], items: [{ kind: 'well', externalId: '1', displayName: 'Discovered well', metadata: {} }] });
+  render(<ConnectionsPage canManage />); const user = userEvent.setup();
+  await user.click(await screen.findByText('Field simulator'));
+  expect(screen.queryByText('Discovered wells')).toBeNull();
+  expect(screen.queryByText('Import into Assets')).toBeNull();
+  expect(api.discoverConnection).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Discover', exact: true }));
+  await screen.findByText('Discovered well');
+  expect(screen.getByText('Import into Assets')).toBeTruthy();
+  let fail!: (reason: Error) => void;
+  vi.mocked(api.discoverConnection).mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+  await user.click(screen.getByRole('button', { name: 'Discover', exact: true }));
+  expect(screen.queryByText('Discovered well')).toBeNull();
+  expect(screen.queryByText('Import into Assets')).toBeNull();
+  fail(new api.ConnectionsError('gatewayUnavailable'));
+  await screen.findByRole('alert');
+  expect(screen.queryByText('Import into Assets')).toBeNull();
+  await user.click(screen.getByText('Other Connection'));
+  expect(screen.queryByText('Discovered wells')).toBeNull();
+  expect(screen.queryByText('Import into Assets')).toBeNull();
+  expect(api.discoverConnection).toHaveBeenCalledTimes(2);
 });

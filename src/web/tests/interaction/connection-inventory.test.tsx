@@ -46,7 +46,7 @@ it('retains explicit wells across eleven pages and a filter, then reviews their 
   expect(screen.getByText('2 wells selected')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Search what was found'), { target: { value: 'North' } });
   expect(screen.getByRole('button', { name: 'Review import' }).matches(':disabled')).toBe(true);
-  await user.click(screen.getByRole('button', { name: 'Search', exact: true }));
+  await user.click(screen.getByRole('button', { name: 'Apply filters', exact: true }));
   await screen.findByLabelText('Select Well 0001');
   expect((screen.getByLabelText('Select Well 0001') as HTMLInputElement).checked).toBe(true);
   await user.click(screen.getByRole('button', { name: 'Review import' }));
@@ -59,8 +59,8 @@ it('keeps device coverage and a single unknown device facet visible', async () =
   expect(screen.getByText('0 known · 1200 unknown')).toBeTruthy();
   expect(screen.getByText('Mapped ForeSite assets represented')).toBeTruthy();
   await userEvent.click(screen.getByText('Filter discovered wells'));
-  expect(screen.getByLabelText('Device type')).toBeTruthy();
-  expect(screen.getByRole('option', { name: 'Unspecified device (1200)' })).toBeTruthy();
+  await userEvent.click(screen.getByText('Device type', { selector: 'summary' }));
+  expect(screen.getByRole('checkbox', { name: 'Unspecified device (1200)' })).toBeTruthy();
 });
 it('makes grouping presets and their path explicit and adds custom dimensions only after Add level', async () => {
   render(<Workflow />); const user = userEvent.setup();
@@ -81,7 +81,7 @@ it('invalidates old review while searching and after failure, without reverting 
   await user.click(screen.getByRole('button', { name: 'Review import' })); await screen.findByLabelText('Import review');
   fireEvent.change(screen.getByLabelText('Search what was found'), { target: { value: 'ESP' } });
   expect(screen.queryByLabelText('Import review')).toBeNull();
-  await user.click(screen.getByRole('button', { name: 'Search', exact: true }));
+  await user.click(screen.getByRole('button', { name: 'Apply filters', exact: true }));
   expect(screen.getByRole('button', { name: 'Review import' }).matches(':disabled')).toBe(true);
   fail(new api.ConnectionsError('unavailable'));
   await screen.findByRole('alert');
@@ -109,4 +109,52 @@ it('distinguishes same-named wells by source ID and reviews only the checked ide
   await user.click(boxes[1]); await user.click(screen.getByRole('button', { name: 'Review import' }));
   await waitFor(() => expect(api.previewImport).toHaveBeenCalledOnce());
   expect(vi.mocked(api.previewImport).mock.calls[0][2]?.objects).toEqual([{ kind: 'foresite.well', externalId: '1101' }]);
+});
+
+it('stages multiple values per field, searches listed values, and imports the applied OR/AND scope', async () => {
+  const found: Discovery = { ...discovery, totalCount: 3, items: wells.slice(0, 3), facets: [
+    { key: 'deviceType', label: 'Device type', knownCount: 2, hasMore: false, values: [
+      { value: 'LufkinSam', count: 1 }, { value: 'WFordKS', count: 1 }, { value: 'Unspecified device', count: 1 }] },
+    { key: 'wellType', label: 'Well type', hasMore: false, values: [{ value: 'ESP', count: 2 }, { value: 'RRL', count: 1 }] },
+  ] };
+  vi.mocked(api.searchDiscovered).mockResolvedValue({ matchCount: 2, items: wells.slice(0, 2) });
+  vi.mocked(api.previewImport).mockResolvedValue(preview);
+  render(<Workflow found={found} />); const user = userEvent.setup();
+  await user.click(screen.getByText('Filter discovered wells'));
+  await user.click(screen.getByText('Device type', { selector: 'summary' }));
+  await user.click(screen.getByRole('checkbox', { name: 'LufkinSam (1)' }));
+  await user.type(screen.getByRole('searchbox', { name: 'Search Device type values' }), 'WFord');
+  expect(screen.queryByRole('checkbox', { name: 'LufkinSam (1)' })).toBeNull();
+  await user.click(screen.getByRole('checkbox', { name: 'WFordKS (1)' }));
+  await user.click(screen.getByText('Well type', { selector: 'summary' }));
+  await user.click(screen.getByRole('checkbox', { name: 'ESP (2)' }));
+  expect(api.searchDiscovered).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Review import' }).matches(':disabled')).toBe(true);
+  const scope = { snapshotId, query: '', facets: { deviceType: ['LufkinSam', 'WFordKS'], wellType: ['ESP'] } };
+  await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+  await screen.findByText('Showing 1–2 of 2 matching wells.');
+  expect(vi.mocked(api.searchDiscovered).mock.calls[0][1]).toEqual(scope);
+  await user.click(screen.getByRole('button', { name: 'Review import' }));
+  await screen.findByLabelText('Import review');
+  expect(vi.mocked(api.previewImport).mock.calls[0][2]).toEqual(scope);
+  await user.clear(screen.getByRole('searchbox', { name: 'Search Device type values' }));
+  expect((screen.getByRole('checkbox', { name: 'LufkinSam (1)' }) as HTMLInputElement).checked).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Clear field filters' }));
+  expect(screen.queryByLabelText('Import review')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+  await waitFor(() => expect(api.searchDiscovered).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(api.searchDiscovered).mock.calls[1][1]).toEqual({ snapshotId, query: '', facets: {} });
+});
+
+it('still requires Apply after clearing unapplied field choices back to Any', async () => {
+  vi.mocked(api.searchDiscovered).mockResolvedValue({ matchCount: 1200, items: wells.slice(0, 100) });
+  render(<Workflow />); const user = userEvent.setup();
+  await user.click(screen.getByText('Filter discovered wells'));
+  await user.click(screen.getByText('Device type', { selector: 'summary' }));
+  await user.click(screen.getByRole('checkbox', { name: 'Unspecified device (1200)' }));
+  await user.click(screen.getByRole('button', { name: 'Clear field filters' }));
+  expect(screen.getByRole('button', { name: 'Review import' }).matches(':disabled')).toBe(true);
+  expect(screen.getByText('Apply filters to update matching wells before reviewing or changing the selection.')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Review import' }).matches(':disabled')).toBe(false));
 });
