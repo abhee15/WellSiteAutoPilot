@@ -7,6 +7,13 @@ explicit well selection, coverage counts, hierarchy presets and separate review 
 and persistent hierarchy identity remain planned; this UI change does not claim source synchronization. This supplements the connections workflow design and supersedes its
 initial saved-filter assumptions wherever they affect import.
 
+## Lifecycle and configuration safety follow-up
+
+The agreed single hierarchy, deletion/reimport recovery path, source-type changes and independent configuration
+attention are planned in [asset-lifecycle-and-configuration-impact-plan.md](asset-lifecycle-and-configuration-impact-plan.md).
+That plan records the inspected execution gaps, conservative legacy handling and delivery gates before enabling
+hierarchy writes or claiming execution safety. Its lifecycle decisions supersede earlier recommendations here.
+
 ## Product intent
 
 A Connection brings the source inventory into AutoPilot. Its hierarchy makes wells easy to find.
