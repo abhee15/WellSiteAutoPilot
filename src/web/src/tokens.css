@@ -85,7 +85,7 @@
   --color-text-detail-label: var(--palette-slate-500);
   --color-text-warning-strong: var(--palette-amber-700);
   --color-surface-code: var(--palette-slate-150);
-  --color-text-link: var(--palette-accent-600);
+  --color-text-link: var(--palette-accent-700);
   --color-border-review: var(--palette-slate-300);
   --color-border-selected: var(--palette-accent-600);
   --color-text-selected: var(--palette-accent-700);
@@ -121,12 +121,12 @@
   --font-family-ui: Roboto, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-size-body: 1rem;
   --font-size-caption: 0.75rem;
-  --font-size-label: 0.8rem;
-  --font-size-tag: 0.78rem;
-  --font-size-control: 0.82rem;
+  --font-size-label: 0.875rem;
+  --font-size-tag: 0.75rem;
+  --font-size-control: 0.875rem;
   --font-size-body-small: 0.875rem;
   --font-size-heading: clamp(1.5rem, 3vw, 2rem);
-  --font-size-metric: 1.35rem;
+  --font-size-metric: 1.25rem;
   --letter-spacing-caps: 0.08em;
   --letter-spacing-wide: 0.04em;
   --underline-offset: 0.18em;
