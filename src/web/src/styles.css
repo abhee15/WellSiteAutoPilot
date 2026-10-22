@@ -1151,7 +1151,7 @@ button:disabled {
 }
 
 /* Form field captions: one size and weight above every control in the forms (filters keep their compact captions). */
-.connection-form label, .connection-field, .asset-create-form label, .role-fields > label:not(.access-confirm) {
+.connection-form label, .connection-field, .asset-create-form label, .role-search, .role-fields > label:not(.access-confirm) {
   font-size: var(--font-size-body-small);
   font-weight: 500;
   color: var(--color-text-secondary);
@@ -1160,3 +1160,13 @@ button:disabled {
   font-weight: 400;
   color: var(--color-text-control);
 }
+
+/* A link styled as a button looks like a button: no underline, centred label, same height as real buttons. */
+a.secondary-button, a.primary-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+a.secondary-button:hover { color: var(--color-text-control); }
+a.primary-button:hover { color: var(--color-text-on-accent); }
