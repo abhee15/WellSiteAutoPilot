@@ -1,8 +1,8 @@
 # ForeSite adapter
 
-The `foresite` adapter lets an engineer create a connection to a ForeSite installation. This slice covers
-describing and testing the connection. Reading wells (discovery and import) arrives with delivery step 4 in
-`docs/design/connections-workflow-design.md`.
+The `foresite` adapter lets an engineer create a connection to a ForeSite installation. The adapter tests the connection and discovers wells with source-scoped queries.
+See `foresite-discovery-contracts.md` for the POC evidence and
+`../design/foresite-discovery-import-refresh-plan.md` for import and refresh planning.
 
 ## Setting
 | Setting | Meaning |
@@ -17,7 +17,7 @@ group-managed service account is recommended. Connection settings never select t
 states which account was used.
 
 ## What "Test" does
-One read of `SurfaceNetworkService/Asset/All`. ForeSite has no health endpoint and `Administration/ServiceStatus`
+An authenticated token handshake followed by `SurfaceNetworkService/Asset/All`. ForeSite has no health endpoint and `Administration/ServiceStatus`
 takes about 16 seconds and reports on services AutoPilot does not need, so the cheap read that needs the same
 permission discovery will is used instead.
 
@@ -29,10 +29,26 @@ permission discovery will is used instead.
 | other status | Needs attention | ForeSite answered with an error; wait if it has just started |
 | refused / no route / 10 s timeout | Unreachable | Could not be reached (ForeSite can take about 90 seconds to be ready after it starts) |
 
-Nothing ForeSite sends back is ever shown or stored.
+A successful test must return a JSON array. ForeSite `FullErrorMessage` is shown when present, bounded to
+1,024 characters by the adapter; raw response bodies and transport exception text are not displayed.
 
 ## Support position
 ForeSite exposes no version endpoint, so compatibility is never claimed from the connection alone. The profile
 the discovery slice was exercised against is ForeSite 5.7.1 (WellService). The live check is opt-in:
 `FORESITE_BASE_URL=http://server dotnet run --project tests/WellSiteAutoPilot.ForeSiteAdapterTests` as a Windows
 identity ForeSite knows. The recorded checks always run in CI.
+
+## Discovery
+
+After the token handshake, read `Wells/UserAssets`, then post the returned asset IDs plus `0` to
+`Wells/Well/Filter`. Post the identical scope to `WellConfig/GetWellAutonomousControlGroupData` and join
+its device types by WellId. Never call `Wells/All` or submit an empty asset filter. ForeSite enforces
+source access for the Gateway account, including whether it may read unmapped wells.
+
+The same session cookie and Windows credentials cover every request. A 401 refreshes the token once and
+replays the exact POST body; other failures are not retried. Required invalid inventories are incomplete;
+optional device failures retain wells and emit a warning. Blank device types stay unknown. Existing
+`PrincipalDeviceType` is used only as a fallback. An empty well list avoids a device lookup.
+
+Discovery/import do not yet reconcile already-imported wells. The refresh plan separates new wells,
+changed source facts/paths and inconclusive absence, with explicit review before changes to Assets.
