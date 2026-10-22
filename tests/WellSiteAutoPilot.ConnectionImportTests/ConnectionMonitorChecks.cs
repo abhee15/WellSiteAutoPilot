@@ -21,13 +21,14 @@ internal static class ConnectionMonitorChecks
 
     private static async Task CheckRecording()
     {
+        var interval = TimeSpan.FromMinutes(5);
         var connection = new ConnectionRecord(Guid.NewGuid(), "Field", "simulator", 1, new Dictionary<string, string>(), true, 3,
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, null);
         var repository = new Repository(connection);
         var gateway = new Gateway(new AdapterTestResult(AdapterTestOutcomes.Unreachable, "No answer", null));
         var monitor = new ConnectionMonitorService(repository, gateway, TimeProvider.System);
 
-        var changed = await monitor.CheckAsync(connection.Id, TimeSpan.FromMinutes(5), CancellationToken.None);
+        var changed = await monitor.CheckAsync(connection.Id, interval, CancellationToken.None);
         Check(changed && repository.Recorded?.Source == ConnectionTestSources.Scheduled, "a check is recorded as scheduled");
         Check(repository.Recorded?.TestedRevision == 3 && repository.Recorded.Outcome == AdapterTestOutcomes.Unreachable,
             "a check records the revision it tested and what it found");
@@ -36,17 +37,17 @@ internal static class ConnectionMonitorChecks
 
         repository.Recorded = null;
         gateway.Throw = true;
-        Check(!await monitor.CheckAsync(connection.Id, TimeSpan.FromMinutes(5), CancellationToken.None) && repository.Recorded is null,
+        Check(!await monitor.CheckAsync(connection.Id, interval, CancellationToken.None) && repository.Recorded is null,
             "a Gateway that cannot be asked records nothing");
 
         gateway.Throw = false;
         repository.Connection = connection with { IsEnabled = false };
-        Check(!await monitor.CheckAsync(connection.Id, TimeSpan.FromMinutes(5), CancellationToken.None) && repository.Recorded is null,
+        Check(!await monitor.CheckAsync(connection.Id, interval, CancellationToken.None) && repository.Recorded is null,
             "a disabled connection is not checked");
 
         repository.Connection = connection;
         gateway.Result = new AdapterTestResult("Surprise", "x", null);
-        Check(!await monitor.CheckAsync(connection.Id, TimeSpan.FromMinutes(5), CancellationToken.None) && repository.Recorded is null,
+        Check(!await monitor.CheckAsync(connection.Id, interval, CancellationToken.None) && repository.Recorded is null,
             "an answer the Server does not understand is not recorded");
     }
 
