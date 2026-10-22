@@ -1202,3 +1202,10 @@ a.primary-button:hover { color: var(--color-text-on-accent); }
   border-radius: var(--radius-8); padding: var(--space-16) var(--space-18); }
 .status-page > section > h2 { margin: 0 0 var(--space-8); font-size: var(--font-size-body); }
 .health-row-end { display: flex; align-items: center; gap: var(--space-12); }
+
+/* The filter bar's generic label, text and input rules must not reach into the checkbox menu. */
+.data-view-controls .multi-select-menu label { display: flex; align-items: center; gap: var(--space-8); }
+.data-view-controls .multi-select-menu label span { color: var(--color-text-control); font-size: var(--font-size-body-small); }
+.data-view-controls .multi-select-menu input[type='checkbox'] {
+  flex: none; width: var(--size-icon); height: var(--size-icon); min-height: 0; margin: 0; padding: 0;
+}
