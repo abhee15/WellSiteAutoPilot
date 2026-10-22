@@ -4,6 +4,7 @@ import type { VerifiedSecurityUser } from './accessManagement';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import './accessManagement.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 interface AccessManagementPageProps {
   currentUserId: string;
@@ -43,7 +44,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
         onChange={event => setAwaitingOnly(event.target.checked)} />
       {t('access.awaitingOnly')}
     </label>
-    {loading && <p role="status">{t('access.loading')}</p>}
+    {loading && <LoadingIndicator label={t('access.loading')} />}
     {failed && <p role="alert">{t('access.denied')}</p>}
     {!loading && !failed && awaitingOnly && users.length === 0 &&
       <p role="status">{t('access.noWaiting')}</p>}

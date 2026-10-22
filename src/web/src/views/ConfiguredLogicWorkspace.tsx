@@ -8,6 +8,7 @@ import { describeSettings } from './revisionSettings';
 import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOverview';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
 import type { VerifiedConfiguration } from './configuredLogicSetup';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
@@ -97,7 +98,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
   return <section className="setup-panel" aria-label={t('setup.workspace')}>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert">{error}</p>}
-    {!detail && selectedId && !error && <p role="status">{t('setup.loading')}</p>}
+    {!detail && selectedId && !error && <LoadingIndicator label={t('setup.loading')} />}
     {detail && <>
       <ConfiguredLogicRevisionOverview logic={detail} onClose={onClose} executions={executions} />
       <p>{t('setup.immutable')}</p>

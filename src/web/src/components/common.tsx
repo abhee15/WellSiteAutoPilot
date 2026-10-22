@@ -1,5 +1,6 @@
 import { toCssToken } from '../format';
 import { statusLabel } from '../words';
+import { LoadingIndicator } from './LoadingIndicator';
 
 export function SummaryCard({
   label,
@@ -52,15 +53,18 @@ export function EmptyRow({
   columns,
   children,
   hint,
+  loading = false,
 }: {
   columns: number;
   children: string;
   hint?: string;
+  /** The text says the rows are still loading, so show it with the loading indicator. */
+  loading?: boolean;
 }) {
   return (
     <tr>
       <td className="empty-state" colSpan={columns}>
-        {children}
+        {loading ? <LoadingIndicator label={children} /> : children}
         {hint && <small className="empty-hint">{hint}</small>}
       </td>
     </tr>

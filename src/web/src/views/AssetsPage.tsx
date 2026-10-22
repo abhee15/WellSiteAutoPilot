@@ -29,6 +29,7 @@ import { AssetBrowser, AssetSearchResults } from './AssetBrowser';
 import { useAssetContext } from './useAssetContext';
 import { isSecurityId } from '../security/identifiers';
 import './splitLayout.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 /** The address `#assets/types` opens the Asset types tab; any other detail is an asset id. */
 const TYPES_TAB = 'types';
@@ -298,7 +299,7 @@ export function AssetsPage({
                     {t('assets.focusOn', { name: selectedAuthorized.name ?? t('assets.unnamed') })}</button>
                 </p>
               )}
-              {!isLoaded ? <p className="split-note">{t('views.loading')}</p>
+              {!isLoaded ? <LoadingIndicator label={t('views.loading')} />
                 : assets.length === 0 ? (
                   <>
                     <p className="split-note">{t('assets.none')}</p>

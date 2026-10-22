@@ -1,0 +1,36 @@
+/* The loading indicator. Semantic tokens only. */
+.loading-indicator {
+  --loading-size: var(--size-spinner);
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-14) 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-small);
+  /* Hidden for a moment so a fast response never flashes it. */
+  opacity: 0;
+  animation: loading-appear var(--duration-appear) var(--delay-loading) forwards;
+}
+
+.loading-indicator[data-size='small'] { --loading-size: var(--size-spinner-small); padding: var(--space-4) 0; }
+.loading-indicator[data-size='large'] { --loading-size: var(--size-spinner-large); padding: var(--space-28) 0; justify-content: center; }
+.loading-indicator[data-inline] { display: inline-flex; padding: 0; }
+
+.loading-spinner {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--loading-size);
+  height: var(--loading-size);
+  border: var(--border-width-spinner) solid var(--color-border-row);
+  border-top-color: var(--color-focus-ring);
+  border-radius: var(--radius-pill);
+  animation: loading-spin var(--duration-spin) linear infinite;
+}
+
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@keyframes loading-appear { to { opacity: 1; } }
+
+/* Less motion: no spinning; the ring stays as a still marker beside the words. */
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner { animation: none; }
+}

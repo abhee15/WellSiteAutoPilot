@@ -15,6 +15,7 @@ import type { OwnerGroup } from './assetHierarchy';
 import type { AttentionItem } from './overview';
 import { fetchRecommendationInbox } from './recommendationInbox';
 import './overview.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 function attentionText(item: AttentionItem): string {
   switch (item.kind) {
@@ -95,7 +96,7 @@ export function OverviewPage({
     <>
       <section className="panel overview-attention" aria-label={t('overview.attention')}>
         <h2>{t('overview.attention')}</h2>
-        {!ready ? <p role="status" className="status-loading">{t('overview.loading')}</p>
+        {!ready ? <LoadingIndicator label={t('overview.loading')} />
           : items.length === 0 ? <p>{t('overview.allClear')}</p>
             : <ul className="overview-list">
               {items.map(item => <li key={item.kind}>

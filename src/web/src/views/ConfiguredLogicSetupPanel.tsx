@@ -14,6 +14,7 @@ import { attributeFields, attributeValues, buildAttributes } from './assetAttrib
 import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
 import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
 import './configuredLogicSetup.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 type Props = {
   modules: LogicModuleResponse[]; assets: AssetResponse[]; assetTypes: AssetTypeResponse[];
@@ -229,7 +230,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
           {canReadViews && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
           {viewRef?.role === r.role && <p className="connection-help">{t('setup.viewSnapshot', { revision: viewRef.expectedRevision, count: bindings[r.role]?.length ?? 0 })}
             {canReadViews && <button type="button" disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)}>{t('setup.refreshView')}</button>}</p>}
-          {viewLoading && <p role="status">{t('views.loading')}</p>}
+          {viewLoading && <LoadingIndicator label={t('views.loading')} />}
           {viewError && <p role="alert">{t('setup.viewUnavailable')}</p>}
           <p>{t(viewRef?.role === r.role ? 'setup.viewTargets' : 'setup.loadedAssets')}</p>
           <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewRef?.role === r.role || viewLoading}

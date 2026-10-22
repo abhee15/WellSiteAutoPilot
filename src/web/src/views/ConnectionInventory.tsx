@@ -3,6 +3,7 @@ import { t } from '../localization';
 import { formatTimestamp } from '../format';
 import { ConnectionsError, discoveryKey, searchDiscovered } from './connections';
 import type { Connection, Discovery, DiscoveryFacet, DiscoveredObject, ImportSelection } from './connections';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 const pageSize = 100;
 const importLimit = 5000;
@@ -132,7 +133,7 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
           </nav>
         </>}
       </fieldset>
-      {searching && <p role="status">{t('views.loading')}</p>}
+      {searching && <LoadingIndicator label={t('views.loading')} />}
       {capacityError && <p role="alert" className="status-error">{t('inventory.tooMany')}</p>}
       {problem && <p role="alert" className="status-error">{problem}</p>}
     </>}

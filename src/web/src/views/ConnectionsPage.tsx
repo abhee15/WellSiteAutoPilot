@@ -11,6 +11,7 @@ import {
   setConnectionEnabled, testConnection, updateConnection,
 } from './connections';
 import type { Adapter, Connection, ConnectionDraft, ConnectionStatus, Discovery, ImportSelection } from './connections';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 
 const statusLabels: Record<ConnectionStatus, MessageKey> = {
@@ -94,7 +95,7 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
           {canManage && <button type="button" className="primary-button" disabled={adapters.length === 0}
             onClick={() => setSelected('new')}>{t('connections.new')}</button>}
         </div>
-        {loading && <p className="empty-state">{t('connections.loading')}</p>}
+        {loading && <LoadingIndicator label={t('connections.loading')} />}
         {loadError && <p role="alert" className="status-error">{loadError}</p>}
         {adaptersFailed && !loadError && <p role="status" className="connection-help">{t('connections.adaptersUnavailable')}</p>}
         {!loading && !loadError && connections.length === 0 && <p className="empty-state">{t('connections.empty')}</p>}
