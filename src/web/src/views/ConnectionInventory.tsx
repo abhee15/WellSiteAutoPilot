@@ -119,9 +119,9 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
           <summary>{t('inventory.groupPage', { name, count: wells.length })}</summary>
           <ul className="connection-found-list">{wells.map(item => <li key={discoveryKey(item)}>
             <label className="inventory-well">{mode === 'individual' && <input type="checkbox" checked={selected.has(discoveryKey(item))}
-              aria-label={t('inventory.selectWell', { name: item.displayName })} onChange={event => {
+              aria-label={t('inventory.selectWell', { name: item.displayName })} aria-describedby={found.snapshotId + '-' + encodeURIComponent(discoveryKey(item))} onChange={event => {
                 const next = new Map(selected); if (event.target.checked) next.set(discoveryKey(item), item); else next.delete(discoveryKey(item)); select(next);
-              }} />}<span><strong>{item.displayName}</strong><small>{[item.metadata.wellType, item.metadata.deviceType || t('inventory.unknownDevice'), item.metadata.field, item.metadata.lease].filter(Boolean).join(' · ')}</small></span></label>
+              }} />}<span><strong>{item.displayName}</strong><small id={found.snapshotId + '-' + encodeURIComponent(discoveryKey(item))}>{t('inventory.sourceId', { id: item.externalId })}</small><small>{[item.metadata.wellType, item.metadata.deviceType || t('inventory.unknownDevice'), item.metadata.field, item.metadata.lease].filter(Boolean).join(' · ')}</small></span></label>
           </li>)}</ul>
         </details>)}</div>
         <nav className="connection-actions" aria-label={t('inventory.paging')}>

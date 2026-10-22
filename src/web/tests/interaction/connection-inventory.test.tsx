@@ -96,3 +96,17 @@ it('requires discovery and prevents oversized imports before review', async () =
   expect(screen.getByText(/One import can contain up to 5,000 wells/)).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Review import' }).matches(':disabled')).toBe(true);
 });
+
+it('distinguishes same-named wells by source ID and reviews only the checked identity', async () => {
+  const duplicates: Discovery = { ...discovery, totalCount: 2, sourceAssetCount: 1, facets: [], items: [
+    { ...wells[0], displayName: 'Repeated well' }, { ...wells[1100], displayName: 'Repeated well' }] };
+  vi.mocked(api.previewImport).mockResolvedValue({ ...preview, objectCount: 1 });
+  render(<Workflow found={duplicates} />); const user = userEvent.setup();
+  await user.click(screen.getByLabelText('Choose individual wells'));
+  expect(screen.getByText('Source ID: 1')).toBeTruthy(); expect(screen.getByText('Source ID: 1101')).toBeTruthy();
+  const boxes = screen.getAllByRole('checkbox', { name: 'Select Repeated well' });
+  expect(document.getElementById(boxes[1].getAttribute('aria-describedby')!)?.textContent).toBe('Source ID: 1101');
+  await user.click(boxes[1]); await user.click(screen.getByRole('button', { name: 'Review import' }));
+  await waitFor(() => expect(api.previewImport).toHaveBeenCalledOnce());
+  expect(vi.mocked(api.previewImport).mock.calls[0][2]?.objects).toEqual([{ kind: 'foresite.well', externalId: '1101' }]);
+});

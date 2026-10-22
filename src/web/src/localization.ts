@@ -887,6 +887,7 @@ export const englishMessages = {
   'inventory.deviceCoverage': 'Device type coverage',
   'inventory.deviceUnreported': 'Coverage was not reported by this discovery.',
   'inventory.deviceKnown': '{known} known · {unknown} unknown',
+  'inventory.sourceId': 'Source ID: {id}',
   'inventory.selectionHeading': 'Choose wells to import',
   'inventory.allMatching': 'Import all matching wells',
   'inventory.individual': 'Choose individual wells',
