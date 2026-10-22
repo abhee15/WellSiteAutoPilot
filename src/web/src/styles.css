@@ -158,7 +158,7 @@ button:disabled {
   background: var(--color-surface-avatar);
   color: var(--color-text-primary);
   font-size: var(--font-size-label);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .user-label {
@@ -1004,7 +1004,7 @@ button:disabled {
   min-width: 0;
 }
 .role-permissions legend {
-  font-weight: 650;
+  font-weight: 600;
   padding-bottom: var(--space-12);
 }
 .role-permission-group {
@@ -1172,7 +1172,7 @@ a.primary-button:hover { color: var(--color-text-on-accent); }
   border: var(--border-width-thin) solid var(--color-border-control);
   border-radius: var(--radius-6);
   background: var(--color-surface-panel);
-  color: var(--color-text-link);
+  color: var(--color-text-primary);
   font-size: var(--font-size-label);
   font-weight: 500;
   text-decoration: none;
@@ -1183,8 +1183,8 @@ a.primary-button:hover { color: var(--color-text-on-accent); }
 .action-link:hover { background: var(--color-surface-control-hover); color: var(--color-text-link); }
 
 /* A name that opens something: link colour, no underline until hovered. */
-.text-link { color: var(--color-text-link); text-decoration: none; }
-.text-link:hover { text-decoration: underline; }
+.text-link { color: var(--color-text-primary); text-decoration: none; }
+.text-link:hover { color: var(--color-text-link); text-decoration: underline; }
 
 /* Visible to assistive technology only. */
 .visually-hidden {
