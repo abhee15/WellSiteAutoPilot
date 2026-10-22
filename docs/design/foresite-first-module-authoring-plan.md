@@ -3,7 +3,7 @@
 Status: implementation proposal capturing the owner discussion on 2026-10-22.
 This document defines the next work; it does not claim the kit, test endpoint,
 Python execution, or live ForeSite reads are implemented or verified.
-Priority: complete one ForeSite read-only path before extending CygNet execution.
+Priority: complete one ForeSite read-only path. CygNet brainstorming and status review are a separate workstream.
 
 ## Scope and author experience
 
@@ -151,36 +151,6 @@ The ForeSite read-only milestone is complete only when the kit's authored module
 runs through AutoPilot against a real selected well and produces inspectable
 persisted results. Offline success alone does not satisfy end-to-end acceptance.
 
-## CygNet continuation after ForeSite
-
-Read together:
-- ../architecture/cygnet-wami-integration-research.md (older research)
-- ../architecture/logic-association-after-connections-research.md on this branch
-- poc/connections-205: docs/poc/connections-205-findings.md
-
-The same-host assumption remains the intended direct integration deployment.
-The POC used CygNet.API.* .NET assemblies through a separate local agent,
-not a proven COM-based integration. It reports compiling its net10 agent against
-9.9 assemblies and cites ForeSite's net10 wrapper as supporting evidence.
-That supersedes the older blanket assumption that a net48 agent is mandatory,
-but it does not establish native-library compatibility on every installation.
-
-The POC tested facility discovery through recorded responses. It explicitly
-did not prove native Cx*64 DLL loading or a real facility read on a CygNet host.
-The report says that test box had ODBC support rather than a full CygNet
-installation. Do not generalize that limitation to the owner's current machine.
-
-Resume with a narrow probe on the actual CygNet host: confirm installed API/native
-files, versions and process bitness; resolve one facility; read one current
-point with time/quality/units; repeat under the intended service identity.
-Use installed help and supported API contracts. Record the exact failure if
-loading, permissions or calls fail. COM is not selected merely because it was
-discussed earlier. Agent transport, service identity and per-user attribution
-remain explicit decisions. No Bridge requirement or transport switch is implied.
-
-Reuse the authoring contract once CygNet inputs are proven; keep provider code
-in its adapter/agent. Do not delay the ForeSite path on CygNet investigation.
-
 ## Open decisions before implementation
 
 - Python entry-point/wire contract, version, dependencies and isolation.
@@ -189,7 +159,6 @@ in its adapter/agent. Do not delay the ForeSite path on CygNet investigation.
 - Approved package loading/distribution path and separate trust enforcement.
 - Live test API authentication and exact scope enforcement.
 - Which side owns later optimization publication/approval/dispatch.
-- Actual CygNet-host probe evidence and identity model, deferred after ForeSite.
 
 This list is a review baseline, not a claim that all implementation gaps are
 eliminated. Update the findings as each milestone supplies concrete evidence.
