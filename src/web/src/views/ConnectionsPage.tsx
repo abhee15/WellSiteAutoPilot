@@ -251,6 +251,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
             <button type="button" className="secondary-button"
               disabled={disabled || dirty || !connection.isEnabled}
               onClick={() => void run('find', async () => {
+                setFound(null); setSelection(null);
                 const result = await discoverConnection(connection);
                 setFound(result);
                 setSelection(result.complete ? { value: { snapshotId: result.snapshotId, query: '', facets: {} }, count: result.totalCount } : null);
@@ -262,10 +263,12 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
             : !connection.isEnabled && <span className="connection-help">{t('connections.testDisabled')}</span>}
         </div>
       )}
-      {found && connection && <ConnectionInventory key={found.snapshotId} connection={connection} found={found} stale={dirty}
+      {busy === 'find' && <p role="status">{t('connections.finding')}</p>}
+      {canManage && connection && adapter?.canDiscover && !found && busy !== 'find' && <p className="connection-help">{t('inventory.discoverFirst')}</p>}
+      {found && connection && <ConnectionInventory key={'inventory-' + found.snapshotId} connection={connection} found={found} stale={dirty}
         disabled={disabled} onSelect={(value, count) => setSelection(value ? { value, count } : null)} />}
-      {canManage && connection && adapter?.canDiscover && adapter.groupingFields.length > 0 && connection.isEnabled && !dirty && (
-        <ConnectionImport connection={connection} adapter={adapter}
+      {found?.complete && found.totalCount > 0 && canManage && connection && adapter?.canDiscover && adapter.groupingFields.length > 0 && connection.isEnabled && !dirty && (
+        <ConnectionImport key={'import-' + found.snapshotId} connection={connection} adapter={adapter}
           selection={selection?.value ?? null} selectedCount={selection?.count ?? null}
           totalCount={found?.totalCount ?? null} disabled={disabled} onBusyChange={setImportBusy} />
       )}

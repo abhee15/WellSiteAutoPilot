@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
 import { ConnectionsError, discoveryKey, searchDiscovered } from './connections';
-import type { Connection, Discovery, DiscoveredObject, ImportSelection } from './connections';
+import type { Connection, Discovery, DiscoveryFacet, DiscoveredObject, ImportSelection } from './connections';
 
 const pageSize = 100;
 const importLimit = 5000;
-const scopeFor = (found: Discovery, query: string, facets: Record<string, string>): ImportSelection => ({
-  snapshotId: found.snapshotId, query: query.trim(), facets: Object.fromEntries(Object.entries(facets).filter(([, value]) => value).map(([key, value]) => [key, [value]])),
+const scopeFor = (found: Discovery, query: string, facets: Record<string, string[]>): ImportSelection => ({
+  snapshotId: found.snapshotId, query: query.trim(), facets: Object.fromEntries(Object.entries(facets).filter(([, values]) => values.length > 0)),
 });
 /** Browses the full kept inventory. An explicit selection survives paging and filtering. */
 export function ConnectionInventory({ connection, found, stale, disabled = false, onSelect }: {
@@ -15,8 +15,8 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
   onSelect: (selection: ImportSelection | null, count: number) => void;
 }) {
   const [query, setQuery] = useState('');
-  const [facets, setFacets] = useState<Record<string, string>>({});
-  const [applied, setApplied] = useState({ query: '', facets: {} as Record<string, string> });
+  const [facets, setFacets] = useState<Record<string, string[]>>({});
+  const [needsApply, setNeedsApply] = useState(false);
   const [items, setItems] = useState(found.items.slice(0, pageSize));
   const [count, setCount] = useState(found.totalCount);
   const [offset, setOffset] = useState(0);
@@ -27,7 +27,7 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
   const [problem, setProblem] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
-  const dirty = query.trim() !== applied.query || JSON.stringify(facets) !== JSON.stringify(applied.facets);
+  const dirty = needsApply;
   const blocked = disabled || stale || searching;
   const device = found.facets.find(facet => facet.key === 'deviceType');
   const groups = new Map<string, DiscoveredObject[]>();
@@ -41,7 +41,7 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
   function publish(nextMode: typeof mode, next: Map<string, DiscoveredObject>, scope: ImportSelection, total: number) {
     onSelect(nextMode === 'individual' ? explicit(next) : scope, nextMode === 'individual' ? next.size : total);
   }
-  async function search(nextQuery: string, nextFacets: Record<string, string>, nextOffset = 0) {
+  async function search(nextQuery: string, nextFacets: Record<string, string[]>, nextOffset = 0) {
     controller.current?.abort(); const request = new AbortController(); controller.current = request;
     setSearching(true); setProblem(null); onSelect(null, 0);
     const scope = scopeFor(found, nextQuery, nextFacets);
@@ -50,7 +50,7 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
       if (request.signal.aborted) return;
       if (result.items.length > pageSize || (nextOffset < result.matchCount && result.items.length === 0)) throw new ConnectionsError('invalidResponse');
       setItems(result.items); setCount(result.matchCount); setOffset(nextOffset);
-      setApplied({ query: nextQuery.trim(), facets: nextFacets });
+      setNeedsApply(false);
       publish(mode, selected, scope, result.matchCount);
     } catch (error) {
       if (!request.signal.aborted) setProblem(t(error instanceof ConnectionsError && error.kind === 'snapshotExpired' ? 'connections.errSnapshotExpired' : 'inventory.searchFailed'));
@@ -92,46 +92,73 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
         </div>
         <p className="connection-help">{t('inventory.selectionHelp')}</p>
         <details className="inventory-filters"><summary>{t('inventory.filters')}</summary>
-          <div className="connection-facets">{found.facets.map(facet => <label key={facet.key}>
-            <span>{facet.label}</span><select value={facets[facet.key] ?? ''} onChange={event => {
-              const next = { ...facets, [facet.key]: event.target.value }; setFacets(next); void search(query, next);
-            }}><option value="">{t('connections.findFacetAny')}</option>
-              {facet.values.map(value => <option key={value.value} value={value.value}>{t('connections.findFacetOption', value)}</option>)}
-            </select>{facet.hasMore && <small className="connection-help">{t('connections.findFacetMore')}</small>}
-          </label>)}</div>
+          <p className="connection-help">{t('inventory.filterHelp')}</p>
+          <div className="connection-facets">{found.facets.map(facet => <InventoryFacet key={facet.key} facet={facet}
+            selected={facets[facet.key] ?? []} onChange={values => {
+              setFacets(current => ({ ...current, [facet.key]: values })); setNeedsApply(true); onSelect(null, 0);
+            }} />)}</div>
+          {found.facets.length === 0 && <p className="connection-help">{t('inventory.noFacets')}</p>}
+          <button type="button" className="secondary-button" disabled={Object.values(facets).every(values => values.length === 0)}
+            onClick={() => { setFacets({}); setNeedsApply(true); onSelect(null, 0); }}>{t('inventory.clearFilters')}</button>
         </details>
         <div className="connection-control-row">
           <label><span>{t('connections.findSearch')}</span><input type="search" value={query} maxLength={100}
-            onChange={event => { setQuery(event.target.value); onSelect(null, 0); }} onKeyDown={event => {
+            onChange={event => { setQuery(event.target.value); setNeedsApply(true); onSelect(null, 0); }} onKeyDown={event => {
               if (event.key === 'Enter') { event.preventDefault(); void search(query, facets); }
             }} /></label>
-          <button type="button" className="secondary-button" onClick={() => void search(query, facets)}>{t('connections.findSearchButton')}</button>
+          <button type="button" className="secondary-button" onClick={() => void search(query, facets)}>{t('inventory.applyFilters')}</button>
         </div>
         {dirty && <p role="status" className="connection-help">{t('inventory.applySearch')}</p>}
         {mode === 'individual' && <div className="connection-actions">
           <strong>{t('inventory.selected', { count: selected.size })}</strong>
-          <button type="button" onClick={() => select(new Map([...selected, ...items.map(item => [discoveryKey(item), item] as const)]))}>{t('inventory.selectPage')}</button>
-          <button type="button" onClick={() => select(new Map())}>{t('inventory.clear')}</button>
+          <button type="button" disabled={dirty || problem !== null} onClick={() => select(new Map([...selected, ...items.map(item => [discoveryKey(item), item] as const)]))}>{t('inventory.selectPage')}</button>
+          <button type="button" disabled={dirty || problem !== null} onClick={() => select(new Map())}>{t('inventory.clear')}</button>
         </div>}
-        {count === 0 && <p>{t('connections.findNone')}</p>}
-        {count > 0 && <p role="status">{t('inventory.page', { from: offset + 1, to: offset + items.length, count })}</p>}
-        <div className="inventory-groups">{[...groups].map(([name, wells]) => <details key={name} open>
-          <summary>{t('inventory.groupPage', { name, count: wells.length })}</summary>
-          <ul className="connection-found-list">{wells.map(item => <li key={discoveryKey(item)}>
-            <label className="inventory-well">{mode === 'individual' && <input type="checkbox" checked={selected.has(discoveryKey(item))}
-              aria-label={t('inventory.selectWell', { name: item.displayName })} aria-describedby={found.snapshotId + '-' + encodeURIComponent(discoveryKey(item))} onChange={event => {
-                const next = new Map(selected); if (event.target.checked) next.set(discoveryKey(item), item); else next.delete(discoveryKey(item)); select(next);
-              }} />}<span><strong>{item.displayName}</strong><small id={found.snapshotId + '-' + encodeURIComponent(discoveryKey(item))}>{t('inventory.sourceId', { id: item.externalId })}</small><small>{[item.metadata.wellType, item.metadata.deviceType || t('inventory.unknownDevice'), item.metadata.field, item.metadata.lease].filter(Boolean).join(' · ')}</small></span></label>
-          </li>)}</ul>
-        </details>)}</div>
-        <nav className="connection-actions" aria-label={t('inventory.paging')}>
-          <button type="button" disabled={offset === 0} onClick={() => void search(query, facets, Math.max(0, offset - pageSize))}>{t('inventory.previous')}</button>
-          <button type="button" disabled={offset + items.length >= count} onClick={() => void search(query, facets, offset + pageSize)}>{t('inventory.next')}</button>
-        </nav>
+        {!dirty && !problem && !searching && <>
+          {count === 0 && <p>{t('connections.findNone')}</p>}
+          {count > 0 && <p role="status">{t('inventory.page', { from: offset + 1, to: offset + items.length, count })}</p>}
+          <div className="inventory-groups">{[...groups].map(([name, wells]) => <details key={name} open>
+            <summary>{t('inventory.groupPage', { name, count: wells.length })}</summary>
+            <ul className="connection-found-list">{wells.map(item => <li key={discoveryKey(item)}>
+              <label className="inventory-well">{mode === 'individual' && <input type="checkbox" checked={selected.has(discoveryKey(item))}
+                aria-label={t('inventory.selectWell', { name: item.displayName })} aria-describedby={found.snapshotId + '-' + encodeURIComponent(discoveryKey(item))} onChange={event => {
+                  const next = new Map(selected); if (event.target.checked) next.set(discoveryKey(item), item); else next.delete(discoveryKey(item)); select(next);
+                }} />}<span><strong>{item.displayName}</strong><small id={found.snapshotId + '-' + encodeURIComponent(discoveryKey(item))}>{t('inventory.sourceId', { id: item.externalId })}</small><small>{[item.metadata.wellType, item.metadata.deviceType || t('inventory.unknownDevice'), item.metadata.field, item.metadata.lease].filter(Boolean).join(' · ')}</small></span></label>
+            </li>)}</ul>
+          </details>)}</div>
+          <nav className="connection-actions" aria-label={t('inventory.paging')}>
+            <button type="button" disabled={offset === 0} onClick={() => void search(query, facets, Math.max(0, offset - pageSize))}>{t('inventory.previous')}</button>
+            <button type="button" disabled={offset + items.length >= count} onClick={() => void search(query, facets, offset + pageSize)}>{t('inventory.next')}</button>
+          </nav>
+        </>}
       </fieldset>
       {searching && <p role="status">{t('views.loading')}</p>}
       {capacityError && <p role="alert" className="status-error">{t('inventory.tooMany')}</p>}
       {problem && <p role="alert" className="status-error">{problem}</p>}
     </>}
   </section>;
+}
+
+/** Values refer to the complete discovery, not just the current page or other filters. */
+function InventoryFacet({ facet, selected, onChange }: {
+  facet: DiscoveryFacet; selected: string[]; onChange: (values: string[]) => void;
+}) {
+  const [valueQuery, setValueQuery] = useState('');
+  const values = facet.values.filter(value => value.value.toLocaleLowerCase().includes(valueQuery.trim().toLocaleLowerCase()))
+    .sort((a, b) => a.value.localeCompare(b.value));
+  return <details className="inventory-facet">
+    <summary>{facet.label}<span>{selected.length === 0 ? t('connections.findFacetAny') : t('inventory.facetSelected', { count: selected.length })}</span></summary>
+    <fieldset>
+      <legend>{facet.label}</legend>
+      <label><span>{t('inventory.searchValues', { field: facet.label })}</span><input type="search" value={valueQuery} maxLength={100}
+        onChange={event => setValueQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} /></label>
+      <div className="inventory-facet-values">{values.map(value => <label key={value.value}>
+        <input type="checkbox" checked={selected.includes(value.value)} onChange={event => onChange(event.target.checked
+          ? [...selected, value.value].sort() : selected.filter(item => item !== value.value))} />
+        <span>{t('connections.findFacetOption', value)}</span>
+      </label>)}</div>
+      {values.length === 0 && <p className="connection-help">{t('inventory.noValues')}</p>}
+      {facet.hasMore && <p className="connection-help">{t('connections.findFacetMore')}</p>}
+    </fieldset>
+  </details>;
 }

@@ -167,3 +167,34 @@ Do not claim real Windows authentication/delegation or source performance is pro
 - Still pending: durable source-change comparison/apply, persisted hierarchy recipes and stable group keys,
   and a dedicated value-search API for facets with more than 200 values. Well search and paging cover the
   entire kept inventory; the existing facet-value limit is shown honestly rather than treated as exhaustive.
+
+## Follow-up UX and lifecycle decisions — 22 October 2026
+
+The on-prem observation after #258 showed that the import task was visible before discovery and that single-value
+native dropdowns made building a subset awkward. Discovery is now an explicit **Discover** action. Inventory and
+hierarchy setup appear only after a result is available (hierarchy requires a complete nonempty result). A new
+attempt clears the old inventory/review before calling the source, including if the attempt fails. Switching
+Connections or saving a new Connection revision requires discovering again.
+
+Field filters use searchable checkbox lists. Values within one field are ORed; different fields are ANDed.
+Selections are staged until **Apply filters** so several choices do not launch competing searches. Value counts
+are from the complete snapshot, not recomputed against other fields; local value search covers only the listed
+values. The 200-value limit remains explicit. Changed/unapplied or failed searches cannot review/import old
+results. Explicit well selections remain independent of filters and persist across applied searches/pages.
+
+**Hierarchy count recommendation:** one canonical imported hierarchy per Connection in v1. Views provide
+alternate well subsets without duplicating source Assets. Multiple physical projections would require separate
+parent/membership storage and introduce ambiguity for moves and authorization. Do not create another Connection
+merely to get a different presentation. A future alternate browse layout can project the same stable Asset IDs.
+Persisting/enforcing the canonical recipe remains part of the reconciliation foundation; current re-imports
+still skip existing bindings and do not restructure them. This UX slice does not claim that recipe enforcement
+has shipped.
+
+**Deletion recommendation (planned, not enabled):** allow deletion/reimport of a truly unused imported leaf
+well, with manage permission, explicit confirmation and an audit record. “Unused” must include View membership,
+all saved logic revisions/data bindings, execution/history references, access-scope references and child Assets,
+not just an active logic assignment. Check references and delete the source binding plus Asset atomically;
+otherwise the unique source binding prevents a later reimport. Retain audit identity and distinguish deleting
+an AutoPilot import from deleting a source well. Never cascade a group deletion into its wells. For referenced
+wells retain identity and offer the existing inactive workflow, subject to permissions. Implement this as a
+separate guarded lifecycle change; no direct SQL cleanup or weakened foreign keys in this UI work.
