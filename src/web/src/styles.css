@@ -1211,7 +1211,7 @@ a.primary-button:hover { color: var(--color-text-on-accent); }
 }
 
 /* Native dropdowns get the same chevron as every other dropdown, not the browser's small one. */
-:where(select:not([multiple], [size])) {
+select:not([multiple], [size]) {
   appearance: none;
   background-image: var(--icon-chevron-down);
   background-repeat: no-repeat;
