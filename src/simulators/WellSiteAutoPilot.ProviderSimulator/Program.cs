@@ -96,14 +96,41 @@ app.MapGet("/foresite/SurfaceNetworkService/Asset/All", (HttpContext context) =>
     new { Id = 2, Name = "South Field" }
 }));
 
-app.MapGet("/foresite/Wells/All", (HttpContext context) =>
+app.MapGet("/foresite/Wells/UserAssets", (HttpContext context) =>
     !HasForeSiteSession(context) ? Results.Unauthorized() : Results.Json(new object[]
 {
-    new { Id = 101, Name = "Alpha 1", AssetId = 1, WellType = 1, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = "RPC" },
-    new { Id = 102, Name = "Alpha 2", AssetId = 1, WellType = 2, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = "ESP" },
-    new { Id = 103, Name = "Bravo 1", AssetId = 2, WellType = 1, Field = "Bravo", Lease = "L-2", FacilityId = 8, PrincipalDeviceType = "RPC" }
+    new { Id = 0, Name = "Not Mapped" },
+    new { Id = 1, Name = "North Field" },
+    new { Id = 2, Name = "South Field" }
 }));
+
+// The well list intentionally leaves PrincipalDeviceType empty. Enrichment must come from the
+// control-group endpoint. Asset 99 belongs to another user and must never escape either filter.
+var foreSiteWells = new[]
+{
+    new { Id = 101, Name = "Alpha 1", AssetId = 1, WellType = 1, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = (string?)null },
+    new { Id = 102, Name = "Alpha 2", AssetId = 1, WellType = 2, Field = "Alpha", Lease = "L-1", FacilityId = 7, PrincipalDeviceType = (string?)null },
+    new { Id = 103, Name = "Bravo 1", AssetId = 2, WellType = 1, Field = "Bravo", Lease = "L-2", FacilityId = 8, PrincipalDeviceType = (string?)null },
+    new { Id = 999, Name = "Inaccessible well", AssetId = 99, WellType = 2, Field = "Private", Lease = "Private", FacilityId = 99, PrincipalDeviceType = (string?)null }
+};
+app.MapPost("/foresite/Wells/Well/Filter", (ForeSiteDiscoveryFilter filter, HttpContext context) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (filter.AssetIds is not { Length: > 0 }) return Results.BadRequest();
+    var allowed = filter.AssetIds.Where(id => id is 0 or 1 or 2).ToHashSet();
+    return Results.Json(foreSiteWells.Where(well => allowed.Contains(well.AssetId)));
+});
+app.MapPost("/foresite/WellConfig/GetWellAutonomousControlGroupData", (ForeSiteDiscoveryFilter filter, HttpContext context) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (filter.AssetIds is not { Length: > 0 }) return Results.BadRequest();
+    var allowed = filter.AssetIds.Where(id => id is 0 or 1 or 2).ToHashSet();
+    return Results.Json(new { Units = (string?)null, Values = foreSiteWells.Where(well => allowed.Contains(well.AssetId))
+        .Select(well => new { WellId = well.Id, DeviceType = well.Id == 102 ? "ESP" : "RPC" }) });
+});
 
 app.Run();
 
 public partial class Program;
+
+internal sealed record ForeSiteDiscoveryFilter(long[]? AssetIds);
