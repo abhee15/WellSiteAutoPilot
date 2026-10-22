@@ -59,6 +59,16 @@ describe('Revision settings summary', () => {
     expect(list.textContent).toContain('75');
     expect(list.textContent).toContain('Trim');
   });
+  it('shows pinned View provenance even when a revision has no parameter settings', async () => {
+    const withView = { ...draft, revisions: [{ ...draft.revisions[0], view: {
+      viewId: otherRevisionId, connectionId: typeId, revision: 7, role: 'well',
+    } }] };
+    vi.stubGlobal('fetch', vi.fn(async () => response(withView)));
+    workspace();
+    const summary = await screen.findByLabelText('Settings used by this revision');
+    expect(summary.textContent).toContain('View revision 7 · 1 selected wells');
+    expect(summary.textContent).toContain('Later View edits do not change these targets');
+  });
   it('shows nothing when a revision has no settings', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => response(draft)));
     workspace();

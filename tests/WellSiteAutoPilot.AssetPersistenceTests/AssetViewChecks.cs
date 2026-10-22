@@ -182,6 +182,15 @@ internal static class AssetViewChecks
                 await RejectAsync(() => service.CreateAuthorizedAsync(command with { Name = "Disabled Connection",
                     View = command.View! with { ExpectedRevision = 3 } }, subject, actor), "CONFIGURED_LOGIC_VIEW_INCOMPATIBLE");
                 await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, true));
+                // Lifecycle operations retain the reviewed snapshot after the source View has changed.
+                await service.ValidateRevisionAuthorizedAsync(configured.Id, revision.Id, subject, actor);
+                await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, false));
+                await RejectAsync(() => service.ActivateRevisionAuthorizedAsync(configured.Id, revision.Id, "none", subject, actor), "CONFIGURED_LOGIC_REVISION_CONFLICT");
+                await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, true));
+                var active = await service.ActivateRevisionAuthorizedAsync(configured.Id, revision.Id, "none", subject, actor);
+                var run = await service.PrepareManualShadowAsync(configured.Id, active.Id);
+                if (run.Assets.Count != 9_999 || active.View?.Revision != 2)
+                    throw new InvalidOperationException("Lifecycle or execution preparation silently refreshed View membership.");
                 return changed.Revision;
             }
             finally

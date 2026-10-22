@@ -536,8 +536,8 @@ Mutations require `asset-views.create`, `asset-views.edit` or `asset-views.delet
 member authority. Admin/Engineer defaults include those permissions; custom roles can grant them. Creator and
 updater remain audit facts, rather than exclusive edit rights.
 
-Logic setup resolves a selected View and expected revision on the server, preserves declared module
-cardinality/type/traits, and stores explicit target bindings plus View ID, revision, Connection and target role.
+Logic setup resolves a selected View and expected revision on the server, validates declared module
+cardinality and Asset type, and stores explicit target bindings plus View ID, revision, Connection and target role.
 All roles stay within that Connection. Optional module `requiredAdapterKey` declares adapter compatibility.
 Data bindings must use that Connection's adapter and each Asset's stored source identity. Editing a View never
 changes an existing configuration's snapshot; reviewing the latest selection creates a new draft revision.

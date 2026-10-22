@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConfiguredLogicSetupPanel } from '../../src/views/ConfiguredLogicSetupPanel';
 
@@ -45,7 +45,7 @@ function editor(onSaved = vi.fn(), canReadViews = true) {
 async function chooseModule() {
   const user = userEvent.setup();
   await user.selectOptions(screen.getByRole('combobox', { name: 'Approved module version' }), JSON.stringify([module.moduleId, module.version]));
-  await user.type(screen.getByRole('textbox', { name: 'Configuration name' }), 'Group assignment');
+  fireEvent.change(screen.getByRole('textbox', { name: 'Configuration name' }), { target: { value: 'Group assignment' } });
   return user;
 }
 it('assigns the complete saved selection beyond the workspace snapshot and verifies its pinned revision', async () => {
