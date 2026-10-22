@@ -24,6 +24,5 @@ span.asset-tree-toggle { inline-size: var(--space-20); flex: none; }
   padding-left: calc(var(--space-20) + var(--space-6)); font-weight: 400; }
 .asset-node-icon { flex: none; color: var(--color-text-subtle); vertical-align: middle; margin-right: var(--space-4); }
 
-/* How many assets sit below a group: a down arrow and the number, with the full words for hover and screen readers. */
+/* How many assets sit below a group: a down chevron and the number, with the full words for hover and screen readers. */
 .asset-tree-count { display: inline-flex; align-items: center; gap: var(--space-4); }
-.asset-tree-count::before { content: '▾' / ''; font-size: var(--font-size-caption); }

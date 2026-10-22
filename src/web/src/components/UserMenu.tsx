@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { hasPermission } from '../security/sessionAccess';
 import type { CurrentUserResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { ChevronMark } from './Chevron';
 
 export function UserMenu({
   user,
@@ -43,7 +44,7 @@ export function UserMenu({
           {displayName.charAt(0).toUpperCase()}
         </span>
         <span className="user-label">{displayName}</span>
-        <span className="user-menu-chevron" aria-hidden="true">⌃</span>
+        <span className="user-menu-chevron" aria-hidden="true"><ChevronMark direction="up" /></span>
       </summary>
       <div className="user-panel">
         <strong>{t('session.heading')}</strong>

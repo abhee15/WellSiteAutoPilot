@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { t } from '../localization';
+import { ChevronMark } from './Chevron';
 import './multiSelect.css';
 
 export type MultiSelectOption<T extends string> = { value: T; label: string };
@@ -44,7 +45,7 @@ export function MultiSelect<T extends string>({
     <div className="multi-select">
       <span id={labelId}>{label}</span>
       <details ref={details}>
-        <summary aria-labelledby={labelId}><span>{summary}</span></summary>
+        <summary aria-labelledby={labelId}><span>{summary}</span><ChevronMark /></summary>
         <div className="multi-select-menu" role="group" aria-labelledby={labelId}>
           {options.map(option => (
             <label key={option.value}>

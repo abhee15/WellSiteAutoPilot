@@ -6,6 +6,7 @@ import type { AssetTreeNode, OwnerGroup } from './assetHierarchy';
 import { AssetOwnerRow, ownerKey } from './AssetOwnerRow';
 import { AssetNodeIcon, assetNodeKind } from './AssetNodeIcon';
 import './assetTree.css';
+import { Disclosure } from '../components/Chevron';
 
 export function AssetTree({
   assets,
@@ -44,7 +45,7 @@ export function AssetTree({
           {hasChildren ? (
             <button type="button" className="asset-tree-toggle"
               aria-label={t(expanded ? 'assetTree.collapse' : 'assetTree.expand', { name })}
-              onClick={() => toggle(id)}>{expanded ? '−' : '+'}</button>
+              onClick={() => toggle(id)}><Disclosure open={expanded} /></button>
           ) : <span className="asset-tree-toggle" aria-hidden="true" />}
           <button type="button" className="asset-select asset-tree-name" data-selected={id === selectedId}
             aria-label={t('assetTree.open', { name })} onClick={() => onSelect(id)}>

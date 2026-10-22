@@ -72,9 +72,9 @@ test('responsive links retain accessible full labels and active-page semantics',
 
   assert.match(current, /aria-current="page"/);
   assert.match(current, /aria-label="Runs"/);
-  assert.match(current, /<svg class="nav-icon"[^>]*aria-hidden="true"/);
+  assert.match(current, /<svg [^>]*class="[^"]*nav-icon"[^>]*aria-hidden="true"/);
   assert.match(other, /aria-label="Assets"/);
-  assert.match(other, /<svg class="nav-icon"[^>]*aria-hidden="true"/);
+  assert.match(other, /<svg [^>]*class="[^"]*nav-icon"[^>]*aria-hidden="true"/);
   assert.doesNotMatch(other, /aria-current="page"/);
 });
 

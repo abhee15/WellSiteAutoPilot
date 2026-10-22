@@ -64,7 +64,7 @@ test('navigation preserves responsive accessible and active semantics', () => {
   ));
   assert.match(html, /aria-current="page"/);
   assert.match(html, /aria-label="Assets"/);
-  assert.match(html, /<svg class="nav-icon"[^>]*aria-hidden="true"/);
+  assert.match(html, /<svg [^>]*class="[^"]*nav-icon"[^>]*aria-hidden="true"/);
 });
 
 test('account administration visibility follows server permission rather than a role label', () => {
