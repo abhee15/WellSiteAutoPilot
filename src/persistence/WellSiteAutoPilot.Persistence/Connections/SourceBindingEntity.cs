@@ -3,7 +3,7 @@ namespace WellSiteAutoPilot.Persistence.Connections;
 /// <summary>
 /// Remembers which object in an outside system an Asset was made from. The key is the connection, the kind of
 /// object and the system's own id; names are never used to match. <see cref="SnapshotJson"/> keeps what the system
-/// said at import time.
+/// said at import time, in a versioned baseline envelope. Older metadata-only JSON remains readable.
 /// </summary>
 public sealed class SourceBindingEntity
 {

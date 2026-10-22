@@ -20,6 +20,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<ConnectionEntity> Connections => Set<ConnectionEntity>();
     public DbSet<AssetViewMemberEntity> AssetViewMembers => Set<AssetViewMemberEntity>();
     public DbSet<AssetViewEntity> AssetViews => Set<AssetViewEntity>();
+    public DbSet<ImportHierarchyEntity> ImportHierarchies => Set<ImportHierarchyEntity>();
+    public DbSet<ImportedGroupEntity> ImportedGroups => Set<ImportedGroupEntity>();
     public DbSet<SourceBindingEntity> SourceBindings => Set<SourceBindingEntity>();
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
@@ -108,6 +110,21 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         viewMember.HasKey(x => new { x.ViewId, x.AssetId });
         viewMember.HasOne<AssetViewEntity>().WithMany().HasForeignKey(x => x.ViewId).OnDelete(DeleteBehavior.Cascade);
         viewMember.HasOne<AssetEntity>().WithMany().HasForeignKey(x => x.AssetId).OnDelete(DeleteBehavior.Restrict);
+
+        var hierarchy = modelBuilder.Entity<ImportHierarchyEntity>();
+        hierarchy.ToTable("import_hierarchies", "integration");
+        hierarchy.HasKey(x => x.ConnectionId);
+        hierarchy.Property(x => x.LevelsJson).IsRequired();
+        hierarchy.Property(x => x.FieldsJson).IsRequired();
+        hierarchy.HasOne<ConnectionEntity>().WithMany().HasForeignKey(x => x.ConnectionId).OnDelete(DeleteBehavior.Restrict);
+        var importedGroup = modelBuilder.Entity<ImportedGroupEntity>();
+        importedGroup.ToTable("imported_groups", "integration");
+        importedGroup.HasKey(x => new { x.ConnectionId, x.GroupKey });
+        importedGroup.Property(x => x.GroupKey).HasMaxLength(64).IsRequired();
+        importedGroup.Property(x => x.SourceLabel).HasMaxLength(256).IsRequired();
+        importedGroup.HasIndex(x => x.AssetId).IsUnique();
+        importedGroup.HasOne<ImportHierarchyEntity>().WithMany().HasForeignKey(x => x.ConnectionId).OnDelete(DeleteBehavior.Restrict);
+        importedGroup.HasOne<AssetEntity>().WithMany().HasForeignKey(x => x.AssetId).OnDelete(DeleteBehavior.Restrict);
 
         var sourceBinding = modelBuilder.Entity<SourceBindingEntity>();
         sourceBinding.ToTable("source_bindings", "integration");

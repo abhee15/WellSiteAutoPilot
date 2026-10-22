@@ -6,9 +6,11 @@ namespace WellSiteAutoPilot.Application.Connections.Discovery;
 /// <summary>What one person found in one connection, held so browsing, review and import all see the same list.</summary>
 public sealed class DiscoverySnapshot(
     Guid id, Guid connectionId, Guid userId, DateTimeOffset createdAtUtc, DiscoveryResult result,
-    IReadOnlyList<DiscoveryField> fields)
+    IReadOnlyList<DiscoveryField> fields, int? connectionRevision = null)
 {
     public Guid Id { get; } = id;
+
+    public int? ConnectionRevision { get; } = connectionRevision;
 
     public Guid ConnectionId { get; } = connectionId;
 
@@ -33,12 +35,12 @@ public sealed class DiscoverySnapshotStore(TimeProvider timeProvider)
 
     private readonly ConcurrentDictionary<(Guid ConnectionId, Guid UserId), DiscoverySnapshot> _snapshots = new();
 
-    public DiscoverySnapshot Add(Guid connectionId, Guid userId, DiscoveryResult result, IReadOnlyList<DiscoveryField> fields)
+    public DiscoverySnapshot Add(Guid connectionId, Guid userId, DiscoveryResult result, IReadOnlyList<DiscoveryField> fields, int? connectionRevision = null)
     {
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(fields);
         var now = timeProvider.GetUtcNow();
-        var snapshot = new DiscoverySnapshot(Guid.NewGuid(), connectionId, userId, now, result, fields);
+        var snapshot = new DiscoverySnapshot(Guid.NewGuid(), connectionId, userId, now, result, fields, connectionRevision);
         _snapshots[(connectionId, userId)] = snapshot;
         Trim(now);
         return snapshot;

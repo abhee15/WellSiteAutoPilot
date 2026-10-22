@@ -27,7 +27,9 @@ public sealed record DiscoveredObjectResponse(
 public sealed record DiscoveryResponse(
     bool Complete, IReadOnlyList<DiscoveredObjectResponse> Items, IReadOnlyList<string> Warnings, string? ActingAs,
     int TotalCount, Guid SnapshotId, IReadOnlyList<DiscoveryFacetResponse> Facets, DateTimeOffset ExpiresAtUtc,
-    int? SourceAssetCount = null);
+    int? SourceAssetCount = null, ImportHierarchyResponse? Hierarchy = null);
+
+public sealed record ImportHierarchyResponse(string Status, IReadOnlyList<string>? Levels);
 
 public sealed record DiscoveryFacetValueResponse(string Value, int Count);
 
@@ -71,10 +73,10 @@ public sealed record SetConnectionEnabledRequest(int ExpectedRevision, bool Enab
 /// <summary>The facts to group by, outermost first. Empty means no groups, only the objects themselves.</summary>
 public sealed record ImportPreviewRequest(
     List<string>? Levels, Guid? SnapshotId = null, string? Query = null, Dictionary<string, List<string>>? Facets = null,
-    List<DiscoveryObjectKeyRequest>? Objects = null);
+    List<DiscoveryObjectKeyRequest>? Objects = null, bool AdoptExistingHierarchy = false);
 
 public sealed record ImportGroupResponse(
-    string Name, bool IsFallback, int ObjectCount, IReadOnlyList<string> SampleNames, IReadOnlyList<ImportGroupResponse> Children);
+    string Name, bool IsFallback, int ObjectCount, IReadOnlyList<string> SampleNames, IReadOnlyList<ImportGroupResponse> Children, string? Key = null, string? SourceIdentity = null);
 
 /// <summary>
 /// What an import would create, for review; nothing has been saved. <c>Fingerprint</c> identifies this exact plan so
@@ -94,12 +96,12 @@ public sealed record ImportPreviewResponse(
     IReadOnlyList<string> TypesToCreate,
     bool CanImport,
     string? ActingAs,
-    int AlreadyImported);
+    int AlreadyImported, bool AdoptingHierarchy = false, int ExistingWells = 0, int GroupsToAdopt = 0);
 
 /// <summary>Applies the plan the person reviewed: the same levels and the fingerprint the preview returned.</summary>
 public sealed record ImportConnectionRequest(
     List<string>? Levels, string? ExpectedFingerprint, Guid? SnapshotId = null, string? Query = null,
-    Dictionary<string, List<string>>? Facets = null, List<DiscoveryObjectKeyRequest>? Objects = null);
+    Dictionary<string, List<string>>? Facets = null, List<DiscoveryObjectKeyRequest>? Objects = null, bool AdoptExistingHierarchy = false);
 
 public sealed record ImportResultResponse(
-    int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported, IReadOnlyList<string> TypesCreated);
+    int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported, IReadOnlyList<string> TypesCreated, bool HierarchyAdopted = false);

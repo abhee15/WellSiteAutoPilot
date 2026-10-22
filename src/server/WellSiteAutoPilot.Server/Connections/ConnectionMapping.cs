@@ -17,7 +17,7 @@ internal static class ConnectionMapping
         (adapter.GroupingFields ?? []).Select(field => new DiscoveryFieldResponse(field.Key, field.Label)).ToArray());
 
     /// <summary>The summary a person starts from: totals, facets and the first <see cref="ConnectionService.SampleSize"/> objects.</summary>
-    public static DiscoveryResponse ToResponse(DiscoverySnapshot snapshot) => new(
+    public static DiscoveryResponse ToResponse(DiscoverySnapshot snapshot, ImportHierarchyStatus? hierarchy = null) => new(
         snapshot.Result.Complete,
         DiscoveryScopes.Page(snapshot.Result.Items, 0, ConnectionService.SampleSize).Select(ToObject).ToArray(),
         snapshot.Result.Warnings, snapshot.Result.ActingAs, snapshot.Result.Items.Count, snapshot.Id,
@@ -27,7 +27,7 @@ internal static class ConnectionMapping
         snapshot.CreatedAtUtc + DiscoverySnapshotStore.Lifetime,
         snapshot.Fields.Any(field => field.Key == "assetName")
             ? snapshot.Result.Items.Select(item => item.Metadata.GetValueOrDefault("assetId"))
-                .Where(id => !string.IsNullOrWhiteSpace(id) && id != "0").Distinct(StringComparer.Ordinal).Count() : null);
+                .Where(id => !string.IsNullOrWhiteSpace(id) && id != "0").Distinct(StringComparer.Ordinal).Count() : null, hierarchy is null ? null : new ImportHierarchyResponse(hierarchy.Status, hierarchy.Levels));
 
     public static DiscoverySearchResponse ToResponse(IReadOnlyList<DiscoveredAsset> matches, int offset, int limit) => new(
         matches.Count, DiscoveryScopes.Page(matches, offset, limit).Select(ToObject).ToArray());
@@ -44,13 +44,13 @@ internal static class ConnectionMapping
     public static ImportPreviewResponse ToResponse(ImportPreview preview) => new(
         preview.Plan.Fingerprint, preview.Plan.Levels, preview.Plan.Placements.Count, preview.Plan.GroupCount,
         preview.Plan.FallbackObjectCount, preview.Plan.RootObjectCount, preview.Plan.Groups.Select(ToResponse).ToArray(),
-        preview.Warnings, preview.Conflicts, preview.TypesToCreate, preview.CanImport, preview.ActingAs, preview.AlreadyImported);
+        preview.Warnings, preview.Conflicts, preview.TypesToCreate, preview.CanImport, preview.ActingAs, preview.AlreadyImported, preview.AdoptingHierarchy, preview.Hierarchy.Wells.Count, preview.GroupsToAdopt);
 
     public static ImportResultResponse ToResponse(ImportOutcome outcome) => new(
-        outcome.WellsCreated, outcome.GroupsCreated, outcome.GroupsReused, outcome.AlreadyImported, outcome.TypesCreated);
+        outcome.WellsCreated, outcome.GroupsCreated, outcome.GroupsReused, outcome.AlreadyImported, outcome.TypesCreated, outcome.HierarchyAdopted);
 
     private static ImportGroupResponse ToResponse(PlanGroup group) => new(
-        group.Name, group.IsFallback, group.ObjectCount, group.SampleNames, group.Children.Select(ToResponse).ToArray());
+        group.Name, group.IsFallback, group.ObjectCount, group.SampleNames, group.Children.Select(ToResponse).ToArray(), group.Key, group.SourceIdentity);
 
     public static ConnectionResponse ToResponse(ConnectionRecord connection) => new(
         connection.Id, connection.Name, connection.AdapterKey, connection.SettingsVersion, connection.Settings,

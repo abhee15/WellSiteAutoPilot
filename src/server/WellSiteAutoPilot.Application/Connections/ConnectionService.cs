@@ -118,7 +118,10 @@ public sealed class ConnectionService(
         var result = await DiscoverAsync(id, subject, actor, cancellationToken);
         var fields = (await gateway.ListAsync(cancellationToken))
             .FirstOrDefault(item => string.Equals(item.Key, connection.AdapterKey, StringComparison.Ordinal))?.GroupingFields ?? [];
-        return snapshots.Add(id, subject.UserId, result, fields);
+        if ((await GetAsync(id, cancellationToken)).Revision != connection.Revision)
+            throw new WellSiteAutoPilotException(ConnectionFailureCodes.ImportPlanChanged, FailureKind.Conflict,
+                "The Connection changed during discovery. Discover again using its current settings.");
+        return snapshots.Add(id, subject.UserId, result, fields, connection.Revision);
     }
 
     /// <summary>What this person found earlier, or an explanation that they need to find again.</summary>

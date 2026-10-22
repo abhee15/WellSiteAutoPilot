@@ -3,6 +3,8 @@ using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.ForeSite;
 
+HierarchyChecks.Verify();
+
 // The planner is pure, so these checks need no database or network.
 var connection = Guid.Parse("00000000-0000-4000-8000-000000000001");
 var fields = ForeSiteAdapter.Descriptor.GroupingFields!;

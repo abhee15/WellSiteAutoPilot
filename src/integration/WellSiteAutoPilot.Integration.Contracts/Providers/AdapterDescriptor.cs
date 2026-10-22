@@ -39,7 +39,8 @@ public sealed record AdapterDescriptor(
 /// <paramref name="EmptyGroupName"/> names the group for objects with no value for this fact (null gives a generic
 /// "Unspecified: label"). <paramref name="AsAttribute"/> says whether the fact is kept as an Asset attribute people can
 /// filter on; a fact that only shapes the tree (ForeSite's asset name) can leave it off.
+/// <paramref name="IdentityMetadataKey"/> identifies the companion source-ID fact used for stable group identity.
 /// </summary>
-public sealed record DiscoveryField(string Key, string Label, string? EmptyGroupName = null, bool AsAttribute = true);
+public sealed record DiscoveryField(string Key, string Label, string? EmptyGroupName = null, bool AsAttribute = true, string? IdentityMetadataKey = null);
 
 public sealed record AdapterSettingProblem(string FieldKey, string Message);

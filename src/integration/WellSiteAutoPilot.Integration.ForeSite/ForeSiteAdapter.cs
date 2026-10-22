@@ -40,8 +40,8 @@ public static class ForeSiteAdapter
             AdapterSettingKind.Url, true)],
         [new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Wells")],
         [
-            new DiscoveryField("assetName", "ForeSite asset", "Unassigned", AsAttribute: false),
-            new DiscoveryField("wellType", "Well type", "Unknown type"),
+            new DiscoveryField("assetName", "ForeSite asset", "Unassigned", AsAttribute: false, IdentityMetadataKey: "assetId"),
+            new DiscoveryField("wellType", "Well type", "Unknown type", IdentityMetadataKey: "wellTypeId"),
             new DiscoveryField("deviceType", "Device type", "Unspecified device"),
             new DiscoveryField("field", "Field", "Unspecified field"),
             new DiscoveryField("lease", "Lease", "Unspecified lease")
@@ -139,9 +139,11 @@ public static class ForeSiteAdapter
             var withId = wells.Where(well => well.Id is not null).DistinctBy(well => well.Id).ToArray();
             var skipped = wells.Count(well => well.Id is null);
             if (skipped > 0) warnings.Add($"{skipped} well(s) had no id and were skipped.");
+            var beforeDeviceWarnings = warnings.Count;
             var deviceTypes = withId.Length == 0 ? new Dictionary<string, string>(StringComparer.Ordinal)
                 : await ReadDeviceTypesAsync(session, scope, actingAs, warnings, cancellationToken);
-            return new DiscoveryResult(true, withId.Select(well => ToDiscovered(well, assetNames, deviceTypes)).ToArray(), warnings, actingAs);
+            return new DiscoveryResult(skipped == 0, withId.Select(well => ToDiscovered(well, assetNames, deviceTypes)).ToArray(), warnings, actingAs,
+                warnings.Count > beforeDeviceWarnings ? ["deviceType"] : []);
         }
         catch (ForeSiteTokenException error)
         {
@@ -295,7 +297,7 @@ public static class ForeSiteAdapter
     {
         var id = well.Id!.Value.ToString(CultureInfo.InvariantCulture);
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["wellId"] = id };
-        Put(metadata, "assetId", well.AssetId);
+        metadata["assetId"] = AssetId(well.AssetId).ToString(CultureInfo.InvariantCulture);
         if (assetNames.TryGetValue(AssetId(well.AssetId).ToString(CultureInfo.InvariantCulture), out var assetName))
         {
             metadata["assetName"] = assetName;
@@ -304,7 +306,9 @@ public static class ForeSiteAdapter
         if (!string.IsNullOrWhiteSpace(well.Name)) metadata["wellName"] = well.Name;
         if (deviceTypes.TryGetValue(id, out var deviceType)) metadata["deviceType"] = deviceType;
         else if (!string.IsNullOrWhiteSpace(well.PrincipalDeviceType)) metadata["deviceType"] = well.PrincipalDeviceType;
-        Put(metadata, "wellTypeId", well.WellType);
+        if (well.WellType is { } numericType && TryNumber(numericType, out var normalizedTypeId))
+            metadata["wellTypeId"] = normalizedTypeId.ToString(CultureInfo.InvariantCulture);
+        else Put(metadata, "wellTypeId", well.WellType);
         if (well.WellType is { } type && TryNumber(type, out var typeId) &&
             WellTypes.TryGetValue(typeId, out var abbreviation))
         {

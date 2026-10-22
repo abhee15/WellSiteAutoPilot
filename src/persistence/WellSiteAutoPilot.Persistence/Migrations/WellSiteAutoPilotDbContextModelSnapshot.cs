@@ -460,6 +460,55 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.ToTable("connections", "integration");
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ImportHierarchyEntity", b =>
+                {
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FieldsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LevelsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ConnectionId");
+
+                    b.ToTable("import_hierarchies", "integration");
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ImportedGroupEntity", b =>
+                {
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("GroupKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceLabel")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("ConnectionId", "GroupKey");
+
+                    b.HasIndex("AssetId")
+                        .IsUnique();
+
+                    b.ToTable("imported_groups", "integration");
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceBindingEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1131,6 +1180,30 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ViewId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ImportHierarchyEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ImportedGroupEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                        .WithMany()
+                        .HasForeignKey("AssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.ImportHierarchyEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceBindingEntity", b =>
