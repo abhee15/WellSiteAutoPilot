@@ -405,6 +405,11 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<int>("ConsecutiveFailureCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -429,10 +434,17 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.Property<int?>("LastTestRevision")
                         .HasColumnType("integer");
 
+                    b.Property<string>("LastTestSource")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("NextCheckAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("NormalizedName")
                         .IsRequired()

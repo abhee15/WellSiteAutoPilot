@@ -16,7 +16,7 @@ reasons are in `docs/adr/ADR-008-live-update-signal.md`.
 
 | Piece | Where | Role |
 | --- | --- | --- |
-| `ChangeArea`, `IChangeNotifier`, `NoOpChangeNotifier` | `WellSiteAutoPilot.Application/Changes` | The seam. A closed enum of areas (`Executions`, `Recommendations`, `ConfiguredLogic`, `Assets`, `Modules`). `Notify(area)` carries no identifiers or values and must not throw |
+| `ChangeArea`, `IChangeNotifier`, `NoOpChangeNotifier` | `WellSiteAutoPilot.Application/Changes` | The seam. A closed enum of areas (`Executions`, `Recommendations`, `ConfiguredLogic`, `Assets`, `Modules`, `Connections`). `Notify(area)` carries no identifiers or values and must not throw |
 | `ChangeSignalService` | `Server/Changes` | The Server's notifier. Producers only set a flag; a background loop coalesces a burst per area (default 250 ms) and sends one message per area |
 | `ChangesHub` | `Server/Changes`, route `/hubs/changes` | `[Authorize]` hub with no client-callable methods. On connect it admits the connection only to the area groups whose read permission the user holds, and closes it when there are none |
 | `ChangeAreaAccess` | `Server/Changes` | Resolves the authenticated principal to a user and asks the grant store (via `GrantPermissionChecker`, shared with the REST policy handler) which area read permissions are held now. Claims are never trusted |
@@ -31,6 +31,7 @@ reasons are in `docs/adr/ADR-008-live-update-signal.md`.
 | `configured-logic` | `configured-logic.read` |
 | `assets` | `assets.read` |
 | `modules` | `logic.read` |
+| `connections` | `connections.read` |
 
 The hub sends nothing derived from data, so no asset-scope filtering exists here. A holder of
 `assets.read` over one Asset learns only that "assets changed" and then refetches through REST, where

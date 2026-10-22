@@ -6,6 +6,7 @@ import { formatTimestamp, toCssToken } from '../format';
 import { connectionStatus, loadAdapters, loadConnections } from './connections';
 import type { Adapter, Connection, ConnectionStatus } from './connections';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 
 const statusLabels: Record<ConnectionStatus, MessageKey> = {
   disabled: 'connections.statusDisabled', notTested: 'connections.statusNotTested',
@@ -61,9 +62,12 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
 
   useEffect(() => {
     void reload();
-    const timer = window.setInterval(() => void reload(), 30000);
-    return () => { window.clearInterval(timer); request.current?.abort(); };
+    return () => { request.current?.abort(); };
   }, [reload]);
+  // Platform services are read live, so the page polls (slowly while live updates are connected). Connection results
+  // are written by the Server's monitor, which names the 'connections' area when one changes.
+  usePollingRefresh(() => void reload());
+  useChangeRefresh(['connections'], () => { if (canSeeConnections) void reload(); });
 
   return (
     <div className="status-page">
@@ -107,7 +111,8 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
                     <div>
                       <a className="text-link" href={`#connections/${item.id}`}><strong>{item.name}</strong></a>
                       <small>{system} · {item.lastTest
-                        ? t('status.tested', { when: formatTimestamp(item.lastTest.testedAtUtc) })
+                        ? t(item.lastTest.source === 'scheduled' ? 'status.checked' : 'status.tested',
+                          { when: formatTimestamp(item.lastTest.testedAtUtc) })
                         : t('status.neverTested')}</small>
                     </div>
                     <div className="health-row-end">

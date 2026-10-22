@@ -13,6 +13,7 @@ import {
 } from './connections';
 import type { Adapter, Connection, ConnectionDraft, ConnectionStatus, Discovery, ImportSelection } from './connections';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { useChangeRefresh } from '../live/LiveUpdates';
 
 
 const statusLabels: Record<ConnectionStatus, MessageKey> = {
@@ -50,11 +51,12 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
 
-  const reload = useCallback(async () => {
+  // A quiet reload (after a live signal) swaps in fresh results without showing the loading state again.
+  const reload = useCallback(async (quiet = false) => {
     request.current?.abort();
     const abort = new AbortController();
     request.current = abort;
-    setLoading(true); setLoadError(null);
+    if (!quiet) { setLoading(true); setLoadError(null); }
     try {
       const list = await loadConnections(abort.signal);
       if (request.current !== abort) return;
@@ -69,7 +71,7 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
         if (caught instanceof ConnectionsError && caught.kind === 'accessDenied') throw caught;
       }
     } catch (caught) {
-      if (abort.signal.aborted) return;
+      if (abort.signal.aborted || quiet) return;
       setLoadError(caught instanceof ConnectionsError && caught.kind === 'accessDenied'
         ? t('connections.denied') : t('connections.loadFailed'));
     } finally {
@@ -81,6 +83,7 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
     void reload();
     return () => { request.current?.abort(); };
   }, [reload]);
+  useChangeRefresh(['connections'], () => void reload(true));
 
   const current = selected && selected !== 'new' ? connections.find(item => item.id === selected) ?? null : null;
   const replace = (saved: Connection) => setConnections(list => {
@@ -221,7 +224,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
       {connection && status && (
         <div className={`connection-test connection-test-${status.toLowerCase()}`} role="status">
           {test ? <>
-            <strong>{t('connections.testResult', { outcome: t(statusLabels[test.outcome]), time: formatTimestamp(test.testedAtUtc) })}</strong>
+            <strong>{t(test.source === 'scheduled' ? 'connections.checkResult' : 'connections.testResult', { outcome: t(statusLabels[test.outcome]), time: formatTimestamp(test.testedAtUtc) })}</strong>
             <span>{test.message}</span>
             {test.actingAs && <span>{t('connections.testActingAs', { account: test.actingAs })}</span>}
             {!connection.lastTestIsCurrent && <span>{t('connections.testOutdated')}</span>}

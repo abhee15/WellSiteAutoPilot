@@ -47,7 +47,7 @@ public sealed record DiscoveryObjectKeyRequest(string Kind, string ExternalId);
 public sealed record DiscoverySearchResponse(int MatchCount, IReadOnlyList<DiscoveredObjectResponse> Items);
 
 public sealed record ConnectionTestResponse(
-    string Outcome, string Message, string? ActingAs, DateTimeOffset TestedAtUtc, int TestedRevision);
+    string Outcome, string Message, string? ActingAs, DateTimeOffset TestedAtUtc, int TestedRevision, string Source);
 
 public sealed record ConnectionResponse(
     Guid Id,

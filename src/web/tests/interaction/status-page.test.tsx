@@ -38,6 +38,13 @@ describe('Status page', () => {
     expect(screen.getByText('Unreachable')).toBeTruthy();
   });
 
+  it('says when a result was checked by the monitor rather than tested by a person', async () => {
+    vi.mocked(api.loadConnections).mockResolvedValue([{ ...connection, lastTest: { ...connection.lastTest!, source: 'scheduled' } }]);
+    render(<StatusPage canSeeServices={false} canSeeConnections />);
+    expect((await screen.findByText(/Checked /)).textContent).toMatch(/Checked .*2026/);
+    expect(screen.queryByText(/Last tested/)).toBeNull();
+  });
+
   it('shows only what the person may see', async () => {
     render(<StatusPage canSeeServices canSeeConnections={false} />);
     await screen.findByText('Server');
