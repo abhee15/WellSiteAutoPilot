@@ -100,6 +100,34 @@ var many = Enumerable.Range(0, 250).Select(n => Well("m" + n, "M" + n, ("field",
 var cut = DiscoveryScopes.Summarize(many, fields).Single(facet => facet.Key == "field");
 Expect(cut.Values.Count == DiscoveryScopes.MaximumFacetValues && cut.HasMore, "a long list of values is cut and says so");
 
+// Explicit source selections never broaden into a filter or an incomplete replacement.
+var chosenObjects = new DiscoveryScope(null, null, [new DiscoveryObjectKey(ForeSiteAdapter.WellResourceKind, "1"),
+    new DiscoveryObjectKey(ForeSiteAdapter.WellResourceKind, "4")]);
+Expect(Join(DiscoveryScopes.Apply(wells, chosenObjects, fields).Select(item => item.ExternalId)) == "1,4", "explicit wells across branches selected by source identity");
+Expect(DiscoveryScopes.Apply(wells, new DiscoveryScope(null, null, []), fields).Count == 0, "an empty explicit set never means all wells");
+foreach (var invalid in new[] {
+    chosenObjects with { Query = "alpha" },
+    chosenObjects with { Facets = new Dictionary<string, IReadOnlyList<string>> { ["wellType"] = ["ESP"] } },
+    new DiscoveryScope(null, null, [new DiscoveryObjectKey("foreign.kind", "1")]),
+    new DiscoveryScope(null, null, [new DiscoveryObjectKey(ForeSiteAdapter.WellResourceKind, "1"), new DiscoveryObjectKey(ForeSiteAdapter.WellResourceKind, "1")]),
+    new DiscoveryScope(null, null, [null!]),
+    new DiscoveryScope(null, null, Enumerable.Range(0, 5001).Select(i => new DiscoveryObjectKey("well", i.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray()) })
+{
+    try { DiscoveryScopes.Apply(wells, invalid, fields); throw new InvalidOperationException("Invalid explicit selection was accepted."); }
+    catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException error) when (error.Code == "VALIDATION_FAILED") { }
+}
+Expect(fieldFacet.KnownCount == 3 && facets.Single(facet => facet.Key == "deviceType").KnownCount == 1, "availability counts derive from the full inventory, independently of labels");
+var largeInventory = Enumerable.Range(1, 10_000).Select(i => Well(i.ToString(System.Globalization.CultureInfo.InvariantCulture), "Same name")).ToArray();
+var firstPage = DiscoveryScopes.Page(largeInventory.Reverse().ToArray(), 0, 1000);
+var nextPage = DiscoveryScopes.Page(largeInventory, 1000, 100);
+Expect(firstPage.Count == 1000 && nextPage.Count == 100 && !firstPage.Select(item => item.ExternalId).Intersect(nextPage.Select(item => item.ExternalId)).Any(), "stable paging reaches beyond the first 1,000 without overlaps");
+Expect(DiscoveryScopes.Page(largeInventory, 10000, 100).Count == 0, "end page is empty");
+foreach (var (offset, limit) in new[] { (-1, 100), (0, 0), (0, 1001) })
+{
+    try { DiscoveryScopes.Page(wells, offset, limit); throw new InvalidOperationException("Invalid page was accepted."); }
+    catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException error) when (error.Code == "VALIDATION_FAILED") { }
+}
+
 // Snapshots: kept briefly, only for the person and connection that found them, replaced by a new find.
 var clock = new ManualClock(DateTimeOffset.Parse("2026-10-21T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
 var store = new DiscoverySnapshotStore(clock);

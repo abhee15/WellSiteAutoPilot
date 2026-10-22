@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { t } from '../localization';
 import { ConnectionsError, importFromConnection, previewImport } from './connections';
 import type { Adapter, Connection, ImportGroup, ImportPreview, ImportResult, ImportSelection } from './connections';
@@ -25,14 +25,25 @@ function importError(error: unknown): string {
 }
 
 /** Choose how discovered objects are grouped, review exactly what would be created, then import it. */
-export function ConnectionImport({ connection, adapter, selection = null, selectedCount = null, totalCount = null }: {
+export function ConnectionImport({ connection, adapter, selection = null, selectedCount = null, totalCount = null, disabled = false, onBusyChange }: {
   connection: Connection; adapter: Adapter;
-  /** The part of what was found that the person chose; null means import everything the connection holds. */
+  /** The part of what was found that the person chose; null means discovery or selection is not ready for review. */
   selection?: ImportSelection | null; selectedCount?: number | null; totalCount?: number | null;
+  disabled?: boolean; onBusyChange?: (busy: boolean) => void;
 }) {
   const fields = adapter.groupingFields;
   const label = (key: string) => fields.find(field => field.key === key)?.label ?? key;
-  const [levels, setLevels] = useState<string[]>([]);
+  const recommended = ['assetName', 'wellType', 'deviceType'];
+  const has = (keys: string[]) => keys.every(key => fields.some(field => field.key === key));
+  const presets = [
+    ...(has(recommended) ? [{ key: 'recommended', label: t('hierarchy.recommended'), levels: recommended }] : []),
+    ...(has(['assetName']) ? [{ key: 'asset', label: t('hierarchy.byAsset'), levels: ['assetName'] }] : []),
+    ...(has(['wellType', 'deviceType']) ? [{ key: 'device', label: t('hierarchy.byDevice'), levels: ['wellType', 'deviceType'] }] : []),
+    { key: 'flat', label: t('hierarchy.flat'), levels: [] },
+  ];
+  const [levels, setLevels] = useState<string[]>(() => presets[0].levels);
+  const [nextLevel, setNextLevel] = useState('');
+  const pending = useRef(false);
   const [reviewed, setReviewed] = useState<{ plan: ImportPreview; key: string } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [busy, setBusy] = useState<'review' | 'import' | null>(null);
@@ -40,12 +51,13 @@ export function ConnectionImport({ connection, adapter, selection = null, select
   const [confirming, setConfirming] = useState(false);
   const unused = fields.filter(field => !levels.includes(field.key));
   // A review belongs to the selection it was made for; choosing something else makes it stale.
-  const selectionKey = JSON.stringify(selection);
+  const selectionKey = JSON.stringify([selection, levels, connection.revision]);
+  const ready = !disabled && selection !== null && selectedCount !== null && selectedCount > 0 && selectedCount <= 5000;
   const preview = reviewed && reviewed.key === selectionKey ? reviewed.plan : null;
   const setPreview = (plan: ImportPreview | null) => setReviewed(plan ? { plan, key: selectionKey } : null);
 
   const changeLevels = (next: string[]) => {
-    setLevels(next); setPreview(null); setResult(null); setConfirming(false); setError(null);
+    setLevels(next); setNextLevel(''); setPreview(null); setResult(null); setConfirming(false); setError(null);
   };
   const move = (index: number, by: number) => {
     const next = [...levels];
@@ -54,14 +66,17 @@ export function ConnectionImport({ connection, adapter, selection = null, select
   };
 
   const review = async () => {
+    if (!ready || pending.current) return;
+    pending.current = true; onBusyChange?.(true);
     setBusy('review'); setError(null); setResult(null); setConfirming(false);
     try { setPreview(await previewImport(connection, levels, selection)); } catch (caught) {
       setPreview(null); setError(importError(caught));
-    } finally { setBusy(null); }
+    } finally { pending.current = false; setBusy(null); onBusyChange?.(false); }
   };
 
   const apply = async () => {
-    if (!preview) return;
+    if (!preview || !ready || pending.current) return;
+    pending.current = true; onBusyChange?.(true);
     setBusy('import'); setError(null);
     try {
       setResult(await importFromConnection(connection, levels, preview.fingerprint, selection));
@@ -70,7 +85,7 @@ export function ConnectionImport({ connection, adapter, selection = null, select
       setError(importError(caught)); setConfirming(false);
       // The source or the Assets moved on: the reviewed plan no longer applies, so it is not left on screen.
       if (caught instanceof ConnectionsError && (caught.kind === 'planChanged' || caught.kind === 'snapshotExpired')) setPreview(null);
-    } finally { setBusy(null); }
+    } finally { pending.current = false; setBusy(null); onBusyChange?.(false); }
   };
 
   return (
@@ -86,38 +101,51 @@ export function ConnectionImport({ connection, adapter, selection = null, select
             : t('connections.importSelected', { count: selectedCount, total: totalCount })}
         </p>
       )}
-      {levels.length === 0
-        ? <p className="connection-help">{t('connections.importNoLevels')}</p>
-        : <ol className="connection-levels">
-          {levels.map((key, index) => (
-            <li key={key}>
+      <section className="hierarchy-builder" aria-label={t('hierarchy.heading')}>
+        <h4>{t('hierarchy.heading')}</h4>
+        <p className="connection-help">{t('hierarchy.help')}</p>
+        <div className="hierarchy-presets" role="group" aria-label={t('hierarchy.presets')}>
+          {presets.map(preset => <button key={preset.key} type="button" className="secondary-button" disabled={busy !== null || disabled}
+            aria-pressed={JSON.stringify(levels) === JSON.stringify(preset.levels)} onClick={() => changeLevels(preset.levels)}>{preset.label}</button>)}
+        </div>
+        <ol className="hierarchy-path" aria-label={t('hierarchy.path')}>
+          {[connection.name, ...levels.map(label), t('hierarchy.wells')].map((name, index) => <li key={index}>{name}</li>)}
+        </ol>
+        {levels.length === 0 && <p className="connection-help">{t('connections.importNoLevels')}</p>}
+        <details className="hierarchy-custom"><summary>{t('hierarchy.customize')}</summary>
+          <ol className="connection-levels">
+            {levels.map((key, index) => <li key={key}>
               <span>{t('connections.importLevel', { number: index + 1, field: label(key) })}</span>
-              <button type="button" className="secondary-button" disabled={busy !== null || index === 0}
-                aria-label={t('connections.importMoveUp', { field: label(key) })} onClick={() => move(index, -1)}>↑</button>
-              <button type="button" className="secondary-button" disabled={busy !== null || index === levels.length - 1}
-                aria-label={t('connections.importMoveDown', { field: label(key) })} onClick={() => move(index, 1)}>↓</button>
-              <button type="button" className="secondary-button" disabled={busy !== null}
-                aria-label={t('connections.importRemove', { field: label(key) })}
-                onClick={() => changeLevels(levels.filter(item => item !== key))}>×</button>
-            </li>
-          ))}
-        </ol>}
-      <div className="connection-actions">
-        {unused.length > 0 && levels.length < 5 && (
-          <label>
-            <span>{t('connections.importAddLevel')}</span>
-            <select value="" disabled={busy !== null} onChange={event => event.target.value && changeLevels([...levels, event.target.value])}>
+              <div className="connection-actions">
+                <button type="button" className="secondary-button" disabled={busy !== null || disabled || index === 0}
+                  aria-label={t('connections.importMoveUp', { field: label(key) })} onClick={() => move(index, -1)}>↑</button>
+                <button type="button" className="secondary-button" disabled={busy !== null || disabled || index === levels.length - 1}
+                  aria-label={t('connections.importMoveDown', { field: label(key) })} onClick={() => move(index, 1)}>↓</button>
+                <button type="button" className="secondary-button" disabled={busy !== null || disabled}
+                  aria-label={t('connections.importRemove', { field: label(key) })} onClick={() => changeLevels(levels.filter(item => item !== key))}>×</button>
+              </div>
+            </li>)}
+          </ol>
+          {unused.length > 0 && levels.length < 5 && <div className="connection-control-row">
+            <label><span>{t('connections.importAddLevel')}</span><select value={nextLevel} disabled={busy !== null || disabled} onChange={event => setNextLevel(event.target.value)}>
               <option value="">{t('connections.importChooseLevel')}</option>
               {unused.map(field => <option key={field.key} value={field.key}>{field.label}</option>)}
-            </select>
-          </label>
-        )}
-        <button type="button" className="secondary-button" disabled={busy !== null} onClick={() => void review()}>
+            </select></label>
+            <button type="button" className="secondary-button" disabled={busy !== null || disabled || !unused.some(field => field.key === nextLevel)}
+              onClick={() => { changeLevels([...levels, nextLevel]); setNextLevel(''); }}>{t('hierarchy.add')}</button>
+          </div>}
+        </details>
+      </section>
+      {!selection && <p role="status" className="connection-help">{t('hierarchy.needsSelection')}</p>}
+      {selectedCount !== null && selectedCount > 5000 && <p role="status" className="connection-help">{t('inventory.batchLimit')}</p>}
+      <div className="hierarchy-review-action">
+        <p className="connection-help">{t('hierarchy.reviewHelp')}</p>
+        <button type="button" className="primary-button" disabled={busy !== null || !ready} onClick={() => void review()}>
           {busy === 'review' ? t('connections.importReviewing') : t('connections.importReview')}
         </button>
       </div>
       {error && <p role="alert" className="status-error">{error}</p>}
-      {preview && <ImportReview preview={preview} label={label} busy={busy} confirming={confirming}
+      {preview && <ImportReview preview={preview} label={label} busy={busy} disabled={!ready} confirming={confirming}
         onConfirm={() => setConfirming(true)} onCancel={() => setConfirming(false)} onApply={() => void apply()} />}
       {result && (
         <div role="status" className="connection-test connection-test-healthy">
@@ -132,8 +160,8 @@ export function ConnectionImport({ connection, adapter, selection = null, select
   );
 }
 
-function ImportReview({ preview, label, busy, confirming, onConfirm, onCancel, onApply }: {
-  preview: ImportPreview; label: (key: string) => string; busy: 'review' | 'import' | null; confirming: boolean;
+function ImportReview({ preview, label, busy, disabled, confirming, onConfirm, onCancel, onApply }: {
+  preview: ImportPreview; label: (key: string) => string; busy: 'review' | 'import' | null; disabled: boolean; confirming: boolean;
   onConfirm: () => void; onCancel: () => void; onApply: () => void;
 }) {
   const budget = { left: renderBudget };
@@ -156,13 +184,13 @@ function ImportReview({ preview, label, busy, confirming, onConfirm, onCancel, o
         : confirming ? (
           <div className="connection-actions">
             <span>{t('connections.importConfirm', { count: preview.objectCount })}</span>
-            <button type="button" className="primary-button" disabled={busy !== null || !preview.canImport} onClick={onApply}>
+            <button type="button" className="primary-button" disabled={busy !== null || disabled || !preview.canImport} onClick={onApply}>
               {busy === 'import' ? t('connections.importing') : t('connections.importYes')}
             </button>
-            <button type="button" className="secondary-button" disabled={busy !== null} onClick={onCancel}>{t('connections.importNo')}</button>
+            <button type="button" className="secondary-button" disabled={busy !== null || disabled} onClick={onCancel}>{t('connections.importNo')}</button>
           </div>
         ) : (
-          <button type="button" className="primary-button" disabled={busy !== null || !preview.canImport} onClick={onConfirm}>
+          <button type="button" className="primary-button" disabled={busy !== null || disabled || !preview.canImport} onClick={onConfirm}>
             {t('connections.importButton', { count: preview.objectCount })}
           </button>
         )}

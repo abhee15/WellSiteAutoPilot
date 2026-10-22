@@ -1225,7 +1225,7 @@ v1.MapPost(
     {
         var snapshot = connections.GetSnapshot(connectionId, request.SnapshotId, access.Subject);
         var scope = ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets).Scope;
-        return ConnectionMapping.ToResponse(DiscoveryScopes.Apply(snapshot.Result.Items, scope, snapshot.Fields));
+        return ConnectionMapping.ToResponse(DiscoveryScopes.Apply(snapshot.Result.Items, scope, snapshot.Fields), request.Offset, request.Limit);
     })
     .WithName("SearchDiscoveredObjects")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
@@ -1238,7 +1238,7 @@ v1.MapPost(
     async (Guid connectionId, ImportPreviewRequest request, ConnectionImportService imports, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>
         ConnectionMapping.ToResponse(await imports.PreviewAsync(connectionId, request.Levels,
-            ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets), access.Subject,
+            ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets, request.Objects), access.Subject,
             access.CreateActor(context), cancellationToken)))
     .WithName("PreviewConnectionImport")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
@@ -1254,7 +1254,7 @@ v1.MapPost(
     async (Guid connectionId, ImportConnectionRequest request, ConnectionImportService imports, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>
         ConnectionMapping.ToResponse(await imports.ImportAsync(connectionId, request.Levels,
-            ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets), request.ExpectedFingerprint,
+            ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets, request.Objects), request.ExpectedFingerprint,
             access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("ImportFromConnection")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)

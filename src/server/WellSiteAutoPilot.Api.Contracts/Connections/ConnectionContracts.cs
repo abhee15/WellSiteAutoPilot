@@ -26,18 +26,22 @@ public sealed record DiscoveredObjectResponse(
 /// </summary>
 public sealed record DiscoveryResponse(
     bool Complete, IReadOnlyList<DiscoveredObjectResponse> Items, IReadOnlyList<string> Warnings, string? ActingAs,
-    int TotalCount, Guid SnapshotId, IReadOnlyList<DiscoveryFacetResponse> Facets, DateTimeOffset ExpiresAtUtc);
+    int TotalCount, Guid SnapshotId, IReadOnlyList<DiscoveryFacetResponse> Facets, DateTimeOffset ExpiresAtUtc,
+    int? SourceAssetCount = null);
 
 public sealed record DiscoveryFacetValueResponse(string Value, int Count);
 
 /// <summary>The values one grouping fact takes across everything found. <c>HasMore</c> is true when the list was cut short.</summary>
 public sealed record DiscoveryFacetResponse(
-    string Key, string Label, IReadOnlyList<DiscoveryFacetValueResponse> Values, bool HasMore);
+    string Key, string Label, IReadOnlyList<DiscoveryFacetValueResponse> Values, bool HasMore, int? KnownCount = null);
 
 /// <summary>Looks within what was found earlier. Words must all match; within one fact any chosen value matches, across facts all must.</summary>
-public sealed record DiscoverySearchRequest(Guid SnapshotId, string? Query, Dictionary<string, List<string>>? Facets);
+public sealed record DiscoverySearchRequest(Guid SnapshotId, string? Query, Dictionary<string, List<string>>? Facets,
+    int Offset = 0, int Limit = 1000);
 
-/// <summary><c>Items</c> holds at most the first 1,000 matches; <c>MatchCount</c> says how many there are in all.</summary>
+public sealed record DiscoveryObjectKeyRequest(string Kind, string ExternalId);
+
+/// <summary><c>Items</c> is one stable page of up to 1,000 matches; <c>MatchCount</c> counts all matches.</summary>
 public sealed record DiscoverySearchResponse(int MatchCount, IReadOnlyList<DiscoveredObjectResponse> Items);
 
 public sealed record ConnectionTestResponse(
@@ -66,7 +70,8 @@ public sealed record SetConnectionEnabledRequest(int ExpectedRevision, bool Enab
 
 /// <summary>The facts to group by, outermost first. Empty means no groups, only the objects themselves.</summary>
 public sealed record ImportPreviewRequest(
-    List<string>? Levels, Guid? SnapshotId = null, string? Query = null, Dictionary<string, List<string>>? Facets = null);
+    List<string>? Levels, Guid? SnapshotId = null, string? Query = null, Dictionary<string, List<string>>? Facets = null,
+    List<DiscoveryObjectKeyRequest>? Objects = null);
 
 public sealed record ImportGroupResponse(
     string Name, bool IsFallback, int ObjectCount, IReadOnlyList<string> SampleNames, IReadOnlyList<ImportGroupResponse> Children);
@@ -94,7 +99,7 @@ public sealed record ImportPreviewResponse(
 /// <summary>Applies the plan the person reviewed: the same levels and the fingerprint the preview returned.</summary>
 public sealed record ImportConnectionRequest(
     List<string>? Levels, string? ExpectedFingerprint, Guid? SnapshotId = null, string? Query = null,
-    Dictionary<string, List<string>>? Facets = null);
+    Dictionary<string, List<string>>? Facets = null, List<DiscoveryObjectKeyRequest>? Objects = null);
 
 public sealed record ImportResultResponse(
     int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported, IReadOnlyList<string> TypesCreated);
