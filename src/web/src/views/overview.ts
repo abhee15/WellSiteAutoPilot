@@ -58,3 +58,19 @@ export function attentionItems(input: {
   }
   return items;
 }
+
+/**
+ * A count read from a list that was cut off at `limit` is "at least" that many, so say so instead of
+ * presenting the cut-off as the total.
+ */
+export function cappedCount(loaded: number, limit: number): string {
+  return loaded >= limit ? `${limit}+` : String(loaded);
+}
+
+/** The assets everyone can see: the owners' own totals when the server gave them, else the capped list. */
+export function assetTotalLabel(
+  owners: readonly { assetCount: number }[] | null, loaded: number, limit: number,
+): string {
+  if (owners && owners.length > 0) return String(owners.reduce((sum, owner) => sum + owner.assetCount, 0));
+  return cappedCount(loaded, limit);
+}

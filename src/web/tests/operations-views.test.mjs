@@ -59,25 +59,25 @@ test('search and status operate only on recent server-authorized rows', () => {
   assert.deepEqual(
     views.filterOperations(rows, {
       search: 'well-102',
-      status: 'attention',
+      statuses: ['attention'],
       sort: 'newest',
     }).map(row => row.executionId),
     ['exe-2'],
   );
   assert.deepEqual(
-    views.filterOperations(rows, { search: '', status: 'active', sort: 'newest' })
+    views.filterOperations(rows, { search: '', statuses: ['active'], sort: 'newest' })
       .map(row => row.executionId),
     ['exe-1'],
   );
   assert.deepEqual(
-    views.filterOperations(rows, { search: '', status: 'completed', sort: 'newest' })
+    views.filterOperations(rows, { search: '', statuses: ['completed'], sort: 'newest' })
       .map(row => row.executionId),
     ['exe-3'],
   );
   assert.deepEqual(
     views.filterOperations(rows, {
       search: 'provider_timeout',
-      status: 'all',
+      statuses: [],
       sort: 'newest',
     }).map(row => row.executionId),
     ['exe-2'],
@@ -87,12 +87,12 @@ test('search and status operate only on recent server-authorized rows', () => {
 
 test('newest and oldest sorts are deterministic, without mutating input', () => {
   assert.deepEqual(
-    views.filterOperations(rows, { search: '', status: 'all', sort: 'newest' })
+    views.filterOperations(rows, { search: '', statuses: [], sort: 'newest' })
       .map(row => row.executionId),
     ['exe-3', 'exe-2', 'exe-1'],
   );
   assert.deepEqual(
-    views.filterOperations(rows, { search: '', status: 'all', sort: 'oldest' })
+    views.filterOperations(rows, { search: '', statuses: [], sort: 'oldest' })
       .map(row => row.executionId),
     ['exe-1', 'exe-2', 'exe-3'],
   );
@@ -105,7 +105,7 @@ test('missing execution identifiers and timestamps still sort safely', () => {
     { status: 'Running', requestedAtUtc: null, executionId: 'exe-known' },
   ];
   assert.deepEqual(
-    views.filterOperations(incomplete, { search: '', status: 'all', sort: 'newest' })
+    views.filterOperations(incomplete, { search: '', statuses: [], sort: 'newest' })
       .map(row => row.executionId),
     [undefined, 'exe-known'],
   );
@@ -116,7 +116,7 @@ test('saved views persist only preferences and are isolated by current user', ()
   const saved = [{
     id: 'view-1',
     name: 'Shift attention',
-    criteria: { search: 'well', status: 'attention', sort: 'newest' },
+    criteria: { search: 'well', statuses: ['attention'], sort: 'newest' },
   }];
   assert.equal(views.persistSavedOperationsViews('user-A', saved, memory), true);
   assert.deepEqual(views.loadSavedOperationsViews('user-A', memory), saved);
@@ -124,6 +124,16 @@ test('saved views persist only preferences and are isolated by current user', ()
   assert.equal(memory.snapshot().length, 1);
   assert.equal(memory.snapshot()[0][1].includes('WELL-102'), false,
     'execution rows must not be persisted');
+});
+
+test('several statuses can be chosen together and views saved with one status still load', () => {
+  assert.deepEqual(
+    views.filterOperations(rows, { search: '', statuses: ['active', 'completed'], sort: 'newest' }).map(row => row.status).sort(),
+    ['Completed', 'Running']);
+  const legacy = (status) => JSON.stringify({ version: 1, views: [{ id: status, name: 'Old ' + status,
+    criteria: { search: '', status, sort: 'newest' } }] });
+  assert.deepEqual(views.parseSavedOperationsViews(legacy('attention'))[0].criteria.statuses, ['attention']);
+  assert.deepEqual(views.parseSavedOperationsViews(legacy('all'))[0].criteria.statuses, []);
 });
 
 test('corrupt, oversized, invalid, and duplicate stored views fail closed', () => {
@@ -182,7 +192,7 @@ test('view controls keep filtering available without claiming session storage', 
 
 test('search also finds rows by the names shown on screen', () => {
   const names = row => (row.executionId === 'exe-2' ? ['Pressure watch', 'North Well'] : []);
-  const criteria = { search: 'north well', status: 'all', sort: 'newest' };
+  const criteria = { search: 'north well', statuses: [], sort: 'newest' };
   assert.deepEqual(views.filterOperations(rows, criteria, names).map(row => row.executionId), ['exe-2']);
   assert.deepEqual(views.filterOperations(rows, criteria).map(row => row.executionId), []);
 });

@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
-  AssetResponse, ConfiguredLogicResponse, ExecutionResponse, SystemHealthResponse,
+  AssetResponse, ConfiguredLogicResponse, ExecutionResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
-import { formatTimestamp, shortId, toCssToken } from '../format';
+import { formatTimestamp, shortId } from '../format';
 import { outcomeLabel } from '../words';
 import { describeRunContext, summarizeAssetLabels } from './runContext';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
@@ -14,17 +14,12 @@ import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './operationsViews';
 import type { OperationsViewCriteria } from './operationsViews';
 
 export function OperationsPage({
-  systemHealth,
-  canOpenStatus = false,
   executions,
   userId,
   isLoaded = true,
   assets = [],
   configuredLogic = [],
 }: {
-  systemHealth: SystemHealthResponse | null;
-  /** Whether the person may open the Status page, where each service is listed. */
-  canOpenStatus?: boolean;
   executions: ExecutionResponse[];
   userId: string | null | undefined;
   isLoaded?: boolean;
@@ -43,8 +38,6 @@ export function OperationsPage({
     }),
     [executions, viewCriteria, configuredLogic, assets],
   );
-  const componentCount = systemHealth?.componentCount ?? 0;
-  const unhealthyComponents = systemHealth?.unhealthyCount ?? 0;
   const activeExecutions = executions.filter(
     execution =>
       execution.status === 'Requested' ||
@@ -63,21 +56,6 @@ export function OperationsPage({
   return (
     <>
       <section className="summary-grid" aria-label="Operations summary">
-        <SummaryCard
-          label="Runtime health"
-          value={
-            componentCount === 0
-              ? 'Unknown'
-              : unhealthyComponents === 0
-                ? 'Healthy'
-                : 'Attention'
-          }
-          detail={
-            componentCount === 0
-              ? 'Waiting for runtime status'
-              : `${componentCount - unhealthyComponents}/${componentCount} services healthy`
-          }
-        />
         <SummaryCard
           label="Active executions"
           value={String(activeExecutions)}
@@ -177,27 +155,6 @@ export function OperationsPage({
             onClose={() => setSelectedExecutionId(null)}
           />
         )}
-      </section>
-
-      <section className="panel compact-panel">
-        <PanelHeader eyebrow="Runtime node" title="Service health" />
-        <div className="health-list">
-          {systemHealth && (
-            <div className="health-row">
-              <div>
-                <strong>Platform services</strong>
-                <small>{componentCount - unhealthyComponents}/{componentCount} healthy</small>
-              </div>
-              <span className={`health-state health-${toCssToken(systemHealth.status)}`}>
-                {systemHealth.status ?? 'Unknown'}
-              </span>
-            </div>
-          )}
-          {!systemHealth && (
-            <div className="status-loading">Loading runtime health…</div>
-          )}
-          {canOpenStatus && <a href="#status">{t('status.seeDetails')}</a>}
-        </div>
       </section>
     </>
   );

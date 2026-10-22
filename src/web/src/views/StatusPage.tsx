@@ -29,6 +29,7 @@ async function loadServices(signal: AbortSignal): Promise<ServiceInfo> {
 export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServices: boolean; canSeeConnections: boolean }) {
   const [services, setServices] = useState<Part<ServiceInfo>>({ state: 'loading' });
   const [connections, setConnections] = useState<Part<{ items: Connection[]; adapters: Adapter[] }>>({ state: 'loading' });
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
 
   const reload = useCallback(async () => {
@@ -54,6 +55,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
       })());
     }
     await Promise.all(tasks);
+    if (current()) setUpdatedAt(new Date().toISOString());
   }, [canSeeServices, canSeeConnections]);
 
   useEffect(() => {
@@ -65,6 +67,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
   return (
     <div className="status-page">
       <div className="status-actions">
+        {updatedAt && <small className="status-updated">{t('status.updated', { when: formatTimestamp(updatedAt) })}</small>}
         <button type="button" onClick={() => void reload()}>{t('status.refresh')}</button>
       </div>
       {canSeeServices && (
@@ -101,12 +104,16 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
                 return (
                   <div className="health-row" key={item.id}>
                     <div>
-                      <a href={`#connections/${item.id}`}><strong>{item.name}</strong></a>
+                      <a className="text-link" href={`#connections/${item.id}`}><strong>{item.name}</strong></a>
                       <small>{system} · {item.lastTest
                         ? t('status.tested', { when: formatTimestamp(item.lastTest.testedAtUtc) })
                         : t('status.neverTested')}</small>
                     </div>
-                    <span className={`status-pill connection-test-${status.toLowerCase()}`}>{t(statusLabels[status])}</span>
+                    <div className="health-row-end">
+                      <span className={`status-pill connection-test-${status.toLowerCase()}`}>{t(statusLabels[status])}</span>
+                      <a className="action-link" href={`#connections/${item.id}`}
+                        aria-label={t('status.openConnection', { name: item.name })}>{t('status.open')}</a>
+                    </div>
                   </div>
                 );
               })}

@@ -22,5 +22,8 @@ span.asset-tree-toggle { inline-size: var(--space-20); flex: none; }
 /* Count and link sit on their own line under the name, aligned with it, so a long Connection name never squeezes them. */
 .asset-owner-meta { flex-basis: 100%; display: flex; gap: var(--space-12); align-items: baseline;
   padding-left: calc(var(--space-20) + var(--space-6)); font-weight: 400; }
-.asset-owner-link { font-size: var(--font-size-label); white-space: nowrap; }
 .asset-node-icon { flex: none; color: var(--color-text-subtle); vertical-align: middle; margin-right: var(--space-4); }
+
+/* How many assets sit below a group: a down arrow and the number, with the full words for hover and screen readers. */
+.asset-tree-count { display: inline-flex; align-items: center; gap: var(--space-4); }
+.asset-tree-count::before { content: '▾' / ''; font-size: 0.85em; }

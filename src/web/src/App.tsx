@@ -226,8 +226,6 @@ export function App() {
         {section === 'operations' && canOpenSection(currentUser, section) && (
           <OperationsPage
             key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            systemHealth={systemHealth}
-            canOpenStatus={canOpenSection(currentUser, 'status')}
             executions={executions}
             assets={assets}
             configuredLogic={configuredLogic}

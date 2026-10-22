@@ -9,7 +9,9 @@ import type {
 import { t } from '../localization';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { SummaryCard } from '../components/common';
-import { attentionItems } from './overview';
+import { assetTotalLabel, attentionItems, cappedCount } from './overview';
+import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
+import type { OwnerGroup } from './assetHierarchy';
 import type { AttentionItem } from './overview';
 import { fetchRecommendationInbox } from './recommendationInbox';
 import './overview.css';
@@ -39,6 +41,26 @@ export function OverviewPage({
   const [recommendations, setRecommendations] = useState<RecommendationSummaryResponse[]>([]);
   const [recommendationsLoaded, setRecommendationsLoaded] = useState(!canReadRecommendations);
   const reload = useRef<() => void>(() => undefined);
+  const canReadAssets = permissions.includes('assets.read');
+  // The workspace list stops at SNAPSHOT_ASSET_LIMIT, so the real total comes from the owners' own counts.
+  const [owners, setOwners] = useState<OwnerGroup[] | null>(null);
+  const reloadOwners = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!canReadAssets) return;
+    let controller = new AbortController();
+    const load = () => {
+      controller.abort();
+      controller = new AbortController();
+      const current = controller;
+      fetchOwners(current.signal).then(
+        items => { if (!current.signal.aborted) setOwners(items); },
+        () => undefined);
+    };
+    reloadOwners.current = load;
+    load();
+    return () => { reloadOwners.current = () => undefined; controller.abort(); };
+  }, [canReadAssets]);
+  useChangeRefresh(['assets'], () => reloadOwners.current());
 
   useEffect(() => {
     if (!canReadRecommendations) return;
@@ -78,16 +100,16 @@ export function OverviewPage({
             : <ul className="overview-list">
               {items.map(item => <li key={item.kind}>
                 <span>{attentionText(item)}</span>
-                <a href={item.href}>{t('overview.open')}</a>
+                <a className="action-link" href={item.href}>{t('overview.open')}</a>
               </li>)}
             </ul>}
       </section>
 
       <section className="summary-grid" aria-label={t('overview.glance')}>
         {permissions.includes('assets.read') &&
-          <SummaryCard label={t('overview.assets')} value={String(assets.length)} detail="" />}
+          <SummaryCard label={t('overview.assets')} value={assetTotalLabel(owners, assets.length, SNAPSHOT_ASSET_LIMIT)} detail="" />}
         {permissions.includes('configured-logic.read') &&
-          <SummaryCard label={t('overview.logic')} value={String(configuredLogic.length)} detail="" />}
+          <SummaryCard label={t('overview.logic')} value={cappedCount(configuredLogic.length, 100)} detail="" />}
         {permissions.includes('executions.read') &&
           <SummaryCard label={t('overview.recentRuns')} value={String(executions.length)} detail={t('overview.recentRunsDetail')} />}
         {permissions.includes('executions.read') &&

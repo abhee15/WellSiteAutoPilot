@@ -31,7 +31,8 @@
 .connection-tree { padding-left: 0; max-height: 360px; overflow: auto; }
 
 .status-page { display: grid; gap: var(--space-12); }
-.status-actions { display: flex; justify-content: flex-end; }
+.status-actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-12); }
+.status-updated { color: var(--color-text-subtle); }
 .connection-facets { display: flex; flex-wrap: wrap; gap: var(--space-12); }
 .connection-actions-settings { padding: var(--space-4) 0; }
 .connection-actions-workflow { border-top: 1px solid var(--color-border-row); padding-top: var(--space-12); }

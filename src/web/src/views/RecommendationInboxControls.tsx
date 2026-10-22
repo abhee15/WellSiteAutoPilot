@@ -1,5 +1,12 @@
+import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
-import type { RecommendationInboxCriteria } from './recommendationInbox';
+import type { MessageKey } from '../localization';
+import { RECOMMENDATION_INBOX_FILTERS } from './recommendationInbox';
+import type { RecommendationInboxCriteria, RecommendationInboxFilter } from './recommendationInbox';
+
+const filterLabels: Record<RecommendationInboxFilter, MessageKey> = {
+  awaiting: 'inbox.awaiting', expired: 'inbox.expired', decided: 'inbox.decided',
+};
 
 type Props = {
   criteria: RecommendationInboxCriteria;
@@ -21,19 +28,13 @@ export function RecommendationInboxControls({
             placeholder={t('inbox.searchPlaceholder')}
             onChange={event => onChange({ ...criteria, search: event.target.value })} />
         </label>
-        <label>
-          <span>{t('inbox.filter')}</span>
-          <select value={criteria.filter}
-            onChange={event => onChange({
-              ...criteria,
-              filter: event.target.value as RecommendationInboxCriteria['filter'],
-            })}>
-            <option value="all">{t('inbox.all')}</option>
-            <option value="awaiting">{t('inbox.awaiting')}</option>
-            <option value="expired">{t('inbox.expired')}</option>
-            <option value="decided">{t('inbox.decided')}</option>
-          </select>
-        </label>
+        <MultiSelect
+          label={t('inbox.filter')}
+          allLabel={t('inbox.all')}
+          options={RECOMMENDATION_INBOX_FILTERS.map(value => ({ value, label: t(filterLabels[value]) }))}
+          selected={criteria.filters}
+          onChange={filters => onChange({ ...criteria, filters })}
+        />
         <label>
           <span>{t('inbox.sort')}</span>
           <select value={criteria.sort}

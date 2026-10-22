@@ -38,7 +38,7 @@ export function AssetOwnerRow({
         <small>{t('assetOwner.count', { count: String(owner.assetCount) })}</small>
         {owner.connectionId !== null && !owner.isEnabled && <small>{t('assetOwner.disabled')}</small>}
         {owner.connectionId !== null && canOpenConnection &&
-          <a className="asset-owner-link" href={hashFor('connections', owner.connectionId)}>{t('assetOwner.open')}</a>}
+          <a className="action-link" href={hashFor('connections', owner.connectionId)}>{t('assetOwner.open')}</a>}
       </div>
     </div>
   );
