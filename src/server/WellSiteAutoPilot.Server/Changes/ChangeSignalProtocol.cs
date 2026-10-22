@@ -20,6 +20,7 @@ public static class ChangeSignalProtocol
         ChangeArea.ConfiguredLogic => WellSitePermissions.ConfiguredLogicRead,
         ChangeArea.Assets => WellSitePermissions.AssetsRead,
         ChangeArea.Modules => WellSitePermissions.LogicRead,
+        ChangeArea.Connections => WellSitePermissions.ConnectionsRead,
         _ => throw new ArgumentOutOfRangeException(nameof(area), area, "Unknown change area.")
     };
 

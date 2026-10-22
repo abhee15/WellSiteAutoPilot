@@ -4,7 +4,21 @@ namespace WellSiteAutoPilot.Application.Connections;
 
 /// <summary>The last time someone tried a connection. Only meaningful for the revision that was tried.</summary>
 public sealed record ConnectionTestRecord(
-    string Outcome, string Message, string? ActingAs, DateTimeOffset TestedAtUtc, int TestedRevision);
+    string Outcome, string Message, string? ActingAs, DateTimeOffset TestedAtUtc, int TestedRevision,
+    string Source = ConnectionTestSources.Manual);
+
+/// <summary>Who ran a test: a person, or the connection monitor on its schedule.</summary>
+public static class ConnectionTestSources
+{
+    public const string Manual = "manual";
+    public const string Scheduled = "scheduled";
+}
+
+/// <summary>The named system actor the connection monitor writes audit events as. It holds no grants.</summary>
+public static class ConnectionMonitorActor
+{
+    public const string Identity = "system:connection-monitor";
+}
 
 /// <summary>
 /// A named, saved way to reach one outside system. The settings are opaque to the Server: the adapter declared

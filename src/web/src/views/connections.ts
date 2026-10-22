@@ -36,6 +36,8 @@ export type TestOutcome = 'Healthy' | 'NeedsAttention' | 'Unreachable';
 
 export type ConnectionTest = {
   outcome: TestOutcome; message: string; actingAs: string | null; testedAtUtc: string; testedRevision: number;
+  /** Who ran it: a person, or the monitor on its schedule. Absent in older answers, which were all manual. */
+  source?: 'manual' | 'scheduled';
 };
 
 export type Connection = {
@@ -112,7 +114,8 @@ function isConnection(value: unknown): value is Connection {
     typeof value.lastTestIsCurrent === 'boolean' &&
     (test === null || isObject(test) && typeof test.outcome === 'string' && outcomes.includes(test.outcome) &&
       typeof test.message === 'string' && (test.actingAs === null || typeof test.actingAs === 'string') &&
-      typeof test.testedAtUtc === 'string' && Number.isSafeInteger(test.testedRevision));
+      typeof test.testedAtUtc === 'string' && Number.isSafeInteger(test.testedRevision) &&
+      (test.source === undefined || test.source === 'manual' || test.source === 'scheduled'));
 }
 
 async function failure(response: Response): Promise<ConnectionsError> {

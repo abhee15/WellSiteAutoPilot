@@ -92,6 +92,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         connection.Property(x => x.LastTestOutcome).HasMaxLength(32);
         connection.Property(x => x.LastTestMessage).HasMaxLength(500);
         connection.Property(x => x.LastTestActingAs).HasMaxLength(256);
+        connection.Property(x => x.LastTestSource).HasMaxLength(16);
+        connection.Property(x => x.ConsecutiveFailureCount).IsRequired().HasDefaultValue(0);
         connection.HasIndex(x => x.NormalizedName).IsUnique();
 
         var assetView = modelBuilder.Entity<AssetViewEntity>();

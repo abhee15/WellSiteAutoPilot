@@ -98,9 +98,72 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
             entity.LastTestActingAs = result.ActingAs;
             entity.LastTestAtUtc = result.TestedAtUtc;
             entity.LastTestRevision = result.TestedRevision;
+            entity.LastTestSource = result.Source;
+            // A person's test always counts at once and starts the monitor's back-off over.
+            entity.ConsecutiveFailureCount = 0;
+            entity.NextCheckAtUtc = null;
             Audit("connection.tested", id, subject, actor, new { entity.AdapterKey, result.Outcome });
         }, cancellationToken);
         return ToRecord(await Reload(id, cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<Guid>> ClaimDueChecksAsync(DateTimeOffset now, TimeSpan lease, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        // Read committed with SKIP LOCKED: two Server instances sweeping together each take different connections.
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        var due = await dbContext.Connections.FromSqlInterpolated($"""
+            SELECT c.* FROM integration.connections AS c
+            WHERE c."IsEnabled" AND (c."NextCheckAtUtc" IS NULL OR c."NextCheckAtUtc" <= {now})
+            ORDER BY c."NextCheckAtUtc" NULLS FIRST, c."Id"
+            LIMIT {limit} FOR UPDATE OF c SKIP LOCKED
+            """).ToArrayAsync(cancellationToken);
+        foreach (var entity in due) entity.NextCheckAtUtc = now + lease;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+        return due.Select(entity => entity.Id).ToArray();
+    }
+
+    public async Task<ScheduledCheckOutcome> RecordScheduledCheckAsync(Guid id, ConnectionTestRecord result,
+        Func<int, TimeSpan> delayAfter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(delayAfter);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        var entity = (await dbContext.Connections.FromSqlInterpolated($"""
+            SELECT c.* FROM integration.connections AS c WHERE c."Id" = {id} FOR UPDATE OF c
+            """).ToArrayAsync(cancellationToken)).SingleOrDefault();
+        // Deleted, disabled or edited while the check ran: what it found no longer describes this connection.
+        if (entity is null || !entity.IsEnabled || entity.Revision != result.TestedRevision)
+        {
+            dbContext.ChangeTracker.Clear();
+            return new ScheduledCheckOutcome(false, false);
+        }
+        var outcomeChanged = entity.LastTestOutcome != result.Outcome || entity.LastTestRevision != result.TestedRevision;
+        var visibleChange = outcomeChanged || entity.LastTestMessage != result.Message;
+        var previous = entity.LastTestOutcome;
+        entity.ConsecutiveFailureCount = result.Outcome == WellSiteAutoPilot.Integration.Contracts.Providers.AdapterTestOutcomes.Healthy
+            ? 0 : entity.ConsecutiveFailureCount + 1;
+        entity.LastTestOutcome = result.Outcome;
+        entity.LastTestMessage = result.Message;
+        entity.LastTestActingAs = result.ActingAs;
+        entity.LastTestAtUtc = result.TestedAtUtc;
+        entity.LastTestRevision = result.TestedRevision;
+        entity.LastTestSource = result.Source;
+        entity.NextCheckAtUtc = result.TestedAtUtc + delayAfter(entity.ConsecutiveFailureCount);
+        if (outcomeChanged)
+            dbContext.AuditEvents.Add(new AuditEventEntity
+            {
+                Id = Guid.NewGuid(), OccurredAtUtc = Time.GetUtcNow(), ActorUserId = null,
+                ActorIdentity = ConnectionMonitorActor.Identity, CorrelationId = null, Action = "connection.status_changed",
+                TargetType = "connection", TargetId = id.ToString(), AssetId = null,
+                DetailsJson = JsonSerializer.Serialize(new { entity.AdapterKey, From = previous, To = result.Outcome })
+            });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+        return new ScheduledCheckOutcome(true, visibleChange);
     }
 
     public Task RecordDiscoveryAuthorizedAsync(Guid id, int found, int warnings, bool complete, AccessSubject subject,
@@ -200,5 +263,6 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
         entity.LastTestOutcome is null || entity.LastTestAtUtc is null || entity.LastTestRevision is null
             ? null
             : new ConnectionTestRecord(entity.LastTestOutcome, entity.LastTestMessage ?? string.Empty,
-                entity.LastTestActingAs, entity.LastTestAtUtc.Value, entity.LastTestRevision.Value));
+                entity.LastTestActingAs, entity.LastTestAtUtc.Value, entity.LastTestRevision.Value,
+                entity.LastTestSource ?? ConnectionTestSources.Manual));
 }

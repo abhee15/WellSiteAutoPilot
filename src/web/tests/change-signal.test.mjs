@@ -47,8 +47,8 @@ test('polling only slows down while the hub is connected', () => {
   }
 });
 
-test('only the five known area names are accepted', () => {
-  for (const area of ['executions', 'recommendations', 'configured-logic', 'assets', 'modules']) {
+test('only the six known area names are accepted', () => {
+  for (const area of ['executions', 'recommendations', 'configured-logic', 'assets', 'modules', 'connections']) {
     assert.equal(signal.isChangeArea(area), true, area);
   }
   for (const value of ['Executions', 'security', '', null, undefined, 3, { area: 'assets' }]) {

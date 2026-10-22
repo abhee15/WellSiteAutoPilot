@@ -187,6 +187,9 @@ builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
 });
 builder.Services.AddSingleton<DiscoverySnapshotStore>();
 builder.Services.AddScoped<ConnectionService>();
+builder.Services.AddScoped<ConnectionMonitorService>();
+builder.Services.Configure<ConnectionMonitorOptions>(
+    builder.Configuration.GetSection(ConnectionMonitorOptions.SectionName));
 builder.Services.AddScoped<ConnectionImportService>();
 builder.Services.AddScoped<SourceChangeService>();
 builder.Services.AddScoped<ExecutionService>();
@@ -213,6 +216,7 @@ builder.Services.AddSingleton(new JetStreamConsumerSettings(
 builder.Services.AddHostedService<ExecutionResultConsumer>();
 builder.Services.AddHostedService<ExecutionResultV2Consumer>();
 builder.Services.AddHostedService<ScheduledShadowSchedulerHostedService>();
+builder.Services.AddHostedService<ConnectionMonitorHostedService>();
 builder.Services.AddWellSitePersistence(DatabaseConnectionLoader.Resolve(
     builder.Configuration,
     name => Environment.GetEnvironmentVariable(name),
@@ -1160,6 +1164,7 @@ v1.MapPost(
         return Results.Created($"/api/v1/connections/{item.Id}", ConnectionMapping.ToResponse(item));
     })
     .WithName("CreateConnection")
+    .NotifiesChange(ChangeArea.Connections)
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ConnectionResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -1174,6 +1179,7 @@ v1.MapPut(
             new UpdateConnectionCommand(request.ExpectedRevision, request.Name, request.Settings),
             access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("UpdateConnection")
+    .NotifiesChange(ChangeArea.Connections)
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ConnectionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -1188,6 +1194,7 @@ v1.MapPut(
         ConnectionMapping.ToResponse(await connections.SetEnabledAsync(connectionId, request.ExpectedRevision,
             request.Enabled, access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("SetConnectionEnabled")
+    .NotifiesChange(ChangeArea.Connections)
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ConnectionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
@@ -1200,6 +1207,7 @@ v1.MapPost(
         ConnectionMapping.ToResponse(await connections.TestAsync(connectionId, access.Subject,
             access.CreateActor(context), cancellationToken)))
     .WithName("TestConnection")
+    .NotifiesChange(ChangeArea.Connections)
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ConnectionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
@@ -1296,6 +1304,7 @@ v1.MapDelete(
         return Results.NoContent();
     })
     .WithName("DeleteConnection")
+    .NotifiesChange(ChangeArea.Connections)
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces(StatusCodes.Status204NoContent)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
