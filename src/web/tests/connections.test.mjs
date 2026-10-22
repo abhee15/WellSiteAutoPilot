@@ -162,3 +162,33 @@ test('import preview and result are validated, and refusals are classified', asy
   assert.equal(await refuse(409, 'CONNECTION_DISCOVERY_INCOMPLETE'), 'incomplete');
   assert.equal(await refuse(400, 'CONNECTION_IMPORT_LEVELS_INVALID'), 'invalidLevels');
 });
+
+test('paged inventory requests retain snapshot scope and cancellation beyond the first 1,000', async () => {
+  const controller = new AbortController();
+  const selection = { snapshotId: '11111111-1111-4111-8111-111111111111', query: '', facets: { deviceType: ['WFordKS'] } };
+  await api.searchDiscovered(connection, selection, async (_url, init) => {
+    assert.deepEqual(JSON.parse(init.body), { snapshotId: selection.snapshotId, query: null, facets: selection.facets, offset: 1100, limit: 100 });
+    assert.equal(init.signal, controller.signal);
+    return new Response(JSON.stringify({ matchCount: 1200, items: [{ kind: 'foresite.well', externalId: '1101', displayName: 'Beyond sample', metadata: {} }] }));
+  }, { offset: 1100, limit: 100, signal: controller.signal });
+});
+test('explicit source identities survive preview and apply, including an intentionally empty selection', async () => {
+  const objects = [{ kind: 'foresite.well', externalId: '1101' }];
+  const selection = { snapshotId: '11111111-1111-4111-8111-111111111111', query: '', facets: {}, objects };
+  for (const requested of [selection, { ...selection, objects: [] }]) {
+    await api.previewImport(connection, [], requested, async (_url, init) => {
+      assert.deepEqual(JSON.parse(init.body).objects, requested.objects);
+      return new Response(JSON.stringify({ fingerprint: 'F', levels: [], objectCount: requested.objects.length, groupCount: 0,
+        rootObjectCount: requested.objects.length, fallbackObjectCount: 0, groups: [], warnings: [], conflicts: [], typesToCreate: [], canImport: true, actingAs: null, alreadyImported: 0 }));
+    });
+    await api.importFromConnection(connection, [], 'F', requested, async (_url, init) => {
+      assert.deepEqual(JSON.parse(init.body).objects, requested.objects);
+      return new Response(JSON.stringify({ wellsCreated: requested.objects.length, groupsCreated: 0, groupsReused: 0, alreadyImported: 0, typesCreated: [] }));
+    });
+  }
+});
+test('invalid availability counts are refused instead of displaying misleading unknown totals', async () => {
+  const body = { complete: true, actingAs: null, warnings: [], totalCount: 1, items: [], snapshotId: '11111111-1111-4111-8111-111111111111',
+    expiresAtUtc: '2026-10-22T10:15:00Z', facets: [{ key: 'deviceType', label: 'Device type', hasMore: false, knownCount: 2, values: [] }] };
+  await assert.rejects(api.discoverConnection(connection, async () => new Response(JSON.stringify(body))), { kind: 'invalidResponse' });
+});

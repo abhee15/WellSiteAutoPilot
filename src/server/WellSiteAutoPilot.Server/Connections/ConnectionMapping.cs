@@ -19,22 +19,27 @@ internal static class ConnectionMapping
     /// <summary>The summary a person starts from: totals, facets and the first <see cref="ConnectionService.SampleSize"/> objects.</summary>
     public static DiscoveryResponse ToResponse(DiscoverySnapshot snapshot) => new(
         snapshot.Result.Complete,
-        snapshot.Result.Items.Take(ConnectionService.SampleSize).Select(ToObject).ToArray(),
+        DiscoveryScopes.Page(snapshot.Result.Items, 0, ConnectionService.SampleSize).Select(ToObject).ToArray(),
         snapshot.Result.Warnings, snapshot.Result.ActingAs, snapshot.Result.Items.Count, snapshot.Id,
         DiscoveryScopes.Summarize(snapshot.Result.Items, snapshot.Fields).Select(facet => new DiscoveryFacetResponse(
             facet.Key, facet.Label, facet.Values.Select(value => new DiscoveryFacetValueResponse(value.Value, value.Count)).ToArray(),
-            facet.HasMore)).ToArray(),
-        snapshot.CreatedAtUtc + DiscoverySnapshotStore.Lifetime);
+            facet.HasMore, facet.KnownCount)).ToArray(),
+        snapshot.CreatedAtUtc + DiscoverySnapshotStore.Lifetime,
+        snapshot.Fields.Any(field => field.Key == "assetName")
+            ? snapshot.Result.Items.Select(item => item.Metadata.GetValueOrDefault("assetId"))
+                .Where(id => !string.IsNullOrWhiteSpace(id) && id != "0").Distinct(StringComparer.Ordinal).Count() : null);
 
-    public static DiscoverySearchResponse ToResponse(IReadOnlyList<DiscoveredAsset> matches) => new(
-        matches.Count, matches.Take(ConnectionService.SampleSize).Select(ToObject).ToArray());
+    public static DiscoverySearchResponse ToResponse(IReadOnlyList<DiscoveredAsset> matches, int offset, int limit) => new(
+        matches.Count, DiscoveryScopes.Page(matches, offset, limit).Select(ToObject).ToArray());
 
     private static DiscoveredObjectResponse ToObject(DiscoveredAsset item) => new(
         item.ExternalId, item.DisplayName, item.ProviderType, item.Metadata);
 
-    public static ImportSelection ToSelection(Guid? snapshotId, string? query, Dictionary<string, List<string>>? facets) => new(
+    public static ImportSelection ToSelection(Guid? snapshotId, string? query, Dictionary<string, List<string>>? facets,
+        List<DiscoveryObjectKeyRequest>? objects = null) => new(
         snapshotId,
-        new DiscoveryScope(query, facets?.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value, StringComparer.Ordinal)));
+        new DiscoveryScope(query, facets?.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value, StringComparer.Ordinal),
+            objects?.Select(key => key is null ? null! : new DiscoveryObjectKey(key.Kind, key.ExternalId)).ToArray()));
 
     public static ImportPreviewResponse ToResponse(ImportPreview preview) => new(
         preview.Plan.Fingerprint, preview.Plan.Levels, preview.Plan.Placements.Count, preview.Plan.GroupCount,

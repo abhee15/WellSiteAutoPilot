@@ -235,6 +235,13 @@ assert request("POST", search_url, body={"snapshotId": snapshot})["matchCount"] 
 request("POST", search_url, body={"snapshotId": snapshot, "facets": {"nonsense": ["x"]}}, expected=400)
 request("POST", search_url, body={"snapshotId": str(uuid.uuid4())}, expected=409)
 request("POST", search_url, OPERATOR, {"snapshotId": snapshot}, expected=403)
+# Stable pages cover the same full snapshot; malformed page requests fail rather than broaden scope.
+paged = [request("POST", search_url, body={"snapshotId": snapshot, "offset": offset, "limit": 1}) for offset in range(3)]
+assert [page["items"][0]["externalId"] for page in paged] == ["101", "102", "103"], paged
+assert all(page["matchCount"] == 3 for page in paged)
+request("POST", search_url, body={"snapshotId": snapshot, "offset": -1, "limit": 100}, expected=400)
+request("POST", search_url, body={"snapshotId": snapshot, "limit": 1001}, expected=400)
+assert found["sourceAssetCount"] == 2 and next(f for f in found["facets"] if f["key"] == "deviceType")["knownCount"] == 3
 # A wrong address is an incomplete answer with a reason, never an empty "complete" list.
 lost = request("POST", "/connections/" + not_foresite["id"] + "/discover")
 assert lost["complete"] is False and lost["items"] == [] and lost["warnings"], lost
@@ -260,6 +267,14 @@ assert request("POST", plan_url, body={"levels": ["assetName"]})["fingerprint"] 
 scoped = request("POST", plan_url, body={"levels": ["assetName"], "snapshotId": snapshot,
     "facets": {"assetName": ["South Field"]}})
 assert scoped["objectCount"] == 1 and scoped["groupCount"] == 1 and scoped["groups"][0]["name"] == "South Field", scoped
+explicit_objects = [{"kind": "foresite.well", "externalId": "101"}, {"kind": "foresite.well", "externalId": "103"}]
+explicit = request("POST", plan_url, body={"levels": [], "snapshotId": snapshot, "objects": explicit_objects})
+assert explicit["objectCount"] == 2 and explicit["rootObjectCount"] == 2, explicit
+assert request("POST", plan_url, body={"levels": [], "snapshotId": snapshot, "objects": []})["objectCount"] == 0
+for invalid_objects in [explicit_objects + [explicit_objects[0]], [{"kind": "foreign.kind", "externalId": "101"}],
+                        [{"kind": "foresite.well", "externalId": "999"}], [None]]:
+    request("POST", plan_url, body={"levels": [], "snapshotId": snapshot, "objects": invalid_objects}, expected=400)
+request("POST", plan_url, body={"levels": [], "snapshotId": snapshot, "objects": explicit_objects, "query": "Alpha"}, expected=400)
 whole = request("POST", plan_url, body={"levels": ["assetName", "wellType"], "snapshotId": snapshot})
 assert whole["fingerprint"] == preview["fingerprint"] and whole["objectCount"] == 3, whole
 request("POST", plan_url, body={"levels": [], "snapshotId": str(uuid.uuid4())}, expected=409)
@@ -276,7 +291,8 @@ import_url = "/connections/" + stand_in["id"] + "/import"
 levels = ["assetName", "wellType"]
 request("POST", import_url, body={"levels": levels, "expectedFingerprint": "not-the-reviewed-plan"}, expected=409)
 request("POST", import_url, OPERATOR, {"levels": levels, "expectedFingerprint": preview["fingerprint"]}, expected=403)
-imported = request("POST", import_url, body={"levels": levels, "expectedFingerprint": preview["fingerprint"]})
+imported = request("POST", import_url, body={"levels": levels, "expectedFingerprint": preview["fingerprint"],
+    "snapshotId": snapshot, "objects": [{"kind": item["kind"], "externalId": item["externalId"]} for item in found["items"]]})
 assert imported["wellsCreated"] == 3 and imported["groupsCreated"] + imported["groupsReused"] == 5, imported
 assert imported["alreadyImported"] == 0 and set(imported["typesCreated"]) <= {"well", "group"}, imported
 names = {item["name"] for item in request("GET", "/assets?limit=500")}

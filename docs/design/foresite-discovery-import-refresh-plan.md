@@ -2,8 +2,9 @@
 
 Status: reviewed implementation plan, 22 October 2026. Reference: `poc/foresite-asset-discovery`
 at `c48e81c`; current baseline `develop` at `07943fc` (View selection and assignment).
-The adapter correction is the first implementation slice. Import UX and reconciliation below are planned,
-not delivered by the adapter slice. This supplements the connections workflow design and supersedes its
+The adapter correction was delivered in #257. The import workflow slice now implements paged inventory,
+explicit well selection, coverage counts, hierarchy presets and separate review actions. Reconciliation
+and persistent hierarchy identity remain planned; this UI change does not claim source synchronization. This supplements the connections workflow design and supersedes its
 initial saved-filter assumptions wherever they affect import.
 
 ## Product intent
@@ -144,3 +145,25 @@ validation against ForeSite 5.7.1 with 1,403 wells; that is reference evidence, 
 change. On-prem acceptance must include a restricted account, no-mapped-assets account, denied unmapped access,
 known device values and cold-cache control-group latency at a large site. Record calling identity and counts.
 Do not claim real Windows authentication/delegation or source performance is proven by Linux simulator checks.
+
+## Import workflow implementation checkpoint
+
+- Inventory precedes hierarchy setup. Users can import all matches or choose explicit well rows. Explicit
+  selections carry resource kind and external ID from the Connection/user-bound snapshot, survive pages and
+  searches, and are server-validated. Empty explicit selections do not become an all-well filter; duplicates,
+  unknown identities and mixed explicit/filter requests are rejected.
+- Search accepts bounded offset/limit and uses deterministic name/kind/ID order. The UI pages 100 wells from
+  the full snapshot, including wells beyond the initial 1,000-row sample. Source asset sections are explicitly
+  labelled as the groups on the current page, rather than claiming complete source subtrees.
+- Device availability counts use the complete snapshot and remain visible when all values are unknown or
+  only one device value exists. The mapped source asset count represents IDs attached to returned wells,
+  excluding Not Mapped; it is not a count of empty source assets or of generated hierarchy groups.
+- Recommended and alternative hierarchy presets expose the path including its virtual Connection root and
+  terminal wells. Customization stages a dimension before an explicit Add action; review has a separate
+  action area. Import confirmation reports well and group counts separately.
+- Pending/failed searches and unapplied search text invalidate review. No successful discovery/selection means
+  no UI import review, and batches above the existing 5,000-well limit are blocked before review. The existing
+  server fingerprint and transactional import authority remain mandatory.
+- Still pending: durable source-change comparison/apply, persisted hierarchy recipes and stable group keys,
+  and a dedicated value-search API for facets with more than 200 values. Well search and paging cover the
+  entire kept inventory; the existing facet-value limit is shown honestly rather than treated as exhaustive.

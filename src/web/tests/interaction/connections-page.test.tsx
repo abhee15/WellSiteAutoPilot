@@ -190,7 +190,7 @@ describe('Connections page', () => {
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
     await userEvent.click(await screen.findByText('Find what it holds'));
-    await screen.findByText('Found 2.');
+    await screen.findByText('Wells discovered');
     expect(screen.getByText('Alpha 1')).toBeTruthy();
     expect(screen.getByText('Asset names were not available.')).toBeTruthy();
     expect(screen.getByText(/Found as CORP/)).toBeTruthy();
@@ -200,7 +200,7 @@ describe('Connections page', () => {
     });
     await userEvent.type(screen.getByLabelText('Search what was found'), 'esp');
     await userEvent.click(screen.getByRole('button', { name: 'Search' }));
-    await screen.findByText('1 of the 2 found match.');
+    await screen.findByText('Showing 1–1 of 1 matching wells.');
     expect(vi.mocked(api.searchDiscovered).mock.calls[0][1]).toEqual({ snapshotId, query: 'esp', facets: {} });
     expect(screen.queryByText('Alpha 1')).toBeNull();
     expect(screen.getByText('Bravo 1')).toBeTruthy();
@@ -216,7 +216,7 @@ describe('Connections page', () => {
       facets: [{ key: 'wellType', label: 'Well type', hasMore: false, values: [{ value: 'ESP', count: 4000 }, { value: 'RRL', count: 8000 }] }],
       items: [{ externalId: '1', displayName: 'Alpha 1', kind: 'foresite.well', metadata: { wellType: 'RRL' } }],
     });
-    vi.mocked(api.searchDiscovered).mockResolvedValue({ matchCount: 4000, items: [] });
+    vi.mocked(api.searchDiscovered).mockResolvedValue({ matchCount: 4000, items: [{ externalId: '2', displayName: 'ESP well', kind: 'foresite.well', metadata: { wellType: 'ESP' } }] });
     vi.mocked(api.previewImport).mockResolvedValue({
       fingerprint: 'F', levels: [], objectCount: 4000, groupCount: 0, fallbackObjectCount: 0, rootObjectCount: 4000, groups: [],
       warnings: [], conflicts: [], typesToCreate: [], canImport: true, actingAs: null, alreadyImported: 0,
@@ -224,11 +224,12 @@ describe('Connections page', () => {
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
     await userEvent.click(await screen.findByText('Find what it holds'));
-    await screen.findByText('Found 12000.');
-    expect(screen.getByText('Showing the first 1 of 12000. Search or choose a value to narrow the list.')).toBeTruthy();
+    await screen.findByText('Wells discovered');
+    expect(screen.getByText('Showing 1–1 of 12000 matching wells.')).toBeTruthy();
     expect(screen.getByText('Everything found (12000) is selected for import.')).toBeTruthy();
+    await userEvent.click(screen.getByText('Filter discovered wells'));
     await userEvent.selectOptions(screen.getByLabelText('Well type'), 'ESP');
-    await screen.findByText('4000 of the 12000 found match.');
+    await screen.findByText('Showing 1–1 of 4000 matching wells.');
     expect(vi.mocked(api.searchDiscovered).mock.calls[0][1]).toEqual({ snapshotId, query: '', facets: { wellType: ['ESP'] } });
     expect(screen.getByText('4000 of the 12000 found are selected for import.')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Review import' }));
@@ -301,6 +302,13 @@ describe('Connections page', () => {
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
     await screen.findByText('Import into Assets');
+    vi.mocked(api.discoverConnection).mockResolvedValue({ complete: true, actingAs: null, warnings: [], totalCount: 3,
+      snapshotId, expiresAtUtc: '2026-10-21T10:15:00Z', facets: [], items: [
+        { externalId: '1', displayName: 'Sample well', kind: 'foresite.well', metadata: {} }] });
+    await userEvent.click(screen.getByText('Find what it holds'));
+    await screen.findByText('Wells discovered');
+    await userEvent.click(screen.getByText('Flat wells'));
+    await userEvent.click(screen.getByText('Customize grouping levels'));
   };
 
   it('reviews the grouped tree before anything is created, then imports exactly what was reviewed', async () => {
@@ -310,20 +318,21 @@ describe('Connections page', () => {
     });
     await openImporter();
     await userEvent.selectOptions(screen.getByLabelText('Add a grouping level'), 'assetName');
+    await userEvent.click(screen.getByText('Add level'));
     await userEvent.click(screen.getByText('Review import'));
-    await screen.findByText('3 to import in 2 groups.');
+    await screen.findByText('3 wells to import · 2 groups to create or reuse.');
     expect(vi.mocked(api.previewImport).mock.calls[0][1]).toEqual(['assetName']);
     expect(screen.getByText('North')).toBeTruthy();
     expect(screen.getByText(/Unassigned \(no value\)/)).toBeTruthy();
     expect(screen.getByText(/asset types will be created first: well, group/)).toBeTruthy();
     expect(api.importFromConnection).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByText('Import 3'));
+    await userEvent.click(screen.getByText('Import 3 wells'));
     expect(api.importFromConnection).not.toHaveBeenCalled();
     await userEvent.click(screen.getByText('Yes, import'));
-    await screen.findByText('Imported 3 and created 2 groups.');
-    expect(vi.mocked(api.importFromConnection).mock.calls[0].slice(1)).toEqual([['assetName'], 'ABC', null]);
+    await screen.findByText('Imported 3 wells and created 2 groups.');
+    expect(vi.mocked(api.importFromConnection).mock.calls[0].slice(1)).toEqual([['assetName'], 'ABC', { snapshotId, query: '', facets: {} }]);
     expect(screen.getByText('1 groups already existed and were reused.')).toBeTruthy();
-    expect(screen.queryByText('3 to import in 2 groups.')).toBeNull();
+    expect(screen.queryByText('3 wells to import · 2 groups to create or reuse.')).toBeNull();
   });
 
   it('drops a reviewed plan when the grouping changes and when the source moved on', async () => {
@@ -331,14 +340,15 @@ describe('Connections page', () => {
     vi.mocked(api.importFromConnection).mockRejectedValue(new api.ConnectionsError('planChanged'));
     await openImporter();
     await userEvent.click(screen.getByText('Review import'));
-    await screen.findByText('3 to import in 2 groups.');
+    await screen.findByText('3 wells to import · 2 groups to create or reuse.');
     await userEvent.selectOptions(screen.getByLabelText('Add a grouping level'), 'wellType');
-    expect(screen.queryByText('3 to import in 2 groups.')).toBeNull();
+    await userEvent.click(screen.getByText('Add level'));
+    expect(screen.queryByText('3 wells to import · 2 groups to create or reuse.')).toBeNull();
     await userEvent.click(screen.getByText('Review import'));
-    await userEvent.click(await screen.findByText('Import 3'));
+    await userEvent.click(await screen.findByText('Import 3 wells'));
     await userEvent.click(screen.getByText('Yes, import'));
     expect((await screen.findByRole('alert')).textContent).toMatch(/has changed since you reviewed it/);
-    expect(screen.queryByText('3 to import in 2 groups.')).toBeNull();
+    expect(screen.queryByText('3 wells to import · 2 groups to create or reuse.')).toBeNull();
   });
 
   it('will not import while there are conflicts, and says why a scoped manager is refused', async () => {
@@ -347,17 +357,19 @@ describe('Connections page', () => {
     await openImporter();
     await userEvent.click(screen.getByText('Review import'));
     expect((await screen.findByText(/does not accept the values/)).getAttribute('role')).toBe('alert');
-    expect((screen.getByText('Import 3') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText('Import 3 wells') as HTMLButtonElement).disabled).toBe(true);
     await userEvent.click(screen.getByText('Review import'));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/permission to manage all Assets/));
-    expect(screen.queryByText('Import 3')).toBeNull();
+    expect(screen.queryByText('Import 3 wells')).toBeNull();
   });
 
   it('reorders and removes grouping levels', async () => {
     vi.mocked(api.previewImport).mockResolvedValue(preview());
     await openImporter();
     await userEvent.selectOptions(screen.getByLabelText('Add a grouping level'), 'assetName');
+    await userEvent.click(screen.getByText('Add level'));
     await userEvent.selectOptions(screen.getByLabelText('Add a grouping level'), 'wellType');
+    await userEvent.click(screen.getByText('Add level'));
     await userEvent.click(screen.getByLabelText('Move Well type up'));
     await userEvent.click(screen.getByText('Review import'));
     await waitFor(() => expect(api.previewImport).toHaveBeenCalled());

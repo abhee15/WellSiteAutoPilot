@@ -13,7 +13,7 @@ export type Adapter = {
 export type DiscoveredObject = { externalId: string; displayName: string; kind: string; metadata: Record<string, string> };
 
 /** `complete` false means partial or failed: the list must never be read as "nothing is there". */
-export type DiscoveryFacet = { key: string; label: string; values: { value: string; count: number }[]; hasMore: boolean };
+export type DiscoveryFacet = { key: string; label: string; values: { value: string; count: number }[]; hasMore: boolean; knownCount?: number | null };
 
 /**
  * `items` is only the first part of what was found (at most 1,000): `totalCount` says how many there are, and
@@ -21,11 +21,13 @@ export type DiscoveryFacet = { key: string; label: string; values: { value: stri
  */
 export type Discovery = {
   complete: boolean; items: DiscoveredObject[]; warnings: string[]; actingAs: string | null;
-  totalCount: number; snapshotId: string; facets: DiscoveryFacet[]; expiresAtUtc: string;
+  totalCount: number; snapshotId: string; facets: DiscoveryFacet[]; expiresAtUtc: string; sourceAssetCount?: number | null;
 };
 
-/** The part of a kept list a person chose: words and one value per grouping fact. */
-export type ImportSelection = { snapshotId: string; query: string; facets: Record<string, string[]> };
+/** Either all matching objects in a kept snapshot, or explicit source identities without filters. */
+export type DiscoveryObjectKey = { kind: string; externalId: string };
+export type ImportSelection = { snapshotId: string; query: string; facets: Record<string, string[]>; objects?: DiscoveryObjectKey[] };
+export const discoveryKey = (item: DiscoveryObjectKey) => JSON.stringify([item.kind, item.externalId]);
 
 export type SearchResult = { matchCount: number; items: DiscoveredObject[] };
 
@@ -81,7 +83,7 @@ function isDiscoveredObjects(value: unknown): value is DiscoveredObject[] {
 
 function isFacet(value: unknown): value is DiscoveryFacet {
   return isObject(value) && typeof value.key === 'string' && typeof value.label === 'string' &&
-    typeof value.hasMore === 'boolean' && Array.isArray(value.values) &&
+    typeof value.hasMore === 'boolean' && (value.knownCount == null || Number.isSafeInteger(value.knownCount) && (value.knownCount as number) >= 0) && Array.isArray(value.values) &&
     value.values.every(entry => isObject(entry) && typeof entry.value === 'string' &&
       Number.isSafeInteger(entry.count) && (entry.count as number) >= 0);
 }
@@ -92,7 +94,8 @@ function isDiscovery(value: unknown): value is Discovery {
     Array.isArray(value.warnings) && value.warnings.every(x => typeof x === 'string') &&
     isDiscoveredObjects(value.items) && Number.isSafeInteger(value.totalCount) &&
     (value.totalCount as number) >= value.items.length && typeof value.snapshotId === 'string' && uuid.test(value.snapshotId) &&
-    typeof value.expiresAtUtc === 'string' && Array.isArray(value.facets) && value.facets.every(isFacet);
+    (value.sourceAssetCount == null || Number.isSafeInteger(value.sourceAssetCount) && (value.sourceAssetCount as number) >= 0) &&
+    typeof value.expiresAtUtc === 'string' && Array.isArray(value.facets) && value.facets.every(facet => isFacet(facet) && (facet.knownCount == null || facet.knownCount <= (value.totalCount as number)));
 }
 
 function isConnection(value: unknown): value is Connection {
@@ -266,13 +269,15 @@ function isImportResult(value: unknown): value is ImportResult {
 const selectionBody = (selection: ImportSelection | null) => selection === null ? {} : {
   snapshotId: selection.snapshotId, query: selection.query || null,
   facets: Object.keys(selection.facets).length > 0 ? selection.facets : null,
+  ...(selection.objects !== undefined ? { objects: selection.objects } : {}),
 };
 
-/** Looks within what was found earlier, by words and grouping values. At most the first 1,000 matches come back. */
+/** Reads a stable page of the full kept inventory, narrowed by words and grouping values. */
 export async function searchDiscovered(
   connection: Connection, selection: ImportSelection, fetcher: typeof fetch = fetch,
+  page?: { offset: number; limit: number; signal?: AbortSignal },
 ): Promise<SearchResult> {
-  const body = await send(`/connections/${connection.id}/discover/search`, json('POST', selectionBody(selection)), fetcher);
+  const body = await send(`/connections/${connection.id}/discover/search`, { ...json('POST', { ...selectionBody(selection), ...(page ? { offset: page.offset, limit: page.limit } : {}) }), signal: page?.signal }, fetcher);
   if (!isObject(body) || !Number.isSafeInteger(body.matchCount) || !isDiscoveredObjects(body.items) ||
     (body.matchCount as number) < body.items.length) throw new ConnectionsError('invalidResponse');
   return { matchCount: body.matchCount as number, items: body.items };
