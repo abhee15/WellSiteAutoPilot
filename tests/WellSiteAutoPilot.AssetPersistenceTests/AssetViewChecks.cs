@@ -136,6 +136,7 @@ internal static class AssetViewChecks
                     new LogicModuleCatalogRepository(db), TimeProvider.System, new AssetViewRepository(db), new ConnectionRepository(db));
                 var command = new CreateConfiguredLogicCommand("View fixture assignment", manifest, "{}", [], [], null,
                     new ConfiguredLogicViewBindingCommand(viewId, 2, "well"));
+                await RejectAsync(() => service.CreateAuthorizedAsync(command with { AssetBindings = null! }, subject, actor), FailureCodes.ValidationFailed);
                 var configured = await service.CreateAuthorizedAsync(command, subject, actor);
                 configurationId = configured.Id;
                 var revision = configured.Revisions.Single();

@@ -419,6 +419,9 @@ public sealed class ConfiguredLogicService(
         ConfiguredLogicViewBindingCommand? requested, IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> bindings,
         LogicModuleManifest manifest, AccessSubject? subject, CancellationToken cancellationToken)
     {
+        if (bindings is null)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Configured Logic Asset bindings are required.");
         if (requested is null)
         {
             if (manifest.RequiredAdapterKey is not null)
