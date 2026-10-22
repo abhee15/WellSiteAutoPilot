@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
-using System.Text;
+using System.Text.Json;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Application.Connections.Importing;
@@ -8,12 +8,16 @@ namespace WellSiteAutoPilot.Application.Connections.Importing;
 /// <summary>Where one discovered object would go: its own name, the groups above it (top first) and the attributes it would carry.</summary>
 public sealed record PlannedPlacement(
     string ExternalId, string Kind, string Name, IReadOnlyList<string> GroupPath, IReadOnlyDictionary<string, string> Attributes,
-    IReadOnlyDictionary<string, string> Snapshot);
+    IReadOnlyDictionary<string, string> Snapshot, IReadOnlyList<string> GroupKeys, string SourceName);
 
 /// <summary>One group in the planned tree. <see cref="ObjectCount"/> counts every object below it.</summary>
-public sealed class PlanGroup(string name, bool isFallback)
+public sealed class PlanGroup(string name, bool isFallback, string key, string? sourceIdentity)
 {
     public string Name { get; } = name;
+
+    public string Key { get; } = key;
+
+    public string? SourceIdentity { get; } = sourceIdentity;
 
     /// <summary>True when the group exists only because objects had no value for the fact it groups by.</summary>
     public bool IsFallback { get; } = isFallback;
@@ -48,11 +52,10 @@ public static class ImportPlanner
     public const int MaximumLevels = 5;
     public const int MaximumNameLength = 256;
     private const int SampleCount = 3;
-    private const char Separator = '\u0001';
 
     public static ImportPlan Plan(
         Guid connectionId, IReadOnlyList<DiscoveredAsset> items, IReadOnlyList<string> levels,
-        IReadOnlyList<DiscoveryField> fields)
+        IReadOnlyList<DiscoveryField> fields, IReadOnlyDictionary<string, string>? existingGroupNames = null)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(levels);
@@ -62,10 +65,12 @@ public static class ImportPlanner
 
         var placements = new List<PlannedPlacement>(items.Count);
         var fallbackObjects = 0;
-        foreach (var item in items.OrderBy(item => item.ExternalId, StringComparer.Ordinal))
+        foreach (var item in items.OrderBy(item => item.ExternalId, StringComparer.Ordinal).ThenBy(item => item.ProviderType, StringComparer.Ordinal))
         {
             var path = new List<string>(levels.Count);
             var usedFallback = false;
+            var keys = new List<string>();
+            var parentKey = string.Empty;
             foreach (var level in levels)
             {
                 var value = Clean(item.Metadata.GetValueOrDefault(level));
@@ -75,7 +80,14 @@ public static class ImportPlanner
                     value = FallbackName(byKey[level]);
                 }
 
-                path.Add(value);
+                var field = byKey[level];
+                var raw = Normalize(item.Metadata.GetValueOrDefault(level));
+                var identity = field.IdentityMetadataKey is { } identityKey ? Normalize(item.Metadata.GetValueOrDefault(identityKey)) : null;
+                parentKey = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] {
+                    connectionId.ToString("N", CultureInfo.InvariantCulture), "1", parentKey, level, field.IdentityMetadataKey ?? string.Empty,
+                    identity is not null ? "id" : raw is null ? "missing" : "value", identity ?? raw ?? string.Empty })));
+                keys.Add(parentKey);
+                path.Add(existingGroupNames?.GetValueOrDefault(parentKey) ?? value);
             }
 
             if (usedFallback) fallbackObjects++;
@@ -86,7 +98,7 @@ public static class ImportPlanner
             }
 
             var name = Clean(item.DisplayName) ?? "Object " + item.ExternalId;
-            placements.Add(new PlannedPlacement(item.ExternalId, item.ProviderType, name, path, attributes, item.Metadata));
+            placements.Add(new PlannedPlacement(item.ExternalId, item.ProviderType, name, path, attributes, item.Metadata, keys, item.DisplayName));
         }
 
         var (roots, groupCount, rootObjects) = BuildTree(placements, levels, byKey);
@@ -113,10 +125,11 @@ public static class ImportPlanner
             for (var depth = 0; depth < placement.GroupPath.Count; depth++)
             {
                 var name = placement.GroupPath[depth];
-                key += Separator + name;
+                key = placement.GroupKeys[depth];
                 if (!index.TryGetValue(key, out var group))
                 {
-                    group = new PlanGroup(name, name == FallbackName(byKey[levels[depth]]));
+                    group = new PlanGroup(name, Normalize(placement.Snapshot.GetValueOrDefault(levels[depth])) is null, key,
+                        byKey[levels[depth]].IdentityMetadataKey is { } idKey ? placement.Snapshot.GetValueOrDefault(idKey) : null);
                     index[key] = group;
                     (parent?.Children ?? roots).Add(group);
                 }
@@ -137,7 +150,7 @@ public static class ImportPlanner
         groups.Sort((a, b) =>
         {
             var order = string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-            return order != 0 ? order : string.CompareOrdinal(a.Name, b.Name);
+            return order != 0 ? order : string.CompareOrdinal(a.Key, b.Key);
         });
         foreach (var group in groups) Sort(group.Children);
     }
@@ -156,27 +169,25 @@ public static class ImportPlanner
         return Clean(item.Metadata.GetValueOrDefault(field.Key)) ?? FallbackName(field);
     }
 
+    private static string? Normalize(string? value)
+    {
+        var visible = new string((value ?? string.Empty).Trim().Where(character => !char.IsControl(character)).ToArray());
+        return string.IsNullOrWhiteSpace(visible) ? null : visible;
+    }
+
     private static string? Clean(string? value)
     {
-        var trimmed = value?.Trim();
-        if (string.IsNullOrEmpty(trimmed)) return null;
-        var visible = new string(trimmed.Where(character => !char.IsControl(character)).ToArray());
-        if (visible.Length == 0) return null;
-        return visible.Length <= MaximumNameLength ? visible : visible[..MaximumNameLength];
+        var normalized = Normalize(value);
+        return normalized is null ? null : normalized.Length <= MaximumNameLength ? normalized : normalized[..MaximumNameLength];
     }
 
     private static string Fingerprint(Guid connectionId, IReadOnlyList<string> levels, List<PlannedPlacement> placements)
     {
-        var text = new StringBuilder();
-        text.Append(connectionId.ToString("N", CultureInfo.InvariantCulture)).Append('\n')
-            .AppendJoin(',', levels).Append('\n');
-        foreach (var placement in placements)
-        {
-            text.Append(placement.ExternalId).Append('\t').Append(placement.Kind).Append('\t').Append(placement.Name)
-                .Append('\t').AppendJoin(Separator, placement.GroupPath).Append('\t')
-                .AppendJoin(';', placement.Attributes.Select(item => item.Key + "=" + item.Value)).Append('\n');
-        }
-
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
+        // Structured serialization keeps delimiters in provider values from colliding with plan structure.
+        var payload = new { connectionId, levels, placements = placements.Select(placement => new {
+            placement.ExternalId, placement.Kind, placement.Name, placement.GroupPath, placement.GroupKeys,
+            attributes = placement.Attributes.OrderBy(pair => pair.Key, StringComparer.Ordinal),
+            facts = placement.Snapshot.OrderBy(pair => pair.Key, StringComparer.Ordinal), placement.SourceName }) };
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(payload)));
     }
 }

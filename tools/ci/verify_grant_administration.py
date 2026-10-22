@@ -301,6 +301,12 @@ again = request("POST", plan_url, body={"levels": levels})
 assert again["objectCount"] == 0 and again["alreadyImported"] == 3 and again["groupCount"] == 0, again
 repeat = request("POST", import_url, body={"levels": levels, "expectedFingerprint": again["fingerprint"]})
 assert repeat["wellsCreated"] == 0 and repeat["groupsCreated"] == 0 and repeat["alreadyImported"] == 3, repeat
+# A saved recipe is reported by discovery and cannot be replaced, even through direct API calls.
+recipe_discovery = request("POST", "/connections/" + stand_in["id"] + "/discover")
+assert recipe_discovery["hierarchy"] == {"status": "Saved", "levels": levels}, recipe_discovery
+wrong_recipe = request("POST", plan_url, body={"levels": []})
+assert not wrong_recipe["canImport"] and wrong_recipe["conflicts"], wrong_recipe
+request("POST", import_url, body={"levels": [], "expectedFingerprint": wrong_recipe["fingerprint"]}, expected=409)
 # Once Assets were imported the connection cannot be pointed at another system, but can still be renamed.
 current = request("GET", "/connections/" + stand_in["id"])
 request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": current["revision"], "name": current["name"],
@@ -308,6 +314,8 @@ request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": curre
 renamed = request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": current["revision"],
     "name": conn_name + " renamed stand-in", "settings": {"baseUrl": "http://127.0.0.1:5091/foresite"}})
 assert renamed["revision"] == current["revision"] + 1 and renamed["name"].endswith("renamed stand-in"), renamed
+request("POST", plan_url, body={"levels": levels, "snapshotId": recipe_discovery["snapshotId"]}, expected=409)
+
 # Ownership: what a connection imported belongs to it alone. A second connection to the same system gets its own
 # Assets and its own Groups, even when every name is the same; nothing is shared or merged.
 before = request("GET", "/assets?limit=500")

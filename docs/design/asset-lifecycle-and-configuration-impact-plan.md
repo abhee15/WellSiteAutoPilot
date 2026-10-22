@@ -222,3 +222,34 @@ activate Shadow logic, observe a source type change, retain the same well ID and
 pinned configuration impact, reject stale execution, apply the reviewed move, confirm the hold still exists,
 then resolve against the latest facts/configuration revision and permit execution again. Repeat with a failed
 device lookup, a source reversion, an input-only reference, a concurrent dispatch and a revoked permission.
+
+
+## Canonical import foundation checkpoint
+
+The foundation slice persists one recipe per Connection and indexes imported groups by structured stable keys
+instead of names. Recipes retain their grouping identity contract; indexed groups retain the accepted source label
+separately from the editable display name. Import review uses actual reused group labels. Keys include Connection,
+parent, dimension, source ID where available, and an explicit missing
+value tag. New source baselines retain format version, original source name/facts, recipe/group keys, field
+unavailability and Gateway identity; older metadata-only baselines remain readable without fabricated names.
+
+Discovery reports New, Saved or Legacy hierarchy state. Saved recipes are used by subsequent imports and cannot
+be replaced through ordinary import requests. Legacy adoption requires explicit consent and verifies every bound
+well's existing ancestry against the proposed levels and stored source facts. It adds identity mappings without
+moving/renaming Assets, changing View membership or accepting new source facts. Conflicting paths, cycles, inactive
+ancestors, missing source identity evidence and collapsed same-name source groups block adoption. Unused/unverified
+legacy groups remain untouched. An adoption-only apply is supported when all discovered wells are already bound.
+
+Recipe establishment/adoption, group keys, new Assets/bindings and audit are committed together with current
+permissions and Connection state rechecked. Changed local state invalidates adoption; competing imports cannot
+create duplicate well bindings or establish different recipes. Discovery snapshots are tied to the Connection
+revision and cannot be imported after its settings/revision change. ForeSite declares optional device unavailability
+separately from membership completeness; missing well IDs make membership incomplete. ForeSite null/zero asset
+IDs normalize to the same unmapped identity. API-level availability does not prove that an omitted per-well
+device value is a confirmed blank; later change review must retain that distinction before clearing facts or
+moving wells into an unknown-device group.
+
+Still pending: durable source-check/impact records, the module source-fact evaluator and execution guards,
+reviewed source-driven moves or recipe restructuring, and deletion/reimport controls. No execution eligibility
+claim is made by the import foundation. Ambiguous legacy layouts need a later explicit repair/restructure path;
+this slice preserves them and refuses to guess.

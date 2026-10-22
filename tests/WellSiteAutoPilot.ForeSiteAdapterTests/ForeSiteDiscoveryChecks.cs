@@ -14,7 +14,6 @@ internal static class ForeSiteDiscoveryChecks
          {"Id":103,"AssetId":1,"WellType":77},
          {"Id":104,"Name":"Loose 1","AssetId":null},
          {"Id":105,"Name":"Loose 2","AssetId":0},
-         {"Name":"No id","AssetId":1},
          {"Id":104,"Name":"Loose 1","AssetId":null}]
         """;
     private const string Devices = """{"Units":null,"Values":[{"WellId":102,"DeviceType":"WFordKS"},{"WellId":"104","DeviceType":"AEBEAM"},{"WellId":103,"DeviceType":" "},{"WellId":999,"DeviceType":"FOREIGN"}]}""";
@@ -24,7 +23,10 @@ internal static class ForeSiteDiscoveryChecks
         var routes = new DiscoveryRoutes(Assets, Wells, Devices);
         var result = await Discover(routes);
         Expect(result.Complete && result.ActingAs == Account && result.Items.Count == 5, "complete, unique mapped and unmapped wells");
-        Expect(result.Warnings.Count == 1 && result.Warnings[0].Contains("had no id", StringComparison.Ordinal), "missing well ID warning");
+        Expect(result.Warnings.Count == 0 && result.UnavailableFields is { Count: 0 }, "successful enrichment declares available grouping facts");
+        var missingIdentity = await Discover(new DiscoveryRoutes(Assets, "[{\"Name\":\"No id\",\"AssetId\":1}]", Devices));
+        Expect(!missingIdentity.Complete && missingIdentity.Warnings.Any(warning => warning.Contains("had no id", StringComparison.Ordinal)),
+            "a missing well identity makes membership incomplete");
         Expect(routes.Requests.Select(request => request.Path).SequenceEqual([
             ForeSiteAdapter.TokenPath, ForeSiteAdapter.UserAssetsPath, ForeSiteAdapter.WellsFilterPath, ForeSiteAdapter.DeviceTypesPath]), "user assets precede both filtered requests; no unfiltered endpoint");
         Expect(routes.Requests[1].Method == HttpMethod.Get, "user assets use GET");
@@ -41,7 +43,7 @@ internal static class ForeSiteDiscoveryChecks
         Expect(second.Metadata["assetName"] == "South" && second.Metadata["wellType"] == "ESP" && second.Metadata["deviceType"] == "WFordKS", "device data joins by well ID; string numeric IDs supported");
         var unknown = result.Items.Single(item => item.ExternalId == "103");
         Expect(unknown.DisplayName == "Well 103" && unknown.Metadata["wellTypeId"] == "77" && !unknown.Metadata.ContainsKey("wellType") && !unknown.Metadata.ContainsKey("deviceType"), "unknown types remain unknown");
-        Expect(result.Items.Where(item => item.ExternalId is "104" or "105").All(item => item.Metadata["assetName"] == "Not Mapped"), "null and zero asset use Not Mapped label");
+        Expect(result.Items.Where(item => item.ExternalId is "104" or "105").All(item => item.Metadata["assetName"] == "Not Mapped" && item.Metadata["assetId"] == "0"), "null and zero assets share one stable unmapped identity");
 
         var noMapped = new DiscoveryRoutes("[]", """[{"Id":104,"AssetId":null}]""", """{"Values":[]}""");
         Expect((await Discover(noMapped)).Complete && noMapped.Requests.Skip(2).All(request => Scope(request.Body).SequenceEqual([0L])), "no mapped assets still sends [0], never an empty broad filter");
@@ -64,6 +66,9 @@ internal static class ForeSiteDiscoveryChecks
             Expect(partial.Complete && partial.Items.Count == 5 && partial.Warnings.Any(warning => warning.Contains("device types", StringComparison.Ordinal)) &&
                 partial.Items.Single(item => item.ExternalId == "101").Metadata["deviceType"] == "RPC", "optional malformed devices warn and retain well-list fallback");
         }
+        var deviceUnavailable = await Discover(new DiscoveryRoutes(Assets, Wells, "null"));
+        Expect(deviceUnavailable.Complete && deviceUnavailable.UnavailableFields!.SequenceEqual(["deviceType"]),
+            "optional device failure is field unavailability, not confirmed blank device data");
         var empty = new DiscoveryRoutes(Assets, "[]", Devices);
         Expect((await Discover(empty)).Complete && empty.Requests.Count == 3, "empty well inventory avoids costly device lookup");
 

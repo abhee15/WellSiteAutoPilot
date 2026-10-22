@@ -268,7 +268,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
       {found && connection && <ConnectionInventory key={'inventory-' + found.snapshotId} connection={connection} found={found} stale={dirty}
         disabled={disabled} onSelect={(value, count) => setSelection(value ? { value, count } : null)} />}
       {found?.complete && found.totalCount > 0 && canManage && connection && adapter?.canDiscover && adapter.groupingFields.length > 0 && connection.isEnabled && !dirty && (
-        <ConnectionImport key={'import-' + found.snapshotId} connection={connection} adapter={adapter}
+        <ConnectionImport key={'import-' + found.snapshotId} connection={connection} adapter={adapter} hierarchy={found.hierarchy}
           selection={selection?.value ?? null} selectedCount={selection?.count ?? null}
           totalCount={found?.totalCount ?? null} disabled={disabled} onBusyChange={setImportBusy} />
       )}

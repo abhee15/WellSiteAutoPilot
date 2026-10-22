@@ -1207,10 +1207,12 @@ v1.MapPost(
 
 v1.MapPost(
     "/connections/{connectionId:guid}/discover",
-    async (Guid connectionId, ConnectionService connections, RequestAccessContext access,
+    async (Guid connectionId, ConnectionService connections, ConnectionImportService imports, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>
-        ConnectionMapping.ToResponse(await connections.FindAsync(connectionId, access.Subject,
-            access.CreateActor(context), cancellationToken)))
+    {
+        var snapshot = await connections.FindAsync(connectionId, access.Subject, access.CreateActor(context), cancellationToken);
+        return ConnectionMapping.ToResponse(snapshot, await imports.HierarchyStatusAsync(connectionId, cancellationToken));
+    })
     .WithName("DiscoverConnection")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<DiscoveryResponse>(StatusCodes.Status200OK)
@@ -1239,7 +1241,7 @@ v1.MapPost(
         HttpContext context, CancellationToken cancellationToken) =>
         ConnectionMapping.ToResponse(await imports.PreviewAsync(connectionId, request.Levels,
             ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets, request.Objects), access.Subject,
-            access.CreateActor(context), cancellationToken)))
+            access.CreateActor(context), request.AdoptExistingHierarchy, cancellationToken)))
     .WithName("PreviewConnectionImport")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ImportPreviewResponse>(StatusCodes.Status200OK)
@@ -1255,7 +1257,7 @@ v1.MapPost(
         HttpContext context, CancellationToken cancellationToken) =>
         ConnectionMapping.ToResponse(await imports.ImportAsync(connectionId, request.Levels,
             ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets, request.Objects), request.ExpectedFingerprint,
-            access.Subject, access.CreateActor(context), cancellationToken)))
+            access.Subject, access.CreateActor(context), request.AdoptExistingHierarchy, cancellationToken)))
     .WithName("ImportFromConnection")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ImportResultResponse>(StatusCodes.Status200OK)

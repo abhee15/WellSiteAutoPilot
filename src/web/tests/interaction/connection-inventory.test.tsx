@@ -158,3 +158,48 @@ it('still requires Apply after clearing unapplied field choices back to Any', as
   await user.click(screen.getByRole('button', { name: 'Apply filters' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Review import' }).matches(':disabled')).toBe(false));
 });
+
+it('uses the saved canonical hierarchy and hides ordinary regrouping controls', async () => {
+  vi.mocked(api.previewImport).mockResolvedValue({ ...preview, levels: [] });
+  render(<ConnectionImport connection={connection} adapter={adapter} hierarchy={{ status: 'Saved', levels: [] }}
+    selection={{ snapshotId, query: '', facets: {} }} selectedCount={2} totalCount={2} />);
+  expect(screen.getByText(/This Connection has one saved hierarchy/)).toBeTruthy();
+  expect(screen.queryByText('Recommended hierarchy')).toBeNull();
+  expect(screen.queryByText('Customize grouping levels')).toBeNull();
+  expect(within(screen.getByLabelText('Import hierarchy')).getAllByRole('listitem').map(item => item.textContent)).toEqual(['Production ForeSite', 'Wells']);
+  await userEvent.click(screen.getByRole('button', { name: 'Review import' }));
+  await screen.findByLabelText('Import review');
+  expect(vi.mocked(api.previewImport).mock.calls[0][1]).toEqual([]);
+});
+
+it('explicitly reviews and adopts a legacy hierarchy without replacing already-imported wells', async () => {
+  vi.mocked(api.previewImport).mockResolvedValue({ ...preview, objectCount: 0, groupCount: 0, alreadyImported: 2,
+    adoptingHierarchy: true, existingWells: 2, groupsToAdopt: 4 });
+  vi.mocked(api.importFromConnection).mockResolvedValue({ wellsCreated: 0, groupsCreated: 0, groupsReused: 0,
+    alreadyImported: 2, typesCreated: [], hierarchyAdopted: true });
+  render(<ConnectionImport connection={connection} adapter={adapter} hierarchy={{ status: 'Legacy', levels: null }}
+    selection={{ snapshotId, query: '', facets: {} }} selectedCount={2} totalCount={2} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('checkbox', { name: 'Review these levels as the saved hierarchy for all existing imported wells.' }));
+  await user.click(screen.getByRole('button', { name: 'Review import' }));
+  await screen.findByText(/Adopt the verified hierarchy for 2 existing wells and 4 groups/);
+  expect(vi.mocked(api.previewImport).mock.calls[0][2]?.adoptExistingHierarchy).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Adopt hierarchy', exact: true }));
+  expect(api.importFromConnection).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Yes, import' }));
+  await screen.findByText('Existing hierarchy adopted. Well IDs and current paths were preserved.');
+  expect(vi.mocked(api.importFromConnection).mock.calls[0][3]?.adoptExistingHierarchy).toBe(true);
+  expect(screen.queryByText('Customize grouping levels')).toBeNull();
+});
+
+it('distinguishes same-named preview groups with their source identities', async () => {
+  vi.mocked(api.previewImport).mockResolvedValue({ ...preview, groups: [
+    { name: 'Repeated asset', sourceIdentity: '101', key: 'A'.repeat(64), isFallback: false, objectCount: 1, sampleNames: ['Well A'], children: [] },
+    { name: 'Repeated asset', sourceIdentity: '202', key: 'B'.repeat(64), isFallback: false, objectCount: 1, sampleNames: ['Well B'], children: [] }] });
+  render(<Workflow />);
+  await userEvent.click(screen.getByRole('button', { name: 'Review import' }));
+  const review = await screen.findByLabelText('Import review');
+  expect(within(review).getAllByText('Repeated asset')).toHaveLength(2);
+  expect(within(review).getByText(/Source ID: 101/)).toBeTruthy();
+  expect(within(review).getByText(/Source ID: 202/)).toBeTruthy();
+});

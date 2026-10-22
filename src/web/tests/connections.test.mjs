@@ -192,3 +192,20 @@ test('invalid availability counts are refused instead of displaying misleading u
     expiresAtUtc: '2026-10-22T10:15:00Z', facets: [{ key: 'deviceType', label: 'Device type', hasMore: false, knownCount: 2, values: [] }] };
   await assert.rejects(api.discoverConnection(connection, async () => new Response(JSON.stringify(body))), { kind: 'invalidResponse' });
 });
+
+test('legacy adoption consent is serialized with the reviewed import selection', async () => {
+  const selection = { snapshotId: '11111111-1111-4111-8111-111111111111', query: '', facets: {}, adoptExistingHierarchy: true };
+  const preview = { fingerprint: 'H', levels: [], objectCount: 0, groupCount: 0, fallbackObjectCount: 0, rootObjectCount: 0,
+    alreadyImported: 2, groups: [], warnings: [], conflicts: [], typesToCreate: [], canImport: true, actingAs: null,
+    adoptingHierarchy: true, existingWells: 2, groupsToAdopt: 0 };
+  const reviewed = await api.previewImport(connection, [], selection, async (_url, init) => {
+    assert.equal(JSON.parse(init.body).adoptExistingHierarchy, true);
+    return new Response(JSON.stringify(preview));
+  });
+  assert.equal(reviewed.adoptingHierarchy, true);
+  await api.importFromConnection(connection, [], 'H', selection, async (_url, init) => {
+    assert.equal(JSON.parse(init.body).adoptExistingHierarchy, true);
+    return new Response(JSON.stringify({ wellsCreated: 0, groupsCreated: 0, groupsReused: 0, alreadyImported: 2, typesCreated: [], hierarchyAdopted: true }));
+  });
+  await assert.rejects(api.previewImport(connection, [], selection, async () => new Response(JSON.stringify({ ...preview, existingWells: -1 }))), { kind: 'invalidResponse' });
+});

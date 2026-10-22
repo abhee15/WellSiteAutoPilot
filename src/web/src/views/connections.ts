@@ -19,14 +19,15 @@ export type DiscoveryFacet = { key: string; label: string; values: { value: stri
  * `items` is only the first part of what was found (at most 1,000): `totalCount` says how many there are, and
  * `snapshotId` names the kept list that searching, reviewing and importing work from.
  */
+export type ImportHierarchy = { status: 'New' | 'Saved' | 'Legacy'; levels: string[] | null };
 export type Discovery = {
   complete: boolean; items: DiscoveredObject[]; warnings: string[]; actingAs: string | null;
-  totalCount: number; snapshotId: string; facets: DiscoveryFacet[]; expiresAtUtc: string; sourceAssetCount?: number | null;
+  totalCount: number; snapshotId: string; facets: DiscoveryFacet[]; expiresAtUtc: string; sourceAssetCount?: number | null; hierarchy?: ImportHierarchy | null;
 };
 
 /** Either all matching objects in a kept snapshot, or explicit source identities without filters. */
 export type DiscoveryObjectKey = { kind: string; externalId: string };
-export type ImportSelection = { snapshotId: string; query: string; facets: Record<string, string[]>; objects?: DiscoveryObjectKey[] };
+export type ImportSelection = { snapshotId: string; query: string; facets: Record<string, string[]>; objects?: DiscoveryObjectKey[]; adoptExistingHierarchy?: boolean };
 export const discoveryKey = (item: DiscoveryObjectKey) => JSON.stringify([item.kind, item.externalId]);
 
 export type SearchResult = { matchCount: number; items: DiscoveredObject[] };
@@ -95,6 +96,8 @@ function isDiscovery(value: unknown): value is Discovery {
     isDiscoveredObjects(value.items) && Number.isSafeInteger(value.totalCount) &&
     (value.totalCount as number) >= value.items.length && typeof value.snapshotId === 'string' && uuid.test(value.snapshotId) &&
     (value.sourceAssetCount == null || Number.isSafeInteger(value.sourceAssetCount) && (value.sourceAssetCount as number) >= 0) &&
+    (value.hierarchy == null || isObject(value.hierarchy) && ['New', 'Saved', 'Legacy'].includes(String(value.hierarchy.status)) &&
+      (value.hierarchy.status === 'Saved' ? Array.isArray(value.hierarchy.levels) && value.hierarchy.levels.every(level => typeof level === 'string') : value.hierarchy.levels === null)) &&
     typeof value.expiresAtUtc === 'string' && Array.isArray(value.facets) && value.facets.every(facet => isFacet(facet) && (facet.knownCount == null || facet.knownCount <= (value.totalCount as number)));
 }
 
@@ -229,18 +232,18 @@ export async function discoverConnection(connection: Connection, fetcher: typeof
 }
 
 export type ImportGroup = {
-  name: string; isFallback: boolean; objectCount: number; sampleNames: string[]; children: ImportGroup[];
+  name: string; isFallback: boolean; objectCount: number; sampleNames: string[]; children: ImportGroup[]; key?: string | null; sourceIdentity?: string | null;
 };
 
 /** What an import would create, for review. `fingerprint` names this exact plan and is sent back to apply it. */
 export type ImportPreview = {
   fingerprint: string; levels: string[]; objectCount: number; groupCount: number; fallbackObjectCount: number;
   rootObjectCount: number; groups: ImportGroup[]; warnings: string[]; conflicts: string[]; typesToCreate: string[];
-  canImport: boolean; actingAs: string | null; alreadyImported: number;
+  canImport: boolean; actingAs: string | null; alreadyImported: number; adoptingHierarchy?: boolean; existingWells?: number; groupsToAdopt?: number;
 };
 
 export type ImportResult = {
-  wellsCreated: number; groupsCreated: number; groupsReused: number; alreadyImported: number; typesCreated: string[];
+  wellsCreated: number; groupsCreated: number; groupsReused: number; alreadyImported: number; typesCreated: string[]; hierarchyAdopted?: boolean;
 };
 
 const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
@@ -248,6 +251,8 @@ const isStrings = (value: unknown): value is string[] => Array.isArray(value) &&
 
 function isImportGroup(value: unknown, depth = 0): value is ImportGroup {
   return depth <= 5 && isObject(value) && typeof value.name === 'string' && typeof value.isFallback === 'boolean' &&
+    (value.sourceIdentity == null || typeof value.sourceIdentity === 'string') &&
+    (value.key == null || typeof value.key === 'string' && /^[A-F0-9]{64}$/.test(value.key)) &&
     isCount(value.objectCount) && isStrings(value.sampleNames) && Array.isArray(value.children) &&
     value.children.every(child => isImportGroup(child, depth + 1));
 }
@@ -257,12 +262,14 @@ function isImportPreview(value: unknown): value is ImportPreview {
     isStrings(value.levels) && isCount(value.objectCount) && isCount(value.groupCount) &&
     isCount(value.fallbackObjectCount) && isCount(value.rootObjectCount) && isCount(value.alreadyImported) &&
     Array.isArray(value.groups) && value.groups.every(group => isImportGroup(group)) &&
+    (value.adoptingHierarchy === undefined || typeof value.adoptingHierarchy === 'boolean') &&
+    (value.existingWells === undefined || isCount(value.existingWells)) && (value.groupsToAdopt === undefined || isCount(value.groupsToAdopt)) &&
     isStrings(value.warnings) && isStrings(value.conflicts) && isStrings(value.typesToCreate) &&
     typeof value.canImport === 'boolean' && (value.actingAs === null || typeof value.actingAs === 'string');
 }
 
 function isImportResult(value: unknown): value is ImportResult {
-  return isObject(value) && isCount(value.wellsCreated) && isCount(value.groupsCreated) &&
+  return isObject(value) && (value.hierarchyAdopted === undefined || typeof value.hierarchyAdopted === 'boolean') && isCount(value.wellsCreated) && isCount(value.groupsCreated) &&
     isCount(value.groupsReused) && isCount(value.alreadyImported) && isStrings(value.typesCreated);
 }
 
@@ -270,6 +277,7 @@ const selectionBody = (selection: ImportSelection | null) => selection === null 
   snapshotId: selection.snapshotId, query: selection.query || null,
   facets: Object.keys(selection.facets).length > 0 ? selection.facets : null,
   ...(selection.objects !== undefined ? { objects: selection.objects } : {}),
+  ...(selection.adoptExistingHierarchy ? { adoptExistingHierarchy: true } : {}),
 };
 
 /** Reads a stable page of the full kept inventory, narrowed by words and grouping values. */
