@@ -34,10 +34,12 @@ export function AssetOwnerRow({
         <AssetNodeIcon kind={owner.connectionId === null ? 'standalone' : 'connection'} />
         {label}
       </button>
-      <small>{t('assetOwner.count', { count: String(owner.assetCount) })}</small>
-      {owner.connectionId !== null && !owner.isEnabled && <small>{t('assetOwner.disabled')}</small>}
-      {owner.connectionId !== null && canOpenConnection &&
-        <a className="asset-owner-link" href={hashFor('connections', owner.connectionId)}>{t('assetOwner.open')}</a>}
+      <div className="asset-owner-meta">
+        <small>{t('assetOwner.count', { count: String(owner.assetCount) })}</small>
+        {owner.connectionId !== null && !owner.isEnabled && <small>{t('assetOwner.disabled')}</small>}
+        {owner.connectionId !== null && canOpenConnection &&
+          <a className="asset-owner-link" href={hashFor('connections', owner.connectionId)}>{t('assetOwner.open')}</a>}
+      </div>
     </div>
   );
 }

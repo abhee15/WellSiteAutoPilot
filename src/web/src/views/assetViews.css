@@ -1,9 +1,20 @@
 /* Asset Views: semantic tokens only. */
-.asset-view-editor { display: grid; gap: var(--space-12); padding: var(--space-12) var(--space-18); }
+.asset-view-editor { display: grid; gap: var(--space-14); padding: var(--space-16) var(--space-18) var(--space-18); }
 .asset-view-editor h3 { margin: 0; }
-.asset-view-editor fieldset { display: grid; gap: var(--space-6); border: 1px solid var(--color-border-row); border-radius: 6px; padding: var(--space-10) var(--space-12); }
-.asset-view-check { display: flex; align-items: center; gap: var(--space-6); }
+.asset-view-editor p { margin: 0; }
+/* One field pattern, shared with the other forms: small caption above a full-width control. */
+.asset-view-editor label:not(.asset-view-check) { display: grid; gap: var(--space-6); max-width: 420px; }
+.asset-view-editor label:not(.asset-view-check) > span { color: var(--color-text-secondary); font-size: var(--font-size-body-small); font-weight: 500; }
+.asset-view-editor input:not([type='checkbox']), .asset-view-editor select { inline-size: 100%; }
+.asset-view-editor fieldset { display: grid; gap: var(--space-8); margin: 0; min-inline-size: 0;
+  border: var(--border-width-thin) solid var(--color-border-row); border-radius: var(--radius-8); padding: var(--space-12) var(--space-14); }
+.asset-view-editor legend { padding: 0 var(--space-6); font-weight: 600; font-size: var(--font-size-body-small); }
+.asset-view-check { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--space-8); row-gap: var(--space-4); }
+.asset-view-check > .connection-help { grid-column: 2; }
 .asset-view-levels { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-6); }
 .asset-view-levels li { display: flex; align-items: center; gap: var(--space-6); }
 .asset-view-levels li > span { flex: 1; }
-.asset-view-bar { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; padding: var(--space-8) var(--space-18); }
+.asset-view-bar { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; padding: var(--space-4) 0; }
+.asset-view-bar label { display: flex; align-items: center; gap: var(--space-8); color: var(--color-text-secondary); font-size: var(--font-size-body-small); }
+.asset-view-bar select { min-inline-size: 220px; }
+.asset-view-bar .secondary-button, .asset-view-bar select { min-height: 36px; font-size: var(--font-size-body-small); }

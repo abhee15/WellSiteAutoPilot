@@ -2,11 +2,25 @@
 .asset-tree { padding: var(--space-12) var(--space-18); }
 .asset-tree ul { list-style: none; margin: 0; padding: 0 0 0 var(--space-16); }
 .asset-tree > ul { padding-left: 0; }
-.asset-tree-row { display: flex; align-items: center; gap: var(--space-6); padding: var(--space-4) 0; }
-.asset-tree-row small { color: var(--color-text-subtle); }
-.asset-tree-toggle { width: var(--space-20); flex: none; text-align: center; }
-.asset-tree-name[data-selected='true'] { font-weight: 600; }
+.asset-tree-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-6);
+  min-height: 32px; padding: var(--space-4) var(--space-4); border-radius: var(--radius-6); }
+.asset-tree-row:hover { background: var(--color-surface-row-hover); }
+.asset-tree-row:has([data-selected='true']) { background: var(--color-surface-navigation-active); box-shadow: inset 3px 0 0 var(--color-focus-ring); }
+.asset-tree-row small { color: var(--color-text-subtle); white-space: nowrap; font-size: var(--font-size-label); }
+/* Expand/collapse: a compact icon button, not a native grey box. */
+button.asset-tree-toggle { display: inline-grid; place-items: center; inline-size: var(--space-20); block-size: var(--space-20);
+  flex: none; padding: 0; border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-4);
+  background: var(--color-surface-panel); color: var(--color-text-secondary); font-size: var(--font-size-body-small); line-height: 1; cursor: pointer; }
+button.asset-tree-toggle:hover { background: var(--color-surface-control-hover); border-color: var(--color-border-control); }
+span.asset-tree-toggle { inline-size: var(--space-20); flex: none; }
+/* Names read as text first; the link look appears on hover and for the selected row. */
+.asset-tree-name { flex: 1 1 auto; min-width: 0; color: var(--color-text-primary); text-decoration: none; overflow-wrap: anywhere; }
+.asset-tree-name:hover { color: var(--color-text-link); text-decoration: underline; }
+.asset-tree-name[data-selected='true'] { font-weight: 600; color: var(--color-text-selected); }
 .asset-tree-status { padding: var(--space-4) 0 var(--space-4) var(--space-24); color: var(--color-text-subtle); }
 .asset-owner-row { font-weight: 600; }
-.asset-owner-link { font-size: var(--font-size-label); }
+/* Count and link sit on their own line under the name, aligned with it, so a long Connection name never squeezes them. */
+.asset-owner-meta { flex-basis: 100%; display: flex; gap: var(--space-12); align-items: baseline;
+  padding-left: calc(var(--space-20) + var(--space-6)); font-weight: 400; }
+.asset-owner-link { font-size: var(--font-size-label); white-space: nowrap; }
 .asset-node-icon { flex: none; color: var(--color-text-subtle); vertical-align: middle; margin-right: var(--space-4); }
