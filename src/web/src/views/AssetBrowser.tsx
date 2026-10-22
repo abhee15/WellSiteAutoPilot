@@ -142,7 +142,8 @@ export function AssetBrowser({
                 <button type="button" className="asset-select asset-tree-name" data-selected={node.id === selectedId}
                   aria-label={t('assetTree.open', { name })} onClick={() => selection ? (selectable ? selection.onToggle(node) : hasChildren && toggle(node.id)) : onSelect(node.id)}>
                   <AssetNodeIcon kind={assetNodeKind(hasChildren, typeNames?.get(node.assetTypeId))} />{name}</button>
-                {hasChildren && <small>{t('assetTree.count', { count: String(node.childCount) })}</small>}
+                {hasChildren && <small className="asset-tree-count" title={t('assetTree.count', { count: String(node.childCount) })}>
+                  {node.childCount}<span className="visually-hidden"> {t('assetTree.below')}</span></small>}
                 {hasChildren && selection && <button type="button" className="asset-select" disabled={selection.busy}
                   aria-label={t('assetViews.selectBranch', { name })} onClick={() => selection.onSelectBranch(node.id)}>
                   {t('assetViews.selectBranchShort')}</button>}

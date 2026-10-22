@@ -1,10 +1,11 @@
 import type { ExecutionResponse } from '../api/generated/v1/types.gen';
 
-export type OperationsStatusFilter = 'all' | 'active' | 'attention' | 'completed';
+/** Which kinds of run to show. None chosen means every run. */
+export type OperationsStatusFilter = 'active' | 'attention' | 'completed';
 export type OperationsSort = 'newest' | 'oldest';
 export type OperationsViewCriteria = {
   search: string;
-  status: OperationsStatusFilter;
+  statuses: readonly OperationsStatusFilter[];
   sort: OperationsSort;
 };
 
@@ -17,15 +18,14 @@ export type SavedOperationsView = {
 export const MAX_SAVED_OPERATIONS_VIEWS = 20;
 export const DEFAULT_OPERATIONS_VIEW: OperationsViewCriteria = {
   search: '',
-  status: 'all',
+  statuses: [],
   sort: 'newest',
 };
 
 const activeStates = new Set(['requested', 'queued', 'starting', 'running', 'waiting']);
 const attentionStates = new Set(['failed', 'suspended', 'timedout']);
-const allowedStatus = new Set<OperationsStatusFilter>(
-  ['all', 'active', 'attention', 'completed'],
-);
+export const OPERATIONS_STATUS_FILTERS: readonly OperationsStatusFilter[] = ['active', 'attention', 'completed'];
+const allowedStatus = new Set<string>(OPERATIONS_STATUS_FILTERS);
 const allowedSort = new Set<OperationsSort>(['newest', 'oldest']);
 
 /**
@@ -40,9 +40,8 @@ export function filterOperations(
   const query = criteria.search.trim().toLowerCase();
   return recentExecutions.filter(row => {
     const status = row.status?.toLowerCase() ?? '';
-    if (criteria.status === 'active' && !activeStates.has(status)) return false;
-    if (criteria.status === 'attention' && !attentionStates.has(status)) return false;
-    if (criteria.status === 'completed' && status !== 'completed') return false;
+    if (criteria.statuses.length > 0 && !criteria.statuses.some(kind =>
+      kind === 'active' ? activeStates.has(status) : kind === 'attention' ? attentionStates.has(status) : status === 'completed')) return false;
     if (!query) return true;
     return [
       row.assetExternalId, row.quantity, row.moduleId, row.moduleVersion,
@@ -60,13 +59,23 @@ export function savedViewsKey(userId: string): string {
   return 'wsa:operations:views:v1:' + encodeURIComponent(userId);
 }
 
-function isCriteria(value: unknown): value is OperationsViewCriteria {
-  if (typeof value !== 'object' || value === null) return false;
-  const item = value as Partial<OperationsViewCriteria>;
-  return typeof item.search === 'string' &&
-    item.search.length <= 120 &&
-    allowedStatus.has(item.status as OperationsStatusFilter) &&
-    allowedSort.has(item.sort as OperationsSort);
+/** Reads the chosen statuses; views saved before multi-select kept one value in `status` ('all' meant none). */
+function savedStatuses(item: Record<string, unknown>): OperationsStatusFilter[] | null {
+  if (Array.isArray(item.statuses)) {
+    return item.statuses.every(value => allowedStatus.has(value as string))
+      ? OPERATIONS_STATUS_FILTERS.filter(kind => (item.statuses as unknown[]).includes(kind)) : null;
+  }
+  if (item.status === 'all') return [];
+  return allowedStatus.has(item.status as string) ? [item.status as OperationsStatusFilter] : null;
+}
+
+function readCriteria(value: unknown): OperationsViewCriteria | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const item = value as Record<string, unknown>;
+  const statuses = savedStatuses(item);
+  if (typeof item.search !== 'string' || item.search.length > 120 || !statuses ||
+      !allowedSort.has(item.sort as OperationsSort)) return null;
+  return { search: item.search, statuses, sort: item.sort as OperationsSort };
 }
 
 export function parseSavedOperationsViews(raw: string | null): SavedOperationsView[] {
@@ -85,7 +94,7 @@ export function parseSavedOperationsViews(raw: string | null): SavedOperationsVi
       if (typeof view.id !== 'string' || !view.id.trim() || view.id.length > 80 ||
           typeof view.name !== 'string' || view.name.trim() !== view.name ||
           view.name.length === 0 || view.name.length > 48 ||
-          !isCriteria(view.criteria)) continue;
+          !readCriteria(view.criteria)) continue;
 
       const uniqueName = view.name.toLowerCase();
       if (ids.has(view.id) || names.has(uniqueName)) continue;
@@ -94,11 +103,7 @@ export function parseSavedOperationsViews(raw: string | null): SavedOperationsVi
       views.push({
         id: view.id,
         name: view.name,
-        criteria: {
-          search: view.criteria.search,
-          status: view.criteria.status,
-          sort: view.criteria.sort,
-        },
+        criteria: readCriteria(view.criteria)!,
       });
       if (views.length === MAX_SAVED_OPERATIONS_VIEWS) break;
     }

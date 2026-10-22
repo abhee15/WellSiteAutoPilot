@@ -1,15 +1,17 @@
 import type { RecommendationStatus, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 
-export type RecommendationInboxFilter = 'all' | 'awaiting' | 'expired' | 'decided';
+/** Which review states to show. None chosen means every recommendation. */
+export type RecommendationInboxFilter = 'awaiting' | 'expired' | 'decided';
+export const RECOMMENDATION_INBOX_FILTERS: readonly RecommendationInboxFilter[] = ['awaiting', 'expired', 'decided'];
 export type RecommendationInboxSort = 'newest' | 'oldest';
 export type RecommendationInboxCriteria = {
   search: string;
-  filter: RecommendationInboxFilter;
+  filters: readonly RecommendationInboxFilter[];
   sort: RecommendationInboxSort;
 };
 
 export const DEFAULT_RECOMMENDATION_INBOX_CRITERIA: RecommendationInboxCriteria = {
-  search: '', filter: 'awaiting', sort: 'newest',
+  search: '', filters: ['awaiting'], sort: 'newest',
 };
 
 // `satisfies` makes the compiler check each name against the server's RecommendationStatus.
@@ -55,9 +57,10 @@ export function filterRecommendationInbox(
 ): RecommendationSummaryResponse[] {
   const query = criteria.search.trim().toLocaleLowerCase();
   return authorizedItems.filter(item => {
-    if (criteria.filter === 'awaiting' && !recommendationIsAwaiting(item, nowUtc)) return false;
-    if (criteria.filter === 'expired' && !recommendationIsExpired(item, nowUtc)) return false;
-    if (criteria.filter === 'decided' && !decidedStates.has(item.status ?? '')) return false;
+    if (criteria.filters.length > 0 && !criteria.filters.some(kind =>
+      kind === 'awaiting' ? recommendationIsAwaiting(item, nowUtc)
+        : kind === 'expired' ? recommendationIsExpired(item, nowUtc)
+          : decidedStates.has(item.status ?? ''))) return false;
 
     if (!query) return true;
     return [item.assetId, item.moduleId, item.code, item.command,

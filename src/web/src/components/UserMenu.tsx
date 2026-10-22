@@ -61,7 +61,7 @@ export function UserMenu({
         )}
         <p className="user-panel-note">{t('session.authNotice')}</p>
         {hasPermission(user, 'security.manage') && (
-          <a className="user-panel-link" href="#access">{t('access.menu')}</a>
+          <a className="action-link user-panel-link" href="#access">{t('access.menu')}</a>
         )}
       </div>
     </details>

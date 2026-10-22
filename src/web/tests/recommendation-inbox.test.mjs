@@ -30,7 +30,7 @@ const items = [
     moduleId: 'wfd.fill', createdAtUtc: '2026-10-14T08:00:00Z',
     expiresAtUtc: null },
 ];
-const criteria = { search: '', filter: 'all', sort: 'newest' };
+const criteria = { search: '', filters: [], sort: 'newest' };
 const ids = rows => rows.map(item => item.id);
 
 test('filters outstanding separately from stale and terminal decisions', () => {
@@ -38,11 +38,16 @@ test('filters outstanding separately from stale and terminal decisions', () => {
     awaiting: 2, expired: 1, decided: 1,
   });
   assert.deepEqual(ids(inbox.filterRecommendationInbox(items,
-    { ...criteria, filter: 'awaiting' }, nowUtc)), ['b', 'd']);
+    { ...criteria, filters: ['awaiting'] }, nowUtc)), ['b', 'd']);
   assert.deepEqual(ids(inbox.filterRecommendationInbox(items,
-    { ...criteria, filter: 'expired' }, nowUtc)), ['a']);
+    { ...criteria, filters: ['expired'] }, nowUtc)), ['a']);
   assert.deepEqual(ids(inbox.filterRecommendationInbox(items,
-    { ...criteria, filter: 'decided' }, nowUtc)), ['c']);
+    { ...criteria, filters: ['decided'] }, nowUtc)), ['c']);
+});
+
+test('several review states can be chosen together', () => {
+  assert.deepEqual(ids(inbox.filterRecommendationInbox(items,
+    { ...criteria, filters: ['awaiting', 'decided'] }, nowUtc)), ['b', 'c', 'd']);
 });
 
 test('search and deterministic sorting never mutate the authorized subset', () => {

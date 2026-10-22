@@ -1,12 +1,19 @@
 import { useState } from 'react';
+import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
+import type { MessageKey } from '../localization';
 import type { OperationsViewCriteria, SavedOperationsView } from './operationsViews';
 import {
   DEFAULT_OPERATIONS_VIEW,
+  OPERATIONS_STATUS_FILTERS,
   MAX_SAVED_OPERATIONS_VIEWS,
   loadSavedOperationsViews,
   persistSavedOperationsViews,
 } from './operationsViews';
+
+const statusLabels: Record<(typeof OPERATIONS_STATUS_FILTERS)[number], MessageKey> = {
+  active: 'views.active', attention: 'views.attention', completed: 'views.completed',
+};
 
 type Props = {
   userId: string | null | undefined;
@@ -119,21 +126,13 @@ export function OperationsViewControls({
             })}
           />
         </label>
-        <label>
-          <span>{t('views.status')}</span>
-          <select
-            value={criteria.status}
-            onChange={event => changeCriteria({
-              ...criteria,
-              status: event.target.value as OperationsViewCriteria['status'],
-            })}
-          >
-            <option value="all">{t('views.all')}</option>
-            <option value="active">{t('views.active')}</option>
-            <option value="attention">{t('views.attention')}</option>
-            <option value="completed">{t('views.completed')}</option>
-          </select>
-        </label>
+        <MultiSelect
+          label={t('views.status')}
+          allLabel={t('views.all')}
+          options={OPERATIONS_STATUS_FILTERS.map(value => ({ value, label: t(statusLabels[value]) }))}
+          selected={criteria.statuses}
+          onChange={statuses => changeCriteria({ ...criteria, statuses })}
+        />
         <label>
           <span>{t('views.sort')}</span>
           <select
