@@ -253,3 +253,41 @@ Still pending: durable source-check/impact records, the module source-fact evalu
 reviewed source-driven moves or recipe restructuring, and deletion/reimport controls. No execution eligibility
 claim is made by the import foundation. Ambiguous legacy layouts need a later explicit repair/restructure path;
 this slice preserves them and refuses to guess.
+
+## Durable diagnostic review checkpoint
+
+Manual **Check for changes** now persists revisioned check metadata and deduplicated source-change evidence.
+The source read uses the same authorized Gateway discovery sequence as import. ForeSite reports its actual
+user-asset filter (including unmapped `0`), rather than guessing scope from returned wells. Checks retain the
+Gateway account, exact filter evidence, settings/hierarchy revisions, accepted-binding fingerprint, timestamps,
+completion state and field availability. Settings, recipe or accepted-binding changes during discovery make
+the result stale. Concurrent checks are refused; an interrupted check can be superseded after 15 minutes.
+
+Comparison uses original source baselines, not editable Asset names. It distinguishes new wells, confirmed
+fact/name changes and wells not returned in a complete inventory. Missing per-well facts, unavailable optional
+fields, corrupt baselines and partial inventory absence remain unknown. Legacy facts support limited comparison
+without inventing source names. Unknown comparisons are counted separately; they are not confirmed changes.
+Failed, partial, stale and reverted observations never remove previous findings. Repeated identical evidence
+updates its last-seen check rather than inserting duplicates. All discovery items participate, beyond the UI sample.
+
+Potential configuration impacts are persisted from immutable target and data-input bindings across **all** saved
+revisions. Retained findings acquire newly saved references on subsequent usable checks, including after source
+reversion. Review separates current Connection View membership from pinned configuration references and displays
+current active/draft/validated/historical status. Full-definition read authority filters configuration names and
+revision IDs, including every revision's input scope. This first review surface requires Connection read plus
+AllAssets `assets.read`; checking additionally requires Connection management and AllAssets `assets.manage`.
+Exact-Asset-only readers cannot inspect Connection-wide source inventories through this endpoint.
+
+The review is explicitly diagnostic: it neither evaluates compatibility nor blocks execution. There is no
+acknowledge/resolve action in this slice, no automatic baseline acceptance, no hierarchy movement and no View
+membership edit. A source reversion is not a resolution. Search and row paging are bounded; each finding returns
+at most 100 readable Views and 100 readable configuration references, with an explicit truncation notice.
+References describe what was captured at check time; this is not continuous monitoring. Only difference evidence
+is materialized per source well; unchanged and unknown-only comparisons contribute to check counts. Before
+operational eligibility ships, persist a latest per-well observation revision including unknown/failed coverage;
+this diagnostic history must not be treated as a complete current fact store. Source-check history
+also prevents deleting its Connection; disabling remains available.
+
+Remaining release gates are the versioned prerequisite evaluator and durable execution eligibility fence,
+reviewed source-fact/path acceptance (including path previews and local overrides), independent impact resolution,
+and guarded deletion/reimport. This checkpoint does not satisfy the end-to-end operational safety proof above.

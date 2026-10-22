@@ -20,6 +20,9 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<ConnectionEntity> Connections => Set<ConnectionEntity>();
     public DbSet<AssetViewMemberEntity> AssetViewMembers => Set<AssetViewMemberEntity>();
     public DbSet<AssetViewEntity> AssetViews => Set<AssetViewEntity>();
+    public DbSet<SourceCheckEntity> SourceChecks => Set<SourceCheckEntity>();
+    public DbSet<SourceChangeEntity> SourceChanges => Set<SourceChangeEntity>();
+    public DbSet<SourceChangeImpactEntity> SourceChangeImpacts => Set<SourceChangeImpactEntity>();
     public DbSet<ImportHierarchyEntity> ImportHierarchies => Set<ImportHierarchyEntity>();
     public DbSet<ImportedGroupEntity> ImportedGroups => Set<ImportedGroupEntity>();
     public DbSet<SourceBindingEntity> SourceBindings => Set<SourceBindingEntity>();
@@ -110,6 +113,38 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         viewMember.HasKey(x => new { x.ViewId, x.AssetId });
         viewMember.HasOne<AssetViewEntity>().WithMany().HasForeignKey(x => x.ViewId).OnDelete(DeleteBehavior.Cascade);
         viewMember.HasOne<AssetEntity>().WithMany().HasForeignKey(x => x.AssetId).OnDelete(DeleteBehavior.Restrict);
+
+        var check = modelBuilder.Entity<SourceCheckEntity>();
+        check.ToTable("source_checks", "integration");
+        check.HasKey(x => x.Id);
+        check.Property(x => x.AcceptedBindingsFingerprint).HasMaxLength(64).IsRequired();
+        check.Property(x => x.Status).HasMaxLength(32).IsRequired();
+        check.Property(x => x.ActingAs).HasMaxLength(256);
+        check.Property(x => x.WarningsJson).IsRequired();
+        check.HasIndex(x => new { x.ConnectionId, x.Revision }).IsUnique();
+        check.HasOne<ConnectionEntity>().WithMany().HasForeignKey(x => x.ConnectionId).OnDelete(DeleteBehavior.Restrict);
+        var change = modelBuilder.Entity<SourceChangeEntity>();
+        change.ToTable("source_changes", "integration");
+        change.HasKey(x => x.Id);
+        change.Property(x => x.ResourceKind).HasMaxLength(128).IsRequired();
+        change.Property(x => x.ExternalId).HasMaxLength(256).IsRequired();
+        change.Property(x => x.SourceName).HasMaxLength(256).IsRequired();
+        change.Property(x => x.Fingerprint).HasMaxLength(64).IsRequired();
+        change.Property(x => x.Status).HasMaxLength(32).IsRequired();
+        change.Property(x => x.EvidenceJson).IsRequired();
+        change.HasIndex(x => new { x.ConnectionId, x.ResourceKind, x.ExternalId, x.Fingerprint }).IsUnique();
+        change.HasIndex(x => new { x.ConnectionId, x.LastSeenAtUtc });
+        change.HasOne<ConnectionEntity>().WithMany().HasForeignKey(x => x.ConnectionId).OnDelete(DeleteBehavior.Restrict);
+        change.HasOne<AssetEntity>().WithMany().HasForeignKey(x => x.AssetId).OnDelete(DeleteBehavior.Restrict);
+        change.HasOne<SourceCheckEntity>().WithMany().HasForeignKey(x => x.FirstCheckId).OnDelete(DeleteBehavior.Restrict);
+        change.HasOne<SourceCheckEntity>().WithMany().HasForeignKey(x => x.LastCheckId).OnDelete(DeleteBehavior.Restrict);
+        var impact = modelBuilder.Entity<SourceChangeImpactEntity>();
+        impact.ToTable("source_change_impacts", "integration");
+        impact.HasKey(x => new { x.ChangeId, x.RevisionId, x.Kind, x.Reference });
+        impact.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+        impact.Property(x => x.Reference).HasMaxLength(128).IsRequired();
+        impact.HasOne<SourceChangeEntity>().WithMany().HasForeignKey(x => x.ChangeId).OnDelete(DeleteBehavior.Restrict);
+        impact.HasOne<ConfiguredLogicRevisionEntity>().WithMany().HasForeignKey(x => x.RevisionId).OnDelete(DeleteBehavior.Restrict);
 
         var hierarchy = modelBuilder.Entity<ImportHierarchyEntity>();
         hierarchy.ToTable("import_hierarchies", "integration");

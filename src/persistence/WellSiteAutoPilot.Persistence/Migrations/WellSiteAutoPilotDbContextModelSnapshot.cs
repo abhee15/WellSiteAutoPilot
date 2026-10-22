@@ -548,6 +548,181 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.ToTable("source_bindings", "integration");
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceChangeEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AcceptedBaselineJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("AssetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("FirstCheckId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("FirstSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LastCheckId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("LastSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ObservedFactsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResourceKind")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SourceName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssetId");
+
+                    b.HasIndex("FirstCheckId");
+
+                    b.HasIndex("LastCheckId");
+
+                    b.HasIndex("ConnectionId", "LastSeenAtUtc");
+
+                    b.HasIndex("ConnectionId", "ResourceKind", "ExternalId", "Fingerprint")
+                        .IsUnique();
+
+                    b.ToTable("source_changes", "integration");
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceChangeImpactEntity", b =>
+                {
+                    b.Property<Guid>("ChangeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RevisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("FirstSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ChangeId", "RevisionId", "Kind", "Reference");
+
+                    b.HasIndex("RevisionId");
+
+                    b.ToTable("source_change_impacts", "integration");
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceCheckEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AcceptedBindingsFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ActingAs")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Changed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ComparisonUnavailable")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConnectionRevision")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Found")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HierarchyRevision")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("New")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NotReturned")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceScopeJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("UnavailableFieldsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("WarningsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConnectionId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("source_checks", "integration");
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Executions.ExecutionAssetScopeEntity", b =>
                 {
                     b.Property<Guid>("ExecutionId")
@@ -1214,6 +1389,56 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceChangeEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Assets.AssetEntity", null)
+                        .WithMany()
+                        .HasForeignKey("AssetId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.SourceCheckEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirstCheckId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.SourceCheckEntity", null)
+                        .WithMany()
+                        .HasForeignKey("LastCheckId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceChangeImpactEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.SourceChangeEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ChangeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicRevisionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RevisionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceCheckEntity", b =>
+                {
                     b.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
                         .WithMany()
                         .HasForeignKey("ConnectionId")

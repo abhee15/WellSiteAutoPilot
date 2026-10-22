@@ -341,3 +341,61 @@ export function connectionStatus(connection: Connection): ConnectionStatus {
   if (!connection.lastTest) return 'notTested';
   return connection.lastTestIsCurrent ? connection.lastTest.outcome : 'outdated';
 }
+
+export type SourceCheck = {
+  id: string; revision: number; connectionRevision: number; status: string;
+  startedAtUtc: string; completedAtUtc: string | null; actingAs: string | null;
+  found: number; changed: number; new: number; notReturned: number; comparisonUnavailable: number;
+  warnings: string[]; unavailableFields: string[] | null; sourceScopeCount: number | null; sourceScopeFingerprint: string | null;
+};
+export type SourceReference = { id: string; name: string; revisionId: string | null; revisionNumber: number | null; status: string; kind: string; reference: string };
+export type SourceChange = {
+  id: string; assetId: string | null; kind: string; externalId: string; name: string; status: string;
+  firstSeenAtUtc: string; lastSeenAtUtc: string;
+  evidence: { status: string; fingerprint: string; differences: { field: string; accepted: string | null; observed: string | null }[]; unknownFields: string[] };
+  views: SourceReference[]; configurations: SourceReference[]; referencesTruncated: boolean;
+};
+export type SourceChangePage = { latestCheck: SourceCheck | null; lastSuccessfulCheck: SourceCheck | null; total: number; offset: number; items: SourceChange[] };
+const nullableString = (value: unknown) => value === null || typeof value === 'string';
+function isSourceCheck(value: unknown): value is SourceCheck {
+  return isObject(value) && typeof value.id === 'string' && uuid.test(value.id) && isCount(value.revision) && isCount(value.connectionRevision) &&
+    ['Checking', 'Complete', 'Partial', 'Failed', 'Stale', 'Abandoned'].includes(String(value.status)) &&
+    typeof value.startedAtUtc === 'string' && nullableString(value.completedAtUtc) && nullableString(value.actingAs) &&
+    ['found', 'changed', 'new', 'notReturned', 'comparisonUnavailable'].every(key => isCount(value[key])) &&
+    isStrings(value.warnings) && (value.unavailableFields === null || isStrings(value.unavailableFields)) &&
+    (value.sourceScopeCount === null || isCount(value.sourceScopeCount)) && nullableString(value.sourceScopeFingerprint);
+}
+function isSourceReference(value: unknown): value is SourceReference {
+  return isObject(value) && typeof value.id === 'string' && uuid.test(value.id) &&
+    ['name', 'status', 'kind', 'reference'].every(key => typeof value[key] === 'string') &&
+    (value.revisionId === null || typeof value.revisionId === 'string' && uuid.test(value.revisionId)) &&
+    (value.revisionNumber === null || isCount(value.revisionNumber));
+}
+function isSourceChange(value: unknown): value is SourceChange {
+  if (!isObject(value) || !isObject(value.evidence)) return false;
+  const evidence = value.evidence;
+  return typeof value.id === 'string' && uuid.test(value.id) &&
+    (value.assetId === null || typeof value.assetId === 'string' && uuid.test(value.assetId)) &&
+    ['kind', 'externalId', 'name', 'firstSeenAtUtc', 'lastSeenAtUtc'].every(key => typeof value[key] === 'string') &&
+    ['Changed', 'New', 'NotReturned'].includes(String(value.status)) && evidence.status === value.status &&
+    typeof evidence.fingerprint === 'string' && /^[A-F0-9]{64}$/.test(evidence.fingerprint) &&
+    isStrings(evidence.unknownFields) && Array.isArray(evidence.differences) && evidence.differences.every(d =>
+      isObject(d) && typeof d.field === 'string' && nullableString(d.accepted) && nullableString(d.observed)) &&
+    typeof value.referencesTruncated === 'boolean' && Array.isArray(value.views) && value.views.length <= 100 && value.views.every(isSourceReference) &&
+    Array.isArray(value.configurations) && value.configurations.length <= 100 && value.configurations.every(isSourceReference);
+}
+export async function checkSourceChanges(connectionId: string, fetcher: typeof fetch = fetch): Promise<SourceCheck> {
+  const body = await send(`/connections/${connectionId}/source-checks`, { method: 'POST' }, fetcher);
+  if (!isSourceCheck(body)) throw new ConnectionsError('invalidResponse');
+  return body;
+}
+export async function loadSourceChanges(connectionId: string, offset: number, query: string, signal?: AbortSignal,
+  fetcher: typeof fetch = fetch): Promise<SourceChangePage> {
+  const params = new URLSearchParams({ offset: String(offset), limit: '25', query });
+  const body = await send(`/connections/${connectionId}/source-changes?${params}`, { signal }, fetcher);
+  if (!isObject(body) || !(body.latestCheck === null || isSourceCheck(body.latestCheck)) ||
+    !(body.lastSuccessfulCheck === null || isSourceCheck(body.lastSuccessfulCheck)) || !isCount(body.total) ||
+    !isCount(body.offset) || !Array.isArray(body.items) || body.items.length > 25 || !body.items.every(isSourceChange))
+    throw new ConnectionsError('invalidResponse');
+  return body as SourceChangePage;
+}

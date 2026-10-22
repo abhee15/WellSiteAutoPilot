@@ -143,7 +143,8 @@ public static class ForeSiteAdapter
             var deviceTypes = withId.Length == 0 ? new Dictionary<string, string>(StringComparer.Ordinal)
                 : await ReadDeviceTypesAsync(session, scope, actingAs, warnings, cancellationToken);
             return new DiscoveryResult(skipped == 0, withId.Select(well => ToDiscovered(well, assetNames, deviceTypes)).ToArray(), warnings, actingAs,
-                warnings.Count > beforeDeviceWarnings ? ["deviceType"] : []);
+                warnings.Count > beforeDeviceWarnings ? ["deviceType"] : [],
+                scope.AssetIds.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToArray());
         }
         catch (ForeSiteTokenException error)
         {

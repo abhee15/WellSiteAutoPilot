@@ -188,6 +188,7 @@ builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
 builder.Services.AddSingleton<DiscoverySnapshotStore>();
 builder.Services.AddScoped<ConnectionService>();
 builder.Services.AddScoped<ConnectionImportService>();
+builder.Services.AddScoped<SourceChangeService>();
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<ManualShadowRequestService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
@@ -1234,6 +1235,25 @@ v1.MapPost(
     .Produces<DiscoverySearchResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost("/connections/{connectionId:guid}/source-checks",
+    async (Guid connectionId, SourceChangeService changes, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        await changes.CheckAsync(connectionId, access.Subject, access.CreateActor(context), cancellationToken))
+    .WithName("CheckConnectionSourceChanges")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<SourceCheckSummary>()
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapGet("/connections/{connectionId:guid}/source-changes",
+    async (Guid connectionId, int? offset, int? limit, string? query, SourceChangeService changes,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+        await changes.ReadAsync(connectionId, offset ?? 0, limit ?? 25, query, access.Subject, cancellationToken))
+    .WithName("ReviewConnectionSourceChanges")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<SourceChangePage>()
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json");
 
 v1.MapPost(
     "/connections/{connectionId:guid}/import/preview",

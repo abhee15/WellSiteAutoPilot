@@ -83,3 +83,15 @@
   .connection-levels li > span { flex-basis: 100%; }
 }
 .connection-row .status-pill { justify-self: start; }
+
+.connection-source-changes { margin-top: var(--space-18); border-top: var(--border-width-thin) solid var(--color-border-row); padding-top: var(--space-12); }
+.source-change-list { list-style: none; padding: 0; }
+.source-change-list > li { padding: var(--space-12) 0; border-bottom: var(--border-width-thin) solid var(--color-border-row); overflow-wrap: anywhere; }
+.source-change-list summary { cursor: pointer; }
+.source-change-table { overflow-x: auto; }
+.source-change-table table { border-collapse: collapse; width: 100%; }
+.source-change-table th, .source-change-table td { text-align: left; padding: var(--space-8); vertical-align: top; }
+.connection-source-changes { display: grid; gap: var(--space-12); }
+.connection-source-summary { display: grid; gap: var(--space-8); }
+.source-change-list details[open] > :not(summary) { margin-top: var(--space-8); }
+.source-change-table td:first-child { overflow-wrap: normal; }

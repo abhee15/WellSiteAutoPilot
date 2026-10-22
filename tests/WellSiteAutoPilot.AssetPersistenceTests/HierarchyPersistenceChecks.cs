@@ -28,7 +28,7 @@ internal static class HierarchyPersistenceChecks
                 NormalizedIdentityName = actor.IdentityName.ToUpperInvariant(), IsActive = true, CreatedAtUtc = now, LastSeenAtUtc = now });
             fixture.RoleDefinitions.Add(new RoleDefinitionEntity { Id = roleId, Key = roleId.ToString(), Name = roleId.ToString(),
                 NormalizedName = roleId.ToString().ToUpperInvariant(), IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now });
-            foreach (var permission in new[] { WellSitePermissions.AssetsManage, WellSitePermissions.ConnectionsManage })
+            foreach (var permission in new[] { WellSitePermissions.AssetsManage, WellSitePermissions.ConnectionsManage, WellSitePermissions.AssetsRead, WellSitePermissions.ConnectionsRead, WellSitePermissions.ConfiguredLogicRead })
                 fixture.RolePermissions.Add(new RolePermissionEntity { RoleId = roleId, Permission = permission });
             foreach (var scope in new[] { "AllAssets", "DeploymentWide" }) fixture.AccessGrants.Add(new AccessGrantEntity {
                 Id = Guid.NewGuid(), UserId = userId, RoleId = roleId, ScopeKind = scope, IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now });
@@ -38,7 +38,7 @@ internal static class HierarchyPersistenceChecks
             DiscoveryField[] fields = [new("assetName", "Asset", "Unassigned", false, "assetId")];
             string[] levels = ["assetName"];
             DiscoveredAsset Well(string id, string source) => new(id, "Well " + id, "foresite.well", null,
-                new Dictionary<string, string> { ["assetName"] = "Repeated asset name", ["assetId"] = source });
+                new Dictionary<string, string> { ["assetName"] = "Repeated asset name", ["assetId"] = source, ["wellType"] = "ESP", ["deviceType"] = "Controller A" });
             var first = ImportPlanner.Plan(connectionId, [Well("1", "101"), Well("2", "202")], levels, fields);
             var emptyState = await new ConnectionImportRepository(fixture).ReadHierarchyAsync(connectionId);
             await Apply(first, emptyState.Fingerprint, false);
@@ -104,6 +104,7 @@ internal static class HierarchyPersistenceChecks
             Check(await fixture.Assets.AnyAsync(asset => asset.Id == reusedRoot && asset.Name == "Kept local label") &&
                 await fixture.ImportedGroups.AnyAsync(group => group.AssetId == reusedRoot && group.SourceLabel == "Repeated asset name"),
                 "new imports preserve local group labels and their independent accepted source label");
+            await SourceChangePersistenceChecks.RunAsync(options, connectionId, subject, actor);
             async Task<bool> Race()
             {
                 try { await Apply(newWell, saved.Fingerprint, false); return true; }

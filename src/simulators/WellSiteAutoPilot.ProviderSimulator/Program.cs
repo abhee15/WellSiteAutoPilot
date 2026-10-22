@@ -113,20 +113,26 @@ var foreSiteWells = new[]
     new { Id = 103, Name = "Bravo 1", AssetId = 2, WellType = 1, Field = "Bravo", Lease = "L-2", FacilityId = 8, PrincipalDeviceType = (string?)null },
     new { Id = 999, Name = "Inaccessible well", AssetId = 99, WellType = 2, Field = "Private", Lease = "Private", FacilityId = 99, PrincipalDeviceType = (string?)null }
 };
-app.MapPost("/foresite/Wells/Well/Filter", (ForeSiteDiscoveryFilter filter, HttpContext context) =>
+app.MapPost("/foresite/Wells/Well/Filter", (ForeSiteDiscoveryFilter filter, HttpContext context, SimulatorState state) =>
 {
     if (!HasForeSiteSession(context)) return Results.Unauthorized();
     if (filter.AssetIds is not { Length: > 0 }) return Results.BadRequest();
     var allowed = filter.AssetIds.Where(id => id is 0 or 1 or 2).ToHashSet();
-    return Results.Json(foreSiteWells.Where(well => allowed.Contains(well.AssetId)));
+    if (state.Scenario == "foresite-inventory-unavailable") return Results.StatusCode(503);
+    return Results.Json(foreSiteWells.Where(well => allowed.Contains(well.AssetId) &&
+        (state.Scenario != "foresite-well-not-returned" || well.Id != 103)).Select(well => new {
+            well.Id, well.Name, well.AssetId,
+            WellType = state.Scenario == "foresite-well-type-change" && well.Id == 102 ? 1 : well.WellType,
+            well.Field, well.Lease, well.FacilityId, well.PrincipalDeviceType }));
 });
-app.MapPost("/foresite/WellConfig/GetWellAutonomousControlGroupData", (ForeSiteDiscoveryFilter filter, HttpContext context) =>
+app.MapPost("/foresite/WellConfig/GetWellAutonomousControlGroupData", (ForeSiteDiscoveryFilter filter, HttpContext context, SimulatorState state) =>
 {
     if (!HasForeSiteSession(context)) return Results.Unauthorized();
     if (filter.AssetIds is not { Length: > 0 }) return Results.BadRequest();
     var allowed = filter.AssetIds.Where(id => id is 0 or 1 or 2).ToHashSet();
+    if (state.Scenario == "foresite-device-unavailable") return Results.StatusCode(503);
     return Results.Json(new { Units = (string?)null, Values = foreSiteWells.Where(well => allowed.Contains(well.AssetId))
-        .Select(well => new { WellId = well.Id, DeviceType = well.Id == 102 ? "ESP" : "RPC" }) });
+        .Select(well => new { WellId = well.Id, DeviceType = state.Scenario == "foresite-device-change" && well.Id == 102 ? "Replacement" : well.Id == 102 ? "ESP" : "RPC" }) });
 });
 
 app.Run();

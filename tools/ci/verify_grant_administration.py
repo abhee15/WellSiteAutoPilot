@@ -301,6 +301,53 @@ again = request("POST", plan_url, body={"levels": levels})
 assert again["objectCount"] == 0 and again["alreadyImported"] == 3 and again["groupCount"] == 0, again
 repeat = request("POST", import_url, body={"levels": levels, "expectedFingerprint": again["fingerprint"]})
 assert repeat["wellsCreated"] == 0 and repeat["groupsCreated"] == 0 and repeat["alreadyImported"] == 3, repeat
+# Manual source checks persist diagnostics without changing imported identities or accepting source facts.
+source_check_url = "/connections/" + stand_in["id"] + "/source-checks"
+source_review_url = "/connections/" + stand_in["id"] + "/source-changes"
+request("POST", source_check_url, OPERATOR, expected=403)
+request("GET", source_review_url, OPERATOR, expected=403)
+source_checked = request("POST", source_check_url)
+assert source_checked["status"] == "Complete" and source_checked["found"] == 3 and source_checked["changed"] == 0, source_checked
+assert source_checked["sourceScopeCount"] == 3 and source_checked["sourceScopeFingerprint"], source_checked
+source_reviewed = request("GET", source_review_url + "?offset=0&limit=25")
+assert source_reviewed["total"] == 0 and source_reviewed["latestCheck"]["id"] == source_checked["id"], source_reviewed
+assert source_reviewed["lastSuccessfulCheck"]["id"] == source_checked["id"], source_reviewed
+# Mutate the simulator through its test API and observe through Server -> Gateway -> scoped ForeSite calls.
+def foresite_scenario(name):
+    message = urllib.request.Request("http://127.0.0.1:5091/api/sim/v1/scenarios/reset",
+        data=json.dumps({"scenario": name}).encode(), headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(message, timeout=20) as response:
+        assert response.status == 204
+
+try:
+    foresite_scenario("foresite-well-type-change")
+    source_changed = request("POST", source_check_url)
+    assert source_changed["changed"] == 1, source_changed
+    changes = request("GET", source_review_url)
+    assert changes["total"] == 1 and changes["items"][0]["externalId"] == "102", changes
+    assert any(d["field"] == "wellType" and d["accepted"] == "ESP" and d["observed"] == "RRL"
+        for d in changes["items"][0]["evidence"]["differences"]), changes
+    request("POST", source_check_url)
+    assert request("GET", source_review_url)["total"] == 1
+    foresite_scenario("foresite-device-change")
+    assert request("POST", source_check_url)["changed"] == 1
+    device_changes = request("GET", source_review_url)
+    assert device_changes["total"] == 2 and any(d["field"] == "deviceType" and d["observed"] == "Replacement"
+        for change in device_changes["items"] for d in change["evidence"]["differences"]), device_changes
+    foresite_scenario("foresite-device-unavailable")
+    device_failed = request("POST", source_check_url)
+    assert device_failed["status"] == "Complete" and device_failed["comparisonUnavailable"] > 0 and device_failed["unavailableFields"] == ["deviceType"], device_failed
+    assert request("GET", source_review_url)["total"] == 2
+    foresite_scenario("foresite-well-not-returned")
+    assert request("POST", source_check_url)["notReturned"] == 1
+    assert request("GET", source_review_url)["total"] == 3
+    foresite_scenario("foresite-inventory-unavailable")
+    assert request("POST", source_check_url)["status"] == "Partial"
+    assert request("GET", source_review_url)["total"] == 3
+finally:
+    foresite_scenario("rod-pump-normal")
+assert request("POST", source_check_url)["changed"] == 0
+assert request("GET", source_review_url)["total"] == 3, "source reversion erased durable findings"
 # A saved recipe is reported by discovery and cannot be replaced, even through direct API calls.
 recipe_discovery = request("POST", "/connections/" + stand_in["id"] + "/discover")
 assert recipe_discovery["hierarchy"] == {"status": "Saved", "levels": levels}, recipe_discovery
