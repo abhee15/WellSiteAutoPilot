@@ -11,7 +11,7 @@
   margin: 0 0 var(--space-4);
   padding: 0 var(--space-12);
   font-size: var(--font-size-caption);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--letter-spacing-caps);
   text-transform: uppercase;
   color: var(--color-text-muted);
 }

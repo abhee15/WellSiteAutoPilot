@@ -3,9 +3,9 @@
 .asset-tree ul { list-style: none; margin: 0; padding: 0 0 0 var(--space-16); }
 .asset-tree > ul { padding-left: 0; }
 .asset-tree-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-6);
-  min-height: 32px; padding: var(--space-4) var(--space-4); border-radius: var(--radius-6); }
+  min-height: var(--size-row); padding: var(--space-4) var(--space-4); border-radius: var(--radius-6); }
 .asset-tree-row:hover { background: var(--color-surface-row-hover); }
-.asset-tree-row:has([data-selected='true']) { background: var(--color-surface-navigation-active); box-shadow: inset 3px 0 0 var(--color-focus-ring); }
+.asset-tree-row:has([data-selected='true']) { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
 .asset-tree-row small { color: var(--color-text-subtle); white-space: nowrap; font-size: var(--font-size-label); }
 /* Expand/collapse: a compact icon button, not a native grey box. */
 button.asset-tree-toggle { display: inline-grid; place-items: center; inline-size: var(--space-20); block-size: var(--space-20);
@@ -26,4 +26,4 @@ span.asset-tree-toggle { inline-size: var(--space-20); flex: none; }
 
 /* How many assets sit below a group: a down arrow and the number, with the full words for hover and screen readers. */
 .asset-tree-count { display: inline-flex; align-items: center; gap: var(--space-4); }
-.asset-tree-count::before { content: '▾' / ''; font-size: 0.85em; }
+.asset-tree-count::before { content: '▾' / ''; font-size: var(--font-size-caption); }

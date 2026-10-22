@@ -4,6 +4,7 @@ import { t } from '../localization';
 import { formatTimestamp } from '../format';
 import { AuditActivityError, appendAuditEvents, auditActionLabelKey, auditDetails, loadAuditPage } from './auditActivity';
 import type { AuditErrorKind, AuditEvent, AuditFilters } from './auditActivity';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 const noFilters: AuditFilters = { actionPrefix: '', targetType: '' };
 
@@ -97,7 +98,7 @@ export function ActivityPage() {
             onClick={() => apply(noFilters)}>{t('activity.reset')}</button>
         </div>
       </form>
-      {loading && <p role="status" className="access-intro">{t('activity.loading')}</p>}
+      {loading && <LoadingIndicator label={t('activity.loading')} />}
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
       {!loading && !error && events.length === 0 && <p className="access-note access-intro">{t('activity.empty')}</p>}
       {events.length > 0 && (

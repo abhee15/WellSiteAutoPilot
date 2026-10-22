@@ -15,6 +15,7 @@ import {
   recommendationIsExpired,
 } from './recommendationInbox';
 import type { RecommendationInboxCriteria } from './recommendationInbox';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 type InboxError = 'accessDenied' | 'invalidResponse' | 'unavailable';
 
@@ -246,7 +247,7 @@ export function RecommendationsPage({
         {reviewNotice && <p role="status" className="recommendation-readonly-note">
           {reviewNotice}
         </p>}
-        {isLoading && !lastUpdated && <p role="status" className="status-loading">{t('inbox.loading')}</p>}
+        {isLoading && !lastUpdated && <LoadingIndicator label={t('inbox.loading')} />}
         {error && <p role="alert" className="execution-detail-error inbox-error">
           {errorMessages[error]}
         </p>}

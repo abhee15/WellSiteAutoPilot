@@ -22,6 +22,7 @@ import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
 import './splitLayout.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 /** `#logic/modules` opens the Modules tab. */
 const MODULES_TAB = 'modules';
@@ -108,8 +109,8 @@ export function LogicPage({
             />
             {visibleModules.length === 0 ? (
               <>
-                <p className="split-note">{!isLoaded ? t('views.loading')
-                  : modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}</p>
+                {!isLoaded ? <LoadingIndicator label={t('views.loading')} />
+                  : <p className="split-note">{modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}</p>}
                 {isLoaded && modules.length === 0 && <p className="split-note">{t('logicCatalog.noneHint')}</p>}
               </>
             ) : (
@@ -152,8 +153,8 @@ export function LogicPage({
             />
             {visibleConfigurations.length === 0 ? (
               <>
-                <p className="split-note">{!isLoaded ? t('views.loading')
-                  : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}</p>
+                {!isLoaded ? <LoadingIndicator label={t('views.loading')} />
+                  : <p className="split-note">{configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}</p>}
                 {isLoaded && configuredLogic.length === 0 && <p className="split-note">{t('configured.noneHint')}</p>}
               </>
             ) : (

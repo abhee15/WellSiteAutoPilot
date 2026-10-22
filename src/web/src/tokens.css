@@ -96,6 +96,7 @@
   --color-text-placeholder: var(--palette-slate-500);
 
   /* Spacing, shape, typography, and elevation primitives. */
+  --space-2: 2px;
   --space-4: 4px;
   --space-6: 6px;
   --space-8: 8px;
@@ -114,6 +115,7 @@
   --radius-12: 12px;
   --radius-pill: 999px;
   --border-width-thin: 1px;
+  --border-width-thick: 3px;
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
   --font-family-ui: Roboto, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -123,5 +125,48 @@
   --font-size-tag: 0.78rem;
   --font-size-control: 0.82rem;
   --font-size-body-small: 0.875rem;
+  --font-size-heading: clamp(1.5rem, 3vw, 2rem);
+  --font-size-metric: 1.35rem;
+  --letter-spacing-caps: 0.08em;
+  --letter-spacing-wide: 0.04em;
+  --underline-offset: 0.18em;
+  --size-control: 36px;
+  --size-control-compact: 28px;
+  --size-control-small: 24px;
+  --size-touch-target: 44px;
+  --size-row: 32px;
+  --size-avatar: 32px;
+  --size-icon: 16px;
+  --size-dot: 8px;
+  --size-spinner: 20px;
+  --size-spinner-small: 14px;
+  --size-spinner-large: 32px;
+  --size-textarea-min: 72px;
+  --layout-page-min: 320px;
+  --layout-nav-width: 240px;
+  --layout-nav-width-collapsed: 64px;
+  --layout-nav-panel-offset: 72px;
+  --layout-popover-width: 300px;
+  --layout-readable: 760px;
+  --layout-form: 420px;
+  --layout-form-wide: 520px;
+  --layout-column-min: 240px;
+  --layout-panel-min: 280px;
+  --layout-panel-max: 360px;
+  --layout-card-min: 220px;
+  --layout-field-min: 180px;
+  --layout-field-narrow: 130px;
+  --layout-table-min: 860px;
+  --layout-list-max-small: 220px;
+  --layout-list-max: 320px;
+  --layout-list-max-large: 420px;
+  --layout-empty-min: 130px;
+  --size-line: 1.25em;
+  --size-listbox-min: 8rem;
+  --layout-viewport-gutter: 120px;
+  --duration-spin: 0.8s;
+  --duration-appear: 0.15s;
+  --delay-loading: 0.2s;
+  --border-width-spinner: 2px;
   --shadow-popover: 0 12px 28px var(--color-shadow-color);
 }

@@ -1,11 +1,11 @@
 /* Activity (audit) tab: filters above a scrollable table, newest first. */
-.activity-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; margin: 12px 18px; align-items: end; }
-.activity-filters label { display: grid; gap: 6px; }
-.activity-filters input { width: 100%; color: var(--color-text-primary); background: var(--color-surface-input); border: 1px solid var(--color-border-control); border-radius: 6px; padding: 9px; font: inherit; }
-.activity-filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.activity-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-card-min)), 1fr)); gap: var(--space-16); margin: var(--space-12) var(--space-18); align-items: end; }
+.activity-filters label { display: grid; gap: var(--space-6); }
+.activity-filters input { width: 100%; color: var(--color-text-primary); background: var(--color-surface-input); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); padding: var(--space-10); font: inherit; }
+.activity-filter-actions { display: flex; gap: var(--space-8); flex-wrap: wrap; }
 .activity-event-details summary { cursor: pointer; }
-.activity-event-details dl { margin: 6px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; }
+.activity-event-details dl { margin: var(--space-6) 0 0; display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-12); }
 .activity-event-details dt { color: var(--color-text-subtle); }
 .activity-event-details dd { margin: 0; overflow-wrap: anywhere; }
 .activity-cell-wrap { overflow-wrap: anywhere; }
-.activity-more { margin: 12px 18px 18px; }
+.activity-more { margin: var(--space-12) var(--space-18) var(--space-18); }

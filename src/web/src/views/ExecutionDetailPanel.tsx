@@ -14,6 +14,7 @@ import {
 } from './executionDetail';
 import type { ExecutionDetailErrorKind } from './executionDetail';
 import './executionSummary.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 type Props = {
   executionId: string;
@@ -97,7 +98,7 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
           <button type="button" onClick={onClose}>{t('execution.close')}</button>
         </div>
       </div>
-      {isLoading && <p role="status">{t('execution.loading')}</p>}
+      {isLoading && <LoadingIndicator label={t('execution.loading')} />}
       {error && <p role="alert" className="execution-detail-error">{errorMessages[error]}</p>}
       {detail && <ExecutionDetailContent detail={detail} configuredLogic={configuredLogic} assets={assets} />}
     </section>

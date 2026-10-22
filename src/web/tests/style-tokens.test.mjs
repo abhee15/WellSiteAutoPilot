@@ -144,7 +144,7 @@ test('critical text states retain WCAG AA contrast in the light palette', () => 
 
 test('critical UI text and keyboard focus retain explicit semantic tokens', () => {
   assert.match(css, /color:\s*var\(--color-text-primary\)/);
-  assert.match(css, /outline:\s*2px solid var\(--color-focus-ring\)/);
+  assert.match(css, /outline:\s*var\(--focus-ring-width\) solid var\(--color-focus-ring\)/);
   assert.match(css, /border-color:\s*var\(--color-border-status-success\)/);
   assert.match(css, /border-color:\s*var\(--color-border-status-error\)/);
   assert.match(css, /border-color:\s*var\(--color-border-status-warning\)/);

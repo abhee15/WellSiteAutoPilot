@@ -10,7 +10,7 @@
   background: var(--color-surface-input); color: var(--color-text-primary);
   border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6);
 }
-.setup-form select[multiple] { min-height: 8rem; }
+.setup-form select[multiple] { min-height: var(--size-listbox-min); }
 .setup-form p, .setup-revisions p { color: var(--color-text-subtle); overflow-wrap: anywhere; }
 .setup-panel [role="alert"] { color: var(--color-text-warning-strong); }
 .setup-panel [role="status"] { color: var(--color-text-selected); }

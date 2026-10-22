@@ -3,6 +3,7 @@ import { t } from '../localization';
 import { VIEW_PAGE_SIZE, loadViewMembers } from './assetViewsApi';
 import type { ViewAsset } from './assetViewsApi';
 import './assetTree.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 /** Browse only persisted members; display filters never determine membership. */
 export function AssetViewBrowser({ viewId, selectedId, onSelect, query = '' }: {
@@ -30,7 +31,7 @@ export function AssetViewBrowser({ viewId, selectedId, onSelect, query = '' }: {
       <button type="button" className="asset-select" aria-current={asset.id === selectedId ? 'true' : undefined}
         aria-label={t('assetTree.open', { name: asset.name })} onClick={() => onSelect(asset.id)}>{asset.name}</button>
     </li>)}</ul>
-    {loading && <p role="status">{t('views.loading')}</p>}
+    {loading && <LoadingIndicator label={t('views.loading')} />}
     {failed && <p role="alert">{t('assetBrowse.failed')} <button type="button" onClick={() => setRetry(value => value + 1)}>{t('assetBrowse.retry')}</button></p>}
     {hasMore && !failed && <button type="button" disabled={loading} onClick={() => setOffset(value => value + VIEW_PAGE_SIZE)}>{t('assetBrowse.more')}</button>}
     {!loading && !failed && assets.length === 0 && <p>{t('assetViews.empty')}</p>}

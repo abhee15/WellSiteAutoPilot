@@ -3,6 +3,7 @@ import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { loadRoleCatalog, RoleCatalogError, roleChanged, saveRole } from './roleCatalog';
 import type { PermissionDefinition, RoleErrorKind, RoleMutation, RoleRecord } from './roleCatalog';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 const labels: Record<string, MessageKey> = {
   'assets.read': 'roles.permissionAssetsRead',
@@ -256,8 +257,7 @@ export function RoleCatalogPage() {
         {error && <p role="alert" className="execution-detail-error access-intro">
           {errorLabel(error)}</p>}
         {notice && <p role="status" className="access-intro">{notice}</p>}
-        {loading ? <p role="status" className="status-loading access-intro">
-          {t('roles.loading')}</p> : !error && (
+        {loading ? <LoadingIndicator label={t('roles.loading')} /> : !error && (
           <>
             <label className="role-search"><span>{t('roles.search')}</span>
               <input type="search" value={query} maxLength={120}

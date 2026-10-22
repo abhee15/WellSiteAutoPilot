@@ -6,6 +6,7 @@ import { AssetOwnerRow, ownerKey, ownerNameFor } from './AssetOwnerRow';
 import { AssetNodeIcon, assetNodeKind } from './AssetNodeIcon';
 import type { BrowseNode, SearchHit } from './assetBrowseApi';
 import './assetTree.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 const ROOT = '__root__';
 
@@ -152,7 +153,7 @@ export function AssetBrowser({
             </li>
           );
         })}
-        {level.loading && <li role="none" className="asset-tree-status">{t('views.loading')}</li>}
+        {level.loading && <li role="none" className="asset-tree-status"><LoadingIndicator size="small" label={t('views.loading')} /></li>}
         {level.failed && <li role="none" className="asset-tree-status">
           {t('assetBrowse.failed')}{' '}
           <button type="button" className="asset-select" onClick={() => void load(key, level.items.length > 0)}>
@@ -235,7 +236,7 @@ export function AssetSearchResults({
           );
         })}
       </ul>
-      {state.loading && <p className="split-note">{t('views.loading')}</p>}
+      {state.loading && <LoadingIndicator label={t('views.loading')} />}
       {state.failed && <p className="split-note" role="alert">{t('assetBrowse.failed')}</p>}
       {!state.loading && !state.failed && state.hits.length === 0 && <p className="split-note">{t('assets.noMatches')}</p>}
       {state.hasMore && !state.loading && <p className="split-note">

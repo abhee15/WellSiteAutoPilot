@@ -16,6 +16,7 @@ import {
 import { fetchAssetSource } from './assetBrowseApi';
 import type { AssetSource } from './assetBrowseApi';
 import './assetPage.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 type Activity = {
   runs: ExecutionResponse[];
@@ -140,7 +141,7 @@ export function AssetDetail({
 
       {canReadRuns && <section aria-label={t('assetPage.runs')}>
         <h4>{t('assetPage.runs')}</h4>
-        {activity.state === 'loading' && <p role="status" className="asset-page-empty">{t('assetPage.loading')}</p>}
+        {activity.state === 'loading' && <LoadingIndicator label={t('assetPage.loading')} />}
         {activity.state === 'unavailable' && <p role="alert" className="asset-page-empty">{t('assetPage.activityUnavailable')}</p>}
         {activity.state === 'ready' && (activity.runs.length === 0
           ? <p className="asset-page-empty">{t('assetPage.noRuns')}</p>

@@ -12,6 +12,7 @@ import { previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
 import { ScopedGrantEditor } from './ScopedGrantEditor';
 import { GrantAssetDirectoryError, loadGrantAssetDirectory } from './grantAssetDirectory';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 function scopeLabel(scope: GrantDraft['scopeKind']): string {
   return t(scope === 'ExactAssets' ? 'grants.exact'
@@ -195,7 +196,7 @@ export function GrantAdministrationPage(
           </button>
         </div>
         <p className="access-note access-intro">{t('grants.intro')}</p>
-        {isLoading && <p role="status">{t('access.loading')}</p>}
+        {isLoading && <LoadingIndicator label={t('access.loading')} />}
         {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
         {notice && <p role="status" className="access-intro">{notice}</p>}
         {!isLoading && !error && (
@@ -234,7 +235,7 @@ export function GrantAdministrationPage(
           <div className="grant-current-list">
             <h3>{t('grants.existing')}</h3>
             {grantsLoading
-              ? <p role="status">{t('access.loading')}</p>
+              ? <LoadingIndicator label={t('access.loading')} />
               : grants.length === 0
               ? <p>{t('grants.noExisting')}</p>
               : <ul>{grants.map(grant => {

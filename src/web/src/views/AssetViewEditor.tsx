@@ -9,6 +9,7 @@ import { fetchSearch, SEARCH_PAGE_SIZE } from './assetBrowseApi';
 import type { BrowseNode } from './assetBrowseApi';
 import { wellsUnder } from './wellSelection';
 import './assetViews.css';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 const errors: Record<string, MessageKey> = { accessDenied: 'assetViews.errDenied', notFound: 'assetViews.errNotFound',
   nameTaken: 'assetViews.errNameTaken', referenced: 'assetViews.errReferenced', stale: 'assetViews.errStale', invalid: 'assetViews.errInvalid' };
@@ -134,7 +135,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
             {hits.filter(node => node.isActive && wellTypeIds.has(node.assetTypeId)).map(node =>
               <label key={node.id} className="asset-view-check"><input type="checkbox" checked={selected.has(node.id)}
                 aria-label={t('assetViews.selectWell', { name: node.name })} onChange={() => toggle(node)} />{node.name}</label>)}
-            {searchLoading && <p role="status">{t('views.loading')}</p>}
+            {searchLoading && <LoadingIndicator label={t('views.loading')} />}
             {searchError && <p role="alert">{t('assetBrowse.failed')}</p>}
             {hasMore && <button type="button" disabled={searchLoading} onClick={() => void moreSearch()}>{t('assetBrowse.more')}</button>}
           </div> : <AssetBrowser key={connectionId} selectedId={null} ancestorIds={[]} refreshKey={connectionId} onSelect={() => undefined}
@@ -154,7 +155,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
         </section>
       </div>}
     </fieldset>
-    {loading && <p role="status">{t('views.loading')}</p>}
+    {loading && <LoadingIndicator label={t('views.loading')} />}
     {busy && <p role="status">{t('assetViews.working')}</p>}
     {error && <p role="alert" className="status-error">{error}</p>}
     <div className="connection-actions">
