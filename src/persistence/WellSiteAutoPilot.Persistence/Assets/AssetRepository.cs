@@ -62,6 +62,15 @@ public sealed partial class AssetRepository(
         });
     }
 
+    public async Task<IReadOnlyCollection<Asset>> GetAssetsByIdsAsync(IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(assetIds);
+        var ids = assetIds.Distinct().ToArray();
+        return (await dbContext.Assets.AsNoTracking().Where(asset => ids.Contains(asset.Id)).ToArrayAsync(cancellationToken))
+            .Select(ToDomain).ToArray();
+    }
+
     public async Task<Asset?> GetAssetAsync(
         Guid assetId,
         CancellationToken cancellationToken = default)

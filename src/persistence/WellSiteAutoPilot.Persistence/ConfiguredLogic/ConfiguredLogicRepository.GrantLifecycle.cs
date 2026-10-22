@@ -111,6 +111,16 @@ public sealed partial class ConfiguredLogicRepository
             NormalizeManifest(modules[0].ManifestJson) != NormalizeManifest(revision.ModuleManifestJson)) throw DependencyConflict();
         var manifest = JsonSerializer.Deserialize<LogicModuleManifest>(modules[0].ManifestJson, LifecycleManifestOptions) ?? throw DependencyConflict();
         LogicModuleManifestValidator.Validate(manifest);
+        if (revision.View is { } source)
+        {
+            var connections = await dbContext.Connections.FromSqlInterpolated($"""
+                SELECT c.* FROM integration.connections AS c WHERE c."Id" = {source.ConnectionId} FOR SHARE OF c
+                """).AsNoTracking().ToArrayAsync(cancellationToken);
+            if (connections.Length != 1 || !connections[0].IsEnabled || (manifest.RequiredAdapterKey is { } adapter &&
+                !string.Equals(adapter, connections[0].AdapterKey, StringComparison.OrdinalIgnoreCase))) throw DependencyConflict();
+        }
+        else if (manifest.RequiredAdapterKey is not null) throw DependencyConflict();
+
         if (manifest.ModuleId != revision.ModuleId || manifest.Version != revision.ModuleVersion) throw DependencyConflict();
 
         // The grant fence already retains these Asset rows. Retain their type
@@ -121,11 +131,13 @@ public sealed partial class ConfiguredLogicRepository
         var types = await dbContext.AssetTypes.FromSqlInterpolated($"""
             SELECT t.* FROM assets.asset_types AS t WHERE t."Id" = ANY({typeIds}) ORDER BY t."Id" FOR SHARE OF t
             """).AsNoTracking().ToArrayAsync(cancellationToken);
+        var assetsById = assets.ToDictionary(asset => asset.Id);
         foreach (var binding in revision.AssetBindings)
         {
             var requirement = manifest.AssetRequirements.SingleOrDefault(item => string.Equals(item.Role, binding.Role, StringComparison.OrdinalIgnoreCase));
-            var asset = assets.SingleOrDefault(item => item.Id == binding.AssetId);
-            if (requirement is null || asset is null || !asset.IsActive) throw DependencyConflict();
+            var asset = assetsById.GetValueOrDefault(binding.AssetId);
+            if (requirement is null || asset is null || !asset.IsActive ||
+                (revision.View is { } view && asset.OwnerConnectionId != view.ConnectionId)) throw DependencyConflict();
             if (!string.IsNullOrWhiteSpace(requirement.RequiredAssetTypeKey) &&
                 !types.Any(item => item.Id == asset.AssetTypeId && item.IsActive &&
                     string.Equals(item.Key, requirement.RequiredAssetTypeKey, StringComparison.OrdinalIgnoreCase))) throw DependencyConflict();

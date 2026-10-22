@@ -3,6 +3,10 @@ import type { FormEvent } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { loadViews, loadViewSelection, loadViewMembers, VIEW_PAGE_SIZE } from './assetViewsApi';
+import type { AssetView } from './assetViewsApi';
+import { loadConnections } from './connections';
+import type { Connection } from './connections';
 import { eligibleAssets, isJsonObject, prefillBindings, readConfiguration, setupManifest,
   setupResponse, SetupApiError, verifiedConfiguration, matchesSetupRevision } from './configuredLogicSetup';
 import type { SetupRequest, VerifiedConfiguration } from './configuredLogicSetup';
@@ -17,10 +21,27 @@ type Props = {
   onSaved: (configuration: VerifiedConfiguration) => void; onCancel: () => void;
   onDenied?: (committed: boolean) => void;
   /** Begin from this asset: it is pre-selected for the first role it fits. */
-  initialAssetId?: string | null;
+  initialAssetId?: string | null; canReadViews?: boolean;
 };
 export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
-  configuration, revision, onSaved, onCancel, onDenied, initialAssetId }: Props) {
+  configuration, revision, onSaved, onCancel, onDenied, initialAssetId, canReadViews = false }: Props) {
+  const [views, setViews] = useState<AssetView[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [viewAssets, setViewAssets] = useState<AssetResponse[]>([]);
+  const [viewRef, setViewRef] = useState<{ viewId: string; expectedRevision: number; role: string } | null>(() =>
+    revision?.view ? { viewId: revision.view.viewId ?? '', expectedRevision: revision.view.revision ?? 0, role: revision.view.role ?? '' } : null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState(false);
+  const [detailLimit, setDetailLimit] = useState(20);
+  const viewController = useRef(new AbortController());
+  const allAssets = useMemo(() => [...new Map([...assets, ...viewAssets].map(asset => [asset.id, asset])).values()], [assets, viewAssets]);
+  useEffect(() => {
+    const request = new AbortController();
+    if (canReadViews) Promise.all([loadViews(request.signal), loadConnections(request.signal)]).then(([items, sources]) => {
+      if (!request.signal.aborted) { setViews(items); setConnections(sources); }
+    }).catch(() => { if (!request.signal.aborted) setViewError(true); });
+    return () => { request.abort(); viewController.current.abort(); };
+  }, [canReadViews]);
   const approved = modules.filter(m => setupManifest(m));
   const [moduleKey, setModuleKey] = useState(() => revision
     ? JSON.stringify([revision.moduleId, revision.moduleVersion]) : '');
@@ -64,9 +85,35 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
   const pending = useRef(false);
   useEffect(() => () => controller.current?.abort(), []);
 
+  async function chooseView(id: string, role: string) {
+    viewController.current.abort();
+    const request = new AbortController(); viewController.current = request;
+    setViewError(false);
+    if (!id) { setViewRef(null); setViewAssets([]); setBindings(current => ({ ...current, [role]: [] })); setViewLoading(false); return; }
+    const chosen = views.find(view => view.id === id);
+    if (!chosen) return;
+    setViewLoading(true);
+    try {
+      const ids = await loadViewSelection(chosen, request.signal);
+      const members: AssetResponse[] = [];
+      for (let offset = 0; offset < ids.length; offset += VIEW_PAGE_SIZE) {
+        const page = await loadViewMembers(id, offset, request.signal);
+        if (page.length === 0) throw new Error('Incomplete View membership');
+        members.push(...page);
+      }
+      if (request.signal.aborted) return;
+      const selectedIds = new Set(ids);
+      if (members.length !== ids.length || new Set(members.map(member => member.id)).size !== ids.length ||
+        members.some(member => !selectedIds.has(member.id ?? '') || member.ownerConnectionId !== chosen.connectionId)) throw new Error('Changed View membership');
+      setViewAssets(members); setBindings(current => ({ ...current, [role]: ids }));
+      setViewRef({ viewId: id, expectedRevision: chosen.revision, role }); setData({}); setOverrides({}); setDetailLimit(20);
+    } catch { if (!request.signal.aborted) setViewError(true); }
+    finally { if (!request.signal.aborted) setViewLoading(false); }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!manifest || !module?.manifestJson || pending.current || blocked) return;
+    if (!manifest || !module?.manifestJson || pending.current || blocked || viewLoading || (viewRef && !canReadViews)) return;
     const assetBindings = manifest.assetRequirements.flatMap(r =>
       (bindings[r.role] ?? []).map(assetId => ({ role: r.role, assetId,
         parameterOverridesJson: overrides[JSON.stringify([r.role, assetId])] ?? '{}' })));
@@ -82,8 +129,9 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
     const valid = name.trim() && isJsonObject(parametersJson) &&
       manifest.assetRequirements.every(r => {
         const ids = bindings[r.role] ?? [];
+        const eligibleIds = new Set(eligibleAssets(r, allAssets, assetTypes).map(asset => asset.id));
         return ids.length >= r.minimumCount && ids.length <= r.maximumCount &&
-          ids.every(id => eligibleAssets(r, assets, assetTypes).some(a => a.id === id));
+          (viewRef?.role === r.role || ids.every(id => eligibleIds.has(id)));
       }) && assetBindings.length > 0 && assetBindings.every(b => isJsonObject(b.parameterOverridesJson)) &&
       dataBindings.every(b => b.providerId.trim() && b.providerAssetExternalId.trim() && isJsonObject(b.providerMappingJson)) &&
       (!useSchedule || manifest.executionProfile === 'ScheduledOneShot' &&
@@ -93,7 +141,8 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
     const body: SetupRequest = { name: name.trim(), moduleManifestJson: module.manifestJson,
       parametersJson, assetBindings, dataBindings,
       schedule: useSchedule ? { enabled: scheduleEnabled, cadenceSeconds: Number(cadence),
-        startAtUtc: new Date(start).toISOString(), timeZoneId: zone.trim() } : undefined };
+        startAtUtc: new Date(start).toISOString(), timeZoneId: zone.trim() } : undefined,
+      view: viewRef ?? undefined };
     pending.current = true; setBusy(true); setError(null);
     const request = new AbortController(); controller.current = request;
     let committed = false;
@@ -128,7 +177,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
   return <section className="setup-panel" aria-label={t('setup.heading')}>
     <h3>{configuration ? t('setup.newRevision') : t('setup.heading')}</h3>
     <p>{t('setup.shadowOnly')}</p>
-    {initialAssetId && !configuration && <p role="note">{t('setup.startingFromAsset', { name: assets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</p>}
+    {initialAssetId && !configuration && <p role="note">{t('setup.startingFromAsset', { name: allAssets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</p>}
     {approved.length === 0 && <p role="status">{t('setup.noModules')}</p>}
     <form className="setup-form" onSubmit={e => void submit(e)}>
       <fieldset disabled={busy || blocked}>
@@ -137,6 +186,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
         <label>{t('setup.module')}<select required value={moduleKey} onChange={e => {
           const chosen = approved.find(m => JSON.stringify([m.moduleId, m.version]) === e.target.value);
           const chosenManifest = chosen ? setupManifest(chosen) : null;
+          viewController.current.abort(); setViewRef(null); setViewAssets([]); setViewLoading(false); setViewError(false);
           setModuleKey(e.target.value);
           setBindings(chosenManifest && !configuration ? prefillBindings(chosenManifest, initialAssetId, assets, assetTypes) : {});
           setData({}); setOverrides({}); setUseSchedule(false);
@@ -166,24 +216,39 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
         <p className="setup-step-hint">{t('setupStep.assetsHint')}</p></>}
         {manifest?.assetRequirements.map(r => <fieldset key={r.role}>
           <legend>{t('setup.assetRole', { role: r.role, min: r.minimumCount, max: r.maximumCount })}</legend>
-          <p>{t('setup.loadedAssets')}</p>
-          <label>{t('setup.assetsFor', { role: r.role })}<select multiple
+          {canReadViews && <label>{t('setup.targetView')}<select value={viewRef?.role === r.role ? viewRef.viewId : ''} disabled={viewLoading}
+            onChange={event => void chooseView(event.target.value, r.role)}>
+            <option value="">{t('setup.individualAssets')}</option>
+            {views.map(view => {
+              const source = connections.find(connection => connection.id === view.connectionId);
+              const incompatible = view.hasUnavailableMembers || view.memberCount < r.minimumCount || view.memberCount > r.maximumCount ||
+                !source?.isEnabled || (!!manifest.requiredAdapterKey && manifest.requiredAdapterKey.toLowerCase() !== source.adapterKey.toLowerCase());
+              return <option key={view.id} value={view.id} disabled={incompatible}>{view.name} · {view.memberCount} · {source?.name ?? view.connectionId}</option>;
+            })}
+          </select></label>}
+          {canReadViews && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
+          {viewRef?.role === r.role && <p className="connection-help">{t('setup.viewSnapshot', { revision: viewRef.expectedRevision, count: bindings[r.role]?.length ?? 0 })}
+            {canReadViews && <button type="button" disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)}>{t('setup.refreshView')}</button>}</p>}
+          {viewLoading && <p role="status">{t('views.loading')}</p>}
+          {viewError && <p role="alert">{t('setup.viewUnavailable')}</p>}
+          <p>{t(viewRef?.role === r.role ? 'setup.viewTargets' : 'setup.loadedAssets')}</p>
+          <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewRef?.role === r.role || viewLoading}
             value={bindings[r.role] ?? []} onChange={e => setBindings({ ...bindings,
               [r.role]: Array.from(e.target.selectedOptions, o => o.value) })}>
-            {eligibleAssets(r, assets, assetTypes).map(a => <option key={a.id} value={a.id}>{a.name} · {a.id}</option>)}
+            {eligibleAssets(r, allAssets, assetTypes).map(a => <option key={a.id} value={a.id}>{a.name} · {a.id}</option>)}
           </select></label>
-          {(bindings[r.role] ?? []).map(id => <label key={id}>
-            {t('setup.overrides', { asset: assets.find(a => a.id === id)?.name ?? id })}
+          {(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <label key={id}>
+            {t('setup.overrides', { asset: allAssets.find(a => a.id === id)?.name ?? id })}
             <textarea rows={2} maxLength={65536} value={overrides[JSON.stringify([r.role, id])] ?? '{}'}
               onChange={e => setOverrides({ ...overrides, [JSON.stringify([r.role, id])]: e.target.value })} />
           </label>)}
         </fieldset>)}
         {manifest && manifest.dataRequirements.length > 0 && <><h4 className="setup-step">{t('setupStep.data')}</h4>
         <p className="setup-step-hint">{t('setupStep.dataHint')}</p></>}
-        {manifest?.dataRequirements.flatMap(r => (bindings[r.assetRole] ?? []).map(id => {
+        {manifest?.dataRequirements.flatMap(r => (bindings[r.assetRole] ?? []).slice(0, detailLimit).map(id => {
           const key = JSON.stringify([r.id, id]);
           const binding = data[key] ?? { providerId: '', providerAssetExternalId: '', providerMappingJson: '{}' };
-          return <fieldset key={key}><legend>{r.id} · {r.quantity} · {assets.find(a => a.id === id)?.name ?? id}</legend>
+          return <fieldset key={key}><legend>{r.id} · {r.quantity} · {allAssets.find(a => a.id === id)?.name ?? id}</legend>
             {(['providerId', 'providerAssetExternalId', 'providerMappingJson'] as const).map(field =>
               <label key={field}>{t(`setup.${field}`)}
                 {field === 'providerMappingJson'
@@ -210,7 +275,8 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
             <label>{t('setup.zone')}<input required value={zone} onChange={e => setZone(e.target.value)} /></label>
           </>}
         </details>}
-        <button type="submit" disabled={!manifest || approved.length === 0}>{busy ? t('setup.saving') : t('setup.save')}</button>
+        {Object.values(bindings).some(ids => ids.length > detailLimit) && <button type="button" onClick={() => setDetailLimit(limit => limit + 20)}>{t('setup.moreTargets')}</button>}
+        <button type="submit" disabled={!manifest || approved.length === 0 || viewLoading || (!!viewRef && !canReadViews) || (!!manifest?.requiredAdapterKey && !viewRef)}>{busy ? t('setup.saving') : t('setup.save')}</button>
       </fieldset>
       {error && <p role="alert">{error}</p>}
       <button type="button" disabled={busy} onClick={onCancel}>{t('setup.cancel')}</button>

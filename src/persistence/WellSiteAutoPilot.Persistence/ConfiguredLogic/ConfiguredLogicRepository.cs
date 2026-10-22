@@ -193,7 +193,9 @@ public sealed partial class ConfiguredLogicRepository(
             where definition.ActiveRevisionId != null &&
                   revision.Status == nameof(ConfiguredLogicRevisionStatus.Active) &&
                   revision.Mode == nameof(ExecutionMode.Shadow) &&
-                  revision.ScheduleJson != null
+                  revision.ScheduleJson != null &&
+                  (revision.ViewConnectionId == null || dbContext.Connections.Any(connection =>
+                      connection.Id == revision.ViewConnectionId && connection.IsEnabled))
             orderby definition.Name
             select new { Definition = definition, Revision = revision })
             .Take(limit)
@@ -329,6 +331,8 @@ public sealed partial class ConfiguredLogicRepository(
         dbContext.ConfiguredLogicRevisions.Add(new ConfiguredLogicRevisionEntity
         {
             Id = revision.Id,
+            ViewId = revision.View?.ViewId, ViewRevision = revision.View?.Revision,
+            ViewConnectionId = revision.View?.ConnectionId, ViewRole = revision.View?.Role,
             ConfiguredLogicId = revision.ConfiguredLogicId,
             RevisionNumber = revision.RevisionNumber,
             ModuleId = revision.ModuleId,
@@ -441,7 +445,9 @@ public sealed partial class ConfiguredLogicRepository(
                 ? null
                 : JsonSerializer.Deserialize<ConfiguredLogicSchedule>(entity.ScheduleJson),
             assetBindings,
-            dataBindings);
+            dataBindings,
+            entity.ViewId is { } viewId ? new ConfiguredLogicViewBinding(viewId, entity.ViewRevision!.Value,
+                entity.ViewConnectionId!.Value, entity.ViewRole!) : null);
 
     private static ConfiguredLogicAssetBinding ToDomain(
         ConfiguredLogicAssetBindingEntity entity) => new(

@@ -61,7 +61,12 @@ public static class GrantWriteGuard
             }
             else
             {
-                foreach (var target in targets)
+                // A qualifying explicit AllAssets grant covers the entire set. Retain and recheck it below,
+                // just like a chosen exact grant, without one lookup per well in a large View assignment.
+                var allAssetsGrant = await grants.Where(grant => grant.ScopeKind == "AllAssets")
+                    .OrderBy(grant => grant.Id).Select(grant => grant.Id).FirstOrDefaultAsync(cancellationToken);
+                if (allAssetsGrant != Guid.Empty) selected.Add(allAssetsGrant);
+                foreach (var target in allAssetsGrant == Guid.Empty ? targets : [])
                 {
                     var id = await grants.Where(grant => grant.ScopeKind == "AllAssets" ||
                             db.AccessGrantAssets.Any(binding => binding.GrantId == grant.Id && binding.AssetId == target))

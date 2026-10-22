@@ -29,14 +29,28 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
             subject.WindowsGroups, Time.GetUtcNow())
             .Where(asset => dbContext.AssetTypes.Any(type => type.Id == asset.AssetTypeId && type.Key == "well" && type.IsActive));
 
+    private IQueryable<AssetEntity> InspectableAssets(AccessSubject subject)
+    {
+        var allAssets = ScopedAccessQueries.ResourceGrants(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
+            subject.WindowsGroups, Time.GetUtcNow()).Where(grant => grant.ScopeKind == "AllAssets");
+        var visible = ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
+            subject.WindowsGroups, Time.GetUtcNow());
+        // Broad Asset readers may inspect inactive member names solely to repair a saved selection.
+        // Exact-scope readers still cannot obtain hidden IDs through this maintenance path.
+        return dbContext.Assets.AsNoTracking().Where(asset => allAssets.Any() || visible.Any(item => item.Id == asset.Id));
+    }
+
     private IQueryable<AssetViewRecord> Describe(AccessSubject subject, IQueryable<AssetViewEntity> query)
     {
         var visible = VisibleWells(subject);
+        var inspectable = InspectableAssets(subject);
         return query.Select(view => new AssetViewRecord(view.Id, view.ConnectionId!.Value, view.Name, view.Revision,
             dbContext.AssetViewMembers.Count(member => member.ViewId == view.Id &&
                 visible.Any(asset => asset.Id == member.AssetId && asset.OwnerConnectionId == view.ConnectionId)),
             dbContext.AssetViewMembers.Any(member => member.ViewId == view.Id &&
                 !visible.Any(asset => asset.Id == member.AssetId && asset.OwnerConnectionId == view.ConnectionId)),
+            !dbContext.AssetViewMembers.Any(member => member.ViewId == view.Id &&
+                !inspectable.Any(asset => asset.Id == member.AssetId && asset.OwnerConnectionId == view.ConnectionId)),
             view.CreatedAtUtc, view.UpdatedAtUtc));
     }
 
@@ -72,12 +86,18 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
         // Read the revision and complete ID set from one snapshot. Do not return a partial replacement selection.
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
         var view = await FindAsync(subject, id, cancellationToken) ?? throw NotFound();
-        if (view.HasUnavailableMembers) throw AssetViewDefinitionRules.Invalid(
+        if (!view.CanInspectAllMembers) throw AssetViewDefinitionRules.Invalid(
             "Some selected wells are inactive or unavailable to you. A complete selection is required to edit or assign this View.");
         var ids = await dbContext.AssetViewMembers.AsNoTracking().Where(member => member.ViewId == id)
             .OrderBy(member => member.AssetId).Select(member => member.AssetId).ToArrayAsync(cancellationToken);
+        var eligible = VisibleWells(subject);
+        var unavailable = await dbContext.AssetViewMembers.Where(member => member.ViewId == id)
+            .Join(dbContext.Assets, member => member.AssetId, asset => asset.Id, (member, asset) => asset)
+            .Where(asset => !eligible.Any(well => well.Id == asset.Id && well.OwnerConnectionId == view.ConnectionId))
+            .OrderBy(asset => asset.Name).ThenBy(asset => asset.Id)
+            .Select(asset => new AssetViewUnavailableMember(asset.Id, asset.Name)).ToArrayAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new AssetViewSelection(view.Revision, ids);
+        return new AssetViewSelection(view.Revision, ids, unavailable);
     }
 
     public async Task<AssetViewRecord> CreateAsync(AccessSubject subject, SecurityActorContext actor, Guid connectionId,
@@ -110,7 +130,7 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
             var view = await LockAsync(id, expectedRevision, cancellationToken);
             // A restricted reader cannot erase members they cannot inspect, even with a guessed revision.
             var current = await FindAsync(subject, id, cancellationToken) ?? throw NotFound();
-            if (current.HasUnavailableMembers) throw AssetViewDefinitionRules.Invalid("The complete current membership must be available before editing.");
+            if (!current.CanInspectAllMembers) throw AssetViewDefinitionRules.Invalid("The complete current membership must be available before editing.");
             await ValidateMembersAsync(subject, view.ConnectionId!.Value, ids, cancellationToken);
             var previous = await dbContext.AssetViewMembers.Where(member => member.ViewId == id).ToArrayAsync(cancellationToken);
             var wanted = ids.ToHashSet();
@@ -132,6 +152,9 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
         CancellationToken cancellationToken = default) => WriteAsync(subject, actor, WellSitePermissions.AssetViewsDelete, async () =>
         {
             var view = await LockAsync(id, expectedRevision, cancellationToken);
+            if (await dbContext.ConfiguredLogicRevisions.AnyAsync(revision => revision.ViewId == id, cancellationToken))
+                throw new WellSiteAutoPilotException("ASSET_VIEW_REFERENCED", FailureKind.Conflict,
+                    "This View is referenced by a logic configuration and cannot be deleted.");
             dbContext.AssetViews.Remove(view);
             Audit("asset-view.deleted", id, subject, actor, new { view.ConnectionId, view.Revision });
         }, cancellationToken);

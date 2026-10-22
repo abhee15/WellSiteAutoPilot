@@ -143,3 +143,18 @@ it('post-import navigation preselects the Connection without selecting or saving
   await userEvent.setup().click(within(form).getByRole('button', { name: 'Cancel' }));
   expect(requests.some(request => request.init?.method === 'POST')).toBe(false);
 });
+
+it('allows an authorized editor to remove an unavailable well before saving', async () => {
+  const requests: Request[] = []; host(requests, [{ ...saved, hasUnavailableMembers: true }]);
+  const base = vi.mocked(fetch).getMockImplementation()!;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => url.endsWith('/selection')
+    ? response({ revision: 1, assetIds: [wellId, otherWellId], unavailableMembers: [{ id: otherWellId, name: 'South Well' }] }) : base(url, init)));
+  window.location.hash = '#assets'; const user = userEvent.setup(); render(<App />);
+  const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
+  await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
+  const form = await screen.findByRole('form', { name: 'Edit view' }); await within(form).findByText('Selected wells (2)');
+  expect((within(form).getByRole('button', { name: 'Save View' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(within(form).getByText(/Inactive or ineligible: remove before saving/)).toBeTruthy();
+  await user.click(within(form).getByRole('button', { name: 'Remove South Well from selection' }));
+  expect((within(form).getByRole('button', { name: 'Save View' }) as HTMLButtonElement).disabled).toBe(false);
+});

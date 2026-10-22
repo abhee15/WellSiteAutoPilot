@@ -7,7 +7,7 @@ export type AssetView = {
 };
 export type ViewAsset = { id: string; assetTypeId: string; name: string; parentAssetId: string | null;
   ownerConnectionId: string | null; isActive: boolean };
-export type ViewsErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'stale' | 'invalid' | 'invalidResponse' | 'unavailable';
+export type ViewsErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'stale' | 'invalid' | 'invalidResponse' | 'referenced' | 'unavailable';
 export class ViewsError extends Error {
   constructor(public readonly kind: ViewsErrorKind) { super(kind); this.name = 'ViewsError'; }
 }
@@ -27,7 +27,7 @@ async function send(path: string, init: RequestInit, fetcher: typeof fetch = fet
     let code = '';
     try { const body: unknown = await response.json(); if (object(body) && typeof body.code === 'string') code = body.code; } catch { /* status is sufficient */ }
     throw new ViewsError(response.status === 401 || response.status === 403 ? 'accessDenied'
-      : response.status === 404 ? 'notFound' : response.status === 409 ? (code === 'ASSET_VIEW_NAME_CONFLICT' ? 'nameTaken' : 'stale')
+      : response.status === 404 ? 'notFound' : response.status === 409 ? (code === 'ASSET_VIEW_NAME_CONFLICT' ? 'nameTaken' : code === 'ASSET_VIEW_REFERENCED' ? 'referenced' : 'stale')
         : response.status === 400 ? 'invalid' : 'unavailable');
   }
   if (response.status === 204) return null;
@@ -49,11 +49,19 @@ export async function updateView(view: AssetView, name: string, assetIds: string
 export async function deleteView(view: AssetView): Promise<void> {
   await send('/' + encodeURIComponent(view.id) + '?expectedRevision=' + view.revision, { method: 'DELETE' });
 }
-export async function loadViewSelection(view: AssetView, signal: AbortSignal): Promise<string[]> {
+export async function loadViewSelectionDetails(view: AssetView, signal: AbortSignal): Promise<{ assetIds: string[]; unavailableMembers: { id: string; name: string }[] }> {
   const body = await send('/' + encodeURIComponent(view.id) + '/selection', { signal });
   if (!object(body) || !Array.isArray(body.assetIds) || !body.assetIds.every(id => typeof id === 'string')) throw new ViewsError('invalidResponse');
   if (body.revision !== view.revision) throw new ViewsError('stale');
-  return body.assetIds as string[];
+  const unavailableMembers = body.unavailableMembers ?? [];
+  if (!Array.isArray(unavailableMembers) || !unavailableMembers.every(member => object(member) && typeof member.id === 'string' && typeof member.name === 'string'))
+    throw new ViewsError('invalidResponse');
+  return { assetIds: body.assetIds as string[], unavailableMembers };
+}
+export async function loadViewSelection(view: AssetView, signal: AbortSignal): Promise<string[]> {
+  const selection = await loadViewSelectionDetails(view, signal);
+  if (selection.unavailableMembers.length > 0) throw new ViewsError('invalid');
+  return selection.assetIds;
 }
 export async function loadViewMembers(viewId: string, offset: number, signal: AbortSignal, query = ''): Promise<ViewAsset[]> {
   const body = await send('/' + encodeURIComponent(viewId) + '/members?offset=' + offset + '&limit=' + VIEW_PAGE_SIZE + '&q=' + encodeURIComponent(query), { signal });

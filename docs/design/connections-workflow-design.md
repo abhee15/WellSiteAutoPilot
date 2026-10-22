@@ -27,7 +27,7 @@ framework (permissions, grants, audit) governs every step. The first connection 
 | D8 | Import runs as **one server-side operation authorized at its attachment point**, not as one create call per node. | Proposed |
 | D10 | **One physical object is one Asset.** A ForeSite well is one Asset whether or not it is connected to CygNet. ForeSite is the system of record for wells; a CygNet facility attaches as an additional source binding (proposed automatically from the ForeSite facility id, confirmed by the engineer). A CygNet-only well is its own Asset and can later be linked to a ForeSite Asset instead of duplicated. | Agreed |
 | D11 | The engineer owns hierarchy design. AutoPilot previews, flags conflicts and already-imported objects and limits parents to those the engineer may manage, but does not police the grouping. | Agreed |
-| D12 | Several arrangements of the same source are saved **Views** (named, ordered groupings computed from Asset attributes and binding data), not duplicate Assets and not multiple parents. | Proposed |
+| D12 | A **View** is a named explicit subset of wells from one Connection, selected through the imported hierarchy; membership does not duplicate Assets or alter parents. | Proposed |
 | D13 | Source changes are reconciled by an explicit **check for changes**: new, changed and missing. Nothing is deleted automatically, and only a complete, successful check may report objects as missing. | Proposed |
 | D9 | The project is early: forward migrations are written, but where compatibility work would be awkward the development database may be reset instead. | Agreed |
 
@@ -127,17 +127,10 @@ section 9.
 object is reported as "already imported" and offers a View, never a second Asset. Linking a second source to an
 existing Asset adds a binding.
 
-**Views (proposed).** A View is a saved, named set of filters and an optional ordered grouping over Asset attributes and
-binding data, for example Field > Lease > Well, or a flat list of all wells with well type ESP wherever they sit in the
-main tree. A View shows only the Assets the viewer may read, so different people can see different results from the
-same View. A filter works only when the attribute exists (a CygNet-only well has no well type unless it is mapped).
-Views are stored on the server, not in the browser as today's saved filters are, so they can be shared and used by
-logic setup. Proposed rule: personal Views are private; a shared View is editable by its creator and by holders of
-`assets.manage` on the Assets involved. It is computed when displayed: nothing is duplicated, no
-group Assets are created, and it follows source changes by itself. The real tree (parent links) stays the structure
-for containment and grants. The View builder is the same level builder used in the import's Structure step. If
-modules need to select a whole group, logic setup can expand a group or View into explicit Asset bindings; real
-group Assets that carry their own logic are a later option.
+**Views.** A View stores an explicit selected set of wells from exactly one Connection. Users browse the
+imported hierarchy, select wells across branches, and review the saved membership. Connection read access
+controls visibility; separate create/edit/delete permissions control mutations, independently of creator.
+Assignments store immutable target bindings and the reviewed View revision. See sections 18 and 19.
 
 **Check for changes (proposed).**
 - Compare a complete discovery with the saved bindings: *New* (not bound), *Changed* (source data differs from the
@@ -515,78 +508,43 @@ root row: the top level is derived from the owner field.
 - The Asset page says which Connection owns the Asset; search results and children carry the owner.
 - Not in this slice: moving Assets between roots, Views, drag and drop (later slices).
 
-## 18. Views (slice C): design
+## 18. Connection-scoped well Views
 
-A View is a saved, server-evaluated arrangement of the Assets a person may already see. It never copies, moves or
-creates Assets or Groups, and never grants access: every query starts from the caller's visible Assets.
+A View is a named explicit subset of wells belonging to one Connection. The imported hierarchy locates wells;
+group nodes expand and offer an explicit descendant-well selection action. Checkboxes select actual `well`
+Assets by ID across branches, search and pages. Selection is static: later imports never join automatically.
+Users review selected wells, remove exceptions, and save. The Connection is single-select and immutable after
+saving. Local browsing filters remain independent of execution membership.
 
-**Definition (versioned JSON, `version: 1`).**
+`assets.asset_views` retains the header and revision; `assets.asset_view_members` stores unique View/Asset
+pairs. Names are unique per Connection. The member and search endpoints page records; the selection endpoint
+returns the complete ID set plus identifiable unavailable members for authorized maintenance. Partial readers
+cannot replace hidden membership. Broad authorized editors can remove inactive members; unavailable members
+cannot be assigned. Expected revisions and transactional authorization fences protect writes.
 
-- `connections`: owners to include. Each entry is a Connection id or the literal `standalone`; empty means all visible.
-- `assetTypeIds`: optional list. `activity`: `all | active | inactive`. `search`: optional name text (max 120).
-- `grouping`: ordered levels, each one of `connection`, `assetType`, `status` (at most 3, no repeats). Empty means a
-  flat, name-sorted list. Sorting is fixed: group values by label, Assets by name then id.
-- Grouping by Asset attribute or source fact is **not in v1**. Attributes are free JSON text today; grouping on them
-  needs a typed/indexed projection, which is its own decision. Adapters' facts are already available as the
-  persisted Groups of the default hierarchy.
+Legacy saved-query rows retain their definition JSON and a null ConnectionId. They are preserved for audit,
+excluded from executable View APIs, and never silently converted into a broader well selection.
 
-**Storage.** `assets.asset_views(id, owner_user_id, name, definition_json, revision, created/updated)`; name unique
-per owner (case-insensitive); at most 50 per person. A Connection that is later deleted or disabled leaves the View
-valid: a dangling id simply matches nothing and the editor says so.
+## 19. Visibility, permissions and logic assignment
 
-**API (all `AssetsRead`, owner-scoped).** `GET/POST /asset-views`, `GET/PUT/DELETE /asset-views/{id}` (PUT/DELETE
-carry the revision, stale writes are refused like Connections), and `GET /asset-views/{id}/nodes?path=` which returns
-the next level for a path of already-chosen group values: groups (`label`, `key`, `count`) or, at the last level,
-Assets (the same node shape as `/assets/children`, paged). One level per call keeps very large sets lazy.
+Views inherit the owning Connection's read authority. The current Connection model uses deployment-wide
+`connections.read`, so its readers see all Connections and their Views. Individual-Connection grants are a
+separate authorization enhancement; this implementation does not claim per-Connection grant administration.
+Asset restrictions still control member details. There is no personal/shared toggle or copy/publish workflow.
 
-**Sharing is deliberately not in v1.** Views are personal. Sharing needs its own permission (who may publish, whether
-a shared View can name Connections its viewers cannot see) and is designed when asked for; the schema keeps
-`owner_user_id` so a later `shared` flag does not rewrite rows.
+Mutations require `asset-views.create`, `asset-views.edit` or `asset-views.delete` plus Connection access and
+member authority. Admin/Engineer defaults include those permissions; custom roles can grant them. Creator and
+updater remain audit facts, rather than exclusive edit rights.
 
-**Web.** A visible *Create View* action and a View selector at the top of Assets ("Default hierarchy" is the
-selector's first entry). The editor: name, Connections, types, activity, grouping order (Up/Down buttons, no
-drag-and-drop), live preview of the top level. The browser-local saved filters stay, labelled as local filters
-of this browser, with a one-click *Save as View* that converts a filter into a View.
+Logic setup resolves a selected View and expected revision on the server, validates declared module
+cardinality and Asset type, and stores explicit target bindings plus View ID, revision, Connection and target role.
+All roles stay within that Connection. Optional module `requiredAdapterKey` declares adapter compatibility.
+Data bindings must use that Connection's adapter and each Asset's stored source identity. Editing a View never
+changes an existing configuration's snapshot; reviewing the latest selection creates a new draft revision.
+A referenced View cannot be deleted. Disabled Connections block assignment and run admission.
 
-**Slices.** C1 server model, API, guards and live checks. C2 selector plus Create/Edit View in the web. C3 convert
-local filters. C4 sharing (needs a decision first).
-
-## 19. Sharing Views (slice C4): design
-
-**Decision (owner).** Sharing is permission based. To begin with, Engineers and Admins can share.
-
-**Permission.** A new permission `asset-views.share`, granted by default to Admin and Engineer (and assignable to any
-custom role through the role catalog). Operators do not get it. Creating, editing and deleting a *personal* View
-stays open to everyone with `assets.read`.
-
-**Model.** A View gains a visibility: `Personal` (today) or `Shared`.
-- Only the owner can share or unshare, and only while holding `asset-views.share`. A caller without it cannot
-  create or update a View as Shared (403, `ASSET_VIEW_SHARE_FORBIDDEN`).
-- A Shared View is listed for everyone with `assets.read`, marked with its owner and "Shared".
-- Viewers cannot edit or delete it. They can *Save a copy*, which creates their own Personal View.
-- The owner edits it with the same revision check as today. Admins (`security.manage`) can unshare or delete any
-  Shared View, so a View cannot be stranded when its owner leaves.
-- Shared names are unique among Shared Views (normalized, like personal names); personal names stay unique per
-  owner. Limit: 100 Shared Views in total.
-- Losing `asset-views.share` does not delete the owner's Shared Views; they stay shared until the owner or an Admin
-  unshares them, but the owner cannot edit them as Shared until the permission is back.
-
-**Security boundary.** A View never grants access. Each viewer's evaluation runs over *that viewer's* visible
-Assets, so a shared View over Connections or Assets the viewer cannot see shows nothing for them. When returning a
-Shared View to a non-owner, the definition lists only the Connection ids that viewer can see, so Connection
-identities are not leaked through a definition; the response carries a `hiddenConnectionCount` instead.
-
-**Persistence.** `assets.asset_views` gains `Visibility` (smallint, default Personal) with a partial unique index
-on the normalized name where Visibility is Shared. Existing rows migrate as Personal.
-
-**API.** The existing contract gains `visibility`, `ownerDisplayName`, `isOwner`, `canEdit`, `hiddenConnectionCount`;
-create/update accept `visibility`. Deleting and editing keep `expectedRevision`. A `POST .../copy` endpoint creates
-the viewer's personal copy.
-
-**Web.** The editor shows a "Share with everyone who can read Assets" switch only when the caller can share. The
-selector groups *My views* and *Shared views*. Shared Views are read-only for non-owners with *Save a copy*.
-
-**Slices.** C4a server (permission, role map, migration, API, guards, live checks). C4b web.
-
-**Status.** C4a (server) and C4b (web) are built. Not built, by choice: an Admin can *Stop sharing* someone's View in the
-web but deletes it only through the API; add a delete button if that proves needed.
+Current scope: assignment to modules whose declared cardinality accepts the complete selected set. A one-well
+module requires a one-well View; automatic per-well fan-out from a larger View is not implemented. ForeSite
+hierarchy discovery/import is available, but the live engineering read/write provider remains separate adapter
+work; the Gateway currently registers simulator current-data routing. Saving an assignment does not implement
+that provider or start execution. Existing validation, activation, licensing and execution checks remain in force.

@@ -1,5 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Assets.Views;
+using WellSiteAutoPilot.Application.ConfiguredLogic;
+using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Domain.Logic;
+using WellSiteAutoPilot.Persistence.ConfiguredLogic;
+using WellSiteAutoPilot.Persistence.Logic;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Persistence;
@@ -39,7 +44,8 @@ internal static class AssetViewChecks
                 Name = roleId.ToString(), NormalizedName = roleId.ToString().ToUpperInvariant(), IsActive = true, Revision = 1,
                 CreatedAtUtc = now, UpdatedAtUtc = now });
             foreach (var permission in new[] { WellSitePermissions.AssetsRead, WellSitePermissions.ConnectionsRead,
-                WellSitePermissions.AssetViewsCreate, WellSitePermissions.AssetViewsEdit, WellSitePermissions.AssetViewsDelete })
+                WellSitePermissions.AssetViewsCreate, WellSitePermissions.AssetViewsEdit, WellSitePermissions.AssetViewsDelete,
+                WellSitePermissions.ConfiguredLogicRead, WellSitePermissions.ConfiguredLogicManage })
                 fixture.RolePermissions.Add(new RolePermissionEntity { RoleId = roleId, Permission = permission });
             foreach (var userId in new[] { firstUser, secondUser })
                 foreach (var scope in new[] { "DeploymentWide", "AllAssets" })
@@ -78,7 +84,19 @@ internal static class AssetViewChecks
             var updated = await UseAsync(repo => repo.UpdateAsync(secondSubject, secondActor, created.Id, 1, "Subset", ids.Skip(1).ToArray()));
             if (updated.Revision != 2 || updated.MemberCount != 9_999) throw new InvalidOperationException("A permitted non-creator must be able to edit membership.");
             await RejectAsync(() => UseAsync(repo => repo.UpdateAsync(firstSubject, firstActor, created.Id, 1, "Stale", ids)), AssetViewFailureCodes.StaleRevision);
-            await UseAsync(async repo => { await repo.DeleteAsync(secondSubject, secondActor, created.Id, 2); return true; });
+            var deleteRevision = await VerifyAssignmentAsync(created.Id, firstConnection, foreign.Id, ids, firstSubject, firstActor);
+            // A broad authorized editor can remove an inactive well; a View must not become permanently uneditable.
+            var inactiveWellId = wells[^1].Id;
+            await fixture.Assets.Where(asset => asset.Id == inactiveWellId).ExecuteUpdateAsync(set => set.SetProperty(asset => asset.IsActive, false));
+            var unavailableView = await UseAsync(repo => repo.FindAsync(firstSubject, created.Id)) ?? throw new InvalidOperationException("Missing View.");
+            var maintenance = await UseAsync(repo => repo.SelectionAsync(firstSubject, created.Id));
+            if (!unavailableView.HasUnavailableMembers || !unavailableView.CanInspectAllMembers ||
+                maintenance.UnavailableMembers.Count != 1 || maintenance.UnavailableMembers[0].Id != wells[^1].Id)
+                throw new InvalidOperationException("Inactive members must be identifiable to an authorized editor for removal.");
+            var repaired = await UseAsync(repo => repo.UpdateAsync(firstSubject, firstActor, created.Id, deleteRevision, "Repaired selection", ids.Take(ids.Length - 1).ToArray()));
+            deleteRevision = repaired.Revision;
+            if (repaired.HasUnavailableMembers) throw new InvalidOperationException("Removing inactive membership did not repair the View.");
+            await UseAsync(async repo => { await repo.DeleteAsync(secondSubject, secondActor, created.Id, deleteRevision); return true; });
             if ((await UseAsync(repo => repo.ListAsync(firstSubject))).Any(view => view.Id == created.Id))
                 throw new InvalidOperationException("View deletion failed.");
         }
@@ -93,6 +111,98 @@ internal static class AssetViewChecks
             await fixture.Users.Where(user => user.Id == firstUser || user.Id == secondUser).ExecuteDeleteAsync();
             await fixture.RolePermissions.Where(permission => permission.RoleId == roleId).ExecuteDeleteAsync();
             await fixture.RoleDefinitions.Where(role => role.Id == roleId).ExecuteDeleteAsync();
+        }
+
+        async Task<int> VerifyAssignmentAsync(Guid viewId, Guid connectionId, Guid foreignId, Guid[] originalIds,
+            AccessSubject subject, SecurityActorContext actor)
+        {
+            var moduleId = "weatherford.view-fixture-" + Guid.NewGuid().ToString("N");
+            var manifest = $$"""
+                { "manifestVersion":1,"moduleId":"{{moduleId}}","version":"1.0.0","displayName":"View fixture",
+                  "publisher":"Weatherford","runtime":"DotNet","executionProfile":"ScheduledOneShot",
+                  "entryPoint":"ViewFixture.EntryPoint","minimumSdkVersion":"1.0.0","requiredAdapterKey":"foresite",
+                  "assetRequirements":[{"role":"well","minimumCount":1,"maximumCount":10000,"requiredAssetTypeKey":"well","requiredTraits":[]},
+                    {"role":"reference","minimumCount":0,"maximumCount":1,"requiredAssetTypeKey":"well","requiredTraits":[]}],
+                  "dataRequirements":[],"commandRequirements":[] }
+                """;
+            Guid? configurationId = null;
+            var extraConfigurations = new List<Guid>();
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            try
+            {
+                var modules = new LogicModuleCatalogService(new LogicModuleCatalogRepository(db), TimeProvider.System);
+                await modules.RegisterAsync(new RegisterLogicModuleCommand(manifest, new string('a', 64), LogicModuleTrustStatus.TrustedPublisher));
+                var service = new ConfiguredLogicService(new ConfiguredLogicRepository(db), new AssetRepository(db),
+                    new LogicModuleCatalogRepository(db), TimeProvider.System, new AssetViewRepository(db), new ConnectionRepository(db));
+                var command = new CreateConfiguredLogicCommand("View fixture assignment", manifest, "{}", [], [], null,
+                    new ConfiguredLogicViewBindingCommand(viewId, 2, "well"));
+                await RejectAsync(() => service.CreateAuthorizedAsync(command with { AssetBindings = null! }, subject, actor), FailureCodes.ValidationFailed);
+                var configured = await service.CreateAuthorizedAsync(command, subject, actor);
+                configurationId = configured.Id;
+                var revision = configured.Revisions.Single();
+                if (revision.View?.ViewId != viewId || revision.View.Revision != 2 || revision.View.ConnectionId != connectionId ||
+                    revision.AssetBindings.Count != 9_999) throw new InvalidOperationException("The complete View snapshot was not bound to the configuration.");
+                db.ChangeTracker.Clear();
+                var changed = await UseAsync(repo => repo.UpdateAsync(subject, actor, viewId, 2, "After assignment", originalIds));
+                var persisted = await new ConfiguredLogicRepository(db).GetAsync(configured.Id) ?? throw new InvalidOperationException("Missing configuration.");
+                if (persisted.Revisions.Single().AssetBindings.Count != 9_999 || persisted.Revisions.Single().View?.Revision != 2)
+                    throw new InvalidOperationException("Editing a View changed a saved configuration snapshot.");
+                await RejectAsync(() => service.CreateAuthorizedAsync(command, subject, actor), "ASSET_VIEW_REVISION_STALE");
+                await RejectAsync(() => UseAsync(async repo => { await repo.DeleteAsync(subject, actor, viewId, changed.Revision); return true; }), "ASSET_VIEW_REFERENCED");
+                // All roles remain in the same Connection, not just the role populated from the View.
+                await RejectAsync(() => service.CreateAuthorizedAsync(command with { Name = "Foreign reference", View = command.View! with { ExpectedRevision = 3 },
+                    AssetBindings = [new ConfiguredLogicAssetBindingCommand("reference", foreignId, "{}")] }, subject, actor), "CONFIGURED_LOGIC_ASSET_NOT_FOUND");
+                var wrongAdapter = manifest.Replace(moduleId, moduleId + "-wrong", StringComparison.Ordinal)
+                    .Replace("\"requiredAdapterKey\":\"foresite\"", "\"requiredAdapterKey\":\"petrovisor\"", StringComparison.Ordinal);
+                await modules.RegisterAsync(new RegisterLogicModuleCommand(wrongAdapter, new string('b', 64), LogicModuleTrustStatus.TrustedPublisher));
+                await RejectAsync(() => service.CreateAuthorizedAsync(command with { Name = "Wrong adapter", ModuleManifestJson = wrongAdapter,
+                    View = command.View! with { ExpectedRevision = 3 } }, subject, actor), "CONFIGURED_LOGIC_VIEW_INCOMPATIBLE");
+                var single = manifest.Replace(moduleId, moduleId + "-single", StringComparison.Ordinal)
+                    .Replace("\"maximumCount\":10000", "\"maximumCount\":1", StringComparison.Ordinal);
+                await modules.RegisterAsync(new RegisterLogicModuleCommand(single, new string('c', 64), LogicModuleTrustStatus.TrustedPublisher));
+                await RejectAsync(() => service.CreateAuthorizedAsync(command with { Name = "Single-well mismatch", ModuleManifestJson = single,
+                    View = command.View! with { ExpectedRevision = 3 } }, subject, actor), "CONFIGURED_LOGIC_ASSET_CARDINALITY_INVALID");
+                // Adapter routing and stored source identity are authoritative for View data inputs.
+                var sourceView = await UseAsync(repo => repo.CreateAsync(subject, actor, connectionId, "Source identity fixture", [originalIds[0]]));
+                db.SourceBindings.Add(new SourceBindingEntity { Id = Guid.NewGuid(), ConnectionId = connectionId, AssetId = originalIds[0],
+                    ResourceKind = "foresite.well", ExternalId = "FS-VIEW-0001", CreatedAtUtc = DateTimeOffset.UtcNow, SnapshotJson = "{}" });
+                await db.SaveChangesAsync();
+                var dataManifest = manifest.Replace(moduleId, moduleId + "-data", StringComparison.Ordinal)
+                    .Replace("\"dataRequirements\":[]", "\"dataRequirements\":[{\"id\":\"value\",\"assetRole\":\"well\",\"quantity\":\"PumpFillage\",\"access\":\"Current\",\"allowUncertainQuality\":false}]", StringComparison.Ordinal);
+                await modules.RegisterAsync(new RegisterLogicModuleCommand(dataManifest, new string('d', 64), LogicModuleTrustStatus.TrustedPublisher));
+                var dataCommand = command with { Name = "Source fixture", ModuleManifestJson = dataManifest,
+                    View = new ConfiguredLogicViewBindingCommand(sourceView.Id, 1, "well"),
+                    DataBindings = [new ConfiguredLogicDataBindingCommand("value", originalIds[0], "simulator", "FS-VIEW-0001", "{}")] };
+                await RejectAsync(() => service.CreateAuthorizedAsync(dataCommand, subject, actor), "CONFIGURED_LOGIC_VIEW_SOURCE_MISMATCH");
+                await RejectAsync(() => service.CreateAuthorizedAsync(dataCommand with { DataBindings =
+                    [new ConfiguredLogicDataBindingCommand("value", originalIds[0], "foresite", "OTHER-SOURCE", "{}")] }, subject, actor), "CONFIGURED_LOGIC_VIEW_SOURCE_MISMATCH");
+                var validSource = await service.CreateAuthorizedAsync(dataCommand with { DataBindings =
+                    [new ConfiguredLogicDataBindingCommand("value", originalIds[0], "foresite", "FS-VIEW-0001", "{}")] }, subject, actor);
+                extraConfigurations.Add(validSource.Id);
+                await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, false));
+                await RejectAsync(() => service.CreateAuthorizedAsync(command with { Name = "Disabled Connection",
+                    View = command.View! with { ExpectedRevision = 3 } }, subject, actor), "CONFIGURED_LOGIC_VIEW_INCOMPATIBLE");
+                await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, true));
+                // Lifecycle operations retain the reviewed snapshot after the source View has changed.
+                await service.ValidateRevisionAuthorizedAsync(configured.Id, revision.Id, subject, actor);
+                await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, false));
+                await RejectAsync(() => service.ActivateRevisionAuthorizedAsync(configured.Id, revision.Id, "none", subject, actor), "CONFIGURED_LOGIC_REVISION_CONFLICT");
+                await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, true));
+                var active = await service.ActivateRevisionAuthorizedAsync(configured.Id, revision.Id, "none", subject, actor);
+                var run = await service.PrepareManualShadowAsync(configured.Id, active.Id);
+                if (run.Assets.Count != 9_999 || active.View?.Revision != 2)
+                    throw new InvalidOperationException("Lifecycle or execution preparation silently refreshed View membership.");
+                return changed.Revision;
+            }
+            finally
+            {
+                db.ChangeTracker.Clear();
+                await db.ConfiguredLogicDefinitions.Where(item => item.Id == configurationId || extraConfigurations.Contains(item.Id)).ExecuteDeleteAsync();
+                await db.SourceBindings.Where(binding => binding.ConnectionId == connectionId && binding.ExternalId == "FS-VIEW-0001").ExecuteDeleteAsync();
+                await db.LogicModules.Where(module => module.ModuleId == moduleId || module.ModuleId == moduleId + "-wrong" ||
+                    module.ModuleId == moduleId + "-single" || module.ModuleId == moduleId + "-data").ExecuteDeleteAsync();
+                await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, true));
+            }
         }
 
         async Task<T> UseAsync<T>(Func<AssetViewRepository, Task<T>> action)

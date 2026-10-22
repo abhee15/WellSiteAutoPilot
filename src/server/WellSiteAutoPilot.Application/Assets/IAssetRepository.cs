@@ -79,6 +79,10 @@ public interface IAssetRepository
         Guid assetId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Server-owned binding validation over a complete explicit ID set; authorization remains at the mutation fence.</summary>
+    Task<IReadOnlyCollection<Asset>> GetAssetsByIdsAsync(IReadOnlyCollection<Guid> assetIds,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<Asset>> ListAssetsAsync(
         Guid? assetTypeId,
         Guid? parentAssetId,

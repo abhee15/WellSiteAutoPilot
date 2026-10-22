@@ -26,14 +26,16 @@ public sealed record CreateConfiguredLogicRequest(
     string ParametersJson,
     IReadOnlyCollection<ConfiguredLogicAssetBindingRequest> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingRequest> DataBindings,
-    ConfiguredLogicScheduleRequest? Schedule);
+    ConfiguredLogicScheduleRequest? Schedule,
+    ConfiguredLogicViewRequest? View = null);
 
 public sealed record CreateConfiguredLogicRevisionRequest(
     string ModuleManifestJson,
     string ParametersJson,
     IReadOnlyCollection<ConfiguredLogicAssetBindingRequest> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingRequest> DataBindings,
-    ConfiguredLogicScheduleRequest? Schedule);
+    ConfiguredLogicScheduleRequest? Schedule,
+    ConfiguredLogicViewRequest? View = null);
 
 public sealed record ConfiguredLogicAssetBindingResponse(
     string Role,
@@ -67,7 +69,8 @@ public sealed record ConfiguredLogicRevisionResponse(
     DateTimeOffset? ActivatedAtUtc,
     ConfiguredLogicScheduleResponse? Schedule,
     IReadOnlyCollection<ConfiguredLogicAssetBindingResponse> AssetBindings,
-    IReadOnlyCollection<ConfiguredLogicDataBindingResponse> DataBindings);
+    IReadOnlyCollection<ConfiguredLogicDataBindingResponse> DataBindings,
+    ConfiguredLogicViewResponse? View = null);
 
 public sealed record ConfiguredLogicResponse(
     Guid Id,
@@ -79,3 +82,6 @@ public sealed record ConfiguredLogicResponse(
     public bool CanManage { get; init; }
     public bool CanRequestShadow { get; init; }
 }
+
+public sealed record ConfiguredLogicViewRequest(Guid ViewId, int ExpectedRevision, string Role);
+public sealed record ConfiguredLogicViewResponse(Guid ViewId, int Revision, Guid ConnectionId, string Role);

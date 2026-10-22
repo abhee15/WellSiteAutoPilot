@@ -102,9 +102,23 @@ public sealed partial class ExecutionRepository(
                 command.Assets.Select(a => a.AssetId).ToArray(), cancellationToken))
             throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                 "A configured execution is already pending or running.");
+        await RequireEnabledViewConnectionAsync(command.ConfigurationRevisionId, cancellationToken);
         StageConfiguredRequest(execution, command);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task RequireEnabledViewConnectionAsync(Guid revisionId, CancellationToken cancellationToken)
+    {
+        var connectionId = await dbContext.ConfiguredLogicRevisions.Where(revision => revision.Id == revisionId)
+            .Select(revision => revision.ViewConnectionId).SingleOrDefaultAsync(cancellationToken);
+        if (connectionId is not { } id) return;
+        var connections = await dbContext.Connections.FromSqlInterpolated($"""
+            SELECT c.* FROM integration.connections AS c WHERE c."Id" = {id} FOR SHARE OF c
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        if (connections.Length != 1 || !connections[0].IsEnabled)
+            throw new WellSiteAutoPilotException("EXECUTION_CONNECTION_DISABLED", FailureKind.Conflict,
+                "The assignment's Connection is disabled.");
     }
 
     private void StageConfiguredRequest(ExecutionRecord execution, ConfiguredShadowExecutionCommand command)
@@ -183,6 +197,7 @@ public sealed partial class ExecutionRepository(
         if (await HasActiveAssetOverlapAsync(command.ConfiguredLogicId, assetIds, cancellationToken))
             throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                 "A configured execution is already pending or running.");
+        await RequireEnabledViewConnectionAsync(command.ConfigurationRevisionId, cancellationToken);
         StageConfiguredRequest(execution, command);
         dbContext.AuditEvents.Add(new AuditEventEntity
         {

@@ -6,4 +6,5 @@ public sealed record AssetViewResponse(Guid Id, Guid ConnectionId, string Name, 
 
 public sealed record CreateAssetViewRequest(string Name, Guid ConnectionId, IReadOnlyList<Guid> AssetIds);
 public sealed record UpdateAssetViewRequest(int ExpectedRevision, string Name, IReadOnlyList<Guid> AssetIds);
-public sealed record AssetViewSelectionResponse(int Revision, IReadOnlyList<Guid> AssetIds);
+public sealed record AssetViewSelectionResponse(int Revision, IReadOnlyList<Guid> AssetIds, IReadOnlyList<AssetViewUnavailableMemberResponse> UnavailableMembers);
+public sealed record AssetViewUnavailableMemberResponse(Guid Id, string Name);

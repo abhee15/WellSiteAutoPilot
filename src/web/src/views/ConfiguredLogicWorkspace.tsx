@@ -13,12 +13,12 @@ type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; executions?: readonly ExecutionResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
-  initialAssetId?: string | null;
+  initialAssetId?: string | null; canReadViews?: boolean;
 };
 /** A fresh authorized detail is the mutation boundary. Polling list metadata
  * cannot silently replace the revision a user is reviewing. */
 export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
-  assets, assetTypes, executions, onClose, onChanged, initialAssetId }: Props) {
+  assets, assetTypes, executions, onClose, onChanged, initialAssetId, canReadViews = false }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
   const [source, setSource] = useState<ConfiguredLogicRevisionResponse | undefined>();
@@ -129,7 +129,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     {(detail || selectedId) && !editing && <button type="button" disabled={busy}
       onClick={() => void reload()}>{t('setup.reload')}</button>}
     {editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
-      modules={modules} assets={assets} assetTypes={assetTypes}
+      modules={modules} assets={assets} assetTypes={assetTypes} canReadViews={canReadViews}
       configuration={detail ?? undefined} revision={source} initialAssetId={initialAssetId}
       onSaved={value => { setDetail(value); setEditing(false); setSource(undefined);
         setNotice(t('setup.saved')); void onChanged(); }}
@@ -142,8 +142,12 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
 
 function RevisionSettings({ revision }: { revision: ConfiguredLogicRevisionResponse }) {
   const lines = describeSettings(revision.parametersJson, revision.moduleManifestJson);
-  if (!lines) return null;
+  if (!lines && !revision.view) return null;
   return <dl className="revision-settings" aria-label={t('setup.revisionSettings')}>
-    {lines.map(line => <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>)}
+    {revision.view && <div><dt>{t('setup.targetView')}</dt><dd>{t('setup.viewSnapshot', {
+      revision: revision.view.revision ?? 0,
+      count: revision.assetBindings?.filter(binding => binding.role?.toLowerCase() === revision.view?.role?.toLowerCase()).length ?? 0,
+    })}</dd></div>}
+    {lines?.map(line => <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>)}
   </dl>;
 }
