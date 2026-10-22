@@ -35,7 +35,7 @@ try
     }, options));
     return result.OutcomeCode == EntryPoint.Success ? 0 : 2;
 }
-catch (Exception error) when (error is IOException or UnauthorizedAccessException or
+catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException or
     JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
 {
     Console.Error.WriteLine($"Invalid offline fixture: {error.GetType().Name}");
