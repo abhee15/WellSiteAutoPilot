@@ -1,6 +1,7 @@
 import './connections.css';
 import { ConnectionInventory } from './ConnectionInventory';
 import { ConnectionImport } from './ConnectionImport';
+import { ConnectionSourceChanges } from './ConnectionSourceChanges';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -273,6 +274,8 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
           selection={selection?.value ?? null} selectedCount={selection?.count ?? null}
           totalCount={found?.totalCount ?? null} disabled={disabled} onBusyChange={setImportBusy} />
       )}
+      {connection && adapter?.canDiscover && <ConnectionSourceChanges connectionId={connection.id} connectionRevision={connection.revision}
+        canCheck={canManage && connection.isEnabled && !dirty} disabled={busy !== null || importBusy} onBusyChange={setImportBusy} />}
       {canManage && connection && (
         <section className="connection-manage" aria-label={t('connections.manageHeading')}>
           <h3>{t('connections.manageHeading')}</h3>

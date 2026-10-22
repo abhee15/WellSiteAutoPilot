@@ -46,6 +46,8 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("POST", "/connections/{connectionId:guid}/test"): ("TestConnection", "ConnectionsManage"),
     ("POST", "/connections/{connectionId:guid}/discover"): ("DiscoverConnection", "ConnectionsManage"),
     ("POST", "/connections/{connectionId:guid}/discover/search"): ("SearchDiscoveredObjects", "ConnectionsManage"),
+    ("POST", "/connections/{connectionId:guid}/source-checks"): ("CheckConnectionSourceChanges", "ConnectionsManage"),
+    ("GET", "/connections/{connectionId:guid}/source-changes"): ("ReviewConnectionSourceChanges", "ConnectionsRead"),
     ("POST", "/connections/{connectionId:guid}/import/preview"): ("PreviewConnectionImport", "ConnectionsManage"),
     ("POST", "/connections/{connectionId:guid}/import"): ("ImportFromConnection", "ConnectionsManage"),
     ("DELETE", "/connections/{connectionId:guid}"): ("DeleteConnection", "ConnectionsManage"),

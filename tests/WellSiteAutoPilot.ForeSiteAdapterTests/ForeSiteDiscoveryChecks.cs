@@ -24,6 +24,7 @@ internal static class ForeSiteDiscoveryChecks
         var result = await Discover(routes);
         Expect(result.Complete && result.ActingAs == Account && result.Items.Count == 5, "complete, unique mapped and unmapped wells");
         Expect(result.Warnings.Count == 0 && result.UnavailableFields is { Count: 0 }, "successful enrichment declares available grouping facts");
+        Expect(result.SourceScope is not null && result.SourceScope.SequenceEqual(["0", "1", "2"]), "authorized asset scope, including unmapped, is retained as evidence");
         var missingIdentity = await Discover(new DiscoveryRoutes(Assets, "[{\"Name\":\"No id\",\"AssetId\":1}]", Devices));
         Expect(!missingIdentity.Complete && missingIdentity.Warnings.Any(warning => warning.Contains("had no id", StringComparison.Ordinal)),
             "a missing well identity makes membership incomplete");

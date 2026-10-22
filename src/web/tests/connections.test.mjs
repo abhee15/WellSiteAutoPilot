@@ -209,3 +209,21 @@ test('legacy adoption consent is serialized with the reviewed import selection',
   });
   await assert.rejects(api.previewImport(connection, [], selection, async () => new Response(JSON.stringify({ ...preview, existingWells: -1 }))), { kind: 'invalidResponse' });
 });
+
+test('source checks use fresh persisted endpoints and reject malformed evidence', async () => {
+  const check = { id: connection.id, revision: 1, connectionRevision: 3, status: 'Complete', startedAtUtc: 'a', completedAtUtc: 'b',
+    actingAs: 'Gateway', found: 10001, changed: 0, new: 0, notReturned: 0, comparisonUnavailable: 0, warnings: [], unavailableFields: [], sourceScopeCount: 3, sourceScopeFingerprint: 'A'.repeat(64) };
+  const fetcher = async (path, init) => {
+    assert.equal(path, `/api/v1/connections/${connection.id}/source-checks`);
+    assert.equal(init.method, 'POST'); assert.equal(init.cache, 'no-store');
+    return new Response(JSON.stringify(check));
+  };
+  assert.deepEqual(await api.checkSourceChanges(connection.id, fetcher), check);
+  const read = { latestCheck: check, lastSuccessfulCheck: check, total: 0, offset: 25, items: [] };
+  assert.deepEqual(await api.loadSourceChanges(connection.id, 25, 'ESP & RPC', undefined, async path => {
+    assert.ok(path.endsWith('offset=25&limit=25&query=ESP+%26+RPC'));
+    return new Response(JSON.stringify(read));
+  }), read);
+  await assert.rejects(api.loadSourceChanges(connection.id, 0, '', undefined, async () => new Response(JSON.stringify({ ...read, items: [{}] }))),
+    e => e.kind === 'invalidResponse');
+});
