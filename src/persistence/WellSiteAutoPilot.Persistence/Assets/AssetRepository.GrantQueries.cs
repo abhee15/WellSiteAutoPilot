@@ -90,16 +90,11 @@ public sealed partial class AssetRepository
     {
         ArgumentNullException.ThrowIfNull(subject);
         ValidatePage(offset, limit);
-        var visible = VisibleAssets(subject);
+        var visible = ApplyOwnerScope(VisibleAssets(subject), owner);
         var level = parentAssetId is { } parentId
             ? visible.Where(item => item.ParentAssetId == parentId)
             : visible.Where(item => item.ParentAssetId == null ||
                 !visible.Any(parent => parent.Id == item.ParentAssetId));
-        // Only the top level is narrowed; below a node everything already belongs to that node's owner.
-        if (parentAssetId is null && owner is not null)
-            level = owner.ConnectionId is { } connectionId
-                ? level.Where(item => item.OwnerConnectionId == connectionId)
-                : level.Where(item => item.OwnerConnectionId == null);
         var page = await level
             .OrderBy(item => item.Name).ThenBy(item => item.Id)
             .Skip(offset).Take(limit)
@@ -125,13 +120,17 @@ public sealed partial class AssetRepository
             .ToArray();
     }
 
+    public Task<IReadOnlyCollection<AssetSearchHit>> SearchAuthorizedAsync(AccessSubject subject, string text,
+        Guid? assetTypeId, int offset, int limit, CancellationToken cancellationToken = default) =>
+        SearchAuthorizedAsync(subject, text, assetTypeId, null, offset, limit, cancellationToken);
+
     public async Task<IReadOnlyCollection<AssetSearchHit>> SearchAuthorizedAsync(AccessSubject subject, string text,
-        Guid? assetTypeId, int offset, int limit, CancellationToken cancellationToken = default)
+        Guid? assetTypeId, AssetOwnerScope? owner, int offset, int limit, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         ValidatePage(offset, limit);
-        var visible = VisibleAssets(subject);
+        var visible = ApplyOwnerScope(VisibleAssets(subject), owner);
         var term = text.Trim();
         var pattern = "%" + term.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
@@ -178,6 +177,11 @@ public sealed partial class AssetRepository
             return new AssetSearchHit(ToDomain(item), path);
         }).ToArray();
     }
+
+    private static IQueryable<AssetEntity> ApplyOwnerScope(IQueryable<AssetEntity> query, AssetOwnerScope? owner) =>
+        owner is null ? query : owner.ConnectionId is { } connectionId
+            ? query.Where(item => item.OwnerConnectionId == connectionId)
+            : query.Where(item => item.OwnerConnectionId == null);
 
     private static void ValidatePage(int offset, int limit)
     {

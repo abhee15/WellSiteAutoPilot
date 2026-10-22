@@ -629,11 +629,7 @@ v1.MapGet(
     async (Guid? parentAssetId, Guid? ownerConnectionId, bool? standalone, int? offset, int? limit, IAssetRepository assets,
         RequestAccessContext access, CancellationToken cancellationToken) =>
     {
-        if (ownerConnectionId is not null && standalone == true)
-            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
-                "Choose either one Connection or the standalone Assets, not both.");
-        var owner = ownerConnectionId is { } connectionId ? new AssetOwnerScope(connectionId)
-            : standalone == true ? new AssetOwnerScope(null) : null;
+        var owner = AssetBrowseOwnerScope(ownerConnectionId, standalone);
         return (await assets.ListChildrenAuthorizedAsync(access.Subject, parentAssetId, owner, PageOffset(offset),
             PageLimit(limit ?? 100), cancellationToken))
             .Select(node => new AssetTreeNodeResponse(node.Asset.Id, node.Asset.AssetTypeId, node.Asset.Name,
@@ -791,9 +787,10 @@ v1.MapGet(
 
 v1.MapGet(
     "/assets/search",
-    async (string? q, Guid? assetTypeId, int? offset, int? limit, IAssetRepository assets,
+    async (string? q, Guid? assetTypeId, Guid? ownerConnectionId, bool? standalone, int? offset, int? limit, IAssetRepository assets,
         RequestAccessContext access, CancellationToken cancellationToken) =>
-        (await assets.SearchAuthorizedAsync(access.Subject, SearchText(q), assetTypeId, PageOffset(offset),
+        (await assets.SearchAuthorizedAsync(access.Subject, SearchText(q), assetTypeId,
+            AssetBrowseOwnerScope(ownerConnectionId, standalone), PageOffset(offset),
             PageLimit(limit ?? 50), cancellationToken))
             .Select(hit => new AssetSearchResultResponse(hit.Asset.Id, hit.Asset.AssetTypeId, hit.Asset.Name,
                 hit.Asset.ParentAssetId, hit.Asset.IsActive,
@@ -1505,6 +1502,15 @@ static T RequireFound<T>(T? value, string code) where T : class => value ??
 
 static int PageLimit(int limit, int maximum = 500) => limit >= 1 && limit <= maximum ? limit :
     throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested page limit is invalid.");
+
+static AssetOwnerScope? AssetBrowseOwnerScope(Guid? ownerConnectionId, bool? standalone)
+{
+    if (ownerConnectionId is not null && standalone == true)
+        throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+            "Choose either one Connection or the standalone Assets, not both.");
+    return ownerConnectionId is { } connectionId ? new AssetOwnerScope(connectionId)
+        : standalone == true ? new AssetOwnerScope(null) : null;
+}
 
 static int PageOffset(int? offset) => offset is null ? 0 : offset >= 0 && offset <= 100_000 ? offset.Value :
     throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested page offset is invalid.");

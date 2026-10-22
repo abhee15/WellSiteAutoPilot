@@ -157,6 +157,16 @@ var engineerSearch = await BodyAsync(
     await engineer.GetAsync("/api/v1/assets/search?q=" + Uri.EscapeDataString(childName[..8])), HttpStatusCode.OK);
 if (engineerSearch.EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == childId))
     throw new InvalidOperationException("Search leaked an asset outside the caller's scope");
+var engineerScopedSearch = await BodyAsync(
+    await engineer.GetAsync("/api/v1/assets/search?standalone=true&q=" + Uri.EscapeDataString(childName[..8])),
+    HttpStatusCode.OK);
+if (engineerScopedSearch.EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == childId))
+    throw new InvalidOperationException("An owner filter must never widen Asset authorization");
+var foreignConnectionChildren = await BodyAsync(
+    await admin.GetAsync("/api/v1/assets/children?parentAssetId=" + fieldId + "&ownerConnectionId=" + Guid.NewGuid()),
+    HttpStatusCode.OK);
+if (foreignConnectionChildren.GetArrayLength() != 0)
+    throw new InvalidOperationException("Owner scope must also apply below the top level");
 var wildcardSearch = await BodyAsync(
     await admin.GetAsync("/api/v1/assets/search?q=" + Uri.EscapeDataString("%")), HttpStatusCode.OK);
 if (wildcardSearch.GetArrayLength() != 0)

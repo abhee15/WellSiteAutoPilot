@@ -333,10 +333,40 @@ alone_tops = request("GET", "/assets/children?standalone=true")
 assert "Standalone by hand" in {item["name"] for item in alone_tops} and not any(item["ownerConnectionId"] for item in alone_tops), alone_tops
 request("GET", "/assets/children?ownerConnectionId=" + twin["id"] + "&standalone=true", expected=400)
 assert request("GET", "/assets/children?ownerConnectionId=" + str(uuid.uuid4())) == []
+# A fixed Connection scope applies to every level and to search BEFORE pagination.
+# Matching names imported through two Connections must never mix in the selection browser.
+for connection in [stand_in, twin]:
+    scoped_query = "/assets/search?q=Alpha&ownerConnectionId=" + connection["id"]
+    hits = request("GET", scoped_query)
+    assert sorted(item["name"] for item in hits) == ["Alpha 1", "Alpha 2"], hits
+    assert all(item["ownerConnectionId"] == connection["id"] for item in hits), hits
+    for offset, hit in enumerate(hits):
+        page = request("GET", scoped_query + "&limit=1&offset=" + str(offset))
+        assert [item["id"] for item in page] == [hit["id"]], (page, hits)
+    assert request("GET", scoped_query + "&limit=1&offset=2") == []
+    assert all(len(item["path"]) == 2 for item in hits), hits
+    # Owner scope is intersected with the existing type filter.
+    assert request("GET", "/assets/search?q=Field&assetTypeId=" + well_type["id"] + "&ownerConnectionId=" + connection["id"]) == []
+
+unscoped_hits = request("GET", "/assets/search?q=Alpha")
+assert {item["ownerConnectionId"] for item in unscoped_hits} == {stand_in["id"], twin["id"]}, unscoped_hits
+assert len(unscoped_hits) == 4, unscoped_hits
+assert request("GET", "/assets/search?q=Alpha&standalone=true") == []
+standalone_hits = request("GET", "/assets/search?q=Standalone%20by%20hand&standalone=true")
+assert [item["id"] for item in standalone_hits] == [alone["id"]], standalone_hits
+request("GET", "/assets/search?q=Alpha&ownerConnectionId=" + twin["id"] + "&standalone=true", expected=400)
+assert request("GET", "/assets/search?q=Alpha&ownerConnectionId=" + str(uuid.uuid4())) == []
+request("GET", "/assets/search?q=Alpha&ownerConnectionId=" + twin["id"], OPERATOR, expected=403)
+owned_children = request("GET", "/assets/children?parentAssetId=" + north["id"] + "&ownerConnectionId=" + stand_in["id"])
+assert owned_children and all(item["ownerConnectionId"] == stand_in["id"] for item in owned_children), owned_children
+assert request("GET", "/assets/children?parentAssetId=" + north["id"] + "&ownerConnectionId=" + twin["id"]) == []
+assert request("GET", "/assets/children?parentAssetId=" + north["id"] + "&standalone=true") == []
 # A person without asset read access is not told which connections exist.
 request("GET", "/assets/owners", OPERATOR, expected=403)
 # Where an imported Asset came from: its Connection, kind and the outside system's own id. Hand-made Assets and Groups have none.
 alpha = next(item for item in after if item["name"] == "Alpha 1" and item.get("ownerConnectionId") == twin["id"])
+assert request("GET", "/assets/search?q=" + alpha["id"] + "&ownerConnectionId=" + stand_in["id"]) == []
+assert [item["id"] for item in request("GET", "/assets/search?q=" + alpha["id"] + "&ownerConnectionId=" + twin["id"])] == [alpha["id"]]
 source = request("GET", "/assets/" + alpha["id"] + "/source")
 assert source["connectionId"] == twin["id"] and source["connectionName"].endswith("foresite twin"), source
 assert source["resourceKind"] and source["externalId"] and source["importedAtUtc"], source
