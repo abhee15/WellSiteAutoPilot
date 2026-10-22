@@ -3,159 +3,196 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using WellSiteAutoPilot.Application.Assets.Views;
+using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.Assets;
 using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Persistence.Audit;
+using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence.Assets.Views;
 
 public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IAssetViewRepository
 {
-    private const string NameIndex = "IX_asset_views_OwnerUserId_NormalizedName";
-    private const string SharedNameIndex = "IX_asset_views_NormalizedName_Shared";
-    private const int Personal = (int)AssetViewVisibility.Personal;
-    private const int Shared = (int)AssetViewVisibility.Shared;
     private TimeProvider Time => clock ?? TimeProvider.System;
 
-    public async Task<IReadOnlyList<AssetViewRecord>> ListAsync(Guid viewerUserId, CancellationToken cancellationToken = default)
+    // Connection reads currently use a deployment-wide grant, exactly like the Connections page.
+    // Keep the predicate here authoritative; owner summaries are not a Connection authorization source.
+    private IQueryable<AssetViewEntity> Readable(AccessSubject subject)
     {
-        var views = await dbContext.AssetViews.AsNoTracking()
-            .Where(item => item.OwnerUserId == viewerUserId || item.Visibility == Shared)
-            .OrderBy(item => item.NormalizedName).ThenBy(item => item.Id).ToArrayAsync(cancellationToken);
-        var names = await OwnerNamesAsync(views, cancellationToken);
-        return views.OrderBy(item => item.OwnerUserId == viewerUserId ? 0 : 1).Select(item => ToRecord(item, names)).ToArray();
+        var grants = ScopedAccessQueries.DeploymentGrants(dbContext, subject.UserId, WellSitePermissions.ConnectionsRead,
+            subject.WindowsGroups, Time.GetUtcNow());
+        return dbContext.AssetViews.AsNoTracking().Where(view => view.ConnectionId != null && grants.Any());
     }
 
-    public async Task<AssetViewRecord?> FindAsync(Guid viewerUserId, Guid id, CancellationToken cancellationToken = default)
+    private IQueryable<AssetEntity> VisibleWells(AccessSubject subject) =>
+        ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
+            subject.WindowsGroups, Time.GetUtcNow())
+            .Where(asset => dbContext.AssetTypes.Any(type => type.Id == asset.AssetTypeId && type.Key == "well" && type.IsActive));
+
+    private IQueryable<AssetViewRecord> Describe(AccessSubject subject, IQueryable<AssetViewEntity> query)
     {
-        var entity = await dbContext.AssetViews.AsNoTracking().SingleOrDefaultAsync(
-            item => item.Id == id && (item.OwnerUserId == viewerUserId || item.Visibility == Shared), cancellationToken);
-        return entity is null ? null : ToRecord(entity, await OwnerNamesAsync([entity], cancellationToken));
+        var visible = VisibleWells(subject);
+        return query.Select(view => new AssetViewRecord(view.Id, view.ConnectionId!.Value, view.Name, view.Revision,
+            dbContext.AssetViewMembers.Count(member => member.ViewId == view.Id &&
+                visible.Any(asset => asset.Id == member.AssetId && asset.OwnerConnectionId == view.ConnectionId)),
+            dbContext.AssetViewMembers.Any(member => member.ViewId == view.Id &&
+                !visible.Any(asset => asset.Id == member.AssetId && asset.OwnerConnectionId == view.ConnectionId)),
+            view.CreatedAtUtc, view.UpdatedAtUtc));
     }
 
-    private async Task<Dictionary<Guid, string>> OwnerNamesAsync(IReadOnlyCollection<AssetViewEntity> views,
+    public async Task<IReadOnlyList<AssetViewRecord>> ListAsync(AccessSubject subject, CancellationToken cancellationToken = default) =>
+        await Describe(subject, Readable(subject).OrderBy(view => view.NormalizedName).ThenBy(view => view.Id))
+            .ToArrayAsync(cancellationToken);
+
+    public Task<AssetViewRecord?> FindAsync(AccessSubject subject, Guid id, CancellationToken cancellationToken = default) =>
+        Describe(subject, Readable(subject).Where(view => view.Id == id)).SingleOrDefaultAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Asset>> MembersAsync(AccessSubject subject, Guid id, string? search, int offset, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset < 0 || limit is < 1 or > 500) throw AssetViewDefinitionRules.Invalid("The page is invalid.");
+        var view = await FindAsync(subject, id, cancellationToken) ?? throw NotFound();
+        var matches = VisibleWells(subject).Where(asset => asset.OwnerConnectionId == view.ConnectionId &&
+                dbContext.AssetViewMembers.Any(member => member.ViewId == id && member.AssetId == asset.Id));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            if (search.Length > 120) throw AssetViewDefinitionRules.Invalid("Search is limited to 120 characters.");
+            var pattern = "%" + search.Trim().Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal) + "%";
+            matches = matches.Where(asset => EF.Functions.ILike(asset.Name, pattern, "\\"));
+        }
+        return await matches.OrderBy(asset => asset.Name).ThenBy(asset => asset.Id).Skip(offset).Take(limit)
+            .Select(asset => new Asset(asset.Id, asset.AssetTypeId, asset.Name, asset.ParentAssetId,
+                asset.AttributeValuesJson, asset.IsActive, asset.CreatedAtUtc, asset.OwnerConnectionId))
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<AssetViewSelection> SelectionAsync(AccessSubject subject, Guid id, CancellationToken cancellationToken = default)
+    {
+        // Read the revision and complete ID set from one snapshot. Do not return a partial replacement selection.
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
+        var view = await FindAsync(subject, id, cancellationToken) ?? throw NotFound();
+        if (view.HasUnavailableMembers) throw AssetViewDefinitionRules.Invalid(
+            "Some selected wells are inactive or unavailable to you. A complete selection is required to edit or assign this View.");
+        var ids = await dbContext.AssetViewMembers.AsNoTracking().Where(member => member.ViewId == id)
+            .OrderBy(member => member.AssetId).Select(member => member.AssetId).ToArrayAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new AssetViewSelection(view.Revision, ids);
+    }
+
+    public async Task<AssetViewRecord> CreateAsync(AccessSubject subject, SecurityActorContext actor, Guid connectionId,
+        string name, IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default)
+    {
+        name = AssetViewDefinitionRules.NormalizeName(name);
+        var ids = AssetViewDefinitionRules.NormalizeMembers(assetIds);
+        var id = Guid.NewGuid();
+        await WriteAsync(subject, actor, WellSitePermissions.AssetViewsCreate, async () =>
+        {
+            if (connectionId == Guid.Empty || !await dbContext.Connections.AnyAsync(item => item.Id == connectionId, cancellationToken))
+                throw AssetViewDefinitionRules.Invalid("Select one existing Connection.");
+            await ValidateMembersAsync(subject, connectionId, ids, cancellationToken);
+            var now = Time.GetUtcNow();
+            dbContext.AssetViews.Add(new AssetViewEntity { Id = id, ConnectionId = connectionId, OwnerUserId = subject.UserId,
+                Name = name, NormalizedName = Normalize(name), Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now });
+            dbContext.AssetViewMembers.AddRange(ids.Select(assetId => new AssetViewMemberEntity { ViewId = id, AssetId = assetId }));
+            Audit("asset-view.created", id, subject, actor, new { ConnectionId = connectionId, MemberCount = ids.Length, Revision = 1 });
+        }, cancellationToken);
+        return (await FindAsync(subject, id, cancellationToken))!;
+    }
+
+    public async Task<AssetViewRecord> UpdateAsync(AccessSubject subject, SecurityActorContext actor, Guid id, int expectedRevision,
+        string name, IReadOnlyList<Guid> assetIds, CancellationToken cancellationToken = default)
+    {
+        name = AssetViewDefinitionRules.NormalizeName(name);
+        var ids = AssetViewDefinitionRules.NormalizeMembers(assetIds);
+        await WriteAsync(subject, actor, WellSitePermissions.AssetViewsEdit, async () =>
+        {
+            var view = await LockAsync(id, expectedRevision, cancellationToken);
+            // A restricted reader cannot erase members they cannot inspect, even with a guessed revision.
+            var current = await FindAsync(subject, id, cancellationToken) ?? throw NotFound();
+            if (current.HasUnavailableMembers) throw AssetViewDefinitionRules.Invalid("The complete current membership must be available before editing.");
+            await ValidateMembersAsync(subject, view.ConnectionId!.Value, ids, cancellationToken);
+            var previous = await dbContext.AssetViewMembers.Where(member => member.ViewId == id).ToArrayAsync(cancellationToken);
+            var wanted = ids.ToHashSet();
+            var existing = previous.Select(member => member.AssetId).ToHashSet();
+            dbContext.AssetViewMembers.RemoveRange(previous.Where(member => !wanted.Contains(member.AssetId)));
+            dbContext.AssetViewMembers.AddRange(ids.Where(assetId => !existing.Contains(assetId))
+                .Select(assetId => new AssetViewMemberEntity { ViewId = id, AssetId = assetId }));
+            view.Name = name;
+            view.NormalizedName = Normalize(name);
+            view.Revision++;
+            view.UpdatedAtUtc = Time.GetUtcNow();
+            Audit("asset-view.updated", id, subject, actor,
+                new { view.ConnectionId, MemberCount = ids.Length, BeforeCount = previous.Length, view.Revision });
+        }, cancellationToken);
+        return (await FindAsync(subject, id, cancellationToken))!;
+    }
+
+    public Task DeleteAsync(AccessSubject subject, SecurityActorContext actor, Guid id, int expectedRevision,
+        CancellationToken cancellationToken = default) => WriteAsync(subject, actor, WellSitePermissions.AssetViewsDelete, async () =>
+        {
+            var view = await LockAsync(id, expectedRevision, cancellationToken);
+            dbContext.AssetViews.Remove(view);
+            Audit("asset-view.deleted", id, subject, actor, new { view.ConnectionId, view.Revision });
+        }, cancellationToken);
+
+    private async Task ValidateMembersAsync(AccessSubject subject, Guid connectionId, Guid[] ids, CancellationToken cancellationToken)
+    {
+        // Hold the selected Assets while validating and saving so ownership/activity cannot change mid-write.
+        await dbContext.Assets.FromSqlInterpolated($"""
+            SELECT a.* FROM assets.assets AS a WHERE a."Id" = ANY({ids}) ORDER BY a."Id" FOR SHARE OF a
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        if (await VisibleWells(subject).CountAsync(asset => asset.OwnerConnectionId == connectionId && ids.Contains(asset.Id), cancellationToken) != ids.Length)
+            throw AssetViewDefinitionRules.Invalid("Every selected item must be an active, authorized well from this Connection.");
+    }
+
+    private async Task<AssetViewEntity> LockAsync(Guid id, int expectedRevision, CancellationToken cancellationToken)
+    {
+        var view = (await dbContext.AssetViews.FromSqlInterpolated($"""
+            SELECT v.* FROM assets.asset_views AS v WHERE v."Id" = {id} AND v."ConnectionId" IS NOT NULL FOR UPDATE OF v
+            """).ToArrayAsync(cancellationToken)).SingleOrDefault() ?? throw NotFound();
+        if (expectedRevision < 1 || view.Revision != expectedRevision)
+            throw new WellSiteAutoPilotException(AssetViewFailureCodes.StaleRevision, FailureKind.Conflict,
+                "The View changed elsewhere. Reload it before saving.");
+        return view;
+    }
+
+    private async Task WriteAsync(AccessSubject subject, SecurityActorContext actor, string permission, Func<Task> stage,
         CancellationToken cancellationToken)
     {
-        var owners = views.Select(item => item.OwnerUserId).Distinct().ToArray();
-        return (await dbContext.Users.AsNoTracking().Where(item => owners.Contains(item.Id))
-            .Select(item => new { item.Id, item.DisplayName, item.IdentityName }).ToArrayAsync(cancellationToken))
-            .ToDictionary(item => item.Id, item => item.DisplayName ?? item.IdentityName);
-    }
-
-    public async Task<AssetViewRecord> CreateAsync(Guid ownerUserId, string name, AssetViewDefinition definition,
-        AssetViewVisibility visibility, CancellationToken cancellationToken = default)
-    {
-        var now = Time.GetUtcNow();
-        var id = Guid.NewGuid();
-        await WriteAsync(async () =>
-        {
-            if (await dbContext.AssetViews.CountAsync(item => item.OwnerUserId == ownerUserId, cancellationToken) >=
-                AssetViewDefinitionRules.MaximumViewsPerPerson)
-                throw new WellSiteAutoPilotException(AssetViewFailureCodes.LimitReached, FailureKind.Conflict,
-                    "You have reached the limit of 50 views. Delete one you no longer use first.");
-            await EnsureSharedRoomAsync(visibility, excluding: null, cancellationToken);
-            dbContext.AssetViews.Add(new AssetViewEntity
-            {
-                Id = id, OwnerUserId = ownerUserId, Name = name, NormalizedName = Normalize(name),
-                Visibility = (int)visibility,
-                DefinitionJson = JsonSerializer.Serialize(definition), Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
-            });
-        }, cancellationToken);
-        return (await FindAsync(ownerUserId, id, cancellationToken))!;
-    }
-
-    public async Task<AssetViewRecord> UpdateAsync(Guid ownerUserId, Guid id, int expectedRevision, string name,
-        AssetViewDefinition definition, AssetViewVisibility visibility, CancellationToken cancellationToken = default)
-    {
-        await WriteAsync(async () =>
-        {
-            var entity = await LockAsync(id, expectedRevision, ownerUserId, cancellationToken);
-            await EnsureSharedRoomAsync(visibility, excluding: entity.Id, cancellationToken);
-            entity.Name = name;
-            entity.NormalizedName = Normalize(name);
-            entity.Visibility = (int)visibility;
-            entity.DefinitionJson = JsonSerializer.Serialize(definition);
-            entity.Revision++;
-            entity.UpdatedAtUtc = Time.GetUtcNow();
-        }, cancellationToken);
-        return (await FindAsync(ownerUserId, id, cancellationToken))!;
-    }
-
-    public Task DeleteAsync(Guid callerUserId, bool asAdministrator, Guid id, int expectedRevision,
-        CancellationToken cancellationToken = default) =>
-        WriteAsync(async () =>
-        {
-            var entity = await LockAsync(id, expectedRevision, callerUserId, cancellationToken, allowAdministratorOnShared: asAdministrator);
-            dbContext.AssetViews.Remove(entity);
-        }, cancellationToken);
-
-    public async Task<AssetViewRecord> UnshareAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        Guid owner = Guid.Empty;
-        await WriteAsync(async () =>
-        {
-            var entity = await LockAsync(id, expectedRevision: null, callerUserId: null, cancellationToken);
-            owner = entity.OwnerUserId;
-            if (entity.Visibility == Personal) return;
-            entity.Visibility = Personal;
-            entity.Revision++;
-            entity.UpdatedAtUtc = Time.GetUtcNow();
-        }, cancellationToken);
-        return (await FindAsync(owner, id, cancellationToken))!;
-    }
-
-    private async Task EnsureSharedRoomAsync(AssetViewVisibility visibility, Guid? excluding, CancellationToken cancellationToken)
-    {
-        if (visibility != AssetViewVisibility.Shared) return;
-        if (await dbContext.AssetViews.CountAsync(item => item.Visibility == Shared && item.Id != excluding, cancellationToken) >=
-            AssetViewDefinitionRules.MaximumSharedViews)
-            throw new WellSiteAutoPilotException(AssetViewFailureCodes.SharedLimitReached, FailureKind.Conflict,
-                "The limit of 100 shared views has been reached. Ask the owner of an unused shared view to remove it.");
-    }
-
-    /// <summary>
-    /// Locks the row. With <paramref name="callerUserId"/> the caller must own it (or, as administrator, it must be
-    /// Shared); without it the lock is for an administrator action chosen by the caller.
-    /// </summary>
-    private async Task<AssetViewEntity> LockAsync(Guid id, int? expectedRevision, Guid? callerUserId,
-        CancellationToken cancellationToken, bool allowAdministratorOnShared = false)
-    {
-        var entity = (await dbContext.AssetViews.FromSqlInterpolated($"""
-            SELECT v.* FROM assets.asset_views AS v WHERE v."Id" = {id} FOR UPDATE OF v
-            """).ToArrayAsync(cancellationToken)).SingleOrDefault();
-        if (entity is null || (callerUserId is { } caller && entity.OwnerUserId != caller &&
-                !(allowAdministratorOnShared && entity.Visibility == Shared)))
-            throw new WellSiteAutoPilotException(AssetViewFailureCodes.NotFound, FailureKind.NotFound, "The view was not found.");
-        if (expectedRevision is { } expected && entity.Revision != expected)
-            throw new WellSiteAutoPilotException(AssetViewFailureCodes.StaleRevision, FailureKind.Conflict,
-                "The view was changed elsewhere. Reload it and try again.");
-        return entity;
-    }
-
-    private async Task WriteAsync(Func<Task> stage, CancellationToken cancellationToken)
-    {
+        if (actor.UserId != subject.UserId || string.IsNullOrWhiteSpace(actor.IdentityName))
+            throw new WellSiteAutoPilotException("SECURITY_REQUEST_SUBJECT_INVALID", FailureKind.Authorization, "An authenticated actor is required.");
         try
         {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            // Keep a consistent lock order across all View mutations and check both capabilities independently.
+            foreach (var required in new[] { WellSitePermissions.ConnectionsRead, permission }.Order(StringComparer.Ordinal))
+                await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject, required, Time, cancellationToken);
             await stage();
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         catch (Exception exception) when (exception.GetBaseException() is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: NameIndex or SharedNameIndex } violation)
+            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_asset_views_ConnectionId_NormalizedName" })
         {
             dbContext.ChangeTracker.Clear();
-            throw violation.ConstraintName == SharedNameIndex
-                ? new WellSiteAutoPilotException(AssetViewFailureCodes.SharedNameConflict, FailureKind.Conflict,
-                    "A shared view with that name already exists. Choose another name to share it.", innerException: exception)
-                : new WellSiteAutoPilotException(AssetViewFailureCodes.NameConflict, FailureKind.Conflict,
-                    "You already have a view with that name.", innerException: exception);
+            throw new WellSiteAutoPilotException(AssetViewFailureCodes.NameConflict, FailureKind.Conflict,
+                "A View with that name already exists in this Connection.", innerException: exception);
+        }
+        catch (Exception exception) when (exception.GetBaseException() is PostgresException postgres &&
+            postgres.SqlState is PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected)
+        {
+            dbContext.ChangeTracker.Clear();
+            throw new WellSiteAutoPilotException("ASSET_VIEW_ACCESS_CONFLICT", FailureKind.Conflict,
+                "Access or the View changed concurrently. Reload before retrying.", innerException: exception);
         }
     }
 
-    private static string Normalize(string name) => name.Trim().ToUpperInvariant();
+    private void Audit(string action, Guid id, AccessSubject subject, SecurityActorContext actor, object details) =>
+        dbContext.AuditEvents.Add(new AuditEventEntity { Id = Guid.NewGuid(), OccurredAtUtc = Time.GetUtcNow(),
+            ActorUserId = subject.UserId, ActorIdentity = actor.IdentityName, CorrelationId = actor.CorrelationId,
+            Action = action, TargetType = "asset-view", TargetId = id.ToString(), DetailsJson = JsonSerializer.Serialize(details) });
 
-    private static AssetViewRecord ToRecord(AssetViewEntity entity, IReadOnlyDictionary<Guid, string> ownerNames) =>
-        new(entity.Id, entity.OwnerUserId, ownerNames.GetValueOrDefault(entity.OwnerUserId, string.Empty),
-            (AssetViewVisibility)entity.Visibility, entity.Name,
-            JsonSerializer.Deserialize<AssetViewDefinition>(entity.DefinitionJson)!, entity.Revision, entity.CreatedAtUtc,
-            entity.UpdatedAtUtc);
+    private static string Normalize(string name) => name.Trim().ToUpperInvariant();
+    private static WellSiteAutoPilotException NotFound() => new(AssetViewFailureCodes.NotFound, FailureKind.NotFound, "The View was not found.");
 }

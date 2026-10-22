@@ -125,6 +125,7 @@ export function ConnectionImport({ connection, adapter, selection = null, select
           {result.groupsReused > 0 && <span>{t('connections.importReused', { count: result.groupsReused })}</span>}
           {result.alreadyImported > 0 && <span>{t('connections.importSkipped', { count: result.alreadyImported })}</span>}
           <a href="#assets">{t('connections.importOpenAssets')}</a>
+          <a href={'#assets/' + encodeURIComponent('new-view:' + connection.id)}>{t('assetViews.create')}</a>
         </div>
       )}
     </section>

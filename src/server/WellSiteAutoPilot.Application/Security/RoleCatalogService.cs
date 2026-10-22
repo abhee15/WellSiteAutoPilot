@@ -38,7 +38,9 @@ public static class ProductPermissionCatalog
         new(WellSitePermissions.AssetTypesHide, "AssetTypes", "DeploymentWide", false),
         new(WellSitePermissions.ConnectionsRead, "Connections", "DeploymentWide", false),
         new(WellSitePermissions.ConnectionsManage, "Connections", "DeploymentWide", false),
-        new(WellSitePermissions.AssetViewsShare, "AssetViews", "DeploymentWide", false)
+        new(WellSitePermissions.AssetViewsCreate, "AssetViews", "DeploymentWide", false),
+        new(WellSitePermissions.AssetViewsEdit, "AssetViews", "DeploymentWide", false),
+        new(WellSitePermissions.AssetViewsDelete, "AssetViews", "DeploymentWide", false)
     ];
 
     private static readonly HashSet<string> Known =

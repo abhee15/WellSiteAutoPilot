@@ -1,4 +1,3 @@
-using WellSiteAutoPilot.Application.Assets.Views;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Assets;
 
@@ -52,13 +51,6 @@ public interface IAssetRepository
     /// <summary>The source of an Asset this subject may see, or null when it is not visible or was not imported.</summary>
     Task<AssetSourceInfo?> GetSourceAuthorizedAsync(AccessSubject subject, Guid assetId,
         CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// The next level of a View for this subject: the groups under <paramref name="path"/> (already chosen group keys,
-    /// one per level) or, once every level is chosen, a page of the matching Assets. Only Assets the subject may see are counted.
-    /// </summary>
-    Task<AssetViewNodes> QueryViewAsync(AccessSubject subject, AssetViewDefinition definition,
-        IReadOnlyList<string> path, int offset, int limit, CancellationToken cancellationToken = default);
 
     /// <summary>Authorized assets whose name contains <paramref name="text"/>, each with its visible location.</summary>
     Task<IReadOnlyCollection<AssetSearchHit>> SearchAuthorizedAsync(AccessSubject subject, string text,

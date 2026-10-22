@@ -16,8 +16,11 @@ type Level = { items: BrowseNode[]; hasMore: boolean; loading: boolean; failed: 
  * when it is opened, so a very large hierarchy never has to be loaded at once.
  */
 export function AssetBrowser({
-  selectedId, ancestorIds, refreshKey, onSelect, rootId, selectedOwnerId, canOpenConnection = false, typeNames,
+  selectedId, ancestorIds, refreshKey, onSelect, rootId, selectedOwnerId, canOpenConnection = false, typeNames, selection,
 }: {
+  selection?: { connectionId: string; wellTypeIds: ReadonlySet<string>; selectedIds: ReadonlySet<string>;
+    onToggle: (node: BrowseNode) => void; onNodes: (nodes: BrowseNode[]) => void;
+    onSelectBranch: (id: string | null) => void; busy: boolean };
   selectedId: string | null;
   /** Ancestors of the selected asset, top first; they are opened so the selection is visible. */
   ancestorIds: readonly string[];
@@ -31,12 +34,13 @@ export function AssetBrowser({
   canOpenConnection?: boolean;
   typeNames?: ReadonlyMap<string | undefined, string | null | undefined>;
 }) {
-  const top = rootId ?? ROOT;
+  const scopeId = selection?.connectionId;
+  const top = scopeId ? ownerKey(scopeId) : rootId ?? ROOT;
   const levels = useRef<Record<string, Level>>({});
   const [, redraw] = useState(0);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [owners, setOwners] = useState<OwnerGroup[] | null>(null);
-  const grouped = !rootId && owners !== null && owners.some(owner => owner.connectionId !== null);
+  const grouped = !selection && !rootId && owners !== null && owners.some(owner => owner.connectionId !== null);
   const generation = useRef(0);
   const controller = useRef<AbortController>(new AbortController());
 
@@ -52,6 +56,7 @@ export function AssetBrowser({
         ? { connectionId: key === ownerKey(null) ? null : key.slice('owner:'.length) } : undefined;
       const page = await fetchChildren(key === ROOT || scope ? null : key, offset, controller.current.signal, scope);
       if (turn !== generation.current) return;
+      selection?.onNodes(page);
       put(key, { items: append ? [...previous, ...page] : page, hasMore: page.length === BROWSE_PAGE_SIZE,
         loading: false, failed: false });
     } catch {
@@ -69,7 +74,7 @@ export function AssetBrowser({
     const reload = (withOwners: boolean) => {
       for (const key of [top, ...expanded]) if (!(key === ROOT && withOwners)) void load(key, false);
     };
-    if (rootId) reload(false);
+    if (rootId || scopeId) reload(false);
     else {
       // Learn which Connections own assets first, so the top level is read once, in its final shape.
       fetchOwners(signal).then(list => {
@@ -84,7 +89,7 @@ export function AssetBrowser({
     }
     return () => controller.current.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
+  }, [refreshKey, scopeId]);
 
   const revealKey = ancestorIds.join(',');
   useEffect(() => {
@@ -122,6 +127,7 @@ export function AssetBrowser({
           const name = node.name || t('assets.unnamed');
           const hasChildren = node.childCount > 0;
           const open = hasChildren && expanded.has(node.id);
+          const selectable = !!selection && selection.wellTypeIds.has(node.assetTypeId) && node.isActive;
           return (
             <li key={node.id} role="treeitem" aria-expanded={hasChildren ? open : undefined}
               aria-selected={node.id === selectedId}>
@@ -131,10 +137,15 @@ export function AssetBrowser({
                     aria-label={t(open ? 'assetTree.collapse' : 'assetTree.expand', { name })}
                     onClick={() => toggle(node.id)}>{open ? '−' : '+'}</button>
                 ) : <span className="asset-tree-toggle" aria-hidden="true" />}
+                {selectable && selection && <input type="checkbox" aria-label={t('assetViews.selectWell', { name })}
+                  disabled={selection.busy} checked={selection.selectedIds.has(node.id)} onChange={() => selection.onToggle(node)} />}
                 <button type="button" className="asset-select asset-tree-name" data-selected={node.id === selectedId}
-                  aria-label={t('assetTree.open', { name })} onClick={() => onSelect(node.id)}>
+                  aria-label={t('assetTree.open', { name })} onClick={() => selection ? (selectable ? selection.onToggle(node) : hasChildren && toggle(node.id)) : onSelect(node.id)}>
                   <AssetNodeIcon kind={assetNodeKind(hasChildren, typeNames?.get(node.assetTypeId))} />{name}</button>
                 {hasChildren && <small>{t('assetTree.count', { count: String(node.childCount) })}</small>}
+                {hasChildren && selection && <button type="button" className="asset-select" disabled={selection.busy}
+                  aria-label={t('assetViews.selectBranch', { name })} onClick={() => selection.onSelectBranch(node.id)}>
+                  {t('assetViews.selectBranchShort')}</button>}
               </div>
               {open && <ul role="group">{renderLevel(node.id)}</ul>}
             </li>

@@ -264,7 +264,9 @@ await AssertFailureAsync(
     "ASSET_ATTRIBUTE_SCHEMA_UNSUPPORTED");
 
 
-Console.WriteLine("Asset type and hierarchical asset persistence checks passed.");
+await AssetViewChecks.RunAsync(options, wellType.Id, tankType.Id);
+
+Console.WriteLine("Asset type, hierarchical asset and explicit View persistence checks passed.");
 return 0;
 
 

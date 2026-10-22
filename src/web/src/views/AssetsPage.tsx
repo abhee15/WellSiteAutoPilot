@@ -21,13 +21,13 @@ import { assetAncestors } from './assetPage';
 import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
 import { AssetViewBrowser } from './AssetViewBrowser';
 import { AssetViewEditor } from './AssetViewEditor';
-import { loadViews, unshareView } from './assetViewsApi';
-import type { AssetView, ViewDefinition } from './assetViewsApi';
-import type { ViewGroup } from './assetViewsApi';
+import { loadViews } from './assetViewsApi';
+import type { AssetView } from './assetViewsApi';
 import type { OwnerGroup } from './assetHierarchy';
 import { ownerLabel, ownerNameFor } from './AssetOwnerRow';
 import { AssetBrowser, AssetSearchResults } from './AssetBrowser';
 import { useAssetContext } from './useAssetContext';
+import { isSecurityId } from '../security/identifiers';
 import './splitLayout.css';
 
 /** The address `#assets/types` opens the Asset types tab; any other detail is an asset id. */
@@ -55,7 +55,8 @@ export function AssetsPage({
 }) {
   const [detail, setDetail] = useHashDetail('assets');
   const onTypesTab = detail === TYPES_TAB;
-  const selectedId = onTypesTab ? null : detail;
+  const viewIntent = detail?.startsWith('new-view:') ? detail.slice('new-view:'.length) : null;
+  const selectedId = onTypesTab || viewIntent ? null : detail;
   // A full snapshot means the flat list may be incomplete: browse and search on the server instead.
   const lazy = assets.length >= SNAPSHOT_ASSET_LIMIT;
   const [localRefresh, setLocalRefresh] = useState(0);
@@ -66,27 +67,21 @@ export function AssetsPage({
   const [views, setViews] = useState<AssetView[]>([]);
   const [activeViewId, setActiveViewId] = useState<string>('');
   const [editingView, setEditingView] = useState<'new' | AssetView | null>(null);
-  const [viewDraft, setViewDraft] = useState<{ name: string; definition: ViewDefinition; lossy: boolean } | null>(null);
-  const startViewFromFilters = (filters: AssetInventoryCriteria, suggestedName: string) => {
-    setViewDraft({
-      name: suggestedName,
-      definition: { version: 1, connections: [], assetTypeIds: [], activity: filters.activity,
-        search: filters.search.trim() || null, grouping: [] },
-      // A View lists by name and has no root-only or newest-first option, so those choices cannot carry over.
-      lossy: filters.hierarchy !== 'all' || filters.sort !== 'name',
-    });
-    setEditingView('new');
-  };
+  const viewAccess = permissions.includes('connections.read');
+  const [initialViewConnection, setInitialViewConnection] = useState<string | null>(null);
+  useEffect(() => {
+    if (viewIntent && viewAccess && permissions.includes('asset-views.create') && isSecurityId(viewIntent)) {
+      setInitialViewConnection(viewIntent); setEditingView('new'); setDetail(null);
+    }
+  }, [viewIntent, viewAccess, permissions, setDetail]);
   useEffect(() => {
     const controller = new AbortController();
+    if (!viewAccess) { setViews([]); return () => controller.abort(); }
     loadViews(controller.signal).then(list => { if (!controller.signal.aborted) setViews(list); })
       .catch(() => { if (!controller.signal.aborted) setViews([]); });
     return () => controller.abort();
-  }, []);
+  }, [viewAccess]);
   const activeView = views.find(view => view.id === activeViewId) ?? null;
-  const groupLabel = (group: ViewGroup) => group.key === 'standalone' ? t('assetOwner.standalone')
-    : group.key === 'active' ? t('assetViews.statusActive')
-      : group.key === 'inactive' ? t('assetViews.statusInactive') : group.label;
   const [owners, setOwners] = useState<OwnerGroup[]>([]);
   useEffect(() => {
     const controller = new AbortController();
@@ -245,55 +240,34 @@ export function AssetsPage({
           {editingView && <AssetViewEditor
             key={editingView === 'new' ? 'new' : editingView.id}
             view={editingView === 'new' ? null : editingView}
-            initial={editingView === 'new' ? viewDraft : null}
+            initialConnectionId={initialViewConnection}
             owners={owners}
-            assetTypes={activeTypes.map(type => ({ id: type.id ?? '', name: type.displayName ?? type.key ?? '' }))}
-            canShare={permissions.includes('asset-views.share')}
+            assetTypes={activeTypes.map(type => ({ id: type.id ?? '', key: type.key ?? '', name: type.displayName ?? type.key ?? '' }))}
             onSaved={saved => {
               setViews(current => [...current.filter(view => view.id !== saved.id), saved]
                 .sort((a, b) => a.name.localeCompare(b.name)));
               setActiveViewId(saved.id);
               setEditingView(null);
-              setViewDraft(null);
             }}
             onDeleted={() => {
               if (editingView !== 'new') setViews(current => current.filter(view => view.id !== editingView.id));
               setActiveViewId('');
               setEditingView(null);
             }}
-            onCancel={() => { setEditingView(null); setViewDraft(null); }} />}
-          <div className="asset-view-bar">
-            <label>
-              <span>{t('assetViews.selector')}</span>{' '}
-              <select value={activeView ? activeView.id : ''} onChange={event => { setActiveViewId(event.target.value); setFocus(null); }}>
+            onCancel={() => { setEditingView(null); setInitialViewConnection(null); }} />}
+          {viewAccess && <div className="asset-view-bar">
+            <label><span>{t('assetViews.selector')}</span>{' '}
+              <select value={activeView?.id ?? ''} onChange={event => { setActiveViewId(event.target.value); setFocus(null); setCriteria(DEFAULT_ASSET_INVENTORY_CRITERIA); }}>
                 <option value="">{t('assetViews.default')}</option>
-                {views.some(view => view.isOwner) && (
-                  <optgroup label={t('assetViews.mine')}>
-                    {views.filter(view => view.isOwner).map(view =>
-                      <option key={view.id} value={view.id}>{view.name}{view.visibility === 'shared' ? ' · ' + t('assetViews.sharedTag') : ''}</option>)}
-                  </optgroup>)}
-                {views.some(view => !view.isOwner) && (
-                  <optgroup label={t('assetViews.sharedWithMe')}>
-                    {views.filter(view => !view.isOwner).map(view =>
-                      <option key={view.id} value={view.id}>{view.name}{view.ownerName ? ' · ' + view.ownerName : ''}</option>)}
-                  </optgroup>)}
+                {views.map(view => <option key={view.id} value={view.id}>{view.name} · {owners.find(owner => owner.connectionId === view.connectionId)?.name ?? view.connectionId}</option>)}
               </select>
             </label>
-            <button type="button" className="secondary-button" onClick={() => { setViewDraft(null); setEditingView('new'); }}>
-              {t('assetViews.create')}</button>
-            {activeView && <button type="button" className="secondary-button" onClick={() => setEditingView(activeView)}>
-              {t(activeView.canEdit ? 'assetViews.edit' : 'assetViews.copy')}</button>}
-            {activeView && !activeView.isOwner && activeView.visibility === 'shared' && permissions.includes('security.manage') && (
-              <button type="button" className="secondary-button" onClick={() => {
-                void unshareView(activeView).then(() => {
-                  setViews(current => current.filter(view => view.id !== activeView.id));
-                  setActiveViewId('');
-                }).catch(() => undefined);
-              }}>{t('assetViews.unshare')}</button>)}
-            {activeView && activeView.hiddenConnectionCount > 0 && (
-              <span className="connection-help" role="note">
-                {t('assetViews.hiddenConnections', { count: String(activeView.hiddenConnectionCount) })}</span>)}
-          </div>
+            {permissions.includes('asset-views.create') && <button type="button" className="secondary-button" onClick={() => { setInitialViewConnection(null); setEditingView('new'); }}>
+              {t('assetViews.create')}</button>}
+            {activeView && (activeView.canEdit || activeView.canDelete) && <button type="button" className="secondary-button" onClick={() => setEditingView(activeView)}>
+              {t('assetViews.edit')}</button>}
+            {activeView?.hasUnavailableMembers && <span role="note" className="connection-help">{t('assetViews.unavailableMembers')}</span>}
+          </div>}
           <div className="split-panes">
             <section className="panel split-browse" aria-label={t('assets.browse')}>
               <div className="split-search">
@@ -301,7 +275,7 @@ export function AssetsPage({
                   aria-label={t('assets.search')} placeholder={t('assets.searchPlaceholder')}
                   onChange={event => setCriteria({ ...criteria, search: event.target.value })} />
               </div>
-              {!lazy && <details className="split-filters">
+              {!lazy && !activeView && <details className="split-filters">
                 <summary>{t('assets.moreFilters')}</summary>
                 <AssetInventoryControls
                   userId={userId}
@@ -310,10 +284,9 @@ export function AssetsPage({
                   matchingCount={visibleAssets.length}
                   totalCount={assets.length}
                   hideSearch
-                  onSaveAsView={startViewFromFilters}
                 />
               </details>}
-              {activeView && !criteria.search.trim() ? null : focus ? (
+              {activeView ? null : focus ? (
                 <p className="split-focus">
                   <span>{t('assets.focusedOn', { name: focus.name })}</span>
                   <button type="button" className="secondary-button" onClick={() => setFocus(null)}>
@@ -333,9 +306,9 @@ export function AssetsPage({
                     {permissions.includes('connections.manage') && permissions.includes('connections.read') &&
                       <p className="split-note"><a href="#connections">{t('assets.importFromConnection')}</a></p>}
                   </>
-                ) : activeView && !criteria.search.trim() ? (
-                  <AssetViewBrowser key={activeView.id + ':' + activeView.revision + ':' + localRefresh} viewId={activeView.id}
-                    selectedId={selectedId} onSelect={select} translateGroup={groupLabel} typeNames={typeNames} />
+                ) : activeView ? (
+                  <AssetViewBrowser key={activeView.id + ':' + activeView.revision + ':' + localRefresh + ':' + criteria.search} viewId={activeView.id}
+                    selectedId={selectedId} onSelect={select} query={criteria.search} />
                 ) : lazy ? (
                   criteria.search.trim()
                     ? <AssetSearchResults query={criteria.search.trim()} selectedId={selectedId}

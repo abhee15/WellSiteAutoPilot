@@ -20,7 +20,9 @@ const labels: Record<string, MessageKey> = {
   'asset-types.hide': 'roles.permissionAssetTypesHide',
   'connections.read': 'roles.permissionConnectionsRead',
   'connections.manage': 'roles.permissionConnectionsManage',
-  'asset-views.share': 'roles.permissionAssetViewsShare',
+  'asset-views.create': 'roles.permissionAssetViewsCreate',
+  'asset-views.edit': 'roles.permissionAssetViewsEdit',
+  'asset-views.delete': 'roles.permissionAssetViewsDelete',
 };
 const categories: Record<string, MessageKey> = {
   Assets: 'roles.categoryAssets',
