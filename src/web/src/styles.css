@@ -1209,3 +1209,17 @@ a.primary-button:hover { color: var(--color-text-on-accent); }
 .data-view-controls .multi-select-menu input[type='checkbox'] {
   flex: none; width: var(--size-icon); height: var(--size-icon); min-height: 0; margin: 0; padding: 0;
 }
+
+/* Native dropdowns get the same chevron as every other dropdown, not the browser's small one. */
+:where(select:not([multiple], [size])) {
+  appearance: none;
+  background-image: var(--icon-chevron-down);
+  background-repeat: no-repeat;
+  background-position: right var(--space-10) center;
+  background-size: var(--size-icon);
+  padding-right: var(--space-28);
+}
+
+
+.chevron-mark { flex: none; }
+.asset-tree-count .chevron-mark { color: var(--color-text-subtle); }

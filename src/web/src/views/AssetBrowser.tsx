@@ -7,6 +7,7 @@ import { AssetNodeIcon, assetNodeKind } from './AssetNodeIcon';
 import type { BrowseNode, SearchHit } from './assetBrowseApi';
 import './assetTree.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { ChevronMark, Disclosure } from '../components/Chevron';
 
 const ROOT = '__root__';
 
@@ -136,7 +137,7 @@ export function AssetBrowser({
                 {hasChildren ? (
                   <button type="button" className="asset-tree-toggle"
                     aria-label={t(open ? 'assetTree.collapse' : 'assetTree.expand', { name })}
-                    onClick={() => toggle(node.id)}>{open ? '−' : '+'}</button>
+                    onClick={() => toggle(node.id)}><Disclosure open={open} /></button>
                 ) : <span className="asset-tree-toggle" aria-hidden="true" />}
                 {selectable && selection && <input type="checkbox" aria-label={t('assetViews.selectWell', { name })}
                   disabled={selection.busy} checked={selection.selectedIds.has(node.id)} onChange={() => selection.onToggle(node)} />}
@@ -144,7 +145,7 @@ export function AssetBrowser({
                   aria-label={t('assetTree.open', { name })} onClick={() => selection ? (selectable ? selection.onToggle(node) : hasChildren && toggle(node.id)) : onSelect(node.id)}>
                   <AssetNodeIcon kind={assetNodeKind(hasChildren, typeNames?.get(node.assetTypeId))} />{name}</button>
                 {hasChildren && <small className="asset-tree-count" title={t('assetTree.count', { count: String(node.childCount) })}>
-                  {node.childCount}<span className="visually-hidden"> {t('assetTree.below')}</span></small>}
+                  <ChevronMark />{node.childCount}<span className="visually-hidden"> {t('assetTree.below')}</span></small>}
                 {hasChildren && selection && <button type="button" className="asset-select" disabled={selection.busy}
                   aria-label={t('assetViews.selectBranch', { name })} onClick={() => selection.onSelectBranch(node.id)}>
                   {t('assetViews.selectBranchShort')}</button>}

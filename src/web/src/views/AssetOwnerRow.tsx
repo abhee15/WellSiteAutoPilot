@@ -2,6 +2,7 @@ import { hashFor } from '../routing';
 import { t } from '../localization';
 import { AssetNodeIcon } from './AssetNodeIcon';
 import type { OwnerGroup } from './assetHierarchy';
+import { Disclosure } from '../components/Chevron';
 
 /** The name shown for a root: the Connection's name, or Standalone for assets no Connection owns. */
 export function ownerLabel(owner: OwnerGroup): string {
@@ -28,7 +29,7 @@ export function AssetOwnerRow({
     <div className="asset-tree-row asset-owner-row">
       <button type="button" className="asset-tree-toggle"
         aria-label={t(expanded ? 'assetTree.collapse' : 'assetTree.expand', { name: label })}
-        onClick={onToggle}>{expanded ? '−' : '+'}</button>
+        onClick={onToggle}><Disclosure open={expanded} /></button>
       <button type="button" className="asset-select asset-tree-name" onClick={onToggle}
         aria-label={t('assetTree.open', { name: label })}>
         <AssetNodeIcon kind={owner.connectionId === null ? 'standalone' : 'connection'} />
