@@ -18,4 +18,6 @@ public sealed record LogicModuleManifest(
     // Optional, human-readable summary of what the module does (shown in the catalog).
     string? Description = null,
     // Optional JSON Schema (the same subset Asset Types use) describing the module's settings.
-    JsonElement? ParameterSchema = null);
+    JsonElement? ParameterSchema = null,
+    // When set, all targets must belong to a Connection using this adapter.
+    string? RequiredAdapterKey = null);

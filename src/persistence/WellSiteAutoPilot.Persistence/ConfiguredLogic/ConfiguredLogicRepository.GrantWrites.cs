@@ -25,6 +25,7 @@ public sealed partial class ConfiguredLogicRepository
         return WriteConfigurationAuthorizedAsync(subject, actor, async () =>
         {
             await RequireConfigurationAssetsAsync(subject, DraftAssets(revision), cancellationToken);
+            await RequireViewSnapshotAsync(revision, subject, cancellationToken);
             dbContext.ConfiguredLogicDefinitions.Add(new ConfiguredLogicEntity
             {
                 Id = definition.Id, Name = definition.Name, CreatedAtUtc = definition.CreatedAtUtc
@@ -49,6 +50,7 @@ public sealed partial class ConfiguredLogicRepository
                 .Concat(DraftAssets(revision)).Distinct().Order().ToArray();
             await RequireConfigurationAssetsAsync(subject, targets, cancellationToken);
             if (revision.RevisionNumber != definition.Revisions.Max(item => item.RevisionNumber) + 1) throw Conflict();
+            await RequireViewSnapshotAsync(revision, subject, cancellationToken);
             AddRevision(revision);
             Audit(revision, "CONFIGURED_LOGIC_REVISION_CREATED", actor, (clock ?? TimeProvider.System).GetUtcNow());
         }, cancellationToken);
@@ -78,6 +80,43 @@ public sealed partial class ConfiguredLogicRepository
         return ToDomain(definitions[0], revisions.OrderBy(item => item.RevisionNumber).Select(item => ToDomain(item,
             assets.Where(binding => binding.RevisionId == item.Id).Select(ToDomain).ToArray(),
             inputs.Where(binding => binding.RevisionId == item.Id).Select(ToDomain).ToArray())).ToArray());
+    }
+
+    private async Task RequireViewSnapshotAsync(ConfiguredLogicRevision revision, AccessSubject subject, CancellationToken cancellationToken)
+    {
+        if (revision.View is not { } source) return;
+        await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject, WellSitePermissions.ConnectionsRead,
+            clock ?? TimeProvider.System, cancellationToken);
+        var views = await dbContext.AssetViews.FromSqlInterpolated($"""
+            SELECT v.* FROM assets.asset_views AS v WHERE v."Id" = {source.ViewId} FOR SHARE OF v
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        if (views.Length != 1 || views[0].ConnectionId != source.ConnectionId || views[0].Revision != source.Revision)
+            throw new WellSiteAutoPilotException("ASSET_VIEW_REVISION_STALE", FailureKind.Conflict,
+                "The View changed before the assignment was saved. Review its selection again.");
+        var expected = await dbContext.AssetViewMembers.Where(member => member.ViewId == source.ViewId)
+            .Select(member => member.AssetId).ToArrayAsync(cancellationToken);
+        var actual = revision.AssetBindings.Where(binding => string.Equals(binding.Role, source.Role, StringComparison.OrdinalIgnoreCase))
+            .Select(binding => binding.AssetId).ToArray();
+        if (actual.Length == 0 || !expected.ToHashSet().SetEquals(actual)) throw InvalidDraft();
+        var targets = DraftAssets(revision);
+        if (await dbContext.Assets.CountAsync(asset => targets.Contains(asset.Id) && asset.OwnerConnectionId == source.ConnectionId,
+                cancellationToken) != targets.Length) throw InvalidDraft();
+        var connections = await dbContext.Connections.FromSqlInterpolated($"""
+            SELECT c.* FROM integration.connections AS c WHERE c."Id" = {source.ConnectionId} FOR SHARE OF c
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        if (connections.Length != 1 || !connections[0].IsEnabled) throw DependencyConflict();
+        if (revision.DataBindings.Count > 0)
+        {
+            var adapter = connections[0].AdapterKey;
+            var sources = await dbContext.SourceBindings.AsNoTracking().Where(binding =>
+                binding.ConnectionId == source.ConnectionId && targets.Contains(binding.AssetId))
+                .Select(binding => new { binding.AssetId, binding.ExternalId }).ToArrayAsync(cancellationToken);
+            var identities = sources.Select(binding => (binding.AssetId, binding.ExternalId)).ToHashSet();
+            if (revision.DataBindings.Any(binding => !string.Equals(binding.ProviderId, adapter, StringComparison.OrdinalIgnoreCase) ||
+                !identities.Contains((binding.AssetId, binding.ProviderAssetExternalId))))
+                throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_VIEW_SOURCE_MISMATCH", FailureKind.Validation,
+                    "View data bindings must use this Connection's adapter and each selected Asset's stored source identity.");
+        }
     }
 
     private async Task RequireConfigurationAssetsAsync(AccessSubject subject, Guid[] targets, CancellationToken cancellationToken)
@@ -119,7 +158,9 @@ public sealed partial class ConfiguredLogicRepository
         if (revision.Id == Guid.Empty || revision.ConfiguredLogicId == Guid.Empty || revision.RevisionNumber < 1 ||
             revision.Mode != ExecutionMode.Shadow || revision.Status != ConfiguredLogicRevisionStatus.Draft ||
             revision.ValidatedAtUtc is not null || revision.ActivatedAtUtc is not null ||
-            revision.AssetBindings.Count == 0 || DraftAssets(revision).Contains(Guid.Empty)) throw InvalidDraft();
+            revision.AssetBindings.Count == 0 || DraftAssets(revision).Contains(Guid.Empty) ||
+            (revision.View is { } source && (source.ViewId == Guid.Empty || source.ConnectionId == Guid.Empty ||
+                source.Revision < 1 || string.IsNullOrWhiteSpace(source.Role) || source.Role.Length > 128))) throw InvalidDraft();
     }
 
     private static WellSiteAutoPilotException InvalidDraft() => new(FailureCodes.ValidationFailed, FailureKind.Validation,

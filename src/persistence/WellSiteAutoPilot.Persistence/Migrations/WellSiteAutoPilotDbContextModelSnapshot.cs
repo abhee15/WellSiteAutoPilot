@@ -366,14 +366,32 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.Property<DateTimeOffset?>("ValidatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ViewConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ViewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ViewRevision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ViewRole")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("ViewId");
+
                     b.HasIndex("ConfiguredLogicId", "RevisionNumber")
                         .IsUnique();
 
-                    b.ToTable("configured_logic_revisions", "logic");
+                    b.ToTable("configured_logic_revisions", "logic", t =>
+                        {
+                            t.HasCheckConstraint("CK_configured_logic_view_snapshot", "(\"ViewId\" IS NULL AND \"ViewRevision\" IS NULL AND \"ViewConnectionId\" IS NULL AND \"ViewRole\" IS NULL) OR (\"ViewId\" IS NOT NULL AND \"ViewRevision\" IS NOT NULL AND \"ViewRevision\" > 0 AND \"ViewConnectionId\" IS NOT NULL AND \"ViewRole\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", b =>
@@ -1108,6 +1126,11 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasForeignKey("ConfiguredLogicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("WellSiteAutoPilot.Persistence.Assets.Views.AssetViewEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ViewId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.SourceBindingEntity", b =>

@@ -41,6 +41,8 @@ var validManifest = new LogicModuleManifest(
     ]);
 
 LogicModuleManifestValidator.Validate(validManifest);
+LogicModuleManifestValidator.Validate(validManifest with { RequiredAdapterKey = "foresite" });
+AssertFailure(validManifest with { RequiredAdapterKey = "invalid adapter" }, "MODULE_IDENTIFIER_INVALID");
 
 AssertFailure(
     validManifest with { Version = "one" },

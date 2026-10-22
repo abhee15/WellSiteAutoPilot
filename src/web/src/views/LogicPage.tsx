@@ -191,6 +191,7 @@ export function LogicPage({
                 selectedId={selectedConfiguredId} initialAssetId={prefillAssetId}
                 canManage={creating ? canManage : canManage && selectedConfiguration?.canManage === true}
                 userId={userId} canRequestShadow={permissions.includes('executions.request') && selectedConfiguration?.canRequestShadow === true}
+                canReadViews={permissions.includes('connections.read')}
                 modules={modules} assets={assets} assetTypes={assetTypes}
                 executions={canReadRuns ? executions : undefined}
                 onChanged={onRefresh}

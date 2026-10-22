@@ -15,7 +15,7 @@ export type AssetRequirement = {
 };
 export type DataRequirement = { id: string; assetRole: string; quantity: string };
 export type SetupManifest = {
-  description?: string; parameterSchema?: unknown;
+  description?: string; parameterSchema?: unknown; requiredAdapterKey?: string | null;
   moduleId: string; version: string; executionProfile: string;
   assetRequirements: AssetRequirement[]; dataRequirements: DataRequirement[];
 };
@@ -24,6 +24,7 @@ export function setupManifest(module: LogicModuleResponse): SetupManifest | null
   try {
     const value = JSON.parse(module.manifestJson) as SetupManifest;
     if (value.moduleId !== module.moduleId || value.version !== module.version ||
+      (value.requiredAdapterKey != null && typeof value.requiredAdapterKey !== 'string') ||
       !Array.isArray(value.assetRequirements) || !Array.isArray(value.dataRequirements) ||
       !value.assetRequirements.every(r => typeof r.role === 'string' &&
         Number.isInteger(r.minimumCount) && r.minimumCount >= 0 &&
@@ -69,7 +70,9 @@ export function verifiedConfiguration(value: unknown): value is VerifiedConfigur
     v.revisions.every(r => isSecurityId(r.id) &&
       Number.isSafeInteger(r.revisionNumber) && (r.revisionNumber ?? 0) > 0 &&
       REVISION_STATUSES.includes(r.status ?? '') &&
-      r.mode === 'Shadow' && Array.isArray(r.assetBindings) &&
+      r.mode === 'Shadow' && (!r.view || (isSecurityId(r.view.viewId) && isSecurityId(r.view.connectionId) &&
+        Number.isSafeInteger(r.view.revision) && (r.view.revision ?? 0) > 0 && typeof r.view.role === 'string' && r.view.role.length > 0)) &&
+      Array.isArray(r.assetBindings) &&
       r.assetBindings.every(b => isSecurityId(b.assetId)) && Array.isArray(r.dataBindings)) &&
     new Set(v.revisions.map(r => r.id)).size === v.revisions.length &&
     (v.activeRevisionId === null
@@ -123,6 +126,8 @@ export function matchesSetupRevision(revision: ConfiguredLogicRevisionResponse, 
     json(revision.parametersJson) === json(request.parametersJson) &&
     JSON.stringify(bindings(revision.assetBindings)) === JSON.stringify(bindings(request.assetBindings)) &&
     JSON.stringify(data(revision.dataBindings)) === JSON.stringify(data(request.dataBindings)) &&
+    (!request.view ? !revision.view : !!revision.view && revision.view.viewId === request.view.viewId &&
+      revision.view.revision === request.view.expectedRevision && revision.view.role === request.view.role) &&
     (!request.schedule ? !revision.schedule : !!revision.schedule &&
       revision.schedule.enabled === request.schedule.enabled &&
       revision.schedule.cadenceSeconds === request.schedule.cadenceSeconds &&

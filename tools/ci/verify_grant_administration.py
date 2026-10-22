@@ -388,7 +388,7 @@ other_view = request("POST", "/asset-views", body={"name": "ESP Wells", "connect
 for ids in [[], [alpha["id"], alpha["id"]], [other_alpha["id"]], [alone["id"]], [north["id"]], [str(uuid.uuid4())]]:
     request("POST", "/asset-views", body={"name": "Invalid", "connectionId": twin["id"], "assetIds": ids}, expected=400)
 request("POST", "/asset-views", body={"name": "Invalid", "connectionId": str(uuid.uuid4()), "assetIds": selection}, expected=400)
-assert request("GET", "/asset-views/" + view["id"] + "/selection") == {"revision": 1, "assetIds": sorted(selection)}
+assert request("GET", "/asset-views/" + view["id"] + "/selection") == {"revision": 1, "assetIds": sorted(selection), "unavailableMembers": []}
 for offset, name in enumerate(["Alpha 1", "Alpha 2"]):
     page = request("GET", "/asset-views/" + view["id"] + "/members?limit=1&offset=" + str(offset))
     assert [item["name"] for item in page] == [name], page

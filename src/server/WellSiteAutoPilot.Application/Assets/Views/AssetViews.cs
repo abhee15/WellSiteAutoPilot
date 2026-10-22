@@ -13,9 +13,10 @@ public static class AssetViewFailureCodes
 
 /// <summary>A named, explicit set of wells from exactly one Connection. Creator identity is audit data only.</summary>
 public sealed record AssetViewRecord(Guid Id, Guid ConnectionId, string Name, int Revision,
-    int MemberCount, bool HasUnavailableMembers, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc);
+    int MemberCount, bool HasUnavailableMembers, bool CanInspectAllMembers, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc);
 
-public sealed record AssetViewSelection(int Revision, IReadOnlyList<Guid> AssetIds);
+public sealed record AssetViewSelection(int Revision, IReadOnlyList<Guid> AssetIds, IReadOnlyList<AssetViewUnavailableMember> UnavailableMembers);
+public sealed record AssetViewUnavailableMember(Guid Id, string Name);
 
 public static class AssetViewDefinitionRules
 {

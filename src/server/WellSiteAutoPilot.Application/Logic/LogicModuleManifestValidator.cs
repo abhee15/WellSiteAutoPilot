@@ -19,6 +19,7 @@ public static partial class LogicModuleManifestValidator
         }
 
         RequireIdentifier(manifest.ModuleId, "Module ID");
+        if (manifest.RequiredAdapterKey is { } adapterKey) RequireIdentifier(adapterKey, "Required adapter key");
         RequireText(manifest.DisplayName, "Display name");
         RequireText(manifest.Publisher, "Publisher");
         RequireText(manifest.EntryPoint, "Entry point");

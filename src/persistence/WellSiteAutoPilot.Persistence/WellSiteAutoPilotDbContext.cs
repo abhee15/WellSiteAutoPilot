@@ -158,6 +158,11 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         configuredLogic.HasIndex(x => x.ActiveRevisionId);
 
         var configuredLogicRevision = modelBuilder.Entity<ConfiguredLogicRevisionEntity>();
+        configuredLogicRevision.Property(x => x.ViewRole).HasMaxLength(128);
+        configuredLogicRevision.HasOne<AssetViewEntity>().WithMany().HasForeignKey(x => x.ViewId).OnDelete(DeleteBehavior.Restrict);
+        configuredLogicRevision.ToTable(table => table.HasCheckConstraint("CK_configured_logic_view_snapshot",
+            "(\"ViewId\" IS NULL AND \"ViewRevision\" IS NULL AND \"ViewConnectionId\" IS NULL AND \"ViewRole\" IS NULL) OR " +
+            "(\"ViewId\" IS NOT NULL AND \"ViewRevision\" IS NOT NULL AND \"ViewRevision\" > 0 AND \"ViewConnectionId\" IS NOT NULL AND \"ViewRole\" IS NOT NULL)"));
         configuredLogicRevision.ToTable("configured_logic_revisions", "logic");
         configuredLogicRevision.HasKey(x => x.Id);
         configuredLogicRevision.Property(x => x.RevisionNumber).IsRequired();

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Application.Assets;
+using WellSiteAutoPilot.Application.Assets.Views;
+using WellSiteAutoPilot.Application.Connections;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Security;
@@ -15,7 +17,9 @@ public sealed class ConfiguredLogicService(
     IConfiguredLogicRepository repository,
     IAssetRepository assetRepository,
     ILogicModuleCatalogRepository moduleCatalogRepository,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IAssetViewRepository? assetViews = null,
+    IConnectionRepository? connections = null)
 {
     private static readonly JsonSerializerOptions ManifestSerializerOptions = CreateManifestSerializerOptions();
 
@@ -33,13 +37,13 @@ public sealed class ConfiguredLogicService(
         CreateConfiguredLogicCommand command, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default)
     {
-        var definition = await BuildDefinitionAsync(command, cancellationToken);
+        var definition = await BuildDefinitionAsync(command, cancellationToken, subject);
         await repository.AddAuthorizedAsync(definition, subject, actor, cancellationToken);
         return definition;
     }
 
     private async Task<ConfiguredLogicDefinition> BuildDefinitionAsync(
-        CreateConfiguredLogicCommand command, CancellationToken cancellationToken)
+        CreateConfiguredLogicCommand command, CancellationToken cancellationToken, AccessSubject? subject = null)
     {
         ArgumentNullException.ThrowIfNull(command);
 
@@ -58,10 +62,12 @@ public sealed class ConfiguredLogicService(
         await LogicModuleManifestValidator.ValidateParametersAsync(
             manifest, command.ParametersJson, cancellationToken);
 
+        var (targetBindings, viewBinding) = await ResolveViewAsync(command.View, command.AssetBindings, manifest, subject, cancellationToken);
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
-            command.AssetBindings,
-            cancellationToken);
+            targetBindings,
+            cancellationToken,
+            viewBinding?.ConnectionId);
         var dataBindings = ValidateDataBindings(
             manifest,
             assetBindings,
@@ -85,7 +91,8 @@ public sealed class ConfiguredLogicService(
             null,
             schedule,
             assetBindings,
-            dataBindings);
+            dataBindings,
+            viewBinding);
 
         var configuredLogic = new ConfiguredLogicDefinition(
             configuredLogicId,
@@ -120,13 +127,13 @@ public sealed class ConfiguredLogicService(
         var existing = await repository.GetAuthorizedAsync(subject, configuredLogicId, cancellationToken) ??
             throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_NOT_FOUND", FailureKind.NotFound,
                 "The requested Configured Logic was not found.");
-        var revision = await BuildRevisionAsync(existing, command, cancellationToken);
+        var revision = await BuildRevisionAsync(existing, command, cancellationToken, subject);
         await repository.AddRevisionAuthorizedAsync(revision, subject, actor, cancellationToken);
         return revision;
     }
 
     private async Task<ConfiguredLogicRevision> BuildRevisionAsync(ConfiguredLogicDefinition existing,
-        CreateConfiguredLogicRevisionCommand command, CancellationToken cancellationToken)
+        CreateConfiguredLogicRevisionCommand command, CancellationToken cancellationToken, AccessSubject? subject = null)
     {
         ArgumentNullException.ThrowIfNull(command);
         var requestedManifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
@@ -140,10 +147,12 @@ public sealed class ConfiguredLogicService(
         await LogicModuleManifestValidator.ValidateParametersAsync(
             manifest, command.ParametersJson, cancellationToken);
 
+        var (targetBindings, viewBinding) = await ResolveViewAsync(command.View, command.AssetBindings, manifest, subject, cancellationToken);
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
-            command.AssetBindings,
-            cancellationToken);
+            targetBindings,
+            cancellationToken,
+            viewBinding?.ConnectionId);
         var dataBindings = ValidateDataBindings(
             manifest,
             assetBindings,
@@ -167,7 +176,8 @@ public sealed class ConfiguredLogicService(
             null,
             schedule,
             assetBindings,
-            dataBindings);
+            dataBindings,
+            viewBinding);
 
         return revision;
     }
@@ -405,10 +415,50 @@ public sealed class ConfiguredLogicService(
             cancellationToken);
     }
 
+    private async Task<(IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> Bindings, ConfiguredLogicViewBinding? View)> ResolveViewAsync(
+        ConfiguredLogicViewBindingCommand? requested, IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> bindings,
+        LogicModuleManifest manifest, AccessSubject? subject, CancellationToken cancellationToken)
+    {
+        if (requested is null)
+        {
+            if (manifest.RequiredAdapterKey is not null)
+                throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                    "This module requires a Connection-scoped View assignment.");
+            return (bindings, null);
+        }
+        if (subject is null || assetViews is null || connections is null || requested.ViewId == Guid.Empty || requested.ExpectedRevision < 1)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "A reviewed View selection is required.");
+        var role = RequireText(requested.Role, "A View target role is required.", 128);
+        if (!manifest.AssetRequirements.Any(item => string.Equals(item.Role, role, StringComparison.OrdinalIgnoreCase)))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The module does not declare that target role.");
+        var view = await assetViews.FindAsync(subject, requested.ViewId, cancellationToken) ??
+            throw new WellSiteAutoPilotException("ASSET_VIEW_NOT_FOUND", FailureKind.NotFound, "The View was not found.");
+        var selection = await assetViews.SelectionAsync(subject, requested.ViewId, cancellationToken);
+        if (selection.UnavailableMembers.Count > 0)
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Remove inactive or ineligible wells from the View before assigning it.");
+        if (selection.Revision != requested.ExpectedRevision)
+            throw new WellSiteAutoPilotException("ASSET_VIEW_REVISION_STALE", FailureKind.Conflict, "The View changed. Review its selection again.");
+        var connection = await connections.FindAsync(view.ConnectionId, cancellationToken);
+        if (connection is null || !connection.IsEnabled || (manifest.RequiredAdapterKey is { } adapter &&
+            !string.Equals(adapter, connection.AdapterKey, StringComparison.OrdinalIgnoreCase)))
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_VIEW_INCOMPATIBLE", FailureKind.Validation,
+                "The View's Connection is disabled or incompatible with this module.");
+        var supplied = bindings.Where(item => string.Equals(item.Role, role, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (supplied.Length > 0 && (supplied.Select(item => item.AssetId).Distinct().Count() != supplied.Length ||
+            !selection.AssetIds.ToHashSet().SetEquals(supplied.Select(item => item.AssetId))))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "The supplied targets do not match the complete View selection.");
+        var overrides = supplied.ToDictionary(item => item.AssetId, item => item.ParameterOverridesJson);
+        return (bindings.Where(item => !string.Equals(item.Role, role, StringComparison.OrdinalIgnoreCase))
+                .Concat(selection.AssetIds.Select(id => new ConfiguredLogicAssetBindingCommand(role, id, overrides.GetValueOrDefault(id) ?? "{}"))).ToArray(),
+            new ConfiguredLogicViewBinding(view.Id, selection.Revision, view.ConnectionId, role));
+    }
+
     private async Task<IReadOnlyCollection<ConfiguredLogicAssetBinding>> ValidateAssetBindingsAsync(
         LogicModuleManifest manifest,
         IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> commands,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Guid? requiredConnectionId = null)
     {
         if (commands is null)
         {
@@ -421,6 +471,9 @@ public sealed class ConfiguredLogicService(
         var requirements = manifest.AssetRequirements
             .ToDictionary(item => item.Role, StringComparer.OrdinalIgnoreCase);
 
+        var assetsById = (await assetRepository.GetAssetsByIdsAsync(commands.Select(command => command.AssetId).ToArray(), cancellationToken))
+            .ToDictionary(asset => asset.Id);
+        var typesById = (await assetRepository.ListAssetTypesAsync(cancellationToken)).ToDictionary(type => type.Id);
         var normalized = new List<ConfiguredLogicAssetBinding>(commands.Count);
         var uniqueBindings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -454,8 +507,8 @@ public sealed class ConfiguredLogicService(
 
             ValidateParameterObject(command.ParameterOverridesJson);
 
-            var asset = await assetRepository.GetAssetAsync(command.AssetId, cancellationToken);
-            if (asset is null || !asset.IsActive)
+            var asset = assetsById.GetValueOrDefault(command.AssetId);
+            if (asset is null || !asset.IsActive || (requiredConnectionId is { } owner && asset.OwnerConnectionId != owner))
             {
                 throw new WellSiteAutoPilotException(
                     "CONFIGURED_LOGIC_ASSET_NOT_FOUND",
@@ -465,9 +518,7 @@ public sealed class ConfiguredLogicService(
 
             if (!string.IsNullOrWhiteSpace(requirement.RequiredAssetTypeKey))
             {
-                var assetType = await assetRepository.GetAssetTypeAsync(
-                    asset.AssetTypeId,
-                    cancellationToken);
+                var assetType = typesById.GetValueOrDefault(asset.AssetTypeId);
 
                 if (assetType is null ||
                     !assetType.IsActive ||
@@ -524,6 +575,7 @@ public sealed class ConfiguredLogicService(
 
         var requirements = manifest.DataRequirements
             .ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
+        var boundRoles = assetBindings.Select(binding => (binding.Role.ToUpperInvariant(), binding.AssetId)).ToHashSet();
         var normalized = new List<ConfiguredLogicDataBinding>(commands.Count);
         var uniqueBindings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -549,12 +601,7 @@ public sealed class ConfiguredLogicService(
                     $"Data requirement '{requirementId}' requires an Asset ID.");
             }
 
-            var roleBindingExists = assetBindings.Any(
-                item => item.AssetId == command.AssetId &&
-                        string.Equals(
-                            item.Role,
-                            requirement.AssetRole,
-                            StringComparison.OrdinalIgnoreCase));
+            var roleBindingExists = boundRoles.Contains((requirement.AssetRole.ToUpperInvariant(), command.AssetId));
 
             if (!roleBindingExists)
             {
@@ -603,12 +650,7 @@ public sealed class ConfiguredLogicService(
 
             foreach (var assetId in requiredAssets)
             {
-                if (!normalized.Any(
-                        item => item.AssetId == assetId &&
-                                string.Equals(
-                                    item.RequirementId,
-                                    requirement.Id,
-                                    StringComparison.OrdinalIgnoreCase)))
+                if (!uniqueBindings.Contains($"{requirement.Id}:{assetId:D}"))
                 {
                     throw new WellSiteAutoPilotException(
                         "CONFIGURED_LOGIC_DATA_BINDING_MISSING",

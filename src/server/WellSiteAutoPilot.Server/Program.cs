@@ -720,7 +720,8 @@ v1.MapGet("/asset-views/{viewId:guid}/selection",
     async (Guid viewId, IAssetViewRepository views, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
         var selection = await views.SelectionAsync(access.Subject, viewId, cancellationToken);
-        return new AssetViewSelectionResponse(selection.Revision, selection.AssetIds);
+        return new AssetViewSelectionResponse(selection.Revision, selection.AssetIds,
+            selection.UnavailableMembers.Select(member => new AssetViewUnavailableMemberResponse(member.Id, member.Name)).ToArray());
     })
     .WithName("GetAssetViewSelection").RequireAuthorization(WellSitePolicies.ConnectionsRead)
     .Produces<AssetViewSelectionResponse>(StatusCodes.Status200OK);
@@ -803,7 +804,8 @@ v1.MapPost(
                         request.Schedule.Enabled,
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
-                        request.Schedule.TimeZoneId)),
+                        request.Schedule.TimeZoneId),
+                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role)),
             access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
@@ -886,7 +888,8 @@ v1.MapPost(
                         request.Schedule.Enabled,
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
-                        request.Schedule.TimeZoneId)),
+                        request.Schedule.TimeZoneId),
+                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role)),
             access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
@@ -1351,7 +1354,9 @@ static ConfiguredLogicRevisionResponse ToConfiguredLogicRevisionResponse(Configu
             binding.ProviderId,
             binding.ProviderAssetExternalId,
             binding.ProviderMappingJson))
-        .ToArray());
+        .ToArray(),
+    revision.View is null ? null : new ConfiguredLogicViewResponse(revision.View.ViewId, revision.View.Revision,
+        revision.View.ConnectionId, revision.View.Role));
 
 static LogicModuleResponse ToLogicModuleResponse(
     WellSiteAutoPilot.Domain.Logic.InstalledLogicModule module) => new(

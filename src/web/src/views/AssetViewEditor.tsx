@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
-import { MAX_VIEW_NAME, ViewsError, createView, deleteView, loadViewMembers, loadViewSelection, updateView } from './assetViewsApi';
+import { MAX_VIEW_NAME, ViewsError, createView, deleteView, loadViewMembers, loadViewSelectionDetails, updateView } from './assetViewsApi';
 import type { AssetView } from './assetViewsApi';
 import type { OwnerGroup } from './assetHierarchy';
 import { AssetBrowser } from './AssetBrowser';
@@ -11,7 +11,7 @@ import { wellsUnder } from './wellSelection';
 import './assetViews.css';
 
 const errors: Record<string, MessageKey> = { accessDenied: 'assetViews.errDenied', notFound: 'assetViews.errNotFound',
-  nameTaken: 'assetViews.errNameTaken', stale: 'assetViews.errStale', invalid: 'assetViews.errInvalid' };
+  nameTaken: 'assetViews.errNameTaken', referenced: 'assetViews.errReferenced', stale: 'assetViews.errStale', invalid: 'assetViews.errInvalid' };
 const errorMessage = (error: unknown) => t(error instanceof ViewsError ? errors[error.kind] ?? 'assetViews.errUnavailable' : 'assetViews.errUnavailable');
 
 export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId, onSaved, onDeleted, onCancel }: {
@@ -23,6 +23,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
   const [connectionId, setConnectionId] = useState(view?.connectionId ?? initialConnectionId ?? '');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [known, setKnown] = useState<ReadonlyMap<string, BrowseNode>>(new Map());
+  const [unavailableIds, setUnavailableIds] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(!!view?.canEdit);
   const [selectionReady, setSelectionReady] = useState(!view);
@@ -45,9 +46,12 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
   useEffect(() => {
     const request = new AbortController(); controller.current = request;
     if (view?.canEdit) {
-      Promise.all([loadViewSelection(view, request.signal), loadViewMembers(view.id, 0, request.signal)]).then(([ids, members]) => {
+      Promise.all([loadViewSelectionDetails(view, request.signal), loadViewMembers(view.id, 0, request.signal)]).then(([ids, members]) => {
         if (request.signal.aborted) return;
-        setSelected(new Set(ids)); remember(members.map(member => ({ ...member, childCount: 0 })));
+        setSelected(new Set(ids.assetIds));
+        setUnavailableIds(new Set(ids.unavailableMembers.map(member => member.id)));
+        remember([...members.map(member => ({ ...member, childCount: 0 })), ...ids.unavailableMembers.map(member => ({
+          ...member, assetTypeId: '', parentAssetId: null, ownerConnectionId: view.connectionId, isActive: false, childCount: 0 }))]);
         setSelectionReady(true);
       }).catch(reason => { if (!request.signal.aborted) setError(errorMessage(reason)); })
         .finally(() => { if (!request.signal.aborted) setLoading(false); });
@@ -142,7 +146,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
           <h4>{t('assetViews.selectedCount', { count: selected.size })}</h4>
           <button type="button" className="secondary-button" onClick={() => setSelected(new Set())}>{t('assetViews.clearSelection')}</button>
           <ul className="well-selection-list">{selectedIds.slice(0, reviewLimit).map(id => <li key={id}>
-            <span>{known.get(id)?.name ?? id}</span><button type="button" className="asset-select"
+            <span>{known.get(id)?.name ?? id}{unavailableIds.has(id) ? ' · ' + t('assetViews.unavailableWell') : ''}</span><button type="button" className="asset-select"
               aria-label={t('assetViews.removeWell', { name: known.get(id)?.name ?? id })}
               onClick={() => setSelected(current => new Set([...current].filter(item => item !== id)))}>{t('assetViews.remove')}</button>
           </li>)}</ul>
@@ -154,7 +158,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
     {busy && <p role="status">{t('assetViews.working')}</p>}
     {error && <p role="alert" className="status-error">{error}</p>}
     <div className="connection-actions">
-      {!readOnly && <button type="submit" className="primary-button" disabled={busy || loading || !selectionReady || !name.trim() || !connectionId || selected.size === 0 || selected.size > 50_000}>
+      {!readOnly && <button type="submit" className="primary-button" disabled={busy || loading || !selectionReady || !name.trim() || !connectionId || selected.size === 0 || selected.size > 50_000 || [...unavailableIds].some(id => selected.has(id))}>
         {t('assetViews.save')}</button>}
       <button type="button" className="secondary-button" disabled={busy} onClick={onCancel}>{t('assetViews.cancel')}</button>
       {view?.canDelete && !confirmDelete && <button type="button" className="secondary-button" disabled={busy}

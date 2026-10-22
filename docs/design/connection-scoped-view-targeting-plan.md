@@ -1,9 +1,11 @@
 # Connection-scoped Views for logic targeting
 
-Status: implementation plan, 21 October 2026. Reviewed develop at `813cf2f20cbdaf6fc294eb3dd2ef8819a792a1f7`.
+Status: original implementation plan, 21 October 2026. Delivered scope and remaining limits are recorded in
+sections 18–19 of connections-workflow-design.md (updated 22 October 2026). Reviewed develop at `813cf2f20cbdaf6fc294eb3dd2ef8819a792a1f7`.
 This plan supersedes sections 18 and 19 of connections-workflow-design.md for the meaning, membership,
 visibility and editing of Views. Those sections describe the earlier saved-query implementation.
-No runtime changes are made by this document.
+No runtime changes are made by this document. The original proposed individual-Connection grant extension
+and automatic per-well dispatch are deferred; current Connection visibility uses deployment-wide connections.read.
 
 ## 1. Product contract
 

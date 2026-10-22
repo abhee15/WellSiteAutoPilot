@@ -24,11 +24,15 @@ public sealed record CreateConfiguredLogicCommand(
     string ParametersJson,
     IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingCommand> DataBindings,
-    ConfiguredLogicScheduleCommand? Schedule);
+    ConfiguredLogicScheduleCommand? Schedule,
+    ConfiguredLogicViewBindingCommand? View = null);
 
 public sealed record CreateConfiguredLogicRevisionCommand(
     string ModuleManifestJson,
     string ParametersJson,
     IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingCommand> DataBindings,
-    ConfiguredLogicScheduleCommand? Schedule);
+    ConfiguredLogicScheduleCommand? Schedule,
+    ConfiguredLogicViewBindingCommand? View = null);
+
+public sealed record ConfiguredLogicViewBindingCommand(Guid ViewId, int ExpectedRevision, string Role);

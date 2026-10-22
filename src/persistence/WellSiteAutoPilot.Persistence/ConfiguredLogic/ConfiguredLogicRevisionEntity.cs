@@ -2,6 +2,10 @@ namespace WellSiteAutoPilot.Persistence.ConfiguredLogic;
 
 public sealed class ConfiguredLogicRevisionEntity
 {
+    public Guid? ViewId { get; init; }
+    public int? ViewRevision { get; init; }
+    public Guid? ViewConnectionId { get; init; }
+    public string? ViewRole { get; init; }
     public Guid Id { get; init; }
     public Guid ConfiguredLogicId { get; init; }
     public int RevisionNumber { get; init; }
