@@ -53,23 +53,27 @@ function nodes(value: unknown): BrowseNode[] {
   return value.map(toNode).filter((node): node is BrowseNode => node !== null);
 }
 
-/** Which top level to read: a Connection's assets, or the ones no Connection owns. */
+/** Which owner to browse: a Connection's assets, or the ones no Connection owns. */
 export type OwnerScope = { connectionId: string | null };
 
-/** The top level (parentId null) or the children of one asset; an owner scope narrows the top level. */
+const ownerQuery = (owner?: OwnerScope): string => !owner ? '' : owner.connectionId
+  ? `&ownerConnectionId=${encodeURIComponent(owner.connectionId)}` : '&standalone=true';
+
+/** The top level (parentId null) or the children of one asset, optionally narrowed to one owner at every level. */
 export async function fetchChildren(
   parentId: string | null, offset: number, signal: AbortSignal, owner?: OwnerScope,
 ): Promise<BrowseNode[]> {
   const query = `limit=${BROWSE_PAGE_SIZE}&offset=${offset}` +
     (parentId ? `&parentAssetId=${encodeURIComponent(parentId)}` : '') +
-    (!parentId && owner ? (owner.connectionId
-      ? `&ownerConnectionId=${encodeURIComponent(owner.connectionId)}` : '&standalone=true') : '');
+    ownerQuery(owner);
   return nodes(await getJson(`/api/v1/assets/children?${query}`, signal));
 }
 
-export async function fetchSearch(text: string, offset: number, signal: AbortSignal): Promise<SearchHit[]> {
+export async function fetchSearch(
+  text: string, offset: number, signal: AbortSignal, owner?: OwnerScope,
+): Promise<SearchHit[]> {
   const value = await getJson(
-    `/api/v1/assets/search?q=${encodeURIComponent(text)}&limit=${SEARCH_PAGE_SIZE}&offset=${offset}`, signal);
+    `/api/v1/assets/search?q=${encodeURIComponent(text)}&limit=${SEARCH_PAGE_SIZE}&offset=${offset}${ownerQuery(owner)}`, signal);
   if (!Array.isArray(value)) throw new Error('Unexpected response');
   return value.flatMap(item => {
     const node = toNode(item);

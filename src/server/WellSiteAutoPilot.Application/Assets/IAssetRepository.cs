@@ -41,7 +41,7 @@ public interface IAssetRepository
     Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject, Guid? parentAssetId,
         int offset, int limit, CancellationToken cancellationToken = default);
 
-    /// <summary>The top level narrowed to one owner (a Connection, or the standalone Assets).</summary>
+    /// <summary>One hierarchy level narrowed to one owner (a Connection, or the standalone Assets).</summary>
     Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject, Guid? parentAssetId,
         AssetOwnerScope? owner, int offset, int limit, CancellationToken cancellationToken = default);
 
@@ -63,6 +63,10 @@ public interface IAssetRepository
     /// <summary>Authorized assets whose name contains <paramref name="text"/>, each with its visible location.</summary>
     Task<IReadOnlyCollection<AssetSearchHit>> SearchAuthorizedAsync(AccessSubject subject, string text,
         Guid? assetTypeId, int offset, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>Authorized search narrowed to one owner before paging; location stays within that owner.</summary>
+    Task<IReadOnlyCollection<AssetSearchHit>> SearchAuthorizedAsync(AccessSubject subject, string text,
+        Guid? assetTypeId, AssetOwnerScope? owner, int offset, int limit, CancellationToken cancellationToken = default);
 
     Task<bool> AssetTypeKeyExistsAsync(
         string key,
