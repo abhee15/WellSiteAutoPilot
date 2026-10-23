@@ -6,6 +6,9 @@ on:
     paths:
       - 'modules/authoring/**'
       - 'src/modules/WellSiteAutoPilot.ModuleSdk/**'
+      - 'src/workers/WellSiteAutoPilot.Worker.DotNet/Execution/ModuleExecutionEngine.cs'
+      - 'tests/WellSiteAutoPilot.ModuleSdkTests/**'
+      - 'tests/WellSiteAutoPilot.ExecutionContractV2Tests/**'
       - 'Directory.Build.props'
       - 'Directory.Packages.props'
       - 'global.json'
@@ -45,3 +48,7 @@ jobs:
         env:
           WSA_TEST_DOTNET: '1'
         run: python -m unittest discover -s modules/authoring/tests -p 'test_*.py' -v
+      - name: Verify SDK compatibility and worker failure handling
+        run: |
+          dotnet run --project tests/WellSiteAutoPilot.ModuleSdkTests --configuration Release
+          dotnet run --project tests/WellSiteAutoPilot.ExecutionContractV2Tests --configuration Release

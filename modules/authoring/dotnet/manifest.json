@@ -1,13 +1,13 @@
 {
   "manifestVersion": 1,
   "moduleId": "weatherford.foresite-well-input-check.dotnet",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "ForeSite Well Input Check (dotnet)",
   "publisher": "Weatherford",
   "runtime": "DotNet",
   "executionProfile": "ScheduledOneShot",
   "entryPoint": "Weatherford.ForeSiteWellInputCheck.EntryPoint",
-  "minimumSdkVersion": "1.0.0",
+  "minimumSdkVersion": "1.1.0",
   "requiredAdapterKey": "foresite",
   "description": "Observe one supplied pump-fillage input in Shadow. No provider writes. Live ForeSite mapping is a separate prerequisite.",
   "assetRequirements": [

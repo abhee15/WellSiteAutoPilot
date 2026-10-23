@@ -38,7 +38,7 @@ Quality/quantity matching is case-insensitive, requirement/role identity exact.
 Dates must explicitly carry UTC (`Z` or `+00:00`). Unit conversion is a host
 responsibility; fractions are rejected rather than silently multiplied by 100.
 Malformed context and malformed JSON fail with exit code 2. Semantic failures
-produce a result with a non-success outcome and no engineering result.
+produce a result with an explicit failureCode and no engineering result.
 
 .NET SDK values are decimal. The Python starter uses JSON numbers and Python
 int/float, so this profile is limited to simple observation/finite percentage
@@ -50,10 +50,12 @@ a decimal wire profile and rounding policy instead of assuming float parity.
 ## Result and observations
 
 Both runtimes return the SDK shape: outcomeCode, engineeringResults,
-recommendations, controlIntents and stateUpdates. This stateless read example
+recommendations, controlIntents, stateUpdates and optional failureCode (SDK 1.1).
+This stateless read example
 always returns empty recommendations, controlIntents and stateUpdates.
 Successful results contain one observed-value with local assetId, quantity,
-value and unit. `WELL_INPUT_CHECK_COMPLETED` is the only successful outcome.
+value and unit. This example uses `WELL_INPUT_CHECK_COMPLETED` on success.
+Hosts use failureCode, not the spelling of outcomeCode, to determine failure.
 
 The test report retains the complete original context beside the result.
 Timestamp, source and quality remain input observations; the SDK's
@@ -63,9 +65,20 @@ reason/log collection: adding one is an explicit future contract change.
 
 Named outcomes cover identity/binding/context errors, stale/future inputs,
 rejected quality, wrong quantity/units, invalid value and missing source.
-Production execution must surface failed outcomes as failures, not simply mark
-any normally returned result successful. Mapping module outcome semantics to
-production lifecycle states is a prerequisite for runtime integration.
+Set failureCode to a nonempty stable code when evaluation fails; null or absent
+means success. Codes start with an uppercase ASCII letter and contain only
+uppercase ASCII letters, digits and underscores, at most 128 characters. Both
+.NET execution paths reject failure results before completion or output handling
+and use the existing ExecutionFailed path. Malformed codes/results fail as
+MODULE_RESULT_INVALID. No recommendation, intent or state update from a failed
+evaluation is applied. Input observations on failed production executions still
+need a separate persistence extension; offline reports retain them.
+
+Existing SDK V1 modules that omit failureCode keep their prior success behavior.
+An outcome such as NO_ACTION_REQUIRED can therefore be a valid success.
+Authors must migrate any old failure-as-outcome convention explicitly. Kit
+version 1.0.1 requires SDK/worker 1.1.0 or later; do not deploy it on a worker
+that ignores the new property. This does not implement Python production hosting.
 
 ## Host limits and trust
 

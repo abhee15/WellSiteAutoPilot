@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.ModuleSdk;
+using System.Text.Json;
 
 var assetId = Guid.NewGuid();
 var executionId = Guid.NewGuid();
@@ -41,6 +42,19 @@ if (typeof(LogicModuleExecutionContext)
 {
     throw new InvalidOperationException("Provider-specific concepts leaked into the Logic Module SDK.");
 }
+
+// Existing V1 result JSON has no failureCode and must remain a successful result.
+var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+var oldResult = JsonSerializer.Deserialize<LogicModuleExecutionResult>(
+    """{"outcomeCode":"NO_ACTION_REQUIRED","engineeringResults":[],"recommendations":[],"controlIntents":[],"stateUpdates":{}}""", options);
+if (oldResult is null || oldResult.FailureCode is not null || oldResult.OutcomeCode != "NO_ACTION_REQUIRED")
+    throw new InvalidOperationException("An existing V1 module result lost compatibility.");
+
+var failedResult = oldResult with { FailureCode = "MODULE_INPUT_REJECTED" };
+var failedRoundTrip = JsonSerializer.Deserialize<LogicModuleExecutionResult>(
+    JsonSerializer.Serialize(failedResult, options), options);
+if (failedRoundTrip?.FailureCode != "MODULE_INPUT_REJECTED" || failedRoundTrip.OutcomeCode != "NO_ACTION_REQUIRED")
+    throw new InvalidOperationException("Explicit failure state did not round-trip independently of outcome.");
 
 Console.WriteLine("Logic Module SDK contract checks passed.");
 return 0;

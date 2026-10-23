@@ -6,7 +6,7 @@ import math
 from uuid import UUID
 
 MODULE_ID = "weatherford.foresite-well-input-check.python"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 SUCCESS = "WELL_INPUT_CHECK_COMPLETED"
 
 
@@ -32,7 +32,8 @@ def execute(context: dict) -> dict:
     """
     def result(code: str, values: list | None = None) -> dict:
         return {"outcomeCode": code, "engineeringResults": values or [],
-                "recommendations": [], "controlIntents": [], "stateUpdates": {}}
+                "recommendations": [], "controlIntents": [], "stateUpdates": {},
+                "failureCode": None if code == SUCCESS else code}
 
     try:
         if context["moduleIdentity"] != {"moduleId": MODULE_ID, "version": VERSION}:

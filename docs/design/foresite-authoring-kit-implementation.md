@@ -15,6 +15,9 @@ This slice implements offline authoring only. The preceding proposal is on
   value-boundary and malformed-fixture cases; cross-runtime CI on Windows/Linux.
 - Packaging instructions reusing the existing CLI and validator. No new
   authoring UI, credential store, provider client or package loader.
+- Follow-up: SDK 1.1 explicit FailureCode is handled by both .NET engine paths;
+  kit modules 1.0.1 and both offline hosts use it. Existing successful V1 results
+  stay compatible. Invalid codes/results cannot become completed executions.
 
 ## Repository gaps confirmed
 
@@ -68,9 +71,9 @@ telemetry, or stamp unknown values as fresh/Good. No live server was exercised.
    selected connection and local Asset IDs; ForeSite credentials remain in the
    Gateway. No arbitrary code upload is needed for input preview.
 5. Host approved authored modules. Define Python execution/cancellation,
-   package/dependency loading, isolation and outcome-to-lifecycle failure
-   handling. The existing .NET engine validates inputs but accepts any module
-   result; the input-check failure outcomes must not be recorded as success.
+   package/dependency loading and isolation. Explicit evaluation failure handling
+   is now in the .NET engine; minimum-SDK enforcement belongs in the future
+   package host. Persisting observations for failed live runs remains a gap.
 6. Assign one reviewed well from a Lufkin SAM view in manual Shadow, confirm
    compatibility against real capabilities, persist observations/results and
    prove zero provider writes. Keep selected wells frozen if the view changes.
@@ -90,4 +93,5 @@ Python fixture/CLI tests run locally. This authoring environment has no .NET
 SDK; the dedicated CI job compiles the template against the real SDK, validates
 the manifests with the existing CLI and runs parity cases on Windows/Linux.
 Check current-head CI before treating the .NET template as verified. Installer,
-database, API authorization and production worker behavior are unchanged.
+database and API authorization are unchanged. The follow-up worker change uses
+the existing failed-execution publication path for explicit module failures.

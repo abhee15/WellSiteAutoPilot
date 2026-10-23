@@ -59,6 +59,7 @@ class AuthoringTests(unittest.TestCase):
                 original = copy.deepcopy(envelope)
                 result = execute(envelope["context"])
                 self.assertEqual(expected, result["outcomeCode"])
+                self.assertEqual(None if expected == SUCCESS else expected, result["failureCode"])
                 self.assertEqual(original, envelope, "Calculation mutated its context")
                 self.assertEqual([], result["controlIntents"])
                 self.assertEqual([], result["recommendations"])
@@ -92,6 +93,7 @@ class AuthoringTests(unittest.TestCase):
                         self.assertEqual(fixture["context"], report["context"])
                         self.assertEqual("OfflineShadow", report["mode"])
                         self.assertEqual(expected, report["result"]["outcomeCode"])
+                        self.assertEqual(None if expected == SUCCESS else expected, report["result"]["failureCode"])
                         results.append(report["result"])
                 if len(results) == 2:
                     self.assertEqual(*results)
@@ -133,6 +135,7 @@ class AuthoringTests(unittest.TestCase):
             self.assertEqual(manifest["version"], fixture["context"]["moduleIdentity"]["version"])
             self.assertEqual("foresite", manifest["requiredAdapterKey"])
             self.assertEqual([], manifest["commandRequirements"])
+            self.assertEqual("1.1.0", manifest["minimumSdkVersion"])
             self.assertEqual(60, manifest["dataRequirements"][0]["maximumAgeSeconds"])
 
 

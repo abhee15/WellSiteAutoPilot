@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import sys
 
-from well_input_check import SUCCESS, execute
+from well_input_check import execute
 
 
 def run(path: Path) -> tuple[dict, int]:
@@ -17,7 +17,7 @@ def run(path: Path) -> tuple[dict, int]:
     context = envelope["context"]
     result = execute(context)
     return {"contractVersion": 1, "mode": "OfflineShadow", "context": context, "result": result}, (
-        0 if result["outcomeCode"] == SUCCESS else 2)
+        0 if result["failureCode"] is None else 2)
 
 
 def main() -> int:
