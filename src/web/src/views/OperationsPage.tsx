@@ -109,7 +109,7 @@ export function OperationsPage({
                       : `v${execution.moduleVersion}`}</small>
                   </td>
                   <td>{execution.mode}</td>
-                  <td>{formatTimestamp(execution.requestedAtUtc)}</td>
+                  <td className="activity-time">{formatTimestamp(execution.requestedAtUtc)}</td>
                   <td>
                     <OutcomeCell execution={execution} />
                   </td>

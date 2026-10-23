@@ -502,6 +502,10 @@ button:disabled {
   display: block;
 }
 
+/* A very long identifier wraps instead of widening the whole table past its panel. */
+.activity-table td strong { overflow-wrap: anywhere; }
+.activity-table td button { white-space: nowrap; }
+
 .activity-table td small {
   color: var(--color-text-tertiary);
   margin-top: var(--space-4);
@@ -739,10 +743,24 @@ button:disabled {
   border-radius: var(--radius-6);
 }
 
-.execution-detail-output p,
-.execution-detail-error {
+.execution-detail-output p {
   color: var(--color-text-warning);
 }
+
+/* An inline problem reads as a notice, not as loose coloured text. */
+.execution-detail-error {
+  margin: var(--space-12) 0;
+  padding: var(--space-10) var(--space-12);
+  border: var(--border-width-thin) solid var(--color-border-status-warning);
+  border-radius: var(--radius-6);
+  background: var(--color-surface-status-warning);
+  color: var(--color-text-warning-strong);
+}
+
+.access-intro.execution-detail-error { margin: var(--space-12) var(--space-18); }
+
+/* Dates stay on one line so a row's height comes from its content, not from a wrapped timestamp. */
+.activity-table td.activity-time { white-space: nowrap; }
 
 @media (max-width: 1100px) {
   .execution-detail-grid {
