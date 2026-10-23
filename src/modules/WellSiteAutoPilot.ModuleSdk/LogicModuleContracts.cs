@@ -58,7 +58,17 @@ public sealed record LogicModuleExecutionResult(
     IReadOnlyCollection<EngineeringResultValue> EngineeringResults,
     IReadOnlyCollection<RecommendationIntentDraft> Recommendations,
     IReadOnlyCollection<ControlIntentDraft> ControlIntents,
-    IReadOnlyDictionary<string, string> StateUpdates);
+    IReadOnlyDictionary<string, string> StateUpdates)
+{
+    /// <summary>
+    /// Null means successful evaluation. A non-null code reports a failed
+    /// evaluation; the host must discard outputs and record an execution failure.
+    /// OutcomeCode remains an algorithm outcome, not a success/failure convention.
+    /// Codes use 1-128 ASCII characters: uppercase letter first, then uppercase
+    /// letters, digits or underscores. Existing modules may omit this property.
+    /// </summary>
+    public string? FailureCode { get; init; }
+}
 
 public interface ILogicModuleV1
 {

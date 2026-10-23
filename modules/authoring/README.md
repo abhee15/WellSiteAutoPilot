@@ -54,6 +54,12 @@ the same SDK records. [contract-v1.md](contract-v1.md) specifies this starter
 wire profile. The runners invoke the exact example entry points; they do not
 rewrite the algorithm for testing.
 
+The 1.0.1 templates require SDK 1.1.0 and an updated .NET worker that handles
+`failureCode`. It is null on success and a stable uppercase code on failure;
+`outcomeCode` alone does not determine success. Existing modules that omit the
+property retain their prior behavior. Rebuild/repackage with the new versions;
+do not overwrite a published 1.0.0 archive with different bytes.
+
 1. Choose a new stable module ID and version in the implementation, manifest
    and fixtures. Python and .NET variants use separate IDs to avoid colliding
    immutable packages. Change version when package bytes change.

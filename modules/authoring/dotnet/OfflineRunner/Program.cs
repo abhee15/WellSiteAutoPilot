@@ -33,7 +33,7 @@ try
     {
         contractVersion = 1, mode = "OfflineShadow", context = rawContext, result
     }, options));
-    return result.OutcomeCode == EntryPoint.Success ? 0 : 2;
+    return result.FailureCode is null ? 0 : 2;
 }
 catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException or
     JsonException or KeyNotFoundException or InvalidOperationException or FormatException)

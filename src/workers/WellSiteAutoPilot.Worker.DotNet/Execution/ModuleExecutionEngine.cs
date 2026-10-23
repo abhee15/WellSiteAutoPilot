@@ -56,9 +56,11 @@ public sealed class ModuleExecutionEngine(
                     engineeringValue.Source)
             ]);
 
-        return await logicModule.ExecuteAsync(
+        var result = await logicModule.ExecuteAsync(
             context,
             cancellationToken);
+        EnsureModuleSucceeded(result);
+        return result;
     }
 
     public async Task<LogicModuleExecutionResult> ExecuteAsync(
@@ -118,6 +120,7 @@ public sealed class ModuleExecutionEngine(
             inputs);
 
         var result = await logicModule.ExecuteAsync(context, cancellationToken);
+        EnsureModuleSucceeded(result);
         return new ObservedExecutionResult(result, inputs);
     }
 
@@ -172,6 +175,30 @@ public sealed class ModuleExecutionEngine(
             value.Quality,
             value.Source);
     }
+    private static void EnsureModuleSucceeded(LogicModuleExecutionResult? result)
+    {
+        if (result is null)
+        {
+            throw new WellSiteAutoPilotException("MODULE_RESULT_INVALID", FailureKind.Validation,
+                "The Logic Module returned an invalid result.");
+        }
+
+        if (result.FailureCode is not { } code) return;
+
+        if (code.Length is < 1 or > 128 || !char.IsAsciiLetterUpper(code[0]) ||
+            code.Any(character => !char.IsAsciiLetterUpper(character) &&
+                !char.IsAsciiDigit(character) && character != '_'))
+        {
+            throw new WellSiteAutoPilotException("MODULE_RESULT_INVALID", FailureKind.Validation,
+                "The Logic Module returned an invalid failure code.");
+        }
+
+        // Both consumers already publish ExecutionFailed when the engine throws.
+        // No algorithm result, recommendation, intent or state update escapes.
+        throw new WellSiteAutoPilotException(code, FailureKind.Validation,
+            "The Logic Module could not complete its evaluation.");
+    }
+
     private static WellSiteAutoPilotException InputFailure(string code) =>
         new(code, FailureKind.Validation, "Execution input did not satisfy its declared requirements.");
 

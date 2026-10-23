@@ -8,7 +8,7 @@ public sealed class EntryPoint : ILogicModuleV1
 {
     public const string Success = "WELL_INPUT_CHECK_COMPLETED";
     public LogicModuleIdentity Identity { get; } =
-        new("weatherford.foresite-well-input-check.dotnet", "1.0.0");
+        new("weatherford.foresite-well-input-check.dotnet", "1.0.1");
 
     public ValueTask<LogicModuleExecutionResult> ExecuteAsync(
         LogicModuleExecutionContext context, CancellationToken cancellationToken = default)
@@ -61,5 +61,8 @@ public sealed class EntryPoint : ILogicModuleV1
     }
 
     private static LogicModuleExecutionResult Result(string code, EngineeringResultValue[]? values = null) =>
-        new(code, values ?? [], [], [], new Dictionary<string, string>());
+        new(code, values ?? [], [], [], new Dictionary<string, string>())
+        {
+            FailureCode = code == Success ? null : code
+        };
 }
