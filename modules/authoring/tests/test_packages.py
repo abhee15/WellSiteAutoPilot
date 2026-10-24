@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -52,6 +53,68 @@ class PackageTests(unittest.TestCase):
                             expected_files.add(name)
                             self.assertEqual(file.read_bytes(), archive.read(name))
                     self.assertEqual(expected_files, set(archive.namelist()))
+
+    def test_host_preflight_checks_identity_hash_runtime_and_sdk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory)
+            payload = staging / "payload"
+            payload.mkdir()
+            (payload / "well_input_check.py").write_bytes((ROOT / "python/well_input_check.py").read_bytes())
+            manifest = json.loads((ROOT / "python/manifest.json").read_text())
+            package = staging / "sample.wsamodule"
+            self.cli("pack", ROOT / "python/manifest.json", payload, package)
+            digest = hashlib.sha256(package.read_bytes()).hexdigest()
+            expected = [manifest["moduleId"], manifest["version"], digest, "Python", "1.1.0"]
+            self.cli("preflight", package, *expected)
+            self.cli("preflight", package, *expected[:-1], "1.1.0+host.build")
+            for index, value, code in [
+                (0, "other", "MODULE_PACKAGE_IDENTITY_MISMATCH"),
+                (1, "9.0.0", "MODULE_PACKAGE_IDENTITY_MISMATCH"),
+                (2, "0" * 64, "MODULE_PACKAGE_HASH_MISMATCH"),
+                (2, "bad", "MODULE_PACKAGE_EXPECTATION_INVALID"),
+                (3, "DotNet", "MODULE_RUNTIME_INCOMPATIBLE"),
+                (4, "1.0.0", "MODULE_SDK_INCOMPATIBLE"),
+                (4, "1.1.0-rc.1", "MODULE_SDK_INCOMPATIBLE"),
+                (4, "invalid", "MODULE_HOST_SDK_VERSION_INVALID"),
+            ]:
+                with self.subTest(code=code, value=value):
+                    arguments = expected.copy()
+                    arguments[index] = value
+                    result = self.cli("preflight", package, *arguments, expected=2)
+                    self.assertIn(code, result.stderr)
+                    self.assertNotIn("Valid Logic Module", result.stdout)
+            for runtime in ("Unknown", "0"):
+                result = self.cli("preflight", package, *expected[:3], runtime, "1.1.0", expected=2)
+                self.assertIn("Host runtime must be DotNet or Python", result.stderr)
+            self.assertEqual({"payload", "sample.wsamodule"}, {path.name for path in staging.iterdir()}, "Preflight extracted package content")
+
+    def test_malformed_manifests_fail_as_controlled_errors(self):
+        original = json.loads((ROOT / "python/manifest.json").read_text())
+        variants = [{}, None]
+        for key in ("runtime", "entryPoint", "assetRequirements", "dataRequirements", "commandRequirements"):
+            manifest = copy.deepcopy(original)
+            del manifest[key]
+            variants.append(manifest)
+        for key, value in (("assetRequirements", [None]), ("dataRequirements", [None]),
+                           ("commandRequirements", [None]), ("runtime", 0),
+                           ("minimumSdkVersion", "1.1.0-01")):
+            manifest = copy.deepcopy(original)
+            manifest[key] = value
+            variants.append(manifest)
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory)
+            path = staging / "manifest.json"
+            package = staging / "malformed.wsamodule"
+            for manifest in variants:
+                with self.subTest(manifest=manifest):
+                    path.write_text(json.dumps(manifest), encoding="utf-8")
+                    result = self.cli("validate", path, expected=2)
+                    self.assertNotIn("Unhandled exception", result.stderr)
+                    with zipfile.ZipFile(package, "w") as archive:
+                        archive.writestr("manifest.json", json.dumps(manifest))
+                        archive.writestr("payload/code.py", "raise Exception('must never execute')")
+                    result = self.cli("verify", package, expected=2)
+                    self.assertNotIn("Unhandled exception", result.stderr)
 
     def test_schema_rules_match_catalog_for_every_command(self):
         original = json.loads((ROOT / "python/manifest.json").read_text())

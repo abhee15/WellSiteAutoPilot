@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using WellSiteAutoPilot.Domain.Logic;
@@ -10,6 +11,17 @@ public static partial class LogicModuleManifestValidator
     public static void Validate(LogicModuleManifest manifest)
     {
         ArgumentNullException.ThrowIfNull(manifest);
+
+        if (manifest.AssetRequirements is null || manifest.DataRequirements is null ||
+            manifest.CommandRequirements is null || manifest.AssetRequirements.Any(item => item is null) ||
+            manifest.DataRequirements.Any(item => item is null) || manifest.CommandRequirements.Any(item => item is null))
+        {
+            Fail("MODULE_MANIFEST_INVALID", "Module requirements must be arrays without null entries.");
+        }
+        if (!Enum.IsDefined(manifest.Runtime) || !Enum.IsDefined(manifest.ExecutionProfile))
+        {
+            Fail("MODULE_MANIFEST_INVALID", "The module runtime or execution profile is unsupported.");
+        }
 
         if (manifest.ManifestVersion != 1)
         {
@@ -24,14 +36,14 @@ public static partial class LogicModuleManifestValidator
         RequireText(manifest.Publisher, "Publisher");
         RequireText(manifest.EntryPoint, "Entry point");
 
-        if (!SemanticVersion().IsMatch(manifest.Version))
+        if (!LogicModuleSemanticVersion.TryParse(manifest.Version, out _))
         {
             Fail(
                 "MODULE_VERSION_INVALID",
                 "Logic Module version must use semantic versioning.");
         }
 
-        if (!SemanticVersion().IsMatch(manifest.MinimumSdkVersion))
+        if (!LogicModuleSemanticVersion.TryParse(manifest.MinimumSdkVersion, out _))
         {
             Fail(
                 "MODULE_SDK_VERSION_INVALID",
@@ -166,7 +178,11 @@ public static partial class LogicModuleManifestValidator
                     $"Asset role '{requirement.Role}' has invalid cardinality.");
             }
 
-            foreach (var trait in requirement.RequiredTraits)
+            if (requirement.RequiredTraits is null)
+            {
+                Fail("MODULE_MANIFEST_INVALID", "Asset requirement traits must be an array.");
+            }
+            foreach (var trait in requirement.RequiredTraits!)
             {
                 RequireIdentifier(trait, $"Trait for role '{requirement.Role}'");
             }
@@ -273,6 +289,7 @@ public static partial class LogicModuleManifestValidator
         }
     }
 
+    [DoesNotReturn]
     private static void Fail(string code, string detail) =>
         throw new WellSiteAutoPilotException(
             code,
@@ -282,8 +299,4 @@ public static partial class LogicModuleManifestValidator
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", RegexOptions.CultureInvariant)]
     private static partial Regex Identifier();
 
-    [GeneratedRegex(
-        @"^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:[+][0-9A-Za-z.-]+)?$",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex SemanticVersion();
 }

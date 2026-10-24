@@ -22,6 +22,12 @@ This slice implements offline authoring only. The preceding proposal is on
   regressions exercise both starter payloads, deterministic archives, byte-level
   round trips and rejected schemas supplied through externally built archives.
 
+- Host-preflight foundation: a shared bounded archive reader and explicit
+  expected identity/checksum/runtime/SDK checks are available through the CLI.
+  Archive contents are inspected but never extracted or loaded. Both package and
+  standalone authoring manifests reject omitted/null required fields, invalid
+  enum values and malformed SemVer. Production worker resolution is unchanged.
+
 ## Repository gaps confirmed
 
 The .NET resolver registers only weatherford.sample-shadow-read. Python main.py
