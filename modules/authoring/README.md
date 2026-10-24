@@ -97,6 +97,17 @@ Use approved pinned offline dependency bundles when dependencies are introduced;
 the sample requires none. No worker should install packages from the Internet
 at execution time.
 
+All three CLI commands check the optional settings schema with the catalog's
+validator. A malformed or unsupported schema fails with
+`MODULE_PARAMETER_SCHEMA_INVALID` before packing replaces an existing archive.
+Archive verification checks schema validity even for externally created packages.
+It does not execute code, approve the publisher or prove runtime compatibility.
+
+Windows/Linux authoring CI also packs and verifies both starter payloads, compares
+repeat archives byte for byte and checks every payload file survives unchanged.
+To include these checks locally, publish the .NET payload as above, build the CLI
+in Release, and set `WSA_TEST_PACKAGES=1` when running the Python test suite.
+
 The .NET production resolver currently contains only the built-in Shadow sample;
 Python's production worker is a scaffold. Catalog import/approval does not load
 these new packages into either worker. This kit does not change those facts.

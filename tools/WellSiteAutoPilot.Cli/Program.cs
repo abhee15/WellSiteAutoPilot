@@ -53,7 +53,7 @@ internal static class Cli
         try
         {
             var manifest = await LoadManifestAsync(path);
-            LogicModuleManifestValidator.Validate(manifest);
+            await ValidateManifestContentsAsync(manifest);
 
             Console.WriteLine(
                 $"Valid Logic Module manifest: {manifest.ModuleId} {manifest.Version}");
@@ -82,7 +82,7 @@ internal static class Cli
             var outputFullPath = Path.GetFullPath(outputPath);
 
             var manifest = await LoadManifestAsync(manifestFullPath);
-            LogicModuleManifestValidator.Validate(manifest);
+            await ValidateManifestContentsAsync(manifest);
 
             if (!Directory.Exists(payloadFullPath))
             {
@@ -296,7 +296,7 @@ internal static class Cli
                                "Logic Module package manifest is empty.");
             }
 
-            LogicModuleManifestValidator.Validate(manifest);
+            await ValidateManifestContentsAsync(manifest);
             var checksum = await ComputeSha256Async(fullPath);
 
             Console.WriteLine($"Valid Logic Module package: {manifest.ModuleId} {manifest.Version}");
@@ -315,6 +315,12 @@ internal static class Cli
             WriteSafeError(exception);
             return 2;
         }
+    }
+
+    private static async Task ValidateManifestContentsAsync(LogicModuleManifest manifest)
+    {
+        LogicModuleManifestValidator.Validate(manifest);
+        await LogicModuleManifestValidator.ValidateParameterSchemaAsync(manifest);
     }
 
     private static bool IsSafeArchiveEntry(string entryName)
