@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -116,7 +117,7 @@ public static class LogicModulePackageReader
                 stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) && stem[3] is >= '1' and <= '9');
     }
 
-    [System.Diagnostics.CodeAnalysis.DoesNotReturn]
+    [DoesNotReturn]
     private static void Fail(string detail) =>
         throw new WellSiteAutoPilotException("MODULE_PACKAGE_INVALID", FailureKind.Validation, detail);
 }

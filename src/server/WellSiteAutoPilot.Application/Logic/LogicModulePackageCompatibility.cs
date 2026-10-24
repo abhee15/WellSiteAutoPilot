@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
 
@@ -32,7 +33,7 @@ public static class LogicModulePackageCompatibility
             Fail("MODULE_SDK_INCOMPATIBLE", "The package requires a newer module SDK than the host supports.");
     }
 
-    [System.Diagnostics.CodeAnalysis.DoesNotReturn]
+    [DoesNotReturn]
     private static void Fail(string code, string detail) =>
         throw new WellSiteAutoPilotException(code, FailureKind.Validation, detail);
 }

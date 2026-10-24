@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using WellSiteAutoPilot.Domain.Logic;
@@ -288,7 +289,7 @@ public static partial class LogicModuleManifestValidator
         }
     }
 
-    [System.Diagnostics.CodeAnalysis.DoesNotReturn]
+    [DoesNotReturn]
     private static void Fail(string code, string detail) =>
         throw new WellSiteAutoPilotException(
             code,
