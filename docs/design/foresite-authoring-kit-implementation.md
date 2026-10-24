@@ -18,6 +18,9 @@ This slice implements offline authoring only. The preceding proposal is on
 - Follow-up: SDK 1.1 explicit FailureCode is handled by both .NET engine paths;
   kit modules 1.0.1 and both offline hosts use it. Existing successful V1 results
   stay compatible. Invalid codes/results cannot become completed executions.
+- CLI validate/pack/verify now reuse catalog settings-schema validation. Package
+  regressions exercise both starter payloads, deterministic archives, byte-level
+  round trips and rejected schemas supplied through externally built archives.
 
 ## Repository gaps confirmed
 

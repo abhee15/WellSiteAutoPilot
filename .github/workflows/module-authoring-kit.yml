@@ -6,6 +6,10 @@ on:
     paths:
       - 'modules/authoring/**'
       - 'src/modules/WellSiteAutoPilot.ModuleSdk/**'
+      - 'tools/WellSiteAutoPilot.Cli/**'
+      - 'src/server/WellSiteAutoPilot.Application/Logic/**'
+      - 'src/server/WellSiteAutoPilot.Application/Assets/AssetAttributeSchemaValidator.cs'
+      - 'src/server/WellSiteAutoPilot.Domain/Logic/**'
       - 'src/workers/WellSiteAutoPilot.Worker.DotNet/Execution/ModuleExecutionEngine.cs'
       - 'tests/WellSiteAutoPilot.ModuleSdkTests/**'
       - 'tests/WellSiteAutoPilot.ExecutionContractV2Tests/**'
@@ -44,9 +48,12 @@ jobs:
         run: |
           dotnet run --project tools/WellSiteAutoPilot.Cli --configuration Release -- module validate modules/authoring/dotnet/manifest.json
           dotnet run --project tools/WellSiteAutoPilot.Cli --configuration Release --no-build -- module validate modules/authoring/python/manifest.json
+      - name: Publish .NET starter for package checks
+        run: dotnet publish modules/authoring/dotnet/WellInputCheck --configuration Release --output modules/authoring/artifacts/dotnet-payload
       - name: Check both runtimes against identical cases
         env:
           WSA_TEST_DOTNET: '1'
+          WSA_TEST_PACKAGES: '1'
         run: python -m unittest discover -s modules/authoring/tests -p 'test_*.py' -v
       - name: Verify SDK compatibility and worker failure handling
         run: |
