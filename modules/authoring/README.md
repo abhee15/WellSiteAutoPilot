@@ -101,6 +101,16 @@ All three CLI commands check the optional settings schema with the catalog's
 validator. A malformed or unsupported schema fails with
 `MODULE_PARAMETER_SCHEMA_INVALID` before packing replaces an existing archive.
 Archive verification checks schema validity even for externally created packages.
+It now shares a bounded archive reader with the application and rejects unsafe
+paths, duplicate names, file/directory conflicts and symbolic links. Packing
+checks the completed temporary archive before replacing an existing output.
+
+Use `module preflight <package> <module-id> <module-version> <expected-sha256>
+<DotNet|Python> <host-sdk-version>` to check a package against a declared host.
+For these templates, SDK 1.0.0 is rejected and SDK 1.1.0 is accepted. Use a
+previously reviewed checksum; computing an expected checksum from the candidate
+package itself does not establish trust. See [package format and host
+preflight](../../docs/architecture/module-package-format.md#inspection-and-host-preflight).
 It does not execute code, approve the publisher or prove runtime compatibility.
 
 Windows/Linux authoring CI also packs and verifies both starter payloads, compares

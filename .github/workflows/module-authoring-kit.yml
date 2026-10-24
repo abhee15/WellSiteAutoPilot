@@ -12,6 +12,7 @@ on:
       - 'src/server/WellSiteAutoPilot.Domain/Logic/**'
       - 'src/workers/WellSiteAutoPilot.Worker.DotNet/Execution/ModuleExecutionEngine.cs'
       - 'tests/WellSiteAutoPilot.ModuleSdkTests/**'
+      - 'tests/WellSiteAutoPilot.LogicManifestTests/**'
       - 'tests/WellSiteAutoPilot.ExecutionContractV2Tests/**'
       - 'Directory.Build.props'
       - 'Directory.Packages.props'
@@ -57,5 +58,6 @@ jobs:
         run: python -m unittest discover -s modules/authoring/tests -p 'test_*.py' -v
       - name: Verify SDK compatibility and worker failure handling
         run: |
+          dotnet run --project tests/WellSiteAutoPilot.LogicManifestTests --configuration Release
           dotnet run --project tests/WellSiteAutoPilot.ModuleSdkTests --configuration Release
           dotnet run --project tests/WellSiteAutoPilot.ExecutionContractV2Tests --configuration Release

@@ -1,7 +1,6 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
@@ -10,14 +9,6 @@ return await Cli.RunAsync(args);
 
 internal static class Cli
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
-    {
-        Converters =
-        {
-            new JsonStringEnumConverter()
-        }
-    };
-
     private static readonly DateTimeOffset DeterministicZipTimestamp =
         new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
@@ -44,6 +35,20 @@ internal static class Cli
             return await VerifyPackageAsync(args[2]);
         }
 
+        if (args.Length == 8 &&
+            string.Equals(args[0], "module", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(args[1], "preflight", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Enum.TryParse<LogicRuntimeKind>(args[6], ignoreCase: true, out var runtime) ||
+                !Enum.IsDefined(runtime) || int.TryParse(args[6], out _))
+            {
+                Console.Error.WriteLine("Host runtime must be DotNet or Python.");
+                return 2;
+            }
+            return await VerifyPackageAsync(args[2], new LogicModulePackageExpectation(
+                args[3], args[4], args[5], runtime, args[7]));
+        }
+
         WriteUsage();
         return args.Length == 0 ? 0 : 2;
     }
@@ -53,7 +58,6 @@ internal static class Cli
         try
         {
             var manifest = await LoadManifestAsync(path);
-            await ValidateManifestContentsAsync(manifest);
 
             Console.WriteLine(
                 $"Valid Logic Module manifest: {manifest.ModuleId} {manifest.Version}");
@@ -82,7 +86,6 @@ internal static class Cli
             var outputFullPath = Path.GetFullPath(outputPath);
 
             var manifest = await LoadManifestAsync(manifestFullPath);
-            await ValidateManifestContentsAsync(manifest);
 
             if (!Directory.Exists(payloadFullPath))
             {
@@ -147,6 +150,10 @@ internal static class Cli
                     }
                 }
 
+                await using (var candidate = File.OpenRead(temporaryPath))
+                {
+                    _ = await LogicModulePackageReader.ReadAsync(candidate);
+                }
                 File.Move(temporaryPath, outputFullPath, overwrite: true);
             }
             finally
@@ -177,169 +184,39 @@ internal static class Cli
     }
 
 
-    private static async Task<int> VerifyPackageAsync(string packagePath)
+    private static async Task<int> VerifyPackageAsync(
+        string packagePath, LogicModulePackageExpectation? expected = null)
     {
-        const long maximumPackageBytes = 256L * 1024L * 1024L;
-        const long maximumExpandedBytes = 512L * 1024L * 1024L;
-        const long maximumManifestBytes = 1024L * 1024L;
-        const int maximumEntries = 10_000;
-
         try
         {
             var fullPath = Path.GetFullPath(packagePath);
-
-            if (!File.Exists(fullPath))
-            {
-                Console.Error.WriteLine($"Logic Module package was not found: {fullPath}");
-                return 2;
-            }
-
-            if (!string.Equals(
-                    Path.GetExtension(fullPath),
-                    ".wsamodule",
-                    StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(Path.GetExtension(fullPath), ".wsamodule", StringComparison.OrdinalIgnoreCase))
             {
                 Console.Error.WriteLine("Logic Module package must use the .wsamodule extension.");
                 return 2;
             }
-
-            var packageInfo = new FileInfo(fullPath);
-            if (packageInfo.Length > maximumPackageBytes)
+            await using var source = File.OpenRead(fullPath);
+            if (source.Length > LogicModulePackageReader.MaximumPackageBytes)
             {
                 Console.Error.WriteLine("Logic Module package exceeds the maximum supported package size.");
                 return 2;
             }
-
-            await using var stream = File.OpenRead(fullPath);
-            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
-
-            if (archive.Entries.Count > maximumEntries)
-            {
-                Console.Error.WriteLine("Logic Module package contains too many archive entries.");
-                return 2;
-            }
-
-            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            long expandedBytes = 0;
-            ZipArchiveEntry? manifestEntry = null;
-            var payloadFileCount = 0;
-
-            foreach (var entry in archive.Entries)
-            {
-                var name = entry.FullName.Replace('\\', '/');
-
-                if (!IsSafeArchiveEntry(name))
-                {
-                    Console.Error.WriteLine($"Logic Module package contains an unsafe archive entry: {entry.FullName}");
-                    return 2;
-                }
-
-                if (!names.Add(name))
-                {
-                    Console.Error.WriteLine($"Logic Module package contains a duplicate archive entry: {entry.FullName}");
-                    return 2;
-                }
-
-                checked
-                {
-                    expandedBytes += entry.Length;
-                }
-
-                if (expandedBytes > maximumExpandedBytes)
-                {
-                    Console.Error.WriteLine("Logic Module package exceeds the maximum expanded size.");
-                    return 2;
-                }
-
-                if (string.Equals(name, "manifest.json", StringComparison.OrdinalIgnoreCase))
-                {
-                    manifestEntry = entry;
-                }
-                else if (name.StartsWith("payload/", StringComparison.Ordinal) &&
-                         !name.EndsWith('/'))
-                {
-                    payloadFileCount++;
-                }
-                else if (!name.EndsWith('/'))
-                {
-                    Console.Error.WriteLine(
-                        $"Logic Module package contains a file outside the payload directory: {entry.FullName}");
-                    return 2;
-                }
-            }
-
-            if (manifestEntry is null)
-            {
-                Console.Error.WriteLine("Logic Module package does not contain manifest.json.");
-                return 2;
-            }
-
-            if (manifestEntry.Length > maximumManifestBytes)
-            {
-                Console.Error.WriteLine("Logic Module manifest exceeds the maximum supported size.");
-                return 2;
-            }
-
-            if (payloadFileCount == 0)
-            {
-                Console.Error.WriteLine("Logic Module package does not contain a payload.");
-                return 2;
-            }
-
-            LogicModuleManifest manifest;
-            await using (var manifestStream = manifestEntry.Open())
-            {
-                manifest = await JsonSerializer.DeserializeAsync<LogicModuleManifest>(
-                               manifestStream,
-                               SerializerOptions) ??
-                           throw new JsonException(
-                               "Logic Module package manifest is empty.");
-            }
-
-            await ValidateManifestContentsAsync(manifest);
-            var checksum = await ComputeSha256Async(fullPath);
-
-            Console.WriteLine($"Valid Logic Module package: {manifest.ModuleId} {manifest.Version}");
-            Console.WriteLine($"SHA256: {checksum}");
-            Console.WriteLine($"Payload files: {payloadFileCount}");
+            var package = await LogicModulePackageReader.ReadAsync(source);
+            if (expected is not null) LogicModulePackageCompatibility.Validate(package, expected);
+            Console.WriteLine($"Valid Logic Module package: {package.Manifest.ModuleId} {package.Manifest.Version}");
+            Console.WriteLine($"SHA256: {package.Sha256}");
+            Console.WriteLine($"Payload files: {package.PayloadFileCount}");
+            if (expected is not null) Console.WriteLine("Package matches the expected identity, checksum and host runtime/SDK.");
             return 0;
         }
         catch (Exception exception) when (
-            exception is JsonException or
-            InvalidDataException or
-            OverflowException or
-            WellSiteAutoPilotException or
-            IOException or
-            UnauthorizedAccessException)
+            exception is WellSiteAutoPilotException or IOException or UnauthorizedAccessException)
         {
             WriteSafeError(exception);
             return 2;
         }
     }
 
-    private static async Task ValidateManifestContentsAsync(LogicModuleManifest manifest)
-    {
-        LogicModuleManifestValidator.Validate(manifest);
-        await LogicModuleManifestValidator.ValidateParameterSchemaAsync(manifest);
-    }
-
-    private static bool IsSafeArchiveEntry(string entryName)
-    {
-        if (string.IsNullOrWhiteSpace(entryName) ||
-            entryName.StartsWith('/') ||
-            entryName.Contains(':'))
-        {
-            return false;
-        }
-
-        var segments = entryName.Split(
-            '/',
-            StringSplitOptions.RemoveEmptyEntries);
-
-        return segments.Length > 0 &&
-               segments.All(segment =>
-                   segment is not "." and not "..");
-    }
 
     private static async Task<LogicModuleManifest> LoadManifestAsync(string path)
     {
@@ -353,11 +230,7 @@ internal static class Cli
         }
 
         await using var stream = File.OpenRead(fullPath);
-        return await JsonSerializer.DeserializeAsync<LogicModuleManifest>(
-                   stream,
-                   SerializerOptions) ??
-               throw new JsonException(
-                   "Manifest file did not contain a Logic Module manifest.");
+        return await LogicModuleManifestReader.ReadAsync(stream);
     }
 
     private static async Task AddFileAsync(
@@ -419,5 +292,6 @@ internal static class Cli
         Console.WriteLine("  module validate <manifest.json>");
         Console.WriteLine("  module pack <manifest.json> <payload-directory> <output.wsamodule>");
         Console.WriteLine("  module verify <package.wsamodule>");
+        Console.WriteLine("  module preflight <package.wsamodule> <module-id> <module-version> <sha256> <DotNet|Python> <host-sdk-version>");
     }
 }

@@ -102,6 +102,8 @@ await AssertParametersFailure(withSchema, """{"targetFillage":150}""");
 await AssertParametersFailure(withSchema, """{"targetFillage":"high"}""");
 await AssertParametersFailure(withSchema, """{"targetFillage":75,"extra":1}""");
 
+await PackageChecks.RunAsync(validManifest);
+
 Console.WriteLine("Logic Module manifest validation checks passed.");
 return 0;
 
