@@ -24,6 +24,7 @@ import { StatusPage } from './views/StatusPage';
 import { ConnectionsPage } from './views/ConnectionsPage';
 import { firstOpenableSection, hasExplicitSection, sectionFromHash } from './routing';
 import { useChangeRefresh, useLiveUpdates, usePollingRefresh } from './live/LiveUpdates';
+import { keepIfSame } from './keepIfSame';
 
 // Compatibility with existing consumers; new components live in their own files.
 export { UserMenu, NavigationLink };
@@ -104,8 +105,9 @@ export function App() {
       const fresh = (key: SnapshotKey) => !snapshot.unavailable.includes(key);
       if (fresh('system')) setSystemHealth(snapshot.system);
       if (fresh('executions')) setExecutions(snapshot.executions);
-      if (fresh('assetTypes')) setAssetTypes(snapshot.assetTypes);
-      if (fresh('assets')) setAssets(snapshot.assets);
+      // Unchanged lists keep their identity, so a refresh that found nothing new redraws nothing below.
+      if (fresh('assetTypes')) setAssetTypes(current => keepIfSame(current, snapshot.assetTypes));
+      if (fresh('assets')) setAssets(current => keepIfSame(current, snapshot.assets));
       if (fresh('capabilities')) setAssetCapabilities(snapshot.capabilities);
       if (fresh('modules')) setLogicModules(snapshot.modules);
       if (fresh('configurations')) setConfiguredLogic(snapshot.configurations);

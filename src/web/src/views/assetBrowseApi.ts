@@ -93,14 +93,20 @@ export async function fetchAsset(id: string, signal: AbortSignal): Promise<Asset
   return isObject(value) && typeof value.id === 'string' ? value as unknown as AssetResponse : null;
 }
 
-/** Visible ancestors, top first. Stops at the first ancestor this person may not see. */
-export async function fetchAncestors(asset: AssetResponse, signal: AbortSignal): Promise<AssetResponse[]> {
+/**
+ * Visible ancestors, top first. Stops at the first ancestor this person may not see.
+ * `read` fetches one asset; callers that keep recent reads pass their own.
+ */
+export async function fetchAncestors(
+  asset: AssetResponse, signal: AbortSignal,
+  read: (id: string, signal: AbortSignal) => Promise<AssetResponse | null> = fetchAsset,
+): Promise<AssetResponse[]> {
   const chain: AssetResponse[] = [];
   const seen = new Set<string>([asset.id ?? '']);
   let parentId = asset.parentAssetId;
   while (parentId && !seen.has(parentId) && chain.length < MAXIMUM_PATH_DEPTH) {
     seen.add(parentId);
-    const parent = await fetchAsset(parentId, signal);
+    const parent = await read(parentId, signal);
     if (!parent) break;
     chain.unshift(parent);
     parentId = parent.parentAssetId;
