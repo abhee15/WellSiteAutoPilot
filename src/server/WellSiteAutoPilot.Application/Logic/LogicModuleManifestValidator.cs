@@ -36,6 +36,11 @@ public static partial class LogicModuleManifestValidator
         RequireText(manifest.Publisher, "Publisher");
         RequireText(manifest.EntryPoint, "Entry point");
 
+        if (manifest.DisplayName.Length > 256 || manifest.Publisher.Length > 256 || manifest.Version?.Length > 64)
+        {
+            Fail("MODULE_MANIFEST_INVALID", "Module names/publishers must not exceed 256 characters and versions must not exceed 64 characters.");
+        }
+
         if (!LogicModuleSemanticVersion.TryParse(manifest.Version, out _))
         {
             Fail(

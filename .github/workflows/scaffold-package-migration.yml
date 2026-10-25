@@ -1,0 +1,29 @@
+name: Scaffold package migration
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'src/persistence/WellSiteAutoPilot.Persistence/**'
+      - '.github/workflows/scaffold-package-migration.yml'
+permissions:
+  contents: read
+jobs:
+  scaffold:
+    if: github.head_ref == 'feature/module-package-upload'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WSA_DATABASE_CONNECTION_STRING: Host=127.0.0.1;Database=design_time;Username=design_time;Password=design_time
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool install --global dotnet-ef --version 10.0.4
+      - run: dotnet ef migrations add AddLogicModulePackages --project src/persistence/WellSiteAutoPilot.Persistence --output-dir Migrations
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-package-migration
+          path: |
+            src/persistence/WellSiteAutoPilot.Persistence/Migrations/*AddLogicModulePackages*
+            src/persistence/WellSiteAutoPilot.Persistence/Migrations/WellSiteAutoPilotDbContextModelSnapshot.cs
