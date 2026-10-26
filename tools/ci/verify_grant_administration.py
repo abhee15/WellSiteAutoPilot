@@ -134,7 +134,7 @@ def module_package(payload):
 package_bytes = module_package("raise AssertionError('upload must not execute code')")
 for identity, status in [(None, 401), (OPERATOR, 403)]:
     request("POST", "/logic-modules/packages", identity, package_bytes, expected=status)
-writer = role("Package author", ["logic.manage"])
+writer = role("Package author", ["logic.manage", "assets.read"])
 for scope in ("ExactAssets", "AllAssets"):
     assignment = grant(operator["userId"], writer, scope, [first["id"]] if scope == "ExactAssets" else [])
     request("POST", "/logic-modules/packages", OPERATOR, package_bytes, expected=403)
