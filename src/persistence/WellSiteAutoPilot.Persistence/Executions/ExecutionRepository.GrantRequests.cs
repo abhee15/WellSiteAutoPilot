@@ -1,8 +1,10 @@
 using System.Data;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Failures;
@@ -47,7 +49,7 @@ public sealed partial class ExecutionRepository
                 var targets = scopes.Select(item => item.AssetId).Distinct().Order().ToArray();
                 await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ExecutionsRequest, targets, time, cancellationToken);
                 if (scopes.Any(item => item.LogicInstanceId != configurationId)) throw RequestConflict();
-                ValidateReceiptSnapshot(receipt, targets);
+                await ValidateReceiptSnapshotAsync(receipt, targets, cancellationToken);
                 // Recheck configured read proof after a potentially blocking
                 // execution grant fence. Never return persisted result fields.
                 await configurations.LockForManualRequestAsync(configurationId, subject, cancellationToken);
@@ -85,7 +87,7 @@ public sealed partial class ExecutionRepository
     private static ManualShadowRequestReceipt Receipt(ExecutionRecord execution) => new(execution.Id, execution.LogicInstanceId,
         execution.ConfigurationRevisionId, execution.RequestContractVersion, execution.Mode, execution.Trigger);
 
-    private static void ValidateReceiptSnapshot(ExecutionRecord execution, Guid[] targets)
+    private static async Task ValidateReceiptSnapshotAsync(ExecutionRecord execution, Guid[] targets, CancellationToken cancellationToken)
     {
         try
         {
@@ -95,8 +97,9 @@ public sealed partial class ExecutionRepository
             {
                 var hosted = JsonSerializer.Deserialize<ExecutionRequestedV3>(execution.RequestPayloadJson, SerializerOptions) ?? throw RequestConflict();
                 if (hosted.Execution is null || hosted.Package is null || hosted.Package.Sha256 is not { Length: 64 } hash ||
-                    !hash.All(char.IsAsciiHexDigit)) throw RequestConflict();
-                var manifest = WellSiteAutoPilot.Application.ConfiguredLogic.ConfiguredLogicService.DeserializeAndValidateManifest(hosted.Package.ReviewedManifestJson);
+                    !hash.All(char.IsAsciiHexDigit) || hosted.Package.ReviewedManifestJson is null) throw RequestConflict();
+                using var manifestStream = new MemoryStream(Encoding.UTF8.GetBytes(hosted.Package.ReviewedManifestJson));
+                var manifest = await LogicModuleManifestReader.ReadAsync(manifestStream, cancellationToken);
                 if (manifest.ModuleId != execution.ModuleId || manifest.Version != execution.ModuleVersion) throw RequestConflict();
                 snapshot = hosted.Execution;
             }

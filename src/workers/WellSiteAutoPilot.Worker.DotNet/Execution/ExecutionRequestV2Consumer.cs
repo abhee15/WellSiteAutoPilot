@@ -76,7 +76,7 @@ public sealed partial class ExecutionRequestV2Consumer(
             var decoded = ExecutionRequestReader.Read(message.Subject, message.Data);
 
             await JetStreamProgressLease.RunAsync(
-                token => ProcessAsync(decoded.Envelope, jetStream, token, decoded.Package),
+                token => ProcessAsync(decoded.Envelope, jetStream, decoded.Package, token),
                 token => message.AckProgressAsync(cancellationToken: token),
                 consumerSettings.RequestProgressInterval,
                 cancellationToken);
@@ -87,8 +87,8 @@ public sealed partial class ExecutionRequestV2Consumer(
     private async Task ProcessAsync(
         MessageEnvelope<ExecutionRequestedV2> envelope,
         INatsJSContext jetStream,
-        CancellationToken cancellationToken,
-        ExecutionPackageV3? package)
+        ExecutionPackageV3? package,
+        CancellationToken cancellationToken)
     {
         using var activity = WellSiteTelemetry.StartConsumer("execution run", envelope.TraceParent);
         activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
