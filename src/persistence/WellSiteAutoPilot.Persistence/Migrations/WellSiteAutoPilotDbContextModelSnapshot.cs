@@ -916,6 +916,30 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.ToTable("logic_modules", "logic");
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Logic.LogicModulePackageEntity", b =>
+                {
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTimeOffset>("UploadedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Sha256");
+
+                    b.ToTable("module_packages", "logic", t =>
+                        {
+                            t.HasCheckConstraint("CK_module_packages_content_size", "octet_length(\"Content\") BETWEEN 1 AND 16777216");
+                        });
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Messaging.InboxMessageEntity", b =>
                 {
                     b.Property<Guid>("MessageId")

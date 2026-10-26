@@ -56,8 +56,9 @@ inspection when no host expectation is supplied.
 SDK comparison follows SemVer precedence: prereleases sort below their release,
 numeric prerelease identifiers sort numerically and build metadata is ignored.
 Module identity/version still match exactly, including version build metadata,
-because they identify immutable catalog content. Manifest and host versions must
-be valid SemVer strings of at most 256 characters. Required manifest fields
+because they identify immutable catalog content. Module versions must be valid SemVer strings of at most 64 characters (the catalog
+column bound); minimum/host SDK versions permit at most 256 characters. Display
+names and publishers permit at most 256 characters. Required manifest fields
 cannot be omitted or null; nullable requirement fields retain their optional
 semantics. Runtime/profile enums use names rather than
 JSON integers in package/standalone authoring manifests.
@@ -67,3 +68,34 @@ runtime dependencies, locate an entry-point type or install/load a package. No
 Server upload/distribution, worker resolver or production Python host is enabled
 by this slice. A future host must use the shared preflight against its authoritative
 request and retain the existing authorization/approval boundary before loading.
+
+## Server package upload
+
+`POST /api/v1/logic-modules/packages` accepts the raw archive body with
+`Content-Type: application/octet-stream`. The first server upload slice permits
+at most 16 MiB per archive, including streamed bodies without Content-Length.
+Offline CLI inspection retains its larger limit. The endpoint requires an
+active deployment-wide `logic.manage` grant; ExactAssets/AllAssets grants cannot
+supply this authority. It returns the existing module metadata response (201),
+including the server-computed checksum. It accepts no caller-supplied trust flag,
+checksum or filename. Other media types return 415; invalid/oversized packages
+return a structured validation error.
+
+The server inspects a bounded snapshot without extracting or executing payloads.
+It stores the archive unchanged in `logic.module_packages` (`bytea`, SHA-256 key)
+and registers a disabled `Untrusted` catalog version in one serializable
+transaction. Registration and package-upload audit events commit with the bytes.
+A failed write leaves none of those partial records. Backup must include this
+table. The EF-generated `AddLogicModulePackages` migration is applied by the
+existing explicit migrator/installer process, not normal server startup.
+
+Uploading identical bytes again is idempotent and preserves approval/retirement.
+Different content for the same module ID/version is rejected. A previously
+approved metadata-only version cannot acquire package bytes after review; upload
+a new version so the bytes can be reviewed first. Concurrent inserts may return
+`MODULE_CATALOG_CONFLICT`; a retry with the same immutable bytes is safe.
+
+Package metadata remains readable through the existing catalog routes. There is
+no general archive download endpoint. This upload slice does not publish package
+bytes to NATS, install code into workers or change existing approval behavior.
+Approval-backed publication and worker loading are subsequent slices.

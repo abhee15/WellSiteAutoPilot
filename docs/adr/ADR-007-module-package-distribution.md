@@ -44,3 +44,18 @@ Confirm Object Store behaviour for NATS.Net 3.3.0 against the bundled nats-serve
 put and get of a multi-chunk object, restart persistence) in a CI integration test before step 2 relies
 on it. If it fails, the fallback is the same table read by a Server-side relay that publishes over a plain
 JetStream stream; the decisions above otherwise stand.
+
+## Implementation evidence
+
+The package-upload slice stores bounded immutable archive bytes with untrusted
+catalog registration in one authorized transaction. It does not implement or
+activate approval-backed distribution. The upload route and schema are documented
+in [module-package-format.md](../architecture/module-package-format.md#server-package-upload).
+
+The NATS integration test now covers a multi-chunk object keyed by its SHA-256,
+repeat publication, an actual server restart, and retrieval from the existing
+bucket without re-creating it or uploading content again. This must pass against
+the pinned NATS client/server before distribution relies on the Object Store.
+The CI restart verifies process/disk persistence, not survival of hardware or
+volume loss. The proposed distribution/loader work and its trust boundary remain
+separate from upload.

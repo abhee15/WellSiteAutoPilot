@@ -28,13 +28,20 @@ This slice implements offline authoring only. The preceding proposal is on
   standalone authoring manifests reject omitted/null required fields, invalid
   enum values and malformed SemVer. Production worker resolution is unchanged.
 
+- Server upload slice: raw bounded archive ingestion, transactional immutable
+  storage plus disabled/untrusted catalog registration, global authority and audit.
+  Upload does not publish packages or make authored modules executable. Existing
+  approval/retirement is preserved on retries; reviewed metadata-only versions
+  require a new version before bytes may be attached.
+
 ## Repository gaps confirmed
 
 The .NET resolver registers only weatherford.sample-shadow-read. Python main.py
 only starts/waits. ForeSite advertises AssetDiscovery, not CurrentData. Gateway
 current-read routing and mapping need connection/source-aware extension before
-these authored modules can read ForeSite through AutoPilot. Registering a
-manifest in the catalog is not executable package installation.
+these authored modules can read ForeSite through AutoPilot. Uploading a
+package or registering a manifest is not executable package installation; approved
+package delivery and runtime loading remain separate requirements.
 
 SourceBinding already stores ConnectionId, ExternalId, ResourceKind and local
 AssetId. Resolve the saved external well ID there; do not add another hidden
