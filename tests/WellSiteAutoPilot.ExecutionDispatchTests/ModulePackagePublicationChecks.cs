@@ -82,6 +82,16 @@ internal static class ModulePackagePublicationChecks
         {
             await new NatsModulePackageSource(connection).CopyToAsync(first.PackageSha256, workerDownload, CancellationToken.None);
             Assert(firstBytes.SequenceEqual(workerDownload.ToArray()), "Worker's exact-hash package retrieval changed approved bytes.");
+            Assert(workerDownload.CanRead && workerDownload.CanWrite, "Worker transport closed the host-owned package buffer.");
+        }
+        using (var missingDownload = new MemoryStream())
+        {
+            try
+            {
+                await new NatsModulePackageSource(connection).CopyToAsync(Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"), missingDownload, CancellationToken.None);
+                throw new InvalidOperationException("Missing package was accepted.");
+            }
+            catch (WellSiteAutoPilotException error) when (error.Code == "MODULE_PACKAGE_NOT_AVAILABLE") { }
         }
 
         var retired = await UploadAsync(Pack(identity, "1.0.1"));
