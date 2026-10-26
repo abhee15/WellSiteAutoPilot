@@ -139,7 +139,9 @@ export function App() {
   }, [refresh]);
 
   // Polling stays the fallback: every 10 s without a live connection, about once a minute with one.
-  usePollingRefresh(() => { if (!signInRequired.current) void refresh(); });
+  // A poll never interrupts a load that is still running: the first request to a Negotiate site can outlast the
+  // interval (sign-in prompt, Kerberos/NTLM round trips), and aborting it restarts the handshake and re-prompts.
+  usePollingRefresh(() => { if (!signInRequired.current && activeRefresh.current === null) void refresh(); });
   // The workspace snapshot covers these four areas; the Server names the one that changed.
   useChangeRefresh(['executions', 'assets', 'configured-logic', 'modules'], () => {
     if (!signInRequired.current) void refresh();
