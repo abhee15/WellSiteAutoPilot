@@ -43,6 +43,9 @@ var validManifest = new LogicModuleManifest(
 LogicModuleManifestValidator.Validate(validManifest);
 LogicModuleManifestValidator.Validate(validManifest with { RequiredAdapterKey = "foresite" });
 AssertFailure(validManifest with { RequiredAdapterKey = "invalid adapter" }, "MODULE_IDENTIFIER_INVALID");
+AssertFailure(validManifest with { DisplayName = new string('x', 257) }, "MODULE_MANIFEST_INVALID");
+AssertFailure(validManifest with { Publisher = new string('x', 257) }, "MODULE_MANIFEST_INVALID");
+AssertFailure(validManifest with { Version = "1.0.0+" + new string('x', 64) }, "MODULE_MANIFEST_INVALID");
 
 AssertFailure(
     validManifest with { Version = "one" },
@@ -103,6 +106,7 @@ await AssertParametersFailure(withSchema, """{"targetFillage":"high"}""");
 await AssertParametersFailure(withSchema, """{"targetFillage":75,"extra":1}""");
 
 await PackageChecks.RunAsync(validManifest);
+await PackageUploadChecks.RunAsync();
 
 Console.WriteLine("Logic Module manifest validation checks passed.");
 return 0;

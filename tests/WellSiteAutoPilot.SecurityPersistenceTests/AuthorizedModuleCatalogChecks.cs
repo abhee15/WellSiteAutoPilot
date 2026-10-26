@@ -153,11 +153,12 @@ internal static class AuthorizedModuleCatalogChecks
             ManifestJson = json.ToJsonString(), TrustStatus = LogicModuleTrustStatus.Untrusted
         });
         await ExpectAsync(() => ChangeAsync(neverApproved.Version, LogicModuleApprovalAction.Retire, "Nothing"), FailureKind.Conflict);
+        var packageAudits = await AuthorizedModulePackageChecks.RunAsync(options, subject, actor, globalGrant, sourceManifest);
         await setup.AccessGrants.Where(item => item.Id == globalGrant).ExecuteDeleteAsync();
         await setup.LogicModules.Where(item => item.ModuleId == moduleId).ExecuteDeleteAsync();
         Console.WriteLine("Catalog writes require deployment-wide direct/group authority, including idempotency, and commit module/audit atomically with revocation fencing; approval and retirement are audited, idempotent and final.");
         // Registrations of 1.0.0, 1.0.1, 1.0.2 and 1.0.3 plus one approval and one retirement.
-        return 6;
+        return 6 + packageAudits;
 
         async Task<InstalledLogicModule> ChangeAsync(string version, LogicModuleApprovalAction action, string reason)
         {
