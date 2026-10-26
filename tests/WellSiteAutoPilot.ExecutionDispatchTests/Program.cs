@@ -24,10 +24,8 @@ var dbOptions = new DbContextOptionsBuilder<WellSiteAutoPilotDbContext>()
     .Options;
 
 await using var dbContext = new WellSiteAutoPilotDbContext(dbOptions);
-await using var connection = new NatsConnection(new NatsOpts
-{
-    Url = natsUrl
-});
+await using var connection = new NatsConnection(NatsConnectionOptions.Create(natsUrl,
+    Environment.GetEnvironmentVariable("WSA_NATS_TOKEN")));
 
 await JetStreamTopology.EnsureAsync(connection);
 

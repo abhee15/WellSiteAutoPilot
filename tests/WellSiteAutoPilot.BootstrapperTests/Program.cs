@@ -191,6 +191,25 @@ Expect((string?)callers["server"]!["Verifier"] == InstallerSettings.ServiceKeyVe
        (string?)callers["worker"]!["Verifier"] == InstallerSettings.ServiceKeyVerifier(secondKey),
     "the Gateway file must verify the Server key as server and the worker key as worker");
 
+var brokerToken = InstallerSettings.NewServiceKey();
+foreach (var file in new[]
+{
+    InstallerSettings.ServiceKeyFileContent(firstKey, brokerToken),
+    InstallerSettings.ServiceKeyFileContent(secondKey, brokerToken),
+    InstallerSettings.GatewayKeyFileContent(firstKey, secondKey, brokerToken)
+})
+    Expect(InstallerSettings.ReadNatsToken(file) == brokerToken, "Each trusted service must receive the same distinct broker token.");
+Expect(InstallerSettings.ReadNatsToken(null) is null && InstallerSettings.ReadNatsToken("{}") is null &&
+    InstallerSettings.ReadNatsToken(InstallerSettings.ServiceKeyFileContent(firstKey)) is null,
+    "Legacy installations must acquire a fresh broker credential.");
+Expect(InstallerSettings.NatsAuthenticationFileContent(brokerToken).Contains(brokerToken, StringComparison.Ordinal),
+    "The protected broker configuration must enable token authentication.");
+foreach (var invalid in new[] { "", "short", new string('x', 64), new string('a', 63) + "\n" })
+{
+    try { InstallerSettings.NatsAuthenticationFileContent(invalid); throw new InvalidOperationException("Invalid broker credential accepted."); }
+    catch (ArgumentException) { }
+}
+
 
 // Gateway account: strict names, remembered across upgrades, passwords only where Windows does not hold them.
 Expect(InstallerSettings.ParseGatewayAccount(@"CORP\svc-wsa$") == @"CORP\svc-wsa$" && InstallerSettings.ParseGatewayAccount(@".\wsagateway") == @".\wsagateway",

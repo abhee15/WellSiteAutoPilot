@@ -550,6 +550,7 @@ internal static class InstallerSettings
     public const string ServerKeysFile = "server.keys.json";
     public const string WorkerKeysFile = "worker.keys.json";
     public const string GatewayKeysFile = "gateway.keys.json";
+    public const string NatsAuthenticationFile = "nats.auth.conf";
 
     /// <summary>A fresh 256-bit key as 64 hexadecimal characters.</summary>
     public static string NewServiceKey() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
@@ -562,10 +563,12 @@ internal static class InstallerSettings
     }
 
     /// <summary>The key file for the Server or the worker: <c>{"Security":{"ServiceKey":"..."}}</c>.</summary>
-    public static string ServiceKeyFileContent(string key)
+    public static string ServiceKeyFileContent(string key, string? natsToken = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        return new JsonObject { ["Security"] = new JsonObject { ["ServiceKey"] = key } }.ToJsonString(WriteOptions);
+        var root = new JsonObject { ["Security"] = new JsonObject { ["ServiceKey"] = key } };
+        AddNatsToken(root, natsToken);
+        return root.ToJsonString(WriteOptions);
     }
 
     /// <summary>The key stored in a Server or worker key file, or null when there is none.</summary>
@@ -576,12 +579,12 @@ internal static class InstallerSettings
                value.TryGetValue<string>(out var key) ? Clean(key) : null;
     }
 
-    /// <summary>The Gateway file: verifiers for the Server and the worker, never the keys themselves.</summary>
-    public static string GatewayKeyFileContent(string serverKey, string workerKey)
+    /// <summary>Caller-key verifiers plus an optional independent broker credential.</summary>
+    public static string GatewayKeyFileContent(string serverKey, string workerKey, string? natsToken = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serverKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(workerKey);
-        return new JsonObject
+        var root = new JsonObject
         {
             ["Security"] = new JsonObject
             {
@@ -591,7 +594,31 @@ internal static class InstallerSettings
                     ["worker"] = new JsonObject { ["Verifier"] = ServiceKeyVerifier(workerKey) }
                 }
             }
-        }.ToJsonString(WriteOptions);
+        };
+        AddNatsToken(root, natsToken);
+        return root.ToJsonString(WriteOptions);
+    }
+
+    public static string? ReadNatsToken(string? json)
+    {
+        var root = ParseRoot(json);
+        return root["Messaging"] is JsonObject messaging && messaging["Nats"] is JsonObject nats &&
+            nats["Token"] is JsonValue value && value.TryGetValue<string>(out var token) && ValidNatsToken(token) ? token : null;
+    }
+
+    public static string NatsAuthenticationFileContent(string token)
+    {
+        if (!ValidNatsToken(token)) throw new ArgumentException("NATS tokens must contain 256 bits encoded as hexadecimal.", nameof(token));
+        return "authorization { token: \"" + token + "\" }" + Environment.NewLine;
+    }
+
+    private static bool ValidNatsToken(string? token) => token is { Length: 64 } && token.All(char.IsAsciiHexDigit);
+
+    private static void AddNatsToken(JsonObject root, string? token)
+    {
+        if (token is null) return;
+        if (!ValidNatsToken(token)) throw new ArgumentException("Invalid NATS token.", nameof(token));
+        root["Messaging"] = new JsonObject { ["Nats"] = new JsonObject { ["Token"] = token } };
     }
 
     private static JsonObject ParseRoot(string? settingsJson)

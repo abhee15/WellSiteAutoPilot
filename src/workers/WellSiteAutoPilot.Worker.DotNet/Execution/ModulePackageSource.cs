@@ -18,6 +18,10 @@ public sealed class NatsModulePackageSource(INatsConnection connection) : IModul
     {
         try
         {
+            await connection.ConnectAsync().AsTask().WaitAsync(cancellationToken);
+            if (connection.ServerInfo?.AuthRequired != true)
+                throw new WellSiteAutoPilotException("MODULE_PACKAGE_BROKER_AUTH_REQUIRED", FailureKind.DependencyUnavailable,
+                    "Package hosting requires an authenticated broker.");
             var store = await connection.CreateObjectStoreContext()
                 .GetObjectStoreAsync("WSA_MODULES", cancellationToken);
             await store.GetAsync("sha256/" + sha256, destination, leaveOpen: true, cancellationToken: cancellationToken);
