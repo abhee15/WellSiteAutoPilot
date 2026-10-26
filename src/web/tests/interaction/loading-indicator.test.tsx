@@ -19,4 +19,12 @@ describe('LoadingIndicator', () => {
     expect(status.getAttribute('data-size')).toBe('small');
     expect(status.hasAttribute('data-inline')).toBe(true);
   });
+
+  it('can show placeholder rows instead of a spinner, still announcing its label once', () => {
+    render(<LoadingIndicator variant="skeleton" label="Loading…" />);
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('Loading…');
+    expect(status.querySelector('.loading-spinner')).toBeNull();
+    expect(status.querySelectorAll('.loading-skeleton-row[aria-hidden="true"]')).toHaveLength(4);
+  });
 });

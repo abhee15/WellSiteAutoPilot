@@ -3,13 +3,25 @@ using NATS.Client.JetStream;
 using NATS.Net;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Worker.DotNet.Execution;
 
 var natsUrl = Environment.GetEnvironmentVariable("WSA_NATS_URL") ?? "nats://127.0.0.1:4222";
-
-await using var connection = new NatsConnection(new NatsOpts
+var natsToken = Environment.GetEnvironmentVariable("WSA_NATS_TOKEN");
+await using var connection = new NatsConnection(NatsConnectionOptions.Create(natsUrl, natsToken));
+if (args.Contains("--verify-unauthenticated-package-refusal", StringComparer.Ordinal))
 {
-    Url = natsUrl
-});
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    using var destination = new MemoryStream();
+    try { await new NatsModulePackageSource(connection).CopyToAsync(new string('a', 64), destination, deadline.Token); }
+    catch (WellSiteAutoPilotException error) when (error.Code == "MODULE_PACKAGE_BROKER_AUTH_REQUIRED")
+    {
+        Console.WriteLine("Worker refused package retrieval from an unauthenticated broker.");
+        return 0;
+    }
+    throw new InvalidOperationException("Worker accepted an unauthenticated package broker.");
+}
+if (!string.IsNullOrEmpty(natsToken)) await BrokerAuthenticationChecks.RunAsync(natsUrl);
 
 await JetStreamTopology.EnsureAsync(connection);
 

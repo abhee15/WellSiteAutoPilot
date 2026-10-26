@@ -42,6 +42,9 @@ internal sealed partial class NatsServerHost(
 
         var storeDirectory = Path.Combine(programDataRoot, "JetStream");
         var pidFile = Path.Combine(programDataRoot, "nats-server.pid");
+        var authenticationFile = Path.Combine(Path.GetDirectoryName(programDataRoot)!, "nats.auth.conf");
+        if (!File.Exists(authenticationFile))
+            throw new InvalidOperationException("NATS authentication is not provisioned. Run the installer before starting the broker.");
 
         Directory.CreateDirectory(storeDirectory);
 
@@ -56,6 +59,9 @@ internal sealed partial class NatsServerHost(
         };
 
         startInfo.ArgumentList.Add("-js");
+        // The credential stays in an account-protected file, never the process command line.
+        startInfo.ArgumentList.Add("-c");
+        startInfo.ArgumentList.Add(authenticationFile);
         startInfo.ArgumentList.Add("-a");
         startInfo.ArgumentList.Add("127.0.0.1");
         startInfo.ArgumentList.Add("-p");
