@@ -142,11 +142,16 @@ internal static class ScopedResourceQueryChecks
         var allowedExecution = Execution(allowed.Id, allowed.Revision, 2, null, assetA);
         var mixedExecution = Execution(mixed.Id, mixed.Revision, 2, null, assetA, assetB);
         var v1Execution = Execution(allowed.Id, allowed.Revision, 1, assetA, assetA);
+        var v3Execution = Execution(allowed.Id, allowed.Revision, 3, null, assetA);
+        var mixedV3Execution = Execution(mixed.Id, mixed.Revision, 3, null, assetA, assetB);
+        var deniedV3Execution = Execution(denied.Id, denied.Revision, 3, null, assetC);
+        Execution(allowed.Id, allowed.Revision, 3, null); // Missing hosted immutable scope.
+        Execution(allowed.Id, allowed.Revision, 3, null, assetA, Guid.NewGuid()); // Missing hosted Asset.
         Execution(allowed.Id, allowed.Revision, 1, assetC, assetA); // Column disclosure outside scope.
         Execution(allowed.Id, allowed.Revision, 1, null, assetA); // Missing V1 target.
         Execution(allowed.Id, allowed.Revision, 2, null); // Missing immutable scope.
         Execution(allowed.Id, allowed.Revision, 2, null, assetA, Guid.NewGuid()); // Missing Asset.
-        Execution(allowed.Id, allowed.Revision, 3, null, assetA); // Unknown contract.
+        Execution(allowed.Id, allowed.Revision, 99, null, assetA); // Unknown contract.
         var recommendationC = Recommendation(denied, deniedExecution, assetC, now.AddMinutes(2));
         var recommendationA = Recommendation(allowed, allowedExecution, assetA, now);
         var recommendationB = Recommendation(mixed, mixedExecution, assetB, now.AddMinutes(-1));
@@ -260,7 +265,7 @@ internal static class ScopedResourceQueryChecks
         var executionQuery = ScopedAccessQueries.Executions(db, userId, WellSitePermissions.ExecutionsRead);
         await db.AccessGrants.Where(grant => grant.Id == grantB)
             .ExecuteUpdateAsync(setters => setters.SetProperty(grant => grant.IsActive, false));
-        if (await executionQuery.AnyAsync(execution => execution.Id == mixedExecution) ||
+        if (await executionQuery.AnyAsync(execution => (execution.Id == mixedExecution || execution.Id == mixedV3Execution)) ||
             await ScopedAccessQueries.ConfiguredLogic(db, userId, WellSitePermissions.ConfiguredLogicRead)
                 .AnyAsync(definition => definition.Id == mixed.Id) ||
             await ScopedAccessQueries.Recommendations(db, userId, WellSitePermissions.RecommendationsRead)
@@ -271,7 +276,7 @@ internal static class ScopedResourceQueryChecks
 
         await db.Assets.Where(asset => asset.Id == assetB)
             .ExecuteUpdateAsync(setters => setters.SetProperty(asset => asset.IsActive, false));
-        if (await executionQuery.AnyAsync(execution => execution.Id == mixedExecution))
+        if (await executionQuery.AnyAsync(execution => (execution.Id == mixedExecution || execution.Id == mixedV3Execution)))
             throw new InvalidOperationException("Inactive participating Asset authorized an execution.");
         await db.Assets.Where(asset => asset.Id == assetB)
             .ExecuteUpdateAsync(setters => setters.SetProperty(asset => asset.IsActive, true));
@@ -479,12 +484,12 @@ internal static class ScopedResourceQueryChecks
                 throw new InvalidOperationException("Manage permission crossed between complete grants.");
             var executions = ScopedAccessQueries.Executions(db, subject, WellSitePermissions.ExecutionsRead, membership, at);
             if (!(await executions.Select(item => item.Id).ToArrayAsync()).ToHashSet()
-                    .SetEquals([allowedExecution, mixedExecution, v1Execution]) ||
+                    .SetEquals([allowedExecution, mixedExecution, v1Execution, v3Execution, mixedV3Execution]) ||
                 await executions.OrderByDescending(item => item.RequestedAtUtc).Take(1)
-                    .AnyAsync(item => item.Id == deniedExecution))
+                    .AnyAsync(item => (item.Id == deniedExecution || item.Id == deniedV3Execution)))
                 throw new InvalidOperationException("Execution snapshot scope escaped SQL or displaced a valid page.");
             if (await ScopedAccessQueries.Executions(db, subject, WellSitePermissions.ExecutionsRequest, membership, at)
-                    .AnyAsync(item => item.Id == mixedExecution))
+                    .AnyAsync(item => (item.Id == mixedExecution || item.Id == mixedV3Execution)))
                 throw new InvalidOperationException("Request permission leaked from A to B.");
             var recommendations = ScopedAccessQueries.Recommendations(db, subject, WellSitePermissions.RecommendationsRead, membership, at);
             if (!(await recommendations.Select(item => item.Id).ToArrayAsync()).ToHashSet()
@@ -515,15 +520,17 @@ internal static class ScopedResourceQueryChecks
                 (await configuredRepository.GetAuthorizedAsync(request, mixed.Id))?.Revisions.Count != 1)
                 throw new InvalidOperationException("Configured Logic repository disclosed unchecked revisions or displaced an authorized page.");
             if (!(await executionRepository.ListAuthorizedAsync(request, null, 100)).Select(item => item.Id)
-                    .ToHashSet().SetEquals([allowedExecution, mixedExecution, v1Execution]) ||
+                    .ToHashSet().SetEquals([allowedExecution, mixedExecution, v1Execution, v3Execution, mixedV3Execution]) ||
                 await executionRepository.GetAuthorizedAsync(request, deniedExecution) is not null ||
+                await executionRepository.GetAuthorizedAsync(request, deniedV3Execution) is not null ||
+                (await executionRepository.GetAuthorizedAsync(request, v3Execution))?.Id != v3Execution ||
                 (await executionRepository.GetAuthorizedAsync(request, v1Execution))?.Id != v1Execution)
-                throw new InvalidOperationException("Execution repository lost V1/V2 authorized snapshot semantics.");
+                throw new InvalidOperationException("Execution repository lost V1/V2/V3 authorized snapshot semantics.");
             // Optional filters narrow only what is already authorized; scope is applied first.
             var byLogic = await executionRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: allowed.Id);
             var byAssetB = await executionRepository.ListAuthorizedAsync(request, null, 100, assetId: assetB);
-            if (!byLogic.Select(item => item.Id).ToHashSet().SetEquals([allowedExecution, v1Execution]) ||
-                !byAssetB.Select(item => item.Id).ToHashSet().SetEquals([mixedExecution]) ||
+            if (!byLogic.Select(item => item.Id).ToHashSet().SetEquals([allowedExecution, v1Execution, v3Execution]) ||
+                !byAssetB.Select(item => item.Id).ToHashSet().SetEquals([mixedExecution, mixedV3Execution]) ||
                 (await executionRepository.ListAuthorizedAsync(request, null, 100, assetId: assetC)).Count != 0 ||
                 (await executionRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: denied.Id)).Count != 0 ||
                 (await executionRepository.ListAuthorizedAsync(request, null, 1, assetId: assetA)).Count != 1)
