@@ -35,6 +35,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<ConfiguredLogicDataBindingEntity> ConfiguredLogicDataBindings => Set<ConfiguredLogicDataBindingEntity>();
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
+    public DbSet<LogicModulePackageEntity> LogicModulePackages => Set<LogicModulePackageEntity>();
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
     public DbSet<RoleDefinitionEntity> RoleDefinitions => Set<RoleDefinitionEntity>();
@@ -266,6 +267,15 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .WithMany()
             .HasForeignKey(x => x.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        var modulePackage = modelBuilder.Entity<LogicModulePackageEntity>();
+        modulePackage.ToTable("module_packages", "logic", table => table.HasCheckConstraint(
+            "CK_module_packages_content_size", "octet_length(\"Content\") BETWEEN 1 AND 16777216"));
+        modulePackage.HasKey(x => x.Sha256);
+        modulePackage.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+        modulePackage.Property(x => x.Content).HasColumnType("bytea").IsRequired();
+        modulePackage.Property(x => x.UploadedAtUtc).IsRequired();
+        modulePackage.Property(x => x.UploadedByUserId).IsRequired();
 
         var logicModule = modelBuilder.Entity<LogicModuleCatalogEntity>();
         logicModule.ToTable("logic_modules", "logic");

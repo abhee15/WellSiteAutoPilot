@@ -44,5 +44,6 @@ if (!duplicate.Duplicate)
         "JetStream did not identify a repeated message ID as a duplicate.");
 }
 
+await ObjectStoreChecks.RunAsync(connection, args.Contains("--verify-package-after-restart", StringComparer.Ordinal));
 Console.WriteLine("NATS JetStream topology and message deduplication checks passed.");
 return 0;

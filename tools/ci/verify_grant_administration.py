@@ -1,5 +1,9 @@
 """Verify the live paired-grant HTTP boundary against the CI Server/PostgreSQL."""
 import json
+import hashlib
+import io
+from pathlib import Path
+import zipfile
 import sys
 import urllib.error
 import urllib.request
@@ -17,10 +21,10 @@ def request(method, path, identity=ADMIN, body=None, expected=200, extra_headers
     if identity is not None:
         headers["X-WSA-Test-Identity"] = identity
     if body is not None:
-        headers["Content-Type"] = "application/json"
+        headers["Content-Type"] = "application/octet-stream" if isinstance(body, bytes) else "application/json"
     headers.update(extra_headers or {})
     message = urllib.request.Request(BASE_URL + "/api/v1" + path,
-        data=None if body is None else json.dumps(body).encode(), headers=headers, method=method)
+        data=None if body is None else body if isinstance(body, bytes) else json.dumps(body).encode(), headers=headers, method=method)
     try:
         response = urllib.request.urlopen(message, timeout=20)
     except urllib.error.HTTPError as error:
@@ -115,6 +119,44 @@ request("GET", "/logic-modules", OPERATOR)
 retire(operator["userId"], global_catalog)
 request("GET", "/logic-modules", OPERATOR, expected=403)
 retire(operator["userId"], resource_catalog)
+
+# Upload never grants trust or changes an installed version's immutable bytes.
+package_manifest = json.loads((Path(__file__).resolve().parents[2] / "modules/authoring/python/manifest.json").read_text())
+package_manifest["moduleId"] = "ci.upload-" + uuid.uuid4().hex
+
+def module_package(payload):
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        archive.writestr("manifest.json", json.dumps(package_manifest))
+        archive.writestr("payload/well_input_check.py", payload)
+    return stream.getvalue()
+
+package_bytes = module_package("raise AssertionError('upload must not execute code')")
+for identity, status in [(None, 401), (OPERATOR, 403)]:
+    request("POST", "/logic-modules/packages", identity, package_bytes, expected=status)
+writer = role("Package author", ["logic.manage", "assets.read"])
+for scope in ("ExactAssets", "AllAssets"):
+    assignment = grant(operator["userId"], writer, scope, [first["id"]] if scope == "ExactAssets" else [])
+    request("POST", "/logic-modules/packages", OPERATOR, package_bytes, expected=403)
+    retire(operator["userId"], assignment)
+assignment = grant(operator["userId"], writer, "DeploymentWide")
+uploaded = request("POST", "/logic-modules/packages", OPERATOR, package_bytes, expected=201)
+assert uploaded["packageSha256"] == hashlib.sha256(package_bytes).hexdigest()
+assert uploaded["trustStatus"] == "Untrusted" and uploaded["isEnabled"] is False
+assert request("POST", "/logic-modules/packages", OPERATOR, package_bytes, expected=201)["id"] == uploaded["id"]
+request("POST", "/logic-modules/packages", OPERATOR, module_package("different bytes"), expected=409)
+request("POST", "/logic-modules/packages", OPERATOR, b"not a zip", expected=400)
+request("POST", "/logic-modules/packages", OPERATOR, package_bytes, expected=415, extra_headers={"Content-Type": "text/plain"})
+request("POST", "/logic-modules/packages", OPERATOR, b"x" * (16 * 1024 * 1024 + 1), expected=400)
+module_path = "/logic-modules/" + uploaded["moduleId"] + "/" + uploaded["version"]
+assert request("POST", module_path + "/approve", body={"reason": "Reviewed offline fixture"})["isEnabled"] is True
+assert request("POST", "/logic-modules/packages", OPERATOR, package_bytes, expected=201)["isEnabled"] is True
+request("POST", module_path + "/retire", body={"reason": "Fixture finished"})
+assert request("POST", "/logic-modules/packages", OPERATOR, package_bytes, expected=201)["isEnabled"] is False
+request("GET", "/logic-modules/packages/" + uploaded["packageSha256"], expected=404)
+assert "content" not in request("GET", module_path)
+retire(operator["userId"], assignment)
+request("POST", "/logic-modules/packages", OPERATOR, package_bytes, expected=403)
 
 # A custom role named like an administrator, or carrying security.manage,
 # cannot cross the protected system-administrator boundary.

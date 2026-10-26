@@ -195,6 +195,7 @@ builder.Services.AddScoped<SourceChangeService>();
 builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<ManualShadowRequestService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
+builder.Services.AddScoped<LogicModulePackageService>();
 builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
@@ -1010,6 +1011,31 @@ v1.MapPost(
     .Produces<LogicModuleResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/logic-modules/packages",
+    async Task<IResult> (HttpRequest request, LogicModulePackageService packages, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        if (!string.Equals(request.ContentType?.Split(';')[0].Trim(), "application/octet-stream", StringComparison.OrdinalIgnoreCase))
+            return Results.Problem(statusCode: StatusCodes.Status415UnsupportedMediaType,
+                title: "Send the .wsamodule archive as application/octet-stream.");
+        if (request.ContentLength > LogicModulePackageService.MaximumUploadBytes)
+            throw new WellSiteAutoPilotException("MODULE_PACKAGE_UPLOAD_TOO_LARGE", FailureKind.Validation,
+                "Module package uploads must not exceed 16 MiB.");
+        var module = await packages.UploadAsync(request.Body, access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Created(
+            $"/api/v1/logic-modules/{Uri.EscapeDataString(module.ModuleId)}/{Uri.EscapeDataString(module.Version)}",
+            ToLogicModuleResponse(module));
+    })
+    .WithName("UploadLogicModulePackage")
+    .Accepts<IFormFile>("application/octet-stream")
+    .NotifiesChange(ChangeArea.Modules)
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<LogicModuleResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status415UnsupportedMediaType, "application/problem+json");
 
 v1.MapGet(
     "/logic-modules",

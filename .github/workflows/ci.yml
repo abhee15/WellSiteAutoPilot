@@ -1085,7 +1085,7 @@ jobs:
 
       - name: Start NATS with JetStream
         run: |
-          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.15.0-alpine -js
+          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.15.0-alpine -js -sd /data
           for attempt in {1..30}; do
             if docker logs wsa-nats-ci 2>&1 | grep -q "Server is ready"; then
               exit 0
@@ -1103,6 +1103,15 @@ jobs:
 
       - name: Verify JetStream topology and deduplication
         run: dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build
+
+      - name: Verify package Object Store survives server restart
+        run: |
+          docker restart wsa-nats-ci
+          for attempt in {1..30}; do
+            if docker exec wsa-nats-ci nc -z 127.0.0.1 4222; then break; fi
+            sleep 1
+          done
+          dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build -- --verify-package-after-restart
 
       - name: Show NATS logs on failure
         if: failure()
