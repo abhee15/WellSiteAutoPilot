@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetCreationCapabilitiesResponse,
@@ -27,6 +27,8 @@ import type { OwnerGroup } from './assetHierarchy';
 import { ownerLabel, ownerNameFor } from './AssetOwnerRow';
 import { AssetBrowser, AssetSearchResults } from './AssetBrowser';
 import { useAssetContext } from './useAssetContext';
+import { createAssetContextCache } from './assetContextCache';
+import { useChangeRefresh } from '../live/LiveUpdates';
 import { isSecurityId } from '../security/identifiers';
 import './splitLayout.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
@@ -90,7 +92,13 @@ export function AssetsPage({
       .catch(() => { if (!controller.signal.aborted) setOwners([]); });
     return () => controller.abort();
   }, [refreshKey]);
-  const context = useAssetContext(selectedId, assets, lazy, refreshKey);
+  // What was recently read about the selection is kept so nearby selections share it; anything the page
+  // learns has changed drops it. Declared before the hook below so, on a change, it clears first and the
+  // hook's re-read goes to the Server.
+  const contextCache = useMemo(() => createAssetContextCache(), []);
+  useEffect(() => { contextCache.clear(); }, [contextCache, refreshKey]);
+  useChangeRefresh(['assets'], () => contextCache.clear());
+  const context = useAssetContext(selectedId, assets, lazy, refreshKey, contextCache);
   const selectedAuthorized = lazy ? context.asset ?? undefined : assets.find(asset => asset.id === selectedId);
   useForgetVanishedSelection(selectedId, Boolean(selectedAuthorized), () => setDetail(null));
   // What the asset page and the add form need to know about around the selection.
@@ -144,7 +152,9 @@ export function AssetsPage({
     [assetTypes, showHidden],
   );
   const activeTypes = useMemo(() => assetTypes.filter(type => type.isActive !== false), [assetTypes]);
-  const select = (id: string | null) => { setDetail(id); setAdding(false); };
+  // Stable between renders, so the tree's rows are not redrawn just because the page was.
+  const select = useCallback((id: string | null) => { setDetail(id); setAdding(false); }, [setDetail]);
+  const treeAssets = useMemo(() => focusId ? descendantsOf(assets, focusId) : assets, [assets, focusId]);
   const showTypeAssets = (typeName: string) => {
     setCriteria({ ...DEFAULT_ASSET_INVENTORY_CRITERIA, search: typeName });
     setDetail(null);
@@ -319,7 +329,7 @@ export function AssetsPage({
                       canOpenConnection={canOpenConnection} typeNames={typeNames}
                       ancestorIds={context.ancestors.map(item => item.id ?? '')} />
                 ) : !filtering ? (
-                  <AssetTree assets={focusId ? descendantsOf(assets, focusId) : assets} selectedId={selectedId} onSelect={select}
+                  <AssetTree assets={treeAssets} selectedId={selectedId} onSelect={select}
                     owners={owners} canOpenConnection={canOpenConnection} typeNames={typeNames} />
                 ) : visibleAssets.length === 0 ? (
                   <p className="split-note">{t('assets.noMatches')}</p>

@@ -1313,6 +1313,7 @@ v1.MapPost(
             ConnectionMapping.ToSelection(request.SnapshotId, request.Query, request.Facets, request.Objects), request.ExpectedFingerprint,
             access.Subject, access.CreateActor(context), request.AdoptExistingHierarchy, cancellationToken)))
     .WithName("ImportFromConnection")
+    .NotifiesChange(ChangeArea.Assets)
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ImportResultResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AssetResponse } from '../api/generated/v1/types.gen';
 import { fetchAncestors, fetchAsset, fetchChildren, nodeAsAsset } from './assetBrowseApi';
+import type { AssetContextCache } from './assetContextCache';
 
 type Context = {
   asset: AssetResponse | null;
@@ -17,6 +18,7 @@ const IDLE: Context = { asset: null, ancestors: [], children: [], status: 'idle'
  */
 export function useAssetContext(
   selectedId: string | null, known: readonly AssetResponse[], enabled: boolean, refreshKey: string,
+  cache?: AssetContextCache,
 ) {
   const [state, setState] = useState<Context>(IDLE);
   useEffect(() => {
@@ -25,11 +27,14 @@ export function useAssetContext(
     setState(current => ({ ...current, status: 'loading' }));
     void (async () => {
       try {
-        const asset = known.find(item => item.id === selectedId) ?? await fetchAsset(selectedId, controller.signal);
+        // Without a cache every read goes to the Server, as before.
+        const readAsset = cache ? cache.asset : fetchAsset;
+        const readChildren = cache ? cache.children : (id: string, signal: AbortSignal) => fetchChildren(id, 0, signal);
+        const asset = known.find(item => item.id === selectedId) ?? await readAsset(selectedId, controller.signal);
         if (controller.signal.aborted) return;
         if (!asset) { setState({ ...IDLE, status: 'missing' }); return; }
         const [ancestors, below] = await Promise.all([
-          fetchAncestors(asset, controller.signal), fetchChildren(selectedId, 0, controller.signal)]);
+          fetchAncestors(asset, controller.signal, readAsset), readChildren(selectedId, controller.signal)]);
         if (controller.signal.aborted) return;
         setState({ asset, ancestors, children: below.map(nodeAsAsset), status: 'ready' });
       } catch {
