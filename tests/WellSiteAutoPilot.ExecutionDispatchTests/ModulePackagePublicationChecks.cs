@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using NATS.Net;
@@ -18,6 +19,10 @@ using WellSiteAutoPilot.Persistence.Security;
 
 internal static class ModulePackagePublicationChecks
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, NatsConnection connection)
     {
         var user = Guid.NewGuid();
@@ -53,6 +58,16 @@ internal static class ModulePackagePublicationChecks
         await ExpectFailureAsync(() => DispatchAsync(firstQueue, afterWrite));
         Assert(!await ProcessedAsync(firstQueue) && await PublishedAuditsAsync(first.Id) == 0,
             "Post-write failure committed processed state/audit.");
+        var failedCommitOptions = new DbContextOptionsBuilder<WellSiteAutoPilotDbContext>(options)
+            .AddInterceptors(new RejectPublicationSave()).Options;
+        try
+        {
+            await DispatchAsync(firstQueue, objectStore, failedCommitOptions);
+            throw new InvalidOperationException("Publication save failure injection did not run.");
+        }
+        catch (InvalidOperationException exception) when (exception.Message == "publication-commit-probe") { }
+        Assert(!await ProcessedAsync(firstQueue) && await PublishedAuditsAsync(first.Id) == 0,
+            "Database failure after broker delivery committed processed state or audit.");
         Assert(await DispatchAsync(firstQueue, objectStore), "Queued publication did not recover.");
         Assert(!await DispatchAsync(firstQueue, objectStore) && await PublishedAuditsAsync(first.Id) == 1,
             "A processed publication was sent or audited twice.");
@@ -138,9 +153,10 @@ internal static class ModulePackagePublicationChecks
             await using var db = new WellSiteAutoPilotDbContext(dbOptions ?? options);
             await new LogicModuleApprovalService(new LogicModuleCatalogRepository(db)).RetireAsync(identity, version, "Retirement fixture", subject, actor);
         }
-        async Task<bool> DispatchAsync(Guid id, IModulePackageObjectStore sink)
+        async Task<bool> DispatchAsync(Guid id, IModulePackageObjectStore sink,
+            DbContextOptions<WellSiteAutoPilotDbContext>? publicationOptions = null)
         {
-            await using var db = new WellSiteAutoPilotDbContext(options);
+            await using var db = new WellSiteAutoPilotDbContext(publicationOptions ?? options);
             return await new ModulePackagePublisher(db, sink, TimeProvider.System, NullLogger<ModulePackagePublisher>.Instance).DispatchAsync(id);
         }
         Task<int> QueuesAsync(Guid moduleId) => setup.OutboxMessages.CountAsync(item => item.Type == ModulePackagePublication.OutboxType && item.Payload.Contains(moduleId.ToString("D")));
@@ -156,9 +172,7 @@ internal static class ModulePackagePublicationChecks
         {
             var manifest = new LogicModuleManifest(1, moduleId, version, "Package fixture", "Test", LogicRuntimeKind.Python,
                 ExecutionProfile.ScheduledOneShot, "main:execute", "1.1.0", [new("well", 1, 1, "well", [])], [], []);
-            var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-            options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-            using (var writer = new StreamWriter(archive.CreateEntry("manifest.json").Open())) writer.Write(JsonSerializer.Serialize(manifest, options));
+            using (var writer = new StreamWriter(archive.CreateEntry("manifest.json").Open())) writer.Write(JsonSerializer.Serialize(manifest, SerializerOptions));
             var payload = new byte[1024 * 1024 + 123];
             RandomNumberGenerator.Fill(payload);
             using var content = archive.CreateEntry("payload/main.py", CompressionLevel.NoCompression).Open();
@@ -175,6 +189,11 @@ internal static class ModulePackagePublicationChecks
     private static void Assert(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);
+    }
+    private sealed class RejectPublicationSave : SaveChangesInterceptor
+    {
+        public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result,
+            CancellationToken cancellationToken = default) => throw new InvalidOperationException("publication-commit-probe");
     }
     private sealed class FaultingStore(IModulePackageObjectStore inner, bool afterWrite) : IModulePackageObjectStore
     {
