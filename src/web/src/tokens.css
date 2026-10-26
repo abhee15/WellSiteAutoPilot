@@ -141,6 +141,7 @@
   --size-spinner: 20px;
   --size-spinner-small: 14px;
   --size-spinner-large: 32px;
+  --size-skeleton-line: 0.875rem;
   --size-textarea-min: 72px;
   --layout-page-min: 320px;
   --layout-nav-width: 240px;
@@ -168,9 +169,11 @@
      --color-*-disabled pair instead, so their text keeps 4.5:1. */
   --opacity-disabled: 0.65;
   --duration-spin: 0.8s;
+  --duration-shimmer: 1.4s;
   --duration-appear: 0.15s;
   --delay-loading: 0.2s;
   --border-width-spinner: 2px;
+  --border-width-spinner-large: 3px;
   /* The chevron on native dropdowns, drawn in the secondary text colour. */
   --icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23465163' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --shadow-popover: 0 12px 28px var(--color-shadow-color);

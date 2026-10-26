@@ -309,7 +309,7 @@ export function AssetsPage({
                     {t('assets.focusOn', { name: selectedAuthorized.name ?? t('assets.unnamed') })}</button>
                 </p>
               )}
-              {!isLoaded ? <LoadingIndicator label={t('views.loading')} />
+              {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
                 : assets.length === 0 ? (
                   <>
                     <p className="split-note">{t('assets.none')}</p>
