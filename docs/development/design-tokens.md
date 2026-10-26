@@ -170,6 +170,11 @@ links use `--color-text-link`; text inputs, selects and textareas share one box 
 shares one focus ring; placeholder text uses `--color-text-placeholder`. Component rules still override them.
 A disabled primary action uses `--color-surface-disabled` with `--color-text-disabled` (kept at 4.5:1 or better)
 instead of fading the accent, and `tests/style-tokens.test.mjs` checks those pairs against every surface.
+Other disabled controls (secondary buttons, filter fields) fade to `--opacity-disabled`; no component writes its own opacity.
+The base reset is `:where(button, a) { font: inherit }` so it has no specificity: a plain `button { font: inherit }`
+beats the `:where()` button primitive and leaves unclassed buttons at the browser's 16px instead of the control size.
+Feature forms (asset creation, Logic setup) only lay fields out (`width`, `min-width`); the box, text size, border and
+captions come from the shared primitives. `tests/css-tokens.test.mjs` guards all three.
 
 ## Links that open something, and checkbox dropdowns
 

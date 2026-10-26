@@ -15,14 +15,15 @@ body {
   background: var(--color-surface-canvas);
 }
 
-button,
-a {
+/* Zero specificity on purpose: the button primitive further down (:where(button:not([class]))) sets the 14px
+   control size, and a plain `button { font: inherit }` here would out-rank it and leave every unclassed button at 16px. */
+:where(button, a) {
   font: inherit;
 }
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.65;
+  opacity: var(--opacity-disabled);
 }
 
 .app-shell {
@@ -432,7 +433,7 @@ button:disabled {
 .data-view-controls select:disabled,
 .data-view-controls input:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: var(--opacity-disabled);
 }
 
 .data-view-note,
@@ -966,6 +967,7 @@ button:disabled {
 }
 .administration-tabs button {
   padding: var(--space-10) var(--space-16);
+  font-size: var(--font-size-body);
   border: 0;
   border-bottom: var(--border-width-thick) solid transparent;
   border-radius: 0;
@@ -1146,7 +1148,7 @@ button:disabled {
 
 /* Messages: one look for every error box. A bare role="alert" gets the same box as .status-error, and inside a
    panel both sit inset from the edges instead of touching them. */
-:where([role='alert']:not([class])) {
+:where([role='alert']:not([class]), .asset-create-error) {
   border: var(--border-width-thin) solid var(--color-border-error);
   background: var(--color-surface-error);
   padding: var(--space-10) var(--space-14);
@@ -1159,12 +1161,14 @@ button:disabled {
 }
 
 /* Form field captions: one size and weight above every control in the forms (filters keep their compact captions). */
-.connection-form label, .connection-field, .asset-create-form label, .role-search, .role-fields > label:not(.access-confirm) {
+.connection-form label, .connection-field, .asset-create-form label, .setup-form label, .role-search, .role-fields > label:not(.access-confirm) {
   font-size: var(--font-size-body-small);
   font-weight: 500;
   color: var(--color-text-secondary);
 }
-.connection-form label input, .connection-form label select, .connection-field input, .connection-field select {
+/* What is typed or chosen is not a caption: it keeps the control's own weight and colour. */
+.connection-form label input, .connection-form label select, .connection-field input, .connection-field select,
+.asset-create-form label :is(input, select, textarea), .setup-form label :is(input, select, textarea) {
   font-weight: 400;
   color: var(--color-text-control);
 }

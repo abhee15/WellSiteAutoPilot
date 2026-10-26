@@ -5,11 +5,14 @@
   padding: var(--space-14); border: var(--border-width-thin) solid var(--color-border-subtle);
   border-radius: var(--radius-6); }
 .setup-form label { display: grid; gap: var(--space-6); min-width: 0; }
-.setup-form :is(input:not([type="checkbox"]),select,textarea) {
-  width: 100%; min-width: 0; padding: var(--space-10); font: inherit;
-  background: var(--color-surface-input); color: var(--color-text-primary);
-  border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6);
-}
+/* Layout only: the box itself (height, text size, border, colours) comes from the shared control primitives,
+   so these fields look like every other form. */
+.setup-form :is(input:not([type="checkbox"]),select,textarea) { width: 100%; min-width: 0; }
+/* The workspace and the editor inside it are both .setup-panel; the inner one must not pad a second time. */
+.setup-panel .setup-panel { padding: 0; }
+/* A button that ends a block sits a step below what precedes it and is only as wide as its label. */
+.setup-panel > button, .setup-form > button { margin-top: var(--space-12); }
+.setup-form > fieldset > button { justify-self: start; }
 .setup-form select[multiple] { min-height: var(--size-listbox-min); }
 .setup-form p, .setup-revisions p { color: var(--color-text-subtle); overflow-wrap: anywhere; }
 .setup-panel [role="alert"] { color: var(--color-text-warning-strong); }

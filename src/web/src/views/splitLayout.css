@@ -44,4 +44,4 @@
 /* A checkbox row in a split page lines the box up with its text. */
 label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* The selected asset reads as a card, like the browse pane beside it. */
-.split-selected:has(> .asset-page) { background: var(--color-surface-panel); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+.split-selected:has(> .asset-page), .split-selected:has(> .setup-panel) { background: var(--color-surface-panel); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
