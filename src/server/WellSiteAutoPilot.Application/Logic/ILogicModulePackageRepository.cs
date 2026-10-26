@@ -5,6 +5,6 @@ namespace WellSiteAutoPilot.Application.Logic;
 
 public interface ILogicModulePackageRepository
 {
-    Task<InstalledLogicModule> UploadAuthorizedAsync(InstalledLogicModule module, byte[] archive,
+    Task<InstalledLogicModule> UploadAuthorizedAsync(InstalledLogicModule logicModule, byte[] archive,
         AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default);
 }

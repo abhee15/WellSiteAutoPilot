@@ -21,7 +21,8 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet tool install --global dotnet-ef --version 10.0.4
       - run: dotnet restore src/persistence/WellSiteAutoPilot.Persistence
-      - run: dotnet ef migrations add AddLogicModulePackages --project src/persistence/WellSiteAutoPilot.Persistence --output-dir Migrations
+      - run: dotnet build src/persistence/WellSiteAutoPilot.Persistence --no-restore
+      - run: dotnet ef migrations add AddLogicModulePackages --project src/persistence/WellSiteAutoPilot.Persistence --output-dir Migrations --no-build
       - uses: actions/upload-artifact@v4
         with:
           name: generated-package-migration

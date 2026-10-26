@@ -18,18 +18,18 @@ public sealed partial class LogicModuleCatalogRepository : ILogicModulePackageRe
         SecurityActorContext actor, CancellationToken cancellationToken = default) =>
         RegisterAuthorizedCoreAsync(logicModule, null, subject, actor, cancellationToken);
 
-    public Task<InstalledLogicModule> UploadAuthorizedAsync(InstalledLogicModule module, byte[] archive,
+    public Task<InstalledLogicModule> UploadAuthorizedAsync(InstalledLogicModule logicModule, byte[] archive,
         AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(logicModule);
         ArgumentNullException.ThrowIfNull(archive);
         var snapshot = archive.ToArray();
         if (snapshot.Length is < 1 or > LogicModulePackageService.MaximumUploadBytes ||
-            module.TrustStatus != LogicModuleTrustStatus.Untrusted || module.IsEnabled ||
-            !string.Equals(Convert.ToHexStringLower(SHA256.HashData(snapshot)), module.PackageSha256, StringComparison.Ordinal))
+            logicModule.TrustStatus != LogicModuleTrustStatus.Untrusted || logicModule.IsEnabled ||
+            !string.Equals(Convert.ToHexStringLower(SHA256.HashData(snapshot)), logicModule.PackageSha256, StringComparison.Ordinal))
             throw new WellSiteAutoPilotException("MODULE_PACKAGE_INVALID", FailureKind.Validation,
                 "Package content and initial trust metadata are invalid.");
-        return RegisterAuthorizedCoreAsync(module, snapshot, subject, actor, cancellationToken);
+        return RegisterAuthorizedCoreAsync(logicModule, snapshot, subject, actor, cancellationToken);
     }
 
     private async Task<InstalledLogicModule> RegisterAuthorizedCoreAsync(InstalledLogicModule logicModule, byte[]? archive,

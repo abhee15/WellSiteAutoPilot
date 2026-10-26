@@ -30,11 +30,11 @@ internal static class PackageUploadChecks
     private sealed class ProbeRepository : ILogicModulePackageRepository
     {
         public int Calls { get; private set; }
-        public Task<InstalledLogicModule> UploadAuthorizedAsync(InstalledLogicModule module, byte[] archive,
+        public Task<InstalledLogicModule> UploadAuthorizedAsync(InstalledLogicModule logicModule, byte[] archive,
             AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
         {
             Calls++;
-            return Task.FromResult(module);
+            return Task.FromResult(logicModule);
         }
     }
     private sealed class ChunkedSource(int length) : Stream
