@@ -135,6 +135,23 @@ internal static class ModulePackagePublicationChecks
             !(await setup.LogicModules.AsNoTracking().SingleAsync(item => item.Id == fenced.Id)).IsEnabled,
             "Publication/retirement fencing did not finish consistently.");
         Assert(noWrite.Calls == 0, "A duplicate dispatcher wrote an object.");
+        // Simulate an approved package persisted by the preceding release,
+        // which had no publication queue. Repeat approval repairs delivery only.
+        var legacy = await UploadAsync(Pack(identity, "1.0.4"));
+        await ApproveAsync(legacy.Version);
+        await setup.OutboxMessages.Where(item => item.Id == legacy.Id).ExecuteDeleteAsync();
+        async Task RepairAsync()
+        {
+            try { await ApproveAsync(legacy.Version); }
+            catch (WellSiteAutoPilotException exception) when (exception.Code == "MODULE_CATALOG_CONFLICT") { }
+        }
+        await Task.WhenAll(RepairAsync(), RepairAsync());
+        await ApproveAsync(legacy.Version);
+        Assert(await QueuesAsync(legacy.Id) == 1 &&
+            await setup.AuditEvents.CountAsync(item => item.TargetId == legacy.Id.ToString() && item.Action == "logic-module.approved") == 1 &&
+            await setup.AuditEvents.CountAsync(item => item.TargetId == legacy.Id.ToString() && item.Action == "logic-module.package-publication-queued") == 1,
+            "Repeat approval did not repair missing delivery idempotently.");
+        await DispatchAsync(await QueueAsync(legacy.Id), objectStore);
         Console.WriteLine("Approved package delivery: retry/replay, checksum, retirement fencing and real multi-chunk Object Store checks passed.");
 
         async Task<InstalledLogicModule> UploadAsync(byte[] bytes)

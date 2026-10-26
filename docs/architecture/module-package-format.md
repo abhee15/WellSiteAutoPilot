@@ -104,7 +104,10 @@ below; worker loading remains a separate slice.
 Approving a version with stored package bytes now commits the approval, its audit
 record and a `module-package.publication.v1` work item in the existing database
 outbox as one transaction. Upload, repeated approval and retirement do not enqueue
-extra publication requests. Existing built-in/metadata-only versions retain their
+extra publication requests. The catalog version ID is also its single publication
+ID. Repeat approval can queue a missing request for a package approved by a prior
+release, with a separate audit event and no repeated trust-change audit. Existing
+built-in/metadata-only versions retain their
 approval behavior and do not create work with missing package bytes.
 
 The Server runs a separate package dispatcher; the execution dispatcher excludes
