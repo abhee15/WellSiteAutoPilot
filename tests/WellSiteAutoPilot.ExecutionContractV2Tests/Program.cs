@@ -176,6 +176,7 @@ if (result.OutcomeCode != "MULTI_INPUT_COMPLETED" ||
 
 var observed = await engine.ExecuteObservedAsync(request, "observed-input-test", now);
 await ModuleResultFailureChecks.RunAsync(request, new GatewayDataClient(httpClient), now);
+await PackageHostChecks.RunAsync();
 if (observed.InputObservations.Count != 2 || observed.InputObservations.Any(input =>
     input.Quality != "Good" || input.TimestampUtc != now || string.IsNullOrWhiteSpace(input.Source)))
     throw new InvalidOperationException("Execution input provenance was not preserved.");

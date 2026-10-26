@@ -16,6 +16,7 @@ using WellSiteAutoPilot.Infrastructure.Messaging;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Logic;
 using WellSiteAutoPilot.Persistence.Security;
+using WellSiteAutoPilot.Worker.DotNet.Execution;
 
 internal static class ModulePackagePublicationChecks
 {
@@ -76,6 +77,11 @@ internal static class ModulePackagePublicationChecks
         {
             await store.GetAsync("sha256/" + first.PackageSha256, downloaded);
             Assert(firstBytes.SequenceEqual(downloaded.ToArray()), "Published package bytes changed.");
+        }
+        using (var workerDownload = new MemoryStream())
+        {
+            await new NatsModulePackageSource(connection).CopyToAsync(first.PackageSha256, workerDownload, CancellationToken.None);
+            Assert(firstBytes.SequenceEqual(workerDownload.ToArray()), "Worker's exact-hash package retrieval changed approved bytes.");
         }
 
         var retired = await UploadAsync(Pack(identity, "1.0.1"));
