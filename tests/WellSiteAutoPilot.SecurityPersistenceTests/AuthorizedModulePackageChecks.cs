@@ -40,7 +40,26 @@ internal static class AuthorizedModulePackageChecks
             await setup.AuditEvents.CountAsync(item => item.TargetId == uploaded.Id.ToString()) != 2)
             throw new InvalidOperationException("Upload did not retain immutable bytes and exactly one registration/upload audit.");
         await ExpectAsync(() => UploadAsync(Pack(manifest.ToJsonString(), "changed bytes")), "MODULE_VERSION_IMMUTABLE", FailureKind.Conflict);
+        async Task<int> QueueCountAsync() => await setup.OutboxMessages.CountAsync(item => item.Type == ModulePackagePublication.OutboxType && item.Payload.Contains(uploaded.Id.ToString("D")));
+        if (await QueueCountAsync() != 0) throw new InvalidOperationException("Upload queued unapproved bytes.");
+        var approvalFailure = new DbContextOptionsBuilder<WellSiteAutoPilotDbContext>(options).AddInterceptors(new FailAfterSave()).Options;
+        await using (var failedApproval = new WellSiteAutoPilotDbContext(approvalFailure))
+        {
+            try
+            {
+                await new LogicModuleApprovalService(new LogicModuleCatalogRepository(failedApproval))
+                    .ApproveAsync(moduleId, uploaded.Version, "Rollback probe", subject, actor);
+                throw new InvalidOperationException("Approval failure injection did not run.");
+            }
+            catch (InvalidOperationException exception) when (exception.Message == "package-save-probe") { }
+        }
+        if (await QueueCountAsync() != 0 ||
+            (await setup.LogicModules.AsNoTracking().SingleAsync(item => item.Id == uploaded.Id)).IsEnabled ||
+            await setup.AuditEvents.AnyAsync(item => item.TargetId == uploaded.Id.ToString() && item.Action == "logic-module.approved"))
+            throw new InvalidOperationException("Failed approval committed trust, audit or a publication request.");
         await ChangeAsync(uploaded.Version, true);
+        await ChangeAsync(uploaded.Version, true);
+        if (await QueueCountAsync() != 1) throw new InvalidOperationException("Approval did not queue exactly one publication.");
         if (!(await UploadAsync(original)).IsEnabled) throw new InvalidOperationException("Repeated upload reset approval.");
         await ChangeAsync(uploaded.Version, false);
         if ((await UploadAsync(original)).IsEnabled) throw new InvalidOperationException("Repeated upload re-enabled a retired version.");
@@ -86,7 +105,17 @@ internal static class AuthorizedModulePackageChecks
         await ExpectAsync(() => UploadAsync(original), "SECURITY_SCOPE_DENIED", FailureKind.Authorization);
         await setup.AccessGrants.Where(item => item.Id == globalGrant)
             .ExecuteUpdateAsync(set => set.SetProperty(item => item.ScopeKind, "DeploymentWide"));
+        manifest["version"] = "1.0.4";
+        await using (var mismatchedCatalog = new WellSiteAutoPilotDbContext(options))
+        {
+            await new LogicModuleCatalogService(new LogicModuleCatalogRepository(mismatchedCatalog), TimeProvider.System)
+                .RegisterAuthorizedAsync(new(manifest.ToJsonString(), checksum, LogicModuleTrustStatus.Untrusted), subject, actor);
+        }
+        await ExpectAsync(() => ChangeAsync("1.0.4", true), "MODULE_PACKAGE_IDENTITY_MISMATCH", FailureKind.Validation);
+        if ((await setup.LogicModules.AsNoTracking().SingleAsync(item => item.ModuleId == moduleId && item.Version == "1.0.4")).IsEnabled)
+            throw new InvalidOperationException("Approval accepted bytes from a different catalog version.");
         var count = await setup.AuditEvents.CountAsync(item => item.ActorUserId == subject.UserId) - before;
+        await setup.OutboxMessages.Where(item => item.Type == ModulePackagePublication.OutboxType && item.Payload.Contains(moduleId)).ExecuteDeleteAsync();
         await setup.LogicModules.Where(item => item.ModuleId == moduleId).ExecuteDeleteAsync();
         await setup.LogicModulePackages.Where(item => item.Sha256 == checksum || item.Sha256 == winner.PackageSha256).ExecuteDeleteAsync();
         Console.WriteLine("Package upload: global authority, immutable bytes/trust, concurrency and atomic rollback checks passed.");

@@ -241,5 +241,7 @@ if (skippedV2 < 1)
 }
 Console.WriteLine($"V2 matched after {skippedV2} unrelated messages.");
 
+await ModulePackagePublicationChecks.RunAsync(dbOptions, connection);
+
 Console.WriteLine("Execution V1/V2 outbox to JetStream dispatch checks passed.");
 return 0;

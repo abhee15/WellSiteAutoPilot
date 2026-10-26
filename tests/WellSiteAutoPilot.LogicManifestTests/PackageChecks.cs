@@ -28,6 +28,9 @@ internal static class PackageChecks
             .Replace("\"canonicalUnit\":\"spm\"", "\"canonicalUnit\":null", StringComparison.Ordinal);
         using var optionalSource = new MemoryStream(Archive(optionalFieldsOmitted));
         _ = await LogicModulePackageReader.ReadAsync(optionalSource);
+        LogicModulePackageCompatibility.ValidateCatalog(inspected, manifest.ModuleId, manifest.Version, inspected.Sha256, inspected.ManifestJson);
+        AssertFailure(() => LogicModulePackageCompatibility.ValidateCatalog(inspected, manifest.ModuleId, manifest.Version,
+            inspected.Sha256, inspected.ManifestJson + " "), "MODULE_PACKAGE_MANIFEST_MISMATCH");
         var expected = new LogicModulePackageExpectation(manifest.ModuleId, manifest.Version,
             inspected.Sha256, manifest.Runtime, "1.1.0");
         LogicModulePackageCompatibility.Validate(inspected, expected);

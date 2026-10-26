@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -7,6 +8,7 @@ using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Persistence.Audit;
+using WellSiteAutoPilot.Persistence.Messaging;
 using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence.Logic;
@@ -40,6 +42,22 @@ public sealed partial class LogicModuleCatalogRepository : ILogicModuleApprovalR
             var change = LogicModuleApproval.Decide(current, action);
             if (change is null)
             {
+                // Upgrade compatibility: an older Server could approve stored
+                // bytes before publication existed. Repeat approval may repair
+                // the missing delivery request without changing trust/history.
+                if (action == LogicModuleApprovalAction.Approve && current.IsEnabled &&
+                    (current.TrustStatus is LogicModuleTrustStatus.CustomerApproved or LogicModuleTrustStatus.TrustedPublisher) &&
+                    await QueuePackagePublicationAsync(current, actor, time.GetUtcNow(), cancellationToken))
+                {
+                    dbContext.AuditEvents.Add(new AuditEventEntity
+                    {
+                        Id = Guid.NewGuid(), OccurredAtUtc = time.GetUtcNow(), ActorUserId = subject.UserId,
+                        ActorIdentity = actor.IdentityName.Trim(), CorrelationId = actor.CorrelationId,
+                        Action = "logic-module.package-publication-queued", TargetType = "logic-module", TargetId = current.Id.ToString("D"),
+                        DetailsJson = JsonSerializer.Serialize(new { current.ModuleId, current.Version, current.PackageSha256 })
+                    });
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                }
                 await transaction.CommitAsync(cancellationToken);
                 return current;
             }
@@ -67,16 +85,38 @@ public sealed partial class LogicModuleCatalogRepository : ILogicModuleApprovalR
                     TrustStatus = change.TrustStatus.ToString(), change.IsEnabled, Reason = reason
                 })
             });
+            if (action == LogicModuleApprovalAction.Approve)
+                await QueuePackagePublicationAsync(current, actor, now, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return current with { TrustStatus = change.TrustStatus, IsEnabled = change.IsEnabled };
         }
         catch (Exception exception) when (exception.GetBaseException() is PostgresException postgres &&
-            postgres.SqlState is PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected)
+            postgres.SqlState is PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.UniqueViolation)
         {
             throw new WellSiteAutoPilotException("MODULE_CATALOG_CONFLICT", FailureKind.Conflict,
                 "The catalog or its authority changed concurrently. Reload before retrying.", innerException: exception);
         }
+    }
+
+    private async Task<bool> QueuePackagePublicationAsync(InstalledLogicModule current, SecurityActorContext actor,
+        DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (await dbContext.OutboxMessages.AnyAsync(item => item.Id == current.Id, cancellationToken)) return false;
+        var package = await dbContext.LogicModulePackages.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Sha256 == current.PackageSha256, cancellationToken);
+        if (package is null) return false;
+        using var content = new MemoryStream(package.Content);
+        var inspected = await LogicModulePackageReader.ReadAsync(content, cancellationToken);
+        LogicModulePackageCompatibility.ValidateCatalog(inspected, current.ModuleId, current.Version, current.PackageSha256, current.ManifestJson);
+        // One durable publication identity per immutable module catalog version.
+        dbContext.OutboxMessages.Add(new OutboxMessageEntity
+        {
+            Id = current.Id, Type = ModulePackagePublication.OutboxType, CreatedAtUtc = now,
+            Payload = JsonSerializer.Serialize(new ModulePackagePublication(current.Id, current.ModuleId,
+                current.Version, current.PackageSha256, actor.CorrelationId, Activity.Current?.Id))
+        });
+        return true;
     }
 
     private static void RequireBoundActor(AccessSubject subject, SecurityActorContext actor)

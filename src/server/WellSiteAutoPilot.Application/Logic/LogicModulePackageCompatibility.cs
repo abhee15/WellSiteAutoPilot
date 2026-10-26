@@ -16,13 +16,7 @@ public static class LogicModulePackageCompatibility
     {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(expected);
-        if (expected.PackageSha256 is not { Length: 64 } checksum || !checksum.All(char.IsAsciiHexDigit))
-            Fail("MODULE_PACKAGE_EXPECTATION_INVALID", "The expected package SHA-256 must contain 64 hexadecimal characters.");
-        if (!string.Equals(package.Sha256, expected.PackageSha256, StringComparison.OrdinalIgnoreCase))
-            Fail("MODULE_PACKAGE_HASH_MISMATCH", "The package does not match the expected SHA-256.");
-        if (!string.Equals(package.Manifest.ModuleId, expected.ModuleId, StringComparison.Ordinal) ||
-            !string.Equals(package.Manifest.Version, expected.ModuleVersion, StringComparison.Ordinal))
-            Fail("MODULE_PACKAGE_IDENTITY_MISMATCH", "The package does not match the expected module identity and version.");
+        ValidateIdentity(package, expected.ModuleId, expected.ModuleVersion, expected.PackageSha256);
         if (!Enum.IsDefined(expected.Runtime) || package.Manifest.Runtime != expected.Runtime)
             Fail("MODULE_RUNTIME_INCOMPATIBLE", "The package requires a different module runtime.");
         if (!LogicModuleSemanticVersion.TryParse(expected.SdkVersion, out var hostVersion))
@@ -31,6 +25,26 @@ public static class LogicModulePackageCompatibility
             Fail("MODULE_SDK_VERSION_INVALID", "Minimum SDK version must use semantic versioning.");
         if (hostVersion!.CompareTo(minimumVersion) < 0)
             Fail("MODULE_SDK_INCOMPATIBLE", "The package requires a newer module SDK than the host supports.");
+    }
+
+    public static void ValidateCatalog(InspectedLogicModulePackage package, string moduleId, string moduleVersion,
+        string packageSha256, string manifestJson)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ValidateIdentity(package, moduleId, moduleVersion, packageSha256);
+        if (string.IsNullOrEmpty(package.ManifestJson) || !string.Equals(package.ManifestJson, manifestJson, StringComparison.Ordinal))
+            Fail("MODULE_PACKAGE_MANIFEST_MISMATCH", "The package manifest differs from the reviewed catalog manifest.");
+    }
+
+    private static void ValidateIdentity(InspectedLogicModulePackage package, string moduleId, string moduleVersion, string packageSha256)
+    {
+        if (packageSha256 is not { Length: 64 } checksum || !checksum.All(char.IsAsciiHexDigit))
+            Fail("MODULE_PACKAGE_EXPECTATION_INVALID", "The expected package SHA-256 must contain 64 hexadecimal characters.");
+        if (!string.Equals(package.Sha256, packageSha256, StringComparison.OrdinalIgnoreCase))
+            Fail("MODULE_PACKAGE_HASH_MISMATCH", "The package does not match the expected SHA-256.");
+        if (!string.Equals(package.Manifest.ModuleId, moduleId, StringComparison.Ordinal) ||
+            !string.Equals(package.Manifest.Version, moduleVersion, StringComparison.Ordinal))
+            Fail("MODULE_PACKAGE_IDENTITY_MISMATCH", "The package does not match the expected module identity and version.");
     }
 
     [DoesNotReturn]

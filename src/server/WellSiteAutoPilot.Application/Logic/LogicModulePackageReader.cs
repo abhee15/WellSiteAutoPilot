@@ -8,7 +8,10 @@ using WellSiteAutoPilot.Failures;
 namespace WellSiteAutoPilot.Application.Logic;
 
 public sealed record InspectedLogicModulePackage(
-    LogicModuleManifest Manifest, string Sha256, int PayloadFileCount);
+    LogicModuleManifest Manifest, string Sha256, int PayloadFileCount)
+{
+    public string ManifestJson { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// Inspects a bounded snapshot without extracting files or loading module code.
@@ -88,8 +91,8 @@ public static class LogicModulePackageReader
                 if (read != entry.Length) Fail("An archive entry does not match its declared size.");
             }
             await using var manifestStream = manifestEntry!.Open();
-            var manifest = await LogicModuleManifestReader.ReadAsync(manifestStream, cancellationToken);
-            return new InspectedLogicModulePackage(manifest, sha256, payloadCount);
+            var parsed = await LogicModuleManifestReader.ReadDocumentAsync(manifestStream, cancellationToken);
+            return new InspectedLogicModulePackage(parsed.Manifest, sha256, payloadCount) { ManifestJson = parsed.NormalizedJson };
         }
         catch (Exception exception) when (exception is InvalidDataException or JsonException or OverflowException)
         {

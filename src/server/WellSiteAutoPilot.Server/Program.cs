@@ -208,6 +208,9 @@ builder.Services.AddScoped<AccessGrantAdministrationService>();
 builder.Services.Configure<ScheduledShadowSchedulerOptions>(
     builder.Configuration.GetSection(ScheduledShadowSchedulerOptions.SectionName));
 builder.Services.AddScoped<OutboxPublisher>();
+builder.Services.AddScoped<IModulePackageObjectStore, NatsModulePackageObjectStore>();
+builder.Services.AddScoped<ModulePackagePublisher>();
+builder.Services.AddHostedService<ModulePackagePublicationDispatcher>();
 builder.Services.AddHostedService<OutboxDispatcher>();
 builder.Services.AddSingleton(new JetStreamConsumerSettings(
     builder.Configuration.GetValue("Messaging:JetStream:RequestAckWaitSeconds", 120),
