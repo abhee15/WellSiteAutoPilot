@@ -432,10 +432,15 @@ internal static class Bootstrapper
 
         var serverKey = ExistingKey(serverPath) ?? InstallerSettings.NewServiceKey();
         var workerKey = ExistingKey(workerPath) ?? InstallerSettings.NewServiceKey();
+        var natsToken = !rotate && File.Exists(serverPath)
+            ? InstallerSettings.ReadNatsToken(File.ReadAllText(serverPath)) : null;
+        natsToken ??= InstallerSettings.NewServiceKey();
 
-        WriteProtectedFile(serverPath, InstallerSettings.ServiceKeyFileContent(serverKey), NetworkServiceSid);
-        WriteProtectedFile(workerPath, InstallerSettings.ServiceKeyFileContent(workerKey), LocalServiceSid);
-        WriteProtectedFile(gatewayPath, InstallerSettings.GatewayKeyFileContent(serverKey, workerKey), gatewayReader);
+        WriteProtectedFile(serverPath, InstallerSettings.ServiceKeyFileContent(serverKey, natsToken), NetworkServiceSid);
+        WriteProtectedFile(workerPath, InstallerSettings.ServiceKeyFileContent(workerKey, natsToken), LocalServiceSid);
+        WriteProtectedFile(gatewayPath, InstallerSettings.GatewayKeyFileContent(serverKey, workerKey, natsToken), gatewayReader);
+        WriteProtectedFile(Path.Combine(programDataRoot, InstallerSettings.NatsAuthenticationFile),
+            InstallerSettings.NatsAuthenticationFileContent(natsToken), LocalServiceSid);
         Console.WriteLine(rotate
             ? "Internal service keys were regenerated."
             : "Internal service keys are in place.");

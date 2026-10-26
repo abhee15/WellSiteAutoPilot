@@ -668,6 +668,10 @@ jobs:
           }
 
           $env:WSA_NATS_URL = "nats://127.0.0.1:4222"
+          $workerKeys = Get-Content (Join-Path $env:ProgramData "Weatherford\WellSite AutoPilot\worker.keys.json") -Raw | ConvertFrom-Json
+          $env:WSA_NATS_TOKEN = $workerKeys.Messaging.Nats.Token
+          if (-not $env:WSA_NATS_TOKEN) { throw "Installed broker credential is missing." }
+          Write-Output "::add-mask::$env:WSA_NATS_TOKEN"
           dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build
           if ($LASTEXITCODE -ne 0) {
             throw "Installed NATS JetStream validation failed with exit code $LASTEXITCODE."
@@ -1085,7 +1089,10 @@ jobs:
 
       - name: Start NATS with JetStream
         run: |
-          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.15.0-alpine -js -sd /data
+          broker_token=$(openssl rand -hex 32)
+          echo "::add-mask::$broker_token"
+          echo "WSA_NATS_TOKEN=$broker_token" >> "$GITHUB_ENV"
+          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.15.0-alpine -js -sd /data --auth "$broker_token"
           for attempt in {1..30}; do
             if docker logs wsa-nats-ci 2>&1 | grep -q "Server is ready"; then
               exit 0
@@ -1112,6 +1119,16 @@ jobs:
             sleep 1
           done
           dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build -- --verify-package-after-restart
+
+      - name: Verify worker refuses package retrieval from an anonymous broker
+        run: |
+          docker rm --force wsa-nats-ci
+          docker run --detach --name wsa-nats-ci --publish 4222:4222 nats:2.15.0-alpine -js
+          for attempt in {1..30}; do
+            if docker exec wsa-nats-ci nc -z 127.0.0.1 4222; then break; fi
+            sleep 1
+          done
+          dotnet run --project tests/WellSiteAutoPilot.MessagingIntegrationTests/WellSiteAutoPilot.MessagingIntegrationTests.csproj --configuration Release --no-build -- --verify-unauthenticated-package-refusal
 
       - name: Show NATS logs on failure
         if: failure()
@@ -1156,7 +1173,10 @@ jobs:
 
       - name: Start NATS with JetStream
         run: |
-          docker run --detach --name wsa-nats-execution-ci --publish 4222:4222 nats:2.15.0-alpine -js
+          broker_token=$(openssl rand -hex 32)
+          echo "::add-mask::$broker_token"
+          echo "WSA_NATS_TOKEN=$broker_token" >> "$GITHUB_ENV"
+          docker run --detach --name wsa-nats-execution-ci --publish 4222:4222 nats:2.15.0-alpine -js --auth "$broker_token"
           for attempt in {1..30}; do
             if docker logs wsa-nats-execution-ci 2>&1 | grep -q "Server is ready"; then
               exit 0

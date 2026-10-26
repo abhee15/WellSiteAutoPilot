@@ -19,6 +19,10 @@ credential for a route the caller may not use gives 403. The key is never logged
 
 ## Storage
 
+The broker has a separate shared runtime token in each protected service file;
+see [runtime broker authentication](runtime-broker-authentication.md). HTTP caller
+key/verifier separation below remains unchanged.
+
 The installer (`install-services`) writes, under `ProgramData\Weatherford\WellSite AutoPilot`, one file per
 service with an access list limited to SYSTEM, Administrators and that service's account:
 

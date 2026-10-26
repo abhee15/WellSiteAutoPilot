@@ -227,7 +227,8 @@ builder.Services.AddWellSitePersistence(DatabaseConnectionLoader.Resolve(
     SecurityOptionsLoader.GetProgramDataSettingsPath(),
     WindowsServiceHelpers.IsWindowsService()));
 builder.Services.AddWellSiteMessaging(
-    builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222");
+    builder.Configuration["Messaging:Nats:Url"] ?? "nats://127.0.0.1:4222",
+    builder.Configuration["Messaging:Nats:Token"]);
 builder.Services.AddChangeSignal(builder.Configuration);
 
 var app = builder.Build();
