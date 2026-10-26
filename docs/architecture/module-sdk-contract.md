@@ -31,8 +31,10 @@ This is execution failure reporting, not an arbitrary-code isolation boundary.
 Existing modules can keep the V1 result shape. New modules using FailureCode
 declare minimumSdkVersion 1.1.0 and require an updated worker. The SDK project
 now carries that explicit version rather than inheriting the product version.
-Package loading must enforce the minimum before code execution; dynamic loading
-and Python production execution remain separate work.
+The verified .NET package host enforces the minimum against its actual SDK before
+loading. Hosted V3 requests pin the reviewed checksum/manifest; legacy requests
+cannot fall back to uploaded code. Python production execution remains separate
+work. See [verified package hosting](../development/verified-package-host.md).
 
 The SDK deliberately contains no CygNet, WAMI, PostgreSQL, NATS, HTTP, credential, or worker-host types. Provider access is performed by the runtime before module execution or through separately governed runtime SDK capabilities.
 

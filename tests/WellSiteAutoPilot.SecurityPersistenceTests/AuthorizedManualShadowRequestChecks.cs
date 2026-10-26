@@ -93,7 +93,8 @@ internal static class AuthorizedManualShadowRequestChecks
         try
         {
             if (await RequestAsync(key) != (receipt with { ContractVersion = 3 }) ||
-                !await ScopedAccessQueries.Executions(setup, subject.UserId, WellSitePermissions.ExecutionsRequest, subject.WindowsGroups)
+                !await ScopedAccessQueries.Executions(setup, subject.UserId, WellSitePermissions.ExecutionsRequest,
+                    subject.WindowsGroups, DateTimeOffset.UtcNow)
                     .AnyAsync(item => item.Id == receipt.ExecutionId))
                 throw new InvalidOperationException("Hosted receipt lost its scoped execution visibility.");
             await SetGrantAsync(requestGrant, false);
