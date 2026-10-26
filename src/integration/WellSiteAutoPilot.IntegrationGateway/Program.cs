@@ -86,12 +86,32 @@ builder.Services.AddSingleton<ForeSiteCurrentDataProvider>(services =>
     new ForeSiteCurrentDataProvider(
         services.GetRequiredService<IHttpClientFactory>().CreateClient("foresite-current-data")));
 builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
-    new CurrentDataProviderRouter(
-        [new KeyValuePair<string, ICurrentDataProvider>(
-            "simulator", services.GetRequiredService<CircuitBreakingCurrentDataProvider>()),
-         new KeyValuePair<string, ICurrentDataProvider>(
-            "foresite", services.GetRequiredService<ForeSiteCurrentDataProvider>())],
-        "simulator"));
+{
+    var providers = new List<KeyValuePair<string, ICurrentDataProvider>>
+    {
+        new("simulator", services.GetRequiredService<CircuitBreakingCurrentDataProvider>()),
+        new("foresite", services.GetRequiredService<ForeSiteCurrentDataProvider>())
+    };
+#if CYGNET
+    providers.Add(new("cygnet", services.GetRequiredService<WellSiteAutoPilot.Integration.CygNet.CygNetCurrentDataProvider>()));
+#endif
+    return new CurrentDataProviderRouter(providers, "simulator");
+});
+#if CYGNET
+// POC: domain and quantity-to-UDC mapping are gateway-wide config until connections carry provider settings.
+builder.Services.AddSingleton(services =>
+{
+    var section = services.GetRequiredService<IConfiguration>().GetSection("Providers:CygNet");
+    var quantities = section.GetSection("Quantities").GetChildren().ToDictionary(
+        child => child.Key,
+        child => new WellSiteAutoPilot.Integration.CygNet.CygNetQuantityMapping(
+            child["Udc"] ?? child.Key, child["Unit"] ?? string.Empty),
+        StringComparer.OrdinalIgnoreCase);
+    return new WellSiteAutoPilot.Integration.CygNet.CygNetProviderOptions(
+        ushort.TryParse(section["Domain"], out var domain) ? domain : null, quantities);
+});
+builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.CygNetCurrentDataProvider>();
+#endif
 builder.Services.AddTransient<IProviderHealthProvider>(
     serviceProvider =>
         serviceProvider.GetRequiredService<SimulatorCurrentDataProvider>());

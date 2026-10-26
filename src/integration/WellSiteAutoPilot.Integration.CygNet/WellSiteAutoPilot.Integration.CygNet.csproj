@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- POC: uses the managed CygNet.API assemblies already present on a CygNet-licensed host (no COM registration).
+       Set CygNetLibraryPath (or env CYGNET_LIBRARY_PATH) to the folder holding CygNet.API.*.dll and the native Cx*64.dll files. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <CygNetLibraryPath Condition="'$(CygNetLibraryPath)' == ''">$(CYGNET_LIBRARY_PATH)</CygNetLibraryPath>
+    <NoWarn>$(NoWarn);CA1416;CA1031;CA1305</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="CygNet.API.Core"><HintPath>$(CygNetLibraryPath)\CygNet.API.Core.dll</HintPath></Reference>
+    <Reference Include="CygNet.Core"><HintPath>$(CygNetLibraryPath)\CygNet.Core.dll</HintPath></Reference>
+    <Reference Include="CygNet.COMAPI"><HintPath>$(CygNetLibraryPath)\CygNet.COMAPI.dll</HintPath></Reference>
+    <Reference Include="CygNet.API.Points"><HintPath>$(CygNetLibraryPath)\CygNet.API.Points.dll</HintPath></Reference>
+    <Reference Include="CygNet.API.Facilities"><HintPath>$(CygNetLibraryPath)\CygNet.API.Facilities.dll</HintPath></Reference>
+    <Reference Include="CygNet.Data.Core"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Core.dll</HintPath></Reference>
+    <Reference Include="CygNet.Data.Points"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Points.dll</HintPath></Reference>
+    <Reference Include="CygNet.Data.Facilities"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Facilities.dll</HintPath></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Mixed-mode *64 assemblies and native Cx*64.dll must sit beside the host binaries. -->
+    <None Include="$(CygNetLibraryPath)\*64.dll" CopyToOutputDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
