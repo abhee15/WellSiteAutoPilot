@@ -34,6 +34,12 @@ This slice implements offline authoring only. The preceding proposal is on
   approval/retirement is preserved on retries; reviewed metadata-only versions
   require a new version before bytes may be attached.
 
+- Approval-backed delivery: approval queues publication atomically with trust
+  and audit. A separate Server dispatcher rechecks current state and publishes
+  checksum-verified bytes to the file-backed NATS Object Store. Retired pending
+  publications are skipped; transport/database failures are retried. Worker
+  loading and live ForeSite input collection are still not enabled.
+
 ## Repository gaps confirmed
 
 The .NET resolver registers only weatherford.sample-shadow-read. Python main.py

@@ -4,6 +4,7 @@ using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Net;
 using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Telemetry;
 
@@ -22,7 +23,7 @@ public sealed class OutboxPublisher(
         await JetStreamTopology.EnsureAsync(connection, cancellationToken);
 
         var pending = await dbContext.OutboxMessages
-            .Where(message => message.ProcessedAtUtc == null)
+            .Where(message => message.ProcessedAtUtc == null && message.Type != ModulePackagePublication.OutboxType)
             .OrderBy(message => message.CreatedAtUtc)
             .Take(BatchSize)
             .ToArrayAsync(cancellationToken);

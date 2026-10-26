@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -7,6 +8,7 @@ using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Persistence.Audit;
+using WellSiteAutoPilot.Persistence.Messaging;
 using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence.Logic;
@@ -67,6 +69,16 @@ public sealed partial class LogicModuleCatalogRepository : ILogicModuleApprovalR
                     TrustStatus = change.TrustStatus.ToString(), change.IsEnabled, Reason = reason
                 })
             });
+            if (action == LogicModuleApprovalAction.Approve &&
+                await dbContext.LogicModulePackages.AnyAsync(item => item.Sha256 == current.PackageSha256, cancellationToken))
+            {
+                dbContext.OutboxMessages.Add(new OutboxMessageEntity
+                {
+                    Id = Guid.NewGuid(), Type = ModulePackagePublication.OutboxType, CreatedAtUtc = now,
+                    Payload = JsonSerializer.Serialize(new ModulePackagePublication(current.Id, current.ModuleId,
+                        current.Version, current.PackageSha256, actor.CorrelationId, Activity.Current?.Id))
+                });
+            }
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return current with { TrustStatus = change.TrustStatus, IsEnabled = change.IsEnabled };

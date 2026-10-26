@@ -2,8 +2,9 @@
 
 ## Status
 
-**Proposed.** Needs owner approval before roadmap step 2 starts. Implementation is verified against the
-open item at the end before code is written.
+**Accepted for the owner-directed server storage and approval-backed publication slices.**
+Worker loading/isolation remains a separate implementation decision. The Object
+Store prerequisite below was verified before publication was enabled.
 
 ## Context
 
@@ -19,7 +20,7 @@ the Server over HTTP, and the product runs on premises, normally without Interne
 2. **Workers receive packages through the JetStream Object Store**, bucket `WSA_MODULES`, object name
    `sha256/<hex>`. Workers already hold NATS connections and credentials, so no new channel or credential
    is introduced, and it works offline.
-3. **The Server publishes a package to the bucket when the module is approved**, never at upload. An
+3. **Approval durably queues publication; the Server publishes only approved packages**, never at upload. An
    unapproved package is therefore never available to a worker. Retiring a module does not delete the
    object (running history must stay reproducible); the worker refuses to start a retired version because
    the execution request names the version and the Server will not queue one.
@@ -40,16 +41,16 @@ the Server over HTTP, and the product runs on premises, normally without Interne
 
 ## Open item
 
-Confirm Object Store behaviour for NATS.Net 3.3.0 against the bundled nats-server version (create bucket,
-put and get of a multi-chunk object, restart persistence) in a CI integration test before step 2 relies
-on it. If it fails, the fallback is the same table read by a Server-side relay that publishes over a plain
-JetStream stream; the decisions above otherwise stand.
+Verified by the merged upload/storage slice: NATS.Net 3.3.0 with bundled
+nats-server 2.15.0 creates the bucket, round-trips multi-chunk content and retains
+it after a server restart without re-upload. The approval-publication integration
+checks also exercise real package bytes, retries and retirement fencing.
 
 ## Implementation evidence
 
 The package-upload slice stores bounded immutable archive bytes with untrusted
-catalog registration in one authorized transaction. It does not implement or
-activate approval-backed distribution. The upload route and schema are documented
+catalog registration in one authorized transaction. Approval-backed distribution now uses the existing outbox with a separate Server
+publisher; execution dispatch does not consume package work items. The upload route and schema are documented
 in [module-package-format.md](../architecture/module-package-format.md#server-package-upload).
 
 The NATS integration test now covers a multi-chunk object keyed by its SHA-256,
@@ -57,5 +58,5 @@ repeat publication, an actual server restart, and retrieval from the existing
 bucket without re-creating it or uploading content again. This must pass against
 the pinned NATS client/server before distribution relies on the Object Store.
 The CI restart verifies process/disk persistence, not survival of hardware or
-volume loss. The proposed distribution/loader work and its trust boundary remain
-separate from upload.
+volume loss. Worker loading and its isolation/trust boundary remain separate from publication.
+See the package-format document for transactional delivery and recovery limits.

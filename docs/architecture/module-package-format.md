@@ -96,6 +96,40 @@ a new version so the bytes can be reviewed first. Concurrent inserts may return
 `MODULE_CATALOG_CONFLICT`; a retry with the same immutable bytes is safe.
 
 Package metadata remains readable through the existing catalog routes. There is
-no general archive download endpoint. This upload slice does not publish package
-bytes to NATS, install code into workers or change existing approval behavior.
-Approval-backed publication and worker loading are subsequent slices.
+no general archive download endpoint. Upload itself does not publish bytes. Approval-backed publication is described
+below; worker loading remains a separate slice.
+
+## Approval-backed publication
+
+Approving a version with stored package bytes now commits the approval, its audit
+record and a `module-package.publication.v1` work item in the existing database
+outbox as one transaction. Upload, repeated approval and retirement do not enqueue
+extra publication requests. Existing built-in/metadata-only versions retain their
+approval behavior and do not create work with missing package bytes.
+
+The Server runs a separate package dispatcher; the execution dispatcher excludes
+these internal work items. The package dispatcher rechecks catalog ID/version/hash
+and current approved/enabled state, hashes the stored bytes and publishes them to
+the NATS Object Store `WSA_MODULES`, named `sha256/<approved-checksum>`. It requires
+file storage without expiry or eviction of old objects. It does not extract or
+execute code. No package request is broadcast as an execution message.
+
+A publication row is locked while being handled, so competing dispatchers skip the
+same row. A shared module-row lock fences retirement: a retirement committed first
+causes publication to be skipped and audited; retirement that starts during a
+publication waits for its completion. Already published retired artifacts are kept
+for reproducible history. A future worker must still validate current execution
+authority and the expected package checksum before loading code.
+
+Delivery failures leave the work pending for retry and do not roll back the already
+committed approval. Broker operations have a 30-second deadline. Broker success
+followed by a database failure can cause a repeat write of the same immutable bytes;
+the processed marker and system publication audit commit together, so the audit
+is recorded once. Approval and publication preserve correlation/trace context.
+
+An approved flag is a trust decision, not proof that a package has reached a worker.
+Publication has no effect on the built-in resolver or the Python worker scaffold.
+Cache management, package loading/isolation and execution-request package identity
+remain subsequent work. NATS data-volume loss after successful delivery requires
+recovery/republication; the outbox retry protects pending delivery, and is not an
+automatic rebuild of an already processed Object Store.
