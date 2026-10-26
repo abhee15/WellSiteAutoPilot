@@ -7,6 +7,7 @@ public static class Subjects
     public const string ExecutionFailedV1 = "wsa.execution.failed.v1";
 
     public const string ExecutionRequestedV2 = "wsa.execution.requested.v2";
+    public const string ExecutionRequestedV3 = "wsa.execution.requested.v3";
     public const string ExecutionStartedV2 = "wsa.execution.started.v2";
     public const string ExecutionCompletedV2 = "wsa.execution.completed.v2";
     public const string ExecutionFailedV2 = "wsa.execution.failed.v2";

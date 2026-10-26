@@ -163,6 +163,15 @@ internal static class AuthorizedRecommendationChecks
         await ExpectFailureAsync(() => DecideAsync(rollback), FailureKind.Authorization);
         if (await setup.AuditEvents.CountAsync(item => item.ActorUserId == user) != 2)
             throw new InvalidOperationException("Post-revocation decision left an audit mutation.");
+        await setup.AccessGrants.Where(item => item.Id == decideGrant)
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsActive, true));
+        await setup.Executions.Where(item => item.Id == execution)
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.RequestContractVersion, 3));
+        var hostedRecommendation = AddRecommendation(assetA);
+        await setup.SaveChangesAsync();
+        if ((await DecideAsync(hostedRecommendation)).Status != RecommendationStatus.Approved)
+            throw new InvalidOperationException("Hosted execution recommendation lost its decision path.");
+        await ExpectFailureAsync(() => DecideAsync(forbidden), FailureKind.Authorization);
         await setup.AuditEvents.Where(item => item.ActorUserId == user).ExecuteDeleteAsync();
         await setup.Recommendations.Where(item => recommendations.Contains(item.Id)).ExecuteDeleteAsync();
         await setup.Executions.Where(item => item.Id == execution).ExecuteDeleteAsync();

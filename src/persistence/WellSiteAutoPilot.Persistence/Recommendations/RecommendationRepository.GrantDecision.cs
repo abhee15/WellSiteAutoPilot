@@ -59,7 +59,7 @@ public sealed partial class RecommendationRepository
                     executions[0].Status != nameof(ExecutionStatus.Completed) ||
                     executions[0].LogicInstanceId != target.ConfiguredLogicId ||
                     executions[0].ConfigurationRevisionId != target.ConfigurationRevisionId ||
-                    executions[0].RequestContractVersion is not (1 or 2) ||
+                    executions[0].RequestContractVersion is not (1 or 2 or 3) ||
                     (executions[0].RequestContractVersion == 1 && executions[0].AssetId != target.AssetId) ||
                     scopes.Length != 1 || scopes[0].LogicInstanceId != target.ConfiguredLogicId) throw Conflict();
             }

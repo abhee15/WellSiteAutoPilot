@@ -1,0 +1,179 @@
+using System.IO.Compression;
+using System.Net;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using NATS.Client.Core;
+using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
+using NATS.Net;
+using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.Executions;
+using WellSiteAutoPilot.Domain.Logic;
+using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Infrastructure.Messaging;
+using WellSiteAutoPilot.Messaging.Contracts;
+using WellSiteAutoPilot.Messaging.Contracts.Execution;
+using WellSiteAutoPilot.Messaging.Nats;
+using WellSiteAutoPilot.ModuleSdk;
+using WellSiteAutoPilot.Persistence;
+using WellSiteAutoPilot.Persistence.Executions;
+using WellSiteAutoPilot.Persistence.Logic;
+using WellSiteAutoPilot.Persistence.Security;
+using WellSiteAutoPilot.Worker.DotNet.Execution;
+
+namespace WellSiteAutoPilot.ExecutionDispatchTests;
+
+internal static class HostedModuleExecutionChecks
+{
+    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
+    { Converters = { new JsonStringEnumConverter() } };
+
+    public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, NatsConnection connection)
+    {
+        await using var db = new WellSiteAutoPilotDbContext(options);
+        var now = DateTimeOffset.UtcNow;
+        var user = Guid.NewGuid();
+        var moduleId = "hosted-probe-" + user.ToString("N");
+        var actor = new SecurityActorContext(user, moduleId, moduleId);
+        var subject = new AccessSubject(user);
+        db.Users.Add(new UserEntity { Id = user, IdentityKey = moduleId, IdentityName = moduleId,
+            NormalizedIdentityName = moduleId, IsActive = true, CreatedAtUtc = now, LastSeenAtUtc = now });
+        var role = Guid.NewGuid();
+        db.RoleDefinitions.Add(new RoleDefinitionEntity { Id = role, Key = moduleId, Name = moduleId,
+            NormalizedName = moduleId, IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now });
+        db.RolePermissions.Add(new RolePermissionEntity { RoleId = role, Permission = WellSitePermissions.LogicManage });
+        db.AccessGrants.Add(new AccessGrantEntity { Id = Guid.NewGuid(), UserId = user, RoleId = role,
+            SubjectKind = "User", ScopeKind = "DeploymentWide", IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now });
+        await db.SaveChangesAsync();
+        var manifest = new LogicModuleManifest(1, moduleId, "1.0.0", "Hosted probe", "Test", LogicRuntimeKind.DotNet,
+            ExecutionProfile.ScheduledOneShot, typeof(HostedExecutionProbe).FullName!, "1.1.0",
+            [new("well", 1, 1, null, [])], [new("fillage", "well", "PumpFillage", "Current", "%", 60, false)], []);
+        using var bytes = new MemoryStream(Pack(manifest));
+        var module = await new LogicModulePackageService(new LogicModuleCatalogRepository(db), TimeProvider.System)
+            .UploadAsync(bytes, subject, actor);
+        var asset = Guid.NewGuid();
+        var command = new ConfiguredShadowExecutionCommand(Guid.NewGuid(), Guid.NewGuid(), moduleId, "1.0.0", "{}",
+            [new("well", asset, "{}")], [new("fillage", asset, "simulator", "WELL-PROBE", "PumpFillage", "Current", "%", 60, false, "{}")],
+            ExecutionTriggerKind.Scheduled, now);
+        await RefuseDispatchAsync("MODULE_NOT_ENABLED");
+        var approval = new LogicModuleApprovalService(new LogicModuleCatalogRepository(db));
+        await approval.ApproveAsync(moduleId, "1.0.0", "Reviewed executable fixture", subject, actor);
+        await new ModulePackagePublisher(db, new NatsModulePackageObjectStore(connection), TimeProvider.System,
+            NullLogger<ModulePackagePublisher>.Instance).DispatchAsync(module.Id);
+
+        var execution = await new ExecutionService(new ExecutionRepository(db), TimeProvider.System)
+            .RequestConfiguredShadowAsync(command, moduleId);
+        var hosted = JsonSerializer.Deserialize<ExecutionRequestedV3>(execution.RequestPayloadJson!, Options)!;
+        Assert(execution.RequestContractVersion == 3 && hosted.Package.Sha256 == module.PackageSha256 &&
+            hosted.Package.ReviewedManifestJson == module.ManifestJson && hosted.Execution.ExecutionId == execution.Id,
+            "Dispatch did not snapshot the authoritative approved package.");
+        // Retirement stops NEW dispatch. A committed request retains its reviewed bytes.
+        await approval.RetireAsync(moduleId, "1.0.0", "Exercise accepted-request boundary", subject, actor);
+        await RefuseDispatchAsync("MODULE_NOT_ENABLED");
+
+        var store = await connection.CreateObjectStoreContext().GetObjectStoreAsync("WSA_MODULES");
+        using (var corrupt = new MemoryStream([1, 2, 3]))
+            await store.PutAsync("sha256/" + new string('f', 64), corrupt);
+        var working = Path.Combine(Path.GetTempPath(), "wsa-hosted-e2e-" + user.ToString("N"));
+        Environment.SetEnvironmentVariable("WSA_HOSTED_EXECUTION_TEST_ID", moduleId);
+        using var http = new HttpClient(new ProbeData(now)) { BaseAddress = new Uri("http://gateway.invalid") };
+        var engine = new ModuleExecutionEngine(new GatewayDataClient(http), new BuiltInLogicModuleResolver(),
+            packageHost: new DotNetModulePackageHost(new NatsModulePackageSource(connection), working));
+        using var worker = new ExecutionRequestV2Consumer(connection, engine, TimeProvider.System,
+            new JetStreamConsumerSettings(), NullLogger<ExecutionRequestV2Consumer>.Instance);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        var results = await connection.CreateJetStreamContext().CreateOrUpdateConsumerAsync(JetStreamTopology.ExecutionStream,
+            new ConsumerConfig("hosted-results-" + user.ToString("N"))
+            { FilterSubjects = [Subjects.ExecutionStartedV2, Subjects.ExecutionCompletedV2, Subjects.ExecutionFailedV2] }, deadline.Token);
+        var sawStarted = false;
+        var sawCompleted = false;
+        try
+        {
+            await worker.StartAsync(deadline.Token);
+            var publisher = new OutboxPublisher(db, connection, TimeProvider.System);
+            for (var batch = 0; batch < 10 && !await db.OutboxMessages.AsNoTracking().AnyAsync(item =>
+                item.Type == Subjects.ExecutionRequestedV3 && item.Payload.Contains(execution.Id.ToString()) && item.ProcessedAtUtc != null); batch++)
+                await publisher.DispatchBatchAsync(deadline.Token);
+            var repository = new ExecutionRepository(db);
+            await foreach (var message in results.ConsumeAsync<string>(cancellationToken: deadline.Token))
+            {
+                await message.AckAsync(cancellationToken: deadline.Token);
+                if (message.Data is null || !message.Data.Contains(execution.Id.ToString(), StringComparison.Ordinal)) continue;
+                if (message.Subject == Subjects.ExecutionFailedV2) throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
+                if (message.Subject == Subjects.ExecutionStartedV2)
+                {
+                    var started = JsonSerializer.Deserialize<MessageEnvelope<ExecutionStartedV2>>(message.Data, Options)!;
+                    await repository.ApplyStartedAsync(started.MessageId, "hosted-check", execution.Id, started.Payload.StartedAtUtc);
+                    Assert((await repository.GetAsync(execution.Id))?.Status == ExecutionStatus.Running, "V3 never entered Running.");
+                    sawStarted = true;
+                }
+                else
+                {
+                    var completed = JsonSerializer.Deserialize<MessageEnvelope<ExecutionCompletedV2>>(message.Data, Options)!;
+                    Assert(completed.Payload.ResultCode == "HOSTED_PROBE_COMPLETED" && completed.Payload.OutputJson.Contains("99.6", StringComparison.Ordinal),
+                        "Hosted result lost the normalized input or algorithm output.");
+                    await repository.ApplyCompletedAsync(completed.MessageId, "hosted-check", execution.Id,
+                        completed.Payload.StartedAtUtc, completed.Payload.CompletedAtUtc, completed.Payload.ResultCode, completed.Payload.OutputJson);
+                    sawCompleted = true;
+                    break;
+                }
+            }
+            Assert(sawStarted && sawCompleted && (await repository.GetAsync(execution.Id))?.Status == ExecutionStatus.Completed,
+                "Real approved archive did not complete through V3 dispatch and V2 results.");
+            Assert(!Directory.EnumerateFileSystemEntries(working).Any(), "Successful execution retained working files.");
+            Console.WriteLine("Hosted package E2E: upload, approval, pinned dispatch, NATS, worker loading, input read, result persistence and retirement boundary passed.");
+        }
+        finally
+        {
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await worker.StopAsync(stop.Token);
+            Environment.SetEnvironmentVariable("WSA_HOSTED_EXECUTION_TEST_ID", null);
+            if (Directory.Exists(working)) Directory.Delete(working, recursive: true);
+        }
+
+        async Task RefuseDispatchAsync(string code)
+        {
+            await using var attempt = new WellSiteAutoPilotDbContext(options);
+            try { await new ExecutionService(new ExecutionRepository(attempt), TimeProvider.System).RequestConfiguredShadowAsync(
+                command with { ConfiguredLogicId = Guid.NewGuid(), ScheduledForUtc = now.AddMinutes(1) }, moduleId); }
+            catch (WellSiteAutoPilotException error) when (error.Code == code) { return; }
+            throw new InvalidOperationException("Unapproved/retired package accepted a new execution.");
+        }
+    }
+
+    private static byte[] Pack(LogicModuleManifest manifest)
+    {
+        using var bytes = new MemoryStream();
+        using (var archive = new ZipArchive(bytes, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var writer = new StreamWriter(archive.CreateEntry("manifest.json").Open())) writer.Write(JsonSerializer.Serialize(manifest, Options));
+            using var image = File.OpenRead(Assembly.GetExecutingAssembly().Location);
+            using var output = archive.CreateEntry("payload/probe.dll").Open();
+            image.CopyTo(output);
+        }
+        return bytes.ToArray();
+    }
+    private sealed class ProbeData(DateTimeOffset timestamp) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Assert(request.Method == HttpMethod.Get, "Shadow issued a provider write.");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new
+            { quantity = "PumpFillage", value = 99.6m, unit = "%", timestampUtc = timestamp, quality = "Good", source = "simulator" }, Options)) });
+        }
+    }
+    private static void Assert(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+}
+
+public sealed class HostedExecutionProbe : ILogicModuleV1
+{
+    public LogicModuleIdentity Identity { get; } = new(Environment.GetEnvironmentVariable("WSA_HOSTED_EXECUTION_TEST_ID")!, "1.0.0");
+    public ValueTask<LogicModuleExecutionResult> ExecuteAsync(LogicModuleExecutionContext context, CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(new LogicModuleExecutionResult("HOSTED_PROBE_COMPLETED",
+            [new("observed", context.Inputs.Single().AssetId, "PumpFillage", context.Inputs.Single().Value, "%")], [], [], new Dictionary<string, string>()));
+}

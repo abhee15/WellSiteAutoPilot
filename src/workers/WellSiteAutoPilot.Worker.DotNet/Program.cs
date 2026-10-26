@@ -18,11 +18,17 @@ builder.Services.AddHealthChecks();
 builder.Services.AddWellSiteTelemetry(builder.Configuration, "wellsite-autopilot-worker-dotnet");
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddSingleton<ILogicModuleResolver, BuiltInLogicModuleResolver>();
+builder.Services.AddSingleton<IModulePackageSource, NatsModulePackageSource>();
+builder.Services.AddSingleton<DotNetModulePackageHost>(services => new DotNetModulePackageHost(
+    services.GetRequiredService<IModulePackageSource>(),
+    builder.Configuration["Runtime:ModuleWorkingDirectory"] ?? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Weatherford", "WellSiteAutoPilot", "module-work")));
 builder.Services.AddTransient<ModuleExecutionEngine>(services =>
     new ModuleExecutionEngine(
         services.GetRequiredService<GatewayDataClient>(),
         services.GetRequiredService<ILogicModuleResolver>(),
-        builder.Configuration.GetValue("Execution:MaximumConcurrentInputReads", 8)));
+        builder.Configuration.GetValue("Execution:MaximumConcurrentInputReads", 8),
+        services.GetRequiredService<DotNetModulePackageHost>()));
 builder.Configuration.AddServiceCallerSettingsFile("worker.keys.json");
 builder.Services.AddHttpClient<GatewayDataClient>(client =>
 {

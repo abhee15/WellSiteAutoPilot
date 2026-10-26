@@ -212,6 +212,11 @@ public sealed class ScheduledShadowSchedulerService(
                 BuildCorrelationId(configuredLogic.Id, revision.Id, scheduledForUtc.Value),
                 cancellationToken);
         }
+        catch (WellSiteAutoPilotException exception) when (exception.Code == "MODULE_NOT_ENABLED")
+        {
+            return Decision(configuredLogic, revision, scheduledForUtc,
+                ScheduledShadowDispatchOutcome.ModuleDisabled, exception.Code);
+        }
         catch (WellSiteAutoPilotException exception) when (exception.Code is
             "EXECUTION_SCHEDULED_OCCURRENCE_EXISTS" or "EXECUTION_ASSET_OVERLAP")
         {

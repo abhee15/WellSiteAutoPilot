@@ -62,7 +62,7 @@ public sealed partial class ExecutionRepository
             if (await HasActiveAssetOverlapAsync(configurationId, assetIds, cancellationToken))
                 throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                     "A configured execution is already pending or running.");
-            StageConfiguredRequest(execution, command);
+            execution = await StageConfiguredRequestAsync(execution, command, cancellationToken);
             dbContext.AuditEvents.Add(new AuditEventEntity
             {
                 Id = Guid.NewGuid(), OccurredAtUtc = execution.RequestedAtUtc, ActorUserId = subject.UserId,
@@ -90,7 +90,17 @@ public sealed partial class ExecutionRepository
         try
         {
             if (execution.RequestPayloadJson is null || execution.AssetId is not null || execution.ScheduledForUtc is not null) throw RequestConflict();
-            var snapshot = JsonSerializer.Deserialize<ExecutionRequestedV2>(execution.RequestPayloadJson, SerializerOptions) ?? throw RequestConflict();
+            ExecutionRequestedV2 snapshot;
+            if (execution.RequestContractVersion == 3)
+            {
+                var hosted = JsonSerializer.Deserialize<ExecutionRequestedV3>(execution.RequestPayloadJson, SerializerOptions) ?? throw RequestConflict();
+                if (hosted.Execution is null || hosted.Package is null || hosted.Package.Sha256 is not { Length: 64 } hash ||
+                    !hash.All(char.IsAsciiHexDigit)) throw RequestConflict();
+                var manifest = WellSiteAutoPilot.Application.ConfiguredLogic.ConfiguredLogicService.DeserializeAndValidateManifest(hosted.Package.ReviewedManifestJson);
+                if (manifest.ModuleId != execution.ModuleId || manifest.Version != execution.ModuleVersion) throw RequestConflict();
+                snapshot = hosted.Execution;
+            }
+            else snapshot = JsonSerializer.Deserialize<ExecutionRequestedV2>(execution.RequestPayloadJson, SerializerOptions) ?? throw RequestConflict();
             if (snapshot.Assets is null || snapshot.Inputs is null || snapshot.Assets.Any(item => item is null) ||
                 snapshot.Inputs.Any(item => item is null) || string.IsNullOrWhiteSpace(snapshot.ParametersJson)) throw RequestConflict();
             var command = new ConfiguredShadowExecutionCommand(snapshot.ConfiguredLogicId, snapshot.ConfigurationRevisionId,
