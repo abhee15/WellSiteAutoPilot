@@ -26,7 +26,7 @@ This slice implements offline authoring only. The preceding proposal is on
   expected identity/checksum/runtime/SDK checks are available through the CLI.
   Archive contents are inspected but never extracted or loaded. Both package and
   standalone authoring manifests reject omitted/null required fields, invalid
-  enum values and malformed SemVer. Production worker resolution is unchanged.
+  enum values and malformed SemVer. The CLI preflight itself does not load code.
 
 - Server upload slice: raw bounded archive ingestion, transactional immutable
   storage plus disabled/untrusted catalog registration, global authority and audit.
@@ -37,17 +37,24 @@ This slice implements offline authoring only. The preceding proposal is on
 - Approval-backed delivery: approval queues publication atomically with trust
   and audit. A separate Server dispatcher rechecks current state and publishes
   checksum-verified bytes to the file-backed NATS Object Store. Retired pending
-  publications are skipped; transport/database failures are retried. Worker
-  loading and live ForeSite input collection are still not enabled.
+  publications are skipped; transport/database failures are retried.
+
+- Verified .NET hosting: V3 requests pin the approved checksum/manifest inside
+  execution/outbox persistence. The worker preflights those exact bytes against
+  its actual SDK, loads one managed module instance, acquires normalized inputs
+  and releases its working files/context after evaluation. V1/V2 keep built-in
+  behavior. A real PostgreSQL/NATS fixture covers upload through completed
+  execution; on-prem ForeSite routing/provenance remains a separate gate.
 
 ## Repository gaps confirmed
 
-The .NET resolver registers only weatherford.sample-shadow-read. Python main.py
-only starts/waits. ForeSite advertises AssetDiscovery, not CurrentData. Gateway
-current-read routing and mapping need connection/source-aware extension before
-these authored modules can read ForeSite through AutoPilot. Uploading a
-package or registering a manifest is not executable package installation; approved
-package delivery and runtime loading remain separate requirements.
+The legacy .NET resolver registers only weatherford.sample-shadow-read; hosted
+V3 requests now use the exact-package host. Python main.py only starts/waits.
+ForeSite advertises AssetDiscovery, not CurrentData. Gateway current-read routing
+and mapping need connection/source-aware extension before these authored modules
+can read ForeSite through AutoPilot. Upload, approval, publication and execution
+remain distinct states; an approved flag alone is not worker readiness. Persistent
+package caching, hard execution/resource isolation and Python hosting remain work.
 
 SourceBinding already stores ConnectionId, ExternalId, ResourceKind and local
 AssetId. Resolve the saved external well ID there; do not add another hidden
@@ -92,10 +99,10 @@ telemetry, or stamp unknown values as fresh/Good. No live server was exercised.
    a Windows-authenticated client path. Configuration contains AutoPilot URL,
    selected connection and local Asset IDs; ForeSite credentials remain in the
    Gateway. No arbitrary code upload is needed for input preview.
-5. Host approved authored modules. Define Python execution/cancellation,
-   package/dependency loading and isolation. Explicit evaluation failure handling
-   is now in the .NET engine; minimum-SDK enforcement belongs in the future
-   package host. Persisting observations for failed live runs remains a gap.
+5. Extend the verified .NET package path with Python execution/cancellation,
+   supported dependency layouts, caching and resource isolation. The .NET host
+   already enforces minimum SDK before loading and preserves explicit evaluation
+   failure handling. Persisting observations for failed live runs remains a gap.
 6. Assign one reviewed well from a Lufkin SAM view in manual Shadow, confirm
    compatibility against real capabilities, persist observations/results and
    prove zero provider writes. Keep selected wells frozen if the view changes.

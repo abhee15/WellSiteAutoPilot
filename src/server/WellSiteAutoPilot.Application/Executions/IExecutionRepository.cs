@@ -23,7 +23,7 @@ public interface IExecutionRepository
         ExecutionRecord execution,
         CancellationToken cancellationToken = default);
 
-    Task AddConfiguredRequestedAsync(
+    Task<ExecutionRecord> AddConfiguredRequestedAsync(
         ExecutionRecord execution,
         ConfiguredShadowExecutionCommand command,
         CancellationToken cancellationToken = default);

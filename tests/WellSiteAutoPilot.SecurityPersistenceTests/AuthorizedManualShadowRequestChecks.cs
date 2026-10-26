@@ -83,6 +83,32 @@ internal static class AuthorizedManualShadowRequestChecks
         await setup.Executions.Where(item => item.Id == receipt.ExecutionId).ExecuteUpdateAsync(set => set.SetProperty(item => item.RequestPayloadJson, corrupt));
         try { await ExpectAsync(() => RequestAsync(key), FailureKind.Conflict); }
         finally { await setup.Executions.Where(item => item.Id == receipt.ExecutionId).ExecuteUpdateAsync(set => set.SetProperty(item => item.RequestPayloadJson, payload)); }
+        // Hosted receipts use the same immutable Asset scope and current grant
+        // checks. Replay does not need package bytes or repeat current approval.
+        var catalog = await setup.LogicModules.AsNoTracking().SingleAsync(item => item.ModuleId == moduleId && item.Version == snapshot.ModuleVersion);
+        var hosted = new ExecutionRequestedV3(snapshot, new(catalog.PackageSha256, catalog.ManifestJson));
+        var hostedPayload = JsonSerializer.Serialize(hosted, snapshotOptions);
+        await setup.Executions.Where(item => item.Id == receipt.ExecutionId).ExecuteUpdateAsync(set => set
+            .SetProperty(item => item.RequestContractVersion, 3).SetProperty(item => item.RequestPayloadJson, hostedPayload));
+        try
+        {
+            if (await RequestAsync(key) != (receipt with { ContractVersion = 3 }) ||
+                !await ScopedAccessQueries.Executions(setup, subject.UserId, WellSitePermissions.ExecutionsRequest,
+                    subject.WindowsGroups, DateTimeOffset.UtcNow)
+                    .AnyAsync(item => item.Id == receipt.ExecutionId))
+                throw new InvalidOperationException("Hosted receipt lost its scoped execution visibility.");
+            await SetGrantAsync(requestGrant, false);
+            try { await ExpectAsync(() => RequestAsync(key), FailureKind.Authorization); }
+            finally { await SetGrantAsync(requestGrant, true); }
+            var invalidHosted = JsonSerializer.Serialize(hosted with { Package = hosted.Package with { Sha256 = "invalid" } }, snapshotOptions);
+            await setup.Executions.Where(item => item.Id == receipt.ExecutionId).ExecuteUpdateAsync(set => set.SetProperty(item => item.RequestPayloadJson, invalidHosted));
+            await ExpectAsync(() => RequestAsync(key), FailureKind.Conflict);
+        }
+        finally
+        {
+            await setup.Executions.Where(item => item.Id == receipt.ExecutionId).ExecuteUpdateAsync(set => set
+                .SetProperty(item => item.RequestContractVersion, 2).SetProperty(item => item.RequestPayloadJson, payload));
+        }
         await setup.LogicModules.Where(item => item.ModuleId == moduleId).ExecuteUpdateAsync(set => set.SetProperty(item => item.IsEnabled, false));
         try
         {

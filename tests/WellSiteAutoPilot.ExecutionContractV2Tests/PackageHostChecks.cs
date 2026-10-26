@@ -7,6 +7,8 @@ using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.ModuleSdk;
+using WellSiteAutoPilot.Messaging.Contracts;
+using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.Worker.DotNet.Execution;
 
 namespace WellSiteAutoPilot.ExecutionContractV2Tests;
@@ -44,6 +46,33 @@ internal static class PackageHostChecks
             await first.DisposeAsync();
             await second.DisposeAsync();
             Assert(!Directory.EnumerateFileSystemEntries(root).Any(), "Disposed host left working files.");
+            var request = new ExecutionRequestedV2(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), manifest.ModuleId,
+                manifest.Version, "Shadow", "{}", [new("well", Guid.NewGuid(), "{}")], [], DateTimeOffset.UtcNow);
+            var hosted = new ExecutionRequestedV3(request, new(valid.Hash, valid.Manifest));
+            var wire = new MessageEnvelope<ExecutionRequestedV3>(Guid.NewGuid(), Subjects.ExecutionRequestedV3, 3,
+                DateTimeOffset.UtcNow, "hosted-probe", null, hosted);
+            var decoded = ExecutionRequestReader.Read(Subjects.ExecutionRequestedV3, JsonSerializer.Serialize(wire, Options));
+            Assert(decoded.Package?.Sha256 == valid.Hash && decoded.Envelope.Payload.ExecutionId == request.ExecutionId,
+                "V3 decoding lost the expected package/execution identity.");
+            using var client = new HttpClient();
+            var engine = new ModuleExecutionEngine(new GatewayDataClient(client), new BuiltInLogicModuleResolver(), packageHost: host);
+            var observed = await engine.ExecuteObservedAsync(hosted, "hosted-probe", request.RequestedAtUtc);
+            Assert(observed.Result.OutcomeCode == "PROBE_COMPLETED", "V3 did not execute the expected package.");
+            try
+            {
+                await engine.ExecuteObservedAsync(request, "no-downgrade", request.RequestedAtUtc);
+                throw new InvalidOperationException("Unpinned V2 request reached a hosted module.");
+            }
+            catch (WellSiteAutoPilotException error) when (error.Code == "MODULE_NOT_AVAILABLE") { }
+            foreach (var invalidWire in new[] { wire with { ContractVersion = 2 }, wire with { Payload = hosted with { Package = null! } } })
+            {
+                try
+                {
+                    ExecutionRequestReader.Read(Subjects.ExecutionRequestedV3, JsonSerializer.Serialize(invalidWire, Options));
+                    throw new InvalidOperationException("Invalid hosted request was accepted.");
+                }
+                catch (WellSiteAutoPilotException error) when (error.Code == "EXECUTION_REQUEST_INVALID") { }
+            }
             var beforeRejected = File.ReadAllText(marker);
             foreach (var candidate in new[]
             {

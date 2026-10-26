@@ -195,10 +195,10 @@ public static partial class ScopedAccessQueries
 
         var assets = Assets(db, userId, permission, membership, nowUtc);
         var scopes = db.ExecutionAssetScopes.AsNoTracking();
-        // V1 discloses its target column; V2 discloses an immutable snapshot.
+        // V1 discloses its target column; V2/V3 disclose immutable snapshots.
         // Do not authorize from the configuration's current, mutable bindings.
         return query.Where(execution =>
-            (execution.RequestContractVersion == 1 || execution.RequestContractVersion == 2) &&
+            (execution.RequestContractVersion == 1 || execution.RequestContractVersion == 2 || execution.RequestContractVersion == 3) &&
             (execution.RequestContractVersion != 1 || execution.AssetId != null) &&
             (execution.AssetId == null || assets.Any(asset => asset.Id == execution.AssetId)) &&
             scopes.Any(scope => scope.ExecutionId == execution.Id) &&

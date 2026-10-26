@@ -136,7 +136,23 @@ is recorded once. Approval and publication preserve correlation/trace context.
 
 An approved flag is a trust decision, not proof that a package has reached a worker.
 Publication has no effect on the built-in resolver or the Python worker scaffold.
-Cache management, package loading/isolation and execution-request package identity
+Hosted .NET V3 requests now pin the approved package identity and use the verified
+host described below. Persistent cache management and process/resource isolation
 remain subsequent work. NATS data-volume loss after successful delivery requires
 recovery/republication; the outbox retry protects pending delivery, and is not an
 automatic rebuild of an already processed Object Store.
+
+## Verified .NET hosting
+
+The Server snapshots the approved catalog checksum and normalized manifest in a
+V3 execution request under the module's retirement lock, in the same transaction
+as the execution and outbox. The worker requests that single Object Store key;
+shared archive/catalog/runtime/SDK preflight runs before extraction or loading.
+V1/V2 keep their built-in-only behavior. Accepted requests may finish after
+retirement; retirement refuses new requests. Missing/corrupt archives fail
+explicitly without substitution. Results keep the V2 schema.
+
+Each execution owns a managed module instance, collectible context and working
+directory; disposal/failure cleans working files. The SDK comes from the host.
+Native package dependencies and arbitrary-code sandboxing are unsupported.
+See [host behavior and verification](../development/verified-package-host.md).

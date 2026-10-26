@@ -1,8 +1,10 @@
 using System.Data;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Failures;
@@ -47,7 +49,7 @@ public sealed partial class ExecutionRepository
                 var targets = scopes.Select(item => item.AssetId).Distinct().Order().ToArray();
                 await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ExecutionsRequest, targets, time, cancellationToken);
                 if (scopes.Any(item => item.LogicInstanceId != configurationId)) throw RequestConflict();
-                ValidateReceiptSnapshot(receipt, targets);
+                await ValidateReceiptSnapshotAsync(receipt, targets, cancellationToken);
                 // Recheck configured read proof after a potentially blocking
                 // execution grant fence. Never return persisted result fields.
                 await configurations.LockForManualRequestAsync(configurationId, subject, cancellationToken);
@@ -62,7 +64,7 @@ public sealed partial class ExecutionRepository
             if (await HasActiveAssetOverlapAsync(configurationId, assetIds, cancellationToken))
                 throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                     "A configured execution is already pending or running.");
-            StageConfiguredRequest(execution, command);
+            execution = await StageConfiguredRequestAsync(execution, command, cancellationToken);
             dbContext.AuditEvents.Add(new AuditEventEntity
             {
                 Id = Guid.NewGuid(), OccurredAtUtc = execution.RequestedAtUtc, ActorUserId = subject.UserId,
@@ -85,12 +87,23 @@ public sealed partial class ExecutionRepository
     private static ManualShadowRequestReceipt Receipt(ExecutionRecord execution) => new(execution.Id, execution.LogicInstanceId,
         execution.ConfigurationRevisionId, execution.RequestContractVersion, execution.Mode, execution.Trigger);
 
-    private static void ValidateReceiptSnapshot(ExecutionRecord execution, Guid[] targets)
+    private static async Task ValidateReceiptSnapshotAsync(ExecutionRecord execution, Guid[] targets, CancellationToken cancellationToken)
     {
         try
         {
             if (execution.RequestPayloadJson is null || execution.AssetId is not null || execution.ScheduledForUtc is not null) throw RequestConflict();
-            var snapshot = JsonSerializer.Deserialize<ExecutionRequestedV2>(execution.RequestPayloadJson, SerializerOptions) ?? throw RequestConflict();
+            ExecutionRequestedV2 snapshot;
+            if (execution.RequestContractVersion == 3)
+            {
+                var hosted = JsonSerializer.Deserialize<ExecutionRequestedV3>(execution.RequestPayloadJson, SerializerOptions) ?? throw RequestConflict();
+                if (hosted.Execution is null || hosted.Package is null || hosted.Package.Sha256 is not { Length: 64 } hash ||
+                    !hash.All(char.IsAsciiHexDigit) || hosted.Package.ReviewedManifestJson is null) throw RequestConflict();
+                using var manifestStream = new MemoryStream(Encoding.UTF8.GetBytes(hosted.Package.ReviewedManifestJson));
+                var manifest = await LogicModuleManifestReader.ReadAsync(manifestStream, cancellationToken);
+                if (manifest.ModuleId != execution.ModuleId || manifest.Version != execution.ModuleVersion) throw RequestConflict();
+                snapshot = hosted.Execution;
+            }
+            else snapshot = JsonSerializer.Deserialize<ExecutionRequestedV2>(execution.RequestPayloadJson, SerializerOptions) ?? throw RequestConflict();
             if (snapshot.Assets is null || snapshot.Inputs is null || snapshot.Assets.Any(item => item is null) ||
                 snapshot.Inputs.Any(item => item is null) || string.IsNullOrWhiteSpace(snapshot.ParametersJson)) throw RequestConflict();
             var command = new ConfiguredShadowExecutionCommand(snapshot.ConfiguredLogicId, snapshot.ConfigurationRevisionId,
