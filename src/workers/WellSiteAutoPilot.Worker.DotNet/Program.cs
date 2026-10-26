@@ -17,7 +17,7 @@ builder.Services.AddWindowsService(options =>
 builder.Services.AddHealthChecks();
 builder.Services.AddWellSiteTelemetry(builder.Configuration, "wellsite-autopilot-worker-dotnet");
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
-builder.Services.AddSingleton<ILogicModuleResolver, BuiltInLogicModuleResolver>();
+builder.Services.AddSingleton<ILogicModuleResolver, PackageLogicModuleResolver>();
 builder.Services.AddTransient<ModuleExecutionEngine>(services =>
     new ModuleExecutionEngine(
         services.GetRequiredService<GatewayDataClient>(),

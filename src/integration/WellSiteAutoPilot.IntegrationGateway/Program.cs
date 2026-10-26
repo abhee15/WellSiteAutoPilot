@@ -75,10 +75,22 @@ builder.Services.AddSingleton<CircuitBreakingCurrentDataProvider>(services =>
         builder.Configuration.GetValue("Providers:CircuitBreaker:FailureThreshold", 3),
         TimeSpan.FromSeconds(builder.Configuration.GetValue("Providers:CircuitBreaker:RecoverySeconds", 30))));
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+// POC: the ForeSite address is gateway-wide config because reads carry no per-connection settings.
+builder.Services.AddHttpClient("foresite-current-data", client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["Providers:ForeSite:BaseUrl"] ?? "http://localhost/");
+    client.Timeout = TimeSpan.FromSeconds(30);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true, UseCookies = true });
+builder.Services.AddSingleton<ForeSiteCurrentDataProvider>(services =>
+    new ForeSiteCurrentDataProvider(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient("foresite-current-data")));
 builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
     new CurrentDataProviderRouter(
         [new KeyValuePair<string, ICurrentDataProvider>(
-            "simulator", services.GetRequiredService<CircuitBreakingCurrentDataProvider>())],
+            "simulator", services.GetRequiredService<CircuitBreakingCurrentDataProvider>()),
+         new KeyValuePair<string, ICurrentDataProvider>(
+            "foresite", services.GetRequiredService<ForeSiteCurrentDataProvider>())],
         "simulator"));
 builder.Services.AddTransient<IProviderHealthProvider>(
     serviceProvider =>
