@@ -71,3 +71,9 @@ public sealed record ExecutionFailedV2(
     bool RequiresAttention);
 
 public sealed record ExecutionStartedV2(Guid ExecutionId, DateTimeOffset StartedAtUtc);
+
+// Hosted requests require immutable package identity. V1/V2 retain built-in behavior.
+// Results still use V2: their shape/semantics do not change with package transport.
+public sealed record ExecutionPackageV3(string Sha256, string ReviewedManifestJson);
+
+public sealed record ExecutionRequestedV3(ExecutionRequestedV2 Execution, ExecutionPackageV3 Package);

@@ -23,13 +23,13 @@ function requestReceipt(value: unknown, configurationId: string, revisionId: str
   if (!value || typeof value !== 'object') return false;
   const r = value as ConfiguredShadowReceiptResponse;
   return isSecurityId(r.executionId) && r.logicInstanceId === configurationId &&
-    r.configurationRevisionId === revisionId && r.requestContractVersion === 2 && r.mode === 'Shadow' && r.trigger === 'Manual';
+    r.configurationRevisionId === revisionId && (r.requestContractVersion === 2 || r.requestContractVersion === 3) && r.mode === 'Shadow' && r.trigger === 'Manual';
 }
 function receipt(value: unknown, configurationId: string, revisionId: string): value is ExecutionResponse & { executionId: string } {
   if (!value || typeof value !== 'object') return false;
   const r = value as ExecutionResponse;
   return isSecurityId(r.executionId) && r.logicInstanceId === configurationId &&
-    r.configurationRevisionId === revisionId && r.requestContractVersion === 2 &&
+    r.configurationRevisionId === revisionId && (r.requestContractVersion === 2 || r.requestContractVersion === 3) &&
     r.mode === 'Shadow' && r.trigger === 'Manual' &&
     accepted.includes(r.status ?? '');
 }

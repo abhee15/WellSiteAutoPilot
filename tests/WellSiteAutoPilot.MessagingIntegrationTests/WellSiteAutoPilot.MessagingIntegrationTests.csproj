@@ -8,5 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/messaging/WellSiteAutoPilot.Messaging.Contracts/WellSiteAutoPilot.Messaging.Contracts.csproj" />
     <ProjectReference Include="../../src/messaging/WellSiteAutoPilot.Messaging.Nats/WellSiteAutoPilot.Messaging.Nats.csproj" />
+    <ProjectReference Include="../../src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj" />
   </ItemGroup>
 </Project>

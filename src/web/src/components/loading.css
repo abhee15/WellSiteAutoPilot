@@ -16,21 +16,51 @@
 .loading-indicator[data-size='large'] { --loading-size: var(--size-spinner-large); padding: var(--space-28) 0; justify-content: center; }
 .loading-indicator[data-inline] { display: inline-flex; padding: 0; }
 
+.loading-indicator[data-size='large'] { flex-direction: column; text-align: center; gap: var(--space-14);
+  color: var(--color-text-subtle); font-size: var(--font-size-body); }
+
+/* A soft track with a tapered arc that fades in behind its leading edge. The mask cuts the disc into a ring. */
 .loading-spinner {
   flex: none;
   box-sizing: border-box;
   width: var(--loading-size);
   height: var(--loading-size);
-  border: var(--border-width-spinner) solid var(--color-border-row);
-  border-top-color: var(--color-focus-ring);
   border-radius: var(--radius-pill);
+  background:
+    conic-gradient(from 0deg, transparent 0%, var(--color-focus-ring) 100%),
+    linear-gradient(var(--color-border-row), var(--color-border-row));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--border-width-spinner)), currentColor 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--border-width-spinner)), currentColor 0);
   animation: loading-spin var(--duration-spin) linear infinite;
 }
+.loading-indicator[data-size='large'] .loading-spinner { --border-width-spinner: var(--border-width-spinner-large); }
+
+/* Placeholder rows where a list will appear. They shimmer once the delay has passed. */
+.loading-skeleton {
+  display: grid;
+  gap: var(--space-12);
+  padding: var(--space-14) var(--space-18);
+  opacity: 0;
+  animation: loading-appear var(--duration-appear) var(--delay-loading) forwards;
+}
+.loading-skeleton-row {
+  display: block;
+  height: var(--size-skeleton-line);
+  border-radius: var(--radius-6);
+  background: linear-gradient(90deg, var(--color-border-row) 0%, var(--color-surface-control-hover) 50%, var(--color-border-row) 100%);
+  background-size: 200% 100%;
+  animation: loading-shimmer var(--duration-shimmer) ease-in-out infinite;
+}
+/* The first span is the hidden label, so the rows are the 2nd to 5th spans. */
+.loading-skeleton-row:nth-of-type(3) { width: 82%; }
+.loading-skeleton-row:nth-of-type(4) { width: 91%; }
+.loading-skeleton-row:nth-of-type(5) { width: 64%; }
 
 @keyframes loading-spin { to { transform: rotate(360deg); } }
+@keyframes loading-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes loading-appear { to { opacity: 1; } }
 
 /* Less motion: no spinning; the ring stays as a still marker beside the words. */
 @media (prefers-reduced-motion: reduce) {
-  .loading-spinner { animation: none; }
+  .loading-spinner, .loading-skeleton-row { animation: none; }
 }

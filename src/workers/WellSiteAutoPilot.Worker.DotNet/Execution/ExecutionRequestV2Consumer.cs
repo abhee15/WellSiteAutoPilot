@@ -58,7 +58,7 @@ public sealed partial class ExecutionRequestV2Consumer(
             new ConsumerConfig(ConsumerName)
             {
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
-                FilterSubject = Subjects.ExecutionRequestedV2,
+                FilterSubjects = [Subjects.ExecutionRequestedV2, Subjects.ExecutionRequestedV3],
                 AckWait = consumerSettings.RequestAckWait,
                 MaxDeliver = consumerSettings.MaxDeliver
             },
@@ -73,13 +73,10 @@ public sealed partial class ExecutionRequestV2Consumer(
                 continue;
             }
 
-            var envelope = JsonSerializer.Deserialize<MessageEnvelope<ExecutionRequestedV2>>(
-                message.Data,
-                SerializerOptions) ?? throw new InvalidOperationException(
-                "Execution V2 request envelope could not be deserialized.");
+            var decoded = ExecutionRequestReader.Read(message.Subject, message.Data);
 
             await JetStreamProgressLease.RunAsync(
-                token => ProcessAsync(envelope, jetStream, token),
+                token => ProcessAsync(decoded.Envelope, jetStream, decoded.Package, token),
                 token => message.AckProgressAsync(cancellationToken: token),
                 consumerSettings.RequestProgressInterval,
                 cancellationToken);
@@ -90,6 +87,7 @@ public sealed partial class ExecutionRequestV2Consumer(
     private async Task ProcessAsync(
         MessageEnvelope<ExecutionRequestedV2> envelope,
         INatsJSContext jetStream,
+        ExecutionPackageV3? package,
         CancellationToken cancellationToken)
     {
         using var activity = WellSiteTelemetry.StartConsumer("execution run", envelope.TraceParent);
@@ -114,11 +112,10 @@ public sealed partial class ExecutionRequestV2Consumer(
                 new ExecutionStartedV2(envelope.Payload.ExecutionId, startedAtUtc),
                 $"{envelope.Payload.ExecutionId:N}:started:v2", jetStream, cancellationToken);
 
-            var observed = await moduleExecutionEngine.ExecuteObservedAsync(
-                envelope.Payload,
-                envelope.CorrelationId,
-                startedAtUtc,
-                cancellationToken);
+            var observed = package is null
+                ? await moduleExecutionEngine.ExecuteObservedAsync(envelope.Payload, envelope.CorrelationId, startedAtUtc, cancellationToken)
+                : await moduleExecutionEngine.ExecuteObservedAsync(new ExecutionRequestedV3(envelope.Payload, package),
+                    envelope.CorrelationId, startedAtUtc, cancellationToken);
 
             var moduleResult = observed.Result;
             var completedAtUtc = timeProvider.GetUtcNow();

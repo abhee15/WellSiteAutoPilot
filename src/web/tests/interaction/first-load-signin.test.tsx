@@ -1,7 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../../src/App';
 import { LiveUpdatesProvider } from '../../src/live/LiveUpdates';
+import { t } from '../../src/localization';
 
 const userId = '99999999-9999-4999-8999-999999999999';
 
@@ -25,6 +26,9 @@ it('does not abort or repeat a sign-in request that is still in flight when the 
 
   render(<LiveUpdatesProvider><App /></LiveUpdatesProvider>);
   await waitFor(() => expect(started.filter(r => r.url.endsWith('/security/me'))).toHaveLength(1));
+
+  // While the session is being read the page says so, instead of staying blank.
+  expect(screen.getByText(t('session.opening'))).toBeTruthy();
 
   await act(async () => { vi.advanceTimersByTime(10_000); });
   await act(async () => { vi.advanceTimersByTime(10_000); });

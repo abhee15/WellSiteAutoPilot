@@ -2,6 +2,44 @@
 
 Review date: 26 October 2026.
 
+## Implementation status after review
+
+The findings below describe the reviewed POC, not the current implementation
+status. Develop now includes the verified host and authenticated V3 package path
+through merge commit `b438c667a34e5f27b1ebde9c346a307e72129def`. Follow-up work
+is split into cohesive pull requests:
+
+| Follow-up | Status | What it establishes |
+| --- | --- | --- |
+| [#285](https://github.com/abhee15/WellSiteAutoPilot/pull/285) | Merged; all nine checks passed | Asynchronous exact-hash .NET host, shared archive/SDK preflight, bounded download, per-run instance and collectible dependency context, managed dependency streams and cleanup. Production registration stayed unchanged in this foundation. |
+| [#286](https://github.com/abhee15/WellSiteAutoPilot/pull/286) | Merged; all ten checks passed on the combined authenticated head | V3 pins approved archive hash and reviewed manifest atomically with dispatch, explicit V2 built-ins, hosted production execution, scope/result version parity, and real PostgreSQL/NATS/package/worker integration. Accepted runs retain their pinned package after retirement; retirement blocks new requests. |
+| [#287](https://github.com/abhee15/WellSiteAutoPilot/pull/287) | Merged prerequisite; all ten checks passed | Independent protected broker token, authenticated installed/dev clients, anonymous/wrong-token rejection, and package-source refusal when the broker does not require authentication. Merged before hosted execution was enabled. |
+
+The merged host uses verified temporary extraction per execution, with no
+persistent cache. That deliberately avoids a cache integrity/eviction contract
+until measured load justifies one. Download is bounded at 16 MiB and 30 seconds;
+shared archive preflight also bounds extraction. Managed dependencies load from
+streams so Windows cleanup can succeed. Native package dependencies are rejected.
+This is hosting for trusted approved modules, without hard termination or an
+arbitrary-code sandbox. Normal completion and caught failures clean extraction;
+a process crash can leave working directories behind. Startup reconciliation of
+those directories, publication-versus-worker readiness and bounded resource/process
+isolation remain operational follow-ups. A missing delivered object produces a
+controlled failure; this first path does not promise automatic execution retry.
+
+The production package path landed only after #287 and the combined #286 head
+passed CI, including installed Windows services. Broker authentication was an
+additional integration finding:
+package hashes alone cannot establish dispatch authority when an anonymous local
+publisher can forge the expected hash and manifest. All runtime broker accounts
+remain trusted participants sharing a deployment token; per-service subject ACLs
+and untrusted customer code are separate future designs.
+
+Next implement slices 3 and 4 below. The POC supplies a useful endpoint/field
+starting point; its global URL and freshness workaround are not production
+routing or measurement policy. Slices 5–8 remain future work. No live ForeSite
+connection, provider write, or physical-control path has been enabled here.
+
 ## Scope and evidence
 
 Reviewed `poc/e2e-package-execution` at
@@ -147,11 +185,11 @@ machinery beyond currently supported development contracts.
 ### Package resolution and bounded execution
 
 Download by hash into a temporary location, enforce transfer/expanded-size
-bounds, reuse shared preflight, then publish a complete cache entry atomically.
-Concurrent requests for one hash must share safe preparation. Check existing
-cache integrity according to a documented filesystem/ACL model; a hash-shaped
-directory name is not sufficient. Corrupt and partial entries fail closed or
-are rebuilt from verified bytes. Test worker restart, two versions of one
+bounds and reuse shared preflight. The first host verifies every execution and
+cleans up its own extraction; no persistent cache is required. If measured load
+justifies caching, publish complete entries atomically, coordinate preparation
+per hash and define cache integrity/ACL, recovery and eviction behavior. A
+hash-shaped directory name alone is not verification. Test worker restart, two versions of one
 module, private dependencies, missing entry points and incompatible SDKs.
 
 Use asynchronous resolution and explicit execution lifetime ownership so that
@@ -231,7 +269,7 @@ endpoints in source, or unexplained global configuration override:
 
 1. Build and pack the approved .NET starter; record its version/hash.
 2. Upload, explicitly approve, observe publication and verify worker loading of
-   the exact archive. Cold-cache and warm-cache paths identify the same bytes.
+   the exact archive. Repeated runs and service restarts identify the same bytes.
 3. Choose an imported well through its saved ForeSite connection/source binding;
    preview the verified numeric input and its provenance.
 4. Save, validate and activate a reviewed Shadow revision, then request it using

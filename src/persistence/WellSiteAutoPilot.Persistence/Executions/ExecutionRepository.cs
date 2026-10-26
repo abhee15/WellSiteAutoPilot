@@ -83,7 +83,7 @@ public sealed partial class ExecutionRepository(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task AddConfiguredRequestedAsync(
+    public async Task<ExecutionRecord> AddConfiguredRequestedAsync(
         ExecutionRecord execution,
         ConfiguredShadowExecutionCommand command,
         CancellationToken cancellationToken = default)
@@ -103,9 +103,10 @@ public sealed partial class ExecutionRepository(
             throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                 "A configured execution is already pending or running.");
         await RequireEnabledViewConnectionAsync(command.ConfigurationRevisionId, cancellationToken);
-        StageConfiguredRequest(execution, command);
+        execution = await StageConfiguredRequestAsync(execution, command, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return execution;
     }
 
     private async Task RequireEnabledViewConnectionAsync(Guid revisionId, CancellationToken cancellationToken)
@@ -121,7 +122,8 @@ public sealed partial class ExecutionRepository(
                 "The assignment's Connection is disabled.");
     }
 
-    private void StageConfiguredRequest(ExecutionRecord execution, ConfiguredShadowExecutionCommand command)
+    private async Task<ExecutionRecord> StageConfiguredRequestAsync(ExecutionRecord execution, ConfiguredShadowExecutionCommand command,
+        CancellationToken cancellationToken)
     {
         var payload = new ExecutionRequestedV2(
             execution.Id,
@@ -152,14 +154,18 @@ public sealed partial class ExecutionRepository(
                 .ToArray(),
             execution.RequestedAtUtc);
 
-        AddRequested(
-            execution with
-            {
-                RequestContractVersion = 2,
-                RequestPayloadJson = JsonSerializer.Serialize(payload, SerializerOptions)
-            },
-            Subjects.ExecutionRequestedV2,
-            payload);
+        var package = await PinModulePackageAsync(command.ModuleId, command.ModuleVersion, cancellationToken);
+        if (package is null)
+        {
+            execution = execution with { RequestContractVersion = 2, RequestPayloadJson = JsonSerializer.Serialize(payload, SerializerOptions) };
+            AddRequested(execution, Subjects.ExecutionRequestedV2, payload);
+        }
+        else
+        {
+            var hosted = new ExecutionRequestedV3(payload, package);
+            execution = execution with { RequestContractVersion = 3, RequestPayloadJson = JsonSerializer.Serialize(hosted, SerializerOptions) };
+            AddRequested(execution, Subjects.ExecutionRequestedV3, hosted);
+        }
 
         AddAssetScopes(
             execution,
@@ -167,7 +173,7 @@ public sealed partial class ExecutionRepository(
                 .Select(asset => asset.AssetId)
                 .Distinct()
                 .ToArray());
-
+        return execution;
     }
 
     public async Task<ExecutionRecord> AddManualConfiguredRequestedAsync(ExecutionRecord execution,
@@ -198,7 +204,7 @@ public sealed partial class ExecutionRepository(
             throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                 "A configured execution is already pending or running.");
         await RequireEnabledViewConnectionAsync(command.ConfigurationRevisionId, cancellationToken);
-        StageConfiguredRequest(execution, command);
+        execution = await StageConfiguredRequestAsync(execution, command, cancellationToken);
         dbContext.AuditEvents.Add(new AuditEventEntity
         {
             Id = Guid.NewGuid(), OccurredAtUtc = execution.RequestedAtUtc,
@@ -223,7 +229,7 @@ public sealed partial class ExecutionRepository(
         // Serialize exact-message replays without relying on a unique-violation catch.
         await LockRequestKeyAsync(StartedMessageLock, messageId, cancellationToken);
         if (await dbContext.InboxMessages.AnyAsync(m => m.MessageId == messageId && m.Consumer == consumer, cancellationToken)) return;
-        await dbContext.Executions.Where(e => e.Id == executionId && e.RequestContractVersion == 2 &&
+        await dbContext.Executions.Where(e => e.Id == executionId && (e.RequestContractVersion == 2 || e.RequestContractVersion == 3) &&
             (e.Status == "Requested" || e.Status == "Queued" || e.Status == "Starting"))
             .ExecuteUpdateAsync(set => set.SetProperty(e => e.Status, "Running")
                 .SetProperty(e => e.StartedAtUtc, startedAtUtc), cancellationToken);

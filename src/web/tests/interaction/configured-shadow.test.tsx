@@ -24,6 +24,20 @@ async function confirm(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Run reviewed Shadow revision' }));
 }
 describe('configured Shadow execution', () => {
+  it('accepts a hosted V3 request receipt and verifies its scoped execution detail', async () => {
+    const user = userEvent.setup();
+    const http = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(init?.method === 'POST'
+        ? `/api/v1/configured-logic/${configurationId}/revisions/${revisionId}/shadow`
+        : `/api/v1/executions/${executionId}`);
+      return response({ ...completed, requestContractVersion: 3 });
+    });
+    vi.stubGlobal('fetch', http); panel(); await confirm(user);
+    await screen.findByText('Completed');
+    expect(http.mock.calls.filter(call => call[1]?.method === 'POST')).toHaveLength(1);
+    expect(http.mock.calls.some(call => call[0] === `/api/v1/executions/${executionId}`)).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
   it('requires a review, saves a key before posting, verifies scoped readback and inspects the result', async () => {
     const user = userEvent.setup();
     const http = vi.fn(async (_url: string, init?: RequestInit) => {

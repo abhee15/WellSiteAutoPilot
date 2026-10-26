@@ -1046,6 +1046,7 @@ export const englishMessages = {
   'nav.assets': 'Assets',
   'nav.logic': 'Logic',
   'session.loading': 'Loading user…',
+  'session.opening': 'Opening your workspace…',
   'session.unavailable': 'Session unavailable',
   'session.label': 'Current user: {name}',
   'session.heading': 'Operator session',

@@ -1,6 +1,8 @@
 // Developer tooling only (see docs/development/aspire-local-development-plan.md).
 // Starts the local system against the developer's installed PostgreSQL and own nats-server.
 using System.Net.NetworkInformation;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Microsoft.Extensions.Configuration;
@@ -69,6 +71,7 @@ builder.Eventing.Subscribe<BeforeStartEvent>(async (_, cancellationToken) =>
 });
 
 IResourceBuilder<ExecutableResource>? nats = null;
+var natsToken = natsExternal ? config["Nats:Token"] : NewServiceKey();
 if (!natsExternal)
 {
     var natsPath = config["Nats:ServerPath"]
@@ -76,9 +79,11 @@ if (!natsExternal)
     var store = config["Nats:StoreDirectory"]
         ?? throw new InvalidOperationException("Set Nats:StoreDirectory.");
     Directory.CreateDirectory(store);
+    var natsAuthenticationFile = Path.Combine(store, "auth-" + Guid.NewGuid().ToString("N") + ".conf");
+    WriteDevelopmentNatsAuthentication(natsAuthenticationFile, natsToken!);
     nats = builder.AddExecutable(
         "nats", natsPath, Path.GetDirectoryName(Path.GetFullPath(natsPath))!,
-        "-js", "-a", "127.0.0.1", "-p", "4222", "-sd", store);
+        "-js", "-a", "127.0.0.1", "-p", "4222", "-sd", store, "-c", natsAuthenticationFile);
 }
 
 IResourceBuilder<T> OnNats<T>(IResourceBuilder<T> resource) where T : IResourceWithWaitSupport
@@ -114,14 +119,16 @@ var gateway = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_IntegrationGa
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Security__Callers__server__Verifier", VerifierOf(serverServiceKey))
     .WithEnvironment("Security__Callers__worker__Verifier", VerifierOf(workerServiceKey))
-    .WithEnvironment("Messaging__Nats__Url", natsUrl))
+    .WithEnvironment("Messaging__Nats__Url", natsUrl)
+    .WithEnvironment("Messaging__Nats__Token", natsToken ?? string.Empty))
     .WaitFor(simulator);
 
 var worker = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Worker_DotNet>("dotnet-worker", launchProfileName: null)
     .WithHttpEndpoint(port: 5082, targetPort: 5082, name: "http", isProxied: false)
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Security__ServiceKey", workerServiceKey)
-    .WithEnvironment("Messaging__Nats__Url", natsUrl))
+    .WithEnvironment("Messaging__Nats__Url", natsUrl)
+    .WithEnvironment("Messaging__Nats__Token", natsToken ?? string.Empty))
     .WaitFor(gateway);
 
 if (!string.Equals(config["Python:Enabled"], "false", StringComparison.OrdinalIgnoreCase))
@@ -138,8 +145,10 @@ var server = OnNats(builder.AddProject<Projects.WellSiteAutoPilot_Server>("serve
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Swagger__Enabled", "true")
     .WithEnvironment("Security__AuthenticationMode", auth)
+    .WithEnvironment("Security__ServiceKey", serverServiceKey)
     .WithEnvironment("Security__BootstrapAdministrators__0", bootstrapAdministrator)
     .WithEnvironment("Messaging__Nats__Url", natsUrl)
+    .WithEnvironment("Messaging__Nats__Token", natsToken ?? string.Empty)
     .WithEnvironment("ConnectionStrings__WellSiteAutoPilot", database.DatabaseConnectionString))
     .WaitForCompletion(migrator)
     .WaitFor(gateway)
@@ -172,3 +181,29 @@ else
 }
 
 builder.Build().Run();
+
+static void WriteDevelopmentNatsAuthentication(string path, string token)
+{
+    var content = "authorization { token: \"" + token + "\" }" + Environment.NewLine;
+    if (OperatingSystem.IsWindows())
+    {
+        File.WriteAllText(path, string.Empty);
+        using var identity = WindowsIdentity.GetCurrent();
+        var acl = new FileSecurity();
+        acl.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        acl.AddAccessRule(new FileSystemAccessRule(identity.User ?? throw new InvalidOperationException("A Windows user identity is required."),
+            FileSystemRights.FullControl, AccessControlType.Allow));
+        new FileInfo(path).SetAccessControl(acl);
+        File.WriteAllText(path, content);
+    }
+    else
+    {
+        using var output = new FileStream(path, new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew, Access = FileAccess.Write,
+            UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
+        });
+        using var writer = new StreamWriter(output);
+        writer.Write(content);
+    }
+}

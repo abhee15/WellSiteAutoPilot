@@ -7,7 +7,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddWellSiteMessaging(
         this IServiceCollection services,
-        string natsUrl)
+        string natsUrl,
+        string? token = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(natsUrl);
@@ -16,10 +17,7 @@ public static class ServiceCollectionExtensions
         {
             nats.ConfigureOptions(options =>
                 options.Configure(configuration =>
-                    configuration.Opts = configuration.Opts with
-                    {
-                        Url = natsUrl
-                    }));
+                    configuration.Opts = NatsConnectionOptions.Create(natsUrl, token, configuration.Opts)));
         });
 
         return services;

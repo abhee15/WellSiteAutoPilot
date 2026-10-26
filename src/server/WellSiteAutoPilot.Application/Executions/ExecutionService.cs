@@ -52,12 +52,10 @@ public sealed class ExecutionService(
         var execution = CreateConfiguredRequest(normalized, correlationId,
             timeProvider.GetUtcNow(), Guid.NewGuid());
 
-        await repository.AddConfiguredRequestedAsync(
+        return await repository.AddConfiguredRequestedAsync(
             execution,
             normalized,
             cancellationToken);
-
-        return execution;
     }
 
     public static ExecutionRecord CreateConfiguredRequest(

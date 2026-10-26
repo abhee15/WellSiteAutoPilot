@@ -7,7 +7,8 @@ namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 public sealed class ModuleExecutionEngine(
     GatewayDataClient gatewayDataClient,
     ILogicModuleResolver moduleResolver,
-    int maximumConcurrentInputReads = 8)
+    int maximumConcurrentInputReads = 8,
+    DotNetModulePackageHost? packageHost = null)
 {
     private readonly int _maximumConcurrentInputReads = maximumConcurrentInputReads is >= 1 and <= 64
         ? maximumConcurrentInputReads
@@ -86,6 +87,33 @@ public sealed class ModuleExecutionEngine(
         var logicModule = moduleResolver.Resolve(
             request.ModuleId,
             request.ModuleVersion);
+
+        return await ExecuteObservedCoreAsync(request, logicModule, correlationId, evaluationTimeUtc, cancellationToken);
+    }
+
+    public async Task<ObservedExecutionResult> ExecuteObservedAsync(ExecutionRequestedV3 request,
+        string correlationId, DateTimeOffset evaluationTimeUtc, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Execution);
+        ArgumentNullException.ThrowIfNull(request.Package);
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+        if (request.Execution.Assets is null || request.Execution.Inputs is null || request.Execution.Assets.Count == 0)
+            throw new WellSiteAutoPilotException("EXECUTION_REQUEST_INVALID", FailureKind.Validation,
+                "The hosted execution requires a valid Asset/input snapshot.");
+        if (packageHost is null)
+            throw new WellSiteAutoPilotException("MODULE_PACKAGE_HOST_UNAVAILABLE", FailureKind.DependencyUnavailable,
+                "The worker cannot host this package.");
+        await using var loaded = await packageHost.LoadAsync(request.Execution.ModuleId, request.Execution.ModuleVersion,
+            request.Package.Sha256, request.Package.ReviewedManifestJson, cancellationToken);
+        return await ExecuteObservedCoreAsync(request.Execution, loaded.Module, correlationId, evaluationTimeUtc, cancellationToken);
+    }
+
+    private async Task<ObservedExecutionResult> ExecuteObservedCoreAsync(ExecutionRequestedV2 request,
+        ILogicModuleV1 logicModule, string correlationId, DateTimeOffset evaluationTimeUtc, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+        if (request.Assets.Count == 0) throw new InvalidOperationException("Execution request must contain at least one Asset binding.");
 
         using var readLimiter = new SemaphoreSlim(_maximumConcurrentInputReads);
         var inputTasks = request.Inputs

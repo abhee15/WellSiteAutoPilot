@@ -16,6 +16,15 @@ public static class ServiceCallerSettingsFile
     public static IConfigurationBuilder AddServiceCallerSettingsFile(this IConfigurationBuilder builder, string fileName)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.AddJsonFile(PathFor(fileName), optional: true, reloadOnChange: false);
+        builder.AddJsonFile(PathFor(fileName), optional: true, reloadOnChange: false);
+        // Developer services can run alongside an installed configuration. Only
+        // explicit credential overrides win here; other configuration keeps its precedence.
+        string[] credentialKeys = ["Security:ServiceKey", "Security:Callers:server:Verifier",
+            "Security:Callers:worker:Verifier", "Messaging:Nats:Token"];
+        var overrides = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in credentialKeys)
+            if (Environment.GetEnvironmentVariable(key.Replace(":", "__", StringComparison.Ordinal)) is { } value)
+                overrides[key] = value;
+        return builder.AddInMemoryCollection(overrides);
     }
 }
