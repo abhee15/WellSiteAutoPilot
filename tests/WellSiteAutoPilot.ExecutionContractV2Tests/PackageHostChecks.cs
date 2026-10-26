@@ -9,8 +9,12 @@ using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.ModuleSdk;
 using WellSiteAutoPilot.Worker.DotNet.Execution;
 
+namespace WellSiteAutoPilot.ExecutionContractV2Tests;
+
 internal static class PackageHostChecks
 {
+    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+
     public static async Task RunAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), "wsa-host-test-" + Guid.NewGuid().ToString("N"));
@@ -19,7 +23,7 @@ internal static class PackageHostChecks
         try
         {
             var manifest = new LogicModuleManifest(1, PackageHostProbeModule.ModuleId, "1.0.0", "Host probe", "Test",
-                LogicRuntimeKind.DotNet, ExecutionProfile.ScheduledOneShot, nameof(PackageHostProbeModule), "1.1.0",
+                LogicRuntimeKind.DotNet, ExecutionProfile.ScheduledOneShot, typeof(PackageHostProbeModule).FullName!, "1.1.0",
                 [new LogicAssetRequirement("well", 1, 1, null, [])], [], []);
             var valid = await PackAsync(manifest);
             var requests = new List<string>();
@@ -99,8 +103,7 @@ internal static class PackageHostChecks
 
     private static async Task<(byte[] Bytes, string Hash, string Manifest)> PackAsync(LogicModuleManifest manifest, string? payloadPath = null)
     {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
-        var json = JsonSerializer.Serialize(manifest, options);
+        var json = JsonSerializer.Serialize(manifest, Options);
         using var buffer = new MemoryStream();
         using (var archive = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
         {
