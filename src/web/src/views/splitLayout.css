@@ -30,7 +30,12 @@
 }
 
 .split-layout .activity-table { min-width: 0; }
-.split-layout .activity-table td .asset-select { font-weight: 600; }
+/* The name of an item in a list or table reads as text, like .text-link: link colour and underline only on hover.
+   Real actions that share the class (Show more, Load) keep the link look. */
+.split-results .asset-select, .split-layout .activity-table td .asset-select {
+  color: var(--color-text-primary); font-weight: 600; text-decoration: none; }
+.split-results .asset-select:hover, .split-layout .activity-table td .asset-select:hover {
+  color: var(--color-text-link); text-decoration: underline; text-underline-offset: var(--underline-offset); }
 .split-type-detail { display: grid; gap: var(--space-12); padding: var(--space-16) var(--space-18);
   border-top: var(--border-width-thin) solid var(--color-border-subtle); }
 .split-type-detail > header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); }
