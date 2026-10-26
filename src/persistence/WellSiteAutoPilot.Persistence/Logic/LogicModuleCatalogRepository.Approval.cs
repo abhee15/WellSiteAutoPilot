@@ -102,8 +102,13 @@ public sealed partial class LogicModuleCatalogRepository : ILogicModuleApprovalR
     private async Task<bool> QueuePackagePublicationAsync(InstalledLogicModule current, SecurityActorContext actor,
         DateTimeOffset now, CancellationToken cancellationToken)
     {
-        if (!await dbContext.LogicModulePackages.AnyAsync(item => item.Sha256 == current.PackageSha256, cancellationToken) ||
-            await dbContext.OutboxMessages.AnyAsync(item => item.Id == current.Id, cancellationToken)) return false;
+        if (await dbContext.OutboxMessages.AnyAsync(item => item.Id == current.Id, cancellationToken)) return false;
+        var package = await dbContext.LogicModulePackages.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Sha256 == current.PackageSha256, cancellationToken);
+        if (package is null) return false;
+        using var content = new MemoryStream(package.Content);
+        var inspected = await LogicModulePackageReader.ReadAsync(content, cancellationToken);
+        LogicModulePackageCompatibility.ValidateCatalog(inspected, current.ModuleId, current.Version, current.PackageSha256, current.ManifestJson);
         // One durable publication identity per immutable module catalog version.
         dbContext.OutboxMessages.Add(new OutboxMessageEntity
         {

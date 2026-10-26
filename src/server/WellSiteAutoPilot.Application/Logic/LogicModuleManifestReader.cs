@@ -14,6 +14,10 @@ public static class LogicModuleManifestReader
 
     // Shared by standalone CLI manifests and manifests inside inspected archives.
     public static async Task<LogicModuleManifest> ReadAsync(
+        Stream source, CancellationToken cancellationToken = default) =>
+        (await ReadDocumentAsync(source, cancellationToken)).Manifest;
+
+    internal static async Task<(LogicModuleManifest Manifest, string NormalizedJson)> ReadDocumentAsync(
         Stream source, CancellationToken cancellationToken = default)
     {
         using var document = await JsonDocument.ParseAsync(source, cancellationToken: cancellationToken);
@@ -33,6 +37,6 @@ public static class LogicModuleManifestReader
             ?? throw new JsonException("Module manifest is empty.");
         LogicModuleManifestValidator.Validate(manifest);
         await LogicModuleManifestValidator.ValidateParameterSchemaAsync(manifest, cancellationToken);
-        return manifest;
+        return (manifest, JsonSerializer.Serialize(document.RootElement));
     }
 }

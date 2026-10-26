@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.IO.Compression;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
@@ -30,16 +28,9 @@ public sealed class LogicModulePackageService(ILogicModulePackageRepository repo
         candidate.Position = 0;
         var inspected = await LogicModulePackageReader.ReadAsync(candidate, cancellationToken);
         var manifest = inspected.Manifest;
-        // Preserve the original manifest field order/omissions for the catalog's
-        // existing immutable-content comparison, normalizing whitespace only.
-        candidate.Position = 0;
-        using var archive = new ZipArchive(candidate, ZipArchiveMode.Read, leaveOpen: true);
-        await using var manifestStream = archive.GetEntry("manifest.json")!.Open();
-        using var document = await JsonDocument.ParseAsync(manifestStream, cancellationToken: cancellationToken);
-        var manifestJson = JsonSerializer.Serialize(document.RootElement);
         var module = new InstalledLogicModule(Guid.NewGuid(), manifest.ModuleId, manifest.Version,
             manifest.DisplayName, manifest.Publisher, manifest.Runtime, manifest.ExecutionProfile,
-            manifestJson, inspected.Sha256, LogicModuleTrustStatus.Untrusted, false, clock.GetUtcNow());
+            inspected.ManifestJson, inspected.Sha256, LogicModuleTrustStatus.Untrusted, false, clock.GetUtcNow());
         return await repository.UploadAuthorizedAsync(module, candidate.ToArray(), subject, actor, cancellationToken);
     }
 }

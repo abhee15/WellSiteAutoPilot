@@ -68,6 +68,9 @@ public sealed partial class ModulePackagePublisher(WellSiteAutoPilotDbContext db
             if (!string.Equals(Convert.ToHexStringLower(SHA256.HashData(package.Content)), request.PackageSha256, StringComparison.Ordinal))
                 throw new WellSiteAutoPilotException("MODULE_PACKAGE_HASH_MISMATCH", FailureKind.Validation,
                     "Stored package bytes do not match the approved checksum.");
+            using var archive = new MemoryStream(package.Content);
+            var inspected = await LogicModulePackageReader.ReadAsync(archive, cancellationToken);
+            LogicModulePackageCompatibility.ValidateCatalog(inspected, current.ModuleId, current.Version, current.PackageSha256, current.ManifestJson);
             activity?.SetTag("module.id", current.ModuleId);
             using var publicationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             publicationTimeout.CancelAfter(TimeSpan.FromSeconds(30));

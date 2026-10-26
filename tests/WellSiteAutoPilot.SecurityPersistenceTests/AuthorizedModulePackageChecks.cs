@@ -105,6 +105,15 @@ internal static class AuthorizedModulePackageChecks
         await ExpectAsync(() => UploadAsync(original), "SECURITY_SCOPE_DENIED", FailureKind.Authorization);
         await setup.AccessGrants.Where(item => item.Id == globalGrant)
             .ExecuteUpdateAsync(set => set.SetProperty(item => item.ScopeKind, "DeploymentWide"));
+        manifest["version"] = "1.0.4";
+        await using (var mismatchedCatalog = new WellSiteAutoPilotDbContext(options))
+        {
+            await new LogicModuleCatalogService(new LogicModuleCatalogRepository(mismatchedCatalog), TimeProvider.System)
+                .RegisterAuthorizedAsync(new(manifest.ToJsonString(), checksum, LogicModuleTrustStatus.Untrusted), subject, actor);
+        }
+        await ExpectAsync(() => ChangeAsync("1.0.4", true), "MODULE_PACKAGE_IDENTITY_MISMATCH", FailureKind.Validation);
+        if ((await setup.LogicModules.AsNoTracking().SingleAsync(item => item.ModuleId == moduleId && item.Version == "1.0.4")).IsEnabled)
+            throw new InvalidOperationException("Approval accepted bytes from a different catalog version.");
         var count = await setup.AuditEvents.CountAsync(item => item.ActorUserId == subject.UserId) - before;
         await setup.OutboxMessages.Where(item => item.Type == ModulePackagePublication.OutboxType && item.Payload.Contains(moduleId)).ExecuteDeleteAsync();
         await setup.LogicModules.Where(item => item.ModuleId == moduleId).ExecuteDeleteAsync();

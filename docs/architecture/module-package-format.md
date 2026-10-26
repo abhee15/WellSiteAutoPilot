@@ -103,7 +103,9 @@ below; worker loading remains a separate slice.
 
 Approving a version with stored package bytes now commits the approval, its audit
 record and a `module-package.publication.v1` work item in the existing database
-outbox as one transaction. Upload, repeated approval and retirement do not enqueue
+outbox as one transaction. Approval also checks stored archive identity/manifest
+against the catalog, so metadata-only registration cannot approve an unrelated
+stored checksum. Upload, repeated approval and retirement do not enqueue
 extra publication requests. The catalog version ID is also its single publication
 ID. Repeat approval can queue a missing request for a package approved by a prior
 release, with a separate audit event and no repeated trust-change audit. Existing
@@ -112,7 +114,9 @@ approval behavior and do not create work with missing package bytes.
 
 The Server runs a separate package dispatcher; the execution dispatcher excludes
 these internal work items. The package dispatcher rechecks catalog ID/version/hash
-and current approved/enabled state, hashes the stored bytes and publishes them to
+and current approved/enabled state, verifies the archive identity and complete
+normalized manifest against the reviewed catalog entry, hashes the stored bytes
+and publishes them to
 the NATS Object Store `WSA_MODULES`, named `sha256/<approved-checksum>`. It requires
 file storage without expiry or eviction of old objects. It does not extract or
 execute code. No package request is broadcast as an execution message.
