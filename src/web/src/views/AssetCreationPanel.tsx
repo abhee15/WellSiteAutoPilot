@@ -293,11 +293,13 @@ export function AssetCreationPanel({
           <p className="asset-create-hint">{t('assets.createValidationNote')}</p>
           {error && <p className="asset-create-error" role="alert">{error}</p>}
           {notice && <p className="asset-create-success" role="status">{notice}</p>}
-          <button type="submit" className="secondary-button" disabled={
-            isSubmitting || !selectedType || !selectedParentValid || !name.trim()
-          }>{isSubmitting ? t('assets.creating') : t('assets.createSubmit')}</button>
-          {onCancel && <button type="button" className="secondary-button" disabled={isSubmitting}
-            onClick={onCancel}>{t('assets.cancelAdd')}</button>}
+          <div className="asset-create-actions">
+            <button type="submit" className="secondary-button" disabled={
+              isSubmitting || !selectedType || !selectedParentValid || !name.trim()
+            }>{isSubmitting ? t('assets.creating') : t('assets.createSubmit')}</button>
+            {onCancel && <button type="button" className="secondary-button" disabled={isSubmitting}
+              onClick={onCancel}>{t('assets.cancelAdd')}</button>}
+          </div>
         </form>
       )}
     </section>

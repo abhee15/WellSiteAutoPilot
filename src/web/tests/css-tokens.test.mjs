@@ -41,3 +41,27 @@ test('sizes, spacing, radii and timings come from design tokens, not raw lengths
   }
   assert.deepEqual(offenders, [], 'Use a token from src/tokens.css (add one there if none fits)');
 });
+
+test('fading, the base button reset and form captions stay on the shared primitives', () => {
+  const read = name => readFileSync(fileURLToPath(import.meta.resolve(`../src/${name}`)), 'utf8');
+  const styles = read('styles.css');
+  // A literal opacity would drift from the one disabled look (--opacity-disabled in tokens.css).
+  const literal = files
+    .filter(file => !file.endsWith('tokens.css'))
+    .flatMap(file => [...readFileSync(file, 'utf8').matchAll(/opacity:\s*(0?\.\d+)\s*;/g)]
+      .map(match => `${file.split('/src/')[1]} opacity ${match[1]}`));
+  assert.deepEqual(literal, [], 'Use var(--opacity-disabled), or add a token');
+  // `button { font: inherit }` has type specificity and beats the :where() button primitive, leaving bare
+  // buttons at the browser's 16px instead of the control size. The reset has to stay zero-specificity.
+  assert.match(styles, /:where\(button, a\)\s*\{\s*font:\s*inherit/);
+  assert.doesNotMatch(styles, /^button, a\s*\{/m);
+  // Feature forms take their field box from the shared primitives, so they must not restyle it again.
+  for (const name of ['views/configuredLogicSetup.css', 'views/assetCreation.css']) {
+    const css = read(name).replace(/\/\*[\s\S]*?\*\//g, '');
+    const restyled = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter(([, selector, body]) => /(?<![\w-])(input|select|textarea)(?![\w-])/.test(selector.replace(/:is\([^)]*\)/g, m => m))
+        && !/:focus-visible/.test(selector) && /(padding|border|background|font)/.test(body))
+      .map(([, selector]) => selector.trim());
+    assert.deepEqual(restyled, [], `${name} should only lay fields out`);
+  }
+});

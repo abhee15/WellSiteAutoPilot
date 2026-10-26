@@ -6,19 +6,16 @@
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-14); }
 .asset-create-form label { display: grid; gap: var(--space-6); min-width: 0; }
-.asset-create-form input, .asset-create-form select, .asset-create-form textarea {
-  width: 100%; min-width: 0; padding: var(--space-10);
-  border: var(--border-width-thin) solid var(--color-border-control);
-  border-radius: var(--radius-6); background: var(--color-surface-input);
-  color: var(--color-text-primary); font: inherit;
-}
+/* Layout only: the box itself comes from the shared control primitives (see styles.css). */
+.asset-create-form input, .asset-create-form select, .asset-create-form textarea { width: 100%; min-width: 0; }
 .asset-create-form :is(input,select,textarea,button):focus-visible,
 .asset-select:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
 .asset-create-attributes, .asset-create-schema, .asset-create-hint, .asset-create-fields,
 .asset-create-error, .asset-create-success { grid-column: 1 / -1; }
 .asset-create-hint { margin: 0; padding: var(--space-8) 0; }
 .asset-create-form .asset-create-hint { padding: 0; }
-.asset-create-form button[type="submit"] { justify-self: start; }
+/* Submit and Cancel share one row at their natural width instead of stretching across grid columns. */
+.asset-create-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--space-10); }
 .asset-create-schema pre { overflow-x: auto; white-space: pre-wrap;
   overflow-wrap: anywhere; padding: var(--space-12);
   background: var(--color-surface-code); }
