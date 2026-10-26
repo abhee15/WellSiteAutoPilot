@@ -1,5 +1,6 @@
 import { canOpenSection, hasPermission, isAwaitingAccess, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
 import { AwaitingAccessNotice } from './components/AwaitingAccessNotice';
+import { LoadingIndicator } from './components/LoadingIndicator';
 import { loadWorkspaceSnapshot } from './views/workspaceSnapshot';
 import type { SnapshotKey } from './views/workspaceSnapshot';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -212,6 +213,8 @@ export function App() {
           </div>
         )}
 
+        {/* Until the session is read there is nothing else to show, so say so instead of leaving the page blank. */}
+        {!currentUser && !error && <LoadingIndicator size="large" label={t('session.opening')} />}
         {isAwaitingAccess(currentUser) && currentUser && <AwaitingAccessNotice user={currentUser} />}
         {currentUser && !isAwaitingAccess(currentUser) && section !== 'access' && !canOpenSection(currentUser, section) && (
           <div className="status-error" role="alert">{t('session.sectionDenied')}</div>
