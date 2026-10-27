@@ -14,7 +14,7 @@ using WellSiteAutoPilot.Persistence.Messaging;
 namespace WellSiteAutoPilot.Persistence.Executions;
 
 public sealed partial class ExecutionRepository(
-    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IExecutionRepository
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IExecutionRepository, IExecutionReadRepository
 {
     private const int ManualRequestLock = 1;
     private const int ConfigurationDispatchLock = 2;
@@ -123,8 +123,9 @@ public sealed partial class ExecutionRepository(
     }
 
     private async Task<ExecutionRecord> StageConfiguredRequestAsync(ExecutionRecord execution, ConfiguredShadowExecutionCommand command,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, AccessSubject? readSubject = null)
     {
+        var inputs = await PinReadSourcesAsync(command, readSubject, cancellationToken);
         var payload = new ExecutionRequestedV2(
             execution.Id,
             command.ConfiguredLogicId,
@@ -139,24 +140,13 @@ public sealed partial class ExecutionRepository(
                     asset.AssetId,
                     asset.ParameterOverridesJson))
                 .ToArray(),
-            command.Inputs
-                .Select(input => new ExecutionInputBindingV2(
-                    input.RequirementId,
-                    input.AssetId,
-                    input.ProviderId,
-                    input.ProviderAssetExternalId,
-                    input.Quantity,
-                    input.Access,
-                    input.CanonicalUnit,
-                    input.MaximumAgeSeconds,
-                    input.AllowUncertainQuality,
-                    input.ProviderMappingJson))
-                .ToArray(),
+            inputs,
             execution.RequestedAtUtc);
 
         var package = await PinModulePackageAsync(command.ModuleId, command.ModuleVersion, cancellationToken);
         if (package is null)
         {
+            if (inputs.Any(input => input.Source is not null)) throw ReadFailure("EXECUTION_READ_PACKAGE_REQUIRED");
             execution = execution with { RequestContractVersion = 2, RequestPayloadJson = JsonSerializer.Serialize(payload, SerializerOptions) };
             AddRequested(execution, Subjects.ExecutionRequestedV2, payload);
         }
@@ -166,6 +156,10 @@ public sealed partial class ExecutionRepository(
             execution = execution with { RequestContractVersion = 3, RequestPayloadJson = JsonSerializer.Serialize(hosted, SerializerOptions) };
             AddRequested(execution, Subjects.ExecutionRequestedV3, hosted);
         }
+
+        if (inputs.Any(input => input.Source is not null))
+            dbContext.Executions.Local.Single(item => item.Id == execution.Id).ReadAuthorityJson =
+                JsonSerializer.Serialize(ReadAuthority.Create(readSubject!, execution.RequestedAtUtc), SerializerOptions);
 
         AddAssetScopes(
             execution,
@@ -204,7 +198,8 @@ public sealed partial class ExecutionRepository(
             throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                 "A configured execution is already pending or running.");
         await RequireEnabledViewConnectionAsync(command.ConfigurationRevisionId, cancellationToken);
-        execution = await StageConfiguredRequestAsync(execution, command, cancellationToken);
+        execution = await StageConfiguredRequestAsync(execution, command, cancellationToken,
+            actor.UserId is { } userId ? new AccessSubject(userId) : null);
         dbContext.AuditEvents.Add(new AuditEventEntity
         {
             Id = Guid.NewGuid(), OccurredAtUtc = execution.RequestedAtUtc,

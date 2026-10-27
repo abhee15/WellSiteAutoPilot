@@ -308,6 +308,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         execution.Property(x => x.RequestContractVersion).IsRequired();
         execution.Property(x => x.Trigger).HasMaxLength(32).IsRequired();
         execution.Property(x => x.RequestPayloadJson);
+        execution.Property(x => x.ReadAuthorityJson);
         execution.Property(x => x.ResultCode).HasMaxLength(128);
         execution.Property(x => x.FailureCode).HasMaxLength(128);
         execution.Property(x => x.OutputJson);

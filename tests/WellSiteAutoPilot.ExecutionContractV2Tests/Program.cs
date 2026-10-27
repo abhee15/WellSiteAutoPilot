@@ -333,13 +333,14 @@ using (var failingClient = new HttpClient(new FailingReadHandler())
     }
 }
 
+var messageJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 var serialized = JsonSerializer.Serialize(
     request,
-    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    messageJsonOptions);
 
 var roundTrip = JsonSerializer.Deserialize<ExecutionRequestedV2>(
     serialized,
-    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    messageJsonOptions);
 
 if (roundTrip is null ||
     roundTrip.Inputs.Count != 2 ||

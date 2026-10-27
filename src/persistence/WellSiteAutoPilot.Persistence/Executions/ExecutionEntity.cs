@@ -18,6 +18,7 @@ public sealed class ExecutionEntity
     public string Trigger { get; init; } = string.Empty;
     public DateTimeOffset? ScheduledForUtc { get; init; }
     public string? RequestPayloadJson { get; init; }
+    public string? ReadAuthorityJson { get; set; }
     public DateTimeOffset? StartedAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
     public string? ResultCode { get; set; }
