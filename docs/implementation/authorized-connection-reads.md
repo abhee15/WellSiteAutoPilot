@@ -136,6 +136,19 @@ package host, authorized read client, lease/result publisher or package dependen
 isolation. The authoring SDK/offline kit does not establish production hosting.
 No Python execution capability is claimed or enabled by these .NET changes.
 
+## Gateway failure classification
+
+Authorized measurement calls reuse the existing Gateway client's transport
+normalization. Timeouts and connectivity failures retain dependency codes;
+caller cancellation propagates. Malformed/empty error responses become
+`EXECUTION_READ_GATEWAY_FAILED`; malformed successful responses become
+`EXECUTION_READ_GATEWAY_INVALID`. They must not be confused with
+`EXECUTION_READ_PLAN_INVALID`, which is reserved for request/reference validation.
+Valid bounded uppercase provider codes remain available for diagnostics, while
+upstream body text and service caller credentials stay outside worker replies.
+API contract regressions cover HTML/login responses, absent bodies, typed errors,
+invalid codes, malformed success, transport failure, timeout and cancellation.
+
 ## Package delivery and runtime readiness
 
 The existing catalog now reports stored archive, recorded publication, exact
