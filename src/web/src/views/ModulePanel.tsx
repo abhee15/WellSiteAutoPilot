@@ -22,6 +22,8 @@ export function ModulePanel({ module, configurations, onClose, canManage = false
         <button type="button" onClick={onClose}>{t('configured.close')}</button>
       </div>
       <p className="logic-status-sentence">{summary.sentence}</p>
+      <p>{t('moduleUpload.identity')} <code>{module.packageSha256 ?? '—'}</code></p>
+      <p>{t(module.runtime === 'Python' ? 'moduleUpload.pythonUnavailable' : 'moduleUpload.readiness')}</p>
       <ModuleApprovalControls key={module.id} module={module} canManage={canManage} onChanged={onChanged} />
       {summary.needs.length > 0 && <>
         <h4>{t('modulePanel.needs')}</h4>

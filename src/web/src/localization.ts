@@ -3,6 +3,22 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'moduleUpload.refreshFailed': 'The upload was verified, but the catalog could not be refreshed. Reload the catalog to review the stored version.',
+  'moduleUpload.heading': 'Upload module package',
+  'moduleUpload.file': 'Module archive (.wsamodule or .zip)',
+  'moduleUpload.hint': 'Upload the original archive, up to 16 MiB. Upload does not approve code. Review the stored version and checksum before using the existing approval controls.',
+  'moduleUpload.upload': 'Upload package',
+  'moduleUpload.working': 'Uploading…',
+  'moduleUpload.tooLarge': 'Choose an archive no larger than 16 MiB.',
+  'moduleUpload.saved': 'Stored {module} v{version}. Review its approval state in the catalog.',
+  'moduleUpload.newVersion': 'This version already has different or previously reviewed content. Build a new version before uploading changed bytes.',
+  'moduleUpload.denied': 'You no longer have permission to upload module packages. Reload your access.',
+  'moduleUpload.rejected': 'The archive was rejected. Check the package structure, manifest and SDK compatibility.',
+  'moduleUpload.uncertain': 'The stored outcome could not be verified. Reload the catalog before retrying; approval has not been changed by this action.',
+  'moduleUpload.identity': 'Package SHA-256:',
+  'moduleUpload.readiness': 'Approval, package delivery and runtime availability are separate. Shadow execution rechecks the package and source; an approved entry alone does not confirm readiness.',
+  'moduleUpload.pythonUnavailable': 'Python authoring is available offline. Production Python package hosting is not implemented, so this version cannot be selected for execution.',
+
   'execution.inputOutcome': 'Input outcome',
   'execution.retrieved': 'Retrieved at',
   'execution.unverifiedScan': 'Unverified scan time; measurement freshness is unknown',
