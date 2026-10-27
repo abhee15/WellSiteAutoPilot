@@ -982,7 +982,7 @@ v1.MapGet(
 v1.MapGet(
     "/executions/{executionId:guid}",
     async (Guid executionId, IExecutionRepository executions, RequestAccessContext access, CancellationToken cancellationToken) =>
-        ToResponse(RequireFound(await executions.GetAuthorizedAsync(access.Subject, executionId, cancellationToken), "EXECUTION_NOT_FOUND")))
+        ToDetailedResponse(RequireFound(await executions.GetAuthorizedAsync(access.Subject, executionId, cancellationToken), "EXECUTION_NOT_FOUND")))
     .WithName("GetExecution")
     .RequireAuthorization(WellSitePolicies.ExecutionsRead)
     .Produces<ExecutionResponse>(StatusCodes.Status200OK)
@@ -1461,6 +1461,11 @@ static RecommendationSummaryResponse ToRecommendationSummaryResponse(
     recommendation.DecisionAtUtc,
     recommendation.DecisionReason,
     recommendation.ControlActionId);
+
+static ExecutionResponse ToDetailedResponse(ExecutionRecord execution) => ToResponse(execution) with
+{
+    Provenance = ExecutionProvenanceMapper.Read(execution)
+};
 
 static ExecutionResponse ToResponse(ExecutionRecord execution) => new(
     execution.Id,

@@ -22,6 +22,8 @@ using DomainPlatformComponentStatus = WellSiteAutoPilot.Domain.System.PlatformCo
 using DomainRecommendationStatus = WellSiteAutoPilot.Domain.Recommendations.RecommendationStatus;
 
 // ASP.NET minimal APIs read and write bodies with the web defaults.
+ExecutionProvenanceChecks.Run();
+
 var web = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
 // Every domain value maps to the contract member of the same name, so the

@@ -180,3 +180,17 @@ test('failed input diagnostics show bounded missing/uncertain evidence without t
   assert.match(html, /EXECUTION_INPUT_TIMESTAMP_UNVERIFIED/);
   assert.match(html, /Retrieved at/);
 });
+
+
+test('execution detail displays pinned package and saved connection revision rather than current catalog identity', () => {
+  const provenance = { packageSha256: 'a'.repeat(64), connectionsTruncated: false,
+    connections: [{ connectionId: secondId, revision: 7, assetCount: 2 }] };
+  assert.equal(detail.executionProvenance({ ...response, provenance }).packageSha256, 'a'.repeat(64));
+  assert.equal(detail.executionProvenance({ ...response, provenance: { ...provenance, packageSha256: '<script>' } }), null);
+  const html = renderToStaticMarkup(createElement(panel.ExecutionDetailContent, { detail: { ...response, provenance } }));
+  assert.match(html, /Pinned package SHA-256/);
+  assert.match(html, /Saved source connections/);
+  assert.match(html, /revision 7/);
+  assert.match(html, /2 assets/);
+  assert.match(html, new RegExp(secondId));
+});

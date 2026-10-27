@@ -20,9 +20,14 @@ public sealed record ExecutionResponse(
     DateTimeOffset? CompletedAtUtc,
     string? ResultCode,
     string? FailureCode,
-    string? OutputJson);
+    string? OutputJson,
+    ExecutionProvenanceResponse? Provenance = null);
 
 public sealed record RequestConfiguredShadowRequest(Guid RequestId);
 
 public sealed record ConfiguredShadowReceiptResponse(Guid ExecutionId, Guid LogicInstanceId,
     Guid ConfigurationRevisionId, int RequestContractVersion, ExecutionMode Mode, ExecutionTriggerKind Trigger);
+
+public sealed record ExecutionProvenanceResponse(string PackageSha256,
+    IReadOnlyCollection<ExecutionConnectionResponse> Connections, bool ConnectionsTruncated);
+public sealed record ExecutionConnectionResponse(Guid ConnectionId, int Revision, int AssetCount);
