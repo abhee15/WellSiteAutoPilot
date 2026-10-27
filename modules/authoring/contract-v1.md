@@ -90,9 +90,10 @@ that ignores the new property. This does not implement Python production hosting
 
 Offline fixtures are bounded to 256 KiB. These hosts execute the supplied trusted
 example only; they are not sandboxed code runners. Arbitrary import must not
-execute code. A future live/package host must enforce permissions, resource and
-output bounds, deadlines, cancellation, dependency availability, package
-version/hash identity and isolation before enabling customer code.
+execute code. The production .NET package path enforces reviewed identity/hash/runtime,
+authorized source routing, bounded inputs/outputs and cooperative cancellation.
+It uses a collectible managed context, not an OS security sandbox. Hard resource
+isolation and production Python execution remain separate work.
 
 .NET exposes the existing cancellation token and the example checks it.
 The Python example is a bounded synchronous calculation; it has no new
