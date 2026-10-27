@@ -1,10 +1,43 @@
 using System.Net.Http.Json;
+using System.Text.Json;
+using NATS.Client.Core;
+using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Messaging.Contracts;
+using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 
-public sealed class GatewayDataClient(HttpClient httpClient)
+public sealed class GatewayDataClient(HttpClient httpClient, INatsConnection? connection = null)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public async Task<EngineeringValue> GetCurrentAsync(Guid executionId, ExecutionInputBindingV2 input,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (input.Source is null)
+        {
+            if (!string.Equals(input.ProviderId, "simulator", StringComparison.OrdinalIgnoreCase))
+                throw ReadFailure("EXECUTION_READ_PLAN_REQUIRED");
+            return await GetCurrentAsync(input.ProviderId, input.ProviderAssetExternalId, input.Quantity, cancellationToken);
+        }
+        if (connection is null) throw ReadFailure("EXECUTION_READ_PLAN_UNAVAILABLE");
+        await connection.ConnectAsync().AsTask().WaitAsync(cancellationToken);
+        if (connection.ServerInfo?.AuthRequired != true) throw ReadFailure("EXECUTION_READ_BROKER_AUTH_REQUIRED");
+        // Routing fields on the worker message are never sent as authority.
+        var response = await connection.RequestAsync<string, string>(Subjects.ExecutionReadCurrentV1,
+            JsonSerializer.Serialize(new ExecutionReadCurrentV1(executionId, input.Source.ReadPlanId), JsonOptions),
+            replyOpts: new NatsSubOpts { Timeout = TimeSpan.FromSeconds(10) }, cancellationToken: cancellationToken);
+        var reply = response.Data is { Length: <= 8192 } json
+            ? JsonSerializer.Deserialize<ExecutionReadReplyV1>(json, JsonOptions) : null;
+        if (reply is null || (reply.Value is null) == (reply.FailureCode is null)) throw ReadFailure("EXECUTION_READ_REPLY_INVALID");
+        if (reply.FailureCode is { } code) throw ReadFailure(code);
+        return reply.Value!;
+    }
+
+    private static WellSiteAutoPilotException ReadFailure(string code) => new(code, FailureKind.DependencyUnavailable,
+        "The authorized execution input could not be acquired.");
     public async Task<EngineeringValue> GetCurrentAsync(
         string assetExternalId,
         string quantity,

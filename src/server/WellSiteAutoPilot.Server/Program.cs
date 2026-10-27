@@ -219,6 +219,9 @@ builder.Services.AddSingleton(new JetStreamConsumerSettings(
     builder.Configuration.GetValue("Messaging:JetStream:MaxDeliver", 5)).Validate());
 builder.Services.AddHostedService<ExecutionResultConsumer>();
 builder.Services.AddHostedService<ExecutionResultV2Consumer>();
+builder.Services.AddScoped<IExecutionMeasurementGateway>(services =>
+    (GatewayAdapterClient)services.GetRequiredService<IGatewayAdapters>());
+builder.Services.AddHostedService<ExecutionMeasurementReadConsumer>();
 builder.Services.AddHostedService<ScheduledShadowSchedulerHostedService>();
 builder.Services.AddHostedService<ConnectionMonitorHostedService>();
 builder.Services.AddWellSitePersistence(DatabaseConnectionLoader.Resolve(

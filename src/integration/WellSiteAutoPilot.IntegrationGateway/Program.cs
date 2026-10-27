@@ -15,6 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddServiceCallerSettingsFile("gateway.keys.json");
 builder.Services.AddServiceCallerAuthentication(builder.Configuration);
 builder.Services.AddSingleton<AdapterCatalog>();
+builder.Services.AddSingleton<ForeSiteConnectionMeasurements>();
 builder.Services.AddHttpClient("adapter-test");
 builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true, UseCookies = false });
@@ -174,6 +175,13 @@ v1.MapPost(
     .RequireAuthorization(ServiceCaller.ServerPolicy)
     .Produces<DiscoveryResult>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound);
+
+v1.MapPost("/adapters/foresite/current",
+    async (ConnectionMeasurementRequest request, ForeSiteConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.ReadAsync(request, cancellationToken)))
+    .WithName("ReadAuthorizedForeSiteMeasurement")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<EngineeringValue>(StatusCodes.Status200OK);
 
 v1.MapGet(
     "/data/current",

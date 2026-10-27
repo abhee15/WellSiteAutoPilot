@@ -11,6 +11,9 @@ using WellSiteAutoPilot.Messaging.Nats;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Executions;
 
+await AuthorizedReadTransportChecks.RunAsync();
+if (args.Contains("--read-transport-only", StringComparer.Ordinal)) return 0;
+
 var connectionString = Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(connectionString))
 {

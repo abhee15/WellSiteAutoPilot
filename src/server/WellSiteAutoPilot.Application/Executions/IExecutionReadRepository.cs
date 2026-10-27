@@ -9,3 +9,9 @@ public interface IExecutionReadRepository
     Task<AuthorizedExecutionRead> ResolveReadAsync(Guid executionId, Guid readPlanId,
         CancellationToken cancellationToken = default);
 }
+
+public interface IExecutionMeasurementGateway
+{
+    Task<WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue> GetCurrentAsync(
+        AuthorizedExecutionRead read, CancellationToken cancellationToken = default);
+}

@@ -1,4 +1,5 @@
 using System.Net;
+using WellSiteAutoPilot.Application.Executions;
 using System.Net.Http.Headers;
 using WellSiteAutoPilot.Application.Connections;
 using WellSiteAutoPilot.Failures;
@@ -11,7 +12,7 @@ namespace WellSiteAutoPilot.Server.Connections;
 /// Asks the Integration Gateway about adapters, presenting the Server's own caller key. The key is read when a
 /// request is made, so a Server without one still starts and only connection features report the gap.
 /// </summary>
-public sealed class GatewayAdapterClient(HttpClient client, IConfiguration configuration) : IGatewayAdapters
+public sealed class GatewayAdapterClient(HttpClient client, IConfiguration configuration) : IGatewayAdapters, IExecutionMeasurementGateway
 {
     private const string Base = "api/internal/v1/adapters";
 
@@ -49,6 +50,26 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         return response.StatusCode == HttpStatusCode.NotFound
             ? null
             : await response.Content.ReadFromJsonAsync<DiscoveryResult>(cancellationToken);
+    }
+
+    public async Task<EngineeringValue> GetCurrentAsync(AuthorizedExecutionRead read, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(read.AdapterKey)}/current");
+        request.Content = JsonContent.Create(new ConnectionMeasurementRequest(read.ConnectionId, read.ConnectionRevision,
+            read.Settings.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal), read.ExternalId, read.Quantity));
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            // Preserve bounded typed errors, never upstream detail or connection settings in the worker reply.
+            var problem = await response.Content.ReadFromJsonAsync<WellSiteAutoPilot.Http.WellSiteProblemDetails>(cancellationToken);
+            var code = problem?.Code;
+            throw new WellSiteAutoPilotException(code is { Length: > 0 and <= 128 } &&
+                code.All(c => char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c) || c == '_') ? code : "EXECUTION_READ_GATEWAY_FAILED",
+                FailureKind.DependencyUnavailable, "The authorized measurement could not be acquired.");
+        }
+        return await response.Content.ReadFromJsonAsync<EngineeringValue>(cancellationToken)
+            ?? throw Unavailable("The integration gateway returned no measurement.");
     }
 
     private HttpRequestMessage Authorized(HttpMethod method, string path, IReadOnlyDictionary<string, string?>? settings = null)
