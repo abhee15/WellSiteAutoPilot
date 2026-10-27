@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using WellSiteAutoPilot.Application.Executions;
 using System.Net.Http.Headers;
 using WellSiteAutoPilot.Application.Connections;
@@ -58,19 +59,30 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(read.AdapterKey)}/current");
         request.Content = JsonContent.Create(new ConnectionMeasurementRequest(read.ConnectionId, read.ConnectionRevision,
             read.Settings.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal), read.ExternalId, read.Quantity));
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        using var response = await SendAsync(request, cancellationToken, allowErrorResponse: true);
+        try
         {
-            // Preserve bounded typed errors, never upstream detail or connection settings in the worker reply.
-            var problem = await response.Content.ReadFromJsonAsync<WellSiteAutoPilot.Http.WellSiteProblemDetails>(cancellationToken);
-            var code = problem?.Code;
-            throw new WellSiteAutoPilotException(code is { Length: > 0 and <= 128 } &&
-                code.All(c => char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c) || c == '_') ? code : "EXECUTION_READ_GATEWAY_FAILED",
-                FailureKind.DependencyUnavailable, "The authorized measurement could not be acquired.");
+            if (!response.IsSuccessStatusCode)
+            {
+                // Keep provider text and connection settings within the Server/Gateway boundary.
+                var problem = await response.Content.ReadFromJsonAsync<WellSiteAutoPilot.Http.WellSiteProblemDetails>(cancellationToken);
+                var code = problem?.Code;
+                throw ReadFailure(code is { Length: > 0 and <= 128 } && char.IsAsciiLetterUpper(code[0]) &&
+                    code.All(c => char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c) || c == '_')
+                    ? code : "EXECUTION_READ_GATEWAY_FAILED");
+            }
+            return await response.Content.ReadFromJsonAsync<EngineeringValue>(cancellationToken)
+                ?? throw ReadFailure("EXECUTION_READ_GATEWAY_INVALID");
         }
-        return await response.Content.ReadFromJsonAsync<EngineeringValue>(cancellationToken)
-            ?? throw Unavailable("The integration gateway returned no measurement.");
+        catch (JsonException)
+        {
+            // A proxy/login page or malformed Gateway payload is not an invalid read-plan reference.
+            throw ReadFailure(response.IsSuccessStatusCode ? "EXECUTION_READ_GATEWAY_INVALID" : "EXECUTION_READ_GATEWAY_FAILED");
+        }
     }
+
+    private static WellSiteAutoPilotException ReadFailure(string code) =>
+        new(code, FailureKind.DependencyUnavailable, "The authorized measurement could not be acquired.");
 
     private HttpRequestMessage Authorized(HttpMethod method, string path, IReadOnlyDictionary<string, string?>? settings = null)
     {
@@ -86,7 +98,7 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
     }
 
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken,
-        bool allowNotFound = false)
+        bool allowNotFound = false, bool allowErrorResponse = false)
     {
         HttpResponseMessage response;
         try
@@ -104,7 +116,7 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
                 "The integration gateway could not be reached.", retryable: true, innerException: exception);
         }
 
-        if (response.IsSuccessStatusCode || allowNotFound && response.StatusCode == HttpStatusCode.NotFound) return response;
+        if (allowErrorResponse || response.IsSuccessStatusCode || allowNotFound && response.StatusCode == HttpStatusCode.NotFound) return response;
         var status = response.StatusCode;
         response.Dispose();
         throw Unavailable(status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
