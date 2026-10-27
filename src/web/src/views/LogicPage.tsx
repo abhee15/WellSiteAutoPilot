@@ -16,6 +16,7 @@ import { configurationAssetLabels, latestRunByConfiguration, summarizeAssetLabel
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { ModulePanel } from './ModulePanel';
+import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
 import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, latestRevision } from './configuredLogicViews';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
@@ -100,6 +101,9 @@ export function LogicPage({
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
             <PanelHeader eyebrow="Catalog" title="Logic Modules" count={visibleModules.length} />
+            <ModulePackageUpload canManage={permissions.includes('logic.manage')} onUploaded={async module => {
+              await onRefresh(); setAboutModuleId(module.id ?? null);
+            }} />
             <LogicCatalogControls
               criteria={catalogCriteria}
               onChange={setCatalogCriteria}

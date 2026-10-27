@@ -20,7 +20,7 @@ export type SetupManifest = {
   assetRequirements: AssetRequirement[]; dataRequirements: DataRequirement[];
 };
 export function setupManifest(module: LogicModuleResponse): SetupManifest | null {
-  if (module.isEnabled !== true || !module.manifestJson) return null;
+  if (module.isEnabled !== true || module.runtime === 'Python' || !module.manifestJson) return null;
   try {
     const value = JSON.parse(module.manifestJson) as SetupManifest;
     if (value.moduleId !== module.moduleId || value.version !== module.version ||
