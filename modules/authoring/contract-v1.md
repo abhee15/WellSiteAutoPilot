@@ -27,12 +27,18 @@ this boundary. The host resolves selected inputs before invoking code.
 
 ## Starter validation and numeric profile
 
-This module requires `PumpFillage`, `%`, Good quality and a finite numeric value
-between 0 and 100 inclusive. The input is at most 60 seconds old at evaluation,
-with up to 30 seconds future skew, matching the current worker's freshness
-policy. Equality at either time boundary is allowed. Missing source/time/quality
-is rejected; adapter code must not replace it with request time or Good quality.
-The 0–100 bound is this example's rule, not a generic SDK input restriction.
+The calculation requires `PumpFillage`, `%` and a finite value between 0 and 100.
+Quality and freshness belong to the host's reviewed manifest policy. The shipped
+manifests require Good quality and maximumAgeSeconds 60; a revised reviewed
+manifest can change maximum age or permit Uncertain without another hidden
+60-second/Good-only rule in the algorithm. Unknown and Bad remain rejected.
+The production .NET worker and trusted offline .NET runner share one validator.
+The Python offline host implements the same policy and cross-runtime tests cover
+changed age/quality requirements. Python production hosting remains unavailable.
+
+The host allows up to 30 seconds future skew. Equality at either time boundary
+is allowed. Missing source/time/quality is rejected; never substitute request time
+or Good quality. The 0–100 bound is the example's algorithm rule.
 
 Quality/quantity matching is case-insensitive, requirement/role identity exact.
 Dates must explicitly carry UTC (`Z` or `+00:00`). Unit conversion is a host
@@ -71,25 +77,38 @@ uppercase ASCII letters, digits and underscores, at most 128 characters. Both
 .NET execution paths reject failure results before completion or output handling
 and use the existing ExecutionFailed path. Malformed codes/results fail as
 MODULE_RESULT_INVALID. No recommendation, intent or state update from a failed
-evaluation is applied. Input observations on failed production executions still
-need a separate persistence extension; offline reports retain them.
+evaluation is applied. Failed production executions persist bounded input diagnostics through the existing
+result history; offline reports retain the original context.
 
 Existing SDK V1 modules that omit failureCode keep their prior success behavior.
 An outcome such as NO_ACTION_REQUIRED can therefore be a valid success.
 Authors must migrate any old failure-as-outcome convention explicitly. Kit
-version 1.0.1 requires SDK/worker 1.1.0 or later; do not deploy it on a worker
+version 1.0.2 requires SDK/worker 1.1.0 or later; do not deploy it on a worker
 that ignores the new property. This does not implement Python production hosting.
 
 ## Host limits and trust
 
 Offline fixtures are bounded to 256 KiB. These hosts execute the supplied trusted
 example only; they are not sandboxed code runners. Arbitrary import must not
-execute code. A future live/package host must enforce permissions, resource and
-output bounds, deadlines, cancellation, dependency availability, package
-version/hash identity and isolation before enabling customer code.
+execute code. The production .NET package path enforces reviewed identity/hash/runtime,
+authorized source routing, bounded inputs/outputs and cooperative cancellation.
+It uses a collectible managed context, not an OS security sandbox. Hard resource
+isolation and production Python execution remain separate work.
 
 .NET exposes the existing cancellation token and the example checks it.
 The Python example is a bounded synchronous calculation; it has no new
 cancellation protocol or persistent state. Python process termination, timeout
 and worker-message handling remain future host responsibilities. Shadow labels
 alone cannot prevent arbitrary code from issuing direct network requests.
+
+## Offline reviewed policy
+
+Both runners accept an optional second argument, a reviewed manifest path. Without
+it they use their shipped manifest (copied alongside the built .NET runner).
+Use this to exercise changed policy; a changed deployment still needs a new
+immutable package version and approval. These trusted offline runners invoke
+only the shipped calculation and admit its outputs after policy validation.
+Production validates acquired inputs before invoking package code.
+
+The 1.0.2 starters remove duplicate age/quality policy from the calculation.
+Their SDK minimum remains 1.1.0. Repackage as 1.0.2; never replace 1.0.1 bytes.

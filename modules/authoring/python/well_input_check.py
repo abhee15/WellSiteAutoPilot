@@ -1,12 +1,12 @@
 """ForeSite starter calculation. Provider I/O belongs to AutoPilot, not this file."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import math
 from uuid import UUID
 
 MODULE_ID = "weatherford.foresite-well-input-check.python"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 SUCCESS = "WELL_INPUT_CHECK_COMPLETED"
 
 
@@ -45,7 +45,7 @@ def execute(context: dict) -> dict:
         import json
         if not isinstance(json.loads(context["parametersJson"]), dict):
             return result("CONTEXT_INVALID")
-        now = _time(context["evaluationTimeUtc"])
+        _time(context["evaluationTimeUtc"])
         assets = context["assets"]
         if len(assets) != 1 or assets[0]["role"] != "well":
             return result("ASSET_BINDING_INVALID")
@@ -60,13 +60,7 @@ def execute(context: dict) -> dict:
             return result("INPUT_BINDING_INVALID")
         if item["quantity"].lower() != "pumpfillage" or item["unit"].lower() != "%":
             return result("EXECUTION_INPUT_QUANTITY_MISMATCH")
-        if item["quality"].lower() != "good":
-            return result("EXECUTION_INPUT_QUALITY_REJECTED")
-        timestamp = _time(item["timestampUtc"])
-        if timestamp > now + timedelta(seconds=30):
-            return result("EXECUTION_INPUT_FUTURE")
-        if now - timestamp > timedelta(seconds=60):
-            return result("EXECUTION_INPUT_STALE")
+        _time(item["timestampUtc"])
         value = item["value"]
         if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 100:
             return result("INPUT_VALUE_INVALID")

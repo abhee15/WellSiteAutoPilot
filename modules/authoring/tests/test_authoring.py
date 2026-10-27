@@ -12,9 +12,11 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
+from run_offline import evaluate
 from well_input_check import execute, SUCCESS  # noqa: E402
 
 GOOD = json.loads((ROOT / "fixtures/python-good.json").read_text())
+MANIFEST = json.loads((ROOT / "python/manifest.json").read_text())
 
 
 def cases():
@@ -57,7 +59,7 @@ class AuthoringTests(unittest.TestCase):
         for name, envelope, expected in cases():
             with self.subTest(name=name):
                 original = copy.deepcopy(envelope)
-                result = execute(envelope["context"])
+                result = evaluate(envelope["context"], MANIFEST)
                 self.assertEqual(expected, result["outcomeCode"])
                 self.assertEqual(None if expected == SUCCESS else expected, result["failureCode"])
                 self.assertEqual(original, envelope, "Calculation mutated its context")
@@ -66,11 +68,13 @@ class AuthoringTests(unittest.TestCase):
                 self.assertEqual({}, result["stateUpdates"])
                 self.assertEqual(1 if expected == SUCCESS else 0, len(result["engineeringResults"]))
 
-    def run_cli(self, runtime, path):
+    def run_cli(self, runtime, path, manifest=None):
         if runtime == "python":
             command = [sys.executable, str(ROOT / "python/run_offline.py"), str(path)]
         else:
             command = ["dotnet", str(ROOT / "dotnet/OfflineRunner/bin/Release/net10.0/OfflineRunner.dll"), str(path)]
+        if manifest is not None:
+            command.append(str(manifest))
         return subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
 
     def runtimes(self):
@@ -126,6 +130,38 @@ class AuthoringTests(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("WSA_TEST_DOTNET") == "1", "Set WSA_TEST_DOTNET=1 after building .NET runner")
     def test_dotnet_parity_is_enabled(self):
         self.assertTrue((ROOT / "dotnet/OfflineRunner/bin/Release/net10.0/OfflineRunner.dll").is_file())
+
+
+    def test_reviewed_policy_changes_without_changing_algorithm(self):
+        # Both hosts accept 90-second evidence under a reviewed 120-second policy
+        # and reject it under the original 60-second manifest.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "fixture.json"
+            manifest_path = Path(directory) / "manifest.json"
+            for runtime in self.runtimes():
+                for maximum_age, quality, allow_uncertain, expected in [
+                    (120, "Good", False, SUCCESS),
+                    (60, "Good", False, "EXECUTION_INPUT_STALE"),
+                    (120, "Uncertain", True, SUCCESS),
+                    (120, "Uncertain", False, "EXECUTION_INPUT_QUALITY_REJECTED"),
+                    (120, "Unknown", True, "EXECUTION_INPUT_QUALITY_REJECTED"),
+                ]:
+                    with self.subTest(runtime=runtime, maximum_age=maximum_age, quality=quality, allow_uncertain=allow_uncertain):
+                        fixture = copy.deepcopy(GOOD)
+                        fixture["context"]["moduleIdentity"]["moduleId"] = "weatherford.foresite-well-input-check." + runtime
+                        fixture["context"]["inputs"][0].update(timestampUtc="2026-10-22T11:58:30Z", quality=quality)
+                        manifest = json.loads((ROOT / runtime / "manifest.json").read_text())
+                        manifest["dataRequirements"][0].update(maximumAgeSeconds=maximum_age, allowUncertainQuality=allow_uncertain)
+                        path.write_text(json.dumps(fixture), encoding="utf-8")
+                        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                        process = self.run_cli(runtime, path, manifest_path)
+                        self.assertEqual(0 if expected == SUCCESS else 2, process.returncode, process.stderr)
+                        self.assertEqual(expected, json.loads(process.stdout)["result"]["outcomeCode"])
+
+    def test_algorithm_does_not_override_reviewed_age_or_quality(self):
+        fixture = copy.deepcopy(GOOD)
+        fixture["context"]["inputs"][0].update(timestampUtc="2026-10-22T11:58:30Z", quality="Uncertain")
+        self.assertEqual(SUCCESS, execute(fixture["context"])["outcomeCode"])
 
     def test_manifest_agreement(self):
         for runtime in ("python", "dotnet"):

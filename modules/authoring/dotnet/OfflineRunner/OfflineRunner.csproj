@@ -4,5 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../WellInputCheck/WellInputCheck.csproj" />
+    <ProjectReference Include="../../../../src/server/WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
+    <Content Include="../manifest.json" Link="manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
