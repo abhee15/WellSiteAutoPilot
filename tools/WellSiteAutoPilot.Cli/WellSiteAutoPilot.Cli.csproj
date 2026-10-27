@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/integration/WellSiteAutoPilot.Integration.ForeSite/WellSiteAutoPilot.Integration.ForeSite.csproj" />
     <ProjectReference Include="../../src/server/WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
     <ProjectReference Include="../../src/server/WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
     <ProjectReference Include="../../src/platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
