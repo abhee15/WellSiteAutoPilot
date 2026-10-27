@@ -7,7 +7,7 @@ internal static class InputPolicyChecks
 {
     public static void Run()
     {
-        var now = DateTimeOffset.Parse("2026-10-27T12:00:00Z");
+        var now = new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero);
         var requirement = new LogicDataRequirement("pump-fillage", "well", "PumpFillage", "Current", "%", 60, false);
         var input = new LogicInputValue("pump-fillage", Guid.NewGuid(), "PumpFillage", 72.5m, "%", now.AddSeconds(-90), "Good", "synthetic");
         Reject(input, requirement, "EXECUTION_INPUT_STALE");
