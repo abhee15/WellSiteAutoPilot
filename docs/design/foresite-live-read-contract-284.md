@@ -35,3 +35,40 @@ Status: design gate, not production enablement. Based on the 26 Oct 2026 POC rev
 
 ## Open decision
 Choose durable recovery semantics for Gateway read plans (Gateway restart and multiple instances) and exact disablement policy. This document deliberately does not pretend those decisions are already implemented.
+
+
+## Traceability to the actual Oct 26 POC review (#284)
+
+The original eight findings are B1-B8. This mapping supersedes generic gap labels in PR discussion; only the remaining gaps should generate code changes.
+
+| Original finding | Current status | Decision |
+| --- | --- | --- |
+| B1 unpinned package/object scanning | Done in #285/#286 | No new work |
+| B2 independent archive preflight | Done in #285 | No new work |
+| B3 synchronous globally locked loading | Done in #285 | No new work |
+| B4 temp files / collectible context / per-run instance | Core done in #285; crash-orphan cleanup remains | Track startup cleanup separately; do not build a cache speculatively |
+| B5 global ForeSite URL / missing connection identity | Missing in current Gateway read path | Slices A/B |
+| B6 assumed ForeSite timestamp and Good quality | Live semantics unverified | Slice C + owner evidence |
+| B7 duplicate session handling, error/401/timeouts | Not integrated for current-value reads | Slice B, reuse adapter code |
+| B8 no POC CI/live recipe | Package E2E done in #286; ForeSite substitute/live verification outstanding | Slice D |
+
+The broader review F1-F11 also records F4 provider mapping ignored by runtime, F6 lost failed-input observations, F7 duplicated starter freshness policy, F8 publication starvation, F9 one-well View requirement, F10 missing upload UI, and F11 If-Match documentation. F1 package pinning and F5 .NET host are done; F11 describes already-correct UI concurrency and needs docs only. Verify current develop before claiming any remaining F item is absent.
+
+### UI-specific no-duplication decisions
+
+- F9: extend the existing Configured Logic target selector with **direct authorized Asset** as an alternative to View; preserve View selection and authorization semantics. Do not create a second asset discovery or import screen.
+- F10: extend the existing logic catalog page with package upload and **separate** trust, publication and runnable statuses; reuse current upload/approval APIs and controls, not a new module-management page.
+- F4: do not expose editable provider mapping that is silently ignored. First make the reviewed mapping contract executable or reject unsupported mappings with a clear validation error; reuse the current configuration editor.
+- F6: extend existing execution detail/history components with bounded input observations, source time, retrieval time, unit, quality and typed failure reasons once the backend stores them. No independent diagnostics store.
+- F7: one effective input freshness policy from reviewed configuration/manifest, consistently enforced by both starter languages and runtime; never use the scratch four-hour workaround.
+- UI implementation must follow the matching backend contract, not introduce placeholder frontend models that require rework.
+
+### CI vs live verification
+
+GitHub CI: deterministic recorded HTTP ForeSite substitute, two connections with identical external IDs, simulated auth/cookie/401/error flows, restart/replay, real PostgreSQL/NATS Shadow package execution, and zero writes. No claim of real ForeSite compatibility.
+
+Owner's local acceptance: actual Windows identity, ForeSite endpoint/virtual directory, cookie refresh, sanitized PumpFillage/LastScanTime/LastGoodScanTime responses, observed measurement freshness and quality, UI setup/upload/approval/readiness, Shadow result and failed-input diagnostics. Capture any field semantics that differ from fixtures before relaxing validation.
+
+### Before implementation PR A
+
+Inspect current Server source binding and connection revision models, execution staging and V3 message schema, Gateway service caller permissions, and existing Configured Logic UI. Record exact type/file ownership and backward compatibility in the PR description. Prefer an execution-bound read-plan identifier and authoritative server validation over client-supplied connection settings. Close plan restart/revocation semantics before activating live reads.
