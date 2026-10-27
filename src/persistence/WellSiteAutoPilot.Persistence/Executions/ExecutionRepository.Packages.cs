@@ -22,6 +22,9 @@ public sealed partial class ExecutionRepository
         if (!module.IsEnabled || module.TrustStatus is not (nameof(LogicModuleTrustStatus.CustomerApproved) or nameof(LogicModuleTrustStatus.TrustedPublisher)))
             throw new WellSiteAutoPilotException("MODULE_NOT_ENABLED", FailureKind.Conflict,
                 "Only an approved enabled package can be dispatched.");
+        if (module.Runtime != nameof(LogicRuntimeKind.DotNet))
+            throw new WellSiteAutoPilotException("MODULE_RUNTIME_NOT_SUPPORTED", FailureKind.Validation,
+                "This deployment currently hosts approved .NET packages only.");
         return new ExecutionPackageV3(module.PackageSha256, module.ManifestJson);
     }
 }

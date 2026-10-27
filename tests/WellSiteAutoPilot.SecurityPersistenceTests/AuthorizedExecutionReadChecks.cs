@@ -118,6 +118,14 @@ internal static class AuthorizedExecutionReadChecks
                     ExecutionService.CreateConfiguredRequest(command, module, now, Guid.NewGuid()), command, actor);
             });
         }
+        await setup.LogicModules.Where(m => m.ModuleId == module).ExecuteUpdateAsync(s => s.SetProperty(m => m.Runtime, "Python"));
+        await DeniedAsync(async () =>
+        {
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            await new ExecutionRepository(db, time).AddManualConfiguredRequestedAsync(
+                ExecutionService.CreateConfiguredRequest(commands[0], module, now, Guid.NewGuid()), commands[0], actor);
+        }, "MODULE_RUNTIME_NOT_SUPPORTED");
+        await setup.LogicModules.Where(m => m.ModuleId == module).ExecuteUpdateAsync(s => s.SetProperty(m => m.Runtime, "DotNet"));
         await setup.OutboxMessages.Where(m => m.Payload.Contains(module)).ExecuteDeleteAsync();
         await setup.Executions.Where(e => e.ModuleId == module).ExecuteDeleteAsync();
         // Later legacy-migration checks inspect every active user; this isolated
