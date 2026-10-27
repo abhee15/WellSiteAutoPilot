@@ -19,7 +19,10 @@ public sealed partial class ExecutionRepository
             ExecutionReadSourceV3? source = null;
             // Simulator remains an explicit legacy path, never a fallback for imported Assets.
             var asset = await dbContext.Assets.AsNoTracking().SingleOrDefaultAsync(a => a.Id == input.AssetId, ct);
-            if (!string.Equals(input.ProviderId, "simulator", StringComparison.OrdinalIgnoreCase) || asset?.OwnerConnectionId is not null)
+            var simulatorOwned = asset?.OwnerConnectionId is { } ownerId && await dbContext.Connections.AsNoTracking()
+                .AnyAsync(c => c.Id == ownerId && c.AdapterKey == "simulator", ct);
+            if (string.Equals(input.ProviderId, "foresite", StringComparison.OrdinalIgnoreCase) ||
+                asset?.OwnerConnectionId is not null && !simulatorOwned)
             {
                 if (subject is null) throw ReadFailure("EXECUTION_READ_AUTHORITY_REQUIRED");
                 if (asset is null || !asset.IsActive || asset.OwnerConnectionId is not { } connectionId)

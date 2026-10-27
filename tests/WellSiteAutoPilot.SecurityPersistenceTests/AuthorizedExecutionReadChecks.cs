@@ -120,6 +120,9 @@ internal static class AuthorizedExecutionReadChecks
         }
         await setup.OutboxMessages.Where(m => m.Payload.Contains(module)).ExecuteDeleteAsync();
         await setup.Executions.Where(e => e.ModuleId == module).ExecuteDeleteAsync();
+        // Later legacy-migration checks inspect every active user; this isolated
+        // paired-grant fixture has no legacy assignments and must be retired.
+        await setup.Users.Where(u => u.Id == user).ExecuteUpdateAsync(s => s.SetProperty(u => u.IsActive, false));
         Console.WriteLine("Authorized reads isolate connections, survive context restart, exclude settings and reject changed authority/source/configuration and expired/terminal requests.");
 
         async Task<AuthorizedExecutionRead> ReadAsync(int index, Guid? plan = null)
