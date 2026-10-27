@@ -14,7 +14,7 @@ builder.Services.AddWindowsService(options =>
 {
     options.ServiceName = "Weatherford.WellSiteAutoPilot.Worker.DotNet";
 });
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddCheck<BrokerReadinessCheck>("authenticated-broker");
 builder.Services.AddWellSiteTelemetry(builder.Configuration, "wellsite-autopilot-worker-dotnet");
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddSingleton<ILogicModuleResolver, BuiltInLogicModuleResolver>();
@@ -54,6 +54,13 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
 });
-app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    ResponseWriter = (context, report) => context.Response.WriteAsJsonAsync(new
+    {
+        status = report.Status.ToString(), runtime = "DotNet",
+        moduleSdkVersion = typeof(WellSiteAutoPilot.ModuleSdk.ILogicModuleV1).Assembly.GetName().Version!.ToString(3)
+    })
+});
 
 await app.RunAsync();

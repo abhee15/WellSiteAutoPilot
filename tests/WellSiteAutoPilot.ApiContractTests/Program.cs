@@ -23,6 +23,7 @@ using DomainRecommendationStatus = WellSiteAutoPilot.Domain.Recommendations.Reco
 
 // ASP.NET minimal APIs read and write bodies with the web defaults.
 ExecutionProvenanceChecks.Run();
+await RuntimeReadinessChecks.RunAsync();
 
 var web = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 

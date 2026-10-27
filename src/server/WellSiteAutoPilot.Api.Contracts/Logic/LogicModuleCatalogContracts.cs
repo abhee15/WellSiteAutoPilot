@@ -20,3 +20,8 @@ public sealed record LogicModuleResponse(
     LogicModuleTrustStatus TrustStatus,
     bool IsEnabled,
     DateTimeOffset InstalledAtUtc);
+
+public sealed record LogicModulePackageStateResponse(bool IsStored, bool PublicationRecorded, bool ObjectAvailable,
+    bool PublicationPending, int AttemptCount, string? LastFailureCode, DateTimeOffset? NextAttemptAtUtc,
+    bool RuntimeCompatible, bool WorkerHealthy, bool GatewayHealthy, bool PreflightReady,
+    string? CompatibilityFailureCode, DateTimeOffset ObservedAtUtc);

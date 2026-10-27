@@ -4,23 +4,26 @@ Baseline reviewed: develop b438c667 (#285 verified host, #286 pinned V3 executio
 #287 broker authentication), plans #284/#288 and POC 8161d97. POC code is reference
 only; no merge/cherry-pick. Discovery/import/Views are existing and out of scope.
 
-| Gap | Current implementation / owner | Remaining acceptance |
-| --- | --- | --- |
-| B1–B3 / F1 | Already implemented: pinned package and shared bounded host | Retain regression tests |
-| B4 / G10 | Partial: collectible per-run host cleans normal exits | Crash-orphan cleanup, restart lifecycle |
-| B5 / G1–G2 | Slice A: ExecutionRepository pins source/connection revision and opaque read ID in V3; server-only authority persisted atomically | Slice B transport to Gateway, two-server HTTP isolation |
-| B6 / G3 | Needs local verification: LastScanTime/LastGoodScanTime semantics | Strict mocked parsing and owner fixtures; never infer Good from equal scan times |
-| B7 | Missing current reads; existing ForeSiteAdapter owns cookie/token/error behavior | Reuse session, total read budget, 401 concurrency tests |
-| B8 / G10 | Existing package/NATS/Postgres test; no ForeSite substitute yet | Simulated complete Shadow acquisition, zero writes |
-| F4 | Slice A rejects nonempty ForeSite provider mappings at dispatch | Configuration validation/UI feedback |
-| F6 / G4 | Missing: failed input observations discarded by engine | Bounded failure diagnostics through existing result history |
-| F7 | Partial: worker validates manifest-derived input policy; starters duplicate 60 seconds | Align both starter languages with reviewed policy |
-| F8 / G5 | Missing: publisher selects oldest 20 repeatedly | Fair durable retries and poison-publication regression |
-| F9 / G6 | Partial: existing setup supports asset bindings, required adapter forces View | Extend existing selector/backend ownership checks for direct wells |
-| F10 / G7 | Partial: upload/approval API exists; catalog UI lacks upload/readiness flow | Extend catalog, API clients and existing controls |
-| F11 | Existing UI uses If-Match | Documentation only |
-| G8 | Partial: ExecutionDetailPanel/history exist | Connection, package and bounded observation/error display |
-| G9 | Python authoring kit exists; production hosting not established | Separate parity audit before implementation |
+Implementation status after #289–#295 and the package-readiness slice:
+
+| Gap | Implemented / remaining |
+| --- | --- |
+| B1–B3 / F1 | Existing pinned package and shared bounded host; regression coverage retained |
+| B4 / G10 | #294 exclusive leases and conservative crash-orphan reconciliation; at-least-once execution remains |
+| B5 / G1–G2 | #289 persisted scoped read plans; #290 authenticated RPC and saved-connection gateway routing |
+| B6 / G3 | Strict parser and worker validation implemented; **blocked on owner evidence for live measurement timestamp/quality semantics** |
+| B7 | #290 shared ForeSite session, bounded reads and serialized refresh; camel-case discovery filters preserved by regression test |
+| B8 / G10 | #291 real package/NATS/Postgres end-to-end with simulated authorized engineering evidence and disabled-source failure; owner live acceptance remains |
+| F4 | Nonempty ForeSite mapping rejected at configuration validation and dispatch; direct-well editor reuses existing validation |
+| F6 / G4 | #291 bounded acquisition/module failure diagnostics persisted and displayed |
+| F7 | **Outstanding:** starter calculations duplicate 60-second freshness policy; worker still enforces reviewed manifest policy |
+| F8 / G5 | #291 durable fair retry scheduling and poison-publication regression; publication gate/readiness added in final slice |
+| F9 / G6 | #292 direct imported leaf well through existing configuration editor and source ownership checks |
+| F10 / G7 | #293 existing binary upload/approval workflow; final slice adds exact artifact/publication/runtime readiness and retry facts |
+| F11 | Existing If-Match/revision fences retained; source and active-revision changes tested |
+| G8 | #291 existing diagnostic/history UI extended; #295 pinned package/connection-revision provenance |
+| G9 | Separate Python audit complete: production worker is a scaffold; hosting remains unavailable and setup/dispatch refuse it |
+
 
 ## Slice A policy and compatibility
 
@@ -42,8 +45,7 @@ only; no merge/cherry-pick. Discovery/import/Views are existing and out of scope
 - V3 input Source metadata is additive. V1/V2 simulator behavior is retained.
   Connection-backed Assets cannot opt into the simulator path. Unpinned packages,
   unsupported providers/quantities/mappings are rejected for live reads.
-- Slice A deliberately leaves live input acquisition unavailable at the worker
-  until the following Gateway transport slice. There is no global URL fallback.
+- Slice B supplies the worker acquisition transport. There is no global URL fallback.
 - Migration adds a nullable server-only column; no backfill and no credential
   migration. Apply through the existing migrator, never startup migration.
 
@@ -55,13 +57,13 @@ revocation, expiry, terminal requests, context restart, settings exclusion and
 forged external ID/quantity/mapping/provider rejection. No live ForeSite required.
 Worker contract tests retain simulator and pinned-package coverage.
 
-## Local ForeSite handoff (pending subsequent slices)
+## Local ForeSite handoff
 
-Do not use slice A alone for live testing. Final checklist will include Windows
-identity, saved connection with virtual-directory URL, approved exact package,
-direct-well/View setup, Shadow acquisition and persisted bounded success/failure
-observations. Timestamp/quality compatibility remains owner verified. Writes and
-autonomous control remain disabled.
+Use [the owner acceptance checklist](foresite-local-shadow-checklist.md). It covers
+Windows identity, saved connection and virtual directories, approved exact package,
+direct-well/View setup, Shadow acquisition, persisted success/failure observations,
+revocation, restart and replay. Live success is gated on owner timestamp/quality
+evidence. Writes and autonomous control remain disabled.
 
 ## Slice B transport and conservative provenance
 
@@ -133,3 +135,23 @@ Python parity audit: `src/workers/python/pyproject.toml` has no runtime dependen
 package host, authorized read client, lease/result publisher or package dependency
 isolation. The authoring SDK/offline kit does not establish production hosting.
 No Python execution capability is claimed or enabled by these .NET changes.
+
+## Package delivery and runtime readiness
+
+The existing catalog now reports stored archive, recorded publication, exact
+authenticated object-store availability, durable retry facts and observed
+Gateway/worker health. The worker readiness check requires broker authentication
+and reports its actual module SDK version. The same compatibility validator used
+by package execution evaluates the reviewed manifest against that worker.
+Older plain-text health responses remain readable but do not prove SDK compatibility.
+
+Hosted V3 dispatch refuses an approved stored package until its publication audit
+is committed. This closes the approval-to-delivery race; metadata-only V2
+compatibility remains. Observed readiness grants no source authority and cannot
+guarantee future availability. Actual execution still verifies hash/manifest and
+current saved-connection permissions. The panel uses the existing catalog,
+outbox, approval controls and generated client; there is no second package store.
+
+Remaining work: owner live evidence/acceptance, F7 starter policy alignment, and
+a separate service-account design before scheduled live reads. Python production
+parity requires a real host/dependency-isolation design and is not enabled here.

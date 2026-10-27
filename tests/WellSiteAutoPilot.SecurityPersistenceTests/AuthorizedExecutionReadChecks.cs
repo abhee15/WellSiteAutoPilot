@@ -27,6 +27,7 @@ internal static class AuthorizedExecutionReadChecks
         var grant = Guid.NewGuid();
         var module = "read-plan-" + Guid.NewGuid().ToString("N");
         var hash = new string('d', 64);
+        var moduleRegistrationId = Guid.NewGuid();
         setup.Users.Add(new() { Id = user, IdentityKey = module, IdentityName = module, NormalizedIdentityName = module,
             IsActive = true, CreatedAtUtc = now, LastSeenAtUtc = now });
         setup.RoleDefinitions.Add(new() { Id = role, Key = module, Name = module, NormalizedName = module,
@@ -35,7 +36,7 @@ internal static class AuthorizedExecutionReadChecks
             new RolePermissionEntity { RoleId = role, Permission = WellSitePermissions.ConfiguredLogicRead });
         setup.AccessGrants.Add(new() { Id = grant, UserId = user, SubjectKind = "User", RoleId = role, ScopeKind = "ExactAssets",
             IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now });
-        setup.LogicModules.Add(new() { Id = Guid.NewGuid(), ModuleId = module, Version = "1.0.0", DisplayName = module,
+        setup.LogicModules.Add(new() { Id = moduleRegistrationId, ModuleId = module, Version = "1.0.0", DisplayName = module,
             Publisher = "test", Runtime = "DotNet", ExecutionProfile = "test", ManifestJson = "{}", PackageSha256 = hash,
             TrustStatus = "CustomerApproved", IsEnabled = true, InstalledAtUtc = now });
         if (!await setup.LogicModulePackages.AnyAsync(p => p.Sha256 == hash))
@@ -63,6 +64,17 @@ internal static class AuthorizedExecutionReadChecks
         var commands = cases.Select(c => new ConfiguredShadowExecutionCommand(c.Configuration, c.Revision, module, "1.0.0", "{}",
             [new("well", c.Asset, "{}")], [new("fillage", c.Asset, "foresite", "42", "PumpFillage", "Current", "%", 60, false, "{}")],
             ExecutionTriggerKind.Manual, null)).ToArray();
+        await DeniedAsync(async () =>
+        {
+            await using var unpublishedDb = new WellSiteAutoPilotDbContext(options);
+            var command = commands[0];
+            await new ExecutionRepository(unpublishedDb, time).AddManualConfiguredRequestedAsync(
+                ExecutionService.CreateConfiguredRequest(command, module, now, Guid.NewGuid()), command, actor);
+        }, "MODULE_PACKAGE_NOT_PUBLISHED");
+        // Synthetic publication for this authorization fixture; transport and publication are exercised by the package E2E suite.
+        setup.AuditEvents.Add(new() { Id = Guid.NewGuid(), OccurredAtUtc = now, ActorIdentity = "system:read-fixture",
+            Action = "logic-module.package-published", TargetType = "logic-module", TargetId = moduleRegistrationId.ToString("D"), DetailsJson = "{}" });
+        await setup.SaveChangesAsync();
         var executions = new List<ExecutionRecord>();
         foreach (var command in commands)
         {

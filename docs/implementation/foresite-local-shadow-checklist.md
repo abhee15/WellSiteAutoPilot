@@ -37,9 +37,14 @@ measurement's time, units or quality. No provider writes are enabled.
    Upload unchanged bytes in Logic Modules. Review the displayed checksum and
    requirements, then approve through the existing reasoned approval controls.
    Upload is not approval or proof of delivery. Do not use Python for this run.
-5. Confirm the package publication has completed. A failed delivery remains in the
-   durable outbox with attempt count, safe failure code and next retry time; fix
-   the broker/storage issue and allow retry. Do not overwrite an existing version.
+5. Open the module's existing catalog detail and refresh **Package delivery and
+   runtime**. Confirm archive stored, delivery recorded, exact artifact available,
+   authenticated worker ready, Gateway reachable and runtime/SDK compatible.
+   Record the observation time. These checks do not authorize a selected source.
+   A failed delivery remains in the durable outbox with attempt count, safe
+   failure code and next retry time; fix broker/storage and allow retry.
+   Dispatch before recorded delivery must return MODULE_PACKAGE_NOT_PUBLISHED.
+   Recover the same request key after delivery; do not overwrite an existing version.
 
 ## Authorized source and configuration
 
@@ -81,7 +86,11 @@ measurement's time, units or quality. No provider writes are enabled.
     lifetime, the persisted plan must resolve without Gateway-local preparation;
     expired plans require a fresh authenticated request. Direct-user authority is
     bounded to five minutes; Windows proof retains its original one-minute limit.
-16. Replay terminal/result messages. The canonical outcome must remain fixed;
+16. Interrupt a package execution and restart the worker. On first valid package
+    load, only recognized unlocked extraction leases may be reconciled. Preserve
+    active workers, legacy/unowned directories and reparse points. Verify a fresh
+    run extracts reviewed bytes and no previous writable payload is reused.
+17. Replay terminal/result messages. The canonical outcome must remain fixed;
     Inbox replay is idempotent and competing terminal outcomes are audited. Treat
     interrupted worker execution as at-least-once work, not exactly-once algorithm
     execution. Do not infer a successful run merely from package approval.

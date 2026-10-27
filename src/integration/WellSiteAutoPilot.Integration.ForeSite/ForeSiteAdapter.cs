@@ -58,6 +58,8 @@ public static class ForeSiteAdapter
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web) { NumberHandling = JsonNumberHandling.AllowReadingFromString };
 
+    internal static string SerializeFilter(object filter) => JsonSerializer.Serialize(filter, JsonOptions);
+
     public static Uri BaseAddress(string baseUrl)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseUrl);

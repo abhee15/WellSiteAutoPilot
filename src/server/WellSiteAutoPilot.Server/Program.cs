@@ -164,6 +164,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 builder.Services.AddHttpClient("PlatformHealth", client =>
 {
+    client.MaxResponseContentBufferSize = 8192;
     client.Timeout = TimeSpan.FromSeconds(2);
 });
 builder.Services.AddSingleton<IPlatformInformationService>(serviceProvider =>
@@ -1070,6 +1071,49 @@ v1.MapGet(
     .WithName("GetLogicModule")
     .RequireAuthorization(WellSitePolicies.LogicRead)
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet("/logic-modules/{moduleId}/{moduleVersion}/package-state",
+    async (string moduleId, string moduleVersion, LogicModuleCatalogService catalog, IModulePackageStateRepository states,
+        IModulePackageObjectStore objects, IPlatformInformationService platform, TimeProvider clock, CancellationToken cancellationToken) =>
+    {
+        var module = await catalog.GetRequiredAsync(moduleId, moduleVersion, cancellationToken);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(TimeSpan.FromSeconds(6));
+        var stateTask = states.ReadPackageStateAsync(module.Id, module.PackageSha256, budget.Token);
+        var objectTask = objects.ContainsAsync(module.PackageSha256, budget.Token);
+        var platformTask = platform.GetComponentsAsync(budget.Token);
+        await Task.WhenAll(stateTask, objectTask, platformTask);
+        var state = await stateTask;
+        var components = await platformTask;
+        var worker = components.SingleOrDefault(c => c.Name == WellSiteAutoPilot.Domain.System.PlatformComponentNames.DotNetRuntime);
+        var workerHealthy = worker?.Status == WellSiteAutoPilot.Domain.System.PlatformComponentStatus.Healthy;
+        var gatewayHealthy = components.Any(c => c.Name == WellSiteAutoPilot.Domain.System.PlatformComponentNames.Gateway &&
+            c.Status == WellSiteAutoPilot.Domain.System.PlatformComponentStatus.Healthy);
+        var compatible = false;
+        string? compatibilityFailure = "MODULE_RUNTIME_UNAVAILABLE";
+        if (workerHealthy && worker?.ModuleSdkVersion is { } sdk)
+        {
+            using var manifestStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(module.ManifestJson));
+            var manifest = await LogicModuleManifestReader.ReadAsync(manifestStream, budget.Token);
+            try
+            {
+                LogicModulePackageCompatibility.ValidateHost(manifest, WellSiteAutoPilot.Domain.Logic.LogicRuntimeKind.DotNet, sdk);
+                compatible = true; compatibilityFailure = null;
+            }
+            catch (WellSiteAutoPilotException failure) { compatibilityFailure = failure.Code; }
+        }
+        var available = await objectTask;
+        var approved = module.IsEnabled && module.TrustStatus is WellSiteAutoPilot.Domain.Logic.LogicModuleTrustStatus.CustomerApproved
+            or WellSiteAutoPilot.Domain.Logic.LogicModuleTrustStatus.TrustedPublisher;
+        return Results.Ok(new LogicModulePackageStateResponse(state.IsStored, state.PublicationRecorded, available,
+            state.PublicationPending, state.AttemptCount, state.LastFailureCode, state.NextAttemptAtUtc,
+            compatible, workerHealthy, gatewayHealthy, approved && state.IsStored && state.PublicationRecorded && available &&
+            compatible && workerHealthy && gatewayHealthy, compatibilityFailure, clock.GetUtcNow()));
+    })
+    .WithName("GetLogicModulePackageState")
+    .RequireAuthorization(WellSitePolicies.LogicRead)
+    .Produces<LogicModulePackageStateResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 v1.MapPost(

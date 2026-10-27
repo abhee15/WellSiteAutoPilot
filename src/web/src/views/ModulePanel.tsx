@@ -2,6 +2,7 @@ import type { ConfiguredLogicResponse, LogicModuleResponse } from '../api/genera
 import { t } from '../localization';
 import { describeModule } from './moduleSummary';
 import { ModuleApprovalControls } from './ModuleApprovalControls';
+import { ModulePackageState } from './ModulePackageState';
 import './logicSummary.css';
 
 export function ModulePanel({ module, configurations, onClose, canManage = false, onChanged = async () => {} }: {
@@ -25,6 +26,7 @@ export function ModulePanel({ module, configurations, onClose, canManage = false
       <p>{t('moduleUpload.identity')} <code>{module.packageSha256 ?? '—'}</code></p>
       <p>{t(module.runtime === 'Python' ? 'moduleUpload.pythonUnavailable' : 'moduleUpload.readiness')}</p>
       <ModuleApprovalControls key={module.id} module={module} canManage={canManage} onChanged={onChanged} />
+      <ModulePackageState module={module} />
       {summary.needs.length > 0 && <>
         <h4>{t('modulePanel.needs')}</h4>
         <ul>{summary.needs.map(line => <li key={line}>{line}</li>)}</ul>

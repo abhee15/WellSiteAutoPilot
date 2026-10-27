@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using WellSiteAutoPilot.Application.System;
 using WellSiteAutoPilot.Domain.System;
 
@@ -15,19 +16,19 @@ public sealed class PlatformInformationService(
         var serverVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
 
         var gateway = await ProbeAsync(
-            "WellSite AutoPilot Integration Gateway",
+            PlatformComponentNames.Gateway,
             integrationGatewayUrl,
             cancellationToken);
 
         var worker = await ProbeAsync(
-            "WellSite AutoPilot .NET Runtime",
+            PlatformComponentNames.DotNetRuntime,
             dotNetWorkerUrl,
             cancellationToken);
 
         return
         [
             new PlatformComponent(
-                "WellSite AutoPilot Server",
+                PlatformComponentNames.Server,
                 serverVersion,
                 PlatformComponentStatus.Healthy),
             gateway,
@@ -46,12 +47,19 @@ public sealed class PlatformInformationService(
                 $"{baseUrl.TrimEnd('/')}/health/ready",
                 cancellationToken);
 
-            return new PlatformComponent(
-                displayName,
-                "installed",
-                response.IsSuccessStatusCode
-                    ? PlatformComponentStatus.Healthy
-                    : PlatformComponentStatus.Degraded);
+            string? sdk = null;
+            if (response.IsSuccessStatusCode && response.Content.Headers.ContentLength is null or < 8192)
+            {
+                try
+                {
+                    using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+                    if (json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("moduleSdkVersion", out var version) &&
+                        version.ValueKind == JsonValueKind.String && version.GetString() is { Length: <= 64 } text) sdk = text;
+                }
+                catch (JsonException) { /* Older health endpoints return plain text. */ }
+            }
+            return new PlatformComponent(displayName, "installed", response.IsSuccessStatusCode
+                ? PlatformComponentStatus.Healthy : PlatformComponentStatus.Degraded, sdk);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

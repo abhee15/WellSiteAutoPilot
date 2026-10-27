@@ -17,11 +17,17 @@ public static class LogicModulePackageCompatibility
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(expected);
         ValidateIdentity(package, expected.ModuleId, expected.ModuleVersion, expected.PackageSha256);
-        if (!Enum.IsDefined(expected.Runtime) || package.Manifest.Runtime != expected.Runtime)
+        ValidateHost(package.Manifest, expected.Runtime, expected.SdkVersion);
+    }
+
+    public static void ValidateHost(LogicModuleManifest manifest, LogicRuntimeKind runtime, string sdkVersion)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        if (!Enum.IsDefined(runtime) || manifest.Runtime != runtime)
             Fail("MODULE_RUNTIME_INCOMPATIBLE", "The package requires a different module runtime.");
-        if (!LogicModuleSemanticVersion.TryParse(expected.SdkVersion, out var hostVersion))
+        if (!LogicModuleSemanticVersion.TryParse(sdkVersion, out var hostVersion))
             Fail("MODULE_HOST_SDK_VERSION_INVALID", "The host SDK version must use semantic versioning.");
-        if (!LogicModuleSemanticVersion.TryParse(package.Manifest.MinimumSdkVersion, out var minimumVersion))
+        if (!LogicModuleSemanticVersion.TryParse(manifest.MinimumSdkVersion, out var minimumVersion))
             Fail("MODULE_SDK_VERSION_INVALID", "Minimum SDK version must use semantic versioning.");
         if (hostVersion!.CompareTo(minimumVersion) < 0)
             Fail("MODULE_SDK_INCOMPATIBLE", "The package requires a newer module SDK than the host supports.");

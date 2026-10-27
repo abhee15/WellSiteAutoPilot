@@ -5,7 +5,7 @@ using WellSiteAutoPilot.Domain.Logic;
 namespace WellSiteAutoPilot.Persistence.Logic;
 
 public sealed partial class LogicModuleCatalogRepository(
-    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : ILogicModuleCatalogRepository
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : ILogicModuleCatalogRepository, IModulePackageStateRepository
 {
     public async Task<InstalledLogicModule?> GetAsync(
         string moduleId,

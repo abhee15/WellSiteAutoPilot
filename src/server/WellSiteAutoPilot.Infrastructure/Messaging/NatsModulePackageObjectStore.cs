@@ -13,6 +13,23 @@ public sealed class NatsModulePackageObjectStore(INatsConnection connection) : I
 {
     public const string BucketName = "WSA_MODULES";
 
+    public async Task<bool> ContainsAsync(string packageSha256, CancellationToken cancellationToken = default)
+    {
+        if (packageSha256 is not { Length: 64 } || !packageSha256.All(char.IsAsciiHexDigit)) return false;
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(TimeSpan.FromSeconds(2));
+        try
+        {
+            await connection.ConnectAsync().AsTask().WaitAsync(budget.Token);
+            if (connection.ServerInfo?.AuthRequired != true) return false;
+            var store = await connection.CreateObjectStoreContext().GetObjectStoreAsync(BucketName, budget.Token);
+            var info = await store.GetInfoAsync("sha256/" + packageSha256, cancellationToken: budget.Token);
+            return !info.Deleted && info.Size is > 0 and <= LogicModulePackageService.MaximumUploadBytes;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
+        catch (NatsException) { return false; }
+    }
+
     public async Task PutAsync(string packageSha256, ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default)
     {
         if (!string.Equals(Convert.ToHexStringLower(SHA256.HashData(content.Span)), packageSha256, StringComparison.Ordinal))

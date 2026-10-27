@@ -44,6 +44,9 @@ internal static class ModulePackagePublicationChecks
         var objectStore = new NatsModulePackageObjectStore(connection);
         var firstBytes = Pack(identity, "1.0.0");
         var first = await UploadAsync(firstBytes);
+        var uploadedState = await new LogicModuleCatalogRepository(setup).ReadPackageStateAsync(first.Id, first.PackageSha256);
+        Assert(uploadedState.IsStored && !uploadedState.PublicationRecorded && !uploadedState.PublicationPending,
+            "Unapproved archive reported delivery.");
         Assert(await QueuesAsync(first.Id) == 0, "Upload queued unapproved code.");
         await ApproveAsync(first.Version);
         await ApproveAsync(first.Version);
@@ -70,6 +73,10 @@ internal static class ModulePackagePublicationChecks
         Assert(!await ProcessedAsync(firstQueue) && await PublishedAuditsAsync(first.Id) == 0,
             "Database failure after broker delivery committed processed state or audit.");
         Assert(await DispatchAsync(firstQueue, objectStore), "Queued publication did not recover.");
+        var publishedState = await new LogicModuleCatalogRepository(setup).ReadPackageStateAsync(first.Id, first.PackageSha256);
+        Assert(publishedState.PublicationRecorded && !publishedState.PublicationPending &&
+            await objectStore.ContainsAsync(first.PackageSha256) && !await objectStore.ContainsAsync(new string('0', 64)),
+            "Published package readiness did not reflect recorded delivery and exact artifact availability.");
         Assert(!await DispatchAsync(firstQueue, objectStore) && await PublishedAuditsAsync(first.Id) == 1,
             "A processed publication was sent or audited twice.");
         var store = await connection.CreateObjectStoreContext().GetObjectStoreAsync(NatsModulePackageObjectStore.BucketName);
