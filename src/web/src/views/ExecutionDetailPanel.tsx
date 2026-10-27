@@ -11,6 +11,7 @@ import {
   IN_FLIGHT_EXECUTION_STATUSES,
   previewExecutionOutput,
   executionInputObservations,
+  executionProvenance,
 } from './executionDetail';
 import type { ExecutionDetailErrorKind } from './executionDetail';
 import './executionSummary.css';
@@ -113,6 +114,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
 }) {
   const context = describeRunContext(detail, configuredLogic, assets);
   const outcome = outcomeLabel(detail.resultCode ?? detail.failureCode);
+  const provenance = executionProvenance(detail);
   const fields: Array<[string, string | null | undefined]> = [
     [t('execution.mode'), detail.mode],
     [t('execution.trigger'), detail.trigger],
@@ -123,6 +125,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
     [t('execution.asset'), detail.assetExternalId ?? detail.assetId],
     [t('execution.quantity'), detail.quantity],
     [t('execution.contract'), String(detail.requestContractVersion ?? '—')],
+    [t('execution.pinnedPackage'), provenance?.packageSha256],
     [t('execution.requested'), formatDetailTimestamp(detail.requestedAtUtc)],
     [t('execution.started'), formatDetailTimestamp(detail.startedAtUtc)],
     [t('execution.completed'), formatDetailTimestamp(detail.completedAtUtc)],
@@ -166,6 +169,14 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
           </div>
         ))}
       </dl>
+      {provenance && provenance.connections!.length > 0 && <section aria-label={t('execution.savedSources')}>
+        <h4>{t('execution.savedSources')}</h4>
+        <ul>{provenance.connections!.map(connection => <li key={`${connection.connectionId}:${connection.revision}`}>
+          {t('execution.connectionRevision', { connection: connection.connectionId ?? '—', revision: connection.revision ?? 0,
+            count: connection.assetCount ?? 0 })}
+        </li>)}</ul>
+        {provenance.connectionsTruncated && <p>{t('execution.connectionsTruncated')}</p>}
+      </section>}
       {observations.length > 0 && <section aria-label={t('shadow.observations')}>
         <h4>{t('shadow.observations')}</h4>
         <div className="table-wrap"><table className="activity-table"><thead><tr>

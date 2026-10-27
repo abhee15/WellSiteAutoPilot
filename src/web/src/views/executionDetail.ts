@@ -131,3 +131,15 @@ export function executionInputObservations(output?: string | null): InputObserva
         String(o[key as keyof InputObservation]).length <= 512));
   } catch { return []; }
 }
+
+
+/** Only the execution detail response carries pinned provenance; cached catalog data cannot replace it. */
+export function executionProvenance(detail: ExecutionResponse) {
+  const value = detail.provenance;
+  if (!value || !/^[a-f0-9]{64}$/.test(value.packageSha256 ?? '') ||
+      typeof value.connectionsTruncated !== 'boolean' || !Array.isArray(value.connections) || value.connections.length > 64 ||
+      !value.connections.every(connection => executionIdPattern.test(connection.connectionId ?? '') &&
+        Number.isSafeInteger(connection.revision) && (connection.revision ?? 0) > 0 &&
+        Number.isSafeInteger(connection.assetCount) && (connection.assetCount ?? 0) > 0)) return null;
+  return value;
+}
