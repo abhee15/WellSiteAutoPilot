@@ -162,6 +162,11 @@ public sealed class ModuleExecutionEngine(
             throw InputFailure("EXECUTION_INPUT_ACCESS_UNSUPPORTED");
         }
 
+        // A connection-backed read must never fall through to provider-ID routing.
+        // The following Gateway slice supplies the durable read-plan transport.
+        if (binding.Source is not null || !string.Equals(binding.ProviderId, "simulator", StringComparison.OrdinalIgnoreCase))
+            throw InputFailure("EXECUTION_READ_PLAN_UNAVAILABLE");
+
         var value = await gatewayDataClient.GetCurrentAsync(
             binding.ProviderId,
             binding.ProviderAssetExternalId,

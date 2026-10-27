@@ -42,7 +42,8 @@ public sealed record ExecutionInputBindingV2(
     string? CanonicalUnit,
     int? MaximumAgeSeconds,
     bool AllowUncertainQuality,
-    string ProviderMappingJson);
+    string ProviderMappingJson,
+    ExecutionReadSourceV3? Source = null);
 
 public sealed record ExecutionRequestedV2(
     Guid ExecutionId,
@@ -77,3 +78,9 @@ public sealed record ExecutionStartedV2(Guid ExecutionId, DateTimeOffset Started
 public sealed record ExecutionPackageV3(string Sha256, string ReviewedManifestJson);
 
 public sealed record ExecutionRequestedV3(ExecutionRequestedV2 Execution, ExecutionPackageV3 Package);
+
+// Additive V3 input metadata. The opaque reference selects a persisted, server-owned
+// read plan; these display fields never authorize routing or carry connection settings.
+public sealed record ExecutionReadSourceV3(
+    Guid ReadPlanId, Guid ConnectionId, int ConnectionRevision,
+    Guid SourceBindingId, string ResourceKind);

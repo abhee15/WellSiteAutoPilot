@@ -64,7 +64,7 @@ public sealed partial class ExecutionRepository
             if (await HasActiveAssetOverlapAsync(configurationId, assetIds, cancellationToken))
                 throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                     "A configured execution is already pending or running.");
-            execution = await StageConfiguredRequestAsync(execution, command, cancellationToken);
+            execution = await StageConfiguredRequestAsync(execution, command, cancellationToken, subject);
             dbContext.AuditEvents.Add(new AuditEventEntity
             {
                 Id = Guid.NewGuid(), OccurredAtUtc = execution.RequestedAtUtc, ActorUserId = subject.UserId,
