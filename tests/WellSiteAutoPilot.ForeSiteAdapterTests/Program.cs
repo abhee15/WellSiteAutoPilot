@@ -4,6 +4,8 @@ using WellSiteAutoPilot.Integration.ForeSite;
 
 // Recorded-shape checks always run. The live check runs when FORESITE_BASE_URL is set, as the current Windows
 // identity, which is how the installed Gateway reaches ForeSite.
+await MeasurementChecks.RunAsync();
+
 const string Account = @"CORP\svc-wsa";
 const string Leaky = "SECRET-BODY-TEXT";
 

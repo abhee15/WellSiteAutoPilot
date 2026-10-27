@@ -62,3 +62,36 @@ identity, saved connection with virtual-directory URL, approved exact package,
 direct-well/View setup, Shadow acquisition and persisted bounded success/failure
 observations. Timestamp/quality compatibility remains owner verified. Writes and
 autonomous control remain disabled.
+
+## Slice B transport and conservative provenance
+
+The worker sends only ExecutionId/ReadPlanId over authenticated NATS core RPC
+(`wsa.rpc.current-measurement.v1`, outside durable event streams). The Server
+resolves the persisted snapshot and calls the existing authenticated Gateway
+adapter client. Settings cross only the existing Server-to-Gateway boundary;
+responses contain only EngineeringValue or a typed failure code. Both broker
+ends refuse a server that does not require authentication. Shared deployment
+broker participants remain trusted, as in #287; subject ACLs are future work.
+
+The Gateway's ServerPolicy-only ForeSite current-read endpoint uses the same
+ForeSiteSession as discovery/test. Bounded connection/revision sessions serialize
+operations, reuse cookies, retry one 401, preserve virtual-directory paths and
+retire changed sessions without disposing active readers. Idle sessions expire;
+capacity is bounded at 128. Gateway operations have six seconds within the
+Server's eight-second budget and worker's ten-second request deadline.
+
+**Local evidence gate:** POC-shaped CurrentPumpFillage/AveragePumpFillage and
+LastGoodScanTime can be parsed, but the scan timestamp has not been demonstrated
+to be the measurement time. Equal LastScanTime/LastGoodScanTime does not establish
+Good quality. Such observations are explicitly Unknown/UnverifiedScan and cannot
+pass worker validation, even when AllowUncertainQuality is enabled. Do not claim
+live readiness or relax freshness to force a run. Owner-supplied sanitized payloads
+and confirmed field semantics are needed to finish the live quality/time mapping.
+Malformed, missing, nonnumeric, out-of-range or offset-free timestamps have typed
+failures. The engineering contract adds optional retrieval time and timestamp-kind
+metadata; old simulator fields and SDK module input constructors are unchanged.
+
+Tests: ForeSiteAdapterTests reuses existing recorded-shape suite and adds mocked
+connection/session/parser regressions. ExecutionDispatchTests adds a real broker
+RPC check against fake authoritative storage/Gateway, proving worker routing fields
+cannot override the persisted source and private error details do not escape.

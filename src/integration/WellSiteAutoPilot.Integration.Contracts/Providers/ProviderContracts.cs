@@ -60,7 +60,9 @@ public sealed record EngineeringValue(
     string Unit,
     DateTimeOffset TimestampUtc,
     string Quality,
-    string Source);
+    string Source,
+    DateTimeOffset? RetrievedAtUtc = null,
+    string? TimestampKind = null);
 
 public sealed record ProviderAlarm(
     string AlarmId,

@@ -122,7 +122,7 @@ public sealed class ModuleExecutionEngine(
                 await readLimiter.WaitAsync(cancellationToken);
                 try
                 {
-                    return await ReadInputAsync(binding, evaluationTimeUtc, cancellationToken);
+                    return await ReadInputAsync(request.ExecutionId, binding, evaluationTimeUtc, cancellationToken);
                 }
                 finally
                 {
@@ -153,6 +153,7 @@ public sealed class ModuleExecutionEngine(
     }
 
     private async Task<LogicInputValue> ReadInputAsync(
+        Guid executionId,
         ExecutionInputBindingV2 binding,
         DateTimeOffset evaluationTimeUtc,
         CancellationToken cancellationToken)
@@ -162,16 +163,7 @@ public sealed class ModuleExecutionEngine(
             throw InputFailure("EXECUTION_INPUT_ACCESS_UNSUPPORTED");
         }
 
-        // A connection-backed read must never fall through to provider-ID routing.
-        // The following Gateway slice supplies the durable read-plan transport.
-        if (binding.Source is not null || !string.Equals(binding.ProviderId, "simulator", StringComparison.OrdinalIgnoreCase))
-            throw InputFailure("EXECUTION_READ_PLAN_UNAVAILABLE");
-
-        var value = await gatewayDataClient.GetCurrentAsync(
-            binding.ProviderId,
-            binding.ProviderAssetExternalId,
-            binding.Quantity,
-            cancellationToken);
+        var value = await gatewayDataClient.GetCurrentAsync(executionId, binding, cancellationToken);
 
         if (!string.Equals(value.Quantity, binding.Quantity, StringComparison.OrdinalIgnoreCase) ||
             (binding.CanonicalUnit is not null &&
