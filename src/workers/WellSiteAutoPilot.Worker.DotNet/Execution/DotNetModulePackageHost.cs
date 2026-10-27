@@ -11,6 +11,7 @@ namespace WellSiteAutoPilot.Worker.DotNet.Execution;
 /// <summary>Hosts reviewed managed packages. This is not an arbitrary-code sandbox.</summary>
 public sealed class DotNetModulePackageHost(IModulePackageSource source, string workingDirectory)
 {
+    private readonly ModuleWorkingDirectories _directories = new(workingDirectory);
     public async Task<LoadedLogicModule> LoadAsync(string moduleId, string version,
         string sha256, string reviewedManifestJson, CancellationToken cancellationToken = default)
     {
@@ -34,7 +35,8 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
             new LogicModulePackageExpectation(moduleId, version, sha256, LogicRuntimeKind.DotNet, sdk));
         LogicModulePackageCompatibility.ValidateCatalog(inspected, moduleId, version, sha256, reviewedManifestJson);
 
-        var directory = Path.Combine(Path.GetFullPath(workingDirectory), Guid.NewGuid().ToString("N"));
+        var lease = _directories.Acquire();
+        var directory = lease.DirectoryPath;
         PackageLoadContext? context = null;
         try
         {
@@ -72,14 +74,15 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
                     else if (module is IDisposable disposable) disposable.Dispose();
                     throw Failure("MODULE_PACKAGE_IDENTITY_MISMATCH");
                 }
-                return new LoadedLogicModule(module, context, directory);
+                return new LoadedLogicModule(module, context, directory, lease);
             }
             throw Failure("MODULE_ENTRY_POINT_INVALID");
         }
         catch
         {
             context?.Unload();
-            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+            try { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
+            finally { lease.Dispose(); }
             throw;
         }
     }
@@ -131,7 +134,8 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
     }
 }
 
-public sealed class LoadedLogicModule(ILogicModuleV1 module, AssemblyLoadContext context, string directory) : IAsyncDisposable
+public sealed class LoadedLogicModule(ILogicModuleV1 module, AssemblyLoadContext context, string directory,
+    IDisposable? directoryLease = null) : IAsyncDisposable
 {
     private ILogicModuleV1? _module = module;
     public ILogicModuleV1 Module => _module ?? throw new ObjectDisposedException(nameof(LoadedLogicModule));
@@ -148,7 +152,8 @@ public sealed class LoadedLogicModule(ILogicModuleV1 module, AssemblyLoadContext
         finally
         {
             context.Unload();
-            Directory.Delete(directory, recursive: true);
+            try { Directory.Delete(directory, recursive: true); }
+            finally { directoryLease?.Dispose(); }
         }
     }
 }
