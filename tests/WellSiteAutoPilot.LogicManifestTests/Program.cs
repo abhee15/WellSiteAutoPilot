@@ -3,6 +3,8 @@ using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
 
+InputPolicyChecks.Run();
+
 var validManifest = new LogicModuleManifest(
     1,
     "weatherford.target-fillage",

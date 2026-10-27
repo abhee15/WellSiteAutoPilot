@@ -16,7 +16,7 @@ Implementation status after #289–#295 and the package-readiness slice:
 | B8 / G10 | #291 real package/NATS/Postgres end-to-end with simulated authorized engineering evidence and disabled-source failure; owner live acceptance remains |
 | F4 | Nonempty ForeSite mapping rejected at configuration validation and dispatch; direct-well editor reuses existing validation |
 | F6 / G4 | #291 bounded acquisition/module failure diagnostics persisted and displayed |
-| F7 | **Outstanding:** starter calculations duplicate 60-second freshness policy; worker still enforces reviewed manifest policy |
+| F7 | 1.0.2 starters delegate freshness/quality to host policy; shared .NET validator and changed-policy cross-runtime regressions |
 | F8 / G5 | #291 durable fair retry scheduling and poison-publication regression; publication gate/readiness added in final slice |
 | F9 / G6 | #292 direct imported leaf well through existing configuration editor and source ownership checks |
 | F10 / G7 | #293 existing binary upload/approval workflow; final slice adds exact artifact/publication/runtime readiness and retry facts |
@@ -152,6 +152,6 @@ guarantee future availability. Actual execution still verifies hash/manifest and
 current saved-connection permissions. The panel uses the existing catalog,
 outbox, approval controls and generated client; there is no second package store.
 
-Remaining work: owner live evidence/acceptance, F7 starter policy alignment, and
+Remaining work: owner live evidence/acceptance and
 a separate service-account design before scheduled live reads. Python production
 parity requires a real host/dependency-isolation design and is not enabled here.

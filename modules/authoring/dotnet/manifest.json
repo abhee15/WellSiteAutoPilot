@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
   "moduleId": "weatherford.foresite-well-input-check.dotnet",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "displayName": "ForeSite Well Input Check (dotnet)",
   "publisher": "Weatherford",
   "runtime": "DotNet",

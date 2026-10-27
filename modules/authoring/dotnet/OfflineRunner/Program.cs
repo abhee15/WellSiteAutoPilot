@@ -1,10 +1,12 @@
+using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Failures;
 using System.Text.Json;
 using Weatherford.ForeSiteWellInputCheck;
 using WellSiteAutoPilot.ModuleSdk;
 
-if (args.Length != 1)
+if (args.Length is < 1 or > 2)
 {
-    Console.Error.WriteLine("Usage: dotnet run --project OfflineRunner -- <fixture.json>");
+    Console.Error.WriteLine("Usage: dotnet run --project OfflineRunner -- <fixture.json> [reviewed-manifest.json]");
     return 2;
 }
 
@@ -28,6 +30,27 @@ try
         ?? throw new InvalidDataException("Context is required.");
     var module = new EntryPoint();
     var result = await module.ExecuteAsync(context);
+    // This trusted offline example has no side effects. Admit outputs only after
+    // the same reviewed input policy used by the production worker succeeds.
+    if (result.FailureCode is null)
+    {
+        using var manifestStream = File.OpenRead(args.Length == 2 ? args[1] : Path.Combine(AppContext.BaseDirectory, "manifest.json"));
+        var manifest = await LogicModuleManifestReader.ReadAsync(manifestStream);
+        if (manifest.ModuleId != context.ModuleIdentity.ModuleId || manifest.Version != context.ModuleIdentity.Version)
+            throw new InvalidDataException("The reviewed manifest does not match the context identity.");
+        try
+        {
+            foreach (var input in context.Inputs)
+            {
+                var requirement = manifest.DataRequirements.Single(r => r.Id == input.RequirementId);
+                LogicModuleInputValidation.Validate(input, requirement, context.EvaluationTimeUtc);
+            }
+        }
+        catch (WellSiteAutoPilotException failure)
+        {
+            result = new LogicModuleExecutionResult(failure.Code, [], [], [], new Dictionary<string, string>()) { FailureCode = failure.Code };
+        }
+    }
     // Keep original observations: SDK engineering results intentionally omit time/quality.
     Console.WriteLine(JsonSerializer.Serialize(new
     {
@@ -36,7 +59,7 @@ try
     return result.FailureCode is null ? 0 : 2;
 }
 catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException or
-    JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
+    JsonException or WellSiteAutoPilotException or KeyNotFoundException or InvalidOperationException or FormatException)
 {
     Console.Error.WriteLine($"Invalid offline fixture: {error.GetType().Name}");
     return 2;

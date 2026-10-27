@@ -55,7 +55,7 @@ the same SDK records. [contract-v1.md](contract-v1.md) specifies this starter
 wire profile. The runners invoke the exact example entry points; they do not
 rewrite the algorithm for testing.
 
-The 1.0.1 templates require SDK 1.1.0 and an updated .NET worker that handles
+The 1.0.2 templates require SDK 1.1.0 and an updated .NET worker that handles
 `failureCode`. It is null on success and a stable uppercase code on failure;
 `outcomeCode` alone does not determine success. Existing modules that omit the
 property retain their prior behavior. Rebuild/repackage with the new versions;
@@ -143,3 +143,9 @@ The first live acceptance is one explicitly selected well, one verified input,
 manual Shadow execution and persisted observations/results with zero provider
 writes. Views help select wells; assignment freezes the reviewed set. PowerShell
 is a future worker option. CygNet remains a separate workstream.
+
+The 1.0.2 starter calculations delegate freshness/quality policy to the host.
+The .NET offline host shares production validation; Python's offline host reads
+its reviewed manifest. Both runners accept a second optional manifest path for
+policy regression testing. Changed age/quality acceptance is covered on Windows
+and Linux; deploy changed reviewed policy under a new immutable package version.

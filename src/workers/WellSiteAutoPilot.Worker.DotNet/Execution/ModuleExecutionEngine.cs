@@ -185,42 +185,12 @@ public sealed class ModuleExecutionEngine(
         var value = await gatewayDataClient.GetCurrentAsync(executionId, binding, cancellationToken);
         observe(value);
         if (value.TimestampKind == "UnverifiedScan") throw InputFailure("EXECUTION_INPUT_TIMESTAMP_UNVERIFIED");
-        if (value.TimestampUtc == default) throw InputFailure("EXECUTION_INPUT_TIMESTAMP_INVALID");
-
-        if (!string.Equals(value.Quantity, binding.Quantity, StringComparison.OrdinalIgnoreCase) ||
-            (binding.CanonicalUnit is not null &&
-             !string.Equals(value.Unit, binding.CanonicalUnit, StringComparison.OrdinalIgnoreCase)))
-        {
-            throw InputFailure("EXECUTION_INPUT_QUANTITY_MISMATCH");
-        }
-
-        if (!string.Equals(value.Quality, "Good", StringComparison.OrdinalIgnoreCase) &&
-            !(binding.AllowUncertainQuality && string.Equals(value.Quality, "Uncertain", StringComparison.OrdinalIgnoreCase)))
-        {
-            throw InputFailure("EXECUTION_INPUT_QUALITY_REJECTED");
-        }
-
-        if (value.TimestampUtc > evaluationTimeUtc.AddSeconds(30))
-        {
-            throw InputFailure("EXECUTION_INPUT_FUTURE");
-        }
-
-        if (binding.MaximumAgeSeconds is > 0 &&
-            evaluationTimeUtc - value.TimestampUtc >
-            TimeSpan.FromSeconds(binding.MaximumAgeSeconds.Value))
-        {
-            throw InputFailure("EXECUTION_INPUT_STALE");
-        }
-
-        return new LogicInputValue(
-            binding.RequirementId,
-            binding.AssetId,
-            value.Quantity,
-            value.Value,
-            value.Unit,
-            value.TimestampUtc,
-            value.Quality,
-            value.Source);
+        var input = new LogicInputValue(binding.RequirementId, binding.AssetId, value.Quantity, value.Value,
+            value.Unit, value.TimestampUtc, value.Quality, value.Source);
+        WellSiteAutoPilot.Application.Logic.LogicModuleInputValidation.Validate(input,
+            new WellSiteAutoPilot.Domain.Logic.LogicDataRequirement(binding.RequirementId, "", binding.Quantity, binding.Access,
+                binding.CanonicalUnit, binding.MaximumAgeSeconds, binding.AllowUncertainQuality), evaluationTimeUtc);
+        return input;
     }
     private static void EnsureModuleSucceeded(LogicModuleExecutionResult? result)
     {
