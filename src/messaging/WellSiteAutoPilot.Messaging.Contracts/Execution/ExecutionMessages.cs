@@ -69,7 +69,12 @@ public sealed record ExecutionFailedV2(
     DateTimeOffset StartedAtUtc,
     DateTimeOffset FailedAtUtc,
     string FailureCode,
-    bool RequiresAttention);
+    bool RequiresAttention,
+    IReadOnlyCollection<ExecutionInputDiagnosticV1>? InputDiagnostics = null);
+
+public sealed record ExecutionInputDiagnosticV1(string RequirementId, Guid AssetId, Guid? ConnectionId,
+    string Quantity, string? Unit, decimal? Value, DateTimeOffset? TimestampUtc,
+    DateTimeOffset? RetrievedAtUtc, string? TimestampKind, string Quality, string OutcomeCode);
 
 public sealed record ExecutionStartedV2(Guid ExecutionId, DateTimeOffset StartedAtUtc);
 

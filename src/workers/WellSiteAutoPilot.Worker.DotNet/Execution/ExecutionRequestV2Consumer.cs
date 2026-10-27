@@ -156,7 +156,8 @@ public sealed partial class ExecutionRequestV2Consumer(
                 startedAtUtc,
                 failedAtUtc,
                 failure.Code,
-                failure.Kind == FailureKind.Unexpected);
+                failure.Kind == FailureKind.Unexpected,
+                ExecutionFailureDiagnostics.Read(exception));
 
             await PublishResultAsync(
                 Subjects.ExecutionFailedV2,

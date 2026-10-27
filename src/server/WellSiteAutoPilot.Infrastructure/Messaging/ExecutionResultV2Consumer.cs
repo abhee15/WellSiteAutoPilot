@@ -158,13 +158,14 @@ public sealed partial class ExecutionResultV2Consumer(
 
                 using var activity = WellSiteTelemetry.StartConsumer("execution result apply", envelope.TraceParent);
                 activity?.SetTag(WellSiteTelemetry.ExecutionTag, envelope.Payload.ExecutionId);
-                var disposition = await repository.ApplyFailedAsync(
+                var disposition = await repository.ApplyFailedWithDiagnosticsAsync(
                     envelope.MessageId,
                     ConsumerName,
                     envelope.Payload.ExecutionId,
                     envelope.Payload.StartedAtUtc,
                     envelope.Payload.FailedAtUtc,
                     envelope.Payload.FailureCode,
+                    envelope.Payload.InputDiagnostics is null ? null : JsonSerializer.Serialize(envelope.Payload.InputDiagnostics, SerializerOptions),
                     cancellationToken);
                 ObserveResult(disposition, envelope.Payload.ExecutionId,
                     envelope.MessageId, "Failed");

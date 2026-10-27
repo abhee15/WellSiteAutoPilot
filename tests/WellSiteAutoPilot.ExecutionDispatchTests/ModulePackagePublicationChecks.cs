@@ -168,6 +168,27 @@ internal static class ModulePackagePublicationChecks
             await setup.AuditEvents.CountAsync(item => item.TargetId == legacy.Id.ToString() && item.Action == "logic-module.package-publication-queued") == 1,
             "Repeat approval did not repair missing delivery idempotently.");
         await DispatchAsync(await QueueAsync(legacy.Id), objectStore);
+        // More than a complete batch of poison work must not starve a later approved package.
+        var poison = Enumerable.Range(0, 21).Select(_ => new WellSiteAutoPilot.Persistence.Messaging.OutboxMessageEntity
+        { Id = Guid.NewGuid(), Type = ModulePackagePublication.OutboxType, Payload = "{}", CreatedAtUtc = now.AddDays(-1) }).ToArray();
+        setup.OutboxMessages.AddRange(poison);
+        await setup.SaveChangesAsync();
+        var later = await UploadAsync(Pack(identity, "1.0.5"));
+        await ApproveAsync(later.Version);
+        var fairStore = new RecordingStore();
+        await using (var fairDb = new WellSiteAutoPilotDbContext(options))
+        {
+            var publisher = new ModulePackagePublisher(fairDb, fairStore, TimeProvider.System,
+                NullLogger<ModulePackagePublisher>.Instance);
+            await publisher.DispatchBatchAsync();
+            Assert(await fairDb.OutboxMessages.CountAsync(item => poison.Select(p => p.Id).Contains(item.Id) &&
+                item.ProcessedAtUtc == null && item.AttemptCount == 1 && item.NextAttemptAtUtc != null && item.LastFailureCode != null) >= 20,
+                "Poison publication retries were not durably scheduled with bounded diagnostics.");
+            await publisher.DispatchBatchAsync();
+        }
+        Assert(await ProcessedAsync(await QueueAsync(later.Id)) && fairStore.Calls >= 1,
+            "A full poison batch starved a later approved package.");
+        await setup.OutboxMessages.Where(item => poison.Select(p => p.Id).Contains(item.Id)).ExecuteDeleteAsync();
         Console.WriteLine("Approved package delivery: retry/replay, checksum, retirement fencing and real multi-chunk Object Store checks passed.");
 
         async Task<InstalledLogicModule> UploadAsync(byte[] bytes)

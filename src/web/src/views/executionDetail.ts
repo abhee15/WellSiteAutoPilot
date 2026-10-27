@@ -98,12 +98,31 @@ export function previewExecutionOutput(value?: string | null): {
 
 
 type InputObservation = { requirementId: string; assetId: string; quantity: string;
-  value: number; unit: string; timestampUtc: string; quality: string; source: string };
+  value: number | null; unit: string | null; timestampUtc: string | null; quality: string; source: string;
+  outcomeCode?: string; retrievedAtUtc?: string | null; timestampKind?: string | null };
 /** Bounded, defensive view of worker telemetry; never render arbitrary output as HTML. */
 export function executionInputObservations(output?: string | null): InputObservation[] {
   if (!output || output.length > 1048576) return [];
   try {
-    const value = JSON.parse(output) as { inputObservations?: unknown };
+    const value = JSON.parse(output) as { inputObservations?: unknown; inputDiagnostics?: unknown };
+    if (Array.isArray(value.inputDiagnostics)) {
+      const boundedText = (text: unknown, maximum: number): text is string =>
+        typeof text === 'string' && text.length > 0 && text.length <= maximum && ![...text].some(character => character.charCodeAt(0) < 32);
+      const timestamp = (text: unknown): text is string | null => text === null ||
+        boundedText(text, 64) && Number.isFinite(Date.parse(text));
+      return value.inputDiagnostics.slice(0, 64).filter(o => o && typeof o === 'object' &&
+        boundedText(o.requirementId, 128) && boundedText(o.assetId, 64) && boundedText(o.quantity, 256) &&
+        (o.value === null || typeof o.value === 'number' && Number.isFinite(o.value)) &&
+        (o.unit === null || boundedText(o.unit, 32)) && timestamp(o.timestampUtc) && timestamp(o.retrievedAtUtc) &&
+        (o.connectionId === null || typeof o.connectionId === 'string' && executionIdPattern.test(o.connectionId)) &&
+        ['Good', 'Uncertain', 'Bad', 'Unknown'].includes(o.quality) &&
+        (o.timestampKind === null || o.timestampKind === 'UnverifiedScan') &&
+        boundedText(o.outcomeCode, 128) && /^[A-Z][A-Z0-9_]*$/.test(o.outcomeCode))
+        .map(o => ({ requirementId: o.requirementId, assetId: o.assetId, quantity: o.quantity,
+          value: o.value, unit: o.unit, timestampUtc: o.timestampUtc, quality: o.quality,
+          source: o.connectionId ?? '—', outcomeCode: o.outcomeCode,
+          retrievedAtUtc: o.retrievedAtUtc, timestampKind: o.timestampKind }));
+    }
     if (!Array.isArray(value.inputObservations)) return [];
     return value.inputObservations.slice(0, 100).filter((o: InputObservation) =>
       !!o && typeof o === 'object' && Number.isFinite(o.value) &&

@@ -479,6 +479,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         outbox.Property(x => x.Type).HasMaxLength(256).IsRequired();
         outbox.Property(x => x.Payload).IsRequired();
         outbox.Property(x => x.CreatedAtUtc).IsRequired();
+        outbox.Property(x => x.LastFailureCode).HasMaxLength(128);
+        outbox.HasIndex(x => new { x.Type, x.ProcessedAtUtc, x.NextAttemptAtUtc });
         outbox.HasIndex(x => x.ProcessedAtUtc);
 
         var inbox = modelBuilder.Entity<InboxMessageEntity>();

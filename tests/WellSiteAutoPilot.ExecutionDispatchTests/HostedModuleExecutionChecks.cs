@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -33,7 +35,8 @@ internal static class HostedModuleExecutionChecks
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     { Converters = { new JsonStringEnumConverter() } };
 
-    public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, NatsConnection connection)
+    public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, NatsConnection connection,
+        bool savedConnection = false, bool disabledConnection = false)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
         var now = DateTimeOffset.UtcNow;
@@ -60,21 +63,46 @@ internal static class HostedModuleExecutionChecks
         var command = new ConfiguredShadowExecutionCommand(Guid.NewGuid(), Guid.NewGuid(), moduleId, "1.0.0", "{}",
             [new("well", asset, "{}")], [new("fillage", asset, "simulator", "WELL-PROBE", "PumpFillage", "Current", "%", 60, false, "{}")],
             ExecutionTriggerKind.Scheduled, now);
-        await RefuseDispatchAsync("MODULE_NOT_ENABLED");
+        var connectionId = Guid.NewGuid();
+        if (savedConnection)
+        {
+            db.RolePermissions.AddRange(new RolePermissionEntity { RoleId = role, Permission = WellSitePermissions.ExecutionsRequest },
+                new RolePermissionEntity { RoleId = role, Permission = WellSitePermissions.ConfiguredLogicRead });
+            db.AccessGrants.Add(new() { Id = Guid.NewGuid(), UserId = user, RoleId = role, SubjectKind = "User", ScopeKind = "AllAssets",
+                IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now });
+            var type = Guid.NewGuid();
+            db.AssetTypes.Add(new() { Id = type, Key = moduleId, DisplayName = moduleId, AttributeSchemaJson = "{\"type\":\"object\"}",
+                SchemaVersion = 1, IsActive = true, CreatedAtUtc = now });
+            db.Connections.Add(new() { Id = connectionId, Name = moduleId, NormalizedName = moduleId, AdapterKey = "foresite", SettingsVersion = 1,
+                SettingsJson = "{\"baseUrl\":\"http://private-fixture/prefix/\"}", Revision = 1, IsEnabled = true, CreatedAtUtc = now, UpdatedAtUtc = now });
+            db.Assets.Add(new() { Id = asset, AssetTypeId = type, Name = moduleId, OwnerConnectionId = connectionId, IsActive = true, CreatedAtUtc = now });
+            db.SourceBindings.Add(new() { Id = Guid.NewGuid(), AssetId = asset, ConnectionId = connectionId, ExternalId = "42",
+                ResourceKind = "foresite.well", CreatedAtUtc = now });
+            db.ConfiguredLogicDefinitions.Add(new() { Id = command.ConfiguredLogicId, Name = moduleId, ActiveRevisionId = command.ConfigurationRevisionId, CreatedAtUtc = now });
+            db.ConfiguredLogicRevisions.Add(new() { Id = command.ConfigurationRevisionId, ConfiguredLogicId = command.ConfiguredLogicId, RevisionNumber = 1,
+                ModuleId = moduleId, ModuleVersion = "1.0.0", Mode = "Shadow", Status = "Active", CreatedAtUtc = now });
+            await db.SaveChangesAsync();
+            command = command with { Inputs = [command.Inputs.Single() with { ProviderId = "foresite", ProviderAssetExternalId = "42" }],
+                Trigger = ExecutionTriggerKind.Manual, ScheduledForUtc = null };
+        }
+        else await RefuseDispatchAsync("MODULE_NOT_ENABLED");
         var approval = new LogicModuleApprovalService(new LogicModuleCatalogRepository(db));
         await approval.ApproveAsync(moduleId, "1.0.0", "Reviewed executable fixture", subject, actor);
         await new ModulePackagePublisher(db, new NatsModulePackageObjectStore(connection), TimeProvider.System,
             NullLogger<ModulePackagePublisher>.Instance).DispatchAsync(module.Id);
 
-        var execution = await new ExecutionService(new ExecutionRepository(db), TimeProvider.System)
-            .RequestConfiguredShadowAsync(command, moduleId);
+        var execution = savedConnection
+            ? await new ExecutionRepository(db).AddManualConfiguredRequestedAsync(
+                ExecutionService.CreateConfiguredRequest(command, moduleId, now, Guid.NewGuid()), command, actor)
+            : await new ExecutionService(new ExecutionRepository(db), TimeProvider.System).RequestConfiguredShadowAsync(command, moduleId);
         var hosted = JsonSerializer.Deserialize<ExecutionRequestedV3>(execution.RequestPayloadJson!, Options)!;
         Assert(execution.RequestContractVersion == 3 && hosted.Package.Sha256 == module.PackageSha256 &&
             hosted.Package.ReviewedManifestJson == module.ManifestJson && hosted.Execution.ExecutionId == execution.Id,
             "Dispatch did not snapshot the authoritative approved package.");
         // Retirement stops NEW dispatch. A committed request retains its reviewed bytes.
         await approval.RetireAsync(moduleId, "1.0.0", "Exercise accepted-request boundary", subject, actor);
-        await RefuseDispatchAsync("MODULE_NOT_ENABLED");
+        if (!savedConnection) await RefuseDispatchAsync("MODULE_NOT_ENABLED");
+        if (disabledConnection) await db.Connections.Where(c => c.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(c => c.IsEnabled, false));
 
         var store = await connection.CreateObjectStoreContext().GetObjectStoreAsync("WSA_MODULES");
         using (var corrupt = new MemoryStream([1, 2, 3]))
@@ -82,7 +110,13 @@ internal static class HostedModuleExecutionChecks
         var working = Path.Combine(Path.GetTempPath(), "wsa-hosted-e2e-" + user.ToString("N"));
         Environment.SetEnvironmentVariable("WSA_HOSTED_EXECUTION_TEST_ID", moduleId);
         using var http = new HttpClient(new ProbeData(now)) { BaseAddress = new Uri("http://gateway.invalid") };
-        var engine = new ModuleExecutionEngine(new GatewayDataClient(http), new BuiltInLogicModuleResolver(),
+        var services = new ServiceCollection().AddScoped(_ => new WellSiteAutoPilotDbContext(options))
+            .AddScoped<IExecutionReadRepository>(provider => new ExecutionRepository(provider.GetRequiredService<WellSiteAutoPilotDbContext>()))
+            .AddSingleton<IExecutionMeasurementGateway>(new RecordedMeasurements(connectionId, now));
+        await using var readProvider = services.BuildServiceProvider();
+        using var reads = new ExecutionMeasurementReadConsumer(readProvider.GetRequiredService<IServiceScopeFactory>(), connection,
+            NullLogger<ExecutionMeasurementReadConsumer>.Instance);
+        var engine = new ModuleExecutionEngine(new GatewayDataClient(http, connection), new BuiltInLogicModuleResolver(),
             packageHost: new DotNetModulePackageHost(new NatsModulePackageSource(connection), working));
         using var worker = new ExecutionRequestV2Consumer(connection, engine, TimeProvider.System,
             new JetStreamConsumerSettings(), NullLogger<ExecutionRequestV2Consumer>.Instance);
@@ -94,6 +128,7 @@ internal static class HostedModuleExecutionChecks
         var sawCompleted = false;
         try
         {
+            if (savedConnection) await reads.StartAsync(deadline.Token);
             await worker.StartAsync(deadline.Token);
             var publisher = new OutboxPublisher(db, connection, TimeProvider.System);
             for (var batch = 0; batch < 10 && !await db.OutboxMessages.AsNoTracking().AnyAsync(item =>
@@ -104,7 +139,17 @@ internal static class HostedModuleExecutionChecks
             {
                 await message.AckAsync(cancellationToken: deadline.Token);
                 if (message.Data is null || !message.Data.Contains(execution.Id.ToString(), StringComparison.Ordinal)) continue;
-                if (message.Subject == Subjects.ExecutionFailedV2) throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
+                if (message.Subject == Subjects.ExecutionFailedV2)
+                {
+                    if (!disabledConnection) throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
+                    var failed = JsonSerializer.Deserialize<MessageEnvelope<ExecutionFailedV2>>(message.Data, Options)!;
+                    Assert(failed.Payload.FailureCode == "EXECUTION_CONNECTION_DISABLED" && failed.Payload.InputDiagnostics?.Count == 1,
+                        "Revoked connection did not produce bounded typed input failure evidence.");
+                    await repository.ApplyFailedWithDiagnosticsAsync(failed.MessageId, "hosted-check", execution.Id,
+                        failed.Payload.StartedAtUtc, failed.Payload.FailedAtUtc, failed.Payload.FailureCode,
+                        JsonSerializer.Serialize(failed.Payload.InputDiagnostics, Options));
+                    break;
+                }
                 if (message.Subject == Subjects.ExecutionStartedV2)
                 {
                     var started = JsonSerializer.Deserialize<MessageEnvelope<ExecutionStartedV2>>(message.Data, Options)!;
@@ -123,7 +168,9 @@ internal static class HostedModuleExecutionChecks
                     break;
                 }
             }
-            Assert(sawStarted && sawCompleted && (await repository.GetAsync(execution.Id))?.Status == ExecutionStatus.Completed,
+            Assert(sawStarted && (disabledConnection
+                ? (await repository.GetAsync(execution.Id)) is { Status: ExecutionStatus.Failed, OutputJson: not null }
+                : sawCompleted && (await repository.GetAsync(execution.Id))?.Status == ExecutionStatus.Completed),
                 "Real approved archive did not complete through V3 dispatch and V2 results.");
             Assert(!Directory.EnumerateFileSystemEntries(working).Any(), "Successful execution retained working files.");
             Console.WriteLine("Hosted package E2E: upload, approval, pinned dispatch, NATS, worker loading, input read, result persistence and retirement boundary passed.");
@@ -132,6 +179,7 @@ internal static class HostedModuleExecutionChecks
         {
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await worker.StopAsync(stop.Token);
+            if (savedConnection) await reads.StopAsync(stop.Token);
             Environment.SetEnvironmentVariable("WSA_HOSTED_EXECUTION_TEST_ID", null);
             if (Directory.Exists(working)) Directory.Delete(working, recursive: true);
         }
@@ -157,6 +205,17 @@ internal static class HostedModuleExecutionChecks
             image.CopyTo(output);
         }
         return bytes.ToArray();
+    }
+    // Synthetic, explicitly verified engineering evidence isolates the execution contract
+    // from the separate ForeSite HTTP parser's live-only scan-time semantics.
+    private sealed class RecordedMeasurements(Guid connectionId, DateTimeOffset timestamp) : IExecutionMeasurementGateway
+    {
+        public Task<EngineeringValue> GetCurrentAsync(AuthorizedExecutionRead read, CancellationToken cancellationToken = default)
+        {
+            Assert(read.ConnectionId == connectionId && read.ConnectionRevision == 1 && read.ExternalId == "42" && read.Quantity == "PumpFillage",
+                "Hosted read escaped its authorized saved source.");
+            return Task.FromResult(new EngineeringValue("PumpFillage", 99.6m, "%", timestamp, "Good", "verified-test-fixture"));
+        }
     }
     private sealed class ProbeData(DateTimeOffset timestamp) : HttpMessageHandler
     {

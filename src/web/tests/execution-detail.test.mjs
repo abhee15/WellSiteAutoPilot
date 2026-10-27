@@ -159,3 +159,24 @@ test('input observations fail closed on malformed or oversized output and cap vi
     { ...row, value: null }, { ...row, source: 'x'.repeat(513) }, null
   ] })), []);
 });
+
+
+test('failed input diagnostics show bounded missing/uncertain evidence without treating scan time as freshness', () => {
+  const row = { requirementId: 'fillage', assetId: id, connectionId: secondId, quantity: 'PumpFillage',
+    value: null, unit: null, quality: 'Unknown', timestampUtc: '2026-10-27T05:00:00Z',
+    retrievedAtUtc: '2026-10-27T05:01:00Z', timestampKind: 'UnverifiedScan',
+    outcomeCode: 'EXECUTION_INPUT_TIMESTAMP_UNVERIFIED', private: 'SECRET' };
+  const outputJson = JSON.stringify({ inputDiagnostics: Array(100).fill(row) });
+  const rows = detail.executionInputObservations(outputJson);
+  assert.equal(rows.length, 64);
+  assert.equal(rows[0].value, null);
+  assert.equal(rows[0].source, secondId);
+  assert.equal(rows[0].private, undefined);
+  assert.deepEqual(detail.executionInputObservations(JSON.stringify({ inputDiagnostics: [{ ...row, outcomeCode: '<script>' }] })), []);
+  const html = renderToStaticMarkup(createElement(panel.ExecutionDetailContent, {
+    detail: { ...response, status: 'Failed', failureCode: row.outcomeCode, outputJson: JSON.stringify({ inputDiagnostics: [row] }) },
+  }));
+  assert.match(html, /Unverified scan time; measurement freshness is unknown/);
+  assert.match(html, /EXECUTION_INPUT_TIMESTAMP_UNVERIFIED/);
+  assert.match(html, /Retrieved at/);
+});

@@ -14,6 +14,8 @@ if (ManualShadowRequestService.DeriveExecutionId(
     Guid.Parse("0ed928c8-fb7a-757b-a831-6756e10fad87"))
     throw new InvalidOperationException("Persisted Shadow request identity contract changed.");
 
+var messageJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
 var connectionString = Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
@@ -76,7 +78,7 @@ if (outbox is null)
 
 var envelope = JsonSerializer.Deserialize<MessageEnvelope<ExecutionRequestedV1>>(
     outbox.Payload,
-    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    messageJsonOptions);
 
 if (envelope is null ||
     envelope.Payload.ExecutionId != execution.Id ||
@@ -222,7 +224,7 @@ if (v2Outbox is null)
 
 var v2Envelope = JsonSerializer.Deserialize<MessageEnvelope<ExecutionRequestedV2>>(
     v2Outbox.Payload,
-    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    messageJsonOptions);
 
 if (v2Envelope is null ||
     v2Envelope.ContractVersion != 2 ||
@@ -357,6 +359,30 @@ if (winner.Status is not (ExecutionStatus.Completed or ExecutionStatus.Failed) |
 {
     throw new InvalidOperationException("Dual-worker result race was not durably auditable.");
 }
+
+
+var diagnosticRequest = await service.RequestConfiguredShadowAsync(configuredCommand with
+{ ConfiguredLogicId = Guid.NewGuid(), ConfigurationRevisionId = Guid.NewGuid(), ScheduledForUtc = scheduledForUtc.AddHours(1) }, "diagnostic-persistence");
+var diagnosticInput = configuredCommand.Inputs.First();
+var diagnosticMessage = Guid.NewGuid();
+var diagnosticJson = JsonSerializer.Serialize(new[] {
+    new ExecutionInputDiagnosticV1(diagnosticInput.RequirementId, diagnosticInput.AssetId, null, diagnosticInput.Quantity,
+        diagnosticInput.CanonicalUnit, 80m, startedAt.AddMinutes(-10), completedAt, null, "Good", "EXECUTION_INPUT_STALE"),
+    new ExecutionInputDiagnosticV1("forged", Guid.NewGuid(), null, "SECRET", null, 99m, startedAt, null, null, "Good", "FORGED")
+}, messageJsonOptions);
+await repository.ApplyFailedWithDiagnosticsAsync(diagnosticMessage, "ci-diagnostic-consumer", diagnosticRequest.Id,
+    startedAt, completedAt, "EXECUTION_INPUT_STALE", diagnosticJson);
+var diagnosticResult = await service.GetRequiredAsync(diagnosticRequest.Id);
+using (var evidence = JsonDocument.Parse(diagnosticResult.OutputJson!))
+{
+    if (diagnosticResult.Status != ExecutionStatus.Failed || evidence.RootElement.GetProperty("inputDiagnostics").GetArrayLength() != 1 ||
+        diagnosticResult.OutputJson!.Contains("SECRET", StringComparison.Ordinal) ||
+        evidence.RootElement.TryGetProperty("engineeringResults", out _))
+        throw new InvalidOperationException("Failure persistence admitted forged evidence/outputs or discarded valid observations.");
+}
+if (await repository.ApplyFailedWithDiagnosticsAsync(diagnosticMessage, "ci-diagnostic-consumer", diagnosticRequest.Id,
+    startedAt, completedAt, "EXECUTION_INPUT_STALE", diagnosticJson) != ExecutionResultDisposition.AlreadyProcessed)
+    throw new InvalidOperationException("Failure diagnostics changed Inbox replay semantics.");
 
 Console.WriteLine("Execution V1/V2 persistence, atomic terminal disposition, conflict auditing, durable outbox, Inbox, and activity checks passed.");
 return 0;
