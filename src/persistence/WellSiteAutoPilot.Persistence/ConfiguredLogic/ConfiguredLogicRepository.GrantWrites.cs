@@ -84,7 +84,11 @@ public sealed partial class ConfiguredLogicRepository
 
     private async Task RequireViewSnapshotAsync(ConfiguredLogicRevision revision, AccessSubject subject, CancellationToken cancellationToken)
     {
-        if (revision.View is not { } source) return;
+        if (revision.View is not { } source)
+        {
+            await RequireDirectSourceSnapshotAsync(revision, cancellationToken);
+            return;
+        }
         await GrantWriteGuard.RequireDeploymentAsync(dbContext, subject, WellSitePermissions.ConnectionsRead,
             clock ?? TimeProvider.System, cancellationToken);
         var views = await dbContext.AssetViews.FromSqlInterpolated($"""

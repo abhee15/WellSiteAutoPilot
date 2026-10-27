@@ -3,6 +3,8 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'setup.directWellHint': 'Select one imported ForeSite well directly, or choose a saved View for a reusable group. The Server verifies its connection and source identity.',
+  'setup.selectedConnection': 'Selected connection: {connection}',
   'moduleUpload.refreshFailed': 'The upload was verified, but the catalog could not be refreshed. Reload the catalog to review the stored version.',
   'moduleUpload.heading': 'Upload module package',
   'moduleUpload.file': 'Module archive (.wsamodule or .zip)',

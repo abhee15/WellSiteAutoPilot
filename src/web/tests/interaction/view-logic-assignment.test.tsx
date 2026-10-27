@@ -31,7 +31,7 @@ function host(requests: Request[], selectionRevision = 2, receiptRevision = 2) {
       saved = { id: configId, name: body.name, activeRevisionId: null, revisions: [{ id: revisionId, revisionNumber: 1,
         moduleId: module.moduleId, moduleVersion: module.version, moduleManifestJson: body.moduleManifestJson,
         parametersJson: body.parametersJson, mode: 'Shadow', status: 'Draft', assetBindings: body.assetBindings,
-        dataBindings: [], view: { viewId, revision: receiptRevision, connectionId, role: 'well' } }] };
+        dataBindings: [], view: body.view ? { viewId, revision: receiptRevision, connectionId, role: 'well' } : undefined }] };
       return response(saved, 201);
     }
     if (url === '/api/v1/configured-logic/' + configId) return response(saved);
@@ -85,4 +85,17 @@ it('does not enable validation when the persisted View revision differs from the
 it('does not fetch or offer Views without Connection read access', async () => {
   const requests: Request[] = []; host(requests); editor(vi.fn(), false); await chooseModule();
   expect(screen.queryByLabelText('Target View')).toBeNull(); expect(requests).toHaveLength(0);
+});
+
+it('saves a direct imported well through the same editor without View browsing permission', async () => {
+  const requests: Request[] = []; host(requests); const onSaved = vi.fn(); editor(onSaved, false);
+  const user = await chooseModule();
+  await user.selectOptions(screen.getByRole('listbox', { name: 'Assets for well' }), wellId);
+  expect(screen.getByText('Selected connection: ' + connectionId)).toBeTruthy();
+  expect(screen.queryByLabelText('Target View')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+  const body = JSON.parse(String(requests.find(request => request.init?.method === 'POST')!.init?.body));
+  expect(body.view).toBeUndefined();
+  expect(body.assetBindings.map((binding: { assetId: string }) => binding.assetId)).toEqual([wellId]);
 });
