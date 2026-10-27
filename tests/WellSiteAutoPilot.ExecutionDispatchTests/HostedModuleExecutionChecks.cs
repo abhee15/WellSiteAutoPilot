@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.IntegrationGateway.Providers;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -36,7 +37,7 @@ internal static class HostedModuleExecutionChecks
     { Converters = { new JsonStringEnumConverter() } };
 
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, NatsConnection connection,
-        bool savedConnection = false, bool disabledConnection = false)
+        bool savedConnection = false, bool disabledConnection = false, string? foreSitePayload = null)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
         var now = DateTimeOffset.UtcNow;
@@ -110,9 +111,11 @@ internal static class HostedModuleExecutionChecks
         var working = Path.Combine(Path.GetTempPath(), "wsa-hosted-e2e-" + user.ToString("N"));
         Environment.SetEnvironmentVariable("WSA_HOSTED_EXECUTION_TEST_ID", moduleId);
         using var http = new HttpClient(new ProbeData(now)) { BaseAddress = new Uri("http://gateway.invalid") };
+        var fixture = new ForeSiteHttpFixture(foreSitePayload);
+        using var measurements = new ForeSiteConnectionMeasurements(fixture, TimeProvider.System);
         var services = new ServiceCollection().AddScoped(_ => new WellSiteAutoPilotDbContext(options))
             .AddScoped<IExecutionReadRepository>(provider => new ExecutionRepository(provider.GetRequiredService<WellSiteAutoPilotDbContext>()))
-            .AddSingleton<IExecutionMeasurementGateway>(new RecordedMeasurements(connectionId, now));
+            .AddSingleton<IExecutionMeasurementGateway>(new RecordedMeasurements(connectionId, now, foreSitePayload is null ? null : measurements));
         await using var readProvider = services.BuildServiceProvider();
         using var reads = new ExecutionMeasurementReadConsumer(readProvider.GetRequiredService<IServiceScopeFactory>(), connection,
             NullLogger<ExecutionMeasurementReadConsumer>.Instance);
@@ -141,10 +144,22 @@ internal static class HostedModuleExecutionChecks
                 if (message.Data is null || !message.Data.Contains(execution.Id.ToString(), StringComparison.Ordinal)) continue;
                 if (message.Subject == Subjects.ExecutionFailedV2)
                 {
-                    if (!disabledConnection) throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
+                    if (!disabledConnection && foreSitePayload is null) throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
                     var failed = JsonSerializer.Deserialize<MessageEnvelope<ExecutionFailedV2>>(message.Data, Options)!;
-                    Assert(failed.Payload.FailureCode == "EXECUTION_CONNECTION_DISABLED" && failed.Payload.InputDiagnostics?.Count == 1,
-                        "Revoked connection did not produce bounded typed input failure evidence.");
+                    var expected = disabledConnection ? "EXECUTION_CONNECTION_DISABLED" :
+                        foreSitePayload == "missing" ? "FORESITE_MEASUREMENT_MISSING" : "EXECUTION_INPUT_TIMESTAMP_UNVERIFIED";
+                    Assert(failed.Payload.FailureCode == expected && failed.Payload.InputDiagnostics?.Count == 1,
+                        "ForeSite acquisition did not produce bounded typed input failure evidence.");
+                    var diagnostic = failed.Payload.InputDiagnostics!.Single();
+                    Assert(diagnostic.ConnectionId == connectionId && diagnostic.AssetId == asset &&
+                        diagnostic.OutcomeCode == expected && diagnostic.Quality == "Unknown",
+                        "Failure evidence lost the authorized source or rejection code.");
+                    if (foreSitePayload == "scan")
+                        Assert(diagnostic.Value == 99.6m && diagnostic.Unit == "%" &&
+                            diagnostic.TimestampKind == "UnverifiedScan" && diagnostic.RetrievedAtUtc is not null &&
+                            diagnostic.TimestampUtc == new DateTimeOffset(2026, 10, 27, 5, 0, 0, TimeSpan.Zero),
+                            "Unverified scan evidence lost its value, offset normalization or retrieval provenance.");
+                    else Assert(diagnostic.Value is null, "A missing/refused read invented an input value.");
                     await repository.ApplyFailedWithDiagnosticsAsync(failed.MessageId, "hosted-check", execution.Id,
                         failed.Payload.StartedAtUtc, failed.Payload.FailedAtUtc, failed.Payload.FailureCode,
                         JsonSerializer.Serialize(failed.Payload.InputDiagnostics, Options));
@@ -168,10 +183,22 @@ internal static class HostedModuleExecutionChecks
                     break;
                 }
             }
-            Assert(sawStarted && (disabledConnection
+            Assert(sawStarted && (disabledConnection || foreSitePayload is not null
                 ? (await repository.GetAsync(execution.Id)) is { Status: ExecutionStatus.Failed, OutputJson: not null }
                 : sawCompleted && (await repository.GetAsync(execution.Id))?.Status == ExecutionStatus.Completed),
                 "Real approved archive did not complete through V3 dispatch and V2 results.");
+            if (foreSitePayload is not null)
+            {
+                Assert(fixture.TokenReads == 1 && fixture.MeasurementReads == 1,
+                    "Authorized acquisition did not use the shared ForeSite session/parser exactly once.");
+                var stored = (await repository.GetAsync(execution.Id))!;
+                using var evidence = JsonDocument.Parse(stored.OutputJson!);
+                Assert(evidence.RootElement.GetProperty("inputDiagnostics").GetArrayLength() == 1 &&
+                    !stored.OutputJson!.Contains("private-fixture", StringComparison.Ordinal) &&
+                    !stored.OutputJson.Contains("fs=", StringComparison.Ordinal) &&
+                    !stored.OutputJson.Contains("controlIntents", StringComparison.Ordinal),
+                    "Persisted failure leaked settings/cookies or admitted failed module outputs.");
+            }
             Assert(!Directory.EnumerateFileSystemEntries(working).Any(), "Successful execution retained working files.");
             Console.WriteLine("Hosted package E2E: upload, approval, pinned dispatch, NATS, worker loading, input read, result persistence and retirement boundary passed.");
         }
@@ -208,13 +235,48 @@ internal static class HostedModuleExecutionChecks
     }
     // Synthetic, explicitly verified engineering evidence isolates the execution contract
     // from the separate ForeSite HTTP parser's live-only scan-time semantics.
-    private sealed class RecordedMeasurements(Guid connectionId, DateTimeOffset timestamp) : IExecutionMeasurementGateway
+    private sealed class RecordedMeasurements(Guid connectionId, DateTimeOffset timestamp, ForeSiteConnectionMeasurements? measurements) : IExecutionMeasurementGateway
     {
         public Task<EngineeringValue> GetCurrentAsync(AuthorizedExecutionRead read, CancellationToken cancellationToken = default)
         {
             Assert(read.ConnectionId == connectionId && read.ConnectionRevision == 1 && read.ExternalId == "42" && read.Quantity == "PumpFillage",
                 "Hosted read escaped its authorized saved source.");
-            return Task.FromResult(new EngineeringValue("PumpFillage", 99.6m, "%", timestamp, "Good", "verified-test-fixture"));
+            return measurements is null
+                ? Task.FromResult(new EngineeringValue("PumpFillage", 99.6m, "%", timestamp, "Good", "verified-test-fixture"))
+                : measurements.ReadAsync(new ConnectionMeasurementRequest(read.ConnectionId, read.ConnectionRevision,
+                    read.Settings.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal),
+                    read.ExternalId, read.Quantity), cancellationToken);
+        }
+    }
+    // Real Gateway session and parser with only the external HTTP transport replaced.
+    private sealed class ForeSiteHttpFixture(string? payload) : IHttpClientFactory
+    {
+        private string? Payload { get; } = payload;
+        public int TokenReads { get; private set; }
+        public int MeasurementReads { get; private set; }
+        public HttpClient CreateClient(string name) => new(new Handler(this));
+        private sealed class Handler(ForeSiteHttpFixture fixture) : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Assert(request.Method == HttpMethod.Get && request.RequestUri!.Host == "private-fixture",
+                    "Shadow wrote to ForeSite or escaped the saved connection.");
+                if (request.RequestUri!.AbsolutePath == "/prefix/TokenService/CreateToken")
+                {
+                    fixture.TokenReads++;
+                    var token = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
+                    token.Headers.TryAddWithoutValidation("Set-Cookie", "fs=private; Path=/prefix");
+                    return Task.FromResult(token);
+                }
+                Assert(request.RequestUri.AbsolutePath == "/prefix/Surveillance/well/42" &&
+                    request.Headers.TryGetValues("Cookie", out var cookies) && cookies.Single() == "fs=private",
+                    "ForeSite acquisition lost the virtual directory, saved well or token cookie.");
+                fixture.MeasurementReads++;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(
+                    fixture.Payload == "missing" ? "{\"Value\":{}}" :
+                    "{\"Value\":{\"CurrentPumpFillage\":99.6,\"LastScanTime\":\"2026-10-27T00:00:00-05:00\",\"LastGoodScanTime\":\"2026-10-27T00:00:00-05:00\"}}") });
+            }
         }
     }
     private sealed class ProbeData(DateTimeOffset timestamp) : HttpMessageHandler

@@ -155,3 +155,20 @@ outbox, approval controls and generated client; there is no second package store
 Remaining work: owner live evidence/acceptance and
 a separate service-account design before scheduled live reads. Python production
 parity requires a real host/dependency-isolation design and is not enabled here.
+
+## ForeSite HTTP failure path through the hosted execution
+
+The approved-package integration suite also connects the real Gateway connection
+session and strict ForeSite parser to the persisted authorized-read RPC. Only the
+external HTTP handler is replaced. Fixtures check the saved virtual-directory
+path, numeric well ID, token cookie and GET-only provider calls.
+
+A POC-shaped 99.6% response with offset scan time must fail with
+`EXECUTION_INPUT_TIMESTAMP_UNVERIFIED`; the persisted diagnostic retains the
+normalized UTC scan time, retrieval time, Unknown quality and UnverifiedScan
+label. A missing field must fail with `FORESITE_MEASUREMENT_MISSING` and no
+invented numeric value. Both traverse actual approved archive loading,
+authenticated NATS, worker failure messages and PostgreSQL terminal persistence.
+No failed algorithm output, provider address or cookie is admitted into the
+persisted evidence. The existing synthetic verified-input success and disabled
+connection cases remain separate. This does not establish live field semantics.
