@@ -3,6 +3,8 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'setup.directWellHint': 'Select one imported ForeSite well directly, or choose a saved View for a reusable group. The Server verifies its connection and source identity.',
+  'setup.selectedConnection': 'Selected connection: {connection}',
   'sourceChanges.heading': 'Source changes',
   'sourceChanges.diagnostic': 'Check the source and review potential configuration impacts. This review does not update Assets or block execution.',
   'sourceChanges.check': 'Check for changes',

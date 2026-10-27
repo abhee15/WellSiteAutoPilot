@@ -233,10 +233,17 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
           {viewLoading && <LoadingIndicator label={t('views.loading')} />}
           {viewError && <p role="alert">{t('setup.viewUnavailable')}</p>}
           <p>{t(viewRef?.role === r.role ? 'setup.viewTargets' : 'setup.loadedAssets')}</p>
+          {manifest.requiredAdapterKey === 'foresite' && !viewRef && <p className="connection-help">{t('setup.directWellHint')}</p>}
+          {!viewRef && (bindings[r.role] ?? []).map(id => {
+            const owner = allAssets.find(asset => asset.id === id)?.ownerConnectionId;
+            return owner ? <p key={id} className="connection-help">{t('setup.selectedConnection', {
+              connection: connections.find(connection => connection.id === owner)?.name ?? owner })}</p> : null;
+          })}
           <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewRef?.role === r.role || viewLoading}
             value={bindings[r.role] ?? []} onChange={e => setBindings({ ...bindings,
               [r.role]: Array.from(e.target.selectedOptions, o => o.value) })}>
-            {eligibleAssets(r, allAssets, assetTypes).map(a => <option key={a.id} value={a.id}>{a.name} · {a.id}</option>)}
+            {eligibleAssets(r, allAssets, assetTypes).filter(a => !manifest.requiredAdapterKey || !!a.ownerConnectionId)
+              .map(a => <option key={a.id} value={a.id}>{a.name} · {a.id}</option>)}
           </select></label>
           {(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <label key={id}>
             {t('setup.overrides', { asset: allAssets.find(a => a.id === id)?.name ?? id })}
@@ -277,7 +284,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
           </>}
         </details>}
         {Object.values(bindings).some(ids => ids.length > detailLimit) && <button type="button" onClick={() => setDetailLimit(limit => limit + 20)}>{t('setup.moreTargets')}</button>}
-        <button type="submit" disabled={!manifest || approved.length === 0 || viewLoading || (!!viewRef && !canReadViews) || (!!manifest?.requiredAdapterKey && !viewRef)}>{busy ? t('setup.saving') : t('setup.save')}</button>
+        <button type="submit" disabled={!manifest || approved.length === 0 || viewLoading || (!!viewRef && !canReadViews)}>{busy ? t('setup.saving') : t('setup.save')}</button>
       </fieldset>
       {error && <p role="alert">{error}</p>}
       <button type="button" disabled={busy} onClick={onCancel}>{t('setup.cancel')}</button>

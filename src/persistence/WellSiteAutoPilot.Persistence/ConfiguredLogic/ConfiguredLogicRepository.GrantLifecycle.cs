@@ -119,7 +119,8 @@ public sealed partial class ConfiguredLogicRepository
             if (connections.Length != 1 || !connections[0].IsEnabled || (manifest.RequiredAdapterKey is { } adapter &&
                 !string.Equals(adapter, connections[0].AdapterKey, StringComparison.OrdinalIgnoreCase))) throw DependencyConflict();
         }
-        else if (manifest.RequiredAdapterKey is not null) throw DependencyConflict();
+        else if (manifest.RequiredAdapterKey is not null)
+            await RequireDirectSourceSnapshotAsync(revision, cancellationToken);
 
         if (manifest.ModuleId != revision.ModuleId || manifest.Version != revision.ModuleVersion) throw DependencyConflict();
 

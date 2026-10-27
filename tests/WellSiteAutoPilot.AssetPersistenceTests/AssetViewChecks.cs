@@ -179,6 +179,24 @@ internal static class AssetViewChecks
                 var validSource = await service.CreateAuthorizedAsync(dataCommand with { DataBindings =
                     [new ConfiguredLogicDataBindingCommand("value", originalIds[0], "foresite", "FS-VIEW-0001", "{}")] }, subject, actor);
                 extraConfigurations.Add(validSource.Id);
+                var directCommand = dataCommand with { Name = "Direct well fixture", View = null,
+                    AssetBindings = [new ConfiguredLogicAssetBindingCommand("well", originalIds[0], "{}")],
+                    DataBindings = [new ConfiguredLogicDataBindingCommand("value", originalIds[0], "foresite", "FS-VIEW-0001", "{}")] };
+                // Direct selection does not require Connection/View browsing permission.
+                await db.RolePermissions.Where(permission => permission.RoleId == roleId && permission.Permission == WellSitePermissions.ConnectionsRead).ExecuteDeleteAsync();
+                var direct = await service.CreateAuthorizedAsync(directCommand, subject, actor);
+                extraConfigurations.Add(direct.Id);
+                if (direct.Revisions.Single().View is not null || direct.Revisions.Single().AssetBindings.Single().AssetId != originalIds[0])
+                    throw new InvalidOperationException("Direct well setup created or required a View.");
+                await service.ValidateRevisionAuthorizedAsync(direct.Id, direct.Revisions.Single().Id, subject, actor);
+                await service.ActivateRevisionAuthorizedAsync(direct.Id, direct.Revisions.Single().Id, "none", subject, actor);
+                db.RolePermissions.Add(new RolePermissionEntity { RoleId = roleId, Permission = WellSitePermissions.ConnectionsRead });
+                await db.SaveChangesAsync();
+                await RejectAsync(() => service.CreateAuthorizedAsync(directCommand with { DataBindings =
+                    [new ConfiguredLogicDataBindingCommand("value", originalIds[0], "foresite", "FORGED", "{}")] }, subject, actor), "CONFIGURED_LOGIC_DIRECT_SOURCE_INVALID");
+                await RejectAsync(() => service.CreateAuthorizedAsync(directCommand with { AssetBindings =
+                    [new ConfiguredLogicAssetBindingCommand("well", originalIds[0], "{}"), new ConfiguredLogicAssetBindingCommand("well", originalIds[1], "{}")] }, subject, actor), FailureCodes.ValidationFailed);
+
                 await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, false));
                 await RejectAsync(() => service.CreateAuthorizedAsync(command with { Name = "Disabled Connection",
                     View = command.View! with { ExpectedRevision = 3 } }, subject, actor), "CONFIGURED_LOGIC_VIEW_INCOMPATIBLE");
