@@ -102,3 +102,50 @@ configuration revision, source/connection revision, expected and actual typed
 outcomes, sanitized observation times/quality and proof of zero writes. Report
 any field-semantic discrepancy before changing parser policy. Persisted audit
 history is retained; do not delete it as test cleanup.
+
+## Run the measurement evidence probe first
+
+Use the [probe-first plan](../design/foresite-measurement-evidence-plan.md) before
+changing field mappings. Run locally on Windows under the same account as the
+Gateway, using the address and positive numeric well ID from the existing saved
+connection/source binding. The CLI is an operator diagnostic; it does not prove
+application authorization or execution readiness.
+
+From a checkout of this build (PowerShell):
+
+```powershell
+# Use the actual saved address privately; never include it in shared reports.
+$env:FORESITE_BASE_URL = 'https://YOUR-FORESITE-SERVER/EXISTING-VIRTUAL-DIRECTORY'
+dotnet run --project tools/WellSiteAutoPilot.Cli --configuration Release -- foresite probe 42 .\steady.json 6 10
+Remove-Item Env:FORESITE_BASE_URL
+```
+
+Replace `42` with that binding's actual numeric well ID. For an installed CLI,
+use `WellSiteAutoPilot.Cli.exe foresite probe ...` with the same arguments. A new
+`.json` report is required; existing files are never overwritten. Defaults are
+three samples five seconds apart; limits are 2–12 samples, 1–30 seconds apart,
+10 seconds per observation and 180 seconds total. Ctrl+C cancels acquisition.
+Exit 0 means the observations were captured, not that live execution is safe.
+Exit 2 can still leave a sanitized report containing typed acquisition failures;
+exit 130 means cancellation. Inspect `captureOutcome` and each sample's `outcome`.
+
+The report excludes source identity, URL, raw response, account, headers/cookies,
+FullErrorMessage and arbitrary properties/text. It retains only fixed numeric,
+timestamp, quality and unit candidates with explicit missing/type/offset facts.
+Every report says `measurementSemantics: Unverified` and
+`authorizesExecution: false`. Recognized quality labels and numeric status codes
+are observations, not a verified Good-quality mapping. The probe never increases
+freshness limits and never issues scan, configuration or control operations.
+
+Capture separate reports for a stable well and an independently observed normal
+update. If available, also capture wells **already** known stale or bad/uncertain;
+do not stop equipment or alter its configuration to manufacture a scenario.
+Record actual update times, source timezone and unit/quality definitions privately
+using the plan's scenario matrix. Review the sanitized report before sharing it.
+If the needed field is absent from the fixed candidate allowlist, review its name
+and type locally so the allowlist can be extended explicitly; do not share the
+entire raw Value object. Repeated GETs alone cannot prove timestamp semantics.
+
+Once those reports and independent definitions establish the mapping, add the
+reviewed parser fixtures and run the saved-connection Shadow cases above. Until
+then, `EXECUTION_INPUT_TIMESTAMP_UNVERIFIED` remains the expected safe outcome.

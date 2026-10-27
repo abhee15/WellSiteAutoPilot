@@ -49,6 +49,10 @@ internal static class Cli
                 args[3], args[4], args[5], runtime, args[7]));
         }
 
+        if (args.Length >= 2 && args[0].Equals("foresite", StringComparison.OrdinalIgnoreCase) &&
+            args[1].Equals("probe", StringComparison.OrdinalIgnoreCase))
+            return await WellSiteAutoPilot.Cli.Diagnostics.ForeSiteProbeCommand.RunAsync(args);
+
         WriteUsage();
         return args.Length == 0 ? 0 : 2;
     }
@@ -289,6 +293,7 @@ internal static class Cli
     private static void WriteUsage()
     {
         Console.WriteLine("WellSite AutoPilot CLI");
+        Console.WriteLine("  foresite probe <well-id> <new-report.json> [samples:2-12] [interval-seconds:1-30]");
         Console.WriteLine("  module validate <manifest.json>");
         Console.WriteLine("  module pack <manifest.json> <payload-directory> <output.wsamodule>");
         Console.WriteLine("  module verify <package.wsamodule>");
