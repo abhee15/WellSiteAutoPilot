@@ -1322,6 +1322,8 @@ jobs:
     env:
       WSA_DATABASE_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=wellsite_autopilot;Username=wsa;Password=wsa_ci_password
       WSA_NATS_URL: nats://127.0.0.1:4222
+      WSA_NATS_TOKEN: wsa-shadow-ci-token
+      Messaging__Nats__Token: wsa-shadow-ci-token
 
     services:
       postgres:
@@ -1349,7 +1351,7 @@ jobs:
 
       - name: Start NATS with JetStream
         run: |
-          docker run --detach --name wsa-nats-shadow-ci --publish 4222:4222 nats:2.15.0-alpine -js
+          docker run --detach --name wsa-nats-shadow-ci --publish 4222:4222 nats:2.15.0-alpine -js --auth "$WSA_NATS_TOKEN"
           for attempt in {1..30}; do
             if docker logs wsa-nats-shadow-ci 2>&1 | grep -q "Server is ready"; then
               exit 0
@@ -1373,6 +1375,8 @@ jobs:
           verifier() { printf '%s' "$1" | openssl dgst -sha256 -binary | base64 -w0; }
           SERVER_KEY=$(openssl rand -hex 32)
           WORKER_KEY=$(openssl rand -hex 32)
+          echo "::add-mask::$SERVER_KEY"
+          echo "::add-mask::$WORKER_KEY"
           echo "WSA_SERVER_KEY=$SERVER_KEY" >> "$GITHUB_ENV"
           echo "WSA_WORKER_KEY=$WORKER_KEY" >> "$GITHUB_ENV"
           export Security__Callers__server__Verifier=$(verifier "$SERVER_KEY")

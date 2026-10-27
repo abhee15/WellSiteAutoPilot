@@ -9,5 +9,7 @@ public sealed record ModulePackagePublication(
 
 public interface IModulePackageObjectStore
 {
+    Task<bool> ContainsAsync(string packageSha256, CancellationToken cancellationToken = default) => Task.FromResult(false);
+
     Task PutAsync(string packageSha256, ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default);
 }

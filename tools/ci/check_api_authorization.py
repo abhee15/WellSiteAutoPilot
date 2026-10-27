@@ -80,6 +80,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("POST", "/logic-modules/packages"): ("UploadLogicModulePackage", "LogicManage"),
     ("GET", "/logic-modules"): ("ListLogicModules", "LogicRead"),
     ("GET", "/logic-modules/{moduleId}/{moduleVersion}"): ("GetLogicModule", "LogicRead"),
+    ("GET", "/logic-modules/{moduleId}/{moduleVersion}/package-state"): ("GetLogicModulePackageState", "LogicRead"),
     ("POST", "/logic-modules/{moduleId}/{moduleVersion}/approve"): ("ApproveLogicModule", "LogicManage"),
     ("POST", "/logic-modules/{moduleId}/{moduleVersion}/retire"): ("RetireLogicModule", "LogicManage"),
     ("GET", "/recommendations"): ("ListRecommendations", "RecommendationsRead"),

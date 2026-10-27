@@ -135,6 +135,12 @@ internal static class ForeSiteDiscoveryChecks
             var path = request.RequestUri!.AbsolutePath["/prefix/".Length..];
             var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
             var cookie = request.Headers.TryGetValues("Cookie", out var values) ? string.Join(";", values) : "";
+            if (body is not null)
+            {
+                using var filter = JsonDocument.Parse(body);
+                Expect(filter.RootElement.TryGetProperty("assetIds", out _) && !filter.RootElement.TryGetProperty("AssetIds", out _),
+                    "ForeSite filter field casing changed.");
+            }
             Requests.Add(new Request(path, request.Method, body, cookie));
             if (path == CancelPath) { Cancel!(); cancellationToken.ThrowIfCancellationRequested(); }
             if (path == ForeSiteAdapter.TokenPath)

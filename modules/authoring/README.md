@@ -1,9 +1,10 @@
 # ForeSite well input check authoring kit
 
-This first slice supplies equivalent .NET and Python calculations, fixtures and
-local test hosts. It is ready for **offline authoring**, not live ForeSite
-execution or arbitrary package installation. Author in your usual editor; no
-new authoring application is needed.
+This kit supplies equivalent .NET and Python calculations, fixtures and local
+test hosts. Approved .NET packages can run through the production V3 Shadow host.
+Python remains offline-only. Live ForeSite success requires confirmed measurement
+time and quality semantics; see the owner checklist below. Author in your usual
+editor; no new authoring application is needed.
 
 The sample observes one numeric pump-fillage input and returns that value. It
 does not optimize the well, call ForeSite, save optimization data or send
@@ -118,20 +119,25 @@ repeat archives byte for byte and checks every payload file survives unchanged.
 To include these checks locally, publish the .NET payload as above, build the CLI
 in Release, and set `WSA_TEST_PACKAGES=1` when running the Python test suite.
 
-The .NET production resolver currently contains only the built-in Shadow sample;
-Python's production worker is a scaffold. Catalog import/approval does not load
-these new packages into either worker. This kit does not change those facts.
+The .NET production worker hosts approved, published, exact-hash V3 packages using
+the shared bounded package host. Metadata-only V2 registrations retain the
+built-in resolver. Use the catalog upload and reasoned approval controls, then
+check package delivery and runtime readiness. Approval alone does not establish
+delivery, runtime compatibility or source authorization.
+Python's production worker is a scaffold without broker/package/read/result
+hosting or dependency isolation. Offline parity does not enable production Python.
 The Python `module:function` entry-point syntax is a versioned kit convention
 to implement in the future host, not an assertion that the current worker loads it.
 
-## Next live slice
+## Live Shadow acceptance
 
-See [the implementation plan](../../docs/design/foresite-authoring-kit-implementation.md).
-AutoPilot must resolve the selected local Asset through its saved SourceBinding
-and Connection to ForeSite's well ID. The module does not search by name or
-receive credentials. A future authenticated, scope-checked input-preview API
-collects inputs through the existing adapter. The offline calculation remains
-unchanged when those recorded inputs are replaced by normalized live inputs.
+Follow [the local ForeSite checklist](../../docs/implementation/foresite-local-shadow-checklist.md).
+AutoPilot resolves the selected local Asset through its saved SourceBinding and
+Connection. The module does not search by name or receive credentials. Current
+reads use persisted authorized plans and the existing Gateway session. Unverified
+scan times/quality fail closed until owner-provided field semantics establish
+measurement evidence. The offline calculation remains unchanged when recorded
+inputs are replaced by normalized verified inputs.
 
 The first live acceptance is one explicitly selected well, one verified input,
 manual Shadow execution and persisted observations/results with zero provider

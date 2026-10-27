@@ -87,7 +87,9 @@ export function ConfiguredShadowPanel({ userId, configurationId, revision, canRe
         : reason instanceof ExecutionDetailError && ['accessDenied', 'notFound'].includes(reason.kind)
           ? new SetupApiError('denied') : new SetupApiError('uncertain');
       if (e.kind === 'denied') { setDenied(true); setExecution(null); }
-      setError(t(e.kind === 'denied' ? 'shadow.denied' : e.kind === 'conflict' ? 'shadow.conflict' : 'shadow.uncertain') +
+      setError(t(e.code === 'MODULE_PACKAGE_NOT_PUBLISHED' ? 'packageState.awaitDelivery'
+        : e.code === 'MODULE_RUNTIME_NOT_SUPPORTED' ? 'moduleUpload.pythonUnavailable'
+        : e.kind === 'denied' ? 'shadow.denied' : e.kind === 'conflict' ? 'shadow.conflict' : 'shadow.uncertain') +
         (e.code ? ` (${e.code})` : ''));
     } finally { pending.current = false; if (!c.signal.aborted) setBusy(false); }
   }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Net;
@@ -16,6 +17,8 @@ if (args.Contains("--verify-unauthenticated-package-refusal", StringComparer.Ord
     try { await new NatsModulePackageSource(connection).CopyToAsync(new string('a', 64), destination, deadline.Token); }
     catch (WellSiteAutoPilotException error) when (error.Code == "MODULE_PACKAGE_BROKER_AUTH_REQUIRED")
     {
+        var anonymousReadiness = await new BrokerReadinessCheck(connection).CheckHealthAsync(new HealthCheckContext(), deadline.Token);
+        if (anonymousReadiness.Status == HealthStatus.Healthy) throw new InvalidOperationException("Anonymous broker reported ready.");
         Console.WriteLine("Worker refused package retrieval from an unauthenticated broker.");
         return 0;
     }
@@ -24,6 +27,8 @@ if (args.Contains("--verify-unauthenticated-package-refusal", StringComparer.Ord
 if (!string.IsNullOrEmpty(natsToken)) await BrokerAuthenticationChecks.RunAsync(natsUrl);
 
 await JetStreamTopology.EnsureAsync(connection);
+var readiness = await new BrokerReadinessCheck(connection).CheckHealthAsync(new HealthCheckContext());
+if (readiness.Status != HealthStatus.Healthy) throw new InvalidOperationException("Authenticated broker did not report ready.");
 
 var jetStream = connection.CreateJetStreamContext();
 

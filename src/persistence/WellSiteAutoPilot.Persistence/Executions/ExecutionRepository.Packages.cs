@@ -25,6 +25,9 @@ public sealed partial class ExecutionRepository
         if (module.Runtime != nameof(LogicRuntimeKind.DotNet))
             throw new WellSiteAutoPilotException("MODULE_RUNTIME_NOT_SUPPORTED", FailureKind.Validation,
                 "This deployment currently hosts approved .NET packages only.");
+        if (!await WellSiteAutoPilot.Persistence.Logic.ModulePackagePublicationQueries.IsPublishedAsync(dbContext, module.Id, cancellationToken))
+            throw new WellSiteAutoPilotException("MODULE_PACKAGE_NOT_PUBLISHED", FailureKind.Conflict,
+                "The approved package has not completed delivery. Check publication status before retrying.");
         return new ExecutionPackageV3(module.PackageSha256, module.ManifestJson);
     }
 }
