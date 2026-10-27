@@ -36,6 +36,24 @@ internal static class PackageHostChecks
             }), root);
             var first = await host.LoadAsync(manifest.ModuleId, manifest.Version, valid.Hash, valid.Manifest);
             var second = await host.LoadAsync(manifest.ModuleId, manifest.Version, valid.Hash, valid.Manifest);
+            // An orphan with the host ownership marker is removed; active leases
+            // from another host instance and unowned directories are preserved.
+            var orphanId = Guid.NewGuid().ToString("N");
+            var orphan = Path.Combine(root, orphanId);
+            var unowned = Path.Combine(root, Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(orphan); Directory.CreateDirectory(unowned);
+            await File.WriteAllTextAsync(Path.Combine(orphan, "leftover.bin"), "interrupted execution");
+            await File.WriteAllTextAsync(Path.Combine(root + ".leases", orphanId + ".lease"), "WSA-MODULE-WORK-V1");
+            var restarted = new DotNetModulePackageHost(new CopySource(async (_, stream, ct) => await stream.WriteAsync(valid.Bytes, ct)), root);
+            await using (var afterRestart = await restarted.LoadAsync(manifest.ModuleId, manifest.Version, valid.Hash, valid.Manifest))
+            {
+                Assert(!Directory.Exists(orphan) && Directory.Exists(unowned), "Recovery deleted unknown data or retained an owned orphan.");
+                Assert(Directory.EnumerateDirectories(root).Count() == 4, "Recovery removed another active host's working directory.");
+                _ = await first.Module.ExecuteAsync(new LogicModuleExecutionContext(Guid.NewGuid(), first.Module.Identity,
+                    "still-active", DateTimeOffset.UtcNow, "{}", [], []));
+            }
+            Directory.Delete(unowned);
+
             Assert(requests.SequenceEqual(new[] { valid.Hash, valid.Hash }), "Host did not request exact immutable names.");
             var context = new LogicModuleExecutionContext(Guid.NewGuid(), first.Module.Identity, "package-host",
                 DateTimeOffset.UtcNow, "{}", [], []);
@@ -126,6 +144,7 @@ internal static class PackageHostChecks
         {
             Environment.SetEnvironmentVariable("WSA_PACKAGE_HOST_TEST_MARKER", null);
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            if (Directory.Exists(root + ".leases")) Directory.Delete(root + ".leases", recursive: true);
             File.Delete(marker);
         }
     }
