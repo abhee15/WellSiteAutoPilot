@@ -5,6 +5,9 @@
 export const englishMessages = {
   'setup.directWellHint': 'Select one imported ForeSite well directly, or choose a saved View for a reusable group. The Server verifies its connection and source identity.',
   'setup.selectedConnection': 'Selected connection: {connection}',
+  'execution.inputOutcome': 'Input outcome',
+  'execution.retrieved': 'Retrieved at',
+  'execution.unverifiedScan': 'Unverified scan time; measurement freshness is unknown',
   'sourceChanges.heading': 'Source changes',
   'sourceChanges.diagnostic': 'Check the source and review potential configuration impacts. This review does not update Assets or block execution.',
   'sourceChanges.check': 'Check for changes',

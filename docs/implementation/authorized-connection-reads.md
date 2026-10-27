@@ -95,3 +95,41 @@ Tests: ForeSiteAdapterTests reuses existing recorded-shape suite and adds mocked
 connection/session/parser regressions. ExecutionDispatchTests adds a real broker
 RPC check against fake authoritative storage/Gateway, proving worker routing fields
 cannot override the persisted source and private error details do not escape.
+
+## Slice D failure evidence and publication fairness
+
+Failed V2/V3 executions retain at most 64 input diagnostics in the existing
+execution OutputJson envelope (`inputDiagnostics`). The engine preserves the
+original typed exception and collects values/UTC times/known quality/outcome
+codes; it excludes provider response text, mapping JSON, settings and failed
+module outputs. Persistence admits only observations matching a snapshotted
+requirement/Asset/quantity/connection, bounds JSON at 32 KiB, and retains the
+existing atomic terminal/Inbox/conflict-audit behavior. Old failure messages and
+repository implementations keep their previous behavior. ExecutionDetailPanel
+extends its existing observation table with acquisition reasons, retrieval time,
+connection ID and an explicit unverified-scan warning; missing values render as
+missing, not zero.
+
+Package publications use durable bounded exponential retry scheduling (5 seconds
+to 5 minutes), attempt count and safe failure code on the existing outbox rows.
+A failed batch therefore releases later valid publications on the next poll.
+CreatedAtUtc remains the original queue time; pending work is never discarded.
+Restart preserves retry state. Successful delivery clears retry/error metadata.
+Direct DispatchAsync remains an explicit recovery operation and retains approval,
+retirement and row-lock fencing. A generated migration adds nullable scheduling/
+error fields, default-zero attempt count and a selection index.
+
+Acceptance added to ExecutionDispatchTests: a full batch of 21 poison publications
+cannot starve a later approved archive. The existing real approved-package E2E
+now also runs with persisted saved ForeSite source plans and actual authenticated
+NATS RPC, once with synthetic verified engineering evidence and once with a
+connection disabled after dispatch. Both success and bounded failure results are
+persisted through the existing repository. This proves the execution boundary,
+not live ForeSite timestamp/quality semantics; the HTTP parser remains separately
+covered by mocked POC-shaped payloads and deliberately rejects unverified evidence.
+
+Python parity audit: `src/workers/python/pyproject.toml` has no runtime dependencies;
+`main.py` only handles stop signals and waits. It has no broker subscriber, V3
+package host, authorized read client, lease/result publisher or package dependency
+isolation. The authoring SDK/offline kit does not establish production hosting.
+No Python execution capability is claimed or enabled by these .NET changes.

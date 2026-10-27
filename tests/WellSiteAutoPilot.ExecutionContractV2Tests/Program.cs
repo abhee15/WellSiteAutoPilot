@@ -334,6 +334,8 @@ using (var failingClient = new HttpClient(new FailingReadHandler())
 }
 
 var messageJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+await FailureDiagnosticChecks.RunAsync(request, now);
+
 var serialized = JsonSerializer.Serialize(
     request,
     messageJsonOptions);

@@ -966,7 +966,17 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastFailureCode")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Payload")
@@ -984,6 +994,8 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProcessedAtUtc");
+
+                    b.HasIndex("Type", "ProcessedAtUtc", "NextAttemptAtUtc");
 
                     b.ToTable("outbox_messages", "messaging");
                 });

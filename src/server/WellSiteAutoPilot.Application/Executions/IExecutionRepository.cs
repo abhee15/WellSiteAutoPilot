@@ -87,4 +87,9 @@ public interface IExecutionRepository
         DateTimeOffset failedAtUtc,
         string failureCode,
         CancellationToken cancellationToken = default);
+
+    Task<ExecutionResultDisposition> ApplyFailedWithDiagnosticsAsync(Guid messageId, string consumer,
+        Guid executionId, DateTimeOffset startedAtUtc, DateTimeOffset failedAtUtc, string failureCode,
+        string? diagnosticsJson, CancellationToken cancellationToken = default) =>
+        ApplyFailedAsync(messageId, consumer, executionId, startedAtUtc, failedAtUtc, failureCode, cancellationToken);
 }
