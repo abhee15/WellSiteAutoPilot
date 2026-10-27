@@ -3,6 +3,9 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'execution.inputOutcome': 'Input outcome',
+  'execution.retrieved': 'Retrieved at',
+  'execution.unverifiedScan': 'Unverified scan time; measurement freshness is unknown',
   'sourceChanges.heading': 'Source changes',
   'sourceChanges.diagnostic': 'Check the source and review potential configuration impacts. This review does not update Assets or block execution.',
   'sourceChanges.check': 'Check for changes',

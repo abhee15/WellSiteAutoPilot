@@ -115,14 +115,24 @@ public sealed class ModuleExecutionEngine(
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
         if (request.Assets.Count == 0) throw new InvalidOperationException("Execution request must contain at least one Asset binding.");
 
+        var diagnostics = new ExecutionFailureDiagnostics();
         using var readLimiter = new SemaphoreSlim(_maximumConcurrentInputReads);
         var inputTasks = request.Inputs
             .Select(async binding =>
             {
                 await readLimiter.WaitAsync(cancellationToken);
+                WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue? measurement = null;
                 try
                 {
-                    return await ReadInputAsync(request.ExecutionId, binding, evaluationTimeUtc, cancellationToken);
+                    var input = await ReadInputAsync(request.ExecutionId, binding, evaluationTimeUtc,
+                        value => measurement = value, cancellationToken);
+                    diagnostics.Record(binding, measurement, "ACCEPTED");
+                    return input;
+                }
+                catch (Exception error)
+                {
+                    diagnostics.Record(binding, measurement, ExecutionFailureDiagnostics.FailureCode(error));
+                    throw;
                 }
                 finally
                 {
@@ -131,31 +141,40 @@ public sealed class ModuleExecutionEngine(
             })
             .ToArray();
 
-        var inputs = await Task.WhenAll(inputTasks);
+        try
+        {
+            var inputs = await Task.WhenAll(inputTasks);
 
-        var context = new LogicModuleExecutionContext(
-            request.ExecutionId,
-            logicModule.Identity,
-            correlationId,
-            evaluationTimeUtc,
-            request.ParametersJson,
-            request.Assets
-                .Select(asset => new LogicAssetContext(
-                    asset.Role,
-                    asset.AssetId,
-                    asset.ParameterOverridesJson))
-                .ToArray(),
-            inputs);
+            var context = new LogicModuleExecutionContext(
+                request.ExecutionId,
+                logicModule.Identity,
+                correlationId,
+                evaluationTimeUtc,
+                request.ParametersJson,
+                request.Assets
+                    .Select(asset => new LogicAssetContext(
+                        asset.Role,
+                        asset.AssetId,
+                        asset.ParameterOverridesJson))
+                    .ToArray(),
+                inputs);
 
-        var result = await logicModule.ExecuteAsync(context, cancellationToken);
-        EnsureModuleSucceeded(result);
-        return new ObservedExecutionResult(result, inputs);
+            var result = await logicModule.ExecuteAsync(context, cancellationToken);
+            EnsureModuleSucceeded(result);
+            return new ObservedExecutionResult(result, inputs);
+        }
+        catch (Exception error)
+        {
+            diagnostics.Attach(error);
+            throw;
+        }
     }
 
     private async Task<LogicInputValue> ReadInputAsync(
         Guid executionId,
         ExecutionInputBindingV2 binding,
         DateTimeOffset evaluationTimeUtc,
+        Action<WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue> observe,
         CancellationToken cancellationToken)
     {
         if (!string.Equals(binding.Access, "Current", StringComparison.Ordinal))
@@ -164,6 +183,9 @@ public sealed class ModuleExecutionEngine(
         }
 
         var value = await gatewayDataClient.GetCurrentAsync(executionId, binding, cancellationToken);
+        observe(value);
+        if (value.TimestampKind == "UnverifiedScan") throw InputFailure("EXECUTION_INPUT_TIMESTAMP_UNVERIFIED");
+        if (value.TimestampUtc == default) throw InputFailure("EXECUTION_INPUT_TIMESTAMP_INVALID");
 
         if (!string.Equals(value.Quantity, binding.Quantity, StringComparison.OrdinalIgnoreCase) ||
             (binding.CanonicalUnit is not null &&

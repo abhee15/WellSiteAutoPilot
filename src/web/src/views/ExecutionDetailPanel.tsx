@@ -169,12 +169,14 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
       {observations.length > 0 && <section aria-label={t('shadow.observations')}>
         <h4>{t('shadow.observations')}</h4>
         <div className="table-wrap"><table className="activity-table"><thead><tr>
-          {[t('shadow.input'), t('shadow.value'), t('shadow.quality'), t('shadow.timestamp'), t('shadow.source')]
+          {[t('shadow.input'), t('shadow.value'), t('shadow.quality'), t('shadow.timestamp'), t('shadow.source'), t('execution.inputOutcome'), t('execution.retrieved')]
             .map(label => <th key={label} scope="col">{label}</th>)}
         </tr></thead><tbody>{observations.map((o, index) => <tr key={index}>
           <td>{o.requirementId}<small>{o.assetId} · {o.quantity}</small></td>
-          <td>{new Intl.NumberFormat(undefined, { maximumSignificantDigits: 17 }).format(o.value)} {o.unit}</td><td>{o.quality}</td>
-          <td>{formatDetailTimestamp(o.timestampUtc)}</td><td>{o.source}</td>
+          <td>{o.value === null ? '—' : new Intl.NumberFormat(undefined, { maximumSignificantDigits: 17 }).format(o.value)} {o.unit}</td><td>{o.quality}</td>
+          <td>{formatDetailTimestamp(o.timestampUtc)}
+            {o.timestampKind === 'UnverifiedScan' && <small>{t('execution.unverifiedScan')}</small>}</td>
+          <td>{o.source}</td><td>{o.outcomeCode ?? '—'}</td><td>{formatDetailTimestamp(o.retrievedAtUtc)}</td>
         </tr>)}</tbody></table></div>
       </section>}
       {output.text && (

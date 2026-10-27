@@ -17,9 +17,11 @@ public sealed partial class ModulePackagePublisher(WellSiteAutoPilotDbContext db
 {
     public async Task<int> DispatchBatchAsync(CancellationToken cancellationToken = default)
     {
+        var now = clock.GetUtcNow();
         var ids = await dbContext.OutboxMessages.AsNoTracking()
-            .Where(item => item.Type == ModulePackagePublication.OutboxType && item.ProcessedAtUtc == null)
-            .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Id).Take(20)
+            .Where(item => item.Type == ModulePackagePublication.OutboxType && item.ProcessedAtUtc == null &&
+                (item.NextAttemptAtUtc == null || item.NextAttemptAtUtc <= now))
+            .OrderBy(item => item.NextAttemptAtUtc ?? item.CreatedAtUtc).ThenBy(item => item.Id).Take(20)
             .Select(item => item.Id).ToArrayAsync(cancellationToken);
         var completed = 0;
         foreach (var id in ids)
@@ -32,6 +34,16 @@ public sealed partial class ModulePackagePublisher(WellSiteAutoPilotDbContext db
                 // and the separate execution dispatcher never selects these rows.
                 LogPublicationFailure(logger, exception, id);
                 dbContext.ChangeTracker.Clear();
+                var attempts = await dbContext.OutboxMessages.AsNoTracking().Where(item => item.Id == id)
+                    .Select(item => item.AttemptCount).SingleAsync(cancellationToken);
+                var delay = TimeSpan.FromSeconds(Math.Min(300, 5 * Math.Pow(2, Math.Min(attempts, 6))));
+                var nextAttempt = clock.GetUtcNow() + delay;
+                var code = exception is WellSiteAutoPilotException failure && failure.Code.Length <= 128
+                    ? failure.Code : "MODULE_PACKAGE_PUBLICATION_FAILED";
+                await dbContext.OutboxMessages.Where(item => item.Id == id && item.ProcessedAtUtc == null)
+                    .ExecuteUpdateAsync(set => set.SetProperty(item => item.AttemptCount, item => item.AttemptCount + 1)
+                        .SetProperty(item => item.NextAttemptAtUtc, nextAttempt)
+                        .SetProperty(item => item.LastFailureCode, code), cancellationToken);
             }
         }
         return completed;
@@ -79,7 +91,8 @@ public sealed partial class ModulePackagePublisher(WellSiteAutoPilotDbContext db
         // The module row stays locked through publication and commit. Retirement
         // either commits first and skips publication, or waits for publication.
         await dbContext.OutboxMessages.Where(item => item.Id == publicationId)
-            .ExecuteUpdateAsync(set => set.SetProperty(item => item.ProcessedAtUtc, clock.GetUtcNow()), cancellationToken);
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.ProcessedAtUtc, clock.GetUtcNow())
+                .SetProperty(item => item.LastFailureCode, (string?)null).SetProperty(item => item.NextAttemptAtUtc, (DateTimeOffset?)null), cancellationToken);
         dbContext.AuditEvents.Add(new AuditEventEntity
         {
             Id = Guid.NewGuid(), OccurredAtUtc = clock.GetUtcNow(), ActorIdentity = "system:package-publisher",
