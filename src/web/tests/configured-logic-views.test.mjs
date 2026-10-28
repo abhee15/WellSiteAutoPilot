@@ -4,13 +4,14 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 
-let vite, views, controls, history;
+let vite, views, controls, history, summary;
 before(async () => {
   vite = await createServer({ server: { middlewareMode: true },
     appType: 'custom', logLevel: 'silent' });
   views = await vite.ssrLoadModule('/src/views/configuredLogicViews.ts');
   controls = await vite.ssrLoadModule('/src/views/ConfiguredLogicControls.tsx');
   history = await vite.ssrLoadModule('/src/views/ConfiguredLogicRevisionOverview.tsx');
+  summary = await vite.ssrLoadModule('/src/views/logicSummary.ts');
 });
 after(async () => { await vite?.close(); });
 
@@ -80,7 +81,7 @@ test('responsive filter controls provide labels and scoped result counts', () =>
   assert.match(html, /Showing 2 of 3 loaded configurations/);
 });
 
-test('revision history is newest-first, read-only, and excludes raw configuration secrets', () => {
+test('logic overview leads with the name and key facts, and holds no secrets or revision table', () => {
   const html = renderToStaticMarkup(createElement(
     history.ConfiguredLogicRevisionOverview, {
       logic: rows[0],
@@ -88,16 +89,19 @@ test('revision history is newest-first, read-only, and excludes raw configuratio
     },
   ));
   assert.match(html, /role="region"/);
-  assert.match(html, /Revision history/);
+  assert.match(html, /<h3>[^<]+<\/h3>/);
+  assert.match(html, /Live revision/);
   assert.match(html, /wfd\.fillage/);
-  assert.match(html, /Current active revision/);
-  assert.match(html, /America\/Chicago/);
-  assert.match(html, /Every 60 seconds/);
-  assert.match(html, /1 assets/);
-  const revisionRows = html.slice(html.indexOf('<tbody>'));
-  assert.ok(revisionRows.indexOf('rev2') < revisionRows.indexOf('rev1'));
+  assert.match(html, /wfd\.fillage v1\.0/);
+  assert.doesNotMatch(html, /<table/);
   assert.doesNotMatch(html, /SECRET_SHOULD_NOT_RENDER/);
   assert.doesNotMatch(html, /<textarea/);
+});
+
+test('a schedule reads as an interval and zone, or Off', () => {
+  assert.equal(summary.scheduleText(revisions[0].schedule), 'Every 1 min · America/Chicago');
+  assert.equal(summary.scheduleText({ enabled: false, cadenceSeconds: 60 }), 'Off');
+  assert.equal(summary.scheduleText(undefined), 'Off');
 });
 
 test('empty revision histories render a stable informative placeholder', () => {
@@ -107,5 +111,4 @@ test('empty revision histories render a stable informative placeholder', () => {
     },
   ));
   assert.match(html, /No revisions available/);
-  assert.match(html, /colSpan="6"/);
 });

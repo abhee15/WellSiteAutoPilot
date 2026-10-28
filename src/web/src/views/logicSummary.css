@@ -7,3 +7,8 @@
 .module-panel-header { display: flex; justify-content: space-between; gap: var(--space-12); align-items: flex-start; }
 .module-panel h3, .module-panel h4, .module-panel p { margin: 0; }
 .module-panel ul { margin: 0; padding-left: var(--space-18); display: grid; gap: var(--space-4); }
+
+.logic-facts { margin: var(--space-8) 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-fact-min), 1fr)); gap: var(--space-8) var(--space-16); }
+.logic-facts div { display: grid; gap: var(--space-4); min-width: 0; }
+.logic-facts dt { font-size: var(--font-size-caption); color: var(--color-text-subtle); }
+.logic-facts dd { margin: 0; overflow-wrap: anywhere; }

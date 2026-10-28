@@ -1,8 +1,7 @@
 import type { ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { formatDetailTimestamp } from './executionDetail';
+import { logicStatusSentence, recentRunsFor, scheduleText } from './logicSummary';
 import { orderedRevisions } from './configuredLogicViews';
-import { logicStatusSentence, recentRunsFor } from './logicSummary';
 import { formatTimestamp } from '../format';
 import { statusLabel } from '../words';
 import './logicSummary.css';
@@ -14,9 +13,15 @@ type Props = {
   executions?: readonly ExecutionResponse[];
 };
 
-/** Display metadata only: never render module manifests, mapping JSON or credentials. */
+/**
+ * The top of a configured logic: its name, where it stands, and the few facts people look for first.
+ * Each revision's own data is shown once, in the revision list below this. Display metadata only:
+ * never render module manifests, mapping JSON or credentials.
+ */
 export function ConfiguredLogicRevisionOverview({ logic, onClose, executions }: Props) {
   const revisions = orderedRevisions(logic);
+  const live = revisions.find(revision => revision.id === logic.activeRevisionId);
+  const shown = live ?? revisions[0];
   const runs = executions ? recentRunsFor(executions, logic.id) : [];
 
   return (
@@ -24,10 +29,7 @@ export function ConfiguredLogicRevisionOverview({ logic, onClose, executions }: 
       role="region"
       aria-label={t('configured.revisionsFor', { name: logic.name ?? '—' })}>
       <div className="execution-detail-header">
-        <div>
-          <h3>{t('configured.revisionsHeading')}</h3>
-          <p>{logic.name ?? '—'}</p>
-        </div>
+        <h3>{logic.name ?? '—'}</h3>
         <div className="execution-detail-actions">
           <button type="button" onClick={onClose}>
             {t('configured.close')}
@@ -35,6 +37,15 @@ export function ConfiguredLogicRevisionOverview({ logic, onClose, executions }: 
         </div>
       </div>
       <p className="logic-status-sentence">{logicStatusSentence(logic, runs[0])}</p>
+      {shown && <dl className="logic-facts">
+        <div><dt>{t('configured.liveRevision')}</dt>
+          <dd>{live ? t('setup.revision', { number: live.revisionNumber ?? '—' }) : t('configured.noLive')}</dd></div>
+        <div><dt>{t('configured.module')}</dt>
+          <dd>{shown.moduleId ?? '—'}{shown.moduleVersion ? ` v${shown.moduleVersion}` : ''}</dd></div>
+        <div><dt>{t('configured.schedule')}</dt><dd>{scheduleText(shown.schedule)}</dd></div>
+        <div><dt>{t('configured.factAssets')}</dt><dd>{shown.assetBindings?.length ?? 0}</dd></div>
+      </dl>}
+      {revisions.length === 0 && <p className="empty-state">{t('configured.noRevisions')}</p>}
       {executions && <div className="logic-recent-runs">
         <h4>{t('logicSummary.recentRuns')}</h4>
         {runs.length === 0 ? <p>{t('logicSummary.noRuns')}</p> : <ul>
@@ -44,72 +55,6 @@ export function ConfiguredLogicRevisionOverview({ logic, onClose, executions }: 
           </li>)}
         </ul>}
       </div>}
-      <div className="configured-revisions-summary">
-        <span>{t('configured.summaryCount', { count: revisions.length })}</span>
-        <span>{t('configured.summaryActive', {
-          value: logic.activeRevisionId ? logic.activeRevisionId : '—',
-        })}</span>
-      </div>
-      <div className="table-wrap">
-        <table className="activity-table">
-          <thead>
-            <tr>
-              <th scope="col">{t('configured.revisionNumber')}</th>
-              <th scope="col">{t('configured.module')}</th>
-              <th scope="col">{t('configured.revisionStatus')}</th>
-              <th scope="col">{t('configured.schedule')}</th>
-              <th scope="col">{t('configured.bindings')}</th>
-              <th scope="col">{t('configured.created')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {revisions.map(revision => (
-              <tr key={revision.id}>
-                <td>
-                  <strong>{revision.revisionNumber ?? '—'}</strong>
-                  {revision.id && <small>{revision.id}</small>}
-                </td>
-                <td>
-                  <strong>{revision.moduleId ?? '—'}</strong>
-                  <small>{revision.moduleVersion ?? '—'}</small>
-                </td>
-                <td>
-                  <span>{revision.status ?? '—'}</span>
-                  {logic.activeRevisionId === revision.id && (
-                    <small>{t('configured.current')}</small>
-                  )}
-                  <small>{revision.mode ?? '—'}</small>
-                </td>
-                <td>
-                  {revision.schedule ? (
-                    <>
-                      <strong>{revision.schedule.enabled
-                        ? t('configured.enabled') : t('configured.disabled')}</strong>
-                      <small>{t('configured.cadence', {
-                        seconds: revision.schedule.cadenceSeconds ?? '—',
-                      })}</small>
-                      <small>{revision.schedule.timeZoneId ?? '—'}</small>
-                      <small>{formatDetailTimestamp(revision.schedule.startAtUtc)}</small>
-                    </>
-                  ) : '—'}
-                </td>
-                <td>{t('configured.bindingCounts', {
-                  assets: revision.assetBindings?.length ?? 0,
-                  data: revision.dataBindings?.length ?? 0,
-                })}</td>
-                <td>{formatDetailTimestamp(revision.createdAtUtc)}</td>
-              </tr>
-            ))}
-            {revisions.length === 0 && (
-              <tr>
-                <td colSpan={6} className="empty-state">
-                  {t('configured.noRevisions')}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }

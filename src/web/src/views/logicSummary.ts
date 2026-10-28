@@ -1,6 +1,8 @@
 import type { ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
 import { formatTimestamp } from '../format';
 import { statusLabel } from '../words';
+import { t } from '../localization';
+import { formatDuration } from './executionDetail';
 
 type RunLike = Pick<ExecutionResponse, 'executionId' | 'logicInstanceId' | 'requestedAtUtc' | 'status'>;
 
@@ -39,4 +41,12 @@ export function logicStatusSentence(
   return lastRun
     ? `${base} Last recorded run ${formatTimestamp(lastRun.requestedAtUtc)}: ${statusLabel(lastRun.status).toLowerCase()}.`
     : `${base} No recorded run yet.`;
+}
+
+/** "Every 1 min · America/Chicago", or "Off" when the revision has no enabled schedule. */
+export function scheduleText(schedule: { enabled?: boolean; cadenceSeconds?: number | null; timeZoneId?: string | null } | null | undefined): string {
+  if (!schedule?.enabled) return t('configured.scheduleOff');
+  const every = typeof schedule.cadenceSeconds === 'number'
+    ? t('configured.scheduleEvery', { interval: formatDuration(schedule.cadenceSeconds * 1000) }) : null;
+  return [every, schedule.timeZoneId].filter(Boolean).join(' · ') || t('configured.scheduleOff');
 }
