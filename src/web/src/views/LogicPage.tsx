@@ -18,7 +18,7 @@ import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { ModulePanel } from './ModulePanel';
 import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
-import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, latestRevision, listedStatus } from './configuredLogicViews';
+import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, listedStatus } from './configuredLogicViews';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
@@ -164,7 +164,6 @@ export function LogicPage({
             ) : (
               <ul className="split-results">
                 {visibleConfigurations.map(item => {
-                  const latest = latestRevision(item);
                   return (
                     <li key={item.id} data-selected={selectedConfiguredId === item.id}>
                       <button type="button" className="asset-select" disabled={!item.id}
