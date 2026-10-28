@@ -62,3 +62,11 @@ test('controls have accessible labels and dynamic runtime options', () => {
   assert.match(html, /<option value="DotNet">DotNet<\/option>/);
   assert.match(html, /Showing 2 of 3 loaded modules/);
 });
+
+test('the search box can be left to the page so the other filters sit under a disclosure', () => {
+  const html = renderToStaticMarkup(createElement(controls.LogicCatalogControls, {
+    criteria, onChange: () => {}, runtimes: [], matchingCount: 3, totalCount: 3, hideSearch: true,
+  }));
+  assert.doesNotMatch(html, /type="search"/);
+  assert.match(html, /Showing 3 of 3 loaded modules/);
+});

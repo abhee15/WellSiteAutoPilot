@@ -13,6 +13,7 @@ import { OperationsViewControls } from './OperationsViewControls';
 import { loadConnections } from './connections';
 import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './operationsViews';
 import type { OperationsViewCriteria } from './operationsViews';
+import './splitLayout.css';
 
 export function OperationsPage({
   executions,
@@ -81,7 +82,9 @@ export function OperationsPage({
         />
       </section>
 
-      <section className="panel">
+      <div className="split-layout runs-layout" data-has-selection={selectedIdStillAuthorized}>
+      <div className="split-panes">
+      <section className="panel split-browse">
         <PanelHeader eyebrow="Activity" title="Recent executions" count={visibleExecutions.length} />
         <OperationsViewControls
           userId={userId}
@@ -89,6 +92,7 @@ export function OperationsPage({
           onChange={setViewCriteria}
           matchingCount={visibleExecutions.length}
           recentCount={executions.length}
+          compact
         />
         <div className="table-wrap">
           <table className="activity-table">
@@ -96,10 +100,10 @@ export function OperationsPage({
               <tr>
                 <th>Status</th>
                 <th>Asset</th>
-                <th>Logic Module</th>
-                <th>Mode</th>
-                <th>Requested</th>
-                <th>Outcome</th>
+                <th className="run-col-logic">Logic Module</th>
+                <th className="run-col-secondary">Mode</th>
+                <th className="run-col-secondary">Requested</th>
+                <th className="run-col-secondary">Outcome</th>
                 <th>{t('execution.detailsColumn')}</th>
               </tr>
             </thead>
@@ -107,7 +111,12 @@ export function OperationsPage({
               {visibleExecutions.map(execution => {
                 const context = describeRunContext(execution, configuredLogic, assets);
                 return (
-                <tr key={execution.executionId}>
+                <tr key={execution.executionId} data-selected={selectedIdStillAuthorized && selectedExecutionId === execution.executionId}
+                  onClick={event => {
+                    // The row is a convenience; the Inspect button stays the keyboard and screen-reader route.
+                    if ((event.target as HTMLElement).closest('button, a')) return;
+                    if (execution.executionId) setSelectedExecutionId(execution.executionId);
+                  }}>
                   <td>
                     <StatusPill value={execution.status} />
                   </td>
@@ -115,15 +124,15 @@ export function OperationsPage({
                     <strong>{assetText(execution, context)}</strong>
                     {execution.quantity && <small>{execution.quantity}</small>}
                   </td>
-                  <td>
+                  <td className="run-col-logic">
                     <strong>{context.logicName ?? execution.moduleId}</strong>
                     <small>{context.logicName
                       ? `${execution.moduleId} v${execution.moduleVersion}${context.revisionNumber ? ' · ' + t('setup.revision', { number: context.revisionNumber }) : ''}`
                       : `v${execution.moduleVersion}`}</small>
                   </td>
-                  <td>{execution.mode}</td>
-                  <td className="activity-time">{formatTimestamp(execution.requestedAtUtc)}</td>
-                  <td>
+                  <td className="run-col-secondary">{execution.mode}</td>
+                  <td className="activity-time run-col-secondary">{formatTimestamp(execution.requestedAtUtc)}</td>
+                  <td className="run-col-secondary">
                     <OutcomeCell execution={execution} />
                   </td>
                   <td>
@@ -157,6 +166,11 @@ export function OperationsPage({
             </tbody>
           </table>
         </div>
+      </section>
+      <section className="split-selected" aria-label={t('execution.heading')}>
+        <button type="button" className="secondary-button split-back" onClick={() => setSelectedExecutionId(null)}>
+          {t('execution.backToList')}
+        </button>
         {selectedExecutionId && (
           <ExecutionDetailPanel
             key={selectedExecutionId}
@@ -171,6 +185,8 @@ export function OperationsPage({
           />
         )}
       </section>
+      </div>
+      </div>
     </>
   );
 }

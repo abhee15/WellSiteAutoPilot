@@ -7,20 +7,22 @@ type Props = {
   runtimes: readonly string[];
   matchingCount: number;
   totalCount: number;
+  /** The search box is shown above by the page, as in Assets; only the other filters are drawn here. */
+  hideSearch?: boolean;
 };
 
 export function LogicCatalogControls({
-  criteria, onChange, runtimes, matchingCount, totalCount,
+  criteria, onChange, runtimes, matchingCount, totalCount, hideSearch = false,
 }: Props) {
   return (
     <div className="data-view-controls" role="group" aria-label={t('logicCatalog.controls')}>
       <div className="data-view-fields asset-view-fields">
-        <label>
+        {!hideSearch && <label>
           <span>{t('logicCatalog.search')}</span>
           <input type="search" maxLength={120} value={criteria.search}
             placeholder={t('logicCatalog.searchPlaceholder')}
             onChange={event => onChange({ ...criteria, search: event.target.value })} />
-        </label>
+        </label>}
         <label>
           <span>{t('logicCatalog.eligibility')}</span>
           <select value={criteria.eligibility}

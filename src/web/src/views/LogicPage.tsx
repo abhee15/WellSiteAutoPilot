@@ -18,7 +18,7 @@ import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { ModulePanel } from './ModulePanel';
 import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
-import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, latestRevision } from './configuredLogicViews';
+import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, listedStatus } from './configuredLogicViews';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
@@ -101,16 +101,25 @@ export function LogicPage({
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
             <PanelHeader eyebrow="Catalog" title="Logic Modules" count={visibleModules.length} />
+            <div className="split-search">
+              <input type="search" maxLength={120} value={catalogCriteria.search}
+                aria-label={t('logicCatalog.search')} placeholder={t('logicCatalog.searchPlaceholder')}
+                onChange={event => setCatalogCriteria({ ...catalogCriteria, search: event.target.value })} />
+            </div>
+            <details className="split-filters">
+              <summary>{t('logicCatalog.moreFilters')}</summary>
+              <LogicCatalogControls
+                criteria={catalogCriteria}
+                onChange={setCatalogCriteria}
+                runtimes={runtimes}
+                matchingCount={visibleModules.length}
+                totalCount={modules.length}
+                hideSearch
+              />
+            </details>
             <ModulePackageUpload canManage={permissions.includes('logic.manage')} onUploaded={async module => {
               await onRefresh(); setAboutModuleId(module.id ?? null);
             }} />
-            <LogicCatalogControls
-              criteria={catalogCriteria}
-              onChange={setCatalogCriteria}
-              runtimes={runtimes}
-              matchingCount={visibleModules.length}
-              totalCount={modules.length}
-            />
             {visibleModules.length === 0 ? (
               <>
                 {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
@@ -149,12 +158,21 @@ export function LogicPage({
           <section className="panel split-browse" aria-label={t('logic.tabConfigured')}>
             <PanelHeader eyebrow="Configuration" title="Configured Logic"
               count={visibleConfigurations.length} />
-            <ConfiguredLogicControls
-              criteria={configuredCriteria}
-              onChange={setConfiguredCriteria}
-              matchingCount={visibleConfigurations.length}
-              totalCount={configuredLogic.length}
-            />
+            <div className="split-search">
+              <input type="search" maxLength={120} value={configuredCriteria.search}
+                aria-label={t('configured.search')} placeholder={t('configured.searchPlaceholder')}
+                onChange={event => setConfiguredCriteria({ ...configuredCriteria, search: event.target.value })} />
+            </div>
+            <details className="split-filters">
+              <summary>{t('logicCatalog.moreFilters')}</summary>
+              <ConfiguredLogicControls
+                criteria={configuredCriteria}
+                onChange={setConfiguredCriteria}
+                matchingCount={visibleConfigurations.length}
+                totalCount={configuredLogic.length}
+                hideSearch
+              />
+            </details>
             {visibleConfigurations.length === 0 ? (
               <>
                 {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
@@ -164,7 +182,6 @@ export function LogicPage({
             ) : (
               <ul className="split-results">
                 {visibleConfigurations.map(item => {
-                  const latest = latestRevision(item);
                   return (
                     <li key={item.id} data-selected={selectedConfiguredId === item.id}>
                       <button type="button" className="asset-select" disabled={!item.id}
@@ -180,7 +197,7 @@ export function LogicPage({
                         {' · '}{activeRevisionLabel(item)}
                         {canReadRuns && ' · ' + lastRunText(lastRuns.get(item.id ?? ''))}
                       </small>
-                      <small><StatusPill value={latest?.status ?? 'Draft'} /></small>
+                      <small><StatusPill value={listedStatus(item)} /></small>
                     </li>
                   );
                 })}

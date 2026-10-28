@@ -50,3 +50,24 @@
 label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* The selected asset reads as a card, like the browse pane beside it. */
 .split-selected:has(> .asset-page), .split-selected:has(> .setup-panel) { background: var(--color-surface-panel); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+
+/* Runs: the table fills the page until a run is opened, then it narrows to its key columns beside the details. */
+.runs-layout[data-has-selection='false'] .split-panes { grid-template-columns: minmax(0, 1fr); }
+.runs-layout[data-has-selection='false'] .split-selected { display: none; }
+.runs-layout[data-has-selection='true'] .run-col-secondary { display: none; }
+.runs-layout .activity-table tbody tr { cursor: pointer; }
+.runs-layout .activity-table tbody tr[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
+.runs-layout .split-selected .execution-detail { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+@media (min-width: 901px) { .runs-layout .split-back { display: none; } }
+
+/* Uploading a package sits in the browse pane like the filters: a quiet disclosure with the same gutters. */
+.module-upload { padding: var(--space-8) 0 0; }
+.module-upload > summary { cursor: pointer; padding: var(--space-4) var(--space-18); color: var(--color-text-subtle); }
+.module-upload > :not(summary) { margin-inline: var(--space-18); }
+.module-upload[open] { display: grid; gap: var(--space-8); padding-bottom: var(--space-8); }
+.module-upload p { margin-block: 0; color: var(--color-text-subtle); }
+.module-upload label { display: grid; gap: var(--space-4); margin-block-start: var(--space-8); }
+.module-upload .secondary-button { margin-block: var(--space-8); }
+.module-upload .secondary-button { justify-self: start; }
+/* Beside the details the list keeps Status and Asset; the logic name is in the details and would wrap letter by letter here. */
+.runs-layout[data-has-selection='true'] .run-col-logic { display: none; }

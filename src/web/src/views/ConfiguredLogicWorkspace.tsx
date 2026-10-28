@@ -5,11 +5,15 @@ import { t } from '../localization';
 import { ConfiguredShadowPanel } from './ConfiguredShadowPanel';
 import { ConfiguredLogicSetupPanel } from './ConfiguredLogicSetupPanel';
 import { describeSettings } from './revisionSettings';
+import { scheduleText } from './logicSummary';
+import { orderedRevisions } from './configuredLogicViews';
+import { formatDetailTimestamp } from './executionDetail';
 import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOverview';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
 import type { VerifiedConfiguration } from './configuredLogicSetup';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 
+type VerifiedRevision = VerifiedConfiguration['revisions'][number];
 type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; executions?: readonly ExecutionResponse[];
@@ -102,9 +106,23 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     {detail && <>
       <ConfiguredLogicRevisionOverview logic={detail} onClose={onClose} executions={executions} />
       <p>{t('setup.immutable')}</p>
-      <ul className="setup-revisions">{[...detail.revisions].sort((a,b) =>
-        (b.revisionNumber ?? 0) - (a.revisionNumber ?? 0)).map(r => <li key={r.id}>
+      {(() => {
+        const ordered = orderedRevisions(detail);
+        const isLive = (r: VerifiedRevision) => r.id === detail.activeRevisionId;
+        const waiting = (r: VerifiedRevision) => r.status === 'Draft' || r.status === 'Validated';
+        const current = [...ordered.filter(isLive), ...ordered.filter(r => !isLive(r) && waiting(r))];
+        const earlier = ordered.filter(r => !current.includes(r));
+        const card = (r: VerifiedRevision) => <li key={r.id} data-live={isLive(r)}>
         <strong>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</strong>
+        {r.id === detail.activeRevisionId && <span className="revision-live">{t('configured.liveBadge')}</span>}
+        <p className="revision-meta">{[
+          [r.moduleId, r.moduleVersion && 'v' + r.moduleVersion].filter(Boolean).join(' '),
+          r.mode,
+          scheduleText(r.schedule),
+          (r.assetBindings?.length ?? 0) === 1 ? t('configured.assetCountOne') : t('configured.assetCount', { count: r.assetBindings?.length ?? 0 }),
+          (r.dataBindings?.length ?? 0) === 1 ? t('configured.sourcesOne') : t('configured.sources', { count: r.dataBindings?.length ?? 0 }),
+          formatDetailTimestamp(r.createdAtUtc),
+        ].filter(Boolean).join(' · ')}</p>
         <p>{t('setup.exactScope', { assets: r.assetBindings?.map(b =>
           assets.find(a => a.id === b.assetId)?.name ?? b.assetId).join(', ') ?? '' })}</p>
         <RevisionSettings revision={r} />
@@ -125,7 +143,15 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         {userId && r.status === 'Active' && r.id === detail.activeRevisionId && !editing && <ConfiguredShadowPanel
           key={r.id} userId={userId} configurationId={detail.id} revision={r}
           canRequest={canRequestShadow === true && detail.canRequestShadow === true} disabled={busy || blocked} />}
-      </li>)}</ul>
+      </li>;
+        return <>
+          {current.length > 0 && <ul className="setup-revisions">{current.map(card)}</ul>}
+          {earlier.length > 0 && <details className="revision-history" open={current.length === 0}>
+            <summary>{t('configured.earlier', { count: earlier.length })}</summary>
+            <ul className="setup-revisions">{earlier.map(card)}</ul>
+          </details>}
+        </>;
+      })()}
     </>}
     {(detail || selectedId) && !editing && <button type="button" disabled={busy}
       onClick={() => void reload()}>{t('setup.reload')}</button>}
