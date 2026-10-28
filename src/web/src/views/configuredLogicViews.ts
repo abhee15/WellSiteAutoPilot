@@ -67,3 +67,9 @@ export function filterConfiguredLogic(
     return time || (left.id ?? '').localeCompare(right.id ?? '');
   });
 }
+
+/** The status the list shows: the live revision's when there is one, otherwise the newest revision's. */
+export function listedStatus(item: ConfiguredLogicResponse): string {
+  const live = (item.revisions ?? []).find(revision => revision.id === item.activeRevisionId);
+  return live?.status ?? latestRevision(item)?.status ?? 'Draft';
+}

@@ -112,3 +112,9 @@ test('empty revision histories render a stable informative placeholder', () => {
   ));
   assert.match(html, /No revisions available/);
 });
+
+test('the list status is the live revision\'s, falling back to the newest revision', () => {
+  assert.equal(views.listedStatus(rows[0]), 'Active');
+  assert.equal(views.listedStatus(rows[1]), 'Validated');
+  assert.equal(views.listedStatus(rows[2]), 'Draft');
+});

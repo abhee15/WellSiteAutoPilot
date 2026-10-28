@@ -18,7 +18,7 @@ import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { ModulePanel } from './ModulePanel';
 import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
-import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, latestRevision } from './configuredLogicViews';
+import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, latestRevision, listedStatus } from './configuredLogicViews';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
@@ -198,7 +198,7 @@ export function LogicPage({
                         {' · '}{activeRevisionLabel(item)}
                         {canReadRuns && ' · ' + lastRunText(lastRuns.get(item.id ?? ''))}
                       </small>
-                      <small><StatusPill value={latest?.status ?? 'Draft'} /></small>
+                      <small><StatusPill value={listedStatus(item)} /></small>
                     </li>
                   );
                 })}
