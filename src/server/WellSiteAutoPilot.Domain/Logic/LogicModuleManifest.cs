@@ -20,4 +20,5 @@ public sealed record LogicModuleManifest(
     // Optional JSON Schema (the same subset Asset Types use) describing the module's settings.
     JsonElement? ParameterSchema = null,
     // When set, all targets must belong to a Connection using this adapter.
-    string? RequiredAdapterKey = null);
+    string? RequiredAdapterKey = null,
+    IReadOnlyCollection<LogicOutputRequirement>? OutputRequirements = null);

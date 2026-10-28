@@ -56,6 +56,8 @@ var failedRoundTrip = JsonSerializer.Deserialize<LogicModuleExecutionResult>(
 if (failedRoundTrip?.FailureCode != "MODULE_INPUT_REJECTED" || failedRoundTrip.OutcomeCode != "NO_ACTION_REQUIRED")
     throw new InvalidOperationException("Explicit failure state did not round-trip independently of outcome.");
 
+await StructuredCardChecks.RunAsync();
+
 Console.WriteLine("Logic Module SDK contract checks passed.");
 return 0;
 

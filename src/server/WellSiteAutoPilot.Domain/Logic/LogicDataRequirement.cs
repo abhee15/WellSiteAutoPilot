@@ -7,4 +7,6 @@ public sealed record LogicDataRequirement(
     string Access,
     string? CanonicalUnit,
     int? MaximumAgeSeconds,
-    bool AllowUncertainQuality);
+    bool AllowUncertainQuality,
+    LogicValueSchema? ValueSchema = null,
+    string? RequiredCapability = null);

@@ -66,6 +66,8 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
                 try { assembly = context.LoadManagedAssembly(path); }
                 catch (BadImageFormatException) { continue; }
                 var type = assembly.GetType(inspected.Manifest.EntryPoint);
+                if (type is not null && typeof(ILogicModuleV2).IsAssignableFrom(type))
+                    throw Failure("MODULE_CONTRACT_UNSUPPORTED");
                 if (type is null || type.IsAbstract || !typeof(ILogicModuleV1).IsAssignableFrom(type)) continue;
                 if (Activator.CreateInstance(type) is not ILogicModuleV1 module) throw Failure("MODULE_ENTRY_POINT_INVALID");
                 if (module.Identity != new LogicModuleIdentity(moduleId, version))
