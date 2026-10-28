@@ -248,6 +248,7 @@ export const englishMessages = {
   'execution.copyShort': 'Copy',
   'execution.truncated': 'Preview limited to the first 4,096 characters.',
   'views.controls': 'Execution view controls',
+  'views.moreFilters': 'Filters and saved views',
   'views.search': 'Search',
   'views.searchPlaceholder': 'Asset, logic, outcome…',
   'views.status': 'Status',

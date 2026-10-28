@@ -59,3 +59,5 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 .runs-layout .activity-table tbody tr[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
 .runs-layout .split-selected .execution-detail { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
 @media (min-width: 901px) { .runs-layout .split-back { display: none; } }
+/* Beside the details the list keeps Status and Asset; the logic name is in the details and would wrap letter by letter here. */
+.runs-layout[data-has-selection='true'] .run-col-logic { display: none; }
