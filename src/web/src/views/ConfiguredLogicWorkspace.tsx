@@ -13,6 +13,7 @@ import { readConfiguration, setupResponse, SetupApiError } from './configuredLog
 import type { VerifiedConfiguration } from './configuredLogicSetup';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 
+type VerifiedRevision = VerifiedConfiguration['revisions'][number];
 type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; executions?: readonly ExecutionResponse[];
@@ -107,11 +108,11 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       <p>{t('setup.immutable')}</p>
       {(() => {
         const ordered = orderedRevisions(detail);
-        const isLive = (r: ConfiguredLogicRevisionResponse) => r.id === detail.activeRevisionId;
-        const waiting = (r: ConfiguredLogicRevisionResponse) => r.status === 'Draft' || r.status === 'Validated';
+        const isLive = (r: VerifiedRevision) => r.id === detail.activeRevisionId;
+        const waiting = (r: VerifiedRevision) => r.status === 'Draft' || r.status === 'Validated';
         const current = [...ordered.filter(isLive), ...ordered.filter(r => !isLive(r) && waiting(r))];
         const earlier = ordered.filter(r => !current.includes(r));
-        const card = (r: ConfiguredLogicRevisionResponse) => <li key={r.id} data-live={isLive(r)}>
+        const card = (r: VerifiedRevision) => <li key={r.id} data-live={isLive(r)}>
         <strong>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</strong>
         {r.id === detail.activeRevisionId && <span className="revision-live">{t('configured.liveBadge')}</span>}
         <p className="revision-meta">{[

@@ -17,9 +17,10 @@ export const DEFAULT_CONFIGURED_LOGIC_CRITERIA: ConfiguredLogicCriteria = {
   sort: 'name',
 };
 
-export function orderedRevisions(
-  item: ConfiguredLogicResponse,
-): ConfiguredLogicRevisionResponse[] {
+/** Generic so a verified configuration keeps its required revision ids. */
+export function orderedRevisions<R extends ConfiguredLogicRevisionResponse>(
+  item: { revisions?: R[] | null },
+): R[] {
   return [...(item.revisions ?? [])].sort((left, right) => {
     const byNumber = (right.revisionNumber ?? 0) - (left.revisionNumber ?? 0);
     return byNumber || (left.id ?? '').localeCompare(right.id ?? '');
