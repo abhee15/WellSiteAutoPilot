@@ -77,10 +77,45 @@ builder.Services.AddSingleton<CircuitBreakingCurrentDataProvider>(services =>
         TimeSpan.FromSeconds(builder.Configuration.GetValue("Providers:CircuitBreaker:RecoverySeconds", 30))));
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
-    new CurrentDataProviderRouter(
-        [new KeyValuePair<string, ICurrentDataProvider>(
-            "simulator", services.GetRequiredService<CircuitBreakingCurrentDataProvider>())],
-        "simulator"));
+{
+    var providers = new List<KeyValuePair<string, ICurrentDataProvider>>
+    {
+        new KeyValuePair<string, ICurrentDataProvider>(
+            "simulator", services.GetRequiredService<CircuitBreakingCurrentDataProvider>())
+    };
+#if CYGNET
+    providers.Add(new KeyValuePair<string, ICurrentDataProvider>(
+        "cygnet", services.GetRequiredService<WellSiteAutoPilot.Integration.CygNet.CygNetCurrentDataProvider>()));
+#endif
+    return new CurrentDataProviderRouter(providers, "simulator");
+});
+#if CYGNET
+// Opt-in build only (CYGNET_LIBRARY_PATH set). The CygNet domain and the quantity-to-UDC map are Gateway-wide
+// settings. A wrong or incomplete setting stops the Gateway at startup instead of reading from another domain.
+builder.Services.AddSingleton(services =>
+{
+    var section = services.GetRequiredService<IConfiguration>().GetSection("Providers:CygNet");
+    ushort? domain = null;
+    if (!string.IsNullOrWhiteSpace(section["Domain"]))
+    {
+        domain = ushort.TryParse(section["Domain"], System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out var configured)
+            ? configured
+            : throw new InvalidOperationException("Providers:CygNet:Domain must be a whole number from 0 to 65535.");
+    }
+    var quantities = new Dictionary<string, WellSiteAutoPilot.Integration.CygNet.CygNetQuantityMapping>(
+        StringComparer.OrdinalIgnoreCase);
+    foreach (var child in section.GetSection("Quantities").GetChildren())
+    {
+        if (string.IsNullOrWhiteSpace(child["Udc"]) || string.IsNullOrWhiteSpace(child["Unit"]))
+            throw new InvalidOperationException($"Providers:CygNet:Quantities:{child.Key} needs both Udc and Unit.");
+        quantities[child.Key] = new WellSiteAutoPilot.Integration.CygNet.CygNetQuantityMapping(
+            child["Udc"]!.Trim(), child["Unit"]!.Trim());
+    }
+    return new WellSiteAutoPilot.Integration.CygNet.CygNetProviderOptions(domain, quantities);
+});
+builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.CygNetCurrentDataProvider>();
+#endif
 builder.Services.AddTransient<IProviderHealthProvider>(
     serviceProvider =>
         serviceProvider.GetRequiredService<SimulatorCurrentDataProvider>());
@@ -89,6 +124,9 @@ builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Token"]);
 
 var app = builder.Build();
+#if CYGNET
+_ = app.Services.GetRequiredService<WellSiteAutoPilot.Integration.CygNet.CygNetProviderOptions>();
+#endif
 
 app.UseWellSiteHttpErrorHandling();
 app.UseAuthentication();
