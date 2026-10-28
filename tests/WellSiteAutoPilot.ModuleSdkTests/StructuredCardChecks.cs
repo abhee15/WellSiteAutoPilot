@@ -60,6 +60,8 @@ internal static class StructuredCardChecks
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(probe,
             definition with { Inputs = [definition.Inputs.First() with { Requirement = definition.Inputs.First().Requirement with { MaximumAgeSeconds = -1 } }] },
             context), "MODULE_CONTEXT_INVALID");
+        await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(probe, definition,
+            Replace(first with { Value = first.Value with { Data = default } })), "MODULE_ENVELOPE_INVALID");
         Assert(probe.Calls == 0, "Input rejection ran module code.");
         var mismatched = JsonNode.Parse(first.Value.Data.GetRawText())!;
         mismatched[0]!["position"]!.AsArray().RemoveAt(0);

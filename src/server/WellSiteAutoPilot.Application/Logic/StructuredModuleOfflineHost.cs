@@ -96,8 +96,16 @@ public static class StructuredModuleOfflineHost
 
     private static void Bound<T>(T value)
     {
-        if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(value)) > MaximumEnvelopeBytes)
-            throw Failure("MODULE_ENVELOPE_TOO_LARGE");
+        try
+        {
+            if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(value)) > MaximumEnvelopeBytes)
+                throw Failure("MODULE_ENVELOPE_TOO_LARGE");
+        }
+        catch (Exception error) when (error is JsonException or InvalidOperationException)
+        {
+            throw new WellSiteAutoPilotException("MODULE_ENVELOPE_INVALID", FailureKind.Validation,
+                "The structured offline envelope could not be serialized.", innerException: error);
+        }
     }
 
     private static WellSiteAutoPilotException Failure(string code) => new(code, FailureKind.Validation,
