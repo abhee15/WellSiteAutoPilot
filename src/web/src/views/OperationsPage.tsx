@@ -92,6 +92,7 @@ export function OperationsPage({
           onChange={setViewCriteria}
           matchingCount={visibleExecutions.length}
           recentCount={executions.length}
+          compact
         />
         <div className="table-wrap">
           <table className="activity-table">
@@ -99,7 +100,7 @@ export function OperationsPage({
               <tr>
                 <th>Status</th>
                 <th>Asset</th>
-                <th>Logic Module</th>
+                <th className="run-col-logic">Logic Module</th>
                 <th className="run-col-secondary">Mode</th>
                 <th className="run-col-secondary">Requested</th>
                 <th className="run-col-secondary">Outcome</th>
@@ -123,7 +124,7 @@ export function OperationsPage({
                     <strong>{assetText(execution, context)}</strong>
                     {execution.quantity && <small>{execution.quantity}</small>}
                   </td>
-                  <td>
+                  <td className="run-col-logic">
                     <strong>{context.logicName ?? execution.moduleId}</strong>
                     <small>{context.logicName
                       ? `${execution.moduleId} v${execution.moduleVersion}${context.revisionNumber ? ' · ' + t('setup.revision', { number: context.revisionNumber }) : ''}`

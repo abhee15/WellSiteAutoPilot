@@ -21,6 +21,8 @@ type Props = {
   onChange: (next: OperationsViewCriteria) => void;
   matchingCount: number;
   recentCount: number;
+  /** Search on top and everything else under a "Filters and saved views" disclosure, as in Assets. */
+  compact?: boolean;
 };
 
 function browserStorage(): Storage | null {
@@ -43,6 +45,7 @@ export function OperationsViewControls({
   onChange,
   matchingCount,
   recentCount,
+  compact = false,
 }: Props) {
   const [savedViews, setSavedViews] = useState<SavedOperationsView[]>(
     () => loadSavedOperationsViews(userId, browserStorage()),
@@ -110,22 +113,25 @@ export function OperationsViewControls({
     setNotice(t('views.deleted'));
   };
 
-  return (
+  const searchLabel = (
+    <label>
+      <span>{t('views.search')}</span>
+      <input
+        type="search"
+        value={criteria.search}
+        maxLength={120}
+        placeholder={t('views.searchPlaceholder')}
+        onChange={event => changeCriteria({
+          ...criteria,
+          search: event.target.value,
+        })}
+      />
+    </label>
+  );
+  const controls = (
     <div className="data-view-controls" role="group" aria-label={t('views.controls')}>
       <div className="data-view-fields">
-        <label>
-          <span>{t('views.search')}</span>
-          <input
-            type="search"
-            value={criteria.search}
-            maxLength={120}
-            placeholder={t('views.searchPlaceholder')}
-            onChange={event => changeCriteria({
-              ...criteria,
-              search: event.target.value,
-            })}
-          />
-        </label>
+        {!compact && searchLabel}
         <MultiSelect
           label={t('views.status')}
           allLabel={t('views.all')}
@@ -193,4 +199,17 @@ export function OperationsViewControls({
       {notice && <p className="data-view-notice" role="status">{notice}</p>}
     </div>
   );
+  return compact ? (
+    <>
+      <div className="split-search">
+        <input type="search" value={criteria.search} maxLength={120} aria-label={t('views.search')}
+          placeholder={t('views.searchPlaceholder')}
+          onChange={event => changeCriteria({ ...criteria, search: event.target.value })} />
+      </div>
+      <details className="split-filters">
+        <summary>{t('views.moreFilters')}</summary>
+        {controls}
+      </details>
+    </>
+  ) : controls;
 }
