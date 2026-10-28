@@ -783,6 +783,8 @@ public sealed class ConfiguredLogicService(
 
         try
         {
+            using var document = JsonDocument.Parse(json);
+            LogicModuleManifestReader.ValidateUniqueFields(document.RootElement);
             manifest = JsonSerializer.Deserialize<LogicModuleManifest>(
                 json,
                 ManifestSerializerOptions) ??

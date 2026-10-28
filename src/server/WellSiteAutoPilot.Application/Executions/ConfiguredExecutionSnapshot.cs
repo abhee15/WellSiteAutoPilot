@@ -28,6 +28,13 @@ public static class ConfiguredExecutionSnapshot
                 "Configured Logic revision manifest identity does not match its module identity.");
         }
 
+        // Schema declarations may be reviewed/stored now, but never lower them into
+        // the scalar execution contract while structured transport is unavailable.
+        if (manifest.ManifestVersion != 1)
+            throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException("MODULE_CONTRACT_UNSUPPORTED",
+                WellSiteAutoPilot.Failures.FailureKind.Validation,
+                "This deployment does not yet execute structured modules.");
+
         var requirements = manifest.DataRequirements.ToDictionary(
             item => item.Id,
             StringComparer.OrdinalIgnoreCase);
