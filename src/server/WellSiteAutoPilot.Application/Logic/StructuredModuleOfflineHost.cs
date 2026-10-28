@@ -9,7 +9,8 @@ namespace WellSiteAutoPilot.Application.Logic;
 public sealed record StructuredInputDefinition(LogicDataRequirement Requirement, string SchemaId, JsonElement Schema);
 public sealed record StructuredOutputDefinition(string Id, string Quantity, string? Unit, string SchemaId, JsonElement Schema);
 public sealed record StructuredModuleDefinition(LogicModuleIdentity Identity,
-    IReadOnlyCollection<StructuredInputDefinition> Inputs, IReadOnlyCollection<StructuredOutputDefinition> Outputs);
+    IReadOnlyCollection<StructuredInputDefinition> Inputs, IReadOnlyCollection<StructuredOutputDefinition> Outputs,
+    IReadOnlyCollection<LogicAssetRequirement>? AssetRequirements = null, JsonElement? ParameterSchema = null);
 
 /// <summary>
 /// Trusted offline authoring host only. No package loading, provider access or control execution.
@@ -18,6 +19,18 @@ public sealed record StructuredModuleDefinition(LogicModuleIdentity Identity,
 public static class StructuredModuleOfflineHost
 {
     public const int MaximumEnvelopeBytes = 262144;
+
+    public static async Task<StructuredModuleDefinition> ReadDefinitionAsync(Stream reviewedManifest,
+        CancellationToken cancellationToken = default)
+    {
+        var manifest = await LogicModuleManifestReader.ReadAsync(reviewedManifest, cancellationToken);
+        if (manifest.ManifestVersion != 2) throw Failure("MODULE_CONTRACT_INVALID");
+        return new(new(manifest.ModuleId, manifest.Version),
+            manifest.DataRequirements.Select(r => new StructuredInputDefinition(r,
+                r.ValueSchema!.SchemaId, r.ValueSchema.Schema)).ToArray(),
+            manifest.OutputRequirements!.Select(r => new StructuredOutputDefinition(r.Id, r.Quantity, r.Unit,
+                r.ValueSchema.SchemaId, r.ValueSchema.Schema)).ToArray(), manifest.AssetRequirements, manifest.ParameterSchema);
+    }
 
     public static async Task<LogicModuleExecutionResultV2> ExecuteAsync(ILogicModuleV2 module,
         StructuredModuleDefinition definition, LogicModuleExecutionContextV2 context,
@@ -44,6 +57,16 @@ public static class StructuredModuleOfflineHost
             definition.Inputs.Select(d => d.Requirement.Id).Distinct(StringComparer.Ordinal).Count() != definition.Inputs.Count ||
             definition.Outputs.Select(d => d.Id).Distinct(StringComparer.Ordinal).Count() != definition.Outputs.Count)
             throw Failure("MODULE_CONTEXT_INVALID");
+        if (definition.AssetRequirements is { } roles)
+        {
+            if (context.Assets.Any(a => !roles.Any(r => r.Role == a.Role)) || roles.Any(r =>
+                context.Assets.Count(a => a.Role == r.Role) < r.MinimumCount ||
+                context.Assets.Count(a => a.Role == r.Role) > r.MaximumCount))
+                throw Failure("MODULE_CONTEXT_INVALID");
+        }
+        if (definition.ParameterSchema is { ValueKind: JsonValueKind.Object } parameters)
+            await Assets.AssetAttributeSchemaValidator.ValidateValuesAsync(parameters.GetRawText(),
+                context.ParametersJson, cancellationToken);
         var seenInputs = new HashSet<(string, Guid)>();
         foreach (var input in context.Inputs)
         {

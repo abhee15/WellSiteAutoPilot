@@ -162,5 +162,38 @@ if (LogicModuleApproval.ValidateReason("  Reviewed by operations  ") != "Reviewe
     throw new InvalidOperationException("The approval reason was not trimmed.");
 }
 
+// Structured schemas/capabilities are retained by the same catalog JSON snapshot.
+var structuredJson = System.Text.Json.Nodes.JsonNode.Parse(manifest)!;
+structuredJson["manifestVersion"] = 2;
+structuredJson["moduleId"] = "weatherford.structured-catalog-test";
+structuredJson["minimumSdkVersion"] = "1.2.0";
+structuredJson["dataRequirements"]![0]!["requiredCapability"] = "structured.current";
+structuredJson["dataRequirements"]![0]!["valueSchema"] = System.Text.Json.Nodes.JsonNode.Parse(
+    """{"schemaId":"example.number/v1","schema":{"type":"number"}}""");
+structuredJson["outputRequirements"] = System.Text.Json.Nodes.JsonNode.Parse(
+    """[{"id":"result","quantity":"PumpFillage","unit":"%","valueSchema":{"schemaId":"example.number/v1","schema":{"type":"number"}}}]""");
+var structured = await catalog.RegisterAsync(new RegisterLogicModuleCommand(structuredJson.ToJsonString(),
+    new string('a', 64), LogicModuleTrustStatus.Untrusted));
+var savedStructured = await catalog.GetRequiredAsync(structured.ModuleId, structured.Version);
+using (var savedStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(savedStructured.ManifestJson)))
+{
+    var reviewed = await LogicModuleManifestReader.ReadAsync(savedStream);
+    if (reviewed.DataRequirements.Single().RequiredCapability != "structured.current" ||
+        reviewed.OutputRequirements!.Single().ValueSchema.SchemaId != "example.number/v1")
+        throw new InvalidOperationException("Catalog lost reviewed structured declarations.");
+}
+structuredJson["moduleId"] = "weatherford.invalid-structured-catalog-test";
+structuredJson["outputRequirements"]![0]!["valueSchema"]!["schemaId"] = "example.invalid/v1";
+structuredJson["outputRequirements"]![0]!["valueSchema"]!["schema"]!["$ref"] = "https://invalid.example/schema";
+try
+{
+    await catalog.RegisterAsync(new RegisterLogicModuleCommand(structuredJson.ToJsonString(),
+        new string('b', 64), LogicModuleTrustStatus.Untrusted));
+    throw new InvalidOperationException("Catalog accepted an unsupported structured schema.");
+}
+catch (WellSiteAutoPilotException error) when (error.Code == "MODULE_VALUE_SCHEMA_INVALID") { }
+if (await repository.GetAsync("weatherford.invalid-structured-catalog-test", "1.0.0") is not null)
+    throw new InvalidOperationException("Rejected structured registration wrote a catalog row.");
+
 Console.WriteLine("Logic Module catalog persistence and immutability checks passed.");
 return 0;
