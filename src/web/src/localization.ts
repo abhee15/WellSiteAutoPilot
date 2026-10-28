@@ -200,6 +200,7 @@ export const englishMessages = {
   'execution.detailsColumn': 'Details',
   'execution.inspect': 'Inspect',
   'execution.inspectFor': 'Inspect execution {id}',
+  'execution.backToList': 'Back to runs',
   'execution.heading': 'Run details',
   'execution.refresh': 'Refresh',
   'execution.close': 'Close',

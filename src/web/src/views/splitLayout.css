@@ -50,3 +50,12 @@
 label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* The selected asset reads as a card, like the browse pane beside it. */
 .split-selected:has(> .asset-page), .split-selected:has(> .setup-panel) { background: var(--color-surface-panel); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+
+/* Runs: the table fills the page until a run is opened, then it narrows to its key columns beside the details. */
+.runs-layout[data-has-selection='false'] .split-panes { grid-template-columns: minmax(0, 1fr); }
+.runs-layout[data-has-selection='false'] .split-selected { display: none; }
+.runs-layout[data-has-selection='true'] .run-col-secondary { display: none; }
+.runs-layout .activity-table tbody tr { cursor: pointer; }
+.runs-layout .activity-table tbody tr[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
+.runs-layout .split-selected .execution-detail { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+@media (min-width: 901px) { .runs-layout .split-back { display: none; } }
