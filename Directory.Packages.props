@@ -21,6 +21,7 @@
     <PackageVersion Include="NJsonSchema" Version="11.6.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+    <PackageVersion Include="System.Configuration.ConfigurationManager" Version="9.0.0" />
     <PackageVersion Include="System.DirectoryServices.AccountManagement" Version="10.0.0" />
   </ItemGroup>
 </Project>
