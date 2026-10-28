@@ -52,7 +52,7 @@ export function ModulePackageUpload({ canManage, onUploaded }: {
   }
 
   if (!canManage) return null;
-  return <details className="module-approval">
+  return <details className="module-upload">
     <summary>{t('moduleUpload.heading')}</summary>
     <p>{t('moduleUpload.hint')}</p>
     <label>{t('moduleUpload.file')}<input type="file" accept=".wsamodule,.zip" disabled={busy}
@@ -60,7 +60,7 @@ export function ModulePackageUpload({ canManage, onUploaded }: {
     {tooLarge && <p role="alert">{t('moduleUpload.tooLarge')}</p>}
     {error && <p role="alert">{error}</p>}
     {notice && <p role="status">{notice}</p>}
-    <button type="button" disabled={busy || !file || file.size === 0 || tooLarge} onClick={() => void upload()}>
+    <button type="button" className="secondary-button" disabled={busy || !file || file.size === 0 || tooLarge} onClick={() => void upload()}>
       {t(busy ? 'moduleUpload.working' : 'moduleUpload.upload')}
     </button>
   </details>;

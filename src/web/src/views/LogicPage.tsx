@@ -104,13 +104,22 @@ export function LogicPage({
             <ModulePackageUpload canManage={permissions.includes('logic.manage')} onUploaded={async module => {
               await onRefresh(); setAboutModuleId(module.id ?? null);
             }} />
-            <LogicCatalogControls
-              criteria={catalogCriteria}
-              onChange={setCatalogCriteria}
-              runtimes={runtimes}
-              matchingCount={visibleModules.length}
-              totalCount={modules.length}
-            />
+            <div className="split-search">
+              <input type="search" maxLength={120} value={catalogCriteria.search}
+                aria-label={t('logicCatalog.search')} placeholder={t('logicCatalog.searchPlaceholder')}
+                onChange={event => setCatalogCriteria({ ...catalogCriteria, search: event.target.value })} />
+            </div>
+            <details className="split-filters">
+              <summary>{t('logicCatalog.moreFilters')}</summary>
+              <LogicCatalogControls
+                criteria={catalogCriteria}
+                onChange={setCatalogCriteria}
+                runtimes={runtimes}
+                matchingCount={visibleModules.length}
+                totalCount={modules.length}
+                hideSearch
+              />
+            </details>
             {visibleModules.length === 0 ? (
               <>
                 {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />

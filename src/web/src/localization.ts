@@ -654,6 +654,7 @@ export const englishMessages = {
   'configured.schedule': 'Schedule',
   'configured.noRevisions': 'No revisions available.',
   'logicCatalog.controls': 'Logic Module catalog controls',
+  'logicCatalog.moreFilters': 'Filters',
   'logicCatalog.search': 'Search modules',
   'logicCatalog.searchPlaceholder': 'Name, publisher, module ID…',
   'logicCatalog.eligibility': 'Availability',
