@@ -95,6 +95,14 @@ internal static class PackageHostChecks
             foreach (var candidate in new[]
             {
                 (await PackAsync(manifest with { EntryPoint = typeof(StructuredHostProbeModule).FullName! }), "MODULE_CONTRACT_UNSUPPORTED"),
+                (await PackAsync(manifest with
+                {
+                    ManifestVersion = 2, MinimumSdkVersion = "1.2.0",
+                    DataRequirements = [new("value", "well", "Value", "Current", null, 60, false,
+                        new("example.number/v1", JsonSerializer.SerializeToElement(new { type = "number" })), "structured.current")],
+                    OutputRequirements = [new("value", "Value", null,
+                        new("example.number/v1", JsonSerializer.SerializeToElement(new { type = "number" })))]
+                }), "MODULE_CONTRACT_UNSUPPORTED"),
                 (await PackAsync(manifest with { MinimumSdkVersion = "9999.0.0" }), "MODULE_SDK_INCOMPATIBLE"),
                 (await PackAsync(manifest with { Runtime = LogicRuntimeKind.Python }), "MODULE_RUNTIME_INCOMPATIBLE"),
                 (await PackAsync(manifest, "payload/../escaped.dll"), "MODULE_PACKAGE_INVALID")

@@ -15,11 +15,8 @@ internal static class StructuredCardChecks
         var module = new CardCalibrationModule();
         var time = DateTimeOffset.Parse("2026-10-27T12:00:10Z", System.Globalization.CultureInfo.InvariantCulture);
         var asset = Guid.NewGuid();
-        var definition = new StructuredModuleDefinition(module.Identity,
-            [new(new("cards", "well", "SurfaceCards", "Current", null, 60, false), "sample.cards/v1", Fixture("cards.schema.json")),
-             new(new("calibration", "well", "Calibration", "Current", null, null, false), "sample.calibration/v1", Fixture("calibration.schema.json"))],
-            [new("calibrated-cards", "CalibratedCards", null, "sample.calibrated-cards/v1", Fixture("calibrated-cards.schema.json")),
-             new("peak-load", "PeakLoad", "lbf", "sample.peak-load/v1", Json("""{"type":"number"}"""))]);
+        using var manifestStream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "structured-cards", "manifest.json"));
+        var definition = await StructuredModuleOfflineHost.ReadDefinitionAsync(manifestStream);
         var context = new LogicModuleExecutionContextV2(Guid.NewGuid(), module.Identity, "structured-card-test", time, "{}",
             [new("well", asset, "{}")],
             [new("cards", asset, "SurfaceCards", new("sample.cards/v1", Fixture("cards.json")), null, time.AddSeconds(-10), "Good", "synthetic-fixture"),
@@ -62,6 +59,11 @@ internal static class StructuredCardChecks
             context), "MODULE_CONTEXT_INVALID");
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(probe, definition,
             Replace(first with { Value = first.Value with { Data = default } })), "MODULE_ENVELOPE_INVALID");
+        await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(probe, definition,
+            context with { Assets = [.. context.Assets, new("well", Guid.NewGuid(), "{}")] }), "MODULE_CONTEXT_INVALID");
+        await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(probe,
+            definition with { ParameterSchema = Json("""{"type":"object","properties":{"enabled":{"type":"boolean"}},"required":["enabled"],"additionalProperties":false}""") },
+            context), "ASSET_ATTRIBUTE_VALUES_INVALID");
         Assert(probe.Calls == 0, "Input rejection ran module code.");
         var mismatched = JsonNode.Parse(first.Value.Data.GetRawText())!;
         mismatched[0]!["position"]!.AsArray().RemoveAt(0);

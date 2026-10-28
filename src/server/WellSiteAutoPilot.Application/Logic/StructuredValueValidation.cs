@@ -24,11 +24,7 @@ public static class StructuredValueValidation
         try
         {
             // The same byte/depth/duplicate-key/reference limits apply to both directions.
-            var wrappedSchema = JsonSerializer.Serialize(new
-            {
-                type = "object", properties = new Dictionary<string, JsonElement> { ["value"] = schema },
-                required = RequiredValue, additionalProperties = false
-            });
+            var wrappedSchema = WrapSchema(schema);
             var wrappedValue = JsonSerializer.Serialize(new { value = value.Data });
             await AssetAttributeSchemaValidator.ValidateValuesAsync(wrappedSchema, wrappedValue, cancellationToken);
             ValidateFiniteNumbers(value.Data);
@@ -39,6 +35,19 @@ public static class StructuredValueValidation
                 "The structured value or its schema is invalid or exceeds the supported limits.", innerException: error);
         }
     }
+
+    public static async Task ValidateDefinitionAsync(JsonElement schema, CancellationToken cancellationToken = default)
+    {
+        if (schema.ValueKind != JsonValueKind.Object || !schema.TryGetProperty("type", out _))
+            throw InvalidValue();
+        await AssetAttributeSchemaValidator.ValidateDefinitionAsync(WrapSchema(schema), cancellationToken);
+    }
+
+    private static string WrapSchema(JsonElement schema) => JsonSerializer.Serialize(new
+    {
+        type = "object", properties = new Dictionary<string, JsonElement> { ["value"] = schema },
+        required = RequiredValue, additionalProperties = false
+    });
 
     private static void ValidateFiniteNumbers(JsonElement value)
     {

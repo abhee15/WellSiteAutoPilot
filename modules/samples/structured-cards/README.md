@@ -22,8 +22,10 @@ Those are algorithm requirements, not universal platform/card restrictions.
 
 ## Validation and shape
 
-The trusted offline host takes a separate `StructuredModuleDefinition` containing
-reviewed input/output schemas. Input values cannot supply their own schema or
+The trusted offline host reads `manifest.json` through the product manifest reader
+and builds its `StructuredModuleDefinition` from those reviewed declarations.
+The version 2 manifest contains input/output schemas, required provider capabilities,
+asset-role cardinality and optional settings schema. Input values cannot supply their own schema or
 relax the host's policy. All inputs are validated before invocation, and all
 outputs before return. Inputs retain quantity, source, timestamp, quality and
 optional scalar unit. Mixed-unit data declares units in its schema and payload;
@@ -65,11 +67,13 @@ recommendation/control intent is executed by this host.
 This is an executable SDK/authoring slice. It is **not deployable structured
 execution**. The current package host rejects V2 (including dual V1/V2 entry
 points) before construction, with `MODULE_CONTRACT_UNSUPPORTED`. Existing V1
-modules remain supported. No catalog manifest, provider capability or live card
-endpoint is added; no database or installer migration is required.
+modules remain supported. Version 2 manifests can be validated, packaged and
+stored in the catalog, but production host compatibility and execution snapshot
+creation reject them. Declaring `structured.current` does not make any adapter
+support it. No live card endpoint, database or installer migration is added.
 
-Next work must carry the reviewed schema/capability declarations through the
-manifest and immutable authorized read plan, bounded provider/broker transport,
+Next work must carry these reviewed schema/capability declarations into the
+immutable authorized read plan, bounded provider/broker transport,
 worker dispatch, result persistence and inspection/export. Only then can the
 production host accept V2. Obtain the installed ForeSite card HTTP contract
 before adding its adapter; field names remain the provider contract and CygNet
