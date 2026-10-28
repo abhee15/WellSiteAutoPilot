@@ -23,6 +23,7 @@ public static class LogicModuleManifestReader
         using var document = await JsonDocument.ParseAsync(source, cancellationToken: cancellationToken);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
             throw new JsonException("Module manifest must be an object.");
+        ValidateUniqueFields(document.RootElement);
         var fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in document.RootElement.EnumerateObject())
         {
@@ -35,8 +36,24 @@ public static class LogicModuleManifestReader
         // retain their existing optional semantics when omitted.
         var manifest = document.RootElement.Deserialize<LogicModuleManifest>(SerializerOptions)
             ?? throw new JsonException("Module manifest is empty.");
-        LogicModuleManifestValidator.Validate(manifest);
-        await LogicModuleManifestValidator.ValidateParameterSchemaAsync(manifest, cancellationToken);
+        await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, cancellationToken);
         return (manifest, JsonSerializer.Serialize(document.RootElement));
     }
+    // DTO names are case-insensitive; schema property names are case-sensitive data.
+    internal static void ValidateUniqueFields(JsonElement element, bool inSchema = false)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray()) ValidateUniqueFields(item, inSchema);
+        }
+        if (element.ValueKind != JsonValueKind.Object) return;
+        var names = new HashSet<string>(inSchema ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
+        foreach (var property in element.EnumerateObject())
+        {
+            if (!names.Add(property.Name)) throw new JsonException("Module manifest contains a duplicate field.");
+            ValidateUniqueFields(property.Value, inSchema || property.Name.Equals("schema", StringComparison.OrdinalIgnoreCase) ||
+                property.Name.Equals("parameterSchema", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
 }

@@ -1,0 +1,283 @@
+{
+  "manifestVersion": 2,
+  "moduleId": "sample.card-calibration",
+  "version": "1.0.0",
+  "displayName": "Synthetic card calibration",
+  "publisher": "Sample",
+  "runtime": "DotNet",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "WellSiteAutoPilot.Samples.StructuredCards.CardCalibrationModule",
+  "minimumSdkVersion": "1.2.0",
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": null,
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "cards",
+      "assetRole": "well",
+      "quantity": "SurfaceCards",
+      "access": "Current",
+      "canonicalUnit": null,
+      "maximumAgeSeconds": 60,
+      "allowUncertainQuality": false,
+      "requiredCapability": "structured.current",
+      "valueSchema": {
+        "schemaId": "sample.cards/v1",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "kind": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "CURRENT",
+                  "PUMPOFF",
+                  "FULL",
+                  "REFERENCE"
+                ]
+              },
+              "representation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "SURFACE"
+                ]
+              },
+              "capturedAtUtc": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "positionUnit": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "in"
+                ]
+              },
+              "loadUnit": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "lbf"
+                ]
+              },
+              "position": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": -1000000,
+                  "maximum": 1000000
+                },
+                "minItems": 2,
+                "maxItems": 1024
+              },
+              "load": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": -1000000,
+                  "maximum": 1000000
+                },
+                "minItems": 2,
+                "maxItems": 1024
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "representation",
+              "capturedAtUtc",
+              "source",
+              "positionUnit",
+              "loadUnit",
+              "position",
+              "load"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 16
+        }
+      }
+    },
+    {
+      "id": "calibration",
+      "assetRole": "well",
+      "quantity": "Calibration",
+      "access": "Current",
+      "canonicalUnit": null,
+      "maximumAgeSeconds": null,
+      "allowUncertainQuality": false,
+      "requiredCapability": "structured.current",
+      "valueSchema": {
+        "schemaId": "sample.calibration/v1",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "loadScale": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 10
+            },
+            "loadOffset": {
+              "type": "number",
+              "minimum": -10000,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "loadScale",
+            "loadOffset"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "commandRequirements": [],
+  "outputRequirements": [
+    {
+      "id": "calibrated-cards",
+      "quantity": "CalibratedCards",
+      "unit": null,
+      "valueSchema": {
+        "schemaId": "sample.calibrated-cards/v1",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "kind": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "CURRENT",
+                  "PUMPOFF",
+                  "FULL",
+                  "REFERENCE"
+                ]
+              },
+              "representation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "SURFACE"
+                ]
+              },
+              "capturedAtUtc": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "positionUnit": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "in"
+                ]
+              },
+              "loadUnit": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "lbf"
+                ]
+              },
+              "position": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": -1000000,
+                  "maximum": 1000000
+                },
+                "minItems": 2,
+                "maxItems": 1024
+              },
+              "load": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": -1000000,
+                  "maximum": 1000000
+                },
+                "minItems": 2,
+                "maxItems": 1024
+              },
+              "calculationMethod": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "enum": [
+                  "LinearLoadCalibration"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "representation",
+              "capturedAtUtc",
+              "source",
+              "positionUnit",
+              "loadUnit",
+              "position",
+              "load",
+              "calculationMethod"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 16
+        }
+      }
+    },
+    {
+      "id": "peak-load",
+      "quantity": "PeakLoad",
+      "unit": "lbf",
+      "valueSchema": {
+        "schemaId": "sample.peak-load/v1",
+        "schema": {
+          "type": "number"
+        }
+      }
+    }
+  ]
+}

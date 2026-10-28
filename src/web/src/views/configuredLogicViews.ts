@@ -17,9 +17,10 @@ export const DEFAULT_CONFIGURED_LOGIC_CRITERIA: ConfiguredLogicCriteria = {
   sort: 'name',
 };
 
-export function orderedRevisions(
-  item: ConfiguredLogicResponse,
-): ConfiguredLogicRevisionResponse[] {
+/** Generic so a verified configuration keeps its required revision ids. */
+export function orderedRevisions<R extends ConfiguredLogicRevisionResponse>(
+  item: { revisions?: R[] | null },
+): R[] {
   return [...(item.revisions ?? [])].sort((left, right) => {
     const byNumber = (right.revisionNumber ?? 0) - (left.revisionNumber ?? 0);
     return byNumber || (left.id ?? '').localeCompare(right.id ?? '');
@@ -66,4 +67,10 @@ export function filterConfiguredLogic(
     const time = criteria.sort === 'newest' ? rightAt - leftAt : leftAt - rightAt;
     return time || (left.id ?? '').localeCompare(right.id ?? '');
   });
+}
+
+/** The status the list shows: the live revision's when there is one, otherwise the newest revision's. */
+export function listedStatus(item: ConfiguredLogicResponse): string {
+  const live = (item.revisions ?? []).find(revision => revision.id === item.activeRevisionId);
+  return live?.status ?? latestRevision(item)?.status ?? 'Draft';
 }

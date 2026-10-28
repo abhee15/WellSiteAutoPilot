@@ -238,6 +238,7 @@ export function App() {
             configuredLogic={configuredLogic}
             isLoaded={isLoaded}
             userId={currentUser?.userId}
+            canReadConnections={hasPermission(currentUser, 'connections.read')}
           />
         )}
         {section === 'recommendations' && canOpenSection(currentUser, section) && (

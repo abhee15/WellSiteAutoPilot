@@ -53,8 +53,7 @@ public sealed class LogicModuleCatalogService(
     {
         ArgumentNullException.ThrowIfNull(command);
         var manifest = DeserializeManifest(command.ManifestJson);
-        LogicModuleManifestValidator.Validate(manifest);
-        await LogicModuleManifestValidator.ValidateParameterSchemaAsync(manifest, cancellationToken);
+        await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, cancellationToken);
         var checksum = NormalizeSha256(command.PackageSha256);
         ValidateTrustStatus(command.TrustStatus);
         return new InstalledLogicModule(
@@ -124,6 +123,8 @@ public sealed class LogicModuleCatalogService(
 
         try
         {
+            using var document = JsonDocument.Parse(json);
+            LogicModuleManifestReader.ValidateUniqueFields(document.RootElement);
             return JsonSerializer.Deserialize<LogicModuleManifest>(
                        json,
                        SerializerOptions) ??

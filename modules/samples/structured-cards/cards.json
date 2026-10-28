@@ -1,0 +1,44 @@
+[
+  {
+    "id": "synthetic-current",
+    "kind": "CURRENT",
+    "representation": "SURFACE",
+    "capturedAtUtc": "2026-10-27T12:00:00Z",
+    "source": "synthetic-fixture",
+    "positionUnit": "in",
+    "loadUnit": "lbf",
+    "position": [
+      0,
+      12,
+      24,
+      12,
+      0
+    ],
+    "load": [
+      100,
+      200,
+      150,
+      80,
+      100
+    ]
+  },
+  {
+    "id": "synthetic-full",
+    "kind": "FULL",
+    "representation": "SURFACE",
+    "capturedAtUtc": "2026-10-20T12:00:00Z",
+    "source": "synthetic-fixture",
+    "positionUnit": "in",
+    "loadUnit": "lbf",
+    "position": [
+      0,
+      24,
+      0
+    ],
+    "load": [
+      120,
+      240,
+      120
+    ]
+  }
+]

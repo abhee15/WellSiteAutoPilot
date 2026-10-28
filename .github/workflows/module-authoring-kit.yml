@@ -5,6 +5,7 @@ on:
     branches: [develop, main]
     paths:
       - 'modules/authoring/**'
+      - 'modules/samples/structured-cards/**'
       - 'src/modules/WellSiteAutoPilot.ModuleSdk/**'
       - 'tools/WellSiteAutoPilot.Cli/**'
       - 'src/server/WellSiteAutoPilot.Application/Logic/**'

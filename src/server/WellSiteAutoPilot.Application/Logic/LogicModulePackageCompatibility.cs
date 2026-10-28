@@ -23,6 +23,8 @@ public static class LogicModulePackageCompatibility
     public static void ValidateHost(LogicModuleManifest manifest, LogicRuntimeKind runtime, string sdkVersion)
     {
         ArgumentNullException.ThrowIfNull(manifest);
+        if (manifest.ManifestVersion != 1)
+            Fail("MODULE_CONTRACT_UNSUPPORTED", "Structured packages can be reviewed but this deployment does not yet execute them.");
         if (!Enum.IsDefined(runtime) || manifest.Runtime != runtime)
             Fail("MODULE_RUNTIME_INCOMPATIBLE", "The package requires a different module runtime.");
         if (!LogicModuleSemanticVersion.TryParse(sdkVersion, out var hostVersion))

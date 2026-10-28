@@ -153,6 +153,9 @@
   --layout-form-wide: 520px;
   --layout-column-min: 240px;
   --layout-panel-min: 280px;
+  --layout-fact-narrow: 8rem;
+  --layout-fact-min: 11rem;
+  --layout-fact-wide: 14rem;
   --layout-panel-max: 360px;
   --layout-card-min: 220px;
   --layout-field-min: 180px;

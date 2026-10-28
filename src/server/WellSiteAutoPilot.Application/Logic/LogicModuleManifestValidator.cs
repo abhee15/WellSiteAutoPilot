@@ -23,11 +23,11 @@ public static partial class LogicModuleManifestValidator
             Fail("MODULE_MANIFEST_INVALID", "The module runtime or execution profile is unsupported.");
         }
 
-        if (manifest.ManifestVersion != 1)
+        if (manifest.ManifestVersion is not (1 or 2))
         {
             Fail(
                 "MODULE_MANIFEST_VERSION_UNSUPPORTED",
-                "Only Logic Module manifest version 1 is currently supported.");
+                "Only Logic Module manifest versions 1 and 2 are supported.");
         }
 
         RequireIdentifier(manifest.ModuleId, "Module ID");
@@ -66,6 +66,76 @@ public static partial class LogicModuleManifestValidator
         ValidateDataRequirements(manifest.AssetRequirements, manifest.DataRequirements);
         ValidateCommandRequirements(manifest.AssetRequirements, manifest.CommandRequirements);
         ValidateDescription(manifest.Description);
+        ValidateStructuredContract(manifest);
+    }
+
+    private static void ValidateStructuredContract(LogicModuleManifest manifest)
+    {
+        if (manifest.ManifestVersion == 1)
+        {
+            if (manifest.OutputRequirements is not null || manifest.DataRequirements.Any(r =>
+                r.ValueSchema is not null || r.RequiredCapability is not null))
+                Fail("MODULE_CONTRACT_INVALID", "Structured declarations require manifest version 2.");
+            return;
+        }
+        if (!LogicModuleSemanticVersion.TryParse("1.2.0", out var structuredSdk) ||
+            !LogicModuleSemanticVersion.TryParse(manifest.MinimumSdkVersion, out var minimumSdk) ||
+            minimumSdk!.CompareTo(structuredSdk) < 0)
+            Fail("MODULE_CONTRACT_INVALID", "Structured modules require SDK 1.2.0 or later.");
+        if (manifest.Runtime != LogicRuntimeKind.DotNet || manifest.DataRequirements.Count is < 1 or > 64 ||
+            manifest.OutputRequirements is null || manifest.OutputRequirements.Count is < 1 or > 64)
+            Fail("MODULE_CONTRACT_INVALID", "Structured modules require .NET, 1-64 inputs and 1-64 outputs.");
+        foreach (var input in manifest.DataRequirements)
+        {
+            if (input.ValueSchema is null || string.IsNullOrWhiteSpace(input.RequiredCapability))
+                Fail("MODULE_CONTRACT_INVALID", "Each structured input requires a schema and provider capability.");
+            RequireIdentifier(input.RequiredCapability!, "Required capability");
+            ValidateSchemaIdentity(input.ValueSchema!);
+        }
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var output in manifest.OutputRequirements!)
+        {
+            if (output is null || output.ValueSchema is null)
+                Fail("MODULE_CONTRACT_INVALID", "Output declarations cannot be null or omit their schema.");
+            RequireIdentifier(output!.Id, "Output ID");
+            RequireIdentifier(output.Quantity, "Output quantity");
+            if (!ids.Add(output.Id)) Fail("MODULE_OUTPUT_DUPLICATE", "Output IDs must be unique.");
+            ValidateSchemaIdentity(output.ValueSchema);
+        }
+        var schemas = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var declared in manifest.DataRequirements.Select(r => r.ValueSchema!)
+            .Concat(manifest.OutputRequirements!.Select(r => r.ValueSchema)))
+        {
+            if (schemas.TryGetValue(declared.SchemaId, out var existing) && !JsonElement.DeepEquals(existing, declared.Schema))
+                Fail("MODULE_VALUE_SCHEMA_INVALID", "One schema identity cannot describe conflicting shapes.");
+            schemas[declared.SchemaId] = declared.Schema;
+        }
+    }
+
+    private static void ValidateSchemaIdentity(LogicValueSchema schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema.SchemaId) || schema.SchemaId.Length > 128 ||
+            schema.SchemaId.Any(char.IsControl) || schema.Schema.ValueKind != JsonValueKind.Object ||
+            !schema.Schema.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String)
+            Fail("MODULE_VALUE_SCHEMA_INVALID", "A value schema requires an identity and explicit root type.");
+    }
+
+    public static async Task ValidateSchemasAsync(LogicModuleManifest manifest, CancellationToken cancellationToken = default)
+    {
+        Validate(manifest);
+        await ValidateParameterSchemaAsync(manifest, cancellationToken);
+        if (manifest.ManifestVersion != 2) return;
+        foreach (var schema in manifest.DataRequirements.Select(r => r.ValueSchema!)
+            .Concat(manifest.OutputRequirements!.Select(r => r.ValueSchema)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try { await StructuredValueValidation.ValidateDefinitionAsync(schema.Schema, cancellationToken); }
+            catch (WellSiteAutoPilotException error) when (error.Kind == FailureKind.Validation)
+            {
+                throw new WellSiteAutoPilotException("MODULE_VALUE_SCHEMA_INVALID", FailureKind.Validation,
+                    "The module value schema is malformed, unsupported or too large.", innerException: error);
+            }
+        }
     }
 
     /// <summary>Longest module description accepted; it is shown in lists and cards.</summary>

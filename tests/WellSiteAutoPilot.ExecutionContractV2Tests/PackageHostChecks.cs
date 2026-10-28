@@ -94,6 +94,15 @@ internal static class PackageHostChecks
             var beforeRejected = File.ReadAllText(marker);
             foreach (var candidate in new[]
             {
+                (await PackAsync(manifest with { EntryPoint = typeof(StructuredHostProbeModule).FullName! }), "MODULE_CONTRACT_UNSUPPORTED"),
+                (await PackAsync(manifest with
+                {
+                    ManifestVersion = 2, MinimumSdkVersion = "1.2.0",
+                    DataRequirements = [new("value", "well", "Value", "Current", null, 60, false,
+                        new("example.number/v1", JsonSerializer.SerializeToElement(new { type = "number" })), "structured.current")],
+                    OutputRequirements = [new("value", "Value", null,
+                        new("example.number/v1", JsonSerializer.SerializeToElement(new { type = "number" })))]
+                }), "MODULE_CONTRACT_UNSUPPORTED"),
                 (await PackAsync(manifest with { MinimumSdkVersion = "9999.0.0" }), "MODULE_SDK_INCOMPATIBLE"),
                 (await PackAsync(manifest with { Runtime = LogicRuntimeKind.Python }), "MODULE_RUNTIME_INCOMPATIBLE"),
                 (await PackAsync(manifest, "payload/../escaped.dll"), "MODULE_PACKAGE_INVALID")
@@ -192,4 +201,15 @@ public sealed class PackageHostProbeModule : ILogicModuleV1, IDisposable
     {
         if (Environment.GetEnvironmentVariable("WSA_PACKAGE_HOST_TEST_MARKER") is { } path) File.AppendAllText(path, message + "\n");
     }
+}
+
+// Even a dual-interface module cannot silently downgrade structured execution.
+public sealed class StructuredHostProbeModule : ILogicModuleV1, ILogicModuleV2
+{
+    public StructuredHostProbeModule() => throw new InvalidOperationException("Unsupported constructor must never run.");
+    public LogicModuleIdentity Identity => new("structured-probe", "1.0.0");
+    public ValueTask<LogicModuleExecutionResult> ExecuteAsync(LogicModuleExecutionContext context, CancellationToken cancellationToken = default)
+        => throw new InvalidOperationException("Unsupported contract.");
+    public ValueTask<LogicModuleExecutionResultV2> ExecuteAsync(LogicModuleExecutionContextV2 context, CancellationToken cancellationToken = default)
+        => throw new InvalidOperationException("Unsupported contract.");
 }

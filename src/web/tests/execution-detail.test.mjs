@@ -214,3 +214,34 @@ test('execution detail displays pinned package and saved connection revision rat
   assert.match(html, /2 assets/);
   assert.match(html, new RegExp(secondId));
 });
+
+
+test('durations, input age and names read as plain words', () => {
+  assert.equal(detail.formatDuration(45_000), '45 s');
+  assert.equal(detail.formatDuration(185_000), '3 min 5 s');
+  assert.equal(detail.formatDuration(3_720_000), '1 h 2 min');
+  assert.equal(detail.formatDuration(-1), '—');
+  assert.equal(detail.runDuration({ startedAtUtc: '2026-10-28T03:33:28Z', completedAtUtc: '2026-10-28T03:33:29Z' }), '1 s');
+  assert.equal(detail.runDuration({ startedAtUtc: '2026-10-28T03:33:28Z', completedAtUtc: null }), null);
+  assert.equal(detail.runDuration({ startedAtUtc: '2026-10-28T03:33:30Z', completedAtUtc: '2026-10-28T03:33:28Z' }), null);
+  assert.equal(detail.ageWhenRead('2026-10-28T02:51:35Z', '2026-10-28T03:33:29Z'), '42 min old when read');
+  assert.equal(detail.ageWhenRead('2026-10-28T04:00:00Z', '2026-10-28T03:33:29Z'), null);
+  assert.equal(detail.ageWhenRead(null, '2026-10-28T03:33:29Z'), null);
+  assert.equal(detail.humanizeName('pump-fillage'), 'Pump fillage');
+  assert.equal(detail.humanizeName('PumpFillage'), 'Pump fillage');
+});
+
+test('output is shown as labelled rows, bounded, without the input readings, and never as markup', () => {
+  const rows = detail.describeExecutionOutput(JSON.stringify({ recommendedFrequency: 52.5, ok: true, nothing: null,
+    nested: { a: 1 }, long: 'x'.repeat(300), inputDiagnostics: [{ a: 1 }], inputObservations: [] }));
+  assert.deepEqual(rows.map(row => row.label), ['Recommended frequency', 'Ok', 'Nothing', 'Nested', 'Long']);
+  assert.equal(rows[0].value, '52.5');
+  assert.equal(rows[2].value, '—');
+  assert.equal(rows[3].value, '{"a":1}');
+  assert.equal(rows[4].value.length, 201);
+  assert.equal(detail.describeExecutionOutput(JSON.stringify(Object.fromEntries(Array.from({ length: 30 }, (_, i) => ['k' + i, i])))).length, 20);
+  for (const bad of [null, '', 'not json', '[1,2]', '"text"', 'null', ' '.repeat(1048577)]) assert.deepEqual(detail.describeExecutionOutput(bad), []);
+  assert.equal(detail.prettyExecutionOutput('{"a":1}'), '{\n  "a": 1\n}');
+  assert.equal(detail.prettyExecutionOutput('<b>plain</b>'), '<b>plain</b>');
+  assert.equal(detail.prettyExecutionOutput(null), '');
+});

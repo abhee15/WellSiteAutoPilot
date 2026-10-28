@@ -6,21 +6,23 @@ type Props = {
   onChange: (next: ConfiguredLogicCriteria) => void;
   matchingCount: number;
   totalCount: number;
+  /** The search box is shown above by the page, as in Assets; only the other filters are drawn here. */
+  hideSearch?: boolean;
 };
 
 export function ConfiguredLogicControls({
-  criteria, onChange, matchingCount, totalCount,
+  criteria, onChange, matchingCount, totalCount, hideSearch = false,
 }: Props) {
   return (
     <div className="data-view-controls" role="group"
       aria-label={t('configured.controls')}>
       <div className="data-view-fields asset-view-fields">
-        <label>
+        {!hideSearch && <label>
           <span>{t('configured.search')}</span>
           <input type="search" maxLength={120} value={criteria.search}
             placeholder={t('configured.searchPlaceholder')}
             onChange={event => onChange({ ...criteria, search: event.target.value })} />
-        </label>
+        </label>}
         <label>
           <span>{t('configured.lifecycle')}</span>
           <select value={criteria.lifecycle}
