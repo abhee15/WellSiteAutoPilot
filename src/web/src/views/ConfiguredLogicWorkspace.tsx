@@ -118,8 +118,8 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
           [r.moduleId, r.moduleVersion && 'v' + r.moduleVersion].filter(Boolean).join(' '),
           r.mode,
           scheduleText(r.schedule),
-          t('configured.assetCount', { count: r.assetBindings?.length ?? 0 }),
-          t('configured.sources', { count: r.dataBindings?.length ?? 0 }),
+          (r.assetBindings?.length ?? 0) === 1 ? t('configured.assetCountOne') : t('configured.assetCount', { count: r.assetBindings?.length ?? 0 }),
+          (r.dataBindings?.length ?? 0) === 1 ? t('configured.sourcesOne') : t('configured.sources', { count: r.dataBindings?.length ?? 0 }),
           formatDetailTimestamp(r.createdAtUtc),
         ].filter(Boolean).join(' · ')}</p>
         <p>{t('setup.exactScope', { assets: r.assetBindings?.map(b =>

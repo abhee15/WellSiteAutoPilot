@@ -101,9 +101,6 @@ export function LogicPage({
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
             <PanelHeader eyebrow="Catalog" title="Logic Modules" count={visibleModules.length} />
-            <ModulePackageUpload canManage={permissions.includes('logic.manage')} onUploaded={async module => {
-              await onRefresh(); setAboutModuleId(module.id ?? null);
-            }} />
             <div className="split-search">
               <input type="search" maxLength={120} value={catalogCriteria.search}
                 aria-label={t('logicCatalog.search')} placeholder={t('logicCatalog.searchPlaceholder')}
@@ -120,6 +117,9 @@ export function LogicPage({
                 hideSearch
               />
             </details>
+            <ModulePackageUpload canManage={permissions.includes('logic.manage')} onUploaded={async module => {
+              await onRefresh(); setAboutModuleId(module.id ?? null);
+            }} />
             {visibleModules.length === 0 ? (
               <>
                 {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
@@ -158,12 +158,21 @@ export function LogicPage({
           <section className="panel split-browse" aria-label={t('logic.tabConfigured')}>
             <PanelHeader eyebrow="Configuration" title="Configured Logic"
               count={visibleConfigurations.length} />
-            <ConfiguredLogicControls
-              criteria={configuredCriteria}
-              onChange={setConfiguredCriteria}
-              matchingCount={visibleConfigurations.length}
-              totalCount={configuredLogic.length}
-            />
+            <div className="split-search">
+              <input type="search" maxLength={120} value={configuredCriteria.search}
+                aria-label={t('configured.search')} placeholder={t('configured.searchPlaceholder')}
+                onChange={event => setConfiguredCriteria({ ...configuredCriteria, search: event.target.value })} />
+            </div>
+            <details className="split-filters">
+              <summary>{t('logicCatalog.moreFilters')}</summary>
+              <ConfiguredLogicControls
+                criteria={configuredCriteria}
+                onChange={setConfiguredCriteria}
+                matchingCount={visibleConfigurations.length}
+                totalCount={configuredLogic.length}
+                hideSearch
+              />
+            </details>
             {visibleConfigurations.length === 0 ? (
               <>
                 {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
