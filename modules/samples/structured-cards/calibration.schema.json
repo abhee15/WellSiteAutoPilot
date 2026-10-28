@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "loadScale": {
+      "type": "number",
+      "minimum": 0.1,
+      "maximum": 10
+    },
+    "loadOffset": {
+      "type": "number",
+      "minimum": -10000,
+      "maximum": 10000
+    }
+  },
+  "required": [
+    "loadScale",
+    "loadOffset"
+  ],
+  "additionalProperties": false
+}
