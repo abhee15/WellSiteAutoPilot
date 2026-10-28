@@ -21,6 +21,8 @@ export class ExecutionDetailError extends Error {
 const executionIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export const isGuid = (value: string): boolean => executionIdPattern.test(value);
+
 /**
  * Fetch detail from the authoritative, asset-scoped API. Do not reuse cached
  * data across operator sessions or fall back to a previously visible result.
@@ -96,6 +98,72 @@ export function previewExecutionOutput(value?: string | null): {
   };
 }
 
+const SECOND = 1000;
+/** A length of time in the largest sensible units, for example "45 s", "3 min 5 s" or "1 h 2 min". */
+export function formatDuration(milliseconds: number, roundToMinutes = false): string {
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return '—';
+  let seconds = Math.round(milliseconds / SECOND);
+  // An age of "41 min 54 s" is false precision; from one minute up it reads "42 min".
+  if (roundToMinutes && seconds >= 60) seconds = Math.round(seconds / 60) * 60;
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return seconds % 60 === 0 ? `${minutes} min` : `${minutes} min ${seconds % 60} s`;
+  const hours = Math.floor(minutes / 60);
+  return minutes % 60 === 0 ? `${hours} h` : `${hours} h ${minutes % 60} min`;
+}
+
+/** How long a finished run took, from the times the server recorded; null until it has both. */
+export function runDuration(detail: Pick<ExecutionResponse, 'startedAtUtc' | 'completedAtUtc'>): string | null {
+  const started = Date.parse(detail.startedAtUtc ?? '');
+  const completed = Date.parse(detail.completedAtUtc ?? '');
+  return Number.isFinite(started) && Number.isFinite(completed) && completed >= started
+    ? formatDuration(completed - started) : null;
+}
+
+/** How old a measurement was when it was read, for example "35 min old when read"; null when the times do not allow it. */
+export function ageWhenRead(timestampUtc?: string | null, retrievedAtUtc?: string | null): string | null {
+  const measured = Date.parse(timestampUtc ?? '');
+  const read = Date.parse(retrievedAtUtc ?? '');
+  return Number.isFinite(measured) && Number.isFinite(read) && read >= measured
+    ? `${formatDuration(read - measured, true)} old when read` : null;
+}
+
+/** "pump-fillage" and "PumpFillage" read as "Pump fillage". */
+export function humanizeName(value: string): string {
+  const words = value.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_\-.]+/g, ' ').trim().toLowerCase();
+  return words ? words[0].toUpperCase() + words.slice(1) : value;
+}
+
+export type OutputEntry = { label: string; value: string };
+const MAX_OUTPUT_ENTRIES = 20;
+const MAX_OUTPUT_VALUE = 200;
+/**
+ * A run's result as label and value rows, for people. Input readings are left out because the Inputs section
+ * shows them. Returns no rows when the output is not a JSON object; the raw text stays available beside it.
+ * Values are plain text and never markup.
+ */
+export function describeExecutionOutput(output?: string | null): OutputEntry[] {
+  if (!output || output.length > 1048576) return [];
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+    return Object.entries(parsed as Record<string, unknown>)
+      .filter(([key]) => key !== 'inputDiagnostics' && key !== 'inputObservations')
+      .slice(0, MAX_OUTPUT_ENTRIES)
+      .map(([key, value]) => {
+        const text = typeof value === 'string' ? value
+          : typeof value === 'number' || typeof value === 'boolean' ? String(value)
+            : value === null ? '—' : JSON.stringify(value);
+        return { label: humanizeName(key), value: text.length > MAX_OUTPUT_VALUE ? text.slice(0, MAX_OUTPUT_VALUE) + '…' : text };
+      });
+  } catch { return []; }
+}
+
+/** The output as indented JSON when it parses, so the raw view is readable; otherwise unchanged. */
+export function prettyExecutionOutput(output?: string | null): string {
+  if (!output || output.length > 1048576) return output ?? '';
+  try { return JSON.stringify(JSON.parse(output), null, 2); } catch { return output; }
+}
 
 type InputObservation = { requirementId: string; assetId: string; quantity: string;
   value: number | null; unit: string | null; timestampUtc: string | null; quality: string; source: string;

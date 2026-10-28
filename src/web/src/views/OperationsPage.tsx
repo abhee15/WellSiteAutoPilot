@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetResponse, ConfiguredLogicResponse, ExecutionResponse,
@@ -10,6 +10,7 @@ import { outcomeLabel } from '../words';
 import { describeRunContext, summarizeAssetLabels } from './runContext';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { OperationsViewControls } from './OperationsViewControls';
+import { loadConnections } from './connections';
 import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './operationsViews';
 import type { OperationsViewCriteria } from './operationsViews';
 
@@ -19,13 +20,25 @@ export function OperationsPage({
   isLoaded = true,
   assets = [],
   configuredLogic = [],
+  canReadConnections = false,
 }: {
   executions: ExecutionResponse[];
   userId: string | null | undefined;
   isLoaded?: boolean;
   assets?: AssetResponse[];
   configuredLogic?: ConfiguredLogicResponse[];
+  /** Whether this person may list saved connections, so a run can name the connection it read from. */
+  canReadConnections?: boolean;
 }) {
+  const [connectionNames, setConnectionNames] = useState<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    if (!canReadConnections) return;
+    const controller = new AbortController();
+    loadConnections(controller.signal)
+      .then(list => { if (!controller.signal.aborted) setConnectionNames(new Map(list.map(item => [item.id, item.name]))); })
+      .catch(() => { /* names are a convenience; a run still shows a short connection id */ });
+    return () => controller.abort();
+  }, [canReadConnections]);
   const [viewCriteria, setViewCriteria] = useState<OperationsViewCriteria>(DEFAULT_OPERATIONS_VIEW);
   const [selectedExecutionId, setSelectedExecutionId] = useHashDetail('operations');
   const selectedIdStillAuthorized = selectedExecutionId !== null &&
@@ -152,6 +165,8 @@ export function OperationsPage({
             onAccessLost={() => setSelectedExecutionId(null)}
             configuredLogic={configuredLogic}
             assets={assets}
+            connectionNames={connectionNames}
+            poll
             onClose={() => setSelectedExecutionId(null)}
           />
         )}

@@ -57,6 +57,7 @@ const OUTCOME_LABELS: Record<string, string> = {
   EXECUTION_INPUT_QUALITY_REJECTED: 'An input’s data quality was not good enough',
   EXECUTION_INPUT_QUANTITY_MISMATCH: 'An input measured the wrong quantity',
   EXECUTION_INPUT_FUTURE: 'An input had a timestamp in the future',
+  EXECUTION_INPUT_TIMESTAMP_UNVERIFIED: 'An input’s measurement time could not be verified',
   EXECUTION_INPUT_ACCESS_UNSUPPORTED: 'An input needs history access, which is not supported yet',
   EXECUTION_ASSET_OVERLAP: 'Another run was already using one of the assets',
   MODULE_NOT_AVAILABLE: 'The logic module is not available (disabled or not installed)',
@@ -83,10 +84,11 @@ export function modeSentence(value?: string | null): string {
 }
 
 const TRIGGER_LABELS: Record<ExecutionTriggerKind, string> = {
-  Manual: 'Started by a person',
-  Scheduled: 'Started by its run schedule',
+  Manual: 'Manual',
+  Scheduled: 'Scheduled',
 };
 
+/** How a run began: Manual or Scheduled. The run record does not say who asked, so no person is named. */
 export function triggerLabel(value?: string | null): string {
   return value ? (TRIGGER_LABELS as Record<string, string | undefined>)[value] ?? spaced(value) : '—';
 }

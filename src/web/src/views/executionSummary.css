@@ -2,3 +2,28 @@
 .execution-summary { margin: var(--space-12) 0; display: grid; gap: var(--space-6); }
 .execution-summary-lead { margin: 0; }
 .execution-summary-list { margin: 0; padding-left: var(--space-18); color: var(--color-text-subtle); }
+
+/* Run details: grouped as what happened, what it read, what it produced, then technical detail. Semantic tokens only. */
+.run-summary { margin: var(--space-12) 0; display: grid; gap: var(--space-10); }
+.run-summary-lead { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-weight: 600; }
+.run-facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-fact-wide), 1fr)); gap: var(--space-10) var(--space-16); }
+.run-facts > div, .run-input-facts > div { min-width: 0; }
+.run-facts dt, .run-input-facts dt { color: var(--color-text-detail-label); font-size: var(--font-size-tag); }
+.run-facts dd, .run-input-facts dd { margin: var(--space-4) 0 0; overflow-wrap: anywhere; font-size: var(--font-size-body-small); }
+.run-facts small, .run-input-facts small { display: block; color: var(--color-text-subtle); }
+.run-section { margin-top: var(--space-16); display: grid; gap: var(--space-8); }
+.run-section h4, .run-technical h4 { margin: 0; }
+.run-section ul { margin: 0; padding-left: var(--space-18); }
+.run-section ul.run-inputs { list-style: none; padding: 0; display: grid; gap: var(--space-10); }
+.run-input { padding: var(--space-12) var(--space-14); border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-8); background: var(--color-surface-panel); display: grid; gap: var(--space-8); }
+.run-input-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4) var(--space-12); }
+.run-input-head span { color: var(--color-text-subtle); }
+.run-input-value { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-size: var(--font-size-body); font-weight: 600; }
+.run-input-facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-fact-min), 1fr)); gap: var(--space-8) var(--space-14); }
+.run-technical { margin-top: var(--space-16); }
+.run-technical > summary { cursor: pointer; color: var(--color-text-subtle); padding: var(--space-4) 0; }
+.run-technical .execution-detail-grid { margin: var(--space-12) 0; }
+.run-technical dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8); }
+.run-technical pre { overflow-x: auto; user-select: text; margin: var(--space-8) 0 0; padding: var(--space-12); background: var(--color-surface-code); border-radius: var(--radius-6); }
+.copy-button { padding: var(--space-2) var(--space-8); font-size: var(--font-size-tag); }

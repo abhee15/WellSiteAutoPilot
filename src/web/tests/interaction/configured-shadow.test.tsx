@@ -52,7 +52,7 @@ describe('configured Shadow execution', () => {
     await user.click(screen.getByRole('button', { name: 'Review Shadow run' }));
     expect(http).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Run reviewed Shadow revision' }));
-    await screen.findByRole('region', { name: 'Execution details' });
+    await screen.findByRole('region', { name: 'Run details' });
     await screen.findByText('Completed');
     expect(http.mock.calls.filter(c => c[1]?.method === 'POST')).toHaveLength(1);
     expect(http.mock.calls[0][0]).toBe(`/api/v1/configured-logic/${configurationId}/revisions/${revisionId}/shadow`);
@@ -145,7 +145,7 @@ describe('configured Shadow execution', () => {
       requirementId: 'fillage', assetId: userId, quantity: 'PumpFillage', value: 82.5, unit: '%',
       timestampUtc: '2026-10-16T12:00:00Z', quality: 'Good', source: '<script>bad()</script>'
     }] }) }} />);
-    expect(screen.getByRole('region', { name: 'Input observations (up to 100)' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Inputs this run read' })).toBeTruthy();
     expect(screen.getByText('82.5 %')).toBeTruthy(); expect(document.querySelector('script')).toBeNull();
     expect(screen.getByText('<script>bad()</script>')).toBeTruthy();
   });

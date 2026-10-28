@@ -26,7 +26,7 @@ export function ConfiguredLogicRevisionOverview({ logic, onClose, executions }: 
       <div className="execution-detail-header">
         <div>
           <h3>{t('configured.revisionsHeading')}</h3>
-          <p>{logic.name ?? '—'} · {t('configured.metadataOnly')}</p>
+          <p>{logic.name ?? '—'}</p>
         </div>
         <div className="execution-detail-actions">
           <button type="button" onClick={onClose}>
