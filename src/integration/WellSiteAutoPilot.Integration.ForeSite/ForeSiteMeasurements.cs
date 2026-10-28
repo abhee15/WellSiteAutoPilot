@@ -38,11 +38,13 @@ public static class ForeSiteMeasurements
             if (!value.TryGetProperty("LastGoodScanTime", out var time) || time.ValueKind != JsonValueKind.String ||
                 !TryOffsetTime(time.GetString(), out var timestamp))
                 throw new ForeSiteMeasurementException("FORESITE_TIMESTAMP_INVALID");
-            // POC evidence does NOT establish measurement freshness or Good quality.
-            // Unknown is rejected by the worker, including AllowUncertainQuality.
-            // Keep the scan evidence for bounded diagnostics, explicitly labeled.
-            return new(quantity, number, "%", timestamp, "Unknown", "foresite:unverified-scan",
-                DateTimeOffset.UtcNow, "UnverifiedScan");
+            // Owner-confirmed ForeSite/CygNet contract: these controller fields are returned
+            // by a successful datagroup scan. LastScanTime is only the latest attempt;
+            // never substitute it, retrieval time, or a well-test date for acquisition time.
+            // Good means successful acquisition of a valid controller value, not independent
+            // sensor validation. The host separately enforces the module's age/future policy.
+            return new(quantity, number, "%", timestamp, "Good", "foresite:controller-scan",
+                DateTimeOffset.UtcNow, "ControllerScan");
         }
         catch (JsonException) { throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID"); }
     }

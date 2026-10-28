@@ -15,8 +15,8 @@ internal static class MeasurementChecks
         var first = await pool.ReadAsync(a, CancellationToken.None);
         var second = await pool.ReadAsync(b, CancellationToken.None);
         Check(first.Value == 80 && second.Value == 60 && factory.Tokens == 2, "two connection sessions crossed servers or did not authenticate");
-        Check(first.Quality == "Unknown" && first.TimestampKind == "UnverifiedScan" && first.RetrievedAtUtc is not null &&
-            first.TimestampUtc == new DateTimeOffset(2026, 10, 27, 5, 0, 0, TimeSpan.Zero), "scan evidence became verified measurement quality/time");
+        Check(first.Quality == "Good" && first.TimestampKind == "ControllerScan" && first.RetrievedAtUtc is not null &&
+            first.TimestampUtc == new DateTimeOffset(2026, 10, 27, 5, 0, 0, TimeSpan.Zero), "successful controller acquisition lost its UTC time or provenance");
         factory.Expire = true;
         await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => pool.ReadAsync(a, CancellationToken.None)));
         Check(factory.Tokens == 3, "concurrent expiry caused repeated token creation");
@@ -37,11 +37,40 @@ internal static class MeasurementChecks
             catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException e) when (e.Code == code) { continue; }
             throw new InvalidOperationException("Measurement parser accepted " + code);
         }
+        // Latest scan attempt/status must not replace the last successful acquisition.
+        factory.Payload = """
+            {"Value":{"CurrentPumpFillage":0,"AveragePumpFillage":100,
+              "LastGoodScanTime":"2026-10-27T00:00:00-05:00",
+              "LastScanTime":"2026-10-27T05:30:00Z","CommStatus":"Failed",
+              "LatestValidWellTestDate":"2022-09-30T18:30:00Z",
+              "WellTest_WaterCut":50,"PointUDC":"SITE-SPECIFIC-IGNORED"}}
+            """;
+        var current = await pool.ReadAsync(a, CancellationToken.None);
+        var average = await pool.ReadAsync(a with { Quantity = "AveragePumpFillage" }, CancellationToken.None);
+        Check(current.Value == 0 && average.Value == 100 && current.Unit == "%" && average.Unit == "%" &&
+            current.TimestampUtc == first.TimestampUtc && average.TimestampUtc == first.TimestampUtc &&
+            current.Quality == "Good" && average.Quality == "Good",
+            "latest failed scan, test date or site UDC changed a successful controller acquisition");
+        foreach (var timestamp in new[] { "null", "123", "\"invalid\"", "\"0001-01-01T00:00:00Z\"" })
+        {
+            factory.Payload = "{\"Value\":{\"CurrentPumpFillage\":80,\"LastScanTime\":\"2026-10-27T05:30:00Z\",\"LastGoodScanTime\":" + timestamp + "}}";
+            await RejectAsync(a, "FORESITE_TIMESTAMP_INVALID");
+        }
+        factory.Payload = """{"Value":{"CurrentPumpFillage":80,"LastScanTime":"2026-10-27T05:30:00Z"}}""";
+        await RejectAsync(a, "FORESITE_TIMESTAMP_INVALID");
+        // An unsupported/test-derived field never inherits a controller scan timestamp.
+        await RejectAsync(a with { Quantity = "WaterCut" }, "FORESITE_QUANTITY_UNSUPPORTED");
+        async Task RejectAsync(ConnectionMeasurementRequest request, string code)
+        {
+            try { await pool.ReadAsync(request, CancellationToken.None); }
+            catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException e) when (e.Code == code) { return; }
+            throw new InvalidOperationException("Measurement parser accepted " + code);
+        }
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
         try { await pool.ReadAsync(a, cancellation.Token); throw new InvalidOperationException("Caller cancellation was swallowed."); }
         catch (OperationCanceledException) { }
-        Console.WriteLine("ForeSite measurement sessions: connection isolation, prefix, cookies, concurrent expiry, revision, zero writes, strict values/timestamps and unverified provenance checks passed.");
+        Console.WriteLine("ForeSite measurement sessions: connection isolation, prefix, cookies, concurrent expiry, revision, zero writes, strict values/timestamps and controller acquisition provenance checks passed.");
     }
     private static void Check(bool value, string message)
     {

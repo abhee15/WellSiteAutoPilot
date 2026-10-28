@@ -116,7 +116,7 @@ export function executionInputObservations(output?: string | null): InputObserva
         (o.unit === null || boundedText(o.unit, 32)) && timestamp(o.timestampUtc) && timestamp(o.retrievedAtUtc) &&
         (o.connectionId === null || typeof o.connectionId === 'string' && executionIdPattern.test(o.connectionId)) &&
         ['Good', 'Uncertain', 'Bad', 'Unknown'].includes(o.quality) &&
-        (o.timestampKind === null || o.timestampKind === 'UnverifiedScan') &&
+        (o.timestampKind === null || o.timestampKind === 'UnverifiedScan' || o.timestampKind === 'ControllerScan') &&
         boundedText(o.outcomeCode, 128) && /^[A-Z][A-Z0-9_]*$/.test(o.outcomeCode))
         .map(o => ({ requirementId: o.requirementId, assetId: o.assetId, quantity: o.quantity,
           value: o.value, unit: o.unit, timestampUtc: o.timestampUtc, quality: o.quality,

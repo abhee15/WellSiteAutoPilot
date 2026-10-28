@@ -18,7 +18,7 @@ internal sealed class ExecutionFailureDiagnostics
             _items.Add(new(input.RequirementId, input.AssetId, input.Source?.ConnectionId, input.Quantity,
                 input.CanonicalUnit is { Length: <= 32 } unit && value?.Unit == unit ? unit : null,
                 value?.Value, value?.TimestampUtc.ToUniversalTime(), value?.RetrievedAtUtc?.ToUniversalTime(),
-                value?.TimestampKind == "UnverifiedScan" ? "UnverifiedScan" : null,
+                value?.TimestampKind is "UnverifiedScan" or "ControllerScan" ? value.TimestampKind : null,
                 value?.Quality is "Good" or "Uncertain" or "Bad" ? value.Quality : "Unknown", outcome));
         }
     }

@@ -182,6 +182,26 @@ test('failed input diagnostics show bounded missing/uncertain evidence without t
 });
 
 
+test('stale controller acquisition retains Good quality and scan provenance without an unverified warning', () => {
+  const row = { requirementId: 'fillage', assetId: id, connectionId: secondId, quantity: 'PumpFillage',
+    value: 82, unit: '%', quality: 'Good', timestampUtc: '2026-10-27T05:00:00Z',
+    retrievedAtUtc: '2026-10-27T05:05:00Z', timestampKind: 'ControllerScan', outcomeCode: 'EXECUTION_INPUT_STALE' };
+  const outputJson = JSON.stringify({ inputDiagnostics: [row] });
+  const rows = detail.executionInputObservations(outputJson);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].quality, 'Good');
+  assert.equal(rows[0].timestampKind, 'ControllerScan');
+  assert.deepEqual(detail.executionInputObservations(JSON.stringify({ inputDiagnostics: [{ ...row, timestampKind: 'PRIVATE' }] })), []);
+  const html = renderToStaticMarkup(createElement(panel.ExecutionDetailContent, {
+    detail: { ...response, status: 'Failed', failureCode: row.outcomeCode, outputJson },
+  }));
+  assert.match(html, /EXECUTION_INPUT_STALE/);
+  assert.match(html, /82/);
+  assert.match(html, /Good/);
+  assert.doesNotMatch(html, /Unverified scan time/);
+});
+
+
 test('execution detail displays pinned package and saved connection revision rather than current catalog identity', () => {
   const provenance = { packageSha256: 'a'.repeat(64), connectionsTruncated: false,
     connections: [{ connectionId: secondId, revision: 7, assetCount: 2 }] };
