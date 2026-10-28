@@ -34,7 +34,7 @@ test('every closed server value has its own plain-language wording', () => {
   for (const value of ['Shadow', 'Recommendation', 'Autonomous']) {
     assert.match(words.modeSentence(value), new RegExp('^' + value + ': '), value);
   }
-  assert.equal(words.triggerLabel('Manual'), 'Started by a person');
-  assert.equal(words.triggerLabel('Scheduled'), 'Started by its run schedule');
+  assert.equal(words.triggerLabel('Manual'), 'Manual');
+  assert.equal(words.triggerLabel('Scheduled'), 'Scheduled');
   assert.equal(words.triggerLabel('Event'), 'Event', 'a value the server does not declare is spaced, not given invented wording');
 });
