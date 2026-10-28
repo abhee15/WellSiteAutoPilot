@@ -10,30 +10,34 @@ internal static class FailureDiagnosticChecks
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     public static async Task RunAsync(ExecutionRequestedV2 request, DateTimeOffset now)
     {
-        using var http = new HttpClient(new BadMeasurement(now.AddMinutes(-10))) { BaseAddress = new Uri("http://fixture") };
-        var engine = new ModuleExecutionEngine(new GatewayDataClient(http), new BuiltInLogicModuleResolver());
-        var many = request with { ModuleId = "weatherford.sample-shadow-read", Inputs = Enumerable.Range(0, 100).Select(i => request.Inputs.First() with
-            { RequirementId = "input-" + i, MaximumAgeSeconds = 60 }).ToArray() };
-        try
+        foreach (var (kind, expected) in new[] { ("ControllerScan", "EXECUTION_INPUT_STALE"),
+            ("UnverifiedScan", "EXECUTION_INPUT_TIMESTAMP_UNVERIFIED") })
         {
-            await engine.ExecuteObservedAsync(many, "diagnostic-bounds", now);
-            throw new InvalidOperationException("Stale inputs reached the module.");
-        }
-        catch (WellSiteAutoPilotException error) when (error.Code == "EXECUTION_INPUT_STALE")
-        {
-            var observations = error.Data.Values.OfType<ExecutionInputDiagnosticV1[]>().Single();
-            var json = JsonSerializer.Serialize(observations, JsonOptions);
-            if (observations.Length != 64 || observations.Any(item => item.Value != 80 || item.OutcomeCode != "EXECUTION_INPUT_STALE") ||
-                json.Contains("SECRET", StringComparison.Ordinal) || json.Contains("providerMapping", StringComparison.Ordinal))
-                throw new InvalidOperationException("Failed-input diagnostics lost observations, bounds or secret exclusion.");
+            using var http = new HttpClient(new BadMeasurement(now.AddMinutes(-10), kind)) { BaseAddress = new Uri("http://fixture") };
+            var engine = new ModuleExecutionEngine(new GatewayDataClient(http), new BuiltInLogicModuleResolver());
+            var many = request with { ModuleId = "weatherford.sample-shadow-read", Inputs = Enumerable.Range(0, 100).Select(i => request.Inputs.First() with
+                { RequirementId = "input-" + i, MaximumAgeSeconds = 60 }).ToArray() };
+            try
+            {
+                await engine.ExecuteObservedAsync(many, "diagnostic-bounds", now);
+                throw new InvalidOperationException("Stale inputs reached the module.");
+            }
+            catch (WellSiteAutoPilotException error) when (error.Code == expected)
+            {
+                var observations = error.Data.Values.OfType<ExecutionInputDiagnosticV1[]>().Single();
+                var json = JsonSerializer.Serialize(observations, JsonOptions);
+                if (observations.Length != 64 || observations.Any(item => item.Value != 80 || item.OutcomeCode != expected || item.TimestampKind != kind || item.Quality != "Good") ||
+                    json.Contains("SECRET", StringComparison.Ordinal) || json.Contains("providerMapping", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Failed-input diagnostics lost observations, bounds or secret exclusion.");
+            }
         }
         Console.WriteLine("Failed-input evidence preserves stale values and reasons, caps observations at 64 and excludes raw provider metadata.");
     }
-    private sealed class BadMeasurement(DateTimeOffset time) : HttpMessageHandler
+    private sealed class BadMeasurement(DateTimeOffset time, string timestampKind) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new
-            { quantity = "PumpFillage", value = 80, unit = "%", timestampUtc = time, quality = "Good", source = "SECRET-provider-response" }, JsonOptions),
+            { quantity = "PumpFillage", value = 80, unit = "%", timestampUtc = time, quality = "Good", source = "SECRET-provider-response", timestampKind, retrievedAtUtc = time.AddMinutes(10) }, JsonOptions),
                 Encoding.UTF8, "application/json") });
     }
 }

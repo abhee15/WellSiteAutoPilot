@@ -4,23 +4,22 @@ This is an owner-run checklist. CI uses synthetic HTTP/engineering responses,
 PostgreSQL, NATS and actual package hosting; it does not prove a live ForeSite
 measurement's time, units or quality. No provider writes are enabled.
 
-## Evidence required before a successful live run
+## Confirmed mapping and local acceptance
 
-- Capture a sanitized JSON response from the saved connection's
-  `Surveillance/well/{numericWellId}` endpoint, including the Value object and
-  PumpFillage/scan/quality fields. Remove addresses, usernames, cookies, tokens,
-  credentials and customer-identifying text before sharing it.
-- Identify the timestamp belonging to the actual measured value, its timezone/
-  offset and its meaning when a device stops updating. Compare two HTTP reads
-  without a physical/device update. A timestamp that advances on retrieval alone
-  cannot establish measurement freshness.
-- Confirm the quality/status field and documented mapping for valid, uncertain,
-  bad and missing values. Equal LastScanTime and LastGoodScanTime alone is not a
-  verified quality contract. Confirm PumpFillage units and whether percentages
-  can validly exceed 100.
-- Until those semantics are established, POC-shaped scan evidence is persisted as
-  Unknown/UnverifiedScan and rejected. Do not increase age to four hours or relabel
-  a scan timestamp as measurement time to force success.
+The owner confirmed that controller values returned by a successful CygNet
+datagroup scan share LastGoodScanTime as acquisition time. The two supported
+fillage fields now use that rule; see
+[controller acquisition semantics](foresite-controller-acquisition.md).
+Good denotes successful acquisition, with freshness checked separately against
+the module manifest. LastScanTime is only an attempt; a newer attempt or HTTP
+retrieval never refreshes an older successful acquisition. Well-test fields are
+outside this mapping and must retain their corresponding source dates.
+
+Verify the installed build against the actual well: compare both supported values,
+percent units and LastGoodScanTime with ForeSite, including an existing stale
+source if available. No cloud CI live access is claimed. Record discrepancies;
+do not widen freshness limits to force success. Use the optional probe below when
+investigating additional fields or unexpected source behavior.
 
 ## Deployment and package
 
@@ -61,7 +60,7 @@ measurement's time, units or quality. No provider writes are enabled.
 9. Request a Shadow run using the confirmation control. If the response is lost,
    recover the same persisted request key; do not create a second key blindly.
 10. Inspect Requested/Running/terminal status in existing history/detail. For a
-    successful verified measurement, compare the stored value/unit/measurement
+    successful controller acquisition, compare the stored value/unit/measurement
     time/quality with ForeSite and the physical update. Verify package identity,
     source connection, correlation and configuration revision. Confirm no control
     intent was written to ForeSite and no device value changed.
@@ -103,10 +102,10 @@ outcomes, sanitized observation times/quality and proof of zero writes. Report
 any field-semantic discrepancy before changing parser policy. Persisted audit
 history is retained; do not delete it as test cleanup.
 
-## Run the measurement evidence probe first
+## Optional measurement evidence probe
 
-Use the [probe-first plan](../design/foresite-measurement-evidence-plan.md) before
-changing field mappings. Run locally on Windows under the same account as the
+Use the [evidence probe](../design/foresite-measurement-evidence-plan.md) to investigate
+additional fields or discrepancies in the confirmed mapping. Run locally on Windows under the same account as the
 Gateway, using the address and positive numeric well ID from the existing saved
 connection/source binding. The CLI is an operator diagnostic; it does not prove
 application authorization or execution readiness.
@@ -146,6 +145,8 @@ If the needed field is absent from the fixed candidate allowlist, review its nam
 and type locally so the allowlist can be extended explicitly; do not share the
 entire raw Value object. Repeated GETs alone cannot prove timestamp semantics.
 
-Once those reports and independent definitions establish the mapping, add the
-reviewed parser fixtures and run the saved-connection Shadow cases above. Until
-then, `EXECUTION_INPUT_TIMESTAMP_UNVERIFIED` remains the expected safe outcome.
+The probe intentionally labels its observations Unverified; it does not apply the
+production controller policy or authorize execution. For the supported controller
+fields, expect success when input policy is met, EXECUTION_INPUT_STALE for an old
+successful scan, or the relevant typed failure for missing/invalid inputs. Run the
+saved-connection Shadow cases above; new source categories require reviewed mappings.

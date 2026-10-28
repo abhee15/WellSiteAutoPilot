@@ -1,5 +1,12 @@
 # ForeSite measurement evidence: probe first, parser changes second
 
+Historical plan for #300. The owner's subsequent CygNet datagroup clarification
+establishes the two supported controller fields' acquisition contract; see
+[the current implementation](../implementation/foresite-controller-acquisition.md).
+The probe remains a diagnostic and always labels its reports Unverified. The
+original evidence gates below describe the pre-clarification plan and remain
+useful for additional, unreviewed source categories.
+
 Baseline: develop `2d0855f` (#289–#299). The approved package, scoped read plans,
 Gateway sessions, failure persistence and UI already exist. The remaining live
 blocker is field semantics, not a replacement execution or connection system.

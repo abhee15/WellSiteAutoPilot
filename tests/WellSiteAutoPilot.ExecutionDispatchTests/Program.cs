@@ -249,6 +249,9 @@ await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAs
 
 await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, foreSitePayload: "scan");
 await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, foreSitePayload: "missing");
+await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, foreSitePayload: "current");
+await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, foreSitePayload: "future");
+await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, foreSitePayload: "invalid-time");
 
 Console.WriteLine("Execution V1/V2 outbox to JetStream dispatch checks passed.");
 return 0;

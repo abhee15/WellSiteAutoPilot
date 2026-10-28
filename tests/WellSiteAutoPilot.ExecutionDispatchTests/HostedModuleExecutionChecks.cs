@@ -111,7 +111,7 @@ internal static class HostedModuleExecutionChecks
         var working = Path.Combine(Path.GetTempPath(), "wsa-hosted-e2e-" + user.ToString("N"));
         Environment.SetEnvironmentVariable("WSA_HOSTED_EXECUTION_TEST_ID", moduleId);
         using var http = new HttpClient(new ProbeData(now)) { BaseAddress = new Uri("http://gateway.invalid") };
-        var fixture = new ForeSiteHttpFixture(foreSitePayload);
+        var fixture = new ForeSiteHttpFixture(foreSitePayload, now);
         using var measurements = new ForeSiteConnectionMeasurements(fixture, TimeProvider.System);
         var services = new ServiceCollection().AddScoped(_ => new WellSiteAutoPilotDbContext(options))
             .AddScoped<IExecutionReadRepository>(provider => new ExecutionRepository(provider.GetRequiredService<WellSiteAutoPilotDbContext>()))
@@ -144,21 +144,27 @@ internal static class HostedModuleExecutionChecks
                 if (message.Data is null || !message.Data.Contains(execution.Id.ToString(), StringComparison.Ordinal)) continue;
                 if (message.Subject == Subjects.ExecutionFailedV2)
                 {
-                    if (!disabledConnection && foreSitePayload is null) throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
+                    if (!disabledConnection && foreSitePayload is null or "current") throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
                     var failed = JsonSerializer.Deserialize<MessageEnvelope<ExecutionFailedV2>>(message.Data, Options)!;
-                    var expected = disabledConnection ? "EXECUTION_CONNECTION_DISABLED" :
-                        foreSitePayload == "missing" ? "FORESITE_MEASUREMENT_MISSING" : "EXECUTION_INPUT_TIMESTAMP_UNVERIFIED";
+                    var expected = disabledConnection ? "EXECUTION_CONNECTION_DISABLED" : foreSitePayload switch
+                    {
+                        "missing" => "FORESITE_MEASUREMENT_MISSING",
+                        "invalid-time" => "FORESITE_TIMESTAMP_INVALID",
+                        "future" => "EXECUTION_INPUT_FUTURE",
+                        _ => "EXECUTION_INPUT_STALE"
+                    };
                     Assert(failed.Payload.FailureCode == expected && failed.Payload.InputDiagnostics?.Count == 1,
                         "ForeSite acquisition did not produce bounded typed input failure evidence.");
                     var diagnostic = failed.Payload.InputDiagnostics!.Single();
                     Assert(diagnostic.ConnectionId == connectionId && diagnostic.AssetId == asset &&
-                        diagnostic.OutcomeCode == expected && diagnostic.Quality == "Unknown",
+                        diagnostic.OutcomeCode == expected &&
+                        diagnostic.Quality == (foreSitePayload is "scan" or "future" ? "Good" : "Unknown"),
                         "Failure evidence lost the authorized source or rejection code.");
-                    if (foreSitePayload == "scan")
+                    if (foreSitePayload is "scan" or "future")
                         Assert(diagnostic.Value == 99.6m && diagnostic.Unit == "%" &&
-                            diagnostic.TimestampKind == "UnverifiedScan" && diagnostic.RetrievedAtUtc is not null &&
-                            diagnostic.TimestampUtc == new DateTimeOffset(2026, 10, 27, 5, 0, 0, TimeSpan.Zero),
-                            "Unverified scan evidence lost its value, offset normalization or retrieval provenance.");
+                            diagnostic.TimestampKind == "ControllerScan" && diagnostic.RetrievedAtUtc is not null &&
+                            diagnostic.TimestampUtc == fixture.AcquisitionTime,
+                            "Controller acquisition evidence lost its value, offset normalization or retrieval provenance.");
                     else Assert(diagnostic.Value is null, "A missing/refused read invented an input value.");
                     await repository.ApplyFailedWithDiagnosticsAsync(failed.MessageId, "hosted-check", execution.Id,
                         failed.Payload.StartedAtUtc, failed.Payload.FailedAtUtc, failed.Payload.FailureCode,
@@ -183,7 +189,7 @@ internal static class HostedModuleExecutionChecks
                     break;
                 }
             }
-            Assert(sawStarted && (disabledConnection || foreSitePayload is not null
+            Assert(sawStarted && (disabledConnection || foreSitePayload is not null and not "current"
                 ? (await repository.GetAsync(execution.Id)) is { Status: ExecutionStatus.Failed, OutputJson: not null }
                 : sawCompleted && (await repository.GetAsync(execution.Id))?.Status == ExecutionStatus.Completed),
                 "Real approved archive did not complete through V3 dispatch and V2 results.");
@@ -193,11 +199,22 @@ internal static class HostedModuleExecutionChecks
                     "Authorized acquisition did not use the shared ForeSite session/parser exactly once.");
                 var stored = (await repository.GetAsync(execution.Id))!;
                 using var evidence = JsonDocument.Parse(stored.OutputJson!);
-                Assert(evidence.RootElement.GetProperty("inputDiagnostics").GetArrayLength() == 1 &&
+                var observations = evidence.RootElement.GetProperty(foreSitePayload == "current" ? "inputObservations" : "inputDiagnostics");
+                Assert(observations.GetArrayLength() == 1 &&
                     !stored.OutputJson!.Contains("private-fixture", StringComparison.Ordinal) &&
                     !stored.OutputJson.Contains("fs=", StringComparison.Ordinal) &&
-                    !stored.OutputJson.Contains("controlIntents", StringComparison.Ordinal),
-                    "Persisted failure leaked settings/cookies or admitted failed module outputs.");
+                    (foreSitePayload == "current" || !stored.OutputJson.Contains("controlIntents", StringComparison.Ordinal)),
+                    "Persisted result leaked settings/cookies or admitted failed module outputs.");
+            }
+            if (foreSitePayload == "current")
+            {
+                var stored = (await repository.GetAsync(execution.Id))!;
+                using var output = JsonDocument.Parse(stored.OutputJson!);
+                var input = output.RootElement.GetProperty("inputObservations")[0];
+                Assert(input.GetProperty("quality").GetString() == "Good" &&
+                    input.GetProperty("source").GetString() == "foresite:controller-scan" &&
+                    input.GetProperty("timestampUtc").GetDateTimeOffset() == fixture.AcquisitionTime,
+                    "Successful ForeSite execution lost the scan acquisition evidence.");
             }
             Assert(!Directory.EnumerateFileSystemEntries(working).Any(), "Successful execution retained working files.");
             Console.WriteLine("Hosted package E2E: upload, approval, pinned dispatch, NATS, worker loading, input read, result persistence and retirement boundary passed.");
@@ -233,8 +250,7 @@ internal static class HostedModuleExecutionChecks
         }
         return bytes.ToArray();
     }
-    // Synthetic, explicitly verified engineering evidence isolates the execution contract
-    // from the separate ForeSite HTTP parser's live-only scan-time semantics.
+    // Retain synthetic execution-contract cases alongside the real ForeSite parser cases.
     private sealed class RecordedMeasurements(Guid connectionId, DateTimeOffset timestamp, ForeSiteConnectionMeasurements? measurements) : IExecutionMeasurementGateway
     {
         public Task<EngineeringValue> GetCurrentAsync(AuthorizedExecutionRead read, CancellationToken cancellationToken = default)
@@ -249,9 +265,16 @@ internal static class HostedModuleExecutionChecks
         }
     }
     // Real Gateway session and parser with only the external HTTP transport replaced.
-    private sealed class ForeSiteHttpFixture(string? payload) : IHttpClientFactory
+    private sealed class ForeSiteHttpFixture(string? payload, DateTimeOffset now) : IHttpClientFactory
     {
         private string? Payload { get; } = payload;
+        public DateTimeOffset AcquisitionTime { get; } = payload switch
+        {
+            "scan" => now.AddMinutes(-5),
+            "future" => now.AddMinutes(5),
+            _ => now
+        };
+        public DateTimeOffset LastAttemptTime { get; } = now;
         public int TokenReads { get; private set; }
         public int MeasurementReads { get; private set; }
         public HttpClient CreateClient(string name) => new(new Handler(this));
@@ -275,7 +298,13 @@ internal static class HostedModuleExecutionChecks
                 fixture.MeasurementReads++;
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(
                     fixture.Payload == "missing" ? "{\"Value\":{}}" :
-                    "{\"Value\":{\"CurrentPumpFillage\":99.6,\"LastScanTime\":\"2026-10-27T00:00:00-05:00\",\"LastGoodScanTime\":\"2026-10-27T00:00:00-05:00\"}}") });
+                    JsonSerializer.Serialize(new { Value = new {
+                        CurrentPumpFillage = 99.6m,
+                        LastScanTime = fixture.LastAttemptTime,
+                        LastGoodScanTime = fixture.Payload == "invalid-time" ? null :
+                            fixture.AcquisitionTime.ToOffset(TimeSpan.FromHours(-5)).ToString("O"),
+                        CommStatus = fixture.Payload == "scan" ? "Failed" : "Succeeded"
+                    } })) });
             }
         }
     }

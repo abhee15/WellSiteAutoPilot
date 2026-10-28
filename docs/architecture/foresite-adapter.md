@@ -52,3 +52,13 @@ optional device failures retain wells and emit a warning. Blank device types sta
 
 Discovery/import do not yet reconcile already-imported wells. The refresh plan separates new wells,
 changed source facts/paths and inconclusive absence, with explicit review before changes to Assets.
+
+## Current controller reads
+
+The saved-connection Shadow path reads CurrentPumpFillage and AveragePumpFillage
+through Surveillance. It uses LastGoodScanTime for successful datagroup acquisition,
+with module freshness checked independently. ForeSite owns site-specific CygNet
+UDC mapping; AutoPilot addresses ForeSite field names. See
+[controller acquisition semantics](../implementation/foresite-controller-acquisition.md)
+for the quality definition, exclusions and tests. Trends remain a historical-data
+capability, not a replacement current-read path.

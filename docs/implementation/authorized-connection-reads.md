@@ -11,7 +11,7 @@ Implementation status after #289–#295 and the package-readiness slice:
 | B1–B3 / F1 | Existing pinned package and shared bounded host; regression coverage retained |
 | B4 / G10 | #294 exclusive leases and conservative crash-orphan reconciliation; at-least-once execution remains |
 | B5 / G1–G2 | #289 persisted scoped read plans; #290 authenticated RPC and saved-connection gateway routing |
-| B6 / G3 | Strict parser and worker validation implemented; **blocked on owner evidence for live measurement timestamp/quality semantics** |
+| B6 / G3 | Strict parser and worker validation implemented; **owner-confirmed controller scan semantics implemented; live deployment acceptance remains** |
 | B7 | #290 shared ForeSite session, bounded reads and serialized refresh; camel-case discovery filters preserved by regression test |
 | B8 / G10 | #291 real package/NATS/Postgres end-to-end with simulated authorized engineering evidence and disabled-source failure; owner live acceptance remains |
 | F4 | Nonempty ForeSite mapping rejected at configuration validation and dispatch; direct-well editor reuses existing validation |
@@ -62,8 +62,8 @@ Worker contract tests retain simulator and pinned-package coverage.
 Use [the owner acceptance checklist](foresite-local-shadow-checklist.md). It covers
 Windows identity, saved connection and virtual directories, approved exact package,
 direct-well/View setup, Shadow acquisition, persisted success/failure observations,
-revocation, restart and replay. Live success is gated on owner timestamp/quality
-evidence. Writes and autonomous control remain disabled.
+revocation, restart and replay. The supported controller mapping is owner-confirmed; live installation
+acceptance remains required. Writes and autonomous control remain disabled.
 
 ## Slice B transport and conservative provenance
 
@@ -82,16 +82,15 @@ retire changed sessions without disposing active readers. Idle sessions expire;
 capacity is bounded at 128. Gateway operations have six seconds within the
 Server's eight-second budget and worker's ten-second request deadline.
 
-**Local evidence gate:** POC-shaped CurrentPumpFillage/AveragePumpFillage and
-LastGoodScanTime can be parsed, but the scan timestamp has not been demonstrated
-to be the measurement time. Equal LastScanTime/LastGoodScanTime does not establish
-Good quality. Such observations are explicitly Unknown/UnverifiedScan and cannot
-pass worker validation, even when AllowUncertainQuality is enabled. Do not claim
-live readiness or relax freshness to force a run. Owner-supplied sanitized payloads
-and confirmed field semantics are needed to finish the live quality/time mapping.
-Malformed, missing, nonnumeric, out-of-range or offset-free timestamps have typed
-failures. The engineering contract adds optional retrieval time and timestamp-kind
-metadata; old simulator fields and SDK module input constructors are unchanged.
+**Controller acquisition contract:** The owner confirmed that the returned controller
+registers share the successful CygNet datagroup acquisition time. CurrentPumpFillage
+and AveragePumpFillage now use LastGoodScanTime with Good acquisition quality and
+ControllerScan provenance. LastScanTime remains only the latest attempt. Retrieval
+time cannot refresh old data. Module age/future checks remain independent. See
+[the exact field mapping and quality definition](foresite-controller-acquisition.md).
+Well-test fields do not inherit this policy and remain unsupported. Historical
+UnverifiedScan diagnostics are retained. Missing, malformed, nonnumeric,
+out-of-range and offset-free values/timestamps still fail with typed codes.
 
 Tests: ForeSiteAdapterTests reuses existing recorded-shape suite and adds mocked
 connection/session/parser regressions. ExecutionDispatchTests adds a real broker
@@ -165,7 +164,7 @@ guarantee future availability. Actual execution still verifies hash/manifest and
 current saved-connection permissions. The panel uses the existing catalog,
 outbox, approval controls and generated client; there is no second package store.
 
-Remaining work: owner live evidence/acceptance and
+Remaining work: owner live deployment acceptance and
 a separate service-account design before scheduled live reads. Python production
 parity requires a real host/dependency-isolation design and is not enabled here.
 
@@ -176,12 +175,12 @@ session and strict ForeSite parser to the persisted authorized-read RPC. Only th
 external HTTP handler is replaced. Fixtures check the saved virtual-directory
 path, numeric well ID, token cookie and GET-only provider calls.
 
-A POC-shaped 99.6% response with offset scan time must fail with
-`EXECUTION_INPUT_TIMESTAMP_UNVERIFIED`; the persisted diagnostic retains the
-normalized UTC scan time, retrieval time, Unknown quality and UnverifiedScan
-label. A missing field must fail with `FORESITE_MEASUREMENT_MISSING` and no
-invented numeric value. Both traverse actual approved archive loading,
-authenticated NATS, worker failure messages and PostgreSQL terminal persistence.
-No failed algorithm output, provider address or cookie is admitted into the
-persisted evidence. The existing synthetic verified-input success and disabled
-connection cases remain separate. This does not establish live field semantics.
+The owner-confirmed controller scan mapping is covered by fresh success and
+stale/future acquisition fixtures. A stale 99.6% value fails with
+EXECUTION_INPUT_STALE while retaining Good acquisition quality, ControllerScan,
+UTC acquisition time and separate retrieval time. A fresh LastScanTime cannot
+refresh an old LastGoodScanTime. Missing input and invalid successful-scan time
+fail with typed provider codes. Fixtures traverse actual approved archive loading,
+authenticated NATS, worker results and PostgreSQL terminal persistence. No provider
+address or cookie enters stored evidence. Synthetic-input and disabled-connection
+cases remain. CI uses HTTP substitutes; live deployment acceptance is separate.
