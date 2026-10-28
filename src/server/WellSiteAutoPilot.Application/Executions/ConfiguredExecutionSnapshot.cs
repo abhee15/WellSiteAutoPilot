@@ -30,7 +30,7 @@ public static class ConfiguredExecutionSnapshot
 
         // Schema declarations may be reviewed/stored now, but never lower them into
         // the scalar execution contract while structured transport is unavailable.
-        if (manifest.ManifestVersion != 1)
+        if (manifest.ManifestVersion is not (1 or 2))
             throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException("MODULE_CONTRACT_UNSUPPORTED",
                 WellSiteAutoPilot.Failures.FailureKind.Validation,
                 "This deployment does not yet execute structured modules.");

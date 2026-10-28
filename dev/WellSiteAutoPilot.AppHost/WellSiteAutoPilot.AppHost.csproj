@@ -5,6 +5,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.0.0" />
+    <!-- Local-only: 13.0.0 DCP never launches child processes on this machine (same pin as the P4 tree). -->
+    <PackageReference Include="Aspire.Hosting.Orchestration.win-x64" Version="13.5.1" />
     <PackageReference Include="Npgsql" Version="10.0.0" />
   </ItemGroup>
   <ItemGroup>

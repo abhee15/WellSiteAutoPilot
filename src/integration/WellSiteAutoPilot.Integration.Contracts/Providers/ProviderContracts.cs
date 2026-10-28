@@ -62,7 +62,12 @@ public sealed record EngineeringValue(
     string Quality,
     string Source,
     DateTimeOffset? RetrievedAtUtc = null,
-    string? TimestampKind = null);
+    string? TimestampKind = null)
+{
+    // POC: structured (array/object) payloads. Value is 0 and Unit is "structured" when these are set.
+    public string? StructuredSchemaId { get; init; }
+    public string? StructuredJson { get; init; }
+}
 
 public sealed record ProviderAlarm(
     string AlarmId,

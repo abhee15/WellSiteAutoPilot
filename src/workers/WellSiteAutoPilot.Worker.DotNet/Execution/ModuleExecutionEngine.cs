@@ -106,7 +106,73 @@ public sealed class ModuleExecutionEngine(
                 "The worker cannot host this package.");
         await using var loaded = await packageHost.LoadAsync(request.Execution.ModuleId, request.Execution.ModuleVersion,
             request.Package.Sha256, request.Package.ReviewedManifestJson, cancellationToken);
+        if (loaded.StructuredModule is { } structured)
+            return await ExecuteStructuredAsync(request.Execution, structured, correlationId, evaluationTimeUtc, cancellationToken);
         return await ExecuteObservedCoreAsync(request.Execution, loaded.Module, correlationId, evaluationTimeUtc, cancellationToken);
+    }
+
+    // POC: structured modules read the same authorized Current inputs; array/object inputs travel as JSON.
+    // Only scalar structured results are lowered into the existing scalar result contract.
+    private async Task<ObservedExecutionResult> ExecuteStructuredAsync(ExecutionRequestedV2 request,
+        WellSiteAutoPilot.ModuleSdk.ILogicModuleV2 module, string correlationId, DateTimeOffset evaluationTimeUtc,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new ExecutionFailureDiagnostics();
+        var structuredInputs = new List<WellSiteAutoPilot.ModuleSdk.StructuredInputValue>();
+        var observations = new List<LogicInputValue>();
+        try
+        {
+            foreach (var binding in request.Inputs)
+            {
+                WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue? measurement = null;
+                try
+                {
+                    if (!string.Equals(binding.Access, "Current", StringComparison.Ordinal))
+                        throw InputFailure("EXECUTION_INPUT_ACCESS_UNSUPPORTED");
+                    var value = await gatewayDataClient.GetCurrentAsync(request.ExecutionId, binding, cancellationToken);
+                    measurement = value;
+                    var input = new LogicInputValue(binding.RequirementId, binding.AssetId, value.Quantity, value.Value,
+                        value.Unit, value.TimestampUtc, value.Quality, value.Source);
+                    WellSiteAutoPilot.Application.Logic.LogicModuleInputValidation.Validate(input,
+                        new WellSiteAutoPilot.Domain.Logic.LogicDataRequirement(binding.RequirementId, "", binding.Quantity,
+                            binding.Access, binding.CanonicalUnit, binding.MaximumAgeSeconds, binding.AllowUncertainQuality),
+                        evaluationTimeUtc);
+                    var data = value.StructuredJson is null
+                        ? System.Text.Json.JsonSerializer.SerializeToElement(value.Value)
+                        : System.Text.Json.JsonDocument.Parse(value.StructuredJson).RootElement.Clone();
+                    structuredInputs.Add(new(binding.RequirementId, binding.AssetId, value.Quantity,
+                        new(value.StructuredSchemaId ?? "number", data), value.StructuredJson is null ? value.Unit : null,
+                        value.TimestampUtc, value.Quality, value.Source));
+                    observations.Add(input);
+                    diagnostics.Record(binding, measurement, "ACCEPTED");
+                }
+                catch (Exception error)
+                {
+                    diagnostics.Record(binding, measurement, ExecutionFailureDiagnostics.FailureCode(error));
+                    throw;
+                }
+            }
+            var context = new WellSiteAutoPilot.ModuleSdk.LogicModuleExecutionContextV2(request.ExecutionId, module.Identity,
+                correlationId, evaluationTimeUtc, request.ParametersJson,
+                request.Assets.Select(asset => new LogicAssetContext(asset.Role, asset.AssetId, asset.ParameterOverridesJson)).ToArray(),
+                structuredInputs);
+            var result = await module.ExecuteAsync(context, cancellationToken);
+            var lowered = new LogicModuleExecutionResult(result.OutcomeCode,
+                result.EngineeringResults.Select(item =>
+                    item.Value.Data.ValueKind == System.Text.Json.JsonValueKind.Number && item.Value.Data.TryGetDecimal(out var number)
+                        ? new EngineeringResultValue(item.Id, item.AssetId, item.Quantity, number, item.Unit ?? "")
+                        : throw new WellSiteAutoPilotException("MODULE_STRUCTURED_RESULT_UNSUPPORTED", FailureKind.Validation,
+                            "This deployment can only persist scalar results.")).ToArray(),
+                result.Recommendations, result.ControlIntents, result.StateUpdates)
+            { FailureCode = result.FailureCode };
+            EnsureModuleSucceeded(lowered);
+            return new ObservedExecutionResult(lowered, observations);
+        }
+        catch (Exception error)
+        {
+            diagnostics.Attach(error);
+            throw;
+        }
     }
 
     private async Task<ObservedExecutionResult> ExecuteObservedCoreAsync(ExecutionRequestedV2 request,

@@ -1,0 +1,66 @@
+{
+  "manifestVersion": 2,
+  "moduleId": "weatherford.foresite-card-summary.dotnet",
+  "version": "1.0.0",
+  "displayName": "ForeSite Surface Card Summary (dotnet)",
+  "publisher": "Weatherford",
+  "runtime": "DotNet",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "Weatherford.ForeSiteCardSummary.EntryPoint",
+  "minimumSdkVersion": "1.2.0",
+  "requiredAdapterKey": "foresite",
+  "description": "POC. Summarises the latest ForeSite surface dynacards in Shadow. Read-only; no provider writes.",
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": "well",
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "cards",
+      "assetRole": "well",
+      "quantity": "SurfaceCards",
+      "access": "Current",
+      "canonicalUnit": null,
+      "maximumAgeSeconds": null,
+      "allowUncertainQuality": false,
+      "requiredCapability": "structured.current",
+      "valueSchema": {
+        "schemaId": "foresite.surface-cards/v1",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "kind": { "type": "string", "minLength": 1, "maxLength": 128, "enum": ["CURRENT", "FULL"] },
+              "representation": { "type": "string", "minLength": 1, "maxLength": 128, "enum": ["SURFACE"] },
+              "capturedAtUtc": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "source": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "positionUnit": { "type": "string", "minLength": 1, "maxLength": 128, "enum": ["in"] },
+              "loadUnit": { "type": "string", "minLength": 1, "maxLength": 128, "enum": ["lb"] },
+              "position": { "type": "array", "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 }, "minItems": 2, "maxItems": 1024 },
+              "load": { "type": "array", "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 }, "minItems": 2, "maxItems": 1024 }
+            },
+            "required": ["id", "kind", "representation", "capturedAtUtc", "source", "positionUnit", "loadUnit", "position", "load"],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 16
+        }
+      }
+    }
+  ],
+  "commandRequirements": [],
+  "outputRequirements": [
+    { "id": "card-count", "quantity": "CardCount", "unit": "count", "valueSchema": { "schemaId": "foresite.number/v1", "schema": { "type": "number" } } },
+    { "id": "peak-load", "quantity": "PeakLoad", "unit": "lb", "valueSchema": { "schemaId": "foresite.number/v1", "schema": { "type": "number" } } },
+    { "id": "minimum-load", "quantity": "MinimumLoad", "unit": "lb", "valueSchema": { "schemaId": "foresite.number/v1", "schema": { "type": "number" } } },
+    { "id": "stroke-travel", "quantity": "StrokeTravel", "unit": "in", "valueSchema": { "schemaId": "foresite.number/v1", "schema": { "type": "number" } } },
+    { "id": "newest-card-age", "quantity": "NewestCardAge", "unit": "h", "valueSchema": { "schemaId": "foresite.number/v1", "schema": { "type": "number" } } }
+  ]
+}
