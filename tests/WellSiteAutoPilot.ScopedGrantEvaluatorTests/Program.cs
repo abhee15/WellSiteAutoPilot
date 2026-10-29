@@ -2,6 +2,7 @@ using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Security;
 
 SecurityActorGroupGuardChecks.Run();
+DirectoryNamespaceChecks.Run();
 await GroupDirectorySearchChecks.RunAsync();
 var clock = TimeProvider.System;
 
@@ -86,8 +87,8 @@ foreach (var access in new[]
             AssetIds = [Guid.Empty, wellA] }], applicableRoles),
     ScopedGrantEvaluator.Authorize(
         grantUserId, true, WellSitePermissions.AssetsRead, wellA,
-        activeWellIds, [engineerGrant with { SubjectKind = AccessGrantSubjectKind.WindowsGroup,
-            UserId = null, GroupSid = "S-1-5-21-1234" }], applicableRoles)
+        activeWellIds, [engineerGrant with { SubjectKind = AccessGrantSubjectKind.Group,
+            UserId = null, GroupId = "S-1-5-21-1234" }], applicableRoles)
 })
 {
     if (access.Allowed)
@@ -226,7 +227,7 @@ foreach (var malformed in new[]
     engineerGrant with { Revision = 0 },
     engineerGrant with { UserId = null },
     engineerGrant with { UserId = Guid.NewGuid() },
-    engineerGrant with { GroupSid = "S-1-5-21-100" },
+    engineerGrant with { GroupId = "S-1-5-21-100" },
     engineerGrant with { SubjectKind = (AccessGrantSubjectKind)99 },
     engineerGrant with { ScopeKind = (AccessGrantScopeKind)99 },
     engineerGrant with { RoleId = Guid.NewGuid() },

@@ -13,8 +13,8 @@ public sealed class SecurityActorFactory(
         return new SecurityActorContext(localUserId, external.IdentityName,
             CorrelationContext.GetCorrelationId(context))
         {
-            WindowsGroups = groups.Resolve(context.User, external, localUserId),
-            RequiresWindowsGroupProof = external.ProviderId == "windows"
+            Groups = groups.Resolve(context.User, external, localUserId),
+            RequiresGroupProof = external.ProviderId != "ci-test-header"
         };
     }
 }

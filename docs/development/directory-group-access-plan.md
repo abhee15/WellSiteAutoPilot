@@ -28,7 +28,7 @@ paired in one assignment, with current transactional revocation/recovery protect
 
 ## Delivery slices
 
-### 1. Administrative directory lookup (started in this branch)
+### 1. Administrative directory lookup
 
 IGroupDirectory returns (DirectoryId, ExternalId), display name and domain. The
 application service checks current administrator authority before lookup and again
@@ -116,9 +116,28 @@ Do not implement this by accepting arbitrary group claims or by identifying user
 - https://learn.microsoft.com/en-us/aspnet/core/security/authentication/claims
 - https://github.com/Azure-Samples/active-directory-aspnetcore-webapp-openidconnect-v2/tree/master/5-WebApp-AuthZ/5-2-Groups
 
-## Current verification limits
+## Original first-slice checkpoint
 
-This branch starts slice 1; it does not complete the picker, neutral grant schema,
+The original branch checkpoint started slice 1; it does not complete the picker, neutral grant schema,
 member browsing or live AD acceptance. Local environment has no .NET SDK or AD.
 Conventions and API authorization inventory can run locally; compilation and new .NET
 regressions require CI. Keep the PR draft. No migration or installer changes in slice 1.
+
+## Implementation update
+
+The branch now includes the directory-qualified grant/membership representation, SQL
+namespace predicates and uniqueness, a preserving migration, saved display metadata,
+server re-resolution at grant creation, capability-aware name picker, previously
+assigned groups for offline inspection/retirement, and a non-Windows trusted-adapter
+walkthrough test. The shared authorization engine does not require Windows SIDs.
+DirectoryProvider is configurable independently from AuthenticationMode.
+
+Member browsing remains optional follow-up. Supporting a new authentication provider
+requires its own verified identity/membership adapter and configuration, not a new
+role or scope model. This change does not enable OIDC authentication.
+
+The raw-SID administration endpoints are replaced as part of the unreleased v1 API;
+regenerate clients from OpenAPI. Existing data is preserved by the explicit Windows
+namespace mapping, and old names are retained in migration history only.
+Local SDK installation now permits compilation and pure/query-translation tests;
+CI remains the source of installed-Windows and PostgreSQL integration evidence.

@@ -8,14 +8,14 @@ namespace WellSiteAutoPilot.Application.Security;
 public sealed class AccessSubject
 {
     public Guid UserId { get; }
-    public VerifiedWindowsGroupMembership? WindowsGroups { get; }
+    public VerifiedGroupMembership? Groups { get; }
 
-    public AccessSubject(Guid userId, VerifiedWindowsGroupMembership? windowsGroups = null)
+    public AccessSubject(Guid userId, VerifiedGroupMembership? windowsGroups = null)
     {
         if (userId == Guid.Empty) throw new ArgumentException("A persisted user is required.", nameof(userId));
         if (windowsGroups is not null && windowsGroups.UserId != userId)
             throw new ArgumentException("Group proof belongs to another user.", nameof(windowsGroups));
         UserId = userId;
-        WindowsGroups = windowsGroups;
+        Groups = windowsGroups;
     }
 }

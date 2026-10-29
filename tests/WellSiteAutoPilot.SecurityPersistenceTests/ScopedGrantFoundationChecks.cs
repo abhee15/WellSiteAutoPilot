@@ -27,7 +27,7 @@ internal static class ScopedGrantFoundationChecks
             var exact = Grant();
             db.AccessGrants.AddRange(exact,
                 Grant(scope: "AllAssets"), Grant(scope: "DeploymentWide"),
-                Grant(active: false), Grant(subject: "WindowsGroup", groupSid: "S-1-5-21-100"));
+                Grant(active: false), Grant(subject: "Group", groupId: "S-1-5-21-100"));
             db.AccessGrantAssets.Add(new AccessGrantAssetEntity
             {
                 GrantId = exact.Id, AssetId = assetId
@@ -37,8 +37,8 @@ internal static class ScopedGrantFoundationChecks
 
             await RejectAsync(Grant(), "23505", "IX_access_grants_UserId_RoleId_ScopeKind");
             await RejectAsync(Grant(subject: "Unknown"), "23514", "CK_access_grants_subject");
-            await RejectAsync(Grant(subject: "WindowsGroup"), "23514", "CK_access_grants_subject");
-            await RejectAsync(Grant(groupSid: "S-1-5-21-100"), "23514", "CK_access_grants_subject");
+            await RejectAsync(Grant(subject: "Group"), "23514", "CK_access_grants_subject");
+            await RejectAsync(Grant(groupId: "S-1-5-21-100"), "23514", "CK_access_grants_subject");
             await RejectAsync(Grant(scope: "Unknown"), "23514", "CK_access_grants_scope_kind");
             await RejectAsync(Grant(revision: 0, active: false), "23514", "CK_access_grants_revision");
             await RejectAsync(Grant(user: Guid.NewGuid()), "23503", "FK_access_grants_users_UserId");
@@ -84,12 +84,12 @@ internal static class ScopedGrantFoundationChecks
         }
 
         AccessGrantEntity Grant(string subject = "User", string scope = "ExactAssets",
-            bool active = true, long revision = 1, string? groupSid = null,
+            bool active = true, long revision = 1, string? groupId = null,
             Guid? user = null, Guid? role = null) => new()
         {
             Id = Guid.NewGuid(), SubjectKind = subject,
-            UserId = subject == "WindowsGroup" ? null : user ?? userId,
-            GroupSid = groupSid, RoleId = role ?? roleId, ScopeKind = scope,
+            UserId = subject == "Group" ? null : user ?? userId,
+            GroupId = groupId, RoleId = role ?? roleId, ScopeKind = scope,
             IsActive = active, Revision = revision,
             CreatedAtUtc = DateTimeOffset.UtcNow, UpdatedAtUtc = DateTimeOffset.UtcNow
         };

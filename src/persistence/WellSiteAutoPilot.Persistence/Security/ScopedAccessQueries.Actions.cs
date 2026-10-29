@@ -11,10 +11,10 @@ public static partial class ScopedAccessQueries
         AccessSubject subject, IReadOnlyCollection<Guid> ids, DateTimeOffset nowUtc)
     {
         var readable = ConfiguredLogic(db, subject.UserId, WellSitePermissions.ConfiguredLogicRead,
-            subject.WindowsGroups, nowUtc);
+            subject.Groups, nowUtc);
         var manageable = ConfiguredLogic(db, subject.UserId, WellSitePermissions.ConfiguredLogicManage,
-            subject.WindowsGroups, nowUtc);
-        var requestAssets = Assets(db, subject.UserId, WellSitePermissions.ExecutionsRequest, subject.WindowsGroups, nowUtc);
+            subject.Groups, nowUtc);
+        var requestAssets = Assets(db, subject.UserId, WellSitePermissions.ExecutionsRequest, subject.Groups, nowUtc);
         var revisions = db.ConfiguredLogicRevisions.AsNoTracking();
         var targets = db.ConfiguredLogicAssetBindings.AsNoTracking();
         var inputs = db.ConfiguredLogicDataBindings.AsNoTracking();
@@ -39,9 +39,9 @@ public static partial class ScopedAccessQueries
         AccessSubject subject, IReadOnlyCollection<Guid> ids, DateTimeOffset nowUtc)
     {
         var readable = Recommendations(db, subject.UserId, WellSitePermissions.RecommendationsRead,
-            subject.WindowsGroups, nowUtc);
+            subject.Groups, nowUtc);
         var decidable = Recommendations(db, subject.UserId, WellSitePermissions.RecommendationsDecide,
-            subject.WindowsGroups, nowUtc);
+            subject.Groups, nowUtc);
         return readable.Where(recommendation => ids.Contains(recommendation.Id)).OrderBy(recommendation => recommendation.Id).Select(recommendation =>
             new RecommendationActions(recommendation.Id, decidable.Any(decision => decision.Id == recommendation.Id)));
     }

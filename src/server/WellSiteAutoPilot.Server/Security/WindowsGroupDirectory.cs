@@ -17,29 +17,40 @@ public sealed class WindowsGroupDirectory : IGroupDirectory, IDisposable
     public string DirectoryId => "windows-ad";
     public bool SupportsGroupSearch => OperatingSystem.IsWindows();
 
+    public async Task<DirectoryGroup?> FindAsync(string externalId, CancellationToken cancellationToken)
+    {
+        if (!WindowsSidFormat.IsValid(externalId)) return null;
+        return await RunAsync(() =>
+        {
+            if (!OperatingSystem.IsWindows()) throw Unavailable();
+            using var context = new PrincipalContext(ContextType.Domain);
+            using var group = GroupPrincipal.FindByIdentity(context, IdentityType.Sid, externalId);
+            return group?.IsSecurityGroup == true && group.Sid is not null && group.SamAccountName is { } name
+                ? new DirectoryGroup(DirectoryId, group.Sid.Value, name, context.Name ?? "") : null;
+        }, cancellationToken);
+    }
+
     public async Task<GroupDirectoryPage> SearchAsync(string namePrefix, CancellationToken cancellationToken)
     {
         var prefix = GroupDirectorySearchService.ValidatePrefix(namePrefix);
-        if (!OperatingSystem.IsWindows()) throw Unavailable();
+        return await RunAsync(() =>
+        {
+            if (!OperatingSystem.IsWindows()) throw Unavailable();
+            return Find(prefix);
+        }, cancellationToken);
+    }
+
+    private async Task<T> RunAsync<T>(Func<T> operation, CancellationToken cancellationToken)
+    {
         if (!await gate.WaitAsync(0, cancellationToken)) throw Unavailable();
-        // AccountManagement is synchronous. Keep the slot until the actual lookup ends,
-        // even when the caller cancels or stops waiting, to bound abandoned operations.
         var lookup = Task.Run(() =>
         {
-            try
-            {
-                if (!OperatingSystem.IsWindows()) throw Unavailable();
-                return Find(prefix);
-            }
+            try { return operation(); }
             finally { gate.Release(); }
         }, CancellationToken.None);
         try { return await lookup.WaitAsync(Timeout, cancellationToken); }
         catch (OperationCanceledException) { throw; }
-        catch (Exception exception) when (exception is not OutOfMemoryException)
-        {
-            // Do not return directory exception text (hosts, DNs and account details).
-            throw Unavailable();
-        }
+        catch (Exception exception) when (exception is not OutOfMemoryException) { throw Unavailable(); }
     }
 
     [SupportedOSPlatform("windows")]

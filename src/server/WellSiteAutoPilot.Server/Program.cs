@@ -133,9 +133,14 @@ if (string.Equals(authenticationMode, SecurityOptions.NegotiateAuthenticationMod
     builder.Services.AddSingleton<IDirectoryDisplayNameResolver, WindowsDirectoryDisplayNameResolver>();
 else
     builder.Services.AddSingleton<IDirectoryDisplayNameResolver, NoDirectoryDisplayNameResolver>();
-builder.Services.AddSingleton<IGroupDirectory>(services =>
-    string.Equals(authenticationMode, SecurityOptions.NegotiateAuthenticationMode, StringComparison.OrdinalIgnoreCase)
-        ? new WindowsGroupDirectory() : new UnavailableGroupDirectory());
+var directoryProvider = builder.Configuration["Security:DirectoryProvider"] ??
+    (string.Equals(authenticationMode, SecurityOptions.NegotiateAuthenticationMode, StringComparison.OrdinalIgnoreCase) ? "active-directory" : "none");
+builder.Services.AddSingleton<IGroupDirectory>(services => directoryProvider switch
+{
+    "active-directory" => new WindowsGroupDirectory(),
+    "none" => new UnavailableGroupDirectory(),
+    _ => throw new InvalidOperationException("Unsupported Security:DirectoryProvider.")
+});
 builder.Services.AddScoped<GroupDirectorySearchService>();
 builder.Services.AddAuthorization(WellSitePolicies.AddGrantPolicies);
 builder.Services.AddSingleton<IIdentityGroupResolver>(services =>
@@ -468,6 +473,28 @@ v1.MapPut(
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapGet(
+    "/security/groups",
+    async (ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await directory.ListAssignedGroupsAuthorizedAsync(access.Subject, cancellationToken)).Select(group =>
+            new WellSiteAutoPilot.Api.Contracts.Security.DirectoryGroupResponse(group.DirectoryId, group.ExternalId, group.DisplayName, group.Domain)).ToArray())
+    .WithName("ListAssignedGroups")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Security.DirectoryGroupResponse[]>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapGet(
+    "/security/directory",
+    async (GroupDirectorySearchService directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+    {
+        var capability = await directory.GetCapabilitiesAuthorizedAsync(access.Subject, cancellationToken);
+        return new WellSiteAutoPilot.Api.Contracts.Security.GroupDirectoryCapabilitiesResponse(capability.DirectoryId, capability.SupportsGroupSearch);
+    })
+    .WithName("GetGroupDirectoryCapabilities")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Security.GroupDirectoryCapabilitiesResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapGet(
     "/security/directory/groups",
     async (string prefix, GroupDirectorySearchService directory, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
@@ -483,27 +510,29 @@ v1.MapGet(
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapGet(
-    "/security/windows-groups/{groupSid}/grants",
-    async (string groupSid, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
-        (await directory.ListGrantsAuthorizedAsync(access.Subject, AccessGrantSubject.ForWindowsGroup(groupSid), cancellationToken)).Select(ToAccessGrantResponse).ToArray())
-    .WithName("ListWindowsGroupAccessGrants")
+    "/security/directories/{directoryId}/group-grants",
+    async (string directoryId, string groupId, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await directory.ListGrantsAuthorizedAsync(access.Subject, AccessGrantSubject.ForGroup(directoryId, groupId), cancellationToken)).Select(ToAccessGrantResponse).ToArray())
+    .WithName("ListGroupAccessGrants")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapPost(
-    "/security/windows-groups/{groupSid}/grants",
-    async (string groupSid, CreateAccessGrantRequest request, AccessGrantAdministrationService grants,
+    "/security/directories/{directoryId}/group-grants",
+    async (string directoryId, string groupId, CreateAccessGrantRequest request, AccessGrantAdministrationService grants,
+        GroupDirectorySearchService groupDirectory,
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
         var scope = request.ScopeKind.ToDomain();
-        var grant = await grants.CreateAuthorizedAsync(AccessGrantSubject.ForWindowsGroup(groupSid),
+        var subject = await groupDirectory.ResolveAuthorizedAsync(access.Subject, directoryId, groupId, cancellationToken);
+        var grant = await grants.CreateAuthorizedAsync(subject,
             new CreateAccessGrantCommand(request.RoleId, scope, request.AssetIds ?? [], request.ExpectedRoleRevision),
             access.Subject, access.CreateActor(context), cancellationToken);
         return Results.Created(context.Request.Path.ToString(), ToAccessGrantResponse(grant));
     })
-    .WithName("CreateWindowsGroupAccessGrant")
+    .WithName("CreateGroupAccessGrant")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(
@@ -513,12 +542,12 @@ v1.MapPost(
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapPut(
-    "/security/windows-groups/{groupSid}/grants/{grantId:guid}/deactivate",
-    async (string groupSid, Guid grantId, DeactivateAccessGrantRequest request, AccessGrantAdministrationService grants,
+    "/security/directories/{directoryId}/group-grants/{grantId:guid}/deactivate",
+    async (string directoryId, string groupId, Guid grantId, DeactivateAccessGrantRequest request, AccessGrantAdministrationService grants,
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
-        ToAccessGrantResponse(await grants.DeactivateAuthorizedAsync(AccessGrantSubject.ForWindowsGroup(groupSid), grantId, request.ExpectedRevision,
+        ToAccessGrantResponse(await grants.DeactivateAuthorizedAsync(AccessGrantSubject.ForGroup(directoryId, groupId), grantId, request.ExpectedRevision,
             access.Subject, access.CreateActor(context), cancellationToken)))
-    .WithName("DeactivateWindowsGroupAccessGrant")
+    .WithName("DeactivateGroupAccessGrant")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AccessGrantResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -1605,7 +1634,7 @@ static ConfiguredLogicResponse WithConfigurationActions(ConfiguredLogicDefinitio
 
 static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>
     new(grant.Id, grant.SubjectKind.ToContract(), grant.UserId,
-        grant.GroupSid, grant.RoleId, grant.ScopeKind.ToContract(),
-        grant.AssetIds.ToArray(), grant.IsActive, grant.Revision);
+        grant.GroupId, grant.RoleId, grant.ScopeKind.ToContract(),
+        grant.AssetIds.ToArray(), grant.IsActive, grant.Revision, grant.DirectoryId, grant.GroupDisplayName, grant.GroupDomain);
 
 public partial class Program;

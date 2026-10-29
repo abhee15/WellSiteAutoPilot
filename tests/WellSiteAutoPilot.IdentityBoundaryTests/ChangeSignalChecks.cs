@@ -229,7 +229,7 @@ internal static class ChangeSignalChecks
 
     private sealed class NoGroups : IIdentityGroupResolver
     {
-        public VerifiedWindowsGroupMembership? Resolve(ClaimsPrincipal principal,
+        public VerifiedGroupMembership? Resolve(ClaimsPrincipal principal,
             AuthenticatedExternalIdentity identity, Guid localUserId) => null;
     }
 

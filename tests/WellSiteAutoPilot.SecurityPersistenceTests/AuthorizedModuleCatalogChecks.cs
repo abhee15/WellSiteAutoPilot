@@ -31,14 +31,14 @@ internal static class AuthorizedModuleCatalogChecks
         setup.AccessGrants.Add(new AccessGrantEntity
         {
             Id = globalGrant, RoleId = roleId, ScopeKind = "AllAssets", Revision = 1, IsActive = true,
-            SubjectKind = subject.WindowsGroups is null ? "User" : "WindowsGroup",
-            UserId = subject.WindowsGroups is null ? subject.UserId : null,
-            GroupSid = subject.WindowsGroups?.GroupSids.Single(), CreatedAtUtc = now, UpdatedAtUtc = now
+            SubjectKind = subject.Groups is null ? "User" : "Group",
+            UserId = subject.Groups is null ? subject.UserId : null,
+            GroupId = subject.Groups?.GroupIds.Single(), CreatedAtUtc = now, UpdatedAtUtc = now
         });
         await setup.SaveChangesAsync();
         await ExpectAsync(() => RegisterAsync(command), FailureKind.Authorization);
         await setup.AccessGrants.Where(item => item.Id == globalGrant).ExecuteUpdateAsync(set => set.SetProperty(item => item.ScopeKind, "DeploymentWide"));
-        if (subject.WindowsGroups is not null)
+        if (subject.Groups is not null)
             await ExpectAsync(() => RegisterAsync(command, proof: new(subject.UserId)), FailureKind.Authorization);
         var first = await RegisterAsync(command);
         if (!first.IsEnabled || (await RegisterAsync(command)).Id != first.Id)

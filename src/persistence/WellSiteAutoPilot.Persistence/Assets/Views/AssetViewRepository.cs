@@ -20,21 +20,21 @@ public sealed class AssetViewRepository(WellSiteAutoPilotDbContext dbContext, Ti
     private IQueryable<AssetViewEntity> Readable(AccessSubject subject)
     {
         var grants = ScopedAccessQueries.DeploymentGrants(dbContext, subject.UserId, WellSitePermissions.ConnectionsRead,
-            subject.WindowsGroups, Time.GetUtcNow());
+            subject.Groups, Time.GetUtcNow());
         return dbContext.AssetViews.AsNoTracking().Where(view => view.ConnectionId != null && grants.Any());
     }
 
     private IQueryable<AssetEntity> VisibleWells(AccessSubject subject) =>
         ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
-            subject.WindowsGroups, Time.GetUtcNow())
+            subject.Groups, Time.GetUtcNow())
             .Where(asset => dbContext.AssetTypes.Any(type => type.Id == asset.AssetTypeId && type.Key == "well" && type.IsActive));
 
     private IQueryable<AssetEntity> InspectableAssets(AccessSubject subject)
     {
         var allAssets = ScopedAccessQueries.ResourceGrants(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
-            subject.WindowsGroups, Time.GetUtcNow()).Where(grant => grant.ScopeKind == "AllAssets");
+            subject.Groups, Time.GetUtcNow()).Where(grant => grant.ScopeKind == "AllAssets");
         var visible = ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
-            subject.WindowsGroups, Time.GetUtcNow());
+            subject.Groups, Time.GetUtcNow());
         // Broad Asset readers may inspect inactive member names solely to repair a saved selection.
         // Exact-scope readers still cannot obtain hidden IDs through this maintenance path.
         return dbContext.Assets.AsNoTracking().Where(asset => allAssets.Any() || visible.Any(item => item.Id == asset.Id));

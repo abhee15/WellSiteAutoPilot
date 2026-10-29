@@ -52,6 +52,7 @@ internal static class GroupDirectorySearchChecks
         public int Calls { get; private set; }
         public string? Prefix { get; private set; }
         public Action? AfterSearch { get; set; }
+        public Task<DirectoryGroup?> FindAsync(string externalId, CancellationToken cancellationToken) => Task.FromResult<DirectoryGroup?>(null);
         public Task<GroupDirectoryPage> SearchAsync(string prefix, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

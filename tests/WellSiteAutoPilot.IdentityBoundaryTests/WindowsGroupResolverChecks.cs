@@ -38,7 +38,7 @@ internal static class WindowsGroupResolverChecks
                 throw new InvalidOperationException("Native Windows token did not produce membership proof.");
             var expected = identity.Groups!.OfType<SecurityIdentifier>()
                 .Where(principal.IsInRole).Select(group => group.Value.ToUpperInvariant()).ToHashSet(StringComparer.Ordinal);
-            if (proof.UserId != user || !proof.GroupSids.SetEquals(expected))
+            if (proof.UserId != user || !proof.GroupIds.SetEquals(expected))
                 throw new InvalidOperationException("Membership included disabled/deny-only groups or lost enabled token groups.");
             // An actual token appended as a secondary identity is not the caller.
             forged.AddIdentity(identity);

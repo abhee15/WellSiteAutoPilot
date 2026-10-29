@@ -42,14 +42,13 @@ def role(name, permissions):
 
 
 def grant(user, definition, scope, assets=(), group=False, expected=201):
-    path = "/security/windows-groups/" + user if group else "/security/users/" + user
-    return request("POST", path + "/grants", body={"roleId": definition["roleId"],
+    path = "/security/directories/windows-ad/group-grants?groupId=" + user if group else "/security/users/" + user + "/grants"
+    return request("POST", path, body={"roleId": definition["roleId"],
         "expectedRoleRevision": definition["revision"], "scopeKind": scope, "assetIds": list(assets)}, expected=expected)
 
 
-def retire(user, assignment, group=False):
-    path = "/security/windows-groups/" + user if group else "/security/users/" + user
-    return request("PUT", path + "/grants/" + assignment["grantId"] + "/deactivate",
+def retire(user, assignment):
+    return request("PUT", "/security/users/" + user + "/grants/" + assignment["grantId"] + "/deactivate",
         body={"expectedRevision": assignment["revision"]})
 
 
@@ -167,19 +166,17 @@ request("GET", "/security/users", OTHER, expected=403)
 request("POST", "/security/roles", OTHER, {"name": "Denied", "description": "", "permissions": []}, expected=403)
 retire(other["userId"], custom_assignment)
 
-# Group assignment authoring remains supported. TestHeader must not supply
-# native Windows membership or authorize a simulated group-only principal.
+# An unsupported directory cannot author arbitrary group identities. TestHeader cannot
+# supply membership. Group inheritance with existing grants is covered in persistence tests.
 sid = "S-1-5-21-771-992-553-4001"
 system_admin = next(item for item in request("GET", "/security/roles?limit=500") if item["key"] == "admin")
-group_admin = grant(sid, system_admin, "DeploymentWide", group=True)
-group_read = grant(sid, reader, "ExactAssets", [second["id"]], group=True)
+grant(sid, system_admin, "DeploymentWide", group=True, expected=400)
+grant(sid, reader, "ExactAssets", [second["id"]], group=True, expected=400)
 spoofed = {"X-WSA-Test-Groups": sid, "X-WSA-Test-Roles": "Admin"}
 assert request("GET", "/security/me", GROUP_ONLY, extra_headers=spoofed)["permissions"] == []
 request("GET", "/assets", GROUP_ONLY, expected=403, extra_headers=spoofed)
 request("GET", "/security/users", GROUP_ONLY, expected=403, extra_headers=spoofed)
-assert len(request("GET", "/security/windows-groups/" + sid + "/grants")) == 2
-retire(sid, group_admin, group=True)
-retire(sid, group_read, group=True)
+assert len(request("GET", "/security/directories/windows-ad/group-grants?groupId=" + sid)) == 0
 
 # Administration refuses self elevation, invalid scopes and stale role reviews.
 grant(admin["userId"], reader, "ExactAssets", [first["id"]], expected=403)

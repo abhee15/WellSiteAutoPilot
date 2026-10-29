@@ -16,7 +16,7 @@ internal static class DirectAdministratorRecoveryChecks
         await using var db = new WellSiteAutoPilotDbContext(options);
         var adminRole = await db.RoleDefinitions.SingleAsync(x => x.Key == "admin" && x.IsSystem);
         var actor = new SecurityActorContext(administrator.Id, administrator.IdentityName, "direct-admin-recovery")
-        { RequiresWindowsGroupProof = false }; // Explicit test-only group authoring/retirement.
+        { RequiresGroupProof = false }; // Explicit test-only group authoring/retirement.
         var users = new UserAccessRepository(db);
         var targets = new List<Guid>();
         for (var i = 0; i < 6; i++)
@@ -31,8 +31,8 @@ internal static class DirectAdministratorRecoveryChecks
         retiredGrant.IsActive = false;
         var allAssets = Grant(targets[3], "AllAssets");
         var malformedScope = Grant(targets[4]);
-        var group = new AccessGrantEntity { Id = Guid.NewGuid(), SubjectKind = "WindowsGroup",
-            GroupSid = "S-1-5-21-123-234-345-456", RoleId = adminRole.Id, ScopeKind = "DeploymentWide",
+        var group = new AccessGrantEntity { Id = Guid.NewGuid(), SubjectKind = "Group",
+            GroupId = "S-1-5-21-123-234-345-456", RoleId = adminRole.Id, ScopeKind = "DeploymentWide",
             IsActive = true, Revision = 1, CreatedAtUtc = clock.GetUtcNow(), UpdatedAtUtc = clock.GetUtcNow() };
         var customRole = await new RoleCatalogService(new RoleCatalogRepository(db), users, clock)
             .CreateAsync(new RoleMutationCommand("Recovery custom " + Guid.NewGuid().ToString("N"), "",
@@ -110,7 +110,7 @@ internal static class DirectAdministratorRecoveryChecks
             await using var writer = new WellSiteAutoPilotDbContext(options);
             await new AccessGrantRepository(writer).DeactivateAsync(
                 grant.SubjectKind == "User" ? AccessGrantSubject.ForUser(grant.UserId!.Value)
-                    : AccessGrantSubject.ForWindowsGroup(grant.GroupSid),
+                    : AccessGrantSubject.ForWindowsGroup(grant.GroupId),
                 grant.Id, revision, securityActor ?? actor, clock.GetUtcNow());
         }
         async Task<bool> RaceAsync(AccessGrantEntity grant)

@@ -44,7 +44,7 @@ Parity<DomainConfiguredLogicRevisionStatus, ContractConfiguredLogicRevisionStatu
 Parity<DomainPlatformComponentStatus, ContractPlatformComponentStatus>(value => value.ToContract());
 
 // Pinned literals guard the documented wire values themselves.
-ExpectJson(AccessGrantSubjectKind.WindowsGroup, "\"WindowsGroup\"");
+ExpectJson(AccessGrantSubjectKind.Group, "\"WindowsGroup\"");
 ExpectJson(AccessGrantScopeKind.DeploymentWide, "\"DeploymentWide\"");
 ExpectJson(ExecutionStatus.TimedOut, "\"TimedOut\"");
 ExpectJson(ContractLogicRuntimeKind.DotNet, "\"DotNet\"");
@@ -113,12 +113,12 @@ ExpectThrows<WellSiteAutoPilotException>(
 
 // Responses keep the existing string wire format.
 var grantJson = JsonSerializer.Serialize(new AccessGrantResponse(
-    Guid.Empty, AccessGrantSubjectKind.WindowsGroup, null, "S-1-5-21-1", Guid.Empty,
+    Guid.Empty, AccessGrantSubjectKind.Group, null, "S-1-5-21-1", Guid.Empty,
     AccessGrantScopeKind.DeploymentWide, [], true, 1), web);
 using (var document = JsonDocument.Parse(grantJson))
 {
     var root = document.RootElement;
-    Expect(root.GetProperty("subjectKind").GetString() == "WindowsGroup" &&
+    Expect(root.GetProperty("subjectKind").GetString() == "Group" &&
         root.GetProperty("scopeKind").GetString() == "DeploymentWide",
         "Grant response wire values changed: " + grantJson);
 }

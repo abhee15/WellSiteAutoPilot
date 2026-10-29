@@ -49,13 +49,13 @@ internal static class AuthorizedAssetCreationChecks
             Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
         }, new AccessGrantEntity
         {
-            Id = readGrantId, SubjectKind = "WindowsGroup", GroupSid = "S-1-5-21-916-1", RoleId = readRoleId,
+            Id = readGrantId, SubjectKind = "Group", GroupId = "S-1-5-21-916-1", RoleId = readRoleId,
             ScopeKind = "ExactAssets", IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
         });
         setup.AccessGrantAssets.AddRange(new AccessGrantAssetEntity { GrantId = grantId, AssetId = parentA.Id },
             new AccessGrantAssetEntity { GrantId = readGrantId, AssetId = parentB.Id });
         await setup.SaveChangesAsync();
-        var subject = new AccessSubject(userId, new(userId, ["S-1-5-21-916-1"], now));
+        var subject = new AccessSubject(userId, new VerifiedWindowsGroupMembership(userId, ["S-1-5-21-916-1"], now));
         var actor = new SecurityActorContext(userId, key, key);
         await ExpectFailureAsync(() => CreateAsync(parentB.Id), FailureKind.Authorization);
         await ExpectFailureAsync(() => CreateAsync(null), FailureKind.Authorization);

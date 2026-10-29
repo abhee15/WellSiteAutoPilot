@@ -21,8 +21,8 @@ internal static class SecurityActorFactoryChecks
             var factory = new SecurityActorFactory(new ConfiguredPrincipalResolver(mode),
                 new WindowsTokenGroupResolver(mode, TimeProvider.System));
             var actor = factory.Create(context, userId);
-            if (actor.UserId != userId || actor.IdentityName != "FIELD\\admin" || actor.WindowsGroups is not null ||
-                actor.RequiresWindowsGroupProof != (mode == SecurityOptions.NegotiateAuthenticationMode))
+            if (actor.UserId != userId || actor.IdentityName != "FIELD\\admin" || actor.Groups is not null ||
+                actor.RequiresGroupProof != (mode == SecurityOptions.NegotiateAuthenticationMode))
                 throw new InvalidOperationException("Administration actor confused provider identity and group claim authority.");
         }
         Console.WriteLine("Administration actor factory requires real Windows proof and rejects group claims/test-header authority.");

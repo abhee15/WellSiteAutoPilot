@@ -18,9 +18,9 @@ internal static class WindowsGroupGrantChecks
             [WellSitePermissions.AssetsRead, WellSitePermissions.AssetsManage, WellSitePermissions.LogicRead]);
         var reader = engineer with { Id = Guid.NewGuid(), Key = "custom-reader", Name = "Custom Reader",
             Permissions = [WellSitePermissions.AssetsRead] };
-        var engineerGrant = new AccessGrant(Guid.NewGuid(), AccessGrantSubjectKind.WindowsGroup,
+        var engineerGrant = new AccessGrant(Guid.NewGuid(), AccessGrantSubjectKind.Group,
             null, groupA, engineer.Id, AccessGrantScopeKind.ExactAssets, [assetA], true, 1);
-        var readerGrant = engineerGrant with { Id = Guid.NewGuid(), GroupSid = groupB,
+        var readerGrant = engineerGrant with { Id = Guid.NewGuid(), GroupId = groupB,
             RoleId = reader.Id, AssetIds = [assetB] };
         var global = engineerGrant with { Id = Guid.NewGuid(), ScopeKind = AccessGrantScopeKind.DeploymentWide,
             AssetIds = [] };
@@ -30,7 +30,7 @@ internal static class WindowsGroupGrantChecks
         var manageA = Check(WellSitePermissions.AssetsManage, assetA, proof, now);
         var readB = Check(WellSitePermissions.AssetsRead, assetB, proof, now);
         if (!manageA.Allowed || manageA.GrantedByAssignmentId != engineerGrant.Id ||
-            manageA.GrantedBySubjectKind != AccessGrantSubjectKind.WindowsGroup ||
+            manageA.GrantedBySubjectKind != AccessGrantSubjectKind.Group ||
             !readB.Allowed || readB.GrantedByAssignmentId != readerGrant.Id ||
             Check(WellSitePermissions.AssetsManage, assetB, proof, now).Allowed ||
             !Check(WellSitePermissions.LogicRead, null, proof, now).Allowed)
@@ -49,7 +49,7 @@ internal static class WindowsGroupGrantChecks
 
         // Membership in an unrelated group cannot broaden a direct grant.
         var direct = engineerGrant with { Id = Guid.NewGuid(), SubjectKind = AccessGrantSubjectKind.User,
-            UserId = user, GroupSid = null };
+            UserId = user, GroupId = null };
         var readerOnly = new VerifiedWindowsGroupMembership(user, [groupB], now);
         if (!ScopedGrantEvaluator.Authorize(user, true, WellSitePermissions.AssetsManage, assetA,
                 assets, [direct, readerGrant], roles, readerOnly, now).Allowed ||
@@ -59,9 +59,9 @@ internal static class WindowsGroupGrantChecks
         foreach (var malformed in new[]
         {
             engineerGrant with { UserId = user },
-            engineerGrant with { GroupSid = "s-1-5-21-101" },
+            engineerGrant with { GroupId = "s-1-5-21-101" },
             engineerGrant with { IsActive = false },
-            engineerGrant with { GroupSid = "S-1-5-21-999" }
+            engineerGrant with { GroupId = "S-1-5-21-999" }
         })
             if (ScopedGrantEvaluator.Authorize(user, true, WellSitePermissions.AssetsManage, assetA,
                     assets, [malformed], roles, proof, now).Allowed)
@@ -73,7 +73,7 @@ internal static class WindowsGroupGrantChecks
         var mutable = new HashSet<string> { groupA };
         var frozen = new VerifiedWindowsGroupMembership(user, mutable, now);
         mutable.Add(groupB);
-        if (frozen.GroupSids.Contains(groupB))
+        if (frozen.GroupIds.Contains(groupB))
             throw new InvalidOperationException("Membership proof retained a mutable caller-owned set.");
         foreach (var invalid in new[] { new[] { "CORP\\Engineers" }, new[] { "S-1-5-021-1" },
             Enumerable.Repeat(groupA, VerifiedWindowsGroupMembership.MaximumGroups + 1).ToArray() })

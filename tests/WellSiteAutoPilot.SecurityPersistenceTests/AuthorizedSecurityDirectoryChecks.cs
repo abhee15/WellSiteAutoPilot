@@ -15,7 +15,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
         await using var setup = new WellSiteAutoPilotDbContext(options);
         var direct = new AccessSubject(directAdministrator);
         var target = AccessGrantSubject.ForUser(directAdministrator);
-        var groupTarget = AccessGrantSubject.ForWindowsGroup(groupAdministrator.WindowsGroups!.GroupSids.Single());
+        var groupTarget = AccessGrantSubject.ForWindowsGroup(groupAdministrator.Groups!.GroupIds.Single());
         var protectedRole = await setup.AccessGrants.Where(item => item.Id == administratorGrant).Select(item => item.RoleId).SingleAsync();
         // Directory metadata must never invoke the fixed ApplicationRole parser.
         setup.UserRoles.Add(new UserRoleEntity { UserId = groupAdministrator.UserId, Role = "Customer Technician" });
@@ -46,13 +46,13 @@ internal static partial class AuthorizedSecurityDirectoryChecks
                 await ExpectAsync(() => directory.ListRolesAuthorizedAsync(actor, limit), FailureKind.Validation);
             }
         }
-        var expired = new AccessSubject(groupAdministrator.UserId, new(groupAdministrator.UserId,
-            groupAdministrator.WindowsGroups.GroupSids, DateTimeOffset.UtcNow.AddMinutes(-2)));
+        var expired = new AccessSubject(groupAdministrator.UserId, new VerifiedWindowsGroupMembership(groupAdministrator.UserId,
+            groupAdministrator.Groups.GroupIds, DateTimeOffset.UtcNow.AddMinutes(-2)));
         // The same user has a custom security.manage grant, which is not the
         // protected administrator privilege class. A target SID is no proof.
         foreach (var actor in new[] { new AccessSubject(groupAdministrator.UserId), expired, new AccessSubject(Guid.NewGuid()) })
             await ExpectAllDeniedAsync(actor);
-        var expiryClock = new AdjustableClock(groupAdministrator.WindowsGroups.ObservedAtUtc);
+        var expiryClock = new AdjustableClock(groupAdministrator.Groups.ObservedAtUtc);
         var expiryOptions = new DbContextOptionsBuilder<WellSiteAutoPilotDbContext>(options)
             .AddInterceptors(new ExpireDuringRoleRead(expiryClock)).Options;
         await using (var expiring = new WellSiteAutoPilotDbContext(expiryOptions))

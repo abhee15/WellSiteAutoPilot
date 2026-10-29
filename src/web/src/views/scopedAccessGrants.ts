@@ -1,4 +1,4 @@
-import { isWindowsSid } from '../security/windowsSid';
+import { isDirectoryId, isGroupId } from '../security/directoryGroup';
 import { isSecurityId as validId } from '../security/identifiers';
 import type {
   AccessGrantScopeKind, AccessGrantSubjectKind, AssetDirectoryEntryResponse, CreateAccessGrantRequest,
@@ -11,7 +11,7 @@ export type SubjectKind = AccessGrantSubjectKind;
 // The compiler requires every member the server contract declares (and no
 // others); the guards keep the runtime check that generated types cannot give.
 const SCOPE_KINDS: Record<ScopeKind, true> = { ExactAssets: true, DeploymentWide: true, AllAssets: true };
-const SUBJECT_KINDS: Record<SubjectKind, true> = { User: true, WindowsGroup: true };
+const SUBJECT_KINDS: Record<SubjectKind, true> = { User: true, Group: true };
 export function isScopeKind(value: unknown): value is ScopeKind {
   return typeof value === 'string' && Object.hasOwn(SCOPE_KINDS, value);
 }
@@ -20,7 +20,7 @@ export function isSubjectKind(value: unknown): value is SubjectKind {
 }
 export type AssetChoice = AssetDirectoryEntryResponse & { id: string; name: string; isActive: boolean };
 export type GrantDraft = CreateAccessGrantRequest & {
-  subjectKind: SubjectKind; userId: string; groupSid?: string; roleId: string;
+  subjectKind: SubjectKind; userId: string; groupId?: string; directoryId?: string; roleId: string;
   scopeKind: ScopeKind; assetIds: string[]; expectedRoleRevision: number;
 };
 export type GrantPreview = {
@@ -33,8 +33,8 @@ export class GrantValidationError extends Error {}
 export function previewGrant(draft: GrantDraft, role: RoleRecord | null,
   catalog: readonly PermissionDefinition[], assets: readonly AssetChoice[],
   allowAllAssets: boolean): GrantPreview {
-  if (!(draft.subjectKind === 'User' ? validId(draft.userId) && !draft.groupSid
-    : draft.subjectKind === 'WindowsGroup' && draft.userId === '' && isWindowsSid(draft.groupSid)) ||
+  if (!(draft.subjectKind === 'User' ? validId(draft.userId) && !draft.groupId
+    : draft.subjectKind === 'Group' && draft.userId === '' && isGroupId(draft.groupId) && isDirectoryId(draft.directoryId)) ||
     !validId(draft.roleId) || !role?.isActive ||
     draft.roleId.toLowerCase() !== role.roleId.toLowerCase() ||
     !Number.isSafeInteger(draft.expectedRoleRevision) || draft.expectedRoleRevision < 1 ||

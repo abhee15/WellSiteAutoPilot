@@ -1126,7 +1126,20 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("GroupSid")
+                    b.Property<string>("DirectoryId")
+                        .UsePropertyAccessMode(PropertyAccessMode.Property)
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("GroupDisplayName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("GroupDomain")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("GroupId")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
@@ -1157,19 +1170,19 @@ namespace WellSiteAutoPilot.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GroupSid");
+                    b.HasIndex("GroupId");
 
                     b.HasIndex("RoleId");
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("GroupSid", "RoleId", "ScopeKind")
-                        .IsUnique()
-                        .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'WindowsGroup'");
-
                     b.HasIndex("UserId", "RoleId", "ScopeKind")
                         .IsUnique()
                         .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'User'");
+
+                    b.HasIndex("DirectoryId", "GroupId", "RoleId", "ScopeKind")
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'Group'");
 
                     b.ToTable("access_grants", "security", t =>
                         {
@@ -1177,7 +1190,7 @@ namespace WellSiteAutoPilot.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_access_grants_scope_kind", "\"ScopeKind\" IN ('ExactAssets', 'DeploymentWide', 'AllAssets')");
 
-                            t.HasCheckConstraint("CK_access_grants_subject", "\"SubjectKind\" = 'User' AND \"UserId\" IS NOT NULL AND \"GroupSid\" IS NULL OR \"SubjectKind\" = 'WindowsGroup' AND \"UserId\" IS NULL AND \"GroupSid\" IS NOT NULL");
+                            t.HasCheckConstraint("CK_access_grants_subject", "\"SubjectKind\" = 'User' AND \"UserId\" IS NOT NULL AND \"GroupId\" IS NULL OR \"SubjectKind\" = 'Group' AND \"UserId\" IS NULL AND \"GroupId\" IS NOT NULL AND \"DirectoryId\" IS NOT NULL");
                         });
                 });
 

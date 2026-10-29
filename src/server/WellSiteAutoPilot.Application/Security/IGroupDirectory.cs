@@ -5,6 +5,7 @@ public interface IGroupDirectory
 {
     string DirectoryId { get; }
     bool SupportsGroupSearch { get; }
+    Task<DirectoryGroup?> FindAsync(string externalId, CancellationToken cancellationToken);
     Task<GroupDirectoryPage> SearchAsync(string namePrefix, CancellationToken cancellationToken);
 }
 

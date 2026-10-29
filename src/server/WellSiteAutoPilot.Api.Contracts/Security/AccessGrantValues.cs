@@ -10,7 +10,7 @@ namespace WellSiteAutoPilot.Api.Contracts.Security;
 public enum AccessGrantSubjectKind
 {
     User = 1,
-    WindowsGroup = 2
+    Group = 2
 }
 
 [JsonConverter(typeof(ClosedStringEnumConverter<AccessGrantScopeKind>))]

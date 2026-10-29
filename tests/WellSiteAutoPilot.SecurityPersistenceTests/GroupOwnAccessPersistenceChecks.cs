@@ -15,18 +15,18 @@ internal static class GroupOwnAccessPersistenceChecks
         var now = clock.GetUtcNow();
         var own = actor with
         {
-            RequiresWindowsGroupProof = true,
-            WindowsGroups = new VerifiedWindowsGroupMembership(actor.UserId!.Value,
-                ["S-1-5-21-110-220-330-999", group.GroupSid!], now)
+            RequiresGroupProof = true,
+            Groups = new VerifiedWindowsGroupMembership(actor.UserId!.Value,
+                ["S-1-5-21-110-220-330-999", group.GroupId!], now)
         };
         var beforeGrants = await db.AccessGrants.CountAsync();
         var beforeAudits = await db.AuditEvents.CountAsync();
         foreach (var denied in new[]
         {
             own,
-            own with { WindowsGroups = null },
-            own with { WindowsGroups = new VerifiedWindowsGroupMembership(actor.UserId.Value, [], now.AddMinutes(-2)) },
-            own with { WindowsGroups = new VerifiedWindowsGroupMembership(Guid.NewGuid(), [], now) }
+            own with { Groups = null },
+            own with { Groups = new VerifiedWindowsGroupMembership(actor.UserId.Value, [], now.AddMinutes(-2)) },
+            own with { Groups = new VerifiedWindowsGroupMembership(Guid.NewGuid(), [], now) }
         })
         {
             var code = ReferenceEquals(denied, own) ? "SECURITY_SELF_ACCESS_CHANGE_FORBIDDEN" : "SECURITY_GROUP_MEMBERSHIP_REQUIRED";
@@ -71,7 +71,7 @@ internal static class GroupOwnAccessPersistenceChecks
         db.AccessGrantAssets.AddRange(command.AssetIds.Select(assetId => new AccessGrantAssetEntity
         { GrantId = directId, AssetId = assetId }));
         await db.SaveChangesAsync();
-        var directActor = own with { WindowsGroups = new VerifiedWindowsGroupMembership(actor.UserId.Value, [], now) };
+        var directActor = own with { Groups = new VerifiedWindowsGroupMembership(actor.UserId.Value, [], now) };
         await CheckAsync(async (repository, service, roles) =>
         {
             var role = await roles.GetAsync(command.RoleId) ?? throw new InvalidOperationException("Missing role.");

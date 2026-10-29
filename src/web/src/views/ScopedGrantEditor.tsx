@@ -5,7 +5,7 @@ import { GrantValidationError, previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft, ScopeKind } from './scopedAccessGrants';
 
 type Props = {
-  user: { userId: string; identityName: string; groupSid?: string };
+  user: { userId: string; identityName: string; groupId?: string; directoryId?: string };
   roles: readonly RoleRecord[]; permissions: readonly PermissionDefinition[];
   assets: readonly AssetChoice[]; allowAllAssets: boolean;
   onContinue: (grant: GrantDraft) => void; onCancel: () => void;
@@ -21,10 +21,10 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
   const [acknowledged, setAcknowledged] = useState(false);
   const role = roles.find(item => item.roleId === roleId) ?? null;
   const reviewedRoleRevision = role?.revision ?? 0;
-  const draft = useMemo<GrantDraft>(() => ({ subjectKind: user.groupSid ? 'WindowsGroup' : 'User', userId: user.userId,
-    ...(user.groupSid ? { groupSid: user.groupSid } : {}),
+  const draft = useMemo<GrantDraft>(() => ({ subjectKind: user.groupId ? 'Group' : 'User', userId: user.userId,
+    ...(user.groupId ? { groupId: user.groupId, directoryId: user.directoryId } : {}),
     roleId, scopeKind, assetIds, expectedRoleRevision: reviewedRoleRevision }),
-  [user.userId, user.groupSid, roleId, scopeKind, assetIds, reviewedRoleRevision]);
+  [user.userId, user.groupId, user.directoryId, roleId, scopeKind, assetIds, reviewedRoleRevision]);
   const preview = useMemo(() => {
     try { return previewGrant(draft, role, permissions, assets, allowAllAssets); }
     catch (error) {
@@ -48,7 +48,7 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
           {t('access.cancel')}
         </button>
       </div>
-      <p className="access-note access-intro">{t(user.groupSid ? 'grants.forGroup' : 'grants.forUser', { name: user.identityName })}</p>
+      <p className="access-note access-intro">{t(user.groupId ? 'grants.forGroup' : 'grants.forUser', { name: user.identityName })}</p>
       <div className="grant-fields">
         <label>{t('grants.role')}
           <select value={roleId} onChange={event => {

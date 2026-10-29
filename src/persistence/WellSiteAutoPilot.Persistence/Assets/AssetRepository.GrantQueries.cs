@@ -31,7 +31,7 @@ public sealed partial class AssetRepository
     {
         ArgumentNullException.ThrowIfNull(subject);
         var entity = await ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow())
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow())
             .SingleOrDefaultAsync(asset => asset.Id == id, cancellationToken);
         return entity is null ? null : ToDomain(entity);
     }
@@ -42,7 +42,7 @@ public sealed partial class AssetRepository
         ArgumentNullException.ThrowIfNull(subject);
         if (limit is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(limit));
         return ListCoreAsync(ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow()), assetTypeId, parentAssetId, limit, cancellationToken);
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow()), assetTypeId, parentAssetId, limit, cancellationToken);
     }
 
     private const int MaximumPathDepth = 32;
@@ -51,7 +51,7 @@ public sealed partial class AssetRepository
 
     private IQueryable<AssetEntity> VisibleAssets(AccessSubject subject) =>
         ScopedAccessQueries.Assets(dbContext, subject.UserId, WellSitePermissions.AssetsRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow());
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow());
 
     public Task<IReadOnlyCollection<AssetTreeNode>> ListChildrenAuthorizedAsync(AccessSubject subject,
         Guid? parentAssetId, int offset, int limit, CancellationToken cancellationToken = default) =>

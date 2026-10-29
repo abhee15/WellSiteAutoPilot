@@ -46,10 +46,10 @@ public static class GrantWriteGuard
         {
             var now = clock.GetUtcNow();
             var grants = targets is null
-                ? ScopedAccessQueries.DeploymentGrants(db, subject.UserId, permission, subject.WindowsGroups, now)
-                : ScopedAccessQueries.ResourceGrants(db, subject.UserId, permission, subject.WindowsGroups, now);
+                ? ScopedAccessQueries.DeploymentGrants(db, subject.UserId, permission, subject.Groups, now)
+                : ScopedAccessQueries.ResourceGrants(db, subject.UserId, permission, subject.Groups, now);
             if (protectedAdministrator)
-                grants = ScopedAccessQueries.AdministratorGrants(db, subject.UserId, subject.WindowsGroups, now);
+                grants = ScopedAccessQueries.AdministratorGrants(db, subject.UserId, subject.Groups, now);
             if (requireAllAssets) grants = grants.Where(grant => grant.ScopeKind == "AllAssets");
             var selected = new HashSet<Guid>();
             if (targets is null || requireAllAssets)
@@ -117,20 +117,20 @@ public static class GrantWriteGuard
             now = clock.GetUtcNow();
             if (requireAllAssets)
             {
-                if (!await ScopedAccessQueries.ResourceGrants(db, userId, permission, subject.WindowsGroups, now)
+                if (!await ScopedAccessQueries.ResourceGrants(db, userId, permission, subject.Groups, now)
                         .AnyAsync(grant => ids.Contains(grant.Id) && grant.ScopeKind == "AllAssets", cancellationToken)) throw Denied();
             }
             else if (targets is null)
             {
                 var heldGrants = protectedAdministrator
-                    ? ScopedAccessQueries.AdministratorGrants(db, userId, subject.WindowsGroups, now)
-                    : ScopedAccessQueries.DeploymentGrants(db, userId, permission, subject.WindowsGroups, now);
+                    ? ScopedAccessQueries.AdministratorGrants(db, userId, subject.Groups, now)
+                    : ScopedAccessQueries.DeploymentGrants(db, userId, permission, subject.Groups, now);
                 if (!await heldGrants
                         .AnyAsync(grant => ids.Contains(grant.Id), cancellationToken)) throw Denied();
             }
             else
             {
-                var heldGrants = ScopedAccessQueries.ResourceGrants(db, userId, permission, subject.WindowsGroups, now)
+                var heldGrants = ScopedAccessQueries.ResourceGrants(db, userId, permission, subject.Groups, now)
                     .Where(grant => ids.Contains(grant.Id));
                 var count = await db.Assets.CountAsync(asset => targets.Contains(asset.Id) && asset.IsActive &&
                     heldGrants.Any(grant => grant.ScopeKind == "AllAssets" ||

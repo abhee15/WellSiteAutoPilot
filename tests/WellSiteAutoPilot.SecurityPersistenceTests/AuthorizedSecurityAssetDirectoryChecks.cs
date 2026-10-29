@@ -49,7 +49,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
             if (await new AssetRepository(db).GetAuthorizedAsync(group, assets[0].Id) is not null)
                 throw new InvalidOperationException("The assignment directory conferred resource read authority.");
 
-        var expiryClock = new AdjustableClock(group.WindowsGroups!.ObservedAtUtc);
+        var expiryClock = new AdjustableClock(group.Groups!.ObservedAtUtc);
         var expiryOptions = new DbContextOptionsBuilder<WellSiteAutoPilotDbContext>(options)
             .AddInterceptors(new ExpireDuringAssetRead(expiryClock)).Options;
         await using (var db = new WellSiteAutoPilotDbContext(expiryOptions))
