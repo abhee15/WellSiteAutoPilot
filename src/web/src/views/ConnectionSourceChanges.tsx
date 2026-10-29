@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { SearchInput } from '../components/SearchInput';
+import { useEffect, useId, useRef, useState } from 'react';
 import { formatTimestamp } from '../format';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { t } from '../localization';
@@ -42,6 +43,7 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
     }
   }
   const blocked = disabled || busy;
+  const searchId = useId();
   return <section className="connection-source-changes" aria-label={t('sourceChanges.heading')}>
     <h3>{t('sourceChanges.heading')}</h3>
     <p className="connection-help">{t('sourceChanges.diagnostic')}</p>
@@ -66,11 +68,11 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
       <p>{t('sourceChanges.lastComplete', { time: page.lastSuccessfulCheck ? formatTimestamp(page.lastSuccessfulCheck.completedAtUtc!) : t('sourceChanges.never') })}</p>
       <p className="connection-help">{t('sourceChanges.retained')}</p>
       <div className="connection-actions">
-        <label>{t('sourceChanges.search')}<input type="search" value={query} maxLength={256} disabled={blocked} onChange={e => setQuery(e.target.value)}
+        <div className="connection-source-search"><label htmlFor={searchId}>{t('sourceChanges.search')}</label><SearchInput id={searchId} value={query} maxLength={256} disabled={blocked}
+          action={{ label: t('sourceChanges.search'), type: 'button', disabled: blocked, busy, onClick: () => void run(0, query) }} onChange={e => setQuery(e.target.value)}
           onKeyDown={event => {
             if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); if (!blocked) void run(0, query); }
-          }} /></label>
-        <button type="button" className="secondary-button" disabled={blocked} onClick={() => void run(0, query)}>{t('sourceChanges.search')}</button>
+          }} /></div>
       </div>
       <p>{t('sourceChanges.results', { total: page.total })}</p>
       <ul className="source-change-list">{page.items.map(item => <li key={item.id}>

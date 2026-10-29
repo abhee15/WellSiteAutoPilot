@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { useState } from 'react';
 import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
@@ -116,8 +117,7 @@ export function OperationsViewControls({
   const searchLabel = (
     <label>
       <span>{t('views.search')}</span>
-      <input
-        type="search"
+      <SearchInput
         value={criteria.search}
         maxLength={120}
         placeholder={t('views.searchPlaceholder')}
@@ -202,7 +202,7 @@ export function OperationsViewControls({
   return compact ? (
     <>
       <div className="split-search">
-        <input type="search" value={criteria.search} maxLength={120} aria-label={t('views.search')}
+        <SearchInput value={criteria.search} maxLength={120} aria-label={t('views.search')}
           placeholder={t('views.searchPlaceholder')}
           onChange={event => changeCriteria({ ...criteria, search: event.target.value })} />
       </div>

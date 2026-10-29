@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -24,7 +25,7 @@ export function RecommendationInboxControls({
       <div className="data-view-fields">
         <label>
           <span>{t('inbox.search')}</span>
-          <input type="search" maxLength={120} value={criteria.search}
+          <SearchInput maxLength={120} value={criteria.search}
             placeholder={t('inbox.searchPlaceholder')}
             onChange={event => onChange({ ...criteria, search: event.target.value })} />
         </label>

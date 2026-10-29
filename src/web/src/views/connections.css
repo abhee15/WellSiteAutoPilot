@@ -95,3 +95,5 @@
 .connection-source-summary { display: grid; gap: var(--space-8); }
 .source-change-list details[open] > :not(summary) { margin-top: var(--space-8); }
 .source-change-table td:first-child { overflow-wrap: normal; }
+
+.connection-source-search { display: grid; gap: var(--space-8); flex: 1; min-width: 0; }

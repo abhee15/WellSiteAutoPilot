@@ -1,3 +1,6 @@
+import { ActionButton } from '../components/ActionButton';
+import { RefreshCw } from 'lucide-react';
+import { SearchInput } from '../components/SearchInput';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -245,8 +248,8 @@ export function RoleCatalogPage() {
           <div><p className="eyebrow">{t('roles.eyebrow')}</p>
             <h2>{t('roles.heading')}</h2></div>
           <div className="role-actions">
-            <button type="button" className="secondary-button"
-              disabled={loading} onClick={() => void reload()}>{t('roles.refresh')}</button>
+            <ActionButton icon={RefreshCw} label={t('roles.refresh')}
+              disabled={loading} onClick={() => void reload()} />
             <button type="button" className="primary-button"
               disabled={loading || !!error} onClick={() => {
                 setEditor({ kind: 'new', template: null }); setNotice(null);
@@ -260,7 +263,7 @@ export function RoleCatalogPage() {
         {loading ? <LoadingIndicator label={t('roles.loading')} /> : !error && (
           <>
             <label className="role-search"><span>{t('roles.search')}</span>
-              <input type="search" value={query} maxLength={120}
+              <SearchInput value={query} maxLength={120}
                 onChange={event => setQuery(event.target.value)} />
             </label>
             <div className="table-wrap">

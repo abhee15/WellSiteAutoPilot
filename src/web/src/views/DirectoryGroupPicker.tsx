@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import { isDirectoryId, isGroupId } from '../security/directoryGroup';
@@ -58,7 +59,7 @@ export function DirectoryGroupPicker({ disabled, onSelect }: Props) {
     } catch { if (!abort.signal.aborted) setError(true); }
     finally { if (request.current === abort) { request.current = null; setBusy(false); } }
   };
-  return <div className="grant-user-picker">
+  return <div className="directory-group-picker">
     {assignedError && <p role="status">{t('directory.assignedFailed')}</p>}
     {assigned.length > 0 && <label>{t('directory.assigned')}<select value={selection(assigned)} disabled={disabled || busy}
       onChange={event => choose(event.target.value === '' ? null : assigned[Number(event.target.value)] ?? null)}>
@@ -71,11 +72,13 @@ export function DirectoryGroupPicker({ disabled, onSelect }: Props) {
     {supported === false && <p>{t('directory.unsupported')}</p>}
     {supported === null && !error && <p role="status">{t('access.loading')}</p>}
     {supported === true && <>
-      <form onSubmit={event => { event.preventDefault(); void search(); }}>
+      <form className="directory-search" onSubmit={event => { event.preventDefault(); void search(); }}>
         <label htmlFor="directory-group-name">{t('directory.groupName')}</label>
-        <input id="directory-group-name" value={query} maxLength={100} disabled={disabled || busy}
+        <SearchInput id="directory-group-name" value={query} maxLength={100} disabled={disabled || busy}
+          controlSize="large" placeholder={t('directory.placeholder')} aria-describedby="directory-search-help"
+          action={{ label: t('directory.search'), type: 'submit', busy, disabled: query.trim().length < 2 }}
           onChange={event => { setQuery(event.target.value); setGroups([]); setHasMore(false); choose(null); }} />
-        <button type="submit" disabled={disabled || busy || query.trim().length < 2}>{t('directory.search')}</button>
+        <p id="directory-search-help" className="directory-picker-help">{t('directory.searchHelp')}</p>
       </form>
       <label>{t('directory.results')}<select value={selection(groups)} disabled={disabled || busy || groups.length === 0}
         key={groups.map(g => g.directoryId + ':' + g.externalId).join('|')}

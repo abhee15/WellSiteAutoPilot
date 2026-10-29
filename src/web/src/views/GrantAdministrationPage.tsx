@@ -1,3 +1,5 @@
+import { ActionButton } from '../components/ActionButton';
+import { RefreshCw } from 'lucide-react';
 import { groupSubjectKey } from '../security/directoryGroup';
 import { DirectoryGroupPicker } from './DirectoryGroupPicker';
 import type { DirectoryGroup } from './DirectoryGroupPicker';
@@ -189,20 +191,19 @@ export function GrantAdministrationPage(
 
   return (
     <>
-      <section className="panel">
+      <section className="panel grant-management-panel">
         <div className="panel-header">
           <h2>{t('grants.manage')}</h2>
-          <button type="button" className="secondary-button"
-            disabled={isLoading || saving} onClick={() => void load()}>
-            {t('access.refresh')}
-          </button>
+          <ActionButton icon={RefreshCw} iconOnly label={t('access.refresh')}
+            disabled={isLoading || saving} onClick={() => void load()} />
         </div>
-        <p className="access-note access-intro">{t('grants.intro')}</p>
+        <div className="grant-selection">
+        <p className="access-note grant-selection-intro">{t('grants.intro')}</p>
         {isLoading && <LoadingIndicator label={t('access.loading')} />}
         {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
         {notice && <p role="status" className="access-intro">{notice}</p>}
         {!isLoading && !error && (
-          <label className="grant-user-picker">{t('grants.subjectKind')}
+          <label className="grant-user-picker grant-subject-picker">{t('grants.subjectKind')}
             <select value={subjectKind} disabled={saving}
               onChange={event => { setSubjectKind(event.target.value as 'User' | 'Group'); void pickUser(''); }}>
               <option value="User">{t('grants.userSubject')}</option>
@@ -217,7 +218,7 @@ export function GrantAdministrationPage(
           }} />
         )}
         {!isLoading && !error && subjectKind === 'User' && (
-          <label className="grant-user-picker">
+          <label className="grant-user-picker grant-person-picker">
             {t('grants.chooseUser')}
             <select value={selectedUserId} disabled={saving}
               onChange={event => void pickUser(event.target.value)}>
@@ -230,6 +231,7 @@ export function GrantAdministrationPage(
             </select>
           </label>
         )}
+        </div>
         {selectedUser && !pending && !error && (
           <div className="grant-current-list">
             <h3>{t('grants.existing')}</h3>
@@ -253,7 +255,7 @@ export function GrantAdministrationPage(
                   )}
                 </li>;
               })}</ul>}
-            <button type="button" disabled={saving || grantsLoading || Boolean(retiring)}
+            <button type="button" className="primary-button" disabled={saving || grantsLoading || Boolean(retiring)}
               onClick={() => setPending({
                 subjectKind, userId: selectedUser.userId,
                 ...('groupId' in selectedUser ? { groupId: selectedUser.groupId, directoryId: selectedUser.directoryId } : {}),

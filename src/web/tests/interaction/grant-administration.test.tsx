@@ -121,7 +121,7 @@ it('records and retires a Windows group custom-role assignment through the share
     groups: [{ directoryId: 'windows-ad', externalId: sid, displayName: 'SoftwareEngineers', domain: 'FIELD' }], hasMore: false,
   })));
   vi.stubGlobal('fetch', fetcher);
-  await user.type(await screen.findByRole('textbox', { name: 'Group name starts with' }), 'Software');
+  await user.type(await screen.findByRole('searchbox', { name: 'Group name starts with' }), 'Software');
   await user.click(screen.getByRole('button', { name: 'Search groups' }));
   await user.selectOptions(await screen.findByRole('combobox', { name: 'Directory groups' }), '0');
   expect(loadGrants).toHaveBeenCalledWith('windows-ad:' + sid, expect.any(AbortSignal));

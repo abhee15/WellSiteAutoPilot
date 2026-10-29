@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { t } from '../localization';
 import type { LogicCatalogCriteria } from './logicCatalog';
 
@@ -19,7 +20,7 @@ export function LogicCatalogControls({
       <div className="data-view-fields asset-view-fields">
         {!hideSearch && <label>
           <span>{t('logicCatalog.search')}</span>
-          <input type="search" maxLength={120} value={criteria.search}
+          <SearchInput maxLength={120} value={criteria.search}
             placeholder={t('logicCatalog.searchPlaceholder')}
             onChange={event => onChange({ ...criteria, search: event.target.value })} />
         </label>}

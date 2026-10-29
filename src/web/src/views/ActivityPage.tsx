@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import './activity.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
@@ -85,11 +86,11 @@ export function ActivityPage() {
       <p className="access-note access-intro">{t('activity.intro')}</p>
       <form className="activity-filters" onSubmit={event => { event.preventDefault(); apply(draft); }}>
         <label>{t('activity.actionFilter')}
-          <input type="search" maxLength={128} value={draft.actionPrefix}
+          <SearchInput maxLength={128} value={draft.actionPrefix}
             onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
         </label>
         <label>{t('activity.targetFilter')}
-          <input type="search" maxLength={128} value={draft.targetType}
+          <SearchInput maxLength={128} value={draft.targetType}
             onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
         </label>
         <div className="activity-filter-actions">

@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { t } from '../localization';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 
@@ -19,7 +20,7 @@ export function ConfiguredLogicControls({
       <div className="data-view-fields asset-view-fields">
         {!hideSearch && <label>
           <span>{t('configured.search')}</span>
-          <input type="search" maxLength={120} value={criteria.search}
+          <SearchInput maxLength={120} value={criteria.search}
             placeholder={t('configured.searchPlaceholder')}
             onChange={event => onChange({ ...criteria, search: event.target.value })} />
         </label>}
