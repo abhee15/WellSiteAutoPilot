@@ -222,7 +222,7 @@ jobs:
             # API-owned finite values must be published as string enums and
             # referenced by their fields so the generated client emits unions.
             $closedValues = [ordered]@{
-              AccessGrantSubjectKind = "User,WindowsGroup"
+              AccessGrantSubjectKind = "User,Group"
               AccessGrantScopeKind = "ExactAssets,DeploymentWide,AllAssets"
               ExecutionMode = "Shadow,Recommendation,Autonomous"
               ExecutionStatus = "Requested,Queued,Starting,Running,Waiting,Completed,Failed,Cancelled,Suspended,TimedOut"

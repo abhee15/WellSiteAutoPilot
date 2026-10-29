@@ -12,7 +12,7 @@ public sealed partial class ExecutionRepository
     {
         ArgumentNullException.ThrowIfNull(subject);
         var entity = await ScopedAccessQueries.Executions(dbContext, subject.UserId, WellSitePermissions.ExecutionsRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow())
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow())
             .SingleOrDefaultAsync(execution => execution.Id == id, cancellationToken);
         return entity is null ? null : ToDomain(entity);
     }
@@ -24,7 +24,7 @@ public sealed partial class ExecutionRepository
         ArgumentNullException.ThrowIfNull(subject);
         if (limit is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(limit));
         var query = ScopedAccessQueries.Executions(dbContext, subject.UserId, WellSitePermissions.ExecutionsRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow());
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow());
         if (status is { } value) query = query.Where(execution => execution.Status == value.ToString());
         if (configuredLogicId is { } logic) query = query.Where(execution => execution.LogicInstanceId == logic);
         if (assetId is { } asset)

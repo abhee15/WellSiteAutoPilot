@@ -20,7 +20,7 @@ const grantId = 'e4c14a68-aa15-4d6a-a9f8-e7f94d710f23';
 const wellA = '04076374-92c5-4239-9220-d11ca7a5f400';
 const draft = { subjectKind: 'User', userId, roleId,
   scopeKind: 'ExactAssets', assetIds: [wellA], expectedRoleRevision: 1 };
-const row = { grantId, subjectKind: 'User', userId, groupSid: null,
+const row = { grantId, subjectKind: 'User', userId, groupId: null,
   roleId, scopeKind: 'ExactAssets', assetIds: [wellA], isActive: true, revision: 1 };
 const signal = () => new AbortController().signal;
 
@@ -157,35 +157,35 @@ test('post-write readback must match the entire receipt before claiming success'
 });
 
 test('Windows group assignments keep subject identity through create, readback and retirement', async () => {
-  const groupSid = 'S-1-5-21-100-200-300-400';
-  const groupDraft = { ...draft, subjectKind: 'WindowsGroup', userId: '', groupSid };
-  const groupRow = { ...row, subjectKind: 'WindowsGroup', userId: null, groupSid };
-  const path = '/api/v1/security/windows-groups/' + groupSid + '/grants';
+  const groupId = 'S-1-5-21-100-200-300-400';
+  const groupDraft = { ...draft, subjectKind: 'Group', userId: '', groupId, directoryId: 'windows-ad' };
+  const groupRow = { ...row, subjectKind: 'Group', userId: null, groupId, directoryId: 'windows-ad' };
+  const path = '/api/v1/security/directories/windows-ad/group-grants?groupId=' + groupId;
   const saved = await api.createGrant(groupDraft, true, signal(), async (url, init) => {
     assert.equal(url, path);
     assert.equal(init.method, 'POST');
-    assert.equal(JSON.parse(init.body).groupSid, undefined);
+    assert.equal(JSON.parse(init.body).groupId, undefined);
     return new Response(JSON.stringify(groupRow), { status: 201 });
   });
-  assert.equal(saved.groupSid, groupSid);
-  const rows = await api.loadGrants(groupSid, signal(), async (url) => {
+  assert.equal(saved.groupId, groupId);
+  const rows = await api.loadGrants('windows-ad:' + groupId, signal(), async (url) => {
     assert.equal(url, path); return new Response(JSON.stringify([groupRow]));
   });
   api.verifyGrantReadback(groupRow, rows);
   const retired = { ...groupRow, isActive: false, revision: 2 };
   assert.deepEqual(await api.deactivateGrant(groupRow, true, signal(), async (url) => {
-    assert.equal(url, path + '/' + grantId + '/deactivate');
+    assert.equal(url, '/api/v1/security/directories/windows-ad/group-grants/' + grantId + '/deactivate?groupId=' + groupId);
     return new Response(JSON.stringify(retired));
   }), retired);
-  for (const bad of [row, { ...groupRow, groupSid: 'S-1-5-21-100-200-300-401' },
-    { ...groupRow, userId }, { ...groupRow, groupSid: groupSid.toLowerCase() }]) {
-    await assert.rejects(api.loadGrants(groupSid, signal(), async () => new Response(JSON.stringify([bad]))),
+  for (const bad of [row, { ...groupRow, directoryId: 'foreign-tenant' }, { ...groupRow, groupId: 'S-1-5-21-100-200-300-401' },
+    { ...groupRow, userId }, { ...groupRow, groupId: groupId.toLowerCase() }]) {
+    await assert.rejects(api.loadGrants('windows-ad:' + groupId, signal(), async () => new Response(JSON.stringify([bad]))),
       { kind: 'invalidResponse' });
     await assert.rejects(api.createGrant(groupDraft, true, signal(), async () => new Response(JSON.stringify(bad), { status: 201 })),
       { kind: 'invalidResponse' });
   }
-  for (const badSid of ['FIELD\\Operators', 'S-1-5-01', 'S-1-5-4294967296', ' S-1-5-21']) {
-    await assert.rejects(api.createGrant({ ...groupDraft, groupSid: badSid }, true, signal(),
+  for (const badSid of ['', 'a\n', ' S-1-5-21']) {
+    await assert.rejects(api.createGrant({ ...groupDraft, groupId: badSid }, true, signal(),
       async () => { throw new Error('Invalid subject reached network'); }), { kind: 'invalid' });
   }
 });

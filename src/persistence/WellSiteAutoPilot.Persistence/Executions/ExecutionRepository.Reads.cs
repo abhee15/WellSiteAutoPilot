@@ -121,14 +121,14 @@ public sealed partial class ExecutionRepository
     }
 
     // Persisted only on the execution row, never in transport/public projections or module input.
-    private sealed record ReadAuthority(Guid UserId, string[]? GroupSids, DateTimeOffset? ObservedAtUtc,
+    private sealed record ReadAuthority(Guid UserId, string? DirectoryId, string[]? GroupIds, DateTimeOffset? ObservedAtUtc,
         DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc)
     {
-        public static ReadAuthority Create(AccessSubject subject, DateTimeOffset now) => new(subject.UserId,
-            subject.WindowsGroups?.GroupSids.ToArray(), subject.WindowsGroups?.ObservedAtUtc, now,
-            subject.WindowsGroups is { } groups ? groups.ObservedAtUtc + VerifiedWindowsGroupMembership.MaximumAge : now.AddMinutes(5));
-        public AccessSubject ToSubject() => new(UserId, GroupSids is not null && ObservedAtUtc is { } observed
-            ? new VerifiedWindowsGroupMembership(UserId, GroupSids, observed) : null);
+        public static ReadAuthority Create(AccessSubject subject, DateTimeOffset now) => new(subject.UserId, subject.Groups?.DirectoryId,
+            subject.Groups?.GroupIds.ToArray(), subject.Groups?.ObservedAtUtc, now,
+            subject.Groups is { } groups ? groups.ObservedAtUtc + VerifiedGroupMembership.MaximumAge : now.AddMinutes(5));
+        public AccessSubject ToSubject() => new(UserId, DirectoryId is not null && GroupIds is not null && ObservedAtUtc is { } observed
+            ? new VerifiedGroupMembership(UserId, GroupIds, observed, DirectoryId) : null);
     }
 
     private static WellSiteAutoPilotException ReadFailure(string code) => new(code, FailureKind.Authorization,

@@ -14,7 +14,7 @@ internal static class WindowsGroupAdministrationChecks
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
         var actor = new SecurityActorContext(administrator.Id, administrator.IdentityName, "group-admin-test")
-        { RequiresWindowsGroupProof = false }; // Explicit CI authoring without group runtime authority.
+        { RequiresGroupProof = false }; // Explicit CI authoring without group runtime authority.
         var users = new UserAccessRepository(db);
         var roles = new RoleCatalogRepository(db);
         var catalog = new RoleCatalogService(roles, users, clock);
@@ -25,7 +25,7 @@ internal static class WindowsGroupAdministrationChecks
         var group = AccessGrantSubject.ForWindowsGroup("s-1-5-21-110-220-330-440");
         var otherGroup = AccessGrantSubject.ForWindowsGroup("S-1-5-21-110-220-330-441");
         var command = new CreateAccessGrantCommand(role.Id, AccessGrantScopeKind.ExactAssets, [assetId], role.Revision);
-        if (group.GroupSid != "S-1-5-21-110-220-330-440" || group.UserId is not null)
+        if (group.GroupId != "S-1-5-21-110-220-330-440" || group.UserId is not null)
             throw new InvalidOperationException("Group assignment target was not canonicalized.");
         foreach (var invalid in new[] { "", "FIELD\\Operators", "S-1-5-01", "S-1-5-4294967296", " S-1-5-21" })
         {
@@ -58,13 +58,13 @@ internal static class WindowsGroupAdministrationChecks
         await GrantConcurrencyFailureChecks.RunAsync(options, group, command, actor, clock.GetUtcNow());
 
         var grant = await service.CreateAsync(group, command, actor);
-        if (grant.SubjectKind != AccessGrantSubjectKind.WindowsGroup || grant.UserId is not null ||
-            grant.GroupSid != group.GroupSid || grant.AssetIds.Single() != assetId)
+        if (grant.SubjectKind != AccessGrantSubjectKind.Group || grant.UserId is not null ||
+            grant.GroupId != group.GroupId || grant.AssetIds.Single() != assetId)
             throw new InvalidOperationException("Group assignment did not round-trip.");
         await using (var reloaded = new WellSiteAutoPilotDbContext(options))
         {
             var saved = (await new AccessGrantRepository(reloaded).ListAsync(group)).Single();
-            if (saved.Id != grant.Id || saved.GroupSid != group.GroupSid || !saved.IsActive)
+            if (saved.Id != grant.Id || saved.GroupId != group.GroupId || !saved.IsActive)
                 throw new InvalidOperationException("Group assignment was not durable.");
         }
         await GroupOwnAccessPersistenceChecks.RunAsync(options, group, grant, command, actor, clock);
@@ -107,8 +107,8 @@ internal static class WindowsGroupAdministrationChecks
             var audit = await db.AuditEvents.AsNoTracking().SingleAsync(x => x.Action == action && x.TargetId == grant.Id.ToString());
             using var details = JsonDocument.Parse(audit.DetailsJson);
             if (audit.ActorUserId != actor.UserId || audit.CorrelationId != actor.CorrelationId ||
-                details.RootElement.GetProperty("subjectKind").GetString() != "WindowsGroup" ||
-                details.RootElement.GetProperty("groupSid").GetString() != group.GroupSid ||
+                details.RootElement.GetProperty("subjectKind").GetString() != "Group" ||
+                details.RootElement.GetProperty("groupId").GetString() != group.GroupId ||
                 details.RootElement.GetProperty("userId").ValueKind != JsonValueKind.Null)
                 throw new InvalidOperationException("Group mutation audit lost subject or actor.");
         }
@@ -116,10 +116,32 @@ internal static class WindowsGroupAdministrationChecks
         await using var creatorOne = new WellSiteAutoPilotDbContext(options);
         await using var creatorTwo = new WellSiteAutoPilotDbContext(options);
         var created = await Task.WhenAll(CreateAsync(creatorOne), CreateAsync(creatorTwo));
-        if (created.Count(x => x) != 1 || await db.AccessGrants.CountAsync(x => x.GroupSid == group.GroupSid && x.IsActive) != 1)
+        if (created.Count(x => x) != 1 || await db.AccessGrants.CountAsync(x => x.GroupId == group.GroupId && x.IsActive) != 1)
             throw new InvalidOperationException("Concurrent group creation duplicated active assignment.");
         var remaining = (await repository.ListAsync(group)).Single(x => x.IsActive);
         await service.DeactivateAsync(group, remaining.Id, remaining.Revision, actor);
+        // Identical external IDs in different directories must coexist and never cross-authorize.
+        var foreign = AccessGrantSubject.ForGroup("tenant-b", group.GroupId!, "Engineering", "Example tenant");
+        var foreignGrant = await service.CreateAsync(foreign, command, actor);
+        await using (var isolated = new WellSiteAutoPilotDbContext(options))
+        {
+            var savedForeign = (await new AccessGrantRepository(isolated).ListAsync(foreign)).Single(x => x.IsActive);
+            if (savedForeign.DirectoryId != "tenant-b" || savedForeign.GroupDisplayName != "Engineering" ||
+                savedForeign.GroupDomain != "Example tenant") throw new InvalidOperationException("Directory metadata did not round-trip.");
+            var freshIdentity = await new UserIdentityService(new UserAccessRepository(isolated), clock)
+                .ResolveAuthenticatedAsync("NAME:DIRECTORY-NAMESPACE-NEW", "DIRECTORY-NAMESPACE-NEW", "First-time member");
+            var windowsProof = new VerifiedWindowsGroupMembership(freshIdentity.Id, [group.GroupId!], clock.GetUtcNow());
+            var foreignProof = new VerifiedGroupMembership(freshIdentity.Id, [group.GroupId!], clock.GetUtcNow(), "tenant-b");
+            var windowsSees = await ScopedAccessQueries.Assets(isolated, freshIdentity.Id,
+                WellSitePermissions.AssetsRead, windowsProof, clock.GetUtcNow()).AnyAsync(x => x.Id == assetId);
+            var foreignSees = await ScopedAccessQueries.Assets(isolated, freshIdentity.Id,
+                WellSitePermissions.AssetsRead, foreignProof, clock.GetUtcNow()).AnyAsync(x => x.Id == assetId);
+            var wrongCaseProof = new VerifiedGroupMembership(freshIdentity.Id, [group.GroupId!.ToLowerInvariant()], clock.GetUtcNow(), "tenant-b");
+            var wrongCaseSees = await ScopedAccessQueries.Assets(isolated, freshIdentity.Id,
+                WellSitePermissions.AssetsRead, wrongCaseProof, clock.GetUtcNow()).AnyAsync(x => x.Id == assetId);
+            if (windowsSees || !foreignSees || wrongCaseSees) throw new InvalidOperationException("SQL authorization crossed directory namespaces.");
+        }
+        await service.DeactivateAsync(foreign, foreignGrant.Id, foreignGrant.Revision, actor);
         Console.WriteLine("Windows-group administration canonical SID, isolation, custom role, scopes, audit atomicity and concurrent writes passed.");
 
         async Task<bool> RetireAsync(WellSiteAutoPilotDbContext writer)

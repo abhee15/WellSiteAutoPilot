@@ -33,7 +33,7 @@ internal static class AuthorizedConfigurationLifecycleChecks
             }
             finally { await SetGrantAsync(grant, true); }
         }
-        if (subject.WindowsGroups is not null)
+        if (subject.Groups is not null)
             await ExpectAsync(() => WriteAsync(repository => repository.SetRevisionValidatedAuthorizedAsync(first, new(subject.UserId), actor)), FailureKind.Authorization);
 
         // A newer revision cannot hide an older, out-of-scope input Asset.

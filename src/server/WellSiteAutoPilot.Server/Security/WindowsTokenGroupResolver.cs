@@ -8,7 +8,7 @@ namespace WellSiteAutoPilot.Server.Security;
 
 public interface IIdentityGroupResolver
 {
-    VerifiedWindowsGroupMembership? Resolve(ClaimsPrincipal principal,
+    VerifiedGroupMembership? Resolve(ClaimsPrincipal principal,
         AuthenticatedExternalIdentity externalIdentity, Guid localUserId);
 }
 
@@ -20,7 +20,7 @@ public interface IIdentityGroupResolver
 public sealed class WindowsTokenGroupResolver(string authenticationMode, TimeProvider clock)
     : IIdentityGroupResolver
 {
-    public VerifiedWindowsGroupMembership? Resolve(ClaimsPrincipal principal,
+    public VerifiedGroupMembership? Resolve(ClaimsPrincipal principal,
         AuthenticatedExternalIdentity externalIdentity, Guid localUserId)
     {
         ArgumentNullException.ThrowIfNull(principal);

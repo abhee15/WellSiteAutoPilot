@@ -47,7 +47,7 @@ public sealed class RequestAccessContext(IAuthenticatedPrincipalResolver princip
         if (!string.Equals(identity.PersistedIdentityKey, identityKey, StringComparison.Ordinal)) throw Denied();
         // TestHeader is simulated authentication and can never carry native
         // Windows-group authority, even if a resolver is accidentally supplied.
-        var membership = identity.ProviderId == "windows"
+        var membership = identity.ProviderId != "ci-test-header"
             ? groups.Resolve(authenticatedPrincipal, identity, userId) : null;
         if (membership is not null && membership.UserId != userId)
             throw new WellSiteAutoPilotException("SECURITY_GROUP_SUBJECT_MISMATCH", FailureKind.Authorization,
@@ -64,8 +64,8 @@ public sealed class RequestAccessContext(IAuthenticatedPrincipalResolver princip
         if (!ReferenceEquals(principal, context.User) || external is null) throw Denied();
         return new SecurityActorContext(current.UserId, external.IdentityName, CorrelationContext.GetCorrelationId(context))
         {
-            WindowsGroups = current.WindowsGroups,
-            RequiresWindowsGroupProof = external.ProviderId == "windows"
+            Groups = current.Groups,
+            RequiresGroupProof = external.ProviderId != "ci-test-header"
         };
     }
 

@@ -94,7 +94,7 @@ public sealed class LegacyGrantMigrationRepository(WellSiteAutoPilotDbContext db
             if (migratedRows.Length != migrationIds.Length ||
                 migratedRows.Any(grant =>
                     grant.SubjectKind != "User" || grant.UserId is null ||
-                    grant.GroupSid is not null ||
+                    grant.GroupId is not null ||
                     grant.RoleId == Guid.Empty || grant.Revision < 1 ||
                     (grant.IsActive && grant.Revision != 1)))
             {

@@ -194,11 +194,12 @@ public sealed class RoleCatalogRepository(WellSiteAutoPilotDbContext dbContext, 
                     grant.SubjectKind == "User" && grant.UserId == actor.UserId,
                     cancellationToken);
                 var ownGroup = false;
-                if (await assignments.AnyAsync(grant => grant.SubjectKind == "WindowsGroup", cancellationToken))
+                if (await assignments.AnyAsync(grant => grant.SubjectKind == "Group", cancellationToken))
                 {
                     var groups = SecurityActorGroupGuard.RequireUsableGroups(actor, nowUtc).ToArray();
+                    var directoryId = actor.Groups?.DirectoryId;
                     ownGroup = await assignments.AnyAsync(grant =>
-                        grant.SubjectKind == "WindowsGroup" && groups.Contains(grant.GroupSid!),
+                        grant.SubjectKind == "Group" && grant.DirectoryId == directoryId && groups.Contains(grant.GroupId!),
                         cancellationToken);
                 }
                 if (ownDirect || ownGroup)

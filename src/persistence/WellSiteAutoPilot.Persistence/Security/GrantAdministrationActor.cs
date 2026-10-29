@@ -17,7 +17,7 @@ internal static class GrantAdministrationActor
                 "A bound authenticated administrator is required.");
         // Own-group protections must consume the same trusted observation as
         // administrator authority, never an independently supplied actor claim.
-        return actor with { WindowsGroups = subject.WindowsGroups };
+        return actor with { Groups = subject.Groups };
     }
 
     public static async Task<T> ExecuteAsync<T>(Func<Task<T>> operation)

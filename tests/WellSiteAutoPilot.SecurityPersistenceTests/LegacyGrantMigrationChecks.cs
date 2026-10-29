@@ -45,7 +45,7 @@ internal static class LegacyGrantMigrationChecks
         // Untrusted group assignments cannot enter a direct-user migration.
         var group = new AccessGrantEntity
         {
-            Id = Guid.NewGuid(), SubjectKind = "WindowsGroup", GroupSid = "S-1-5-21-98765",
+            Id = Guid.NewGuid(), SubjectKind = "Group", GroupId = "S-1-5-21-98765",
             RoleId = custom.Id, ScopeKind = "AllAssets", IsActive = true, Revision = 1,
             CreatedAtUtc = clock.GetUtcNow(), UpdatedAtUtc = clock.GetUtcNow()
         };

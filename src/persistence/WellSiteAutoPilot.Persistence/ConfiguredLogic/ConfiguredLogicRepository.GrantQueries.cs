@@ -15,7 +15,7 @@ public sealed partial class ConfiguredLogicRepository
         ArgumentNullException.ThrowIfNull(subject);
         await using var transaction = await BeginAuthorizedReadAsync(cancellationToken);
         var entity = await ScopedAccessQueries.ConfiguredLogic(dbContext, subject.UserId, WellSitePermissions.ConfiguredLogicRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow())
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow())
             .SingleOrDefaultAsync(definition => definition.Id == id, cancellationToken);
         var result = entity is null ? null : ToDomain(entity, await LoadRevisionsAsync(id, cancellationToken));
         if (transaction is not null) await transaction.CommitAsync(cancellationToken);
@@ -29,7 +29,7 @@ public sealed partial class ConfiguredLogicRepository
         if (limit is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(limit));
         await using var transaction = await BeginAuthorizedReadAsync(cancellationToken);
         var entities = await ScopedAccessQueries.ConfiguredLogic(dbContext, subject.UserId, WellSitePermissions.ConfiguredLogicRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow())
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow())
             .OrderBy(definition => definition.Name).ThenBy(definition => definition.Id).Take(limit).ToArrayAsync(cancellationToken);
         var result = new List<ConfiguredLogicDefinition>(entities.Length);
         foreach (var entity in entities)

@@ -28,7 +28,7 @@ internal static class AuthorizedManualShadowRequestChecks
         setup.RolePermissions.Add(new RolePermissionEntity { RoleId = requestRole, Permission = WellSitePermissions.ExecutionsRequest });
         await setup.SaveChangesAsync();
         await ExpectAsync(() => RequestAsync(Guid.Empty), FailureKind.Validation);
-        if (subject.WindowsGroups is not null)
+        if (subject.Groups is not null)
             await ExpectAsync(() => RequestAsync(Guid.NewGuid(), proof: new(subject.UserId)), FailureKind.Authorization);
         var failedKey = Guid.NewGuid();
         var failedId = ManualShadowRequestService.DeriveExecutionId(subject.UserId, failedKey);
@@ -94,7 +94,7 @@ internal static class AuthorizedManualShadowRequestChecks
         {
             if (await RequestAsync(key) != (receipt with { ContractVersion = 3 }) ||
                 !await ScopedAccessQueries.Executions(setup, subject.UserId, WellSitePermissions.ExecutionsRequest,
-                    subject.WindowsGroups, DateTimeOffset.UtcNow)
+                    subject.Groups, DateTimeOffset.UtcNow)
                     .AnyAsync(item => item.Id == receipt.ExecutionId))
                 throw new InvalidOperationException("Hosted receipt lost its scoped execution visibility.");
             await SetGrantAsync(requestGrant, false);

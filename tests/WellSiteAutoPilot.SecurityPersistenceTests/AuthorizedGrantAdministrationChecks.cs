@@ -36,7 +36,7 @@ internal static class AuthorizedGrantAdministrationChecks
         var command = new CreateAccessGrantCommand(role.Id, AccessGrantScopeKind.AllAssets, [], role.Revision);
         var targetOther = AccessGrantSubject.ForUser(groupAdministrator.UserId);
         var targetDirect = AccessGrantSubject.ForUser(directAdministrator);
-        var ownGroup = AccessGrantSubject.ForWindowsGroup(groupAdministrator.WindowsGroups!.GroupSids.Single());
+        var ownGroup = AccessGrantSubject.ForWindowsGroup(groupAdministrator.Groups!.GroupIds.Single());
         var externalGroup = AccessGrantSubject.ForWindowsGroup("S-1-5-21-915-991");
         await ExpectAsync(() => CreateAsync(targetDirect, command, direct, directActor), FailureKind.Authorization);
         await ExpectAsync(() => CreateAsync(ownGroup, command, groupAdministrator, groupActor), FailureKind.Authorization);

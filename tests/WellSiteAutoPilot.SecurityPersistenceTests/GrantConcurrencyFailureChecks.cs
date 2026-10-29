@@ -33,7 +33,7 @@ internal static class GrantConcurrencyFailureChecks
             catch (Exception exception) when (code == "22001" && ReferenceEquals(exception, failure)) { }
         }
         await using var verification = new WellSiteAutoPilotDbContext(options);
-        if (await verification.AccessGrants.AnyAsync(x => x.GroupSid == subject.GroupSid))
+        if (await verification.AccessGrants.AnyAsync(x => x.GroupId == subject.GroupId))
             throw new InvalidOperationException("Injected failed save left a group assignment.");
         Console.WriteLine("Grant writes normalize direct/nested PostgreSQL concurrency errors and preserve unrelated failures.");
     }

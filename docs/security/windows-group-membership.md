@@ -1,136 +1,98 @@
-# Windows group membership and paired grants
+# Directory groups and Windows membership
 
-## Delivery boundary
+## Access model
 
-The access completion scope includes Windows/AD users, membership in multiple
-AD security groups, direct and group role assignments, custom roles and their
-combined effective access (#76 and #77). Direct-only authorization does not
-complete that scope.
+WSA assigns configurable roles and Asset/deployment scopes to local users or directory
+groups. A group's stable identity is `(DirectoryId, GroupId)`, not its name. Opaque IDs
+remain case-sensitive in both the evaluator and explicitly ordinal database columns; the Windows adapter alone validates and canonicalizes SIDs.
+The generic grant evaluator, SQL predicates, own-access guard and persisted execution
+read authority all preserve the directory namespace. Roles and scopes remain paired
+inside each grant. Windows and a future trusted identity integration use the same
+WSA authorization model.
 
-This slice provides trusted token-group resolution and pure/SQL grant
-composition. It does **not** register a new live authorization path. Group
-assignment administration, runtime policy/capability integration, direct
-recovery-administrator protection and removal of legacy authority still need
-end-to-end implementation. Existing callers without explicit membership proof
-continue to ignore group assignments.
+## Administration
 
-## Trusted source
+Administration → Scoped grants → Directory group offers name-prefix search and
+readable domain-qualified results. The server resolves the selected ID again before
+creating a grant and stores provider-resolved name/domain metadata. Administrators do
+not enter SIDs. Previously assigned groups remain selectable without a reachable
+external directory, including retired assignments and unresolved legacy display names.
+This allows inspection and retirement after directory outage or deletion; creating
+new assignments requires a successful directory resolution. The saved-group list is
+bounded at 500; it fails explicitly rather than silently truncating.
 
-`WindowsTokenGroupResolver` accepts only the primary authenticated native
-`WindowsIdentity` under the configured Negotiate provider. The native user SID
-must match the externally resolved SID identity before membership can be bound
-to the persisted local user ID. Generic claims, `GroupSid` claims, secondary
-identities, test headers and client-supplied group names are not membership
-proof. A non-Windows or unsupported identity returns no group proof; it does
-not fabricate an empty administrative membership.
+The first directory implementation searches AD security-group account names in the
+Server's joined domain under the Server service identity. It uses the existing
+AccountManagement dependency, a bounded prefix query, 50-result pages with a refine
+hint, directory timeouts and one outstanding native lookup per Server instance.
+Cancellation stops the HTTP caller's wait; native calls retain the concurrency slot
+until they really finish. Directory error text is never exposed. No supplied LDAP
+endpoint, impersonation, administrator password or non-security-group fallback exists.
+Member enumeration is not required for inheritance and is not implemented.
 
-Enumerate token groups and retain only SIDs for which that token's
-`WindowsPrincipal.IsInRole(SecurityIdentifier)` is true. Token group collections
-can include deny-only/disabled groups, so copying the whole collection would
-be unsafe. Group names are display metadata; canonical SID values match the
-persisted group assignments.
+`Security:DirectoryProvider` accepts `active-directory` or `none`, independently of
+`Security:AuthenticationMode`. If omitted, Negotiate defaults to AD and TestHeader to
+none. Configuring a directory does not enable an authentication provider. Future
+providers need a trusted identity/membership adapter and, independently, a directory
+adapter if name search is desired; they do not need another role/scope evaluator.
 
-No LDAP dependency, credentials, directory synchronization, cross-request
-membership cache or user impersonation is introduced. Optional directory
-lookup/browsing is a separate adapter capability, not an Internet dependency.
+Administrative routes under `/api/v1`:
 
-## Scope and lifetime
+- `GET /security/directory` — directory search capability.
+- `GET /security/directory/groups?prefix=Software` — live metadata search.
+- `GET /security/groups` — previously assigned group identities and saved labels.
+- `GET/POST /security/directories/{directoryId}/group-grants?groupId=...`.
+- `PUT /security/directories/{directoryId}/group-grants/{grantId}/deactivate?groupId=...`.
 
-`VerifiedWindowsGroupMembership` is an immutable, bounded snapshot associated
-with one local user. Pure and SQL evaluators require its matching user and an
-explicit evaluation time. Future-dated or older-than-one-minute observations
-cannot contribute group grants; direct grants remain independently effective.
-A revoked grant/role or inactive product user/Asset is checked in SQL on each
-query execution. Both resource-scoped and deployment-wide permissions keep
-subject, role, permission and scope within the same grant.
+All require SecurityManage and current protected administrator authority. Directory
+lookup checks authority again before returning results. Existing grant mutation
+transactions retain audit atomicity, revision checks, same-role/scope uniqueness,
+own-access protection and the protected direct recovery administrator.
 
-The one-minute bound limits reuse of **our proof object**. It does not make
-AD membership changes appear in an existing Windows access token. There is no
-live directory query here. Group removal, nested-group changes and account
-revocation reach the application when Windows authentication provides a renewed
-token. Test and document actual reauthentication/token behavior on the target
-Windows/AD deployment under #92 before claiming a directory revocation latency.
-Do not report token observation time as directory verification time.
+## Request-time membership and first sign-in
 
-## Verification
+GrantIdentityMiddleware persists the authenticated local identity, then
+RequestAccessContext obtains evidence from the configured trusted host adapter.
+Identity creation grants no authority by itself. A first-time Windows user whose
+enabled token contains an assigned group receives that group's usable grants without
+an individual assignment. Users covered by no usable grant remain waiting for access;
+inactive local users remain denied.
 
-- Pure tests cover two groups with disjoint roles/Assets, mixed direct and
-  group grants, provenance, malformed/expired/wrong-user proof, immutable
-  membership snapshots and inactive-user denial.
-- PostgreSQL tests compose the same group proof across Assets, all disclosed
-  configuration revisions/input sources, V1/V2 execution scopes and target
-  Recommendations. They verify SQL pagination and group/direct scope isolation,
-  missing/expired proof, changed membership, revoked assignments and global
-  permission scope compatibility.
-- Windows CI inspects an actual local process token and compares enabled group
-  membership; Linux tests prove generic/header claims cannot substitute for it.
-  A local Windows process-token test is not a browser Negotiate handshake or
-  evidence of domain/nested-group/reauthentication behavior.
+WindowsTokenGroupResolver accepts only the primary authenticated native WindowsIdentity
+under Negotiate, checks its user SID against the resolved local identity and retains
+only groups for which WindowsPrincipal.IsInRole(SID) is true. Disabled/deny-only groups,
+generic claims, secondary identities, browser input and HTTP test headers cannot
+supply membership. TestHeader is explicitly denied group authority even if a resolver
+is accidentally injected. A future genuine provider can supply directory-qualified
+VerifiedGroupMembership from its own validated issuer/tenant/session; merely copying
+claims from an arbitrary principal is insufficient.
 
-## Assignment administration
+Evidence is immutable, bound to one local user and usable for at most one minute from
+observation. SQL checks current user/grant/role/Asset state on each query. WSA does not
+cache effective permissions per user. The observation bound does not renew a Windows
+token or prove that AD was queried. Nested membership and AD removal take effect when
+Windows supplies a renewed token; validate actual browser/domain renewal behavior in
+the target deployment before claiming a revocation latency.
 
-Administration → Scoped grants supports both individual users and Windows
-security groups. Select Windows group, enter the group's SID obtained from
-Windows/AD, then load its assignments. The role/permission preview, explicit
-Asset scope, final review, durable readback and revision-fenced retirement
-are shared with direct assignments. Built-in and custom roles use the same
-catalog; resource and deployment permissions remain paired with each grant's
-scope. Group names are not identifiers. SID syntax validation does not prove
-that a group exists in the directory, or that the current user belongs to it.
-Directory browsing is not required for this MVP slice.
+User administration counts direct assignments only. A zero count does not mean a
+person lacks group-derived access. Directory listings do not prove another person's
+current token membership.
 
-Group endpoints are `/security/windows-groups/{groupSid}/grants` (GET/POST)
-and `/{grantId}/deactivate` (PUT), under `/api/v1`. They require the existing
-active administrator authority. Both service and transactional repository
-validate roles/scopes; writes audit the subject kind, canonical SID, actor,
-role/revision and mutation in the same transaction. An active subject/role/
-scope assignment is unique. Failed audit writes roll back creation and
-retirement. No automatic write retries occur in the UI.
+## Schema and validation
 
-These records remain **proposed access**: neither entering a SID nor assigning
-a role changes the administrator's or any member's current legacy authority.
-Group-aware own-access checks and direct-administrator retirement protection
-are now implemented as described below and in the cutover checklist. Complete
-grant-based bootstrap and request-time mutation/revocation enforcement before
-activating these grants. Do not wire group grants into legacy claims independently of those
-protections. Multi-group and direct/group evaluation is already tested at the
-pure evaluator and SQL resource-query boundary; this slice adds authoring,
-not a claim that the complete AD/domain runtime has shipped.
+The directory-qualified-grant migration renames GroupSid to GroupId, maps existing
+WindowsGroup rows to Group/windows-ad, adds saved display metadata and makes active
+assignment uniqueness directory-qualified. No reset or automatic startup migration is
+introduced. The migrator/installer remains responsible for migrations. Downgrading
+with non-Windows assignments is refused to prevent losing their namespace.
+Old in-flight execution read authorities without a directory namespace cannot regain
+group authority; request a new execution rather than inferring a namespace.
 
-The schema change adds only a filtered uniqueness index for active group
-assignments. It contains no backfill or rollout state machine. Unreleased dev
-snapshots containing manually inserted duplicate active group assignments
-should be reset/reseeded explicitly rather than preserved through a data
-repair campaign.
-
-## Group-aware own-access protection
-
-Group assignment creation/retirement and role deactivation now carry a
-host-created `SecurityActorContext`. The administration actor factory resolves
-the authenticated external provider and native enabled-token membership; no
-request DTO, header, generic group claim or secondary identity supplies this
-proof. Windows/Negotiate administration that changes group-derived access
-requires a matching, fresh membership snapshot. Missing, expired, future-dated
-or wrong-user proof fails closed. An administrator cannot create/retire grants
-for any group in that snapshot or deactivate a role assigned directly to them
-or any of their groups. Checks run again inside the persistence transaction;
-failed changes leave no grant, revision or audit mutation. Assigned-role
-permission edits/reactivation remain blocked until assignments are retired.
-
-A TestHeader identity is explicitly a CI simulation without Windows-group
-runtime authority. It can author proposed group records, as before, but cannot
-supply group proof or acquire group-derived permission. That testing behavior
-must never be reported as browser/AD validation. Genuine Windows sign-in,
-nested/domain groups and token-renewal behavior remain release gate #92.
-
-Structured 403 responses distinguish own-access refusal from unavailable
-membership proof. The frontend explains that no change was saved and requires
-another administrator or reauthentication; it never retries the mutation.
-These own-access checks do not activate grant runtime authority or complete
-the remaining #76/#77 cutover.
-
-Application actors require group proof by default. Only the trusted host's
-explicit TestHeader provider path (and explicit test fixtures) opts out because
-that identity cannot receive group-derived runtime access. Ordinary application
-callers with absent proof therefore fail closed rather than accidentally
-inheriting the simulation behavior.
+Automated checks cover paired direct/multiple-group isolation, namespace and case
+isolation, proof freshness/identity binding, inactive users, own-access protection,
+metadata search authorization, unsupported directories and readable picker behavior.
+PostgreSQL checks cover saved labels, directory-qualified uniqueness, first-time
+identity inheritance and namespace filtering. Windows CI token checks are not browser
+Negotiate or live AD proof. Live service-account lookup, domain/nested membership,
+first-time sign-in, group rename/deletion and actual token-renewal behavior remain
+owner acceptance checks.

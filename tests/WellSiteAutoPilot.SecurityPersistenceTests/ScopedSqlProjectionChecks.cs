@@ -23,8 +23,8 @@ internal static class ScopedSqlProjectionChecks
         var global = Grant(engineer, "DeploymentWide");
         db.AccessGrants.Add(new AccessGrantEntity
         {
-            Id = Guid.NewGuid(), SubjectKind = "WindowsGroup", UserId = null,
-            GroupSid = "S-1-5-21-100", RoleId = engineer, ScopeKind = "AllAssets",
+            Id = Guid.NewGuid(), SubjectKind = "Group", UserId = null,
+            GroupId = "S-1-5-21-100", RoleId = engineer, ScopeKind = "AllAssets",
             IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
         });
         await db.SaveChangesAsync();
@@ -215,7 +215,7 @@ internal static class ScopedSqlProjectionChecks
                 role.CreatedAtUtc, role.UpdatedAtUtc,
                 permissions.Where(item => item.RoleId == role.Id).Select(item => item.Permission).ToArray())).ToArray();
             var grants = rows.Select(row => new AccessGrant(row.Id,
-                Enum.Parse<AccessGrantSubjectKind>(row.SubjectKind), row.UserId, row.GroupSid,
+                Enum.Parse<AccessGrantSubjectKind>(row.SubjectKind), row.UserId, row.GroupId,
                 row.RoleId, Enum.Parse<AccessGrantScopeKind>(row.ScopeKind),
                 bindings.Where(item => item.GrantId == row.Id).Select(item => item.AssetId).ToArray(),
                 row.IsActive, row.Revision)).ToArray();

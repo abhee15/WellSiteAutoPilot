@@ -49,8 +49,8 @@ internal static class AuthorizedConfigurationDraftChecks
             setup.AccessGrants.AddRange(
                 new AccessGrantEntity
                 {
-                    Id = grant, RoleId = role, SubjectKind = group ? "WindowsGroup" : "User",
-                    UserId = group ? null : user, GroupSid = group ? sid : null,
+                    Id = grant, RoleId = role, SubjectKind = group ? "Group" : "User",
+                    UserId = group ? null : user, GroupId = group ? sid : null,
                     ScopeKind = "ExactAssets", IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
                 },
                 new AccessGrantEntity
@@ -64,7 +64,7 @@ internal static class AuthorizedConfigurationDraftChecks
                 new AccessGrantAssetEntity { GrantId = grant, AssetId = assetA },
                 new AccessGrantAssetEntity { GrantId = readGrant, AssetId = assetA });
             await setup.SaveChangesAsync();
-            var subject = new AccessSubject(user, group ? new(user, [sid], now) : null);
+            var subject = new AccessSubject(user, group ? new VerifiedWindowsGroupMembership(user, [sid], now) : null);
             var actor = new SecurityActorContext(user, name, "draft-probe");
             var typeKey = await setup.AssetTypes.Where(item => item.Id == assetTypeId).Select(item => item.Key).SingleAsync();
             var manifest = $$"""

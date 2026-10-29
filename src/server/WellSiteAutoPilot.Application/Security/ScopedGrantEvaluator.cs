@@ -24,7 +24,7 @@ public static class ScopedGrantEvaluator
         IReadOnlySet<Guid> activeAssetIds,
         IReadOnlyCollection<AccessGrant> assignments,
         IReadOnlyCollection<RoleDefinition> roles,
-        VerifiedWindowsGroupMembership? membership = null,
+        VerifiedGroupMembership? membership = null,
         DateTimeOffset? nowUtc = null)
     {
         ArgumentNullException.ThrowIfNull(activeAssetIds);
@@ -60,16 +60,17 @@ public static class ScopedGrantEvaluator
             .GroupBy(role => role.Id)
             .ToDictionary(group => group.Key, group => group.ToArray());
 
-        var groupSids = membership is not null && nowUtc is { } observed &&
-            membership.IsUsableFor(userId, observed) ? membership.GroupSids : null;
+        var groupIds = membership is not null && nowUtc is { } observed &&
+            membership.IsUsableFor(userId, observed) ? membership.GroupIds : null;
         foreach (var grant in assignments)
         {
             var subjectMatches = grant.SubjectKind switch
             {
-                AccessGrantSubjectKind.User => grant.UserId == userId && grant.GroupSid is null,
-                AccessGrantSubjectKind.WindowsGroup => grant.UserId is null &&
-                    grant.GroupSid is { } sid && groupSids is not null &&
-                    groupSids.Contains(sid),
+                AccessGrantSubjectKind.User => grant.UserId == userId && grant.GroupId is null,
+                AccessGrantSubjectKind.Group => grant.UserId is null &&
+                    grant.DirectoryId == membership?.DirectoryId &&
+                    grant.GroupId is { } sid && groupIds is not null &&
+                    groupIds.Contains(sid),
                 _ => false
             };
             if (!grant.IsActive || grant.Id == Guid.Empty || grant.Revision < 1 ||

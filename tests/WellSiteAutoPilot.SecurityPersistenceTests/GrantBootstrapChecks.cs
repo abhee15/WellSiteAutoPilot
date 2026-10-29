@@ -41,7 +41,7 @@ internal static class GrantBootstrapChecks
                 throw new InvalidOperationException("Concurrent bootstrap did not create exactly one atomic grant pair/audit.");
             var winner = initialized[0] ? first : second;
             var grants = await setup.AccessGrants.AsNoTracking().ToArrayAsync();
-            if (grants.Any(grant => grant.UserId != winner || grant.SubjectKind != "User" || grant.GroupSid is not null ||
+            if (grants.Any(grant => grant.UserId != winner || grant.SubjectKind != "User" || grant.GroupId is not null ||
                     !grant.IsActive || grant.Revision != 1) ||
                 !grants.Select(grant => grant.ScopeKind).ToHashSet().SetEquals(["DeploymentWide", "AllAssets"]))
                 throw new InvalidOperationException("Bootstrap recovery/Asset assignments were malformed.");
@@ -100,7 +100,7 @@ internal static class GrantBootstrapChecks
                 IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
             }, new AccessGrantEntity
             {
-                Id = groupGrant, SubjectKind = "WindowsGroup", GroupSid = "S-1-5-21-915-1", RoleId = grants[0].RoleId,
+                Id = groupGrant, SubjectKind = "Group", GroupId = "S-1-5-21-915-1", RoleId = grants[0].RoleId,
                 ScopeKind = "DeploymentWide", IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
             });
             await setup.SaveChangesAsync();
@@ -121,11 +121,11 @@ internal static class GrantBootstrapChecks
                 }
                 catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Authorization) { }
             }
-            var groupSubject = new AccessSubject(other, new(other, ["S-1-5-21-915-1"], now));
+            var groupSubject = new AccessSubject(other, new VerifiedWindowsGroupMembership(other, ["S-1-5-21-915-1"], now));
             if (!await access.HasAdministratorAsync(groupSubject))
                 throw new InvalidOperationException("Verified protected-administrator group grant was ignored.");
             await DemandAdministratorAsync(groupSubject);
-            await ExpectAdministratorDeniedAsync(new AccessSubject(other, new(other, ["S-1-5-21-915-1"], now.AddMinutes(-2))));
+            await ExpectAdministratorDeniedAsync(new AccessSubject(other, new VerifiedWindowsGroupMembership(other, ["S-1-5-21-915-1"], now.AddMinutes(-2))));
             await AuthorizedSecurityDirectoryChecks.RunAsync(options, winner, groupSubject,
                 grants.Single(grant => grant.ScopeKind == "DeploymentWide").Id, customRole, inactive);
             await AuthorizedRoleAdministrationChecks.RunAsync(options, winner, groupSubject, grants.Single(grant => grant.ScopeKind == "DeploymentWide").Id, grants[0].RoleId);

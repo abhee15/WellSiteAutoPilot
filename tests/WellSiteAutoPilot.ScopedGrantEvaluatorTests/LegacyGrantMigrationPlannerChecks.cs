@@ -28,7 +28,7 @@ internal static class LegacyGrantMigrationPlannerChecks
                 var subject = user with { Roles = assignedRoles, AssetScopeIds = scopes };
                 var plan = LegacyGrantMigrationPlanner.PreviewForKnownAssets(subject, roles, activeAssets);
                 if (plan.Any(grant => grant.SubjectKind != AccessGrantSubjectKind.User ||
-                    grant.UserId != subject.Id || grant.GroupSid is not null ||
+                    grant.UserId != subject.Id || grant.GroupId is not null ||
                     !grant.IsActive || grant.Revision != 1) ||
                     plan.Select(grant => grant.Id).Distinct().Count() != plan.Count)
                 {
