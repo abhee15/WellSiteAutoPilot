@@ -28,6 +28,19 @@ internal static class GroupDirectorySearchChecks
         await DeniedAsync(() => service.SearchAuthorizedAsync(actor, "Engineering"));
         if (directory.Calls != calls) throw new InvalidOperationException("Unsupported directory queried.");
         directory.Supported = true;
+        directory.Found = new DirectoryGroup("test-tenant", "OpaqueCaseID", "Engineers", "Example");
+        var resolved = await service.ResolveAuthorizedAsync(actor, "test-tenant", "OpaqueCaseID");
+        if (resolved.DirectoryId != "test-tenant" || resolved.GroupId != "OpaqueCaseID" || resolved.DisplayName != "Engineers")
+            throw new InvalidOperationException("Provider-resolved metadata was lost.");
+        await DeniedAsync(async () => { await service.ResolveAuthorizedAsync(actor, "foreign", "OpaqueCaseID"); }, "SECURITY_DIRECTORY_UNSUPPORTED");
+        directory.Found = directory.Found with { ExternalId = "opaquecaseid" };
+        await DeniedAsync(async () => { await service.ResolveAuthorizedAsync(actor, "test-tenant", "OpaqueCaseID"); }, "SECURITY_DIRECTORY_GROUP_NOT_FOUND");
+        directory.Found = null;
+        await DeniedAsync(async () => { await service.ResolveAuthorizedAsync(actor, "test-tenant", "deleted"); }, "SECURITY_DIRECTORY_GROUP_NOT_FOUND");
+        directory.Found = new DirectoryGroup("test-tenant", "OpaqueCaseID", "Engineers", "Example");
+        directory.AfterFind = () => access.Allowed = false;
+        await DeniedAsync(async () => { await service.ResolveAuthorizedAsync(actor, "test-tenant", "OpaqueCaseID"); }, "SECURITY_ADMIN_REQUIRED");
+        access.Allowed = true;
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
         try
@@ -38,10 +51,10 @@ internal static class GroupDirectorySearchChecks
         catch (OperationCanceledException) { }
     }
 
-    private static async Task DeniedAsync(Func<Task<GroupDirectoryPage>> action)
+    private static async Task DeniedAsync(Func<Task> action, string? code = null)
     {
         try { await action(); throw new InvalidOperationException("Directory request unexpectedly succeeded."); }
-        catch (WellSiteAutoPilotException) { }
+        catch (WellSiteAutoPilotException exception) when (code is null || exception.Code == code) { }
     }
 
     private sealed class FakeDirectory : IGroupDirectory
@@ -52,7 +65,14 @@ internal static class GroupDirectorySearchChecks
         public int Calls { get; private set; }
         public string? Prefix { get; private set; }
         public Action? AfterSearch { get; set; }
-        public Task<DirectoryGroup?> FindAsync(string externalId, CancellationToken cancellationToken) => Task.FromResult<DirectoryGroup?>(null);
+        public DirectoryGroup? Found { get; set; }
+        public Action? AfterFind { get; set; }
+        public Task<DirectoryGroup?> FindAsync(string externalId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AfterFind?.Invoke();
+            return Task.FromResult(Found);
+        }
         public Task<GroupDirectoryPage> SearchAsync(string prefix, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
