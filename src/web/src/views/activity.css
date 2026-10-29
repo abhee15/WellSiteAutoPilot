@@ -15,16 +15,14 @@
 .activity-feed td.activity-time { white-space: normal; min-width: var(--layout-fact-narrow); }
 .activity-table td .activity-sentence strong, .activity-detail h3 strong { display: inline; }
 .split-layout.activity-layout .activity-table td button.activity-open { display: block; padding: 0; font-weight: 400; text-align: left; line-height: inherit; white-space: normal; overflow-wrap: anywhere; }
-.activity-filter-disclosure .activity-filters { margin-inline: var(--space-18); }
+.activity-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-12); padding: var(--space-8) var(--space-18) 0; }
+.activity-toolbar .split-filters { flex: 1; min-width: 0; padding: 0; }
+.activity-toolbar .split-filters > summary { display: inline-block; padding: var(--space-6) 0; }
+.activity-filter-disclosure .activity-filters { margin-inline: 0; }
 .activity-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-6); }
 .activity-meta small, .activity-feed td .activity-meta small { margin: 0; }
 
-/* A state shown as a pill. The words carry the meaning; the colour only backs them up. */
-.activity-pill { display: inline-flex; align-items: center; min-height: var(--size-control-small); padding: var(--space-2) var(--space-8);
-  border: var(--border-width-thin) solid var(--color-border-status-neutral); border-radius: var(--radius-pill);
-  font-size: var(--font-size-caption); white-space: nowrap; }
-.activity-pill[data-tone='good'] { border-color: var(--color-border-status-success); background: var(--color-surface-status-success); color: var(--color-text-status-success); }
-.activity-pill[data-tone='attention'] { border-color: var(--color-border-status-error); background: var(--color-surface-status-error); color: var(--color-text-status-error); }
+/* A quiet line of supporting text. */
 .activity-note { color: var(--color-text-subtle); font-size: var(--font-size-body-small); }
 
 /* The selected event, beside the list (wide) or in place of it (narrow), like a selected run. */
@@ -38,7 +36,6 @@
 .activity-fact { display: grid; grid-template-columns: minmax(var(--layout-fact-narrow), max-content) minmax(0, 1fr); gap: var(--space-2) var(--space-12); }
 .activity-fact dt { color: var(--color-text-subtle); }
 .activity-fact dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
-.activity-fact .copy-button { margin-inline-start: var(--space-8); }
 .activity-raw > summary { cursor: pointer; color: var(--color-text-subtle); }
 .activity-raw pre { overflow-x: auto; user-select: text; margin: var(--space-8) 0; padding: var(--space-12); background: var(--color-surface-code); border-radius: var(--radius-6); }
 

@@ -13,6 +13,7 @@ import {
 } from './connections';
 import type { Adapter, Connection, ConnectionDraft, ConnectionStatus, Discovery, ImportSelection } from './connections';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { Status } from '../components/Status';
 import { useChangeRefresh } from '../live/LiveUpdates';
 
 
@@ -112,7 +113,7 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
                   onClick={() => setSelected(item.id)}>
                   <strong>{item.name}</strong>
                   <small>{adapters.find(a => a.key === item.adapterKey)?.displayName ?? item.adapterKey}</small>
-                  <span className={`status-pill connection-test-${status.toLowerCase()}`}>{t(statusLabels[status])}</span>
+                  <Status value={status} label={t(statusLabels[status])} />
                 </button>
               </li>
             );

@@ -1,6 +1,6 @@
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { StatusPill } from '../components/common';
+import { Status } from '../components/Status';
 import { AssetTypeActions } from './AssetTypeActions';
 
 interface SchemaField { name: string; type: string; rules: string; required: boolean }
@@ -48,7 +48,7 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
     <section className="split-type-detail" aria-label={t('assetTypes.details')}>
       <header>
         <h3>{name}</h3>
-        <StatusPill value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} />
+        <Status value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} />
         <button type="button" className="secondary-button" onClick={onClose}>
           {t('assetTypes.closeDetails')}</button>
       </header>

@@ -195,7 +195,6 @@ export function GrantAdministrationPage(
             {t('access.refresh')}
           </button>
         </div>
-        <p className="access-note access-intro">{t('grants.intro')}</p>
         {isLoading && <LoadingIndicator label={t('access.loading')} />}
         {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
         {notice && <p role="status" className="access-intro">{notice}</p>}

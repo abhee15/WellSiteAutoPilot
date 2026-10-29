@@ -1,5 +1,6 @@
 import './activity.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
 import { AuditActivityError, appendAuditEvents, loadAuditPage } from './auditActivity';
@@ -7,7 +8,9 @@ import type { AuditErrorKind, AuditEvent, AuditFilters } from './auditActivity';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { describeActor, describeAuditEvent, relativeTime } from './auditPresentation';
 import { AuditEventPanel } from './AuditEventPanel';
-import { AuditSentence, OutcomePill } from './AuditSentence';
+import { AuditSentence } from './AuditSentence';
+import { Status } from '../components/Status';
+import { IconButton } from '../components/IconButton';
 
 const noFilters: AuditFilters = { actionPrefix: '', targetType: '' };
 
@@ -88,14 +91,9 @@ export function ActivityPage() {
 
   return (
     <section className="panel activity-panel" data-has-selection={selected !== null}>
-      <div className="panel-header">
-        <h2>{t('activity.heading')}</h2>
-        <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadFirst(applied)}>
-          {t('activity.refresh')}
-        </button>
-      </div>
+      {/* The tab already says "Activity"; the heading stays for screen readers only. */}
+      <h2 className="visually-hidden">{t('activity.heading')}</h2>
       <div className="activity-toolbar">
-        <p className="access-note access-intro">{t('activity.intro')}</p>
         <details className="split-filters activity-filter-disclosure">
           <summary>{activeFilterCount > 0 ? t('activity.filtersActive', { count: activeFilterCount }) : t('activity.filters')}</summary>
           <form className="activity-filters" onSubmit={event => { event.preventDefault(); apply(draft); }}>
@@ -114,6 +112,7 @@ export function ActivityPage() {
             </div>
           </form>
         </details>
+        <IconButton icon={RefreshCw} label={t('activity.refresh')} disabled={busy} onClick={() => void loadFirst(applied)} />
       </div>
       {loading && <LoadingIndicator label={t('activity.loading')} />}
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
@@ -160,7 +159,7 @@ export function ActivityPage() {
                             </button>
                             {(summary.outcome || summary.note) && (
                               <span className="activity-meta">
-                                {summary.outcome && <OutcomePill outcome={summary.outcome} />}
+                                {summary.outcome && <Status value={summary.outcome.state} label={summary.outcome.label} />}
                                 {summary.note && <small>{summary.note}</small>}
                               </span>
                             )}

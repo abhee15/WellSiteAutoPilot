@@ -38,15 +38,15 @@ describe('Activity page', () => {
     expect(screen.queryByText('Load older events')).toBeNull();
   });
 
-  it('shows a state change as a pill with what it was before, and marks automatic events as such', async () => {
+  it('shows a state change as a status with what it was before, and marks automatic events as such', async () => {
     vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1, {
       action: 'connection.status_changed', targetType: 'connection', targetName: 'ForeSite',
       actorUserId: null, actorIdentity: 'system:connection-monitor',
       detailsJson: '{"AdapterKey":"foresite","From":"Unreachable","To":"Healthy"}' })], nextCursor: null });
     render(<ActivityPage />);
     const row = (await screen.findByText('ForeSite')).closest('tr') as HTMLElement;
-    expect(row.textContent).toContain('Connection ForeSite is now Healthy');
-    expect(within(row).getByText('Healthy', { selector: '.activity-pill' })).toBeTruthy();
+    expect(row.textContent).toContain('Connection ForeSite status changed');
+    expect(within(row).getByText('Healthy', { selector: '.status-indicator-label' })).toBeTruthy();
     expect(within(row).getByText('Was Unreachable')).toBeTruthy();
     expect(within(row).getByText('Connection monitor')).toBeTruthy();
     expect(within(row).getByText('Automatic')).toBeTruthy();

@@ -9,7 +9,7 @@ import { t } from '../localization';
 import { formatTimestamp } from '../format';
 import { hashFor } from '../routing';
 import { statusLabel } from '../words';
-import { StatusPill } from '../components/common';
+import { Status } from '../components/Status';
 import {
   assetAncestors, assetChildren, fetchAssetRecommendations, fetchAssetRuns, logicOnAsset,
 } from './assetPage';
@@ -88,7 +88,7 @@ export function AssetDetail({
           <p className="eyebrow">{t('assets.selected')}</p>
           <h3>{asset.name ?? t('assets.unnamed')}</h3>
           <p className="asset-page-meta">
-            {typeName} · <StatusPill value={asset.isActive ? 'Active' : 'Inactive'} />
+            {typeName} · <Status value={asset.isActive ? 'Active' : 'Inactive'} />
           </p>
           {owner && <p className="asset-page-meta">
             {owner.connectionId === null ? t('assetOwner.standalone') : <>

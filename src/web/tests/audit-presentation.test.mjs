@@ -47,15 +47,17 @@ test('a sentence without any target does not leave a double space behind', () =>
 test('a connection status change says what it is now and what it was', () => {
   const summary = view.describeAuditEvent(event({ action: 'connection.status_changed', targetType: 'connection',
     targetName: 'ForeSite', detailsJson: '{"AdapterKey":"foresite","From":"Healthy","To":"Unreachable"}' }));
-  assert.equal(summary.text, 'Connection ForeSite is now Unreachable');
-  assert.deepEqual(summary.outcome, { label: 'Unreachable', tone: 'attention' });
+  assert.equal(summary.text, 'Connection ForeSite status changed');
+  assert.deepEqual(summary.outcome, { label: 'Unreachable', state: 'Unreachable' });
   assert.equal(summary.note, 'Was Healthy');
   const healthy = view.describeAuditEvent(event({ action: 'connection.status_changed', targetType: 'connection',
     targetName: 'ForeSite', detailsJson: '{"From":"Unreachable","To":"Healthy"}' }));
-  assert.equal(healthy.outcome.tone, 'good');
-  // A status change recorded without its new state still reads as a sentence.
-  assert.equal(view.describeAuditEvent(event({ action: 'connection.status_changed', targetType: 'connection',
-    targetName: 'ForeSite' })).text, 'Connection ForeSite changed status');
+  assert.deepEqual(healthy.outcome, { label: 'Healthy', state: 'Healthy' });
+  // A status change recorded without its new state still reads as a sentence, just without a status beside it.
+  const bare = view.describeAuditEvent(event({ action: 'connection.status_changed', targetType: 'connection',
+    targetName: 'ForeSite' }));
+  assert.equal(bare.text, 'Connection ForeSite status changed');
+  assert.equal(bare.outcome, null);
 });
 
 test('an action the page does not know yet reads as words with the record it touched', () => {

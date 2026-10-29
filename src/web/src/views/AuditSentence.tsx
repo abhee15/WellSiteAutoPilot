@@ -10,8 +10,3 @@ export function AuditSentence({ summary }: { summary: AuditSummary }) {
     </>
   );
 }
-
-/** The new state of a state change as a coloured pill; the label always carries the meaning, never the colour alone. */
-export function OutcomePill({ outcome }: { outcome: NonNullable<AuditSummary['outcome']> }) {
-  return <span className="activity-pill" data-tone={outcome.tone}>{outcome.label}</span>;
-}

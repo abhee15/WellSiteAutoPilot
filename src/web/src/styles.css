@@ -516,57 +516,44 @@ button:disabled {
   background: var(--color-surface-row-hover);
 }
 
-.status-pill,
-.health-state {
+/* Status: a small shape and a plain word (components/Status.tsx). The shape differs by tone so meaning never
+   rests on colour alone; problems and warnings are bolder so they stand out in a long list. */
+.status-indicator {
   display: inline-flex;
   align-items: center;
-  min-height: var(--size-control-small);
-  padding: var(--space-4) var(--space-8);
-  border: var(--border-width-thin) solid var(--color-border-status-neutral);
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-caption);
+  gap: var(--space-6);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body-small);
   white-space: nowrap;
 }
+.status-indicator-icon { flex: none; color: var(--color-text-muted); }
+.status-indicator[data-tone='success'] .status-indicator-icon { color: var(--color-text-status-success); }
+.status-indicator[data-tone='warning'] .status-indicator-icon { color: var(--color-text-status-warning); }
+.status-indicator[data-tone='error'] .status-indicator-icon { color: var(--color-text-status-error); }
+.status-indicator[data-tone='info'] .status-indicator-icon { color: var(--color-text-status-info); }
+.status-indicator[data-tone='warning'] .status-indicator-label,
+.status-indicator[data-tone='error'] .status-indicator-label { font-weight: 600; }
 
-.status-completed,
-.status-active,
-.status-trustedpublisher,
-.status-customerapproved,
-.health-healthy {
-  border-color: var(--color-border-status-success);
-  background: var(--color-surface-status-success);
-  color: var(--color-text-status-success);
+/* An action that is only an icon (components/IconButton.tsx): quiet until hovered. */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--size-control-compact);
+  height: var(--size-control-compact);
+  padding: 0;
+  background: transparent;
+  border: var(--border-width-thin) solid transparent;
+  border-radius: var(--radius-6);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  vertical-align: middle;
 }
-
-.status-failed,
-.status-timedout,
-.status-inactive,
-.status-signatureinvalid,
-.health-unavailable {
-  border-color: var(--color-border-status-error);
-  background: var(--color-surface-status-error);
-  color: var(--color-text-status-error);
-}
-
-.status-suspended,
-.status-waiting,
-.status-untrusted,
-.status-draft,
-.status-validated,
-.health-degraded {
-  border-color: var(--color-border-status-warning);
-  background: var(--color-surface-status-warning);
-  color: var(--color-text-status-warning);
-}
-
-.status-running,
-.status-starting,
-.status-queued,
-.status-requested {
-  border-color: var(--color-border-status-info);
-  background: var(--color-surface-status-info);
-  color: var(--color-text-status-info);
-}
+.icon-button:hover:not(:disabled) { background: var(--color-surface-control-hover); color: var(--color-text-primary); }
+.icon-button[data-state='success'] { color: var(--color-text-status-success); }
+.icon-button[data-state='error'] { color: var(--color-text-status-error); }
+.copy-button { margin-inline-start: var(--space-4); }
 
 .empty-state {
   padding: var(--space-28) var(--space-16) !important;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
 import { hashFor } from '../routing';
 import { modeSentence, outcomeLabel, triggerLabel } from '../words';
-import { StatusPill } from '../components/common';
+import { Status } from '../components/Status';
 import { shortId } from '../format';
 import { useChangeRefresh, useLiveUpdates } from '../live/LiveUpdates';
 import { CopyButton } from './CopyButton';
@@ -170,7 +170,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
     <>
       <div className="run-summary" aria-label={t('execution.summary')}>
         <p className="run-summary-lead">
-          <StatusPill value={detail.status} />
+          <Status value={detail.status} />
           {outcome.text && <span title={outcome.code ?? undefined}>{outcome.text}</span>}
         </p>
         <dl className="run-facts">
@@ -219,7 +219,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
             <p className="run-input-value">
               {o.value === null ? '—' : new Intl.NumberFormat(undefined, { maximumSignificantDigits: 17 }).format(o.value)}
               {o.unit ? ` ${o.unit}` : ''}
-              <StatusPill value={o.quality} />
+              <Status value={o.quality} />
             </p>
             <dl className="run-input-facts">
               <div><dt>{t('execution.measuredAt')}</dt><dd>{formatDetailTimestamp(o.timestampUtc)}

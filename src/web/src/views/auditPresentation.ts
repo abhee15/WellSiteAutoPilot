@@ -6,15 +6,14 @@ import { auditDetails } from './auditActivity';
 
 /** One run of a sentence; the name of the thing that changed is emphasised. */
 export type SentencePart = { text: string; strong?: boolean };
-export type AuditTone = 'good' | 'attention' | 'neutral';
 export type AuditSummary = {
   /** The whole event as plain text: used for screen readers and tests. */
   text: string;
   parts: SentencePart[];
   /** A quiet second line, such as "Was Unreachable". */
   note: string | null;
-  /** The new state, when the event is a state change, shown as a coloured pill. */
-  outcome: { label: string; tone: AuditTone } | null;
+  /** The new state, when the event is a state change. How it looks is up to the shared Status component. */
+  outcome: { label: string; state: string } | null;
 };
 export type AuditActor = { name: string; identity: string | null; isSystem: boolean };
 
@@ -106,12 +105,6 @@ function detailValues(detailsJson: string): Record<string, string> {
   return Object.fromEntries(auditDetails(detailsJson).map(item => [item.name, item.value]));
 }
 
-function toneFor(state: string): AuditTone {
-  if (state === 'Healthy') return 'good';
-  if (state === 'Unreachable' || state === 'NeedsAttention') return 'attention';
-  return 'neutral';
-}
-
 function outcomeLabel(state: string): string {
   const key = outcomeLabels[state];
   return key ? t(key) : state;
@@ -140,12 +133,11 @@ export function describeAuditEvent(event: AuditEvent): AuditSummary {
   if (action === 'connection.status.changed') {
     const details = detailValues(event.detailsJson);
     const to = details.To;
+    // The sentence says what happened; the new state is shown beside it as a status, so it is not said twice.
+    parts = sentence('activity.ev.connectionStatus', subject);
     if (to) {
-      parts = sentence('activity.ev.connectionStatus', subject, { to: outcomeLabel(to) });
-      outcome = { label: outcomeLabel(to), tone: toneFor(to) };
+      outcome = { label: outcomeLabel(to), state: to };
       if (details.From) note = t('activity.ev.was', { from: outcomeLabel(details.From) });
-    } else {
-      parts = sentence('activity.ev.connectionStatusUnknown', subject);
     }
   } else if (templates[action]) {
     parts = sentence(templates[action], subject);

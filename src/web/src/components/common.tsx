@@ -1,5 +1,3 @@
-import { toCssToken } from '../format';
-import { statusLabel } from '../words';
 import { LoadingIndicator } from './LoadingIndicator';
 
 export function SummaryCard({
@@ -37,14 +35,6 @@ export function PanelHeader({
       </div>
       {count !== undefined && <span className="record-count">{count} shown</span>}
     </div>
-  );
-}
-
-export function StatusPill({ value, label }: { value?: string | null; label?: string }) {
-  return (
-    <span className={`status-pill status-${toCssToken(value)}`}>
-      {label ?? statusLabel(value)}
-    </span>
   );
 }
 

@@ -5,7 +5,8 @@ import type { AuditEvent } from './auditActivity';
 import {
   describeActor, describeAuditEvent, readableDetails, recordedJson, targetKindLabel, targetSubject,
 } from './auditPresentation';
-import { AuditSentence, OutcomePill } from './AuditSentence';
+import { AuditSentence } from './AuditSentence';
+import { Status } from '../components/Status';
 
 function Fact({ label, value, copyable = false }: { label: string; value: string | null | undefined; copyable?: boolean }) {
   if (!value) return null;
@@ -31,7 +32,7 @@ export function AuditEventPanel({ event }: { event: AuditEvent }) {
         <p className="eyebrow">{t('activity.detailHeading')}</p>
         <h3 id="activity-detail-title"><AuditSentence summary={summary} /></h3>
         <div className="activity-detail-meta">
-          {summary.outcome && <OutcomePill outcome={summary.outcome} />}
+          {summary.outcome && <Status value={summary.outcome.state} label={summary.outcome.label} />}
           {summary.note && <span className="activity-note">{summary.note}</span>}
         </div>
       </header>
