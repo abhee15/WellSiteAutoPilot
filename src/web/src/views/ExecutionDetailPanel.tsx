@@ -5,6 +5,8 @@ import { modeSentence, outcomeLabel, triggerLabel } from '../words';
 import { StatusPill } from '../components/common';
 import { shortId } from '../format';
 import { useChangeRefresh, useLiveUpdates } from '../live/LiveUpdates';
+import { SurfaceCardPreview } from './SurfaceCardPreview';
+import { ExecutionOutputDownload } from './ExecutionOutputDownload';
 import { CopyButton } from './CopyButton';
 import { describeRunContext } from './runContext';
 import { t } from '../localization';
@@ -125,7 +127,7 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
       {isLoading && !detail && <LoadingIndicator label={t('execution.loading')} />}
       {error && <p role="alert" className="execution-detail-error">{errorMessages[error]}</p>}
       {detail && <ExecutionDetailContent detail={detail} configuredLogic={configuredLogic} assets={assets}
-        connectionNames={connectionNames} />}
+        connectionNames={connectionNames} onAccessLost={() => { setDetail(null); setError('accessDenied'); callbacks.current.onAccessLost?.(); }} />}
     </section>
   );
 }
@@ -139,8 +141,9 @@ function sourceName(connectionId: string | null | undefined, names?: ReadonlyMap
 }
 
 /** Pure view to keep response rendering testable independently of network effects. */
-export function ExecutionDetailContent({ detail, configuredLogic = [], assets = [], connectionNames }: {
+export function ExecutionDetailContent({ detail, configuredLogic = [], assets = [], connectionNames, onAccessLost }: {
   detail: ExecutionResponse;
+  onAccessLost?: () => void;
   configuredLogic?: readonly ConfiguredLogicResponse[];
   assets?: readonly AssetResponse[];
   connectionNames?: ReadonlyMap<string, string>;
@@ -202,8 +205,10 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
       {structuredValues.length > 0 && <section className="run-section" aria-label={t('execution.structured')}>
         <h4>{t('execution.structured')}</h4>
         {structuredValues.map((value, index) => <details key={index}>
-          <summary>{t(value.kind === 'Input' ? 'execution.structuredInput' : 'execution.structuredResult')}: {humanizeName(value.label)} · {value.schemaId}</summary>
-          <pre>{value.json}</pre>
+          <summary>{t(value.kind === 'Input' ? 'execution.structuredInput' : 'execution.structuredResult')}: {humanizeName(value.label)}
+            {value.assetId && <> · <span title={value.assetId}>{assets.find(asset => asset.id === value.assetId)?.name ?? shortId(value.assetId)}</span></>} · {value.schemaId}</summary>
+          <SurfaceCardPreview schemaId={value.schemaId} json={value.json} />
+          <details><summary>{t('execution.cardJson')}</summary><pre>{value.json}</pre></details>
         </details>)}
       </section>}
       {observations.length > 0 && <section className="run-section" aria-label={t('shadow.observations')}>
@@ -244,6 +249,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
         <h4>{t('execution.result.heading')}</h4>
         <dl className="run-facts">{resultRows.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
       </section>}
+      {detail.executionId && detail.outputJson && <ExecutionOutputDownload executionId={detail.executionId} onAccessLost={onAccessLost} />}
       <details className="run-technical">
         <summary>{t('execution.technical')}</summary>
         <dl className="execution-detail-grid">

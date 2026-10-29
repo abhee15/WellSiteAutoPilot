@@ -249,10 +249,12 @@ test('output is shown as labelled rows, bounded, without the input readings, and
 test('structured evidence retains arrays and is displayed without numeric coercion', () => {
   const value = { schemaId: 'cards/v1', data: [{ position: [0, 1], load: [10, 20] }] };
   const output = JSON.stringify({ valueContractVersion: 2,
-    inputObservations: [{ requirementId: 'cards', value }],
+    inputObservations: [{ requirementId: 'cards', assetId: id, value }],
     engineeringResults: [{ id: 'curve', value }] });
   const entries = detail.structuredExecutionValues(output);
   assert.equal(entries.length, 2);
+  assert.equal(entries[0].assetId, id);
+  assert.equal(entries[1].assetId, undefined);
   assert.deepEqual(JSON.parse(entries[0].json), value.data);
   assert.deepEqual(detail.executionInputObservations(output), []);
   const html = renderToStaticMarkup(createElement(panel.ExecutionDetailContent,

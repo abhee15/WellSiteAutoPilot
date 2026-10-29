@@ -3,6 +3,17 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'execution.cardPreviewHint': 'Each plot uses its own axis range. Samples are connected in recorded order. Display numbers are rounded; download JSON for exact saved values.',
+  'execution.cardSamples': '{count} samples',
+  'execution.cardIdentity': 'Card identity',
+  'execution.cardRepresentation': 'Representation',
+  'execution.cardPlotLabel': '{kind} surface card: position ({position}) against load ({load})',
+  'execution.cardLoad': 'Load ({unit})',
+  'execution.cardPosition': 'Position ({unit})',
+  'execution.cardJson': 'Inspect JSON',
+  'execution.downloadOutput': 'Download result JSON',
+  'execution.downloading': 'Preparing download…',
+  'execution.downloadFailed': 'The result could not be downloaded. Refresh the run and check your access.',
   'execution.structured': 'Structured inputs and results',
   'execution.structuredInput': 'Input',
   'execution.structuredResult': 'Result',

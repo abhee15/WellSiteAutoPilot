@@ -214,12 +214,12 @@ export function executionProvenance(detail: ExecutionResponse) {
 
 
 /** Structured evidence remains typed JSON; never coerce arrays into a scalar display. */
-export function structuredExecutionValues(output?: string | null): Array<{ kind: string; label: string; schemaId: string; json: string }> {
+export function structuredExecutionValues(output?: string | null): Array<{ kind: string; label: string; schemaId: string; json: string; assetId?: string }> {
   if (!output || output.length > 524288) return [];
   try {
     const envelope = JSON.parse(output) as Record<string, unknown>;
     if (envelope.valueContractVersion !== 2) return [];
-    const entries: Array<{ kind: string; label: string; schemaId: string; json: string }> = [];
+    const entries: Array<{ kind: string; label: string; schemaId: string; json: string; assetId?: string }> = [];
     for (const [key, kind] of [['inputObservations', 'Input'], ['engineeringResults', 'Result']]) {
       const values = envelope[key];
       if (!Array.isArray(values) || values.length > 64) continue;
@@ -231,7 +231,7 @@ export function structuredExecutionValues(output?: string | null): Array<{ kind:
             !Object.hasOwn(item.value, 'data')) continue;
         const json = JSON.stringify(item.value.data, null, 2);
         if (json.length > 131072) continue;
-        entries.push({ kind, label, schemaId, json });
+        entries.push({ kind, label, schemaId, json, assetId: typeof item.assetId === 'string' && isGuid(item.assetId) ? item.assetId : undefined });
       }
     }
     return entries;
