@@ -16,6 +16,7 @@ import {
   previewExecutionOutput,
   executionInputObservations,
   executionProvenance,
+  structuredExecutionValues,
   ageWhenRead,
   describeExecutionOutput,
   humanizeName,
@@ -150,6 +151,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
   const duration = runDuration(detail);
   const observations = executionInputObservations(detail.outputJson);
   const resultRows = describeExecutionOutput(detail.outputJson);
+  const structuredValues = structuredExecutionValues(detail.outputJson);
   const raw = previewExecutionOutput(prettyExecutionOutput(detail.outputJson));
   const technical: Array<[string, string | null | undefined, boolean]> = [
     [t('execution.logicInstance'), detail.logicInstanceId, true],
@@ -197,6 +199,13 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
           </dd></div>}
         </dl>
       </div>
+      {structuredValues.length > 0 && <section className="run-section" aria-label={t('execution.structured')}>
+        <h4>{t('execution.structured')}</h4>
+        {structuredValues.map((value, index) => <details key={index}>
+          <summary>{t(value.kind === 'Input' ? 'execution.structuredInput' : 'execution.structuredResult')}: {humanizeName(value.label)} · {value.schemaId}</summary>
+          <pre>{value.json}</pre>
+        </details>)}
+      </section>}
       {observations.length > 0 && <section className="run-section" aria-label={t('shadow.observations')}>
         <h4>{t('shadow.observations')}</h4>
         <ul className="run-inputs">{observations.map((o, index) => {

@@ -50,7 +50,7 @@ public sealed class ModuleExecutionEngine(
                     request.Quantity,
                     request.AssetId,
                     engineeringValue.Quantity,
-                    engineeringValue.Value,
+                    engineeringValue.Value ?? throw InputFailure("EXECUTION_INPUT_SHAPE_UNSUPPORTED"),
                     engineeringValue.Unit,
                     engineeringValue.TimestampUtc,
                     engineeringValue.Quality,
@@ -106,7 +106,70 @@ public sealed class ModuleExecutionEngine(
                 "The worker cannot host this package.");
         await using var loaded = await packageHost.LoadAsync(request.Execution.ModuleId, request.Execution.ModuleVersion,
             request.Package.Sha256, request.Package.ReviewedManifestJson, cancellationToken);
+        if (loaded.StructuredModule is { } structured)
+            return await ExecuteStructuredAsync(request, structured, correlationId, evaluationTimeUtc, cancellationToken);
         return await ExecuteObservedCoreAsync(request.Execution, loaded.Module, correlationId, evaluationTimeUtc, cancellationToken);
+    }
+
+    private async Task<ObservedExecutionResult> ExecuteStructuredAsync(ExecutionRequestedV3 hosted,
+        ILogicModuleV2 module, string correlationId, DateTimeOffset evaluationTimeUtc, CancellationToken cancellationToken)
+    {
+        var request = hosted.Execution;
+        using var manifest = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(hosted.Package.ReviewedManifestJson));
+        var definition = await WellSiteAutoPilot.Application.Logic.StructuredModuleOfflineHost.ReadDefinitionAsync(manifest, cancellationToken);
+        var inputs = new List<StructuredInputValue>();
+        var diagnostics = new ExecutionFailureDiagnostics();
+        try
+        {
+            foreach (var binding in request.Inputs)
+            {
+                WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue? measurement = null;
+                try
+                {
+                    var declared = definition.Inputs.SingleOrDefault(i => i.Requirement.Id == binding.RequirementId);
+                    if (declared is null || binding.RequiredCapability != declared.Requirement.RequiredCapability ||
+                        binding.SchemaId != declared.SchemaId || binding.Quantity != declared.Requirement.Quantity ||
+                        binding.Access != declared.Requirement.Access || binding.CanonicalUnit != declared.Requirement.CanonicalUnit ||
+                        binding.MaximumAgeSeconds != declared.Requirement.MaximumAgeSeconds ||
+                        binding.AllowUncertainQuality != declared.Requirement.AllowUncertainQuality)
+                        throw InputFailure("EXECUTION_INPUT_CONTRACT_MISMATCH");
+                    // The first production capability is an authorized ForeSite card read, never the legacy provider route.
+                    if (binding.Source is null || binding.ProviderId != "foresite" || binding.Quantity != "SurfaceCards" ||
+                        binding.RequiredCapability != "structured.current" || binding.SchemaId != "foresite.surface-cards/v1")
+                        throw InputFailure("EXECUTION_INPUT_CAPABILITY_UNSUPPORTED");
+                    measurement = await gatewayDataClient.GetCurrentAsync(request.ExecutionId, binding, cancellationToken);
+                    if (!WellSiteAutoPilot.Integration.Contracts.Providers.MeasurementPayloadLimits.IsValid(measurement) ||
+                        measurement.StructuredValue is not { } value)
+                        throw InputFailure("EXECUTION_INPUT_SHAPE_UNSUPPORTED");
+                    WellSiteAutoPilot.Application.Logic.LogicModuleInputValidation.ValidateObservation(
+                        measurement.Quantity, null, measurement.TimestampUtc, measurement.Quality, declared.Requirement, evaluationTimeUtc);
+                    await WellSiteAutoPilot.Application.Logic.StructuredValueValidation.ValidateAsync(
+                        new(value.SchemaId, value.Data), declared.SchemaId, declared.Schema, cancellationToken);
+                    inputs.Add(new(binding.RequirementId, binding.AssetId, measurement.Quantity,
+                        new(value.SchemaId, value.Data), null, measurement.TimestampUtc, measurement.Quality, measurement.Source)
+                    { RetrievedAtUtc = measurement.RetrievedAtUtc, TimestampKind = measurement.TimestampKind });
+                    diagnostics.Record(binding, measurement, "ACCEPTED");
+                }
+                catch (Exception error)
+                {
+                    diagnostics.Record(binding, measurement, ExecutionFailureDiagnostics.FailureCode(error));
+                    throw;
+                }
+            }
+            var context = new LogicModuleExecutionContextV2(request.ExecutionId, module.Identity, correlationId,
+                evaluationTimeUtc, request.ParametersJson,
+                request.Assets.Select(a => new LogicAssetContext(a.Role, a.AssetId, a.ParameterOverridesJson)).ToArray(), inputs);
+            var result = await WellSiteAutoPilot.Application.Logic.StructuredModuleOfflineHost.ExecuteAsync(
+                module, definition, context, cancellationToken);
+            // Scalar callers keep their existing shape; structured evidence is never lowered into dummy numbers.
+            return new(new LogicModuleExecutionResult(result.OutcomeCode, [], [], [], new Dictionary<string, string>()), [])
+            { StructuredResult = result, StructuredInputs = inputs };
+        }
+        catch (Exception error)
+        {
+            diagnostics.Attach(error);
+            throw;
+        }
     }
 
     private async Task<ObservedExecutionResult> ExecuteObservedCoreAsync(ExecutionRequestedV2 request,
@@ -185,7 +248,7 @@ public sealed class ModuleExecutionEngine(
         var value = await gatewayDataClient.GetCurrentAsync(executionId, binding, cancellationToken);
         observe(value);
         if (value.TimestampKind == "UnverifiedScan") throw InputFailure("EXECUTION_INPUT_TIMESTAMP_UNVERIFIED");
-        var input = new LogicInputValue(binding.RequirementId, binding.AssetId, value.Quantity, value.Value,
+        var input = new LogicInputValue(binding.RequirementId, binding.AssetId, value.Quantity, value.Value ?? throw InputFailure("EXECUTION_INPUT_SHAPE_UNSUPPORTED"),
             value.Unit, value.TimestampUtc, value.Quality, value.Source);
         WellSiteAutoPilot.Application.Logic.LogicModuleInputValidation.Validate(input,
             new WellSiteAutoPilot.Domain.Logic.LogicDataRequirement(binding.RequirementId, "", binding.Quantity, binding.Access,
@@ -222,4 +285,28 @@ public sealed class ModuleExecutionEngine(
 }
 
 public sealed record ObservedExecutionResult(LogicModuleExecutionResult Result,
-    IReadOnlyCollection<LogicInputValue> InputObservations);
+    IReadOnlyCollection<LogicInputValue> InputObservations)
+{
+    public LogicModuleExecutionResultV2? StructuredResult { get; init; }
+    public IReadOnlyCollection<StructuredInputValue>? StructuredInputs { get; init; }
+
+    public string SerializeOutput()
+    {
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var json = StructuredResult is { } structured
+            ? System.Text.Json.JsonSerializer.Serialize(new
+            {
+                structured.OutcomeCode, structured.EngineeringResults, structured.Recommendations,
+                structured.ControlIntents, structured.StateUpdates, InputObservations = StructuredInputs,
+                ValueContractVersion = 2
+            }, options)
+            : System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Result.OutcomeCode, Result.EngineeringResults, Result.Recommendations,
+                Result.ControlIntents, Result.StateUpdates, InputObservations
+            }, options);
+        if (System.Text.Encoding.UTF8.GetByteCount(json) > WellSiteAutoPilot.Integration.Contracts.Providers.MeasurementPayloadLimits.MaximumResultBytes)
+            throw new WellSiteAutoPilotException("MODULE_ENVELOPE_TOO_LARGE", FailureKind.Validation, "Execution evidence exceeds the supported limit.");
+        return json;
+    }
+}

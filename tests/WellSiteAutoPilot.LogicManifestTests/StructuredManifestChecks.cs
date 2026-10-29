@@ -82,12 +82,14 @@ internal static class StructuredManifestChecks
             catch (JsonException) { continue; }
             throw new InvalidOperationException("Duplicate nested contract field was accepted.");
         }
-        await Reject(() => { LogicModulePackageCompatibility.ValidateHost(manifest, LogicRuntimeKind.DotNet, "1.2.0"); return Task.CompletedTask; }, "MODULE_CONTRACT_UNSUPPORTED");
+        LogicModulePackageCompatibility.ValidateHost(manifest, LogicRuntimeKind.DotNet, "1.2.0");
         var id = Guid.NewGuid();
         var revision = new ConfiguredLogicRevision(Guid.NewGuid(), id, 1, manifest.ModuleId, manifest.Version, serialized,
-            ExecutionMode.Shadow, "{}", ConfiguredLogicRevisionStatus.Active, DateTimeOffset.UtcNow, null, null, null, [], []);
+            ExecutionMode.Shadow, "{}", ConfiguredLogicRevisionStatus.Active, DateTimeOffset.UtcNow, null, null, null, [new("well", id, "{}")], [new("matrix", id, "foresite", "42", "{}")]);
         var configuration = new ConfiguredLogicDefinition(id, "Structured", revision.Id, DateTimeOffset.UtcNow, [revision]);
-        await Reject(() => { ConfiguredExecutionSnapshot.Create(configuration, revision, ExecutionTriggerKind.Manual, null); return Task.CompletedTask; }, "MODULE_CONTRACT_UNSUPPORTED");
+        var snapshot = ConfiguredExecutionSnapshot.Create(configuration, revision, ExecutionTriggerKind.Manual, null);
+        if (snapshot.Inputs.Single().SchemaId != shape.SchemaId || snapshot.Inputs.Single().RequiredCapability != "structured.current")
+            throw new InvalidOperationException("Execution snapshot lost the reviewed shape or capability.");
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         try { await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, cancellation.Token); }

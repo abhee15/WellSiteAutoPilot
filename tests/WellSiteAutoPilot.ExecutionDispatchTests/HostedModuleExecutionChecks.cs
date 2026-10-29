@@ -33,13 +33,15 @@ namespace WellSiteAutoPilot.ExecutionDispatchTests;
 
 internal static class HostedModuleExecutionChecks
 {
+    private static readonly int[] CardPointCounts = [400, 112];
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     { Converters = { new JsonStringEnumConverter() } };
 
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, NatsConnection connection,
-        bool savedConnection = false, bool disabledConnection = false, string? foreSitePayload = null)
+        bool savedConnection = false, bool disabledConnection = false, string? foreSitePayload = null, bool structured = false, string structuredQuality = "Good")
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
+        var structuredRejected = structured && structuredQuality == "Unknown";
         var now = DateTimeOffset.UtcNow;
         var user = Guid.NewGuid();
         var moduleId = "hosted-probe-" + user.ToString("N");
@@ -57,6 +59,15 @@ internal static class HostedModuleExecutionChecks
         var manifest = new LogicModuleManifest(1, moduleId, "1.0.0", "Hosted probe", "Test", LogicRuntimeKind.DotNet,
             ExecutionProfile.ScheduledOneShot, typeof(HostedExecutionProbe).FullName!, "1.1.0",
             [new("well", 1, 1, null, [])], [new("fillage", "well", "PumpFillage", "Current", "%", 60, false)], []);
+        if (structured)
+            manifest = manifest with
+            {
+                ManifestVersion = 2, MinimumSdkVersion = "1.2.0", EntryPoint = typeof(HostedStructuredProbe).FullName!,
+                DataRequirements = [new("fillage", "well", "SurfaceCards", "Current", null, 60, false,
+                    new("foresite.surface-cards/v1", CardSchema()), "structured.current")],
+                OutputRequirements = [new("curve", "Curve", null,
+                    new("fixture.curve/v1", CardSchema()))]
+            };
         using var bytes = new MemoryStream(Pack(manifest));
         var module = await new LogicModulePackageService(new LogicModuleCatalogRepository(db), TimeProvider.System)
             .UploadAsync(bytes, subject, actor);
@@ -64,6 +75,9 @@ internal static class HostedModuleExecutionChecks
         var command = new ConfiguredShadowExecutionCommand(Guid.NewGuid(), Guid.NewGuid(), moduleId, "1.0.0", "{}",
             [new("well", asset, "{}")], [new("fillage", asset, "simulator", "WELL-PROBE", "PumpFillage", "Current", "%", 60, false, "{}")],
             ExecutionTriggerKind.Scheduled, now);
+        if (structured)
+            command = command with { Inputs = [command.Inputs.Single() with
+            { Quantity = "SurfaceCards", CanonicalUnit = null, RequiredCapability = "structured.current", SchemaId = "foresite.surface-cards/v1" }] };
         var connectionId = Guid.NewGuid();
         if (savedConnection)
         {
@@ -115,7 +129,7 @@ internal static class HostedModuleExecutionChecks
         using var measurements = new ForeSiteConnectionMeasurements(fixture, TimeProvider.System);
         var services = new ServiceCollection().AddScoped(_ => new WellSiteAutoPilotDbContext(options))
             .AddScoped<IExecutionReadRepository>(provider => new ExecutionRepository(provider.GetRequiredService<WellSiteAutoPilotDbContext>()))
-            .AddSingleton<IExecutionMeasurementGateway>(new RecordedMeasurements(connectionId, now, foreSitePayload is null ? null : measurements));
+            .AddSingleton<IExecutionMeasurementGateway>(new RecordedMeasurements(connectionId, now, foreSitePayload is null ? null : measurements, structured, structuredQuality));
         await using var readProvider = services.BuildServiceProvider();
         using var reads = new ExecutionMeasurementReadConsumer(readProvider.GetRequiredService<IServiceScopeFactory>(), connection,
             NullLogger<ExecutionMeasurementReadConsumer>.Instance);
@@ -144,9 +158,9 @@ internal static class HostedModuleExecutionChecks
                 if (message.Data is null || !message.Data.Contains(execution.Id.ToString(), StringComparison.Ordinal)) continue;
                 if (message.Subject == Subjects.ExecutionFailedV2)
                 {
-                    if (!disabledConnection && foreSitePayload is null or "current") throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
+                    if (!disabledConnection && !structuredRejected && foreSitePayload is null or "current") throw new InvalidOperationException("Hosted package execution failed: " + message.Data);
                     var failed = JsonSerializer.Deserialize<MessageEnvelope<ExecutionFailedV2>>(message.Data, Options)!;
-                    var expected = disabledConnection ? "EXECUTION_CONNECTION_DISABLED" : foreSitePayload switch
+                    var expected = structuredRejected ? "EXECUTION_INPUT_QUALITY_REJECTED" : disabledConnection ? "EXECUTION_CONNECTION_DISABLED" : foreSitePayload switch
                     {
                         "missing" => "FORESITE_MEASUREMENT_MISSING",
                         "invalid-time" => "FORESITE_TIMESTAMP_INVALID",
@@ -181,18 +195,41 @@ internal static class HostedModuleExecutionChecks
                 else
                 {
                     var completed = JsonSerializer.Deserialize<MessageEnvelope<ExecutionCompletedV2>>(message.Data, Options)!;
-                    Assert(completed.Payload.ResultCode == "HOSTED_PROBE_COMPLETED" && completed.Payload.OutputJson.Contains("99.6", StringComparison.Ordinal),
+                    Assert(completed.Payload.ResultCode == "HOSTED_PROBE_COMPLETED" && completed.Payload.OutputJson.Contains(structured ? "valueContractVersion" : "99.6", StringComparison.Ordinal),
                         "Hosted result lost the normalized input or algorithm output.");
                     await repository.ApplyCompletedAsync(completed.MessageId, "hosted-check", execution.Id,
                         completed.Payload.StartedAtUtc, completed.Payload.CompletedAtUtc, completed.Payload.ResultCode, completed.Payload.OutputJson);
+                    if (structured)
+                    {
+                        var persisted = (await repository.GetAsync(execution.Id))!.OutputJson!;
+                        using var output = JsonDocument.Parse(persisted);
+                        var inputData = output.RootElement.GetProperty("inputObservations")[0].GetProperty("value").GetProperty("data");
+                        var curve = output.RootElement.GetProperty("engineeringResults")[0].GetProperty("value").GetProperty("data");
+                        Assert(inputData.GetArrayLength() == 2 && curve.GetArrayLength() == 2 &&
+                            curve[0].GetProperty("load").GetArrayLength() == 400 && curve[1].GetProperty("load").GetArrayLength() == 112 &&
+                            curve[1].GetProperty("load")[111].GetDecimal() == 111m * 12345.67890123456789m * 2,
+                            "Structured read or curve output was truncated or lowered into a scalar.");
+                        foreach (var index in new[] { 0, 1 })
+                            foreach (var property in new[] { "position", "id", "kind", "capturedAtUtc", "positionUnit", "loadUnit" })
+                                Assert(inputData[index].GetProperty(property).GetRawText() == curve[index].GetProperty(property).GetRawText(),
+                                    "Structured execution lost card metadata or sample pairing.");
+                    }
                     sawCompleted = true;
                     break;
                 }
             }
-            Assert(sawStarted && (disabledConnection || foreSitePayload is not null and not "current"
+            Assert(sawStarted && (disabledConnection || structuredRejected || foreSitePayload is not null and not "current"
                 ? (await repository.GetAsync(execution.Id)) is { Status: ExecutionStatus.Failed, OutputJson: not null }
                 : sawCompleted && (await repository.GetAsync(execution.Id))?.Status == ExecutionStatus.Completed),
                 "Real approved archive did not complete through V3 dispatch and V2 results.");
+            if (structuredRejected)
+            {
+                var stored = (await repository.GetAsync(execution.Id))!.OutputJson!;
+                using var failure = JsonDocument.Parse(stored);
+                Assert(failure.RootElement.GetProperty("inputDiagnostics")[0].GetProperty("value").ValueKind == JsonValueKind.Null &&
+                    !stored.Contains("engineeringResults", StringComparison.Ordinal) && !stored.Contains("capturedAtUtc", StringComparison.Ordinal),
+                    "Rejected card input persisted module results or unbounded card payloads.");
+            }
             if (foreSitePayload is not null)
             {
                 Assert(fixture.TokenReads == 1 && fixture.MeasurementReads == 1,
@@ -238,6 +275,15 @@ internal static class HostedModuleExecutionChecks
         }
     }
 
+    private static JsonElement CardSchema() => JsonSerializer.Deserialize<JsonElement>("""
+        {"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","properties":{
+          "id":{"type":"string"},"kind":{"type":"string"},"capturedAtUtc":{"type":"string"},
+          "positionUnit":{"type":"string"},"loadUnit":{"type":"string"},
+          "position":{"type":"array","items":{"type":"number"},"minItems":2,"maxItems":1024},
+          "load":{"type":"array","items":{"type":"number"},"minItems":2,"maxItems":1024}},
+          "required":["id","kind","capturedAtUtc","positionUnit","loadUnit","position","load"],"additionalProperties":false}}
+        """);
+
     private static byte[] Pack(LogicModuleManifest manifest)
     {
         using var bytes = new MemoryStream();
@@ -251,12 +297,15 @@ internal static class HostedModuleExecutionChecks
         return bytes.ToArray();
     }
     // Retain synthetic execution-contract cases alongside the real ForeSite parser cases.
-    private sealed class RecordedMeasurements(Guid connectionId, DateTimeOffset timestamp, ForeSiteConnectionMeasurements? measurements) : IExecutionMeasurementGateway
+    private sealed class RecordedMeasurements(Guid connectionId, DateTimeOffset timestamp, ForeSiteConnectionMeasurements? measurements, bool structured, string structuredQuality) : IExecutionMeasurementGateway
     {
         public Task<EngineeringValue> GetCurrentAsync(AuthorizedExecutionRead read, CancellationToken cancellationToken = default)
         {
-            Assert(read.ConnectionId == connectionId && read.ConnectionRevision == 1 && read.ExternalId == "42" && read.Quantity == "PumpFillage",
+            Assert(read.ConnectionId == connectionId && read.ConnectionRevision == 1 && read.ExternalId == "42" && read.Quantity == (structured ? "SurfaceCards" : "PumpFillage"),
                 "Hosted read escaped its authorized saved source.");
+            if (structured)
+                return Task.FromResult(new EngineeringValue("SurfaceCards", null, "", timestamp, structuredQuality, "synthetic-structured-fixture")
+                { StructuredValue = new("foresite.surface-cards/v1", JsonSerializer.SerializeToElement(CardPointCounts.Select((count, i) => new { id = "card-" + i, kind = i == 0 ? "CURRENT" : "FULL", capturedAtUtc = timestamp.AddSeconds(-i), positionUnit = "in", loadUnit = "lb", position = Enumerable.Range(0, count).ToArray(), load = Enumerable.Range(0, count).Select(n => n * 12345.67890123456789m).ToArray() }))) });
             return measurements is null
                 ? Task.FromResult(new EngineeringValue("PumpFillage", 99.6m, "%", timestamp, "Good", "verified-test-fixture"))
                 : measurements.ReadAsync(new ConnectionMeasurementRequest(read.ConnectionId, read.ConnectionRevision,
@@ -326,4 +375,22 @@ public sealed class HostedExecutionProbe : ILogicModuleV1
     public ValueTask<LogicModuleExecutionResult> ExecuteAsync(LogicModuleExecutionContext context, CancellationToken cancellationToken = default) =>
         ValueTask.FromResult(new LogicModuleExecutionResult("HOSTED_PROBE_COMPLETED",
             [new("observed", context.Inputs.Single().AssetId, "PumpFillage", context.Inputs.Single().Value, "%")], [], [], new Dictionary<string, string>()));
+}
+
+
+public sealed class HostedStructuredProbe : ILogicModuleV2
+{
+    public LogicModuleIdentity Identity { get; } = new(Environment.GetEnvironmentVariable("WSA_HOSTED_EXECUTION_TEST_ID")!, "1.0.0");
+    public ValueTask<LogicModuleExecutionResultV2> ExecuteAsync(LogicModuleExecutionContextV2 context, CancellationToken cancellationToken = default)
+    {
+        var cards = System.Text.Json.Nodes.JsonNode.Parse(context.Inputs.Single().Value.Data.GetRawText())!.AsArray();
+        foreach (var card in cards)
+        {
+            var load = card!["load"]!.AsArray();
+            for (var i = 0; i < load.Count; i++) load[i] = load[i]!.GetValue<decimal>() * 2;
+        }
+        return ValueTask.FromResult(new LogicModuleExecutionResultV2("HOSTED_PROBE_COMPLETED",
+            [new("curve", context.Inputs.Single().AssetId, "Curve", new("fixture.curve/v1", JsonSerializer.SerializeToElement(cards)), null)],
+            [], [], new Dictionary<string, string>()));
+    }
 }

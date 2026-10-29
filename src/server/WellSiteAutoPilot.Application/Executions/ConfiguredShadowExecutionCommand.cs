@@ -17,7 +17,7 @@ public sealed record ConfiguredExecutionInputCommand(
     string? CanonicalUnit,
     int? MaximumAgeSeconds,
     bool AllowUncertainQuality,
-    string ProviderMappingJson);
+    string ProviderMappingJson, string? RequiredCapability = null, string? SchemaId = null);
 
 public sealed record ConfiguredShadowExecutionCommand(
     Guid ConfiguredLogicId,

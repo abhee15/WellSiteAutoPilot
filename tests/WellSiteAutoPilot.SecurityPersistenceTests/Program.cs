@@ -626,6 +626,7 @@ await ScopedSqlProjectionChecks.RunAsync(
 await ScopedResourceQueryChecks.RunAsync(options, assetType.Id);
 await GrantAuthorityChecks.RunAsync(options, assetType.Id);
 await AuthorizedExecutionReadChecks.RunAsync(options, assetType.Id);
+await AuthorizedExecutionReadChecks.RunAsync(options, assetType.Id, structured: true);
 await GrantBootstrapChecks.RunAsync(connectionString);
 await AuthorizedConfigurationReadChecks.RunAsync(options, assetType.Id);
 await AuthorizedConfigurationDraftChecks.RunAsync(options, assetType.Id);

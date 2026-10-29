@@ -10,22 +10,24 @@ public sealed class ForeSiteSession(HttpClient client)
     private CookieContainer _cookies = new();
     private bool _initialized;
 
-    public Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct) =>
-        SendAuthenticatedAsync(HttpMethod.Get, path, null, ct);
+    public Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct,
+        HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead) =>
+        SendAuthenticatedAsync(HttpMethod.Get, path, null, ct, completionOption);
 
     public Task<HttpResponseMessage> PostAsync(string path, object filter, CancellationToken ct) =>
         SendAuthenticatedAsync(HttpMethod.Post, path, ForeSiteAdapter.SerializeFilter(filter), ct);
 
-    private async Task<HttpResponseMessage> SendAuthenticatedAsync(HttpMethod method, string path, string? body, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendAuthenticatedAsync(HttpMethod method, string path, string? body, CancellationToken ct,
+        HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead)
     {
         if (!_initialized) await CreateTokenAsync(ct);
-        var response = await SendAsync(method, path, body, ct);
+        var response = await SendAsync(method, path, body, ct, completionOption);
         if (response.StatusCode != HttpStatusCode.Unauthorized) return response;
         response.Dispose();
         _cookies = new CookieContainer();
         _initialized = false;
         await CreateTokenAsync(ct);
-        return await SendAsync(method, path, body, ct);
+        return await SendAsync(method, path, body, ct, completionOption);
     }
 
     private async Task CreateTokenAsync(CancellationToken ct)
@@ -36,7 +38,8 @@ public sealed class ForeSiteSession(HttpClient client)
         _initialized = true;
     }
 
-    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? body, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? body, CancellationToken ct,
+        HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead)
     {
         using var request = new HttpRequestMessage(method, path);
         // Each attempt owns fresh content, so a 401 retry can safely replay the exact reviewed filter.
@@ -44,7 +47,7 @@ public sealed class ForeSiteSession(HttpClient client)
         var uri = new Uri(client.BaseAddress ?? throw new InvalidOperationException("ForeSite requires a base address."), path);
         var cookies = _cookies.GetCookieHeader(uri);
         if (!string.IsNullOrEmpty(cookies)) request.Headers.TryAddWithoutValidation("Cookie", cookies);
-        var response = await client.SendAsync(request, ct);
+        var response = await client.SendAsync(request, completionOption, ct);
         if (response.Headers.TryGetValues("Set-Cookie", out var headers))
         {
             try

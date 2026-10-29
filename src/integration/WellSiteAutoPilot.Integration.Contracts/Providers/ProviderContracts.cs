@@ -56,13 +56,33 @@ public sealed record ProviderCompatibility(
 
 public sealed record EngineeringValue(
     string Quantity,
-    decimal Value,
+    decimal? Value,
     string Unit,
     DateTimeOffset TimestampUtc,
     string Quality,
     string Source,
     DateTimeOffset? RetrievedAtUtc = null,
-    string? TimestampKind = null);
+    string? TimestampKind = null)
+{
+    public ProviderStructuredValue? StructuredValue { get; init; }
+}
+
+public sealed record ProviderStructuredValue(string SchemaId, System.Text.Json.JsonElement Data);
+
+// Bounded inline transport for the first structured slice. Larger payloads fail closed.
+public static class MeasurementPayloadLimits
+{
+    public const int MaximumValueBytes = 65536;
+    public const int MaximumReplyBytes = 262144;
+    public const int MaximumResultBytes = 524288;
+
+    public static bool IsValid(EngineeringValue value) =>
+        (value.Value is null) != (value.StructuredValue is null) &&
+        (value.StructuredValue is null ||
+         value.StructuredValue.SchemaId is { Length: > 0 and <= 128 } &&
+         value.StructuredValue.Data.ValueKind != System.Text.Json.JsonValueKind.Undefined &&
+         System.Text.Encoding.UTF8.GetByteCount(value.StructuredValue.Data.GetRawText()) <= MaximumValueBytes);
+}
 
 public sealed record ProviderAlarm(
     string AlarmId,

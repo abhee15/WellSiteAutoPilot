@@ -124,12 +124,7 @@ public sealed partial class ExecutionRequestV2Consumer(
                 startedAtUtc,
                 completedAtUtc,
                 moduleResult.OutcomeCode,
-                JsonSerializer.Serialize(new
-                {
-                    moduleResult.OutcomeCode, moduleResult.EngineeringResults,
-                    moduleResult.Recommendations, moduleResult.ControlIntents, moduleResult.StateUpdates,
-                    observed.InputObservations
-                }, SerializerOptions));
+                observed.SerializeOutput());
 
             await PublishResultAsync(
                 Subjects.ExecutionCompletedV2,

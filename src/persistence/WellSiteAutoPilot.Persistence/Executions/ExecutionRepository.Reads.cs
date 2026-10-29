@@ -40,7 +40,10 @@ public sealed partial class ExecutionRepository
                 if (bindings.Length != 1 || bindings[0].ConnectionId != connectionId ||
                     bindings[0].ResourceKind != "foresite.well" || bindings[0].ExternalId != input.ProviderAssetExternalId)
                     throw ReadFailure("EXECUTION_READ_SOURCE_INVALID");
-                if (input.Access != "Current" || input.Quantity is not ("PumpFillage" or "AveragePumpFillage"))
+                if (input.Access != "Current" ||
+                    !(input.Quantity is "PumpFillage" or "AveragePumpFillage" && input.RequiredCapability is null && input.SchemaId is null ||
+                      input.Quantity == "SurfaceCards" && input.RequiredCapability == "structured.current" &&
+                      input.SchemaId == "foresite.surface-cards/v1"))
                     throw ReadFailure("EXECUTION_READ_QUANTITY_UNSUPPORTED");
                 using var mapping = JsonDocument.Parse(input.ProviderMappingJson);
                 if (mapping.RootElement.ValueKind != JsonValueKind.Object || mapping.RootElement.EnumerateObject().Any())
@@ -53,7 +56,7 @@ public sealed partial class ExecutionRepository
             }
             result.Add(new(input.RequirementId, input.AssetId, input.ProviderId, input.ProviderAssetExternalId,
                 input.Quantity, input.Access, input.CanonicalUnit, input.MaximumAgeSeconds, input.AllowUncertainQuality,
-                input.ProviderMappingJson, source));
+                input.ProviderMappingJson, source, input.RequiredCapability, input.SchemaId));
         }
         return result.ToArray();
     }

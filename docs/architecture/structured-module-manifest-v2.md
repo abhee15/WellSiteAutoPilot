@@ -38,20 +38,14 @@ and the optional parameter schema before invoking module code.
 
 ## Execution capability boundary
 
-This change does not enable production structured execution. Host compatibility
-rejects V2 with `MODULE_CONTRACT_UNSUPPORTED`, and configuration-to-execution
-snapshot creation rejects it before lowering inputs into the scalar request
-contract. The existing V2-interface activation guard remains in place, including
-for a dual V1/V2 entry point. Catalog acceptance or package approval must not be
-interpreted as runtime/provider support.
+The bounded .NET structured path is described in
+[ForeSite structured cards](../implementation/foresite-structured-cards.md).
+V2 requires a matching V2 entry point; dual V1/V2 implementations remain rejected.
+Reviewed capabilities and schema identities travel with immutable authorized read
+plans. Catalog acceptance is not source authority or evidence of live quality.
 
-The offline host reads trusted synthetic inputs; it does not establish provider
-capabilities, inspect actual Asset traits or authorize a connection. Those remain
-production responsibilities. A module's capability declaration cannot select a
-connection, bypass a saved binding, initiate polling or alter customer UDC mapping.
-
-Remaining #302 work: enforce reviewed capabilities and shapes in immutable
-server-owned read plans, add bounded structured provider/broker transport and
-worker dispatch, persist/inspect structured results, and verify the installed
-ForeSite card API before adding its adapter. No ForeSite HTTP endpoint or Gibbs /
-Everitt-Jennings solver is inferred or implemented by this manifest change.
+The first adapter quantity is ForeSite SurfaceCards. Unknown library-card quality
+currently fails closed, pending a reviewed quality policy. Python, downhole cards,
+large-payload indirection and other structured provider capabilities remain future
+work. The offline authoring host continues to support synthetic arbitrary shapes;
+its validation is reused by the production worker.

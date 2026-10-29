@@ -7,7 +7,11 @@ public sealed record StructuredValue(string SchemaId, JsonElement Data);
 
 public sealed record StructuredInputValue(
     string RequirementId, Guid AssetId, string Quantity, StructuredValue Value,
-    string? Unit, DateTimeOffset TimestampUtc, string Quality, string Source);
+    string? Unit, DateTimeOffset TimestampUtc, string Quality, string Source)
+{
+    public DateTimeOffset? RetrievedAtUtc { get; init; }
+    public string? TimestampKind { get; init; }
+}
 
 public sealed record StructuredResultValue(
     string Id, Guid? AssetId, string Quantity, StructuredValue Value, string? Unit);
@@ -29,7 +33,7 @@ public sealed record LogicModuleExecutionResultV2(
 }
 
 /// <summary>
-/// Structured authoring contract. Production V1 hosts deliberately cannot load this interface.
+/// Structured contract. Hosted execution requires a reviewed V2 manifest and supported source capability.
 /// Do not also implement V1 to bypass that capability check.
 /// </summary>
 public interface ILogicModuleV2
