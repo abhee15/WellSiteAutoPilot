@@ -1,4 +1,8 @@
-import { isWindowsSid } from '../security/windowsSid';
+import { ActionButton } from '../components/ActionButton';
+import { RefreshCw } from 'lucide-react';
+import { groupSubjectKey } from '../security/directoryGroup';
+import { DirectoryGroupPicker } from './DirectoryGroupPicker';
+import type { DirectoryGroup } from './DirectoryGroupPicker';
 import './grantAdministration.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
@@ -36,8 +40,8 @@ export function GrantAdministrationPage(
   const [permissions, setPermissions] = useState<PermissionDefinition[]>([]);
   const [assets, setAssets] = useState<AssetChoice[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [subjectKind, setSubjectKind] = useState<'User' | 'WindowsGroup'>('User');
-  const [groupSid, setGroupSid] = useState('');
+  const [subjectKind, setSubjectKind] = useState<'User' | 'Group'>('User');
+  const [selectedGroup, setSelectedGroup] = useState<DirectoryGroup | null>(null);
   const [grants, setGrants] = useState<PersistedGrant[]>([]);
   const [pending, setPending] = useState<GrantDraft | null>(null);
   const [retiring, setRetiring] = useState<PersistedGrant | null>(null);
@@ -50,8 +54,8 @@ export function GrantAdministrationPage(
   const requestRef = useRef<AbortController | null>(null);
   const mutationRef = useRef<AbortController | null>(null);
 
-  const selectedUser = subjectKind === 'WindowsGroup' && isWindowsSid(selectedUserId)
-    ? { userId: '', identityName: selectedUserId, groupSid: selectedUserId }
+  const selectedUser = subjectKind === 'Group' && selectedGroup && selectedUserId
+    ? { userId: '', identityName: (selectedGroup.domain ? selectedGroup.domain + '\\' : '') + selectedGroup.displayName, groupId: selectedGroup.externalId, directoryId: selectedGroup.directoryId }
     : users.find(x => x.userId === selectedUserId);
   const selectedRole = roles.find(x => x.roleId === pending?.roleId) ?? null;
   const preview = useMemo(() => {
@@ -133,14 +137,14 @@ export function GrantAdministrationPage(
 
   const save = async () => {
     if (!pending || !preview || saving || grantsLoading || mutationRef.current || retiring ||
-      (pending.groupSid ?? pending.userId) !== selectedUserId) return;
+      (pending.groupId && pending.directoryId ? groupSubjectKey(pending.directoryId, pending.groupId) : pending.userId) !== selectedUserId) return;
     const abort = new AbortController();
     mutationRef.current = abort;
     setSaving(true); setNotice(null);
     try {
       const persisted = await createGrant(pending, true, abort.signal);
       if (abort.signal.aborted) return;
-      const records = await loadGrants(pending.groupSid ?? pending.userId, abort.signal);
+      const records = await loadGrants(pending.groupId && pending.directoryId ? groupSubjectKey(pending.directoryId, pending.groupId) : pending.userId, abort.signal);
       if (abort.signal.aborted) return;
       verifyGrantReadback(persisted, records);
       setGrants(records); setPending(null); setNotice(t('grants.savedAssignment'));
@@ -187,37 +191,33 @@ export function GrantAdministrationPage(
 
   return (
     <>
-      <section className="panel">
+      <section className="panel grant-management-panel">
         <div className="panel-header">
           <h2>{t('grants.manage')}</h2>
-          <button type="button" className="secondary-button"
-            disabled={isLoading || saving} onClick={() => void load()}>
-            {t('access.refresh')}
-          </button>
+          <ActionButton icon={RefreshCw} iconOnly label={t('access.refresh')}
+            disabled={isLoading || saving} onClick={() => void load()} />
         </div>
+        <div className="grant-selection">
         {isLoading && <LoadingIndicator label={t('access.loading')} />}
         {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
         {notice && <p role="status" className="access-intro">{notice}</p>}
         {!isLoading && !error && (
-          <label className="grant-user-picker">{t('grants.subjectKind')}
+          <label className="grant-user-picker grant-subject-picker">{t('grants.subjectKind')}
             <select value={subjectKind} disabled={saving}
-              onChange={event => { setSubjectKind(event.target.value as 'User' | 'WindowsGroup'); void pickUser(''); }}>
+              onChange={event => { setSubjectKind(event.target.value as 'User' | 'Group'); void pickUser(''); }}>
               <option value="User">{t('grants.userSubject')}</option>
-              <option value="WindowsGroup">{t('grants.groupSubject')}</option>
+              <option value="Group">{t('grants.groupSubject')}</option>
             </select>
           </label>
         )}
-        {!isLoading && !error && subjectKind === 'WindowsGroup' && (
-          <form className="grant-user-picker" onSubmit={event => { event.preventDefault(); if (isWindowsSid(groupSid)) void pickUser(groupSid.toUpperCase()); }}>
-            <label htmlFor="grant-group-sid">{t('grants.groupSid')}</label>
-            <input id="grant-group-sid" value={groupSid} maxLength={252} disabled={saving}
-              onChange={event => { setGroupSid(event.target.value); void pickUser(''); }} aria-describedby="grant-group-help" />
-            <small id="grant-group-help">{t('grants.groupHelp')}</small>
-            <button type="submit" disabled={saving || !isWindowsSid(groupSid)}>{t('grants.loadGroup')}</button>
-          </form>
+        {!isLoading && !error && subjectKind === 'Group' && (
+          <DirectoryGroupPicker disabled={saving} onSelect={group => {
+            setSelectedGroup(group);
+            void pickUser(group ? groupSubjectKey(group.directoryId, group.externalId) : '');
+          }} />
         )}
         {!isLoading && !error && subjectKind === 'User' && (
-          <label className="grant-user-picker">
+          <label className="grant-user-picker grant-person-picker">
             {t('grants.chooseUser')}
             <select value={selectedUserId} disabled={saving}
               onChange={event => void pickUser(event.target.value)}>
@@ -230,6 +230,7 @@ export function GrantAdministrationPage(
             </select>
           </label>
         )}
+        </div>
         {selectedUser && !pending && !error && (
           <div className="grant-current-list">
             <h3>{t('grants.existing')}</h3>
@@ -253,10 +254,10 @@ export function GrantAdministrationPage(
                   )}
                 </li>;
               })}</ul>}
-            <button type="button" disabled={saving || grantsLoading || Boolean(retiring)}
+            <button type="button" className="primary-button" disabled={saving || grantsLoading || Boolean(retiring)}
               onClick={() => setPending({
                 subjectKind, userId: selectedUser.userId,
-                ...('groupSid' in selectedUser ? { groupSid: selectedUser.groupSid } : {}),
+                ...('groupId' in selectedUser ? { groupId: selectedUser.groupId, directoryId: selectedUser.directoryId } : {}),
                 roleId: '', scopeKind: 'ExactAssets', assetIds: [], expectedRoleRevision: 0,
               })}>{t('grants.new')}</button>
           </div>

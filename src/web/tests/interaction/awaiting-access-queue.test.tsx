@@ -47,7 +47,7 @@ describe('waiting-for-access queue', () => {
     expect(screen.getByRole('button', { name: 'Assign a role to FIELD\\operator' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Assign a role to FIELD\\admin' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Assign a role to FIELD\\left' })).toBeNull();
-    expect(screen.getByText(/Windows group is checked when they sign in/)).toBeTruthy();
+    expect(screen.getByText(/directory group is checked when they sign in/)).toBeTruthy();
   });
 
   it('asks the server for waiting users only and explains an empty queue', async () => {

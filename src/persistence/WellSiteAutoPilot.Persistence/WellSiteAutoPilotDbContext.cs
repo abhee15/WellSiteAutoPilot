@@ -396,29 +396,32 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         grant.ToTable("access_grants", "security", table =>
         {
             table.HasCheckConstraint("CK_access_grants_subject",
-                "\"SubjectKind\" = 'User' AND \"UserId\" IS NOT NULL AND \"GroupSid\" IS NULL OR " +
-                "\"SubjectKind\" = 'WindowsGroup' AND \"UserId\" IS NULL AND \"GroupSid\" IS NOT NULL");
+                "\"SubjectKind\" = 'User' AND \"UserId\" IS NOT NULL AND \"GroupId\" IS NULL OR " +
+                "\"SubjectKind\" = 'Group' AND \"UserId\" IS NULL AND \"GroupId\" IS NOT NULL AND \"DirectoryId\" IS NOT NULL");
             table.HasCheckConstraint("CK_access_grants_scope_kind",
                 "\"ScopeKind\" IN ('ExactAssets', 'DeploymentWide', 'AllAssets')");
             table.HasCheckConstraint("CK_access_grants_revision", "\"Revision\" >= 1");
         });
         grant.HasKey(item => item.Id);
         grant.Property(item => item.SubjectKind).HasMaxLength(32).IsRequired();
-        grant.Property(item => item.GroupSid).HasMaxLength(256);
+        grant.Property(item => item.GroupId).HasMaxLength(256).UseCollation("C");
+        grant.Property(item => item.DirectoryId).HasMaxLength(64).UseCollation("C").UsePropertyAccessMode(PropertyAccessMode.Property);
+        grant.Property(item => item.GroupDisplayName).HasMaxLength(256);
+        grant.Property(item => item.GroupDomain).HasMaxLength(256);
         grant.Property(item => item.ScopeKind).HasMaxLength(32).IsRequired();
         grant.Property(item => item.IsActive).IsRequired();
         grant.Property(item => item.Revision).IsRequired();
         grant.Property(item => item.CreatedAtUtc).IsRequired();
         grant.Property(item => item.UpdatedAtUtc).IsRequired();
         grant.HasIndex(item => item.UserId);
-        grant.HasIndex(item => item.GroupSid);
+        grant.HasIndex(item => item.GroupId);
         grant.HasIndex(item => item.RoleId);
         grant.HasIndex(item => new { item.UserId, item.RoleId, item.ScopeKind })
             .IsUnique()
             .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'User'");
-        grant.HasIndex(item => new { item.GroupSid, item.RoleId, item.ScopeKind })
+        grant.HasIndex(item => new { item.DirectoryId, item.GroupId, item.RoleId, item.ScopeKind })
             .IsUnique()
-            .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'WindowsGroup'");
+            .HasFilter("\"IsActive\" = TRUE AND \"SubjectKind\" = 'Group'");
         grant.HasOne<UserEntity>().WithMany()
             .HasForeignKey(item => item.UserId)
             .OnDelete(DeleteBehavior.Restrict);

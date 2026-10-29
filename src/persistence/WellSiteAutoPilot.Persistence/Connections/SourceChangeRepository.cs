@@ -156,8 +156,8 @@ public sealed class SourceChangeRepository(WellSiteAutoPilotDbContext db, TimePr
         AccessSubject subject, CancellationToken cancellationToken)
     {
         var now = Time.GetUtcNow();
-        if (!await ScopedAccessQueries.DeploymentGrants(db, subject.UserId, WellSitePermissions.ConnectionsRead, subject.WindowsGroups, now).AnyAsync(cancellationToken) ||
-            !await ScopedAccessQueries.ResourceGrants(db, subject.UserId, WellSitePermissions.AssetsRead, subject.WindowsGroups, now)
+        if (!await ScopedAccessQueries.DeploymentGrants(db, subject.UserId, WellSitePermissions.ConnectionsRead, subject.Groups, now).AnyAsync(cancellationToken) ||
+            !await ScopedAccessQueries.ResourceGrants(db, subject.UserId, WellSitePermissions.AssetsRead, subject.Groups, now)
                 .AnyAsync(g => g.ScopeKind == "AllAssets", cancellationToken)) throw Denied();
         if (!await db.Connections.AnyAsync(c => c.Id == connectionId, cancellationToken)) throw Missing();
         var checks = db.SourceChecks.AsNoTracking().Where(c => c.ConnectionId == connectionId);
@@ -173,7 +173,7 @@ public sealed class SourceChangeRepository(WellSiteAutoPilotDbContext db, TimePr
         var page = await changes.OrderByDescending(c => c.LastSeenAtUtc).ThenBy(c => c.Id).Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
         var ids = page.Select(c => c.Id).ToArray();
         var assetIds = page.Where(c => c.AssetId != null).Select(c => c.AssetId!.Value).ToArray();
-        var readable = ScopedAccessQueries.ConfiguredLogic(db, subject.UserId, WellSitePermissions.ConfiguredLogicRead, subject.WindowsGroups, now);
+        var readable = ScopedAccessQueries.ConfiguredLogic(db, subject.UserId, WellSitePermissions.ConfiguredLogicRead, subject.Groups, now);
         var references = await (from impact in db.SourceChangeImpacts.AsNoTracking()
             where ids.Contains(impact.ChangeId)
             join revision in db.ConfiguredLogicRevisions.AsNoTracking() on impact.RevisionId equals revision.Id

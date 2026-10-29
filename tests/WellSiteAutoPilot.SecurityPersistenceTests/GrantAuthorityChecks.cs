@@ -20,7 +20,7 @@ internal static class GrantAuthorityChecks
         {
             await using var setup = new WellSiteAutoPilotDbContext(options);
             var now = DateTimeOffset.UtcNow;
-            var groupSid = $"S-1-5-21-909-{++scenario}";
+            var groupId = $"S-1-5-21-909-{++scenario}";
             var userId = Guid.NewGuid();
             var roleId = Guid.NewGuid();
             var grantId = Guid.NewGuid();
@@ -44,14 +44,14 @@ internal static class GrantAuthorityChecks
             });
             setup.AccessGrants.Add(new AccessGrantEntity
             {
-                Id = grantId, SubjectKind = group ? "WindowsGroup" : "User", UserId = group ? null : userId,
-                GroupSid = group ? groupSid : null, RoleId = roleId,
+                Id = grantId, SubjectKind = group ? "Group" : "User", UserId = group ? null : userId,
+                GroupId = group ? groupId : null, RoleId = roleId,
                 ScopeKind = global ? "DeploymentWide" : "ExactAssets", IsActive = true, Revision = 1,
                 CreatedAtUtc = now, UpdatedAtUtc = now
             });
             if (!global) setup.AccessGrantAssets.Add(new AccessGrantAssetEntity { GrantId = grantId, AssetId = assetId });
             await setup.SaveChangesAsync();
-            var subject = new AccessSubject(userId, group ? new(userId, [groupSid], now) : null);
+            var subject = new AccessSubject(userId, group ? new VerifiedWindowsGroupMembership(userId, [groupId], now) : null);
             var clock = new FixedClock(now);
             await using var writer = new WellSiteAutoPilotDbContext(options);
             try { await AuthorizeAsync(writer); throw new InvalidOperationException("Grant guard allowed a missing transaction."); }

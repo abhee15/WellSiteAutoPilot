@@ -1,19 +1,53 @@
-/* Scoped-grant planning keeps Asset and permission boundaries visible together. */
-.grant-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-column-min)), 1fr)); gap: var(--space-16); margin: var(--space-12) var(--space-18); }
-.grant-fields label, .grant-assets > label { display: grid; gap: var(--space-6); }
-.grant-fields select, .grant-assets input[type="search"] { width: 100%; color: var(--color-text-primary); background: var(--color-surface-input); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); padding: var(--space-10); font: inherit; }
-.grant-assets { margin: 0 var(--space-18); padding: var(--space-10) 0; border: 0; }
-.grant-asset-list { max-height: var(--layout-list-max); overflow-y: auto; padding: var(--space-8) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); }
-.grant-asset-list small { display: block; color: var(--color-text-subtle); overflow-wrap: anywhere; }
-.grant-editor .access-review, .grant-editor .grant-confirm { margin-inline: var(--space-18); }
-.grant-editor .access-review ul { overflow-wrap: anywhere; }
-.grant-actions { margin: 0 var(--space-18) var(--space-20); }
-
-/* Grant admin: clear separation between planning and audited persistence. */
-.grant-user-picker { display: grid; gap: var(--space-8); margin: var(--space-12) var(--space-18); max-width: var(--layout-form-wide); }
-.grant-user-picker select, .grant-user-picker input { color: var(--color-text-primary); background: var(--color-surface-input); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); padding: var(--space-10); font: inherit; width: 100%; }
-.grant-current-list { margin: var(--space-18); }
+/* Selection, assignment and review share one readable measure. */
+.grant-management-panel, .grant-editor, .grant-final-review { width: 100%; max-width: var(--layout-readable); }
+.grant-management-panel > .panel-header, .grant-editor > .panel-header, .grant-final-review > .panel-header { padding: var(--space-20) var(--space-24); }
+.grant-selection { display: grid; gap: var(--space-24); padding: var(--space-24); }
+.grant-selection .grant-selection-intro { margin: 0; line-height: 1.6; }
+.grant-selection > .access-intro { margin: 0; }
+.grant-user-picker, .directory-group-picker label { display: grid; gap: var(--space-8); min-width: 0; font-size: var(--font-size-body-small); font-weight: 500; }
+.grant-user-picker { margin: 0; }
+.grant-subject-picker { max-width: var(--layout-form); }
+.grant-person-picker { max-width: var(--layout-form-wide); }
+.directory-group-picker { display: grid; gap: var(--space-24); min-width: 0; }
+.directory-group-picker > p { margin: 0; }
+.directory-search { display: grid; gap: var(--space-8); }
+.directory-search > label { font-size: var(--font-size-body-small); font-weight: 500; }
+.grant-user-picker select, .directory-group-picker select {
+  display: block; width: 100%; min-width: 0; min-height: var(--size-touch-target);
+  padding: var(--space-10) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control);
+  border-radius: var(--radius-6); background-color: var(--color-surface-input); color: var(--color-text-primary);
+  font: inherit; font-size: var(--font-size-body-small); font-weight: 400;
+}
+.directory-picker-help { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); line-height: 1.5; }
+.grant-management-panel .grant-current-list { margin: 0; padding: var(--space-24); border-top: var(--border-width-thin) solid var(--color-border-subtle); }
+.grant-current-list h3 { margin: 0 0 var(--space-12); }
+.grant-current-list > p { color: var(--color-text-muted); margin: 0 0 var(--space-20); }
+.grant-current-list ul { display: grid; gap: var(--space-8); padding: 0; margin: 0 0 var(--space-20); list-style: none; }
+.grant-current-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); padding: var(--space-12) var(--space-16); background: var(--color-surface-detail); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-6); }
 .grant-current-list li, .grant-final-review li { overflow-wrap: anywhere; }
-.grant-final-review { margin-top: var(--space-18); }
-.grant-final-review > p, .grant-final-review > ul { margin-inline: var(--space-18); }
-.grant-final-review > .execution-detail-actions { margin: var(--space-18); }
+.grant-current-list li button { flex-shrink: 0; }
+/* Keep role/scope together and Asset/permission review distinct. */
+.grant-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-column-min)), 1fr)); gap: var(--space-20); margin: var(--space-24); }
+.grant-fields label, .grant-assets > label { display: grid; gap: var(--space-8); font-size: var(--font-size-body-small); font-weight: 500; }
+.grant-fields select { width: 100%; min-height: var(--size-touch-target); color: var(--color-text-primary); background-color: var(--color-surface-input); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); padding: var(--space-10) var(--space-12); font: inherit; font-size: var(--font-size-control); font-weight: 400; }
+.grant-assets { margin: 0 var(--space-24); padding: 0 0 var(--space-20); border: 0; }
+.grant-asset-list { max-height: var(--layout-list-max); overflow-y: auto; margin-top: var(--space-12); padding: var(--space-8) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); }
+.grant-asset-list small { display: block; color: var(--color-text-subtle); overflow-wrap: anywhere; }
+.grant-editor .access-review, .grant-editor .grant-confirm { margin-inline: var(--space-24); }
+.grant-editor .access-review ul { overflow-wrap: anywhere; }
+.grant-actions { display: flex; gap: var(--space-12); flex-wrap: wrap; margin: 0 var(--space-24) var(--space-24); }
+.grant-final-review { margin-top: var(--space-20); }
+.grant-final-review > p, .grant-final-review > ul { margin-inline: var(--space-24); }
+.grant-final-review > .execution-detail-actions { margin: var(--space-24); }
+@media (max-width: 640px) {
+  .grant-management-panel > .panel-header, .grant-selection, .grant-management-panel .grant-current-list { padding: var(--space-20); }
+  .grant-current-list li { align-items: flex-start; flex-direction: column; }
+  .grant-fields { margin: var(--space-20); }
+  .grant-assets, .grant-editor .access-review, .grant-editor .grant-confirm { margin-inline: var(--space-20); }
+  .grant-actions { margin-inline: var(--space-20); }
+}
+
+.grant-editor { font-size: var(--font-size-body-small); line-height: 1.5; }
+.grant-editor > .access-intro { margin-inline: var(--space-24); }
+.grant-assets legend { padding: 0; margin-bottom: var(--space-12); font-weight: 500; }
+.grant-user-picker select, .directory-group-picker select, .grant-fields select { padding-inline-end: calc(var(--space-12) + var(--size-icon) + var(--space-8)); }

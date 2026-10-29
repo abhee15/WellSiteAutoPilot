@@ -1,3 +1,6 @@
+import { ActionButton } from '../components/ActionButton';
+import { ArrowRight } from 'lucide-react';
+import { SearchInput } from '../components/SearchInput';
 import { useMemo, useState } from 'react';
 import { t } from '../localization';
 import type { PermissionDefinition, RoleRecord } from './roleCatalog';
@@ -5,7 +8,7 @@ import { GrantValidationError, previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft, ScopeKind } from './scopedAccessGrants';
 
 type Props = {
-  user: { userId: string; identityName: string; groupSid?: string };
+  user: { userId: string; identityName: string; groupId?: string; directoryId?: string };
   roles: readonly RoleRecord[]; permissions: readonly PermissionDefinition[];
   assets: readonly AssetChoice[]; allowAllAssets: boolean;
   onContinue: (grant: GrantDraft) => void; onCancel: () => void;
@@ -21,10 +24,10 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
   const [acknowledged, setAcknowledged] = useState(false);
   const role = roles.find(item => item.roleId === roleId) ?? null;
   const reviewedRoleRevision = role?.revision ?? 0;
-  const draft = useMemo<GrantDraft>(() => ({ subjectKind: user.groupSid ? 'WindowsGroup' : 'User', userId: user.userId,
-    ...(user.groupSid ? { groupSid: user.groupSid } : {}),
+  const draft = useMemo<GrantDraft>(() => ({ subjectKind: user.groupId ? 'Group' : 'User', userId: user.userId,
+    ...(user.groupId ? { groupId: user.groupId, directoryId: user.directoryId } : {}),
     roleId, scopeKind, assetIds, expectedRoleRevision: reviewedRoleRevision }),
-  [user.userId, user.groupSid, roleId, scopeKind, assetIds, reviewedRoleRevision]);
+  [user.userId, user.groupId, user.directoryId, roleId, scopeKind, assetIds, reviewedRoleRevision]);
   const preview = useMemo(() => {
     try { return previewGrant(draft, role, permissions, assets, allowAllAssets); }
     catch (error) {
@@ -48,7 +51,7 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
           {t('access.cancel')}
         </button>
       </div>
-      <p className="access-note access-intro">{t(user.groupSid ? 'grants.forGroup' : 'grants.forUser', { name: user.identityName })}</p>
+      <p className="access-note access-intro">{t(user.groupId ? 'grants.forGroup' : 'grants.forUser', { name: user.identityName })}</p>
       <div className="grant-fields">
         <label>{t('grants.role')}
           <select value={roleId} onChange={event => {
@@ -74,7 +77,7 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
         <fieldset className="grant-assets">
           <legend>{t('grants.assets')}</legend>
           <label>{t('grants.search')}
-            <input type="search" value={query} maxLength={120}
+            <SearchInput controlSize="large" value={query} maxLength={120}
               onChange={event => setQuery(event.target.value)} />
           </label>
           {matching.length > visible.length &&
@@ -118,8 +121,8 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
         {t('grants.confirm')}
       </label>
       <div className="execution-detail-actions grant-actions">
-        <button type="button" disabled={!preview || !acknowledged}
-          onClick={() => onContinue(draft)}>{t('grants.continue')}</button>
+        <ActionButton label={t('grants.continue')} icon={ArrowRight} variant="primary" controlSize="large"
+          disabled={!preview || !acknowledged} onClick={() => onContinue(draft)} />
       </div>
     </section>
   );

@@ -11,6 +11,8 @@ public sealed record SecurityUserDirectoryEntry(UserIdentity User, int ActiveDir
 /// <summary>Protected administrator reads, independent of legacy role profiles.</summary>
 public interface ISecurityDirectoryRepository
 {
+    Task<IReadOnlyCollection<DirectoryGroup>> ListAssignedGroupsAuthorizedAsync(AccessSubject administrator,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<SecurityAssetDirectoryEntry>> ListAssetsAuthorizedAsync(AccessSubject administrator,
         int offset, int limit, CancellationToken cancellationToken = default);
     /// <summary>

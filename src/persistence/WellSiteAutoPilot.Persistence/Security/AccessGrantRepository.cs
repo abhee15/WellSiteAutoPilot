@@ -20,7 +20,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
         AccessGrantSubject subject, CancellationToken cancellationToken = default)
     {
         var rows = await dbContext.AccessGrants.AsNoTracking()
-            .Where(item => item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupSid == subject.GroupSid)
+            .Where(item => item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupId == subject.GroupId && item.DirectoryId == subject.DirectoryId)
             .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Id)
             .Take(501)
             .ToArrayAsync(cancellationToken);
@@ -90,7 +90,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
             nowUtc = (clock ?? TimeProvider.System).GetUtcNow();
         }
 
-        var targetActive = subject.Kind == AccessGrantSubjectKind.WindowsGroup ||
+        var targetActive = subject.Kind == AccessGrantSubjectKind.Group ||
             await dbContext.Users.AsNoTracking().AnyAsync(
                 item => item.Id == subject.UserId && item.IsActive, cancellationToken);
         var admin = administrator is not null || await dbContext.Users.AsNoTracking()
@@ -120,8 +120,8 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
         }
 
         await RequireAdministrationAsync(administrator, actor, cancellationToken);
-        if (subject.GroupSid is { } groupSid)
-            SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, nowUtc);
+        if (subject.GroupId is { } groupId)
+            SecurityActorGroupGuard.RequireOtherGroup(actor, groupId, nowUtc, subject.DirectoryId!);
 
         var scopeIds = command.AssetIds.Distinct().ToArray();
         if (!Enum.IsDefined(command.ScopeKind) || scopeIds.Length != command.AssetIds.Count ||
@@ -180,7 +180,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
         // Prevent uncontrolled duplicate grants; administrators should edit
         // the existing assignment rather than create indistinguishable rows.
         var existing = await dbContext.AccessGrants.AsNoTracking()
-            .Where(item => item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupSid == subject.GroupSid &&
+            .Where(item => item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupId == subject.GroupId && item.DirectoryId == subject.DirectoryId &&
                 item.RoleId == command.RoleId &&
                 item.ScopeKind == command.ScopeKind.ToString() && item.IsActive)
             .AnyAsync(cancellationToken);
@@ -198,7 +198,10 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
             Id = id,
             SubjectKind = subject.Kind.ToString(),
             UserId = subject.UserId,
-            GroupSid = subject.GroupSid,
+            GroupId = subject.GroupId,
+            DirectoryId = subject.DirectoryId,
+            GroupDisplayName = subject.DisplayName,
+            GroupDomain = subject.Domain,
             RoleId = role.Id,
             ScopeKind = command.ScopeKind.ToString(),
             IsActive = true,
@@ -227,7 +230,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
             CorrelationId = actor.CorrelationId,
             DetailsJson = JsonSerializer.Serialize(new
             {
-                subjectKind = subject.Kind.ToString(), userId = subject.UserId, groupSid = subject.GroupSid, roleId = role.Id, roleRevision = role.Revision,
+                subjectKind = subject.Kind.ToString(), userId = subject.UserId, groupId = subject.GroupId, directoryId = subject.DirectoryId, groupDisplayName = subject.DisplayName, groupDomain = subject.Domain, roleId = role.Id, roleRevision = role.Revision,
                 scopeKind = command.ScopeKind.ToString(),
                 assetIds = scopeIds,
                 liveAuthorizationUnchanged = administrator is null
@@ -237,8 +240,8 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
         try
         {
             await RequireAdministrationAsync(administrator, actor, cancellationToken);
-            if (administrator is not null && subject.GroupSid is { } checkedGroup)
-                SecurityActorGroupGuard.RequireOtherGroup(actor, checkedGroup, (clock ?? TimeProvider.System).GetUtcNow());
+            if (administrator is not null && subject.GroupId is { } checkedGroup)
+                SecurityActorGroupGuard.RequireOtherGroup(actor, checkedGroup, (clock ?? TimeProvider.System).GetUtcNow(), subject.DirectoryId!);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -251,7 +254,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
         }
 
         return new AccessGrant(id, subject.Kind,
-            subject.UserId, subject.GroupSid, role.Id, command.ScopeKind, scopeIds, true, 1);
+            subject.UserId, subject.GroupId, role.Id, command.ScopeKind, scopeIds, true, 1) { DirectoryId = subject.DirectoryId, GroupDisplayName = subject.DisplayName, GroupDomain = subject.Domain };
     }
 
     public Task<AccessGrant> DeactivateAsync(
@@ -287,8 +290,8 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
                 "An active, distinct administrator is required.");
         }
         await RequireAdministrationAsync(administrator, actor, cancellationToken);
-        if (subject.GroupSid is { } groupSid)
-            SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, nowUtc);
+        if (subject.GroupId is { } groupId)
+            SecurityActorGroupGuard.RequireOtherGroup(actor, groupId, nowUtc, subject.DirectoryId!);
         if (administrator is not null)
         {
             if (subject.UserId is { } targetUser)
@@ -308,7 +311,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
         }
         var current = await dbContext.AccessGrants.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == grantId &&
-                item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupSid == subject.GroupSid,
+                item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupId == subject.GroupId && item.DirectoryId == subject.DirectoryId,
                 cancellationToken);
         if (current is null)
         {
@@ -343,7 +346,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
             // Atomic compare-and-set prevents stale writers and double audit.
             var changed = await dbContext.AccessGrants
                 .Where(item => item.Id == grantId &&
-                    item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupSid == subject.GroupSid &&
+                    item.SubjectKind == subject.Kind.ToString() && item.UserId == subject.UserId && item.GroupId == subject.GroupId && item.DirectoryId == subject.DirectoryId &&
                     item.IsActive && item.Revision == expectedRevision)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(item => item.IsActive, false)
@@ -369,7 +372,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
                 CorrelationId = actor.CorrelationId,
                 DetailsJson = JsonSerializer.Serialize(new
                 {
-                    subjectKind = subject.Kind.ToString(), userId = subject.UserId, groupSid = subject.GroupSid, roleId = current.RoleId,
+                    subjectKind = subject.Kind.ToString(), userId = subject.UserId, groupId = subject.GroupId, directoryId = subject.DirectoryId, groupDisplayName = current.GroupDisplayName, groupDomain = current.GroupDomain, roleId = current.RoleId,
                     scopeKind = current.ScopeKind,
                     previousRevision = expectedRevision,
                     newRevision = expectedRevision + 1,
@@ -377,8 +380,8 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
                 }, AuditOptions)
             });
             await RequireAdministrationAsync(administrator, actor, cancellationToken);
-            if (administrator is not null && subject.GroupSid is { } checkedGroup)
-                SecurityActorGroupGuard.RequireOtherGroup(actor, checkedGroup, (clock ?? TimeProvider.System).GetUtcNow());
+            if (administrator is not null && subject.GroupId is { } checkedGroup)
+                SecurityActorGroupGuard.RequireOtherGroup(actor, checkedGroup, (clock ?? TimeProvider.System).GetUtcNow(), subject.DirectoryId!);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -396,9 +399,9 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
             .Select(item => item.AssetId)
             .ToArrayAsync(cancellationToken);
         return new AccessGrant(current.Id, subject.Kind,
-            current.UserId, current.GroupSid, current.RoleId,
+            current.UserId, current.GroupId, current.RoleId,
             Enum.Parse<AccessGrantScopeKind>(current.ScopeKind),
-            assets, false, expectedRevision + 1);
+            assets, false, expectedRevision + 1) { DirectoryId = current.DirectoryId, GroupDisplayName = current.GroupDisplayName, GroupDomain = current.GroupDomain };
     }
 
     public Task<IReadOnlyCollection<AccessGrant>> ListForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -408,7 +411,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
         dbContext.AccessGrants.AsNoTracking().Where(grant =>
             grant.Id != Guid.Empty && grant.IsActive && grant.Revision >= 1 &&
             grant.SubjectKind == "User" && grant.UserId != null &&
-            grant.UserId != Guid.Empty && grant.GroupSid == null &&
+            grant.UserId != Guid.Empty && grant.GroupId == null &&
             grant.ScopeKind == "DeploymentWide" &&
             !dbContext.AccessGrantAssets.Any(binding => binding.GrantId == grant.Id) &&
             dbContext.Users.Any(user => user.Id == grant.UserId && user.IsActive) &&
@@ -445,7 +448,7 @@ public sealed class AccessGrantRepository(WellSiteAutoPilotDbContext dbContext, 
             throw new InvalidOperationException("Unsupported persisted grant type.");
         }
 
-        return new AccessGrant(row.Id, subject, row.UserId, row.GroupSid,
-            row.RoleId, scope, assetIds.ToArray(), row.IsActive, row.Revision);
+        return new AccessGrant(row.Id, subject, row.UserId, row.GroupId,
+            row.RoleId, scope, assetIds.ToArray(), row.IsActive, row.Revision) { DirectoryId = row.DirectoryId, GroupDisplayName = row.GroupDisplayName, GroupDomain = row.GroupDomain };
     }
 }

@@ -210,7 +210,7 @@ var result = new LogicModuleExecutionResult(
     ],
     new Dictionary<string, string>());
 
-var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+var serializerOptions = JsonSerializerOptions.Web;
 var outputJson = JsonSerializer.Serialize(result, serializerOptions);
 
 await executionRepository.ApplyCompletedAsync(

@@ -32,7 +32,7 @@ internal static class AuthorizedRoleAdministrationChecks
         await ExpectAsync(() => UpdateAsync(created.Id, renamed.Revision, command with { IsActive = false }, direct, directActor), FailureKind.Authorization);
         await setup.AccessGrants.Where(item => item.Id == own).ExecuteDeleteAsync();
         var ownGroup = Guid.NewGuid();
-        await AddAssignmentAsync(ownGroup, null, groupAdministrator.WindowsGroups!.GroupSids.Single());
+        await AddAssignmentAsync(ownGroup, null, groupAdministrator.Groups!.GroupIds.Single());
         await ExpectAsync(() => UpdateAsync(created.Id, renamed.Revision, command with { IsActive = false }, groupAdministrator, groupActor), FailureKind.Authorization);
         await setup.AccessGrants.Where(item => item.Id == ownGroup).ExecuteDeleteAsync();
         var assigned = Guid.NewGuid();
@@ -106,8 +106,8 @@ internal static class AuthorizedRoleAdministrationChecks
         {
             setup.AccessGrants.Add(new AccessGrantEntity
             {
-                Id = id, RoleId = created.Id, SubjectKind = user is null ? "WindowsGroup" : "User",
-                UserId = user, GroupSid = sid, ScopeKind = "AllAssets", IsActive = true, Revision = 1,
+                Id = id, RoleId = created.Id, SubjectKind = user is null ? "Group" : "User",
+                UserId = user, GroupId = sid, ScopeKind = "AllAssets", IsActive = true, Revision = 1,
                 CreatedAtUtc = DateTimeOffset.UtcNow, UpdatedAtUtc = DateTimeOffset.UtcNow
             });
             await setup.SaveChangesAsync();

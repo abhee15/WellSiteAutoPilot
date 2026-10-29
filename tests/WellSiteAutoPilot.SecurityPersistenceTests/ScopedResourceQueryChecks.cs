@@ -113,7 +113,7 @@ internal static class ScopedResourceQueryChecks
         Grant(engineer, "DeploymentWide");
         db.AccessGrants.Add(new AccessGrantEntity
         {
-            Id = Guid.NewGuid(), SubjectKind = "WindowsGroup", GroupSid = "S-1-5-21-777",
+            Id = Guid.NewGuid(), SubjectKind = "Group", GroupId = "S-1-5-21-777",
             RoleId = engineer, ScopeKind = "AllAssets", IsActive = true, Revision = 1,
             CreatedAtUtc = now, UpdatedAtUtc = now
         });
@@ -588,7 +588,7 @@ internal static class ScopedResourceQueryChecks
             var id = Guid.NewGuid();
             db.AccessGrants.Add(new AccessGrantEntity
             {
-                Id = id, SubjectKind = "WindowsGroup", GroupSid = sid, RoleId = roleId,
+                Id = id, SubjectKind = "Group", GroupId = sid, RoleId = roleId,
                 ScopeKind = scopeKind, IsActive = true, Revision = 1,
                 CreatedAtUtc = now, UpdatedAtUtc = now
             });

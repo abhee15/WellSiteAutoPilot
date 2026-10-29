@@ -54,7 +54,7 @@ internal static class AuthorizedRecommendationChecks
             Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
         }, new AccessGrantEntity
         {
-            Id = readGrant, SubjectKind = "WindowsGroup", GroupSid = "S-1-5-21-912-1", RoleId = readRole,
+            Id = readGrant, SubjectKind = "Group", GroupId = "S-1-5-21-912-1", RoleId = readRole,
             ScopeKind = "ExactAssets", IsActive = true, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
         });
         setup.AccessGrantAssets.AddRange(new AccessGrantAssetEntity { GrantId = decideGrant, AssetId = assetA },

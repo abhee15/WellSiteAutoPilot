@@ -12,7 +12,7 @@ public sealed partial class RecommendationRepository
     {
         ArgumentNullException.ThrowIfNull(subject);
         var entity = await ScopedAccessQueries.Recommendations(dbContext, subject.UserId, WellSitePermissions.RecommendationsRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow())
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow())
             .SingleOrDefaultAsync(recommendation => recommendation.Id == id, cancellationToken);
         return entity is null ? null : ToDomain(entity);
     }
@@ -24,7 +24,7 @@ public sealed partial class RecommendationRepository
         ArgumentNullException.ThrowIfNull(subject);
         if (limit is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(limit));
         var query = ScopedAccessQueries.Recommendations(dbContext, subject.UserId, WellSitePermissions.RecommendationsRead,
-            subject.WindowsGroups, (clock ?? TimeProvider.System).GetUtcNow());
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow());
         if (status is { } value) query = query.Where(recommendation => recommendation.Status == value.ToString());
         if (configuredLogicId is { } logic) query = query.Where(recommendation => recommendation.ConfiguredLogicId == logic);
         if (assetId is { } asset) query = query.Where(recommendation => recommendation.AssetId == asset);

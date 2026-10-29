@@ -8,10 +8,13 @@ public sealed record AccessGrantSubject
 {
     public AccessGrantSubjectKind Kind { get; }
     public Guid? UserId { get; }
-    public string? GroupSid { get; }
+    public string? GroupId { get; }
+    public string? DirectoryId { get; private init; }
+    public string? DisplayName { get; private init; }
+    public string? Domain { get; private init; }
 
-    private AccessGrantSubject(AccessGrantSubjectKind kind, Guid? userId, string? groupSid)
-        => (Kind, UserId, GroupSid) = (kind, userId, groupSid);
+    private AccessGrantSubject(AccessGrantSubjectKind kind, Guid? userId, string? groupId)
+        => (Kind, UserId, GroupId) = (kind, userId, groupId);
 
     public static AccessGrantSubject ForUser(Guid userId)
     {
@@ -19,10 +22,16 @@ public sealed record AccessGrantSubject
         return new(AccessGrantSubjectKind.User, userId, null);
     }
 
-    public static AccessGrantSubject ForWindowsGroup(string? groupSid)
+    public static AccessGrantSubject ForGroup(string directoryId, string groupId, string? displayName = null, string? domain = null)
     {
-        if (!WindowsSidFormat.IsValid(groupSid)) throw InvalidSubject();
-        return new(AccessGrantSubjectKind.WindowsGroup, null, groupSid!.ToUpperInvariant());
+        if (!DirectoryGroupIdentity.IsValidDirectory(directoryId) || !DirectoryGroupIdentity.IsValidId(groupId)) throw InvalidSubject();
+        return new(AccessGrantSubjectKind.Group, null, groupId) { DirectoryId = directoryId, DisplayName = displayName, Domain = domain };
+    }
+
+    public static AccessGrantSubject ForWindowsGroup(string? groupId)
+    {
+        if (!WindowsSidFormat.IsValid(groupId)) throw InvalidSubject();
+        return ForGroup("windows-ad", groupId!.ToUpperInvariant());
     }
 
     private static WellSiteAutoPilotException InvalidSubject() => new(

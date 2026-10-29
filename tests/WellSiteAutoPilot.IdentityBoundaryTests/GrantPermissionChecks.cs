@@ -51,7 +51,7 @@ internal static class GrantPermissionChecks
         repository.Administrator = true;
         await ExpectAsync(WellSitePermissions.SecurityManage, true);
         Require(ReferenceEquals(repository.LastSubject, access.Subject) &&
-            ReferenceEquals(repository.LastSubject.WindowsGroups, membership) && repository.LastCancellation == abort.Token,
+            ReferenceEquals(repository.LastSubject.Groups, membership) && repository.LastCancellation == abort.Token,
             "The handler lost its bound subject, group observation or request cancellation.");
 
         // The same context must query again after revocation, not cache claims
@@ -100,7 +100,7 @@ internal static class GrantPermissionChecks
 
     private sealed class Groups(VerifiedWindowsGroupMembership membership) : IIdentityGroupResolver
     {
-        public VerifiedWindowsGroupMembership? Resolve(ClaimsPrincipal principal,
+        public VerifiedGroupMembership? Resolve(ClaimsPrincipal principal,
             AuthenticatedExternalIdentity identity, Guid localUserId) => membership;
     }
 

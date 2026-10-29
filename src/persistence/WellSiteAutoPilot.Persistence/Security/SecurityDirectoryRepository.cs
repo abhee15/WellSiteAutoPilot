@@ -12,6 +12,21 @@ namespace WellSiteAutoPilot.Persistence.Security;
 public sealed class SecurityDirectoryRepository(WellSiteAutoPilotDbContext db, TimeProvider clock)
     : ISecurityDirectoryRepository
 {
+    public Task<IReadOnlyCollection<DirectoryGroup>> ListAssignedGroupsAuthorizedAsync(AccessSubject administrator,
+        CancellationToken cancellationToken = default) =>
+        ReadAsync<IReadOnlyCollection<DirectoryGroup>>(administrator, async () =>
+        {
+            var rows = await db.AccessGrants.AsNoTracking().Where(g => g.SubjectKind == "Group" && g.GroupId != null && g.DirectoryId != null)
+                .GroupBy(g => new { g.DirectoryId, g.GroupId })
+                .Select(g => new { g.Key.DirectoryId, g.Key.GroupId,
+                    DisplayName = g.Max(x => x.GroupDisplayName), Domain = g.Max(x => x.GroupDomain) })
+                .OrderBy(g => g.DirectoryId).ThenBy(g => g.GroupId).Take(501).ToArrayAsync(cancellationToken);
+            if (rows.Length > 500)
+                throw new WellSiteAutoPilotException("SECURITY_DIRECTORY_TOO_LARGE", FailureKind.Validation,
+                    "The assigned-group list exceeds 500 groups. Use directory search to locate the group.");
+            return rows.Select(g => new DirectoryGroup(g.DirectoryId!, g.GroupId!, g.DisplayName ?? g.GroupId!, g.Domain ?? "")).ToArray();
+        }, cancellationToken);
+
     public Task<IReadOnlyCollection<SecurityAssetDirectoryEntry>> ListAssetsAuthorizedAsync(AccessSubject administrator,
         int offset, int limit, CancellationToken cancellationToken = default)
     {

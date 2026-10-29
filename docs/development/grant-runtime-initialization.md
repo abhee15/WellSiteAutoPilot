@@ -81,5 +81,6 @@ protections still apply.
 The count covers roles assigned to the person directly. Access that arrives through
 a mapped Windows group is proven from the sign-in token on each request, so the
 directory cannot show it: someone covered only by a group can legitimately show
-"None". Default access for everyone in a Windows group is configured by assigning
-the group a role under Scoped grants, not by a separate setting.
+"None". Default access for members of a directory group is configured under Scoped grants
+by selecting Directory group, searching its name and assigning a role/scope.
+Previously assigned groups can also be inspected when directory search is unavailable.

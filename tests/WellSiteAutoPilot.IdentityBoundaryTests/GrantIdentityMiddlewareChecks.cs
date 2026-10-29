@@ -30,7 +30,7 @@ internal static class GrantIdentityMiddlewareChecks
         Require(directory.Calls == 1 && identity.LastDisplayName == "Directory Person",
             "A login without a provider display name did not receive the directory name.");
         Require(nextCalls == 2 && identity.Calls == 1 && bootstrap.Calls == 0 &&
-            regularAccess.Subject.UserId == identity.UserId && regularAccess.Subject.WindowsGroups is null &&
+            regularAccess.Subject.UserId == identity.UserId && regularAccess.Subject.Groups is null &&
             regular.User.Claims.SequenceEqual(claims) && regular.User.Identities.Count() == 1,
             "Identity provisioning issued claims, Windows group proof or implicit bootstrap access.");
         Require(identity.LastKey == "NAME:CORP\\OPERATOR" && identity.LastNormalizedName == "CORP\\OPERATOR",
@@ -117,7 +117,7 @@ internal static class GrantIdentityMiddlewareChecks
 
     private sealed class RejectGroups : IIdentityGroupResolver
     {
-        public VerifiedWindowsGroupMembership? Resolve(ClaimsPrincipal principal,
+        public VerifiedGroupMembership? Resolve(ClaimsPrincipal principal,
             AuthenticatedExternalIdentity identity, Guid localUserId) =>
             throw new InvalidOperationException("TestHeader cannot provide Windows group authority.");
     }

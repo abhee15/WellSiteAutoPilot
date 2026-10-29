@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import './activity.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
@@ -10,7 +11,7 @@ import { describeActor, describeAuditEvent, relativeTime } from './auditPresenta
 import { AuditEventPanel } from './AuditEventPanel';
 import { AuditSentence } from './AuditSentence';
 import { Status } from '../components/Status';
-import { IconButton } from '../components/IconButton';
+import { ActionButton } from '../components/ActionButton';
 
 const noFilters: AuditFilters = { actionPrefix: '', targetType: '' };
 
@@ -98,11 +99,11 @@ export function ActivityPage() {
           <summary>{activeFilterCount > 0 ? t('activity.filtersActive', { count: activeFilterCount }) : t('activity.filters')}</summary>
           <form className="activity-filters" onSubmit={event => { event.preventDefault(); apply(draft); }}>
             <label>{t('activity.actionFilter')}
-              <input type="search" maxLength={128} value={draft.actionPrefix}
+              <SearchInput maxLength={128} value={draft.actionPrefix}
                 onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
             </label>
             <label>{t('activity.targetFilter')}
-              <input type="search" maxLength={128} value={draft.targetType}
+              <SearchInput maxLength={128} value={draft.targetType}
                 onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
             </label>
             <div className="activity-filter-actions">
@@ -112,7 +113,7 @@ export function ActivityPage() {
             </div>
           </form>
         </details>
-        <IconButton icon={RefreshCw} label={t('activity.refresh')} disabled={busy} onClick={() => void loadFirst(applied)} />
+        <ActionButton icon={RefreshCw} iconOnly label={t('activity.refresh')} disabled={busy} onClick={() => void loadFirst(applied)} />
       </div>
       {loading && <LoadingIndicator label={t('activity.loading')} />}
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}

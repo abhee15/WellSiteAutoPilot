@@ -54,8 +54,8 @@ public sealed class AccessGrantAdministrationService(
         }
 
         await RequireSubjectAsync(subject, cancellationToken);
-        if (subject.GroupSid is { } groupSid)
-            SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, clock.GetUtcNow());
+        if (subject.GroupId is { } groupId)
+            SecurityActorGroupGuard.RequireOtherGroup(actor, groupId, clock.GetUtcNow(), subject.DirectoryId!);
         if (command.ExpectedRoleRevision < 1)
         {
             throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException(
@@ -131,8 +131,8 @@ public sealed class AccessGrantAdministrationService(
                 "Administrators may not change their own assignments.");
         }
         await RequireSubjectAsync(subject, cancellationToken);
-        if (subject.GroupSid is { } groupSid)
-            SecurityActorGroupGuard.RequireOtherGroup(actor, groupSid, clock.GetUtcNow());
+        if (subject.GroupId is { } groupId)
+            SecurityActorGroupGuard.RequireOtherGroup(actor, groupId, clock.GetUtcNow(), subject.DirectoryId!);
         if (grantId == Guid.Empty || expectedRevision < 1)
         {
             throw new WellSiteAutoPilot.Failures.WellSiteAutoPilotException(

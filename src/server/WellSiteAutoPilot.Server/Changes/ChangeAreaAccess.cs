@@ -31,7 +31,7 @@ public sealed class ChangeAreaAccess(UserIdentityService identities, IAuthentica
             null, cancellationToken);
         if (!user.IsActive) return readable;
 
-        var membership = external.ProviderId == "windows" ? groups.Resolve(principal, external, user.Id) : null;
+        var membership = external.ProviderId != "ci-test-header" ? groups.Resolve(principal, external, user.Id) : null;
         var subject = new AccessSubject(user.Id, membership);
         var held = await GrantPermissionChecker.HeldAsync(repository, subject,
             ChangeAreaNames.All.Select(ChangeSignalProtocol.ReadPermission), cancellationToken);
