@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/integration/WellSiteAutoPilot.Integration.CygNet.Adapter/WellSiteAutoPilot.Integration.CygNet.Adapter.csproj" />
+  </ItemGroup>
+</Project>

@@ -15,6 +15,16 @@ directory service.
 - Not in `WellSiteAutoPilot.slnx`, so CI and a normal build never need the CygNet libraries. The Gateway compiles the
   provider in only when `CYGNET_LIBRARY_PATH` is set; without it the Gateway builds exactly as before.
 
+## CygNet connections (domain, site, service)
+
+A saved CygNet connection is a **domain**, a **site** and a **service** (CygNet writes site and service as `SITE.SERVICE`).
+Connection settings, "Test connection" and facility discovery live in `WellSiteAutoPilot.Integration.CygNet.Adapter`,
+which has no CygNet libraries in it, builds everywhere and is covered by `tests/WellSiteAutoPilot.CygNetAdapterTests`.
+Discovered facilities use their full tag (`SITE.SERVICE::FACILITY`) as the external id, which is what a CygNet read
+addresses. A Gateway built without the CygNet libraries lists the connection type but every test or discovery says
+so, and names `CYGNET_LIBRARY_PATH`. The CygNet-backed facility reader is added in a follow-up; points and reading
+values through a saved connection come after discovery has been tried against a real service.
+
 ## Build
 
 Set `CYGNET_LIBRARY_PATH` to the folder holding `CygNet.API.*.dll`, `CygNet.Data.*.dll` and the native `Cx*64.dll` files,

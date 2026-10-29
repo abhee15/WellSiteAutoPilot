@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Http.ServiceCallers;
 using WellSiteAutoPilot.IntegrationGateway.Adapters;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.Integration.PetroVisor;
 using WellSiteAutoPilot.IntegrationGateway.Providers;
 using WellSiteAutoPilot.Messaging.Nats;
@@ -23,6 +24,8 @@ builder.Services.AddSingleton<IPetroVisorSessionFactory>(
     PetroVisorKeycloakSessionFactory.IsConfigured(Environment.GetEnvironmentVariable)
         ? new PetroVisorKeycloakSessionFactory(Environment.GetEnvironmentVariable)
         : new PetroVisorPasswordSessionFactory(Environment.GetEnvironmentVariable));
+// Builds with the CygNet libraries replace this with the real reader; without them every CygNet call says so plainly.
+builder.Services.AddSingleton<ICygNetFacilityReader, CygNetUnsupportedFacilityReader>();
 builder.Services.AddTransient<AdapterConnectionTester>();
 builder.Services.AddTransient<AdapterDiscoverer>();
 

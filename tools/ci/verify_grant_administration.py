@@ -210,8 +210,10 @@ request("GET", "/connections", OPERATOR, expected=403)
 request("GET", "/connections", None, expected=401)
 request("POST", "/connections", OPERATOR, {"name": "Denied", "adapterKey": "simulator", "settings": {}}, expected=403)
 adapters = request("GET", "/connections/adapters")
-assert [item["key"] for item in adapters] == ["simulator", "foresite", "petrovisor"], adapters
-assert all(item["fields"][0]["key"] == "baseUrl" and item["fields"][0]["kind"] == "Url" for item in adapters), adapters
+assert [item["key"] for item in adapters] == ["simulator", "foresite", "petrovisor", "cygnet"], adapters
+assert all(item["fields"][0]["key"] == "baseUrl" and item["fields"][0]["kind"] == "Url" for item in adapters if item["key"] != "cygnet"), adapters
+# A CygNet connection is a domain, a site and a service, not an address.
+assert [field["key"] for field in next(item for item in adapters if item["key"] == "cygnet")["fields"]] == ["domain", "site", "service"], adapters
 conn_name = "CI simulator " + uuid.uuid4().hex[:8]
 request("POST", "/connections", body={"name": conn_name, "adapterKey": "simulator", "settings": {"baseUrl": "ftp://x"}}, expected=400)
 request("POST", "/connections", body={"name": conn_name, "adapterKey": "nothing", "settings": {}}, expected=400)
