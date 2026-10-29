@@ -26,7 +26,8 @@ metadata and typed codes, not arbitrary failed provider payloads or module outpu
 Initial inline limits reuse the schema validator's 64 KiB value ceiling; the whole
 read reply is limited to 256 KiB UTF-8 and the saved result envelope to 512 KiB.
 The existing 256 KiB evaluation envelope and schema-depth constraints also apply.
-Oversized collections fail closed; no automatic truncation, chunking or Object
+HTTP card responses are read incrementally and stop at the byte ceiling, even
+without a Content-Length header. Oversized collections fail closed; no automatic truncation, chunking or Object
 Store payload indirection is introduced. Larger/downhole use cases need measured
 limits and a separately reviewed transport extension. Deploy Server, Gateway and
 worker together: older scalar workers cannot consume this additive capability.
@@ -65,5 +66,8 @@ unsupported units, upstream error text and oversized responses. Existing scalar
 session and measurement regressions remain in place. The hosted integration suite
 adds a synthetic authorized structured read larger than the old 8 KiB threshold,
 actual approved package execution, schema validation, calculated card arrays and
-PostgreSQL evidence persistence through NATS. UI tests inspect escaped structured
+PostgreSQL evidence persistence through NATS. An Unknown-quality fixture proves
+failed input diagnostics persist without card payloads or module results. The
+read-plan authorization suite also runs with structured inputs, including identical
+well IDs on two connections, grant revocation and source/revision changes. UI tests inspect escaped structured
 values without numeric coercion. CI does not access a live ForeSite installation.

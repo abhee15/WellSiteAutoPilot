@@ -33,6 +33,7 @@ namespace WellSiteAutoPilot.ExecutionDispatchTests;
 
 internal static class HostedModuleExecutionChecks
 {
+    private static readonly int[] CardPointCounts = [400, 112];
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     { Converters = { new JsonStringEnumConverter() } };
 
@@ -304,7 +305,7 @@ internal static class HostedModuleExecutionChecks
                 "Hosted read escaped its authorized saved source.");
             if (structured)
                 return Task.FromResult(new EngineeringValue("SurfaceCards", null, "", timestamp, structuredQuality, "synthetic-structured-fixture")
-                { StructuredValue = new("foresite.surface-cards/v1", JsonSerializer.SerializeToElement(new[] { 400, 112 }.Select((count, i) => new { id = "card-" + i, kind = i == 0 ? "CURRENT" : "FULL", capturedAtUtc = timestamp.AddSeconds(-i), positionUnit = "in", loadUnit = "lb", position = Enumerable.Range(0, count).ToArray(), load = Enumerable.Range(0, count).Select(n => n * 12345.67890123456789m).ToArray() }))) });
+                { StructuredValue = new("foresite.surface-cards/v1", JsonSerializer.SerializeToElement(CardPointCounts.Select((count, i) => new { id = "card-" + i, kind = i == 0 ? "CURRENT" : "FULL", capturedAtUtc = timestamp.AddSeconds(-i), positionUnit = "in", loadUnit = "lb", position = Enumerable.Range(0, count).ToArray(), load = Enumerable.Range(0, count).Select(n => n * 12345.67890123456789m).ToArray() }))) });
             return measurements is null
                 ? Task.FromResult(new EngineeringValue("PumpFillage", 99.6m, "%", timestamp, "Good", "verified-test-fixture"))
                 : measurements.ReadAsync(new ConnectionMeasurementRequest(read.ConnectionId, read.ConnectionRevision,

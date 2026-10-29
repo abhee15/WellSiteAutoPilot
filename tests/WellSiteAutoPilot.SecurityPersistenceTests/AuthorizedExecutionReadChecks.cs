@@ -17,7 +17,7 @@ internal static class AuthorizedExecutionReadChecks
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, Guid typeId)
+    public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, Guid typeId, bool structured = false)
     {
         await using var setup = new WellSiteAutoPilotDbContext(options);
         var now = DateTimeOffset.UtcNow;
@@ -64,6 +64,9 @@ internal static class AuthorizedExecutionReadChecks
         var commands = cases.Select(c => new ConfiguredShadowExecutionCommand(c.Configuration, c.Revision, module, "1.0.0", "{}",
             [new("well", c.Asset, "{}")], [new("fillage", c.Asset, "foresite", "42", "PumpFillage", "Current", "%", 60, false, "{}")],
             ExecutionTriggerKind.Manual, null)).ToArray();
+        if (structured)
+            commands = commands.Select(command => command with { Inputs = [command.Inputs.Single() with
+            { Quantity = "SurfaceCards", CanonicalUnit = null, RequiredCapability = "structured.current", SchemaId = "foresite.surface-cards/v1" }] }).ToArray();
         await DeniedAsync(async () =>
         {
             await using var unpublishedDb = new WellSiteAutoPilotDbContext(options);
@@ -119,6 +122,8 @@ internal static class AuthorizedExecutionReadChecks
         foreach (var input in new[] {
             commands[0].Inputs.Single() with { ProviderAssetExternalId = "43" },
             commands[0].Inputs.Single() with { Quantity = "unreviewed" },
+            commands[0].Inputs.Single() with { RequiredCapability = "unreviewed" },
+            commands[0].Inputs.Single() with { SchemaId = "unreviewed/v1" },
             commands[0].Inputs.Single() with { ProviderMappingJson = "{\"path\":\"other\"}" },
             commands[0].Inputs.Single() with { ProviderId = "simulator" } })
         {
