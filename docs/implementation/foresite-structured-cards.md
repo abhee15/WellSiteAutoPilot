@@ -71,3 +71,20 @@ failed input diagnostics persist without card payloads or module results. The
 read-plan authorization suite also runs with structured inputs, including identical
 well IDs on two connections, grant revocation and source/revision changes. UI tests inspect escaped structured
 values without numeric coercion. CI does not access a live ForeSite installation.
+
+## Result inspection and export
+
+The Runs detail view previews only `foresite.surface-cards/v1` payloads that match
+its supported surface-card shape. Each card keeps its own capture time, units,
+sample count and axis range; paired samples are connected in original order
+without sorting, smoothing or inventing a closing segment. Malformed or other
+schemas remain available as JSON without a speculative plot. Asset identity stays
+beside each structured input/result so multiple wells remain distinguishable.
+
+Download result JSON re-fetches the existing scoped execution-detail endpoint at
+click time. Access denial/not-found clears the displayed detail; failed or cancelled
+downloads never fall back to cached output. The bounded original OutputJson string
+is downloaded without parsing and reserializing numbers, preserving saved decimal
+digits and formatting. Chart/browser numbers are display approximations. Export
+creates no provider read or write and exposes no fields beyond the authorized
+execution detail. Downloaded files are independent copies, like other exports.
