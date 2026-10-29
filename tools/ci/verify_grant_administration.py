@@ -62,7 +62,7 @@ assert all("roles" not in session and "assetScopeIds" not in session
            for session in [admin, operator, other, group_only])
 for identity, status in [(None, 401), (OPERATOR, 403)]:
     for path in ["/assets", "/executions", "/configured-logic", "/recommendations", "/logic-modules",
-                 "/security/users", "/security/roles", "/security/role-permissions", "/security/assets/directory"]:
+                 "/security/users", "/security/groups", "/security/roles", "/security/role-permissions", "/security/assets/directory"]:
         request("GET", path, identity, expected=status)
 
 asset_type = request("POST", "/asset-types", body={"key": "ci-runtime-" + uuid.uuid4().hex[:10],

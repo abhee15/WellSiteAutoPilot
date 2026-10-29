@@ -30,6 +30,9 @@ internal static partial class AuthorizedSecurityDirectoryChecks
                 !users.Any(item => item.User.Id == groupAdministrator.UserId) ||
                 (await directory.ListUsersAuthorizedAsync(actor, 1)).Count != 1)
                 throw new InvalidOperationException("Protected directory lost disabled/custom-role identities or paging.");
+            var assigned = await directory.ListAssignedGroupsAuthorizedAsync(actor);
+            if (!assigned.Any(group => group.DirectoryId == groupTarget.DirectoryId && group.ExternalId == groupTarget.GroupId))
+                throw new InvalidOperationException("Saved group directory lost an existing assignment.");
             var roles = await directory.ListRolesAuthorizedAsync(actor, 500);
             if (!roles.Any(item => item.Id == customRole && item.Permissions.Contains(WellSitePermissions.SecurityManage)) ||
                 (await directory.GetRoleAuthorizedAsync(actor, protectedRole))?.IsSystem != true ||
@@ -124,6 +127,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
             var directory = new SecurityDirectoryRepository(db, TimeProvider.System);
             await ExpectAsync(() => directory.ListAssetsAuthorizedAsync(actor, 0, 100), FailureKind.Authorization);
             await ExpectAsync(() => directory.ListUsersAuthorizedAsync(actor, 100), FailureKind.Authorization);
+            await ExpectAsync(() => directory.ListAssignedGroupsAuthorizedAsync(actor), FailureKind.Authorization);
             await ExpectAsync(() => directory.ListRolesAuthorizedAsync(actor, 100), FailureKind.Authorization);
             await ExpectAsync(() => directory.GetRoleAuthorizedAsync(actor, protectedRole), FailureKind.Authorization);
             await ExpectAsync(() => directory.ListGrantsAuthorizedAsync(actor, target), FailureKind.Authorization);
