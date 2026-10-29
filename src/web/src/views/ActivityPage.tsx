@@ -2,9 +2,12 @@ import './activity.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
-import { AuditActivityError, appendAuditEvents, auditActionLabelKey, auditDetails, loadAuditPage } from './auditActivity';
+import { AuditActivityError, appendAuditEvents, loadAuditPage } from './auditActivity';
 import type { AuditErrorKind, AuditEvent, AuditFilters } from './auditActivity';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { describeActor, describeAuditEvent, relativeTime } from './auditPresentation';
+import { AuditEventPanel } from './AuditEventPanel';
+import { AuditSentence, OutcomePill } from './AuditSentence';
 
 const noFilters: AuditFilters = { actionPrefix: '', targetType: '' };
 
@@ -27,6 +30,13 @@ export function ActivityPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // "5 minutes ago" stays honest while the page is left open.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const fail = (caught: unknown) => {
     if (caught instanceof DOMException && caught.name === 'AbortError') return;
@@ -73,83 +83,109 @@ export function ActivityPage() {
 
   const apply = (filters: AuditFilters) => { setDraft(filters); setApplied(filters); void loadFirst(filters); };
   const busy = loading || loadingMore;
+  const selected = events.find(event => event.id === selectedId) ?? null;
+  const activeFilterCount = [applied.actionPrefix, applied.targetType].filter(value => value.trim() !== '').length;
 
   return (
-    <section className="panel">
+    <section className="panel activity-panel" data-has-selection={selected !== null}>
       <div className="panel-header">
         <h2>{t('activity.heading')}</h2>
         <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadFirst(applied)}>
           {t('activity.refresh')}
         </button>
       </div>
-      <p className="access-note access-intro">{t('activity.intro')}</p>
-      <form className="activity-filters" onSubmit={event => { event.preventDefault(); apply(draft); }}>
-        <label>{t('activity.actionFilter')}
-          <input type="search" maxLength={128} value={draft.actionPrefix}
-            onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
-        </label>
-        <label>{t('activity.targetFilter')}
-          <input type="search" maxLength={128} value={draft.targetType}
-            onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
-        </label>
-        <div className="activity-filter-actions">
-          <button type="submit" className="secondary-button" disabled={busy}>{t('activity.apply')}</button>
-          <button type="button" className="secondary-button" disabled={busy}
-            onClick={() => apply(noFilters)}>{t('activity.reset')}</button>
-        </div>
-      </form>
+      <div className="activity-toolbar">
+        <p className="access-note access-intro">{t('activity.intro')}</p>
+        <details className="split-filters activity-filter-disclosure">
+          <summary>{activeFilterCount > 0 ? t('activity.filtersActive', { count: activeFilterCount }) : t('activity.filters')}</summary>
+          <form className="activity-filters" onSubmit={event => { event.preventDefault(); apply(draft); }}>
+            <label>{t('activity.actionFilter')}
+              <input type="search" maxLength={128} value={draft.actionPrefix}
+                onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
+            </label>
+            <label>{t('activity.targetFilter')}
+              <input type="search" maxLength={128} value={draft.targetType}
+                onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
+            </label>
+            <div className="activity-filter-actions">
+              <button type="submit" className="secondary-button" disabled={busy}>{t('activity.apply')}</button>
+              <button type="button" className="secondary-button" disabled={busy}
+                onClick={() => apply(noFilters)}>{t('activity.reset')}</button>
+            </div>
+          </form>
+        </details>
+      </div>
       {loading && <LoadingIndicator label={t('activity.loading')} />}
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
       {!loading && !error && events.length === 0 && <p className="access-note access-intro">{t('activity.empty')}</p>}
       {events.length > 0 && (
-        <div className="table-wrap">
-          <table className="activity-table" aria-label={t('activity.heading')}>
-            <thead><tr>
-              <th scope="col">{t('activity.when')}</th>
-              <th scope="col">{t('activity.who')}</th>
-              <th scope="col">{t('activity.what')}</th>
-              <th scope="col">{t('activity.target')}</th>
-              <th scope="col">{t('activity.details')}</th>
-            </tr></thead>
-            <tbody>
-              {events.map(event => {
-                const label = auditActionLabelKey(event.action);
-                const details = auditDetails(event.detailsJson);
-                return (
-                  <tr key={event.id}>
-                    <td>{formatTimestamp(event.occurredAtUtc)}</td>
-                    <td className="activity-cell-wrap">{event.actorIdentity}</td>
-                    <td className="activity-cell-wrap">
-                      {label ? t(label) : event.action}
-                      {label && <small> ({event.action})</small>}
-                    </td>
-                    <td className="activity-cell-wrap">
-                      {event.targetType}{event.targetId ? ` · ${event.targetId}` : ''}
-                    </td>
-                    <td className="activity-event-details">
-                      {details.length === 0 ? '—' : (
-                        <details>
-                          <summary>{t('activity.show')}</summary>
-                          <dl>{details.map(item => (
-                            <div key={item.name} style={{ display: 'contents' }}>
-                              <dt>{item.name}</dt><dd>{item.value}</dd>
-                            </div>
-                          ))}</dl>
-                        </details>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {nextCursor && !error && (
-        <div className="activity-more">
-          <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadOlder()}>
-            {loadingMore ? t('activity.loading') : t('activity.loadOlder')}
-          </button>
+        <div className="split-layout runs-layout activity-layout" data-has-selection={selected !== null}>
+          <div className="split-panes">
+            <div className="split-browse">
+              <div className="table-wrap">
+                <table className="activity-table activity-feed" aria-label={t('activity.heading')}>
+                  <thead><tr>
+                    <th scope="col">{t('activity.when')}</th>
+                    <th scope="col" className="run-col-secondary">{t('activity.who')}</th>
+                    <th scope="col">{t('activity.event')}</th>
+                  </tr></thead>
+                  <tbody>
+                    {events.map(event => {
+                      const summary = describeAuditEvent(event);
+                      const actor = describeActor(event);
+                      const isSelected = selected?.id === event.id;
+                      return (
+                        <tr key={event.id} data-selected={isSelected}
+                          onClick={click => {
+                            if ((click.target as HTMLElement).closest('button, a')) return;
+                            setSelectedId(event.id);
+                          }}>
+                          <td className="activity-time">
+                            <strong>{relativeTime(event.occurredAtUtc, now)}</strong>
+                            <small>{formatTimestamp(event.occurredAtUtc)}</small>
+                          </td>
+                          <td className="activity-cell-wrap run-col-secondary">
+                            <strong>{actor.name}</strong>
+                            {actor.isSystem
+                              ? <small>{t('activity.automatic')}</small>
+                              : actor.identity && <small>{actor.identity}</small>}
+                          </td>
+                          <td className="activity-cell-wrap activity-event-cell">
+                            <button type="button" className="asset-select activity-open"
+                              aria-current={isSelected ? 'true' : undefined}
+                              aria-controls={isSelected ? 'activity-detail' : undefined}
+                              aria-label={t('activity.open', { summary: summary.text })}
+                              onClick={() => setSelectedId(current => current === event.id ? null : event.id)}>
+                              <span className="activity-sentence"><AuditSentence summary={summary} /></span>
+                            </button>
+                            {(summary.outcome || summary.note) && (
+                              <span className="activity-meta">
+                                {summary.outcome && <OutcomePill outcome={summary.outcome} />}
+                                {summary.note && <small>{summary.note}</small>}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {nextCursor && !error && (
+                <div className="activity-more">
+                  <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadOlder()}>
+                    {loadingMore ? t('activity.loading') : t('activity.loadOlder')}
+                  </button>
+                </div>
+              )}
+            </div>
+            <section className="split-selected" aria-label={t('activity.detailHeading')}>
+              <button type="button" className="secondary-button split-back" onClick={() => setSelectedId(null)}>
+                {t('activity.backToList')}
+              </button>
+              {selected && <AuditEventPanel event={selected} />}
+            </section>
+          </div>
         </div>
       )}
     </section>

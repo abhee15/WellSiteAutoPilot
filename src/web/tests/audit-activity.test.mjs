@@ -91,3 +91,19 @@ test('known actions have a label key and unknown actions fall back to the code',
   assert.equal(api.auditActionLabelKey('logic-module.approved'), 'activity.action.moduleApproved');
   assert.equal(api.auditActionLabelKey('something.new'), null);
 });
+
+test('names are optional: a server that predates them, or sends them as null or text, is accepted', async () => {
+  for (const extra of [{}, { targetName: null, actorName: null }, { targetName: 'ForeSite', actorName: 'Sri Mallepudi' }]) {
+    const page = await api.loadAuditPage({ actionPrefix: '', targetType: '' }, null, signal,
+      ok({ items: [event(1, extra)], nextCursor: null }));
+    assert.equal(page.items.length, 1);
+  }
+});
+
+test('a name that is not text, or is absurdly long, makes the whole response invalid', async () => {
+  for (const extra of [{ targetName: 5 }, { actorName: {} }, { targetName: 'x'.repeat(513) }]) {
+    await assert.rejects(
+      api.loadAuditPage({ actionPrefix: '', targetType: '' }, null, signal, ok({ items: [event(1, extra)], nextCursor: null })),
+      error => error.kind === 'invalidResponse');
+  }
+});

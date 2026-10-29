@@ -122,20 +122,42 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(module)); return;
   }
   if (url.pathname === '/api/v1/security/audit-events') {
-    // 120 recent events, newest first; the cursor is just the next offset.
+    // Recent events, newest first; the cursor is just the next offset. The first ones mirror a real session:
+    // a connection flapping, then one person creating, validating and activating logic and approving a module.
+    const person = { actorUserId: id(900), actorIdentity: 'FIELD\\10482267', actorName: 'Sri Mallepudi' };
+    const monitor = { actorUserId: null, actorIdentity: 'system:connection-monitor', actorName: null };
+    const publisher = { actorUserId: null, actorIdentity: 'system:package-publisher', actorName: null };
+    const connection = { targetType: 'connection', targetId: id(501), targetName: 'ForeSite', assetId: null, correlationId: null };
+    const logic = { targetType: 'ConfiguredLogic', targetId: id(502), targetName: 'Gas lift optimizer', assetId: null, correlationId: 'c0ffee-4f2a' };
+    const module = { targetType: 'logic-module', targetId: id(503), targetName: 'ForeSite well test v1.2.0', assetId: null, correlationId: null };
+    const flip = (from, to) => JSON.stringify({ AdapterKey: 'foresite', From: from, To: to });
+    const recent = [
+      { ...monitor, ...connection, minutes: 2, action: 'connection.status_changed', detailsJson: flip('Unreachable', 'Healthy') },
+      { ...monitor, ...connection, minutes: 63, action: 'connection.status_changed', detailsJson: flip('Healthy', 'Unreachable') },
+      { ...monitor, ...connection, minutes: 175, action: 'connection.status_changed', detailsJson: flip('Unreachable', 'Healthy') },
+      { ...monitor, ...connection, minutes: 186, action: 'connection.status_changed', detailsJson: flip('Healthy', 'Unreachable') },
+      { ...person, ...logic, minutes: 1250, action: 'CONFIGURED_LOGIC_REVISION_ACTIVATED', detailsJson: JSON.stringify({ RevisionNumber: 1 }) },
+      { ...person, ...logic, minutes: 1250, action: 'CONFIGURED_LOGIC_REVISION_VALIDATED', detailsJson: JSON.stringify({ RevisionNumber: 1 }) },
+      { ...person, ...logic, minutes: 1250, action: 'CONFIGURED_LOGIC_CREATED', detailsJson: JSON.stringify({ RevisionNumber: 1 }) },
+      { ...publisher, ...module, minutes: 1251, action: 'logic-module.package-published', detailsJson: '{}' },
+      { ...person, ...module, minutes: 1251, action: 'logic-module.approved', detailsJson: JSON.stringify({ reason: 'Reviewed against the vendor release notes.' }) },
+    ].map((item, index) => ({ id: id(6000 + index), occurredAtUtc: iso(item.minutes), ...item }));
+    recent.forEach(item => { delete item.minutes; });
     const kinds = [
-      ['logic-module.approved', 'LogicModule', { reason: 'Reviewed against the vendor release notes.' }],
-      ['security.grant.created', 'AccessGrant', { scopeKind: 'ExactAssets', assetCount: 3 }],
-      ['asset.created', 'Asset', {}],
-      ['recommendation.approved', 'Recommendation', { note: 'Within operating limits.' }],
-      ['security.role.updated', 'Role', { revision: 4 }],
+      ['security.grant.created', 'security-access-grant', { scopeKind: 'ExactAssets', assetCount: 3 }],
+      ['asset.created', 'asset', {}],
+      ['recommendation.approved', 'recommendation', { note: 'Within operating limits.' }],
+      ['security.role.updated', 'security-role', { revision: 4 }],
       ['future.unlabelled-action', 'Unknown', { nested: { ignored: true } }]];
-    const all = Array.from({ length: 120 }, (_, index) => {
+    const older = Array.from({ length: 120 }, (_, index) => {
       const [action, targetType, details] = kinds[index % kinds.length];
-      return { id: id(7000 + index), occurredAtUtc: iso(index * 7 + 1), actorUserId: id(900),
-        actorIdentity: index % 4 === 3 ? 'FIELD\\10337741' : 'FIELD\\10482267', action, targetType,
-        targetId: targetType + '-' + (120 - index), assetId: null, correlationId: null, detailsJson: JSON.stringify(details) };
+      const named = targetType === 'asset' ? 'Well 14-22' : targetType === 'security-role' ? 'Field engineer' : null;
+      return { id: id(7000 + index), occurredAtUtc: iso(2000 + index * 37), actorUserId: id(900),
+        actorIdentity: index % 4 === 3 ? 'FIELD\\10337741' : 'FIELD\\10482267',
+        actorName: index % 4 === 3 ? null : 'Sri Mallepudi', action, targetType,
+        targetId: id(8000 + index), targetName: named, assetId: null, correlationId: null, detailsJson: JSON.stringify(details) };
     });
+    const all = [...recent, ...older];
     const prefix = url.searchParams.get('actionPrefix') ?? '';
     const type = url.searchParams.get('targetType') ?? '';
     const limit = Math.min(Number(url.searchParams.get('limit') ?? 50), 50);

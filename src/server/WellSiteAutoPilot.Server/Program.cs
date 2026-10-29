@@ -348,7 +348,7 @@ v1.MapGet(
         return new AuditEventPageResponse(
             page.Items.Select(item => new AuditEventResponse(
                 item.Id, item.OccurredAtUtc, item.ActorUserId, item.ActorIdentity, item.Action, item.TargetType,
-                item.TargetId, item.AssetId, item.CorrelationId, item.DetailsJson)).ToArray(),
+                item.TargetId, item.AssetId, item.CorrelationId, item.DetailsJson, item.TargetName, item.ActorName)).ToArray(),
             page.Next?.Encode());
     })
     .WithName("ListAuditEvents")

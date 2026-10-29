@@ -9,3 +9,59 @@
 .activity-event-details dd { margin: 0; overflow-wrap: anywhere; }
 .activity-cell-wrap { overflow-wrap: anywhere; }
 .activity-more { margin: var(--space-12) var(--space-18) var(--space-18); }
+
+/* Readable events: each row is a sentence with the name of the affected record in bold. */
+.activity-feed td { overflow-wrap: anywhere; }
+.activity-feed td.activity-time { white-space: normal; min-width: var(--layout-fact-narrow); }
+.activity-table td .activity-sentence strong, .activity-detail h3 strong { display: inline; }
+.split-layout.activity-layout .activity-table td button.activity-open { display: block; padding: 0; font-weight: 400; text-align: left; line-height: inherit; white-space: normal; overflow-wrap: anywhere; }
+.activity-filter-disclosure .activity-filters { margin-inline: var(--space-18); }
+.activity-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-6); }
+.activity-meta small, .activity-feed td .activity-meta small { margin: 0; }
+
+/* A state shown as a pill. The words carry the meaning; the colour only backs them up. */
+.activity-pill { display: inline-flex; align-items: center; min-height: var(--size-control-small); padding: var(--space-2) var(--space-8);
+  border: var(--border-width-thin) solid var(--color-border-status-neutral); border-radius: var(--radius-pill);
+  font-size: var(--font-size-caption); white-space: nowrap; }
+.activity-pill[data-tone='good'] { border-color: var(--color-border-status-success); background: var(--color-surface-status-success); color: var(--color-text-status-success); }
+.activity-pill[data-tone='attention'] { border-color: var(--color-border-status-error); background: var(--color-surface-status-error); color: var(--color-text-status-error); }
+.activity-note { color: var(--color-text-subtle); font-size: var(--font-size-body-small); }
+
+/* The selected event, beside the list (wide) or in place of it (narrow), like a selected run. */
+.activity-layout .split-selected .activity-detail { display: grid; gap: var(--space-16); padding: var(--space-16) var(--space-18);
+  background: var(--color-surface-panel); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); min-width: 0; }
+.activity-detail header { display: grid; gap: var(--space-6); }
+.activity-detail h3 { margin: 0; font-size: var(--font-size-body); font-weight: 400; overflow-wrap: anywhere; }
+.activity-detail h4 { margin: 0 0 var(--space-8); font-size: var(--font-size-body-small); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); }
+.activity-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.activity-facts { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-10); }
+.activity-fact { display: grid; grid-template-columns: minmax(var(--layout-fact-narrow), max-content) minmax(0, 1fr); gap: var(--space-2) var(--space-12); }
+.activity-fact dt { color: var(--color-text-subtle); }
+.activity-fact dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+.activity-fact .copy-button { margin-inline-start: var(--space-8); }
+.activity-raw > summary { cursor: pointer; color: var(--color-text-subtle); }
+.activity-raw pre { overflow-x: auto; user-select: text; margin: var(--space-8) 0; padding: var(--space-12); background: var(--color-surface-code); border-radius: var(--radius-6); }
+
+/* While an event is open on a narrow screen, it gets the whole panel: the intro and filters wait behind "Back". */
+@media (max-width: 900px) {
+  .activity-panel[data-has-selection='true'] .activity-toolbar { display: none; }
+}
+
+/* Narrow windows: a fact stacks its label over its value, and the list becomes one card per event. */
+@media (max-width: 650px) {
+  .activity-fact { grid-template-columns: minmax(0, 1fr); }
+  .activity-table.activity-feed { min-width: 0; }
+  .activity-table.activity-feed thead { position: absolute; width: var(--border-width-thin); height: var(--border-width-thin); overflow: hidden; clip-path: inset(50%); }
+  .activity-table.activity-feed, .activity-table.activity-feed tbody, .activity-table.activity-feed tr, .activity-table.activity-feed td { display: block; width: 100%; box-sizing: border-box; }
+  .activity-table.activity-feed tr { padding: var(--space-12) var(--space-14); border-bottom: var(--border-width-thin) solid var(--color-border-row); }
+  .activity-table.activity-feed td { padding: 0; border: 0; }
+  .activity-table.activity-feed td + td { margin-top: var(--space-6); }
+  /* The sentence leads; time and person follow as quiet lines. */
+  .activity-table.activity-feed tr { display: flex; flex-direction: column; }
+  .activity-table.activity-feed td.activity-event-cell { order: 1; }
+  .activity-table.activity-feed td.activity-time { order: 2; }
+  .activity-table.activity-feed td.run-col-secondary { order: 3; }
+  .activity-table.activity-feed td.activity-time strong, .activity-table.activity-feed td.run-col-secondary strong { display: inline; font-weight: 400; }
+  .activity-table.activity-feed td.activity-time small { display: inline; margin-inline-start: var(--space-6); }
+  .activity-table.activity-feed td.run-col-secondary small { display: inline; margin-inline-start: var(--space-6); }
+}

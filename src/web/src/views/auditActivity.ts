@@ -11,6 +11,10 @@ export type AuditEvent = {
   assetId: string | null;
   correlationId: string | null;
   detailsJson: string;
+  /** The current name of the affected record; absent when it has none, was deleted, or the server predates names. */
+  targetName?: string | null;
+  /** The display name of the person who acted; absent for system events. */
+  actorName?: string | null;
 };
 
 export type AuditPage = { items: AuditEvent[]; nextCursor: string | null };
@@ -47,7 +51,9 @@ function isAuditEvent(value: unknown): value is AuditEvent {
     optionalText(value.targetId, 256) &&
     (value.assetId === null || (typeof value.assetId === 'string' && uuid.test(value.assetId))) &&
     optionalText(value.correlationId, 128) &&
-    typeof value.detailsJson === 'string';
+    typeof value.detailsJson === 'string' &&
+    (value.targetName === undefined || optionalText(value.targetName, 512)) &&
+    (value.actorName === undefined || optionalText(value.actorName, 512));
 }
 
 function classify(status: number): AuditActivityError {
