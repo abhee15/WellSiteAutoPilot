@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CopyButton } from '../../src/views/CopyButton';
 import { Status, StatusIndicator } from '../../src/components/Status';
-import { IconButton } from '../../src/components/IconButton';
+import { ActionButton } from '../../src/components/ActionButton';
 import { RefreshCw } from 'lucide-react';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -38,10 +38,10 @@ describe('Status', () => {
   });
 });
 
-describe('IconButton', () => {
+describe('ActionButton (icon only)', () => {
   it('is named by its label, shows it as a hover tip, and calls back on click', async () => {
     const onClick = vi.fn();
-    render(<IconButton icon={RefreshCw} label="Reload activity" onClick={onClick} />);
+    render(<ActionButton icon={RefreshCw} iconOnly label="Reload activity" onClick={onClick} />);
     const button = screen.getByRole('button', { name: 'Reload activity' });
     expect(button.getAttribute('title')).toBe('Reload activity');
     await userEvent.click(button);
@@ -50,7 +50,7 @@ describe('IconButton', () => {
 
   it('does not call back when disabled', async () => {
     const onClick = vi.fn();
-    render(<IconButton icon={RefreshCw} label="Reload" onClick={onClick} disabled />);
+    render(<ActionButton icon={RefreshCw} iconOnly label="Reload" onClick={onClick} disabled />);
     await userEvent.click(screen.getByRole('button', { name: 'Reload' }));
     expect(onClick).not.toHaveBeenCalled();
   });
@@ -60,7 +60,7 @@ describe('CopyButton', () => {
   it('is an icon button named for what it copies, with no visible text', () => {
     render(<CopyButton value="abc" label="Record ID" />);
     const button = screen.getByRole('button', { name: 'Copy Record ID' });
-    expect(button.textContent).toBe('');
+    expect(button.querySelector('.visually-hidden')?.textContent).toBe('Copy Record ID');
     expect(button.querySelector('svg')).toBeTruthy();
   });
 

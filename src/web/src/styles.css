@@ -534,26 +534,8 @@ button:disabled {
 .status-indicator[data-tone='warning'] .status-indicator-label,
 .status-indicator[data-tone='error'] .status-indicator-label { font-weight: 600; }
 
-/* An action that is only an icon (components/IconButton.tsx): quiet until hovered. */
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: var(--size-control-compact);
-  height: var(--size-control-compact);
-  padding: 0;
-  background: transparent;
-  border: var(--border-width-thin) solid transparent;
-  border-radius: var(--radius-6);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  vertical-align: middle;
-}
-.icon-button:hover:not(:disabled) { background: var(--color-surface-control-hover); color: var(--color-text-primary); }
-.icon-button[data-state='success'] { color: var(--color-text-status-success); }
-.icon-button[data-state='error'] { color: var(--color-text-status-error); }
 .copy-button { margin-inline-start: var(--space-4); }
+.ui-action-button.copy-button[data-icon-only] { width: var(--size-control-compact); min-width: var(--size-control-compact); min-height: var(--size-control-compact); vertical-align: middle; }
 
 .empty-state {
   padding: var(--space-28) var(--space-16) !important;

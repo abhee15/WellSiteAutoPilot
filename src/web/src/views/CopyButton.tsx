@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, CircleAlert, Copy } from 'lucide-react';
 import { t } from '../localization';
-import { IconButton } from '../components/IconButton';
+import { ActionButton } from '../components/ActionButton';
 
 /** Copies text with the clipboard API, or with a temporary text box where the page is not a secure origin. */
 async function copyText(value: string): Promise<boolean> {
@@ -37,7 +37,7 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   const name = t('execution.copy', { label });
   return (
     <>
-      <IconButton className="copy-button" icon={outcome === 'copied' ? Check : outcome === 'failed' ? CircleAlert : Copy}
+      <ActionButton className="copy-button" variant="quiet" iconOnly icon={outcome === 'copied' ? Check : outcome === 'failed' ? CircleAlert : Copy}
         label={name} title={outcome === 'copied' ? t('execution.copied') : outcome === 'failed' ? t('execution.copyFailed') : name}
         state={outcome === 'copied' ? 'success' : outcome === 'failed' ? 'error' : undefined}
         onClick={() => {
