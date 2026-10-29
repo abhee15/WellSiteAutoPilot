@@ -146,6 +146,9 @@ jobs:
       - name: Verify ForeSite adapter
         run: dotnet run --project tests/WellSiteAutoPilot.ForeSiteAdapterTests/WellSiteAutoPilot.ForeSiteAdapterTests.csproj --configuration Release --no-build
 
+      - name: Verify CygNet adapter
+        run: dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests/WellSiteAutoPilot.CygNetAdapterTests.csproj --configuration Release --no-build
+
       - name: Verify PetroVisor adapter POC
         run: dotnet run --project tests/WellSiteAutoPilot.PetroVisorAdapterTests/WellSiteAutoPilot.PetroVisorAdapterTests.csproj --configuration Release --no-build
 

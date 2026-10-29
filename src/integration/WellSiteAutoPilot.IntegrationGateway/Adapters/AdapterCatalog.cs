@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.Integration.ForeSite;
 using WellSiteAutoPilot.Integration.PetroVisor;
 
@@ -18,7 +19,7 @@ public sealed class AdapterCatalog
             AdapterSettingKind.Url, true)],
         [new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current engineering data")]);
 
-    private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator, ForeSiteAdapter.Descriptor, PetroVisorAdapter.Descriptor];
+    private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator, ForeSiteAdapter.Descriptor, PetroVisorAdapter.Descriptor, CygNetAdapter.Descriptor];
 
     public IReadOnlyList<AdapterDescriptor> List() => _descriptors;
 
