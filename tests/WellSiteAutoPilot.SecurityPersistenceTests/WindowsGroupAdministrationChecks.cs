@@ -136,7 +136,10 @@ internal static class WindowsGroupAdministrationChecks
                 WellSitePermissions.AssetsRead, windowsProof, clock.GetUtcNow()).AnyAsync(x => x.Id == assetId);
             var foreignSees = await ScopedAccessQueries.Assets(isolated, freshIdentity.Id,
                 WellSitePermissions.AssetsRead, foreignProof, clock.GetUtcNow()).AnyAsync(x => x.Id == assetId);
-            if (windowsSees || !foreignSees) throw new InvalidOperationException("SQL authorization crossed directory namespaces.");
+            var wrongCaseProof = new VerifiedGroupMembership(freshIdentity.Id, [group.GroupId!.ToLowerInvariant()], clock.GetUtcNow(), "tenant-b");
+            var wrongCaseSees = await ScopedAccessQueries.Assets(isolated, freshIdentity.Id,
+                WellSitePermissions.AssetsRead, wrongCaseProof, clock.GetUtcNow()).AnyAsync(x => x.Id == assetId);
+            if (windowsSees || !foreignSees || wrongCaseSees) throw new InvalidOperationException("SQL authorization crossed directory namespaces.");
         }
         await service.DeactivateAsync(foreign, foreignGrant.Id, foreignGrant.Revision, actor);
         Console.WriteLine("Windows-group administration canonical SID, isolation, custom role, scopes, audit atomicity and concurrent writes passed.");

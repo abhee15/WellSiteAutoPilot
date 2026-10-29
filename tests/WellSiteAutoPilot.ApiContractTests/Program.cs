@@ -44,7 +44,7 @@ Parity<DomainConfiguredLogicRevisionStatus, ContractConfiguredLogicRevisionStatu
 Parity<DomainPlatformComponentStatus, ContractPlatformComponentStatus>(value => value.ToContract());
 
 // Pinned literals guard the documented wire values themselves.
-ExpectJson(AccessGrantSubjectKind.Group, "\"WindowsGroup\"");
+ExpectJson(AccessGrantSubjectKind.Group, "\"Group\"");
 ExpectJson(AccessGrantScopeKind.DeploymentWide, "\"DeploymentWide\"");
 ExpectJson(ExecutionStatus.TimedOut, "\"TimedOut\"");
 ExpectJson(ContractLogicRuntimeKind.DotNet, "\"DotNet\"");

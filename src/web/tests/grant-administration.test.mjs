@@ -177,7 +177,7 @@ test('Windows group assignments keep subject identity through create, readback a
     assert.equal(url, '/api/v1/security/directories/windows-ad/group-grants/' + grantId + '/deactivate?groupId=' + groupId);
     return new Response(JSON.stringify(retired));
   }), retired);
-  for (const bad of [row, { ...groupRow, groupId: 'S-1-5-21-100-200-300-401' },
+  for (const bad of [row, { ...groupRow, directoryId: 'foreign-tenant' }, { ...groupRow, groupId: 'S-1-5-21-100-200-300-401' },
     { ...groupRow, userId }, { ...groupRow, groupId: groupId.toLowerCase() }]) {
     await assert.rejects(api.loadGrants('windows-ad:' + groupId, signal(), async () => new Response(JSON.stringify([bad]))),
       { kind: 'invalidResponse' });

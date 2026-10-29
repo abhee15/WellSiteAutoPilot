@@ -1130,6 +1130,7 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DirectoryId")
+                        .UseCollation("C")
                         .UsePropertyAccessMode(PropertyAccessMode.Property)
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -1143,6 +1144,7 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.Property<string>("GroupId")
+                        .UseCollation("C")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 

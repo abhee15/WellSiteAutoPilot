@@ -404,8 +404,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         });
         grant.HasKey(item => item.Id);
         grant.Property(item => item.SubjectKind).HasMaxLength(32).IsRequired();
-        grant.Property(item => item.GroupId).HasMaxLength(256);
-        grant.Property(item => item.DirectoryId).HasMaxLength(64).UsePropertyAccessMode(PropertyAccessMode.Property);
+        grant.Property(item => item.GroupId).HasMaxLength(256).UseCollation("C");
+        grant.Property(item => item.DirectoryId).HasMaxLength(64).UseCollation("C").UsePropertyAccessMode(PropertyAccessMode.Property);
         grant.Property(item => item.GroupDisplayName).HasMaxLength(256);
         grant.Property(item => item.GroupDomain).HasMaxLength(256);
         grant.Property(item => item.ScopeKind).HasMaxLength(32).IsRequired();

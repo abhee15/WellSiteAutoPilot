@@ -32,13 +32,18 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                 table: "access_grants",
                 newName: "IX_access_grants_GroupId");
 
+            migrationBuilder.AlterColumn<string>(
+                name: "GroupId", schema: "security", table: "access_grants",
+                type: "character varying(256)", maxLength: 256, nullable: true, collation: "C",
+                oldClrType: typeof(string), oldType: "character varying(256)", oldMaxLength: 256, oldNullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "DirectoryId",
                 schema: "security",
                 table: "access_grants",
                 type: "character varying(64)",
                 maxLength: 64,
-                nullable: true);
+                nullable: true, collation: "C");
 
             migrationBuilder.AddColumn<string>(
                 name: "GroupDisplayName",
@@ -103,6 +108,12 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                 name: "GroupDomain",
                 schema: "security",
                 table: "access_grants");
+
+            migrationBuilder.AlterColumn<string>(
+                name: "GroupId", schema: "security", table: "access_grants",
+                type: "character varying(256)", maxLength: 256, nullable: true,
+                oldClrType: typeof(string), oldType: "character varying(256)", oldMaxLength: 256,
+                oldNullable: true, oldCollation: "C");
 
             migrationBuilder.RenameColumn(
                 name: "GroupId",

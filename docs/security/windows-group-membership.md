@@ -4,7 +4,7 @@
 
 WSA assigns configurable roles and Asset/deployment scopes to local users or directory
 groups. A group's stable identity is `(DirectoryId, GroupId)`, not its name. Opaque IDs
-remain case-sensitive; the Windows adapter alone validates and canonicalizes SIDs.
+remain case-sensitive in both the evaluator and explicitly ordinal database columns; the Windows adapter alone validates and canonicalizes SIDs.
 The generic grant evaluator, SQL predicates, own-access guard and persisted execution
 read authority all preserve the directory namespace. Roles and scopes remain paired
 inside each grant. Windows and a future trusted identity integration use the same
