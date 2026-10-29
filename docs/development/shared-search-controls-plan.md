@@ -87,3 +87,7 @@ The review caught the grants select background shorthand removing the shared che
 using background-color preserves the existing dropdown affordance. Role/scope fields,
 Asset search, panel headers and review actions now follow the same spacing and sizing.
 Temporary visual harnesses and generated API clients are excluded from the change.
+
+The shared ActionButton was also probed as a standalone toolbar action, outside SearchInput.
+Its primary/secondary/disabled styles and icon sizing are owned by the component so
+legacy toolbar selectors cannot replace the chosen variant or stretch an icon action.
