@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -129,7 +130,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
       {!view && <p className="connection-help">{t('assetViews.connectionHelp')}</p>}
       {connectionId && <div className="well-selection-layout">
         <section aria-label={t('assetViews.availableWells')}>
-          <label><span>{t('assetViews.findWells')}</span><input type="search" value={query} maxLength={120} onChange={event => setQuery(event.target.value)} /></label>
+          <label><span>{t('assetViews.findWells')}</span><SearchInput value={query} maxLength={120} onChange={event => setQuery(event.target.value)} /></label>
           <button type="button" className="secondary-button" onClick={() => void selectBranch(null)}>{t('assetViews.selectAllWells')}</button>
           {query.trim() ? <div>
             {hits.filter(node => node.isActive && wellTypeIds.has(node.assetTypeId)).map(node =>

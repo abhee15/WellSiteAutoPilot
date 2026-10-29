@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
@@ -282,7 +283,7 @@ export function AssetsPage({
           <div className="split-panes">
             <section className="panel split-browse" aria-label={t('assets.browse')}>
               <div className="split-search">
-                <input type="search" maxLength={120} value={criteria.search}
+                <SearchInput maxLength={120} value={criteria.search}
                   aria-label={t('assets.search')} placeholder={t('assets.searchPlaceholder')}
                   onChange={event => setCriteria({ ...criteria, search: event.target.value })} />
               </div>

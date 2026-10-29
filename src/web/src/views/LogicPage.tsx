@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { useEffect, useMemo, useState } from 'react';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
@@ -102,7 +103,7 @@ export function LogicPage({
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
             <PanelHeader eyebrow="Catalog" title="Logic Modules" count={visibleModules.length} />
             <div className="split-search">
-              <input type="search" maxLength={120} value={catalogCriteria.search}
+              <SearchInput maxLength={120} value={catalogCriteria.search}
                 aria-label={t('logicCatalog.search')} placeholder={t('logicCatalog.searchPlaceholder')}
                 onChange={event => setCatalogCriteria({ ...catalogCriteria, search: event.target.value })} />
             </div>
@@ -159,7 +160,7 @@ export function LogicPage({
             <PanelHeader eyebrow="Configuration" title="Configured Logic"
               count={visibleConfigurations.length} />
             <div className="split-search">
-              <input type="search" maxLength={120} value={configuredCriteria.search}
+              <SearchInput maxLength={120} value={configuredCriteria.search}
                 aria-label={t('configured.search')} placeholder={t('configured.searchPlaceholder')}
                 onChange={event => setConfiguredCriteria({ ...configuredCriteria, search: event.target.value })} />
             </div>

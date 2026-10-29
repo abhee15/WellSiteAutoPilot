@@ -1,3 +1,4 @@
+import { SearchInput } from '../components/SearchInput';
 import { useState } from 'react';
 import { t } from '../localization';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA } from './assetInventory';
@@ -82,7 +83,7 @@ export function AssetInventoryControls({
       <div className="data-view-fields asset-view-fields">
         {!hideSearch && <label>
           <span>{t('assets.search')}</span>
-          <input type="search" value={criteria.search} maxLength={120}
+          <SearchInput value={criteria.search} maxLength={120}
             placeholder={t('assets.searchPlaceholder')}
             onChange={event => modify({ ...criteria, search: event.target.value })} />
         </label>}

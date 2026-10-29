@@ -15,7 +15,7 @@ function setup(supported = true, assigned: unknown[] = []) {
 it('selects a directory-qualified group by name without asking for a SID', async () => {
   const fetcher = setup(); const select = vi.fn(); const user = userEvent.setup();
   render(<DirectoryGroupPicker disabled={false} onSelect={select} />);
-  await user.type(await screen.findByRole('textbox', { name: 'Group name starts with' }), 'Software');
+  await user.type(await screen.findByRole('searchbox', { name: 'Group name starts with' }), 'Software');
   await user.click(screen.getByRole('button', { name: 'Search groups' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Directory groups' }), '0');
   expect(select).toHaveBeenLastCalledWith(group);
@@ -29,12 +29,12 @@ it('keeps saved assignments inspectable when directory search is unavailable', a
   await screen.findByText('Group search is not configured for this deployment.');
   await user.selectOptions(await screen.findByRole('combobox', { name: 'Previously assigned groups' }), '0');
   expect(select).toHaveBeenLastCalledWith(group);
-  expect(screen.queryByRole('textbox')).toBeNull();
+  expect(screen.queryByRole('searchbox')).toBeNull();
 });
 it('clears a selection when the search changes and reports a failed lookup', async () => {
   const fetcher = setup(); const select = vi.fn(); const user = userEvent.setup();
   render(<DirectoryGroupPicker disabled={false} onSelect={select} />);
-  const input = await screen.findByRole('textbox');
+  const input = await screen.findByRole('searchbox');
   await user.type(input, 'Software');
   fetcher.mockResolvedValueOnce(new Response('{}', { status: 503 }));
   await user.click(screen.getByRole('button', { name: 'Search groups' }));

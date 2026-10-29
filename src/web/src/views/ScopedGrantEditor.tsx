@@ -1,3 +1,6 @@
+import { ActionButton } from '../components/ActionButton';
+import { ArrowRight } from 'lucide-react';
+import { SearchInput } from '../components/SearchInput';
 import { useMemo, useState } from 'react';
 import { t } from '../localization';
 import type { PermissionDefinition, RoleRecord } from './roleCatalog';
@@ -74,7 +77,7 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
         <fieldset className="grant-assets">
           <legend>{t('grants.assets')}</legend>
           <label>{t('grants.search')}
-            <input type="search" value={query} maxLength={120}
+            <SearchInput controlSize="large" value={query} maxLength={120}
               onChange={event => setQuery(event.target.value)} />
           </label>
           {matching.length > visible.length &&
@@ -118,8 +121,8 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
         {t('grants.confirm')}
       </label>
       <div className="execution-detail-actions grant-actions">
-        <button type="button" disabled={!preview || !acknowledged}
-          onClick={() => onContinue(draft)}>{t('grants.continue')}</button>
+        <ActionButton label={t('grants.continue')} icon={ArrowRight} variant="primary" controlSize="large"
+          disabled={!preview || !acknowledged} onClick={() => onContinue(draft)} />
       </div>
     </section>
   );

@@ -3,6 +3,9 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'directory.placeholder': 'e.g. SoftwareEngineers',
+  'directory.searchHelp': 'Search by group name, then choose a matching group below.',
+
   'directory.assigned': 'Previously assigned groups',
   'directory.assignedFailed': 'Previously assigned groups could not be loaded. Directory search is available when configured.',
 
@@ -160,7 +163,7 @@ export const englishMessages = {
   'grants.denied': 'Denied',
   'grants.tab': 'Scoped grants',
   'grants.manage': 'Manage scoped role grants',
-  'grants.intro': 'Role assignments control current access. Review the subject, role and scope before saving.',
+  'grants.intro': 'Choose a user or directory group, then assign a role and access scope.',
   'grants.loadingFailed': 'Could not verify security assignments. Reload before making changes.',
   'grants.assetDirectoryTooLarge': 'The Asset directory exceeds the supported verification limit. Grant editing is blocked rather than showing an incomplete Asset list.',
   'grants.refineSearch': '{count} Assets match. Refine the search to choose from the first 100 displayed.',
