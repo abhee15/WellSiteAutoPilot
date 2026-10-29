@@ -184,7 +184,7 @@ export function executionInputObservations(output?: string | null): InputObserva
         (o.unit === null || boundedText(o.unit, 32)) && timestamp(o.timestampUtc) && timestamp(o.retrievedAtUtc) &&
         (o.connectionId === null || typeof o.connectionId === 'string' && executionIdPattern.test(o.connectionId)) &&
         ['Good', 'Uncertain', 'Bad', 'Unknown'].includes(o.quality) &&
-        (o.timestampKind === null || o.timestampKind === 'UnverifiedScan' || o.timestampKind === 'ControllerScan') &&
+        (o.timestampKind === null || o.timestampKind === 'UnverifiedScan' || o.timestampKind === 'ControllerScan' || o.timestampKind === 'CardCapture') &&
         boundedText(o.outcomeCode, 128) && /^[A-Z][A-Z0-9_]*$/.test(o.outcomeCode))
         .map(o => ({ requirementId: o.requirementId, assetId: o.assetId, quantity: o.quantity,
           value: o.value, unit: o.unit, timestampUtc: o.timestampUtc, quality: o.quality,
@@ -210,4 +210,30 @@ export function executionProvenance(detail: ExecutionResponse) {
         Number.isSafeInteger(connection.revision) && (connection.revision ?? 0) > 0 &&
         Number.isSafeInteger(connection.assetCount) && (connection.assetCount ?? 0) > 0)) return null;
   return value;
+}
+
+
+/** Structured evidence remains typed JSON; never coerce arrays into a scalar display. */
+export function structuredExecutionValues(output?: string | null): Array<{ kind: string; label: string; schemaId: string; json: string }> {
+  if (!output || output.length > 524288) return [];
+  try {
+    const envelope = JSON.parse(output) as Record<string, unknown>;
+    if (envelope.valueContractVersion !== 2) return [];
+    const entries: Array<{ kind: string; label: string; schemaId: string; json: string }> = [];
+    for (const [key, kind] of [['inputObservations', 'Input'], ['engineeringResults', 'Result']]) {
+      const values = envelope[key];
+      if (!Array.isArray(values) || values.length > 64) continue;
+      for (const item of values) {
+        if (!item || typeof item !== 'object' || !item.value || typeof item.value !== 'object') continue;
+        const label = item.requirementId ?? item.id;
+        const schemaId = item.value.schemaId;
+        if (typeof label !== 'string' || label.length > 128 || typeof schemaId !== 'string' || schemaId.length > 128 ||
+            !Object.hasOwn(item.value, 'data')) continue;
+        const json = JSON.stringify(item.value.data, null, 2);
+        if (json.length > 131072) continue;
+        entries.push({ kind, label, schemaId, json });
+      }
+    }
+    return entries;
+  } catch { return []; }
 }

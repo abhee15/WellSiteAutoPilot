@@ -67,6 +67,19 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
                 catch (BadImageFormatException) { continue; }
                 var type = assembly.GetType(inspected.Manifest.EntryPoint);
                 if (type is not null && typeof(ILogicModuleV2).IsAssignableFrom(type))
+                {
+                    if (inspected.Manifest.ManifestVersion != 2 || type.IsAbstract || typeof(ILogicModuleV1).IsAssignableFrom(type))
+                        throw Failure("MODULE_CONTRACT_UNSUPPORTED");
+                    if (Activator.CreateInstance(type) is not ILogicModuleV2 structured) throw Failure("MODULE_ENTRY_POINT_INVALID");
+                    if (structured.Identity != new LogicModuleIdentity(moduleId, version))
+                    {
+                        if (structured is IAsyncDisposable asyncDisposable) await asyncDisposable.DisposeAsync();
+                        else if (structured is IDisposable disposable) disposable.Dispose();
+                        throw Failure("MODULE_PACKAGE_IDENTITY_MISMATCH");
+                    }
+                    return new LoadedLogicModule(structured, context, directory, lease);
+                }
+                if (type is not null && inspected.Manifest.ManifestVersion == 2)
                     throw Failure("MODULE_CONTRACT_UNSUPPORTED");
                 if (type is null || type.IsAbstract || !typeof(ILogicModuleV1).IsAssignableFrom(type)) continue;
                 if (Activator.CreateInstance(type) is not ILogicModuleV1 module) throw Failure("MODULE_ENTRY_POINT_INVALID");
@@ -136,11 +149,12 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
     }
 }
 
-public sealed class LoadedLogicModule(ILogicModuleV1 module, AssemblyLoadContext context, string directory,
+public sealed class LoadedLogicModule(object module, AssemblyLoadContext context, string directory,
     IDisposable? directoryLease = null) : IAsyncDisposable
 {
-    private ILogicModuleV1? _module = module;
-    public ILogicModuleV1 Module => _module ?? throw new ObjectDisposedException(nameof(LoadedLogicModule));
+    private object? _module = module;
+    public ILogicModuleV1 Module => _module as ILogicModuleV1 ?? throw new ObjectDisposedException(nameof(LoadedLogicModule));
+    public ILogicModuleV2? StructuredModule => _module as ILogicModuleV2;
 
     public async ValueTask DisposeAsync()
     {

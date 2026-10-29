@@ -29,10 +29,11 @@ public sealed class GatewayDataClient(HttpClient httpClient, INatsConnection? co
         var response = await connection.RequestAsync<string, string>(Subjects.ExecutionReadCurrentV1,
             JsonSerializer.Serialize(new ExecutionReadCurrentV1(executionId, input.Source.ReadPlanId), JsonOptions),
             replyOpts: new NatsSubOpts { Timeout = TimeSpan.FromSeconds(10) }, cancellationToken: cancellationToken);
-        var reply = response.Data is { Length: <= 8192 } json
+        var reply = response.Data is { } json && System.Text.Encoding.UTF8.GetByteCount(json) <= MeasurementPayloadLimits.MaximumReplyBytes
             ? JsonSerializer.Deserialize<ExecutionReadReplyV1>(json, JsonOptions) : null;
         if (reply is null || (reply.Value is null) == (reply.FailureCode is null)) throw ReadFailure("EXECUTION_READ_REPLY_INVALID");
         if (reply.FailureCode is { } code) throw ReadFailure(code);
+        if (!MeasurementPayloadLimits.IsValid(reply.Value!)) throw ReadFailure("EXECUTION_READ_REPLY_INVALID");
         return reply.Value!;
     }
 

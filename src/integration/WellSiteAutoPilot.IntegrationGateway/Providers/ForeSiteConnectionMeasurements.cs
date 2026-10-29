@@ -27,7 +27,9 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
             await entry.Gate.WaitAsync(budget.Token);
             try
             {
-                return await ForeSiteMeasurements.ReadAsync(entry.Session, request.ExternalId, request.Quantity, budget.Token);
+                return request.Quantity == ForeSiteCards.Quantity
+                    ? await ForeSiteCards.ReadAsync(entry.Session, request.ExternalId, budget.Token)
+                    : await ForeSiteMeasurements.ReadAsync(entry.Session, request.ExternalId, request.Quantity, budget.Token);
             }
             finally { entry.Gate.Release(); }
         }

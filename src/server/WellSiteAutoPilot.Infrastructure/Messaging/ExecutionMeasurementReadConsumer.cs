@@ -51,7 +51,10 @@ public sealed partial class ExecutionMeasurementReadConsumer(IServiceScopeFactor
                         catch (JsonException) { reply = new(null, "EXECUTION_READ_PLAN_INVALID"); }
                         catch (OperationCanceledException) { reply = new(null, "EXECUTION_READ_TIMEOUT"); }
                         catch (Exception) { reply = new(null, "EXECUTION_READ_UNAVAILABLE"); }
-                        await message.ReplyAsync(JsonSerializer.Serialize(reply, JsonOptions), cancellationToken: ct);
+                        var serialized = JsonSerializer.Serialize(reply, JsonOptions);
+                        if (global::System.Text.Encoding.UTF8.GetByteCount(serialized) > WellSiteAutoPilot.Integration.Contracts.Providers.MeasurementPayloadLimits.MaximumReplyBytes)
+                            serialized = JsonSerializer.Serialize(new ExecutionReadReplyV1(null, "EXECUTION_READ_PAYLOAD_TOO_LARGE"), JsonOptions);
+                        await message.ReplyAsync(serialized, cancellationToken: ct);
                     });
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }

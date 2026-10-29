@@ -43,7 +43,7 @@ public sealed record ExecutionInputBindingV2(
     int? MaximumAgeSeconds,
     bool AllowUncertainQuality,
     string ProviderMappingJson,
-    ExecutionReadSourceV3? Source = null);
+    ExecutionReadSourceV3? Source = null, string? RequiredCapability = null, string? SchemaId = null);
 
 public sealed record ExecutionRequestedV2(
     Guid ExecutionId,

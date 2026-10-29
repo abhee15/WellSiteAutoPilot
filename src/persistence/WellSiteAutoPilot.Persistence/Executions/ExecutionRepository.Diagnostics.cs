@@ -27,7 +27,7 @@ public sealed partial class ExecutionRepository
                     var safe = items.Where(item => item is not null && item.RequirementId is { Length: > 0 and <= 128 } &&
                         item.Quantity is { Length: > 0 and <= 256 } && ValidCode(item.OutcomeCode) &&
                         item.Quality is "Good" or "Uncertain" or "Bad" or "Unknown" &&
-                        item.TimestampKind is null or "UnverifiedScan" or "ControllerScan" &&
+                        item.TimestampKind is null or "UnverifiedScan" or "ControllerScan" or "CardCapture" &&
                         inputs.Any(input => input.RequirementId == item.RequirementId && input.AssetId == item.AssetId &&
                             input.Quantity == item.Quantity && input.Source?.ConnectionId == item.ConnectionId &&
                             (item.Unit is null || item.Unit.Length <= 32 && item.Unit == input.CanonicalUnit)))

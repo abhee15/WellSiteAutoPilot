@@ -13,7 +13,8 @@ public sealed record StructuredModuleDefinition(LogicModuleIdentity Identity,
     IReadOnlyCollection<LogicAssetRequirement>? AssetRequirements = null, JsonElement? ParameterSchema = null);
 
 /// <summary>
-/// Trusted offline authoring host only. No package loading, provider access or control execution.
+/// Shared structured evaluation validator. No package loading, provider access or control execution.
+/// The production worker supplies an already verified package and authorized observations.
 /// Schemas come from the host's reviewed definition, never from the input value itself.
 /// </summary>
 public static class StructuredModuleOfflineHost
