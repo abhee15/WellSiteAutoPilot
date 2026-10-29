@@ -133,6 +133,10 @@ if (string.Equals(authenticationMode, SecurityOptions.NegotiateAuthenticationMod
     builder.Services.AddSingleton<IDirectoryDisplayNameResolver, WindowsDirectoryDisplayNameResolver>();
 else
     builder.Services.AddSingleton<IDirectoryDisplayNameResolver, NoDirectoryDisplayNameResolver>();
+builder.Services.AddSingleton<IGroupDirectory>(services =>
+    string.Equals(authenticationMode, SecurityOptions.NegotiateAuthenticationMode, StringComparison.OrdinalIgnoreCase)
+        ? new WindowsGroupDirectory() : new UnavailableGroupDirectory());
+builder.Services.AddScoped<GroupDirectorySearchService>();
 builder.Services.AddAuthorization(WellSitePolicies.AddGrantPolicies);
 builder.Services.AddSingleton<IIdentityGroupResolver>(services =>
     new WindowsTokenGroupResolver(authenticationMode, services.GetRequiredService<TimeProvider>()));
@@ -461,6 +465,21 @@ v1.MapPut(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapGet(
+    "/security/directory/groups",
+    async (string prefix, GroupDirectorySearchService directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+    {
+        var page = await directory.SearchAuthorizedAsync(access.Subject, prefix, cancellationToken);
+        return new WellSiteAutoPilot.Api.Contracts.Security.GroupDirectorySearchResponse(
+            page.Groups.Select(group => new WellSiteAutoPilot.Api.Contracts.Security.DirectoryGroupResponse(
+                group.DirectoryId, group.ExternalId, group.DisplayName, group.Domain)).ToArray(), page.HasMore);
+    })
+    .WithName("SearchDirectoryGroups")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Security.GroupDirectorySearchResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapGet(

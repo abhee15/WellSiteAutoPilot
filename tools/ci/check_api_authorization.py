@@ -28,6 +28,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/security/users/{userId:guid}/grants"): ("ListUserAccessGrants", "SecurityManage"),
     ("POST", "/security/users/{userId:guid}/grants"): ("CreateUserAccessGrant", "SecurityManage"),
     ("PUT", "/security/users/{userId:guid}/grants/{grantId:guid}/deactivate"): ("DeactivateUserAccessGrant", "SecurityManage"),
+    ("GET", "/security/directory/groups"): ("SearchDirectoryGroups", "SecurityManage"),
     ("GET", "/security/windows-groups/{groupSid}/grants"): ("ListWindowsGroupAccessGrants", "SecurityManage"),
     ("POST", "/security/windows-groups/{groupSid}/grants"): ("CreateWindowsGroupAccessGrant", "SecurityManage"),
     ("PUT", "/security/windows-groups/{groupSid}/grants/{grantId:guid}/deactivate"): ("DeactivateWindowsGroupAccessGrant", "SecurityManage"),
