@@ -74,7 +74,7 @@ export function FilterToolbar({ label, search, children, chips = [], isFiltered 
     </div>}
   </>;
   const classes = `filter-toolbar ${className}`.trim();
-  if (!onSubmit) return <section className={classes} aria-label={label} ref={root as React.RefObject<HTMLElement>}>{body}</section>;
+  if (!onSubmit) return <section className={classes} role="group" aria-label={label} ref={root as React.RefObject<HTMLElement>}>{body}</section>;
   return <form className={classes} aria-label={label} ref={root as React.RefObject<HTMLFormElement>}
     onSubmit={(event: FormEvent) => { event.preventDefault(); onSubmit(); }}>{body}</form>;
 }

@@ -1,5 +1,5 @@
-import { SearchInput } from '../components/SearchInput';
 import { ActionButton } from '../components/ActionButton';
+import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { useEffect, useState } from 'react';
 import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
@@ -24,8 +24,6 @@ type Props = {
   onChange: (next: OperationsViewCriteria) => void;
   matchingCount: number;
   recentCount: number;
-  /** Search on top and everything else under a "Filters and saved views" disclosure, as in Assets. */
-  compact?: boolean;
 };
 
 function browserStorage(): Storage | null {
@@ -48,7 +46,6 @@ export function OperationsViewControls({
   onChange,
   matchingCount,
   recentCount,
-  compact = false,
 }: Props) {
   const [savedViews, setSavedViews] = useState<SavedOperationsView[]>(
     () => loadSavedOperationsViews(userId, browserStorage()),
@@ -124,45 +121,37 @@ export function OperationsViewControls({
     setNotice(t('views.deleted'));
   };
 
-  const searchLabel = (
-    <label>
-      <span>{t('views.search')}</span>
-      <SearchInput
-        value={criteria.search}
-        maxLength={120}
-        placeholder={t('views.searchPlaceholder')}
-        onChange={event => changeCriteria({
-          ...criteria,
-          search: event.target.value,
-        })}
+  const chips = criteria.statuses.map(value => ({
+    id: value, label: t(statusLabels[value]),
+    onRemove: () => changeCriteria({ ...criteria, statuses: criteria.statuses.filter(item => item !== value) }),
+  }));
+  return (
+    <FilterToolbar label={t('views.controls')}
+      search={{ value: criteria.search, label: t('views.search'), placeholder: t('views.searchPlaceholder'),
+        onChange: search => changeCriteria({ ...criteria, search }) }}
+      chips={chips} isFiltered={!sameCriteria(criteria, DEFAULT_OPERATIONS_VIEW)}
+      onClear={() => changeCriteria({ ...DEFAULT_OPERATIONS_VIEW })}
+      note={<>{t('views.count', { shown: matchingCount, total: recentCount })}</>}>
+      <MultiSelect
+        label={t('views.status')}
+        allLabel={t('views.all')}
+        options={OPERATIONS_STATUS_FILTERS.map(value => ({ value, label: t(statusLabels[value]) }))}
+        selected={criteria.statuses}
+        onChange={statuses => changeCriteria({ ...criteria, statuses })}
       />
-    </label>
-  );
-  const controls = (
-    <div className="data-view-controls" role="group" aria-label={t('views.controls')}>
-      <div className="data-view-fields">
-        {!compact && searchLabel}
-        <MultiSelect
-          label={t('views.status')}
-          allLabel={t('views.all')}
-          options={OPERATIONS_STATUS_FILTERS.map(value => ({ value, label: t(statusLabels[value]) }))}
-          selected={criteria.statuses}
-          onChange={statuses => changeCriteria({ ...criteria, statuses })}
-        />
-        <label>
-          <span>{t('views.sort')}</span>
-          <select
-            value={criteria.sort}
-            onChange={event => changeCriteria({
-              ...criteria,
-              sort: event.target.value as OperationsViewCriteria['sort'],
-            })}
-          >
-            <option value="newest">{t('views.newest')}</option>
-            <option value="oldest">{t('views.oldest')}</option>
-          </select>
-        </label>
-      </div>
+      <FilterField label={t('views.sort')}>
+        <select
+          value={criteria.sort}
+          onChange={event => changeCriteria({
+            ...criteria,
+            sort: event.target.value as OperationsViewCriteria['sort'],
+          })}
+        >
+          <option value="newest">{t('views.newest')}</option>
+          <option value="oldest">{t('views.oldest')}</option>
+        </select>
+      </FilterField>
+      <div className="filter-toolbar-saved">
       <div className="data-saved-view-fields">
         <label>
           <span>{t('views.savedViews')}</span>
@@ -192,26 +181,10 @@ export function OperationsViewControls({
         </label>
         <ActionButton label={t('views.save')} onClick={saveView} disabled={!userId} />
         <ActionButton label={t('views.delete')} onClick={deleteView} disabled={!selectedId} />
-        <ActionButton label={t('views.reset')} onClick={() => changeCriteria({ ...DEFAULT_OPERATIONS_VIEW })} />
       </div>
-      <p className="data-view-note">
-        {t('views.count', { shown: matchingCount, total: recentCount })}{' '}
-        {t('views.deviceNote')}
-      </p>
-      {notice && <p className="data-view-notice" role="status">{notice}</p>}
-    </div>
+        <p className="data-view-note">{t('views.deviceNote')}</p>
+        {notice && <p className="data-view-notice" role="status">{notice}</p>}
+      </div>
+    </FilterToolbar>
   );
-  return compact ? (
-    <>
-      <div className="split-search">
-        <SearchInput value={criteria.search} maxLength={120} aria-label={t('views.search')}
-          placeholder={t('views.searchPlaceholder')}
-          onChange={event => changeCriteria({ ...criteria, search: event.target.value })} />
-      </div>
-      <details className="split-filters">
-        <summary>{t('views.moreFilters')}</summary>
-        {controls}
-      </details>
-    </>
-  ) : controls;
 }

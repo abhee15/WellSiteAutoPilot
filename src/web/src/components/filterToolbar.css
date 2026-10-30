@@ -23,3 +23,7 @@
   .filter-toolbar-toggle { flex: 1; justify-content: center; }
   .filter-toolbar-summary { flex-wrap: nowrap; overflow-x: auto; }
 }
+/* Saved views sit under the filter fields, across the whole panel. */
+.filter-toolbar-saved { grid-column: 1 / -1; display: grid; gap: var(--space-8); padding-top: var(--space-12); border-top: var(--border-width-thin) solid var(--color-border-subtle); }
+.filter-toolbar-saved .data-saved-view-fields { margin-top: 0; }
+.filter-toolbar-saved .data-view-note, .filter-toolbar-saved .data-view-notice { margin: 0; }

@@ -100,7 +100,6 @@ export function OperationsPage({
           onChange={setViewCriteria}
           matchingCount={visibleExecutions.length}
           recentCount={executions.length}
-          compact
         />
         <div className="table-wrap">
           <table className="activity-table">
