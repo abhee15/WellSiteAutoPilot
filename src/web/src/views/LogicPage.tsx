@@ -1,3 +1,4 @@
+import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { SearchInput } from '../components/SearchInput';
 import { useEffect, useMemo, useState } from 'react';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
@@ -84,10 +85,12 @@ export function LogicPage({
   );
   const runtimes = useMemo(() => availableLogicRuntimes(modules), [modules]);
 
+  const splitFocus = useSplitPaneFocus(showModules ? aboutModule?.id ?? null
+    : selectedConfiguration?.id ?? (creating && canCreate ? 'new' : null));
   const hasConfigurationDetail = Boolean(selectedConfiguration) || (creating && canCreate);
 
   return (
-    <div className="split-layout" data-has-selection={showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
+    <div {...splitFocus} className="split-layout" data-has-selection={showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
       <div className="split-tabs" role="tablist" aria-label={t('logic.tabs')}>
         {canReadConfigurations && <a role="tab" href={hashFor('logic')} aria-selected={!showModules}>
           {t('logic.tabConfigured')} <span>{configuredLogic.length}</span>
@@ -96,7 +99,8 @@ export function LogicPage({
           {t('logic.tabModules')} <span>{modules.length}</span>
         </a>}
         {!showModules && canCreate && !creating && !selectedConfiguredId && <button type="button"
-          className="primary-button split-add" onClick={() => setCreating(true)}>{t('setup.heading')}</button>}
+          className="primary-button split-add" data-split-focus-key="create"
+          onClick={() => setCreating(true)}>{t('setup.heading')}</button>}
       </div>
 
       {showModules ? (
@@ -145,7 +149,7 @@ export function LogicPage({
               </ul>
             )}
           </section>
-          <section className="split-selected" aria-label={t('logic.tabModules')}>
+          <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabModules')}>
             <button type="button" className="secondary-button split-back"
               onClick={() => setAboutModuleId(null)}>{t('logic.back')}</button>
             {aboutModule ? <ModulePanel module={aboutModule}
@@ -206,7 +210,7 @@ export function LogicPage({
               </ul>
             )}
           </section>
-          <section className="split-selected" aria-label={t('logic.tabConfigured')}>
+          <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabConfigured')}>
             <button type="button" className="secondary-button split-back"
               onClick={() => { setSelectedConfiguredId(null); setCreating(false); }}>{t('logic.back')}</button>
             {hasConfigurationDetail ? (

@@ -1,3 +1,4 @@
+import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { SearchInput } from '../components/SearchInput';
 import './activity.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -88,6 +89,7 @@ export function ActivityPage() {
   const apply = (filters: AuditFilters) => { setDraft(filters); setApplied(filters); void loadFirst(filters); };
   const busy = loading || loadingMore;
   const selected = events.find(event => event.id === selectedId) ?? null;
+  const splitFocus = useSplitPaneFocus(selected?.id ?? null);
   const activeFilterCount = [applied.actionPrefix, applied.targetType].filter(value => value.trim() !== '').length;
 
   return (
@@ -119,7 +121,7 @@ export function ActivityPage() {
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
       {!loading && !error && events.length === 0 && <p className="access-note access-intro">{t('activity.empty')}</p>}
       {events.length > 0 && (
-        <div className="split-layout runs-layout activity-layout" data-has-selection={selected !== null}>
+        <div {...splitFocus} className="split-layout runs-layout activity-layout" data-has-selection={selected !== null}>
           <div className="split-panes">
             <div className="split-browse">
               <div className="table-wrap">
@@ -179,7 +181,7 @@ export function ActivityPage() {
                 </div>
               )}
             </div>
-            <section className="split-selected" aria-label={t('activity.detailHeading')}>
+            <section className="split-selected" tabIndex={-1} aria-label={t('activity.detailHeading')}>
               <button type="button" className="secondary-button split-back" onClick={() => setSelectedId(null)}>
                 {t('activity.backToList')}
               </button>
