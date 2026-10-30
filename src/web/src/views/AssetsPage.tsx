@@ -1,3 +1,4 @@
+import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { SearchInput } from '../components/SearchInput';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
@@ -103,6 +104,7 @@ export function AssetsPage({
   const context = useAssetContext(selectedId, assets, lazy, refreshKey, contextCache);
   const selectedAuthorized = lazy ? context.asset ?? undefined : assets.find(asset => asset.id === selectedId);
   useForgetVanishedSelection(selectedId, Boolean(selectedAuthorized), () => setDetail(null));
+  const splitFocus = useSplitPaneFocus(selectedAuthorized?.id ?? null);
   // What the asset page and the add form need to know about around the selection.
   const nearby = useMemo(() => {
     if (!lazy || !context.asset) return assets;
@@ -163,7 +165,7 @@ export function AssetsPage({
   };
 
   return (
-    <div className="split-layout" data-has-selection={Boolean(selectedAuthorized)}>
+    <div {...splitFocus} className="split-layout" data-has-selection={Boolean(selectedAuthorized)}>
       <div className="split-tabs" role="tablist" aria-label={t('assets.tabs')}>
         <a role="tab" href={hashFor('assets')} aria-selected={!onTypesTab}>
           {t('assets.tabAssets')} <span>{lazy ? `${assets.length}+` : assets.length}</span>
@@ -357,7 +359,7 @@ export function AssetsPage({
                   </>
                 )}
             </section>
-            <section className="split-selected" aria-label={t('assets.selected')}>
+            <section className="split-selected" tabIndex={-1} aria-label={t('assets.selected')}>
               <button type="button" className="secondary-button split-back" onClick={() => select(null)}>
                 {t('assets.browse')}
               </button>

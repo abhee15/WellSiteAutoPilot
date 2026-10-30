@@ -1,3 +1,4 @@
+import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useEffect, useMemo, useState } from 'react';
 import { useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
@@ -46,6 +47,7 @@ export function OperationsPage({
   const selectedIdStillAuthorized = selectedExecutionId !== null &&
     executions.some(execution => execution.executionId === selectedExecutionId);
   useForgetVanishedSelection(selectedExecutionId, selectedIdStillAuthorized, () => setSelectedExecutionId(null));
+  const splitFocus = useSplitPaneFocus(selectedIdStillAuthorized ? selectedExecutionId : null);
   const visibleExecutions = useMemo(
     () => filterOperations(executions, viewCriteria, row => {
       const context = describeRunContext(row, configuredLogic, assets);
@@ -83,7 +85,7 @@ export function OperationsPage({
         />
       </section>
 
-      <div className="split-layout runs-layout" data-has-selection={selectedIdStillAuthorized}>
+      <div {...splitFocus} className="split-layout runs-layout" data-has-selection={selectedIdStillAuthorized}>
       <div className="split-panes">
       <section className="panel split-browse">
         <PanelHeader eyebrow="Activity" title="Recent executions" count={visibleExecutions.length} />
@@ -168,7 +170,7 @@ export function OperationsPage({
           </table>
         </div>
       </section>
-      <section className="split-selected" aria-label={t('execution.heading')}>
+      <section className="split-selected" tabIndex={-1} aria-label={t('execution.heading')}>
         <button type="button" className="secondary-button split-back" onClick={() => setSelectedExecutionId(null)}>
           {t('execution.backToList')}
         </button>
