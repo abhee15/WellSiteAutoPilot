@@ -980,12 +980,6 @@ button:disabled {
   flex-wrap: wrap;
   gap: var(--space-10);
 }
-.role-search {
-  display: grid;
-  gap: var(--space-8);
-  max-width: var(--layout-form);
-  margin: var(--space-12) var(--space-18) var(--space-20);
-}
 .role-fields {
   display: grid;
   gap: var(--space-16);
@@ -997,8 +991,7 @@ button:disabled {
   gap: var(--space-6);
 }
 .role-fields input:not([type="checkbox"]),
-.role-fields textarea,
-.role-search input {
+.role-fields textarea {
   color: var(--color-text-primary);
   background: var(--color-surface-input);
   padding: var(--space-10);
@@ -1154,7 +1147,7 @@ button:disabled {
 }
 
 /* Form field captions: one size and weight above every control in the forms (filters keep their compact captions). */
-.connection-form label, .connection-field, .asset-create-form label, .setup-form label, .role-search, .role-fields > label:not(.access-confirm) {
+.connection-form label, .connection-field, .asset-create-form label, .setup-form label, .role-fields > label:not(.access-confirm) {
   font-size: var(--font-size-body-small);
   font-weight: 500;
   color: var(--color-text-secondary);
@@ -1238,3 +1231,13 @@ select:not([multiple], [size]) {
 
 .chevron-mark { flex: none; }
 .asset-tree-count .chevron-mark { color: var(--color-text-subtle); }
+
+/* FilterBar: one field row, then actions and a count. */
+.filter-bar-fields { grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-field-narrow)), 1fr)); }
+.filter-bar-fields > label:first-child:not(:last-child) { grid-column: span 2; }
+.filter-bar-footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12); margin-top: var(--space-10); }
+.filter-bar-footer .data-view-note { margin: 0; }
+.filter-bar-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.filter-bar-actions .ui-action-button { width: auto; }
+@media (max-width: 650px) { .filter-bar-fields > label:first-child:not(:last-child) { grid-column: auto; } }
+.filter-bar-fields > label:only-child { max-width: var(--layout-form); }

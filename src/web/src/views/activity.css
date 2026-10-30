@@ -1,8 +1,4 @@
 /* Activity (audit) tab: filters above a scrollable table, newest first. */
-.activity-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-card-min)), 1fr)); gap: var(--space-16); margin: var(--space-12) var(--space-18); align-items: end; }
-.activity-filters label { display: grid; gap: var(--space-6); }
-.activity-filters input { width: 100%; color: var(--color-text-primary); background: var(--color-surface-input); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); padding: var(--space-10); font: inherit; }
-.activity-filter-actions { display: flex; gap: var(--space-8); flex-wrap: wrap; }
 .activity-event-details summary { cursor: pointer; }
 .activity-event-details dl { margin: var(--space-6) 0 0; display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-12); }
 .activity-event-details dt { color: var(--color-text-subtle); }
@@ -16,9 +12,7 @@
 .activity-table td .activity-sentence strong, .activity-detail h3 strong { display: inline; }
 .split-layout.activity-layout .activity-table td button.activity-open { display: block; padding: 0; font-weight: 400; text-align: left; line-height: inherit; white-space: normal; overflow-wrap: anywhere; }
 .activity-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-12); padding: var(--space-8) var(--space-18) 0; }
-.activity-toolbar .split-filters { flex: 1; min-width: 0; padding: 0; }
-.activity-toolbar .split-filters > summary { display: inline-block; padding: var(--space-6) 0; }
-.activity-filter-disclosure .activity-filters { margin-inline: 0; }
+.activity-toolbar .activity-filter-bar { flex: 1; min-width: 0; padding: 0 0 var(--space-12); border-bottom: 0; }
 .activity-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-6); }
 .activity-meta small, .activity-feed td .activity-meta small { margin: 0; }
 

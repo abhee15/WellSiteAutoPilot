@@ -63,6 +63,18 @@ describe('Role catalog page', () => {
     expect(screen.getByText('No matching roles.')).toBeTruthy();
   });
 
+  it('counts matches and offers Clear filters only while a search is active', async () => {
+    const user = userEvent.setup();
+    render(<RoleCatalogPage />);
+    await ready();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+    await user.type(screen.getByRole('searchbox', { name: 'Search roles' }), 'field');
+    expect(screen.getByText(/Showing 1 of \d+ roles\./)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect((screen.getByRole('searchbox', { name: 'Search roles' }) as HTMLInputElement).value).toBe('');
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+  });
+
   it('opens an empty editor for Create role, and closes it on Cancel', async () => {
     const user = userEvent.setup();
     render(<RoleCatalogPage />);
