@@ -64,6 +64,8 @@ jobs:
         run: |
           dotnet build modules/authoring/probes/composition --configuration Release --disable-build-servers -m:1
           dotnet modules/authoring/probes/composition/bin/Release/net10.0/CompositionProbe.dll modules/authoring/artifacts/composition-probe.json
+      - name: Probe authoritative decimal document conformance
+        run: node modules/authoring/probes/decimal_conformance.cjs modules/authoring/artifacts/decimal-conformance-probe.json
       - name: Measure ordinary-child boundary using synthetic resources
         run: python modules/authoring/probes/boundary_probe.py --report modules/authoring/artifacts/boundary-probe.json
       - name: Probe candidate calculation document

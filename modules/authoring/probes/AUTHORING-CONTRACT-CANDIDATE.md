@@ -96,3 +96,20 @@ outputs and rejection codes for nondefault and decimal-sensitive inputs. Include
 an opaque structured-card step without pretending to infer its internal graph.
 Only after that contract review should feature editor/compiler work begin.
 Restricted hosting and actual-authority preview/delivery remain independent gates.
+
+## Candidate conformance evidence
+
+The decimal_conformance.cjs probe now transports one candidate decimal document
+through a minimal real-browser text editor and download, a console harness and
+the same .NET evaluator, then renders returned decimal text in the browser. All
+13 local checks passed, including a nondefault 28-digit literal, exact ratio and
+difference, complete document preservation and matching rejection codes.
+Division by zero, overflow, numeric JSON instead of decimal text, unit mismatch
+and dependency cycles are rejected. The browser never evaluates the decimal
+algorithm itself. Evidence: evidence/decimal-conformance-linux.json.
+
+This is a two-operation disposable evaluator and minimal browser harness, not
+integration with the existing product CLI/React workspace or a general compiler.
+CI runs the console/.NET subset on Windows and Linux; full browser evidence is
+local. Restricted hosting, actual-authority preview/delivery, unit conversion,
+rounding/scale policy and opaque SDK-step handoff remain independent gates.

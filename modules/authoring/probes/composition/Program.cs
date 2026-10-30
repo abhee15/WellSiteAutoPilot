@@ -6,6 +6,8 @@ using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.ModuleSdk;
 using WellSiteAutoPilot.Samples.StructuredCards;
 
+if (args.Length == 2 && args[0] == "--document") { await DecimalDocumentProbe.Run(args[1]); return; }
+
 // Disposable coordinator, NOT a workflow engine, authoring API or authorization policy.
 var checks = new List<object>();
 void Check(string name, bool passed)

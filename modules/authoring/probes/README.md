@@ -81,3 +81,13 @@ Environment: Linux x64, .NET SDK 10.0.100. See
 The existing authoring-kit CI matrix now runs this probe on Windows and Linux and
 retains reports. Runner compilation compatibility is distinct from deployment
 isolation. Record actual CI outcomes before claiming Windows verification.
+
+For the authoritative decimal document probe (build composition first):
+
+```sh
+node modules/authoring/probes/decimal_conformance.cjs modules/authoring/artifacts/decimal-conformance-probe.json
+```
+
+With WSA_CHROMIUM_PATH and WSA_PLAYWRIGHT_MODULE set, the same command also
+executes the browser transport checks. WSA_DOTNET can select the installed .NET
+executable. Browser checks use a minimal disposable editor, not the product UI.
