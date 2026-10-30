@@ -16,7 +16,7 @@
 .run-section ul { margin: 0; padding-left: var(--space-18); }
 .run-section ul.run-inputs { list-style: none; padding: 0; display: grid; gap: var(--space-10); }
 .run-input { padding: var(--space-12) var(--space-14); border: var(--border-width-thin) solid var(--color-border-subtle);
-  border-radius: var(--radius-8); background: var(--color-surface-panel); display: grid; gap: var(--space-8); }
+  border-radius: var(--radius-8); background: var(--color-surface-detail); display: grid; gap: var(--space-8); }
 .run-input-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4) var(--space-12); }
 .run-input-head span { color: var(--color-text-subtle); }
 .run-input-value { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-size: var(--font-size-body); font-weight: 600; }

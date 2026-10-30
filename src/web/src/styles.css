@@ -593,7 +593,8 @@ button:disabled {
 
 .execution-detail {
   border-top: var(--border-width-thin) solid var(--color-border-control);
-  background: var(--color-surface-detail);
+  /* A white card like the Activity details; boxes inside it (run inputs) take the tint. */
+  background: var(--color-surface-panel);
   padding: var(--space-18);
 }
 
