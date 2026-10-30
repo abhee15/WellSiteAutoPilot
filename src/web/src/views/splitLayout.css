@@ -105,3 +105,6 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 
 /* A panel that holds a split layout clips instead of hiding, so the details pane can stick to the window as the page scrolls. */
 .panel:has(.runs-layout) { overflow: clip; display: flow-root; }
+
+/* Inside a narrow list pane the filter fields are one column, so the search field must not claim two. */
+.split-browse .filter-bar-fields > label:first-child:not(:last-child) { grid-column: auto; }

@@ -94,3 +94,16 @@ it('shows a recommendation that still needs a decision as needing a look, and a 
   const decided = render(<RecommendationInboxTable items={[items[2]] as never} nowUtc={Date.now()} />);
   expect(decided.container.querySelector('tbody tr .status-indicator')?.getAttribute('data-tone')).toBe('success');
 });
+
+it('offers Clear filters only when the filters differ from the default, and restores the default', async () => {
+  const user = userEvent.setup();
+  show();
+  await screen.findByText('Command a');
+  expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+  await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'zzz');
+  expect(screen.getByText('Showing 0 of 3 loaded recommendations (up to 50).')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+  expect((screen.getByRole('searchbox', { name: 'Search' }) as HTMLInputElement).value).toBe('');
+  expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+  expect(await screen.findByText('Command a')).toBeTruthy();
+});
