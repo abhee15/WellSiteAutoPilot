@@ -15,7 +15,8 @@ Reference: https://developer.chrome.com/docs/lighthouse/accessibility/managed-fo
 
 ## Reviewed contract
 
-- A shared hook captures the browse control before activation and observes selection identity.
+- A shared hook captures the originating control (including Create above the list) before
+  activation and observes selection identity.
 - When the browse pane is hidden by the responsive CSS, focus the labelled detail section.
 - On closing, return to the still-visible originating control. Do not steal focus from an
   unrelated control or reset focus on data refreshes with the same selection.
@@ -35,5 +36,5 @@ Assets, configured Logic and the Modules tab. Screenshots were inspected; Activi
 had no horizontal overflow or page exceptions. These probes use fixture data, not
 Windows authentication or a live directory/provider.
 
-Frontend lint and TypeScript/Vite build passed, as did all 257 interaction tests,
+Frontend lint and TypeScript/Vite build passed, as did all 258 interaction tests,
 237 logic tests, architecture conventions and 15 convention guard tests.

@@ -13,7 +13,7 @@ export function useSplitPaneFocus(selection: string | null) {
 
   const remember = (event: SyntheticEvent<HTMLDivElement>) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement) || !target.closest('.split-browse')) return;
+    if (!(target instanceof HTMLElement) || target.closest('.split-selected')) return;
     origin.current = target.closest<HTMLElement>(controls)
       ?? target.closest('tr, li')?.querySelector<HTMLElement>(controls) ?? null;
   };
