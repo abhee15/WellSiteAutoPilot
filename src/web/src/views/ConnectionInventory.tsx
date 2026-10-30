@@ -104,7 +104,7 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
             onClick={() => { setFacets({}); setNeedsApply(true); onSelect(null, 0); }}>{t('inventory.clearFilters')}</button>
         </details>
         <div className="connection-control-row">
-          <label><span>{t('connections.findSearch')}</span><SearchInput value={query} maxLength={100}
+          <label><span>{t('connections.findSearch')}</span><SearchInput value={query} maxLength={100} placeholder={t('connections.findSearchPlaceholder')}
             onChange={event => { setQuery(event.target.value); setNeedsApply(true); onSelect(null, 0); }} onKeyDown={event => {
               if (event.key === 'Enter') { event.preventDefault(); void search(query, facets); }
             }} /></label>
@@ -152,7 +152,7 @@ function InventoryFacet({ facet, selected, onChange }: {
     <summary>{facet.label}<span>{selected.length === 0 ? t('connections.findFacetAny') : t('inventory.facetSelected', { count: selected.length })}</span></summary>
     <fieldset>
       <legend>{facet.label}</legend>
-      <label><span>{t('inventory.searchValues', { field: facet.label })}</span><SearchInput value={valueQuery} maxLength={100}
+      <label><span>{t('inventory.searchValues', { field: facet.label })}</span><SearchInput value={valueQuery} maxLength={100} placeholder={t('inventory.searchValuesPlaceholder')}
         onChange={event => setValueQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} /></label>
       <div className="inventory-facet-values">{values.map(value => <label key={value.value}>
         <input type="checkbox" checked={selected.includes(value.value)} onChange={event => onChange(event.target.checked

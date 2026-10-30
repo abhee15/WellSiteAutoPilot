@@ -1,3 +1,5 @@
+import { RefreshCw } from 'lucide-react';
+import { ActionButton } from '../components/ActionButton';
 import './connections.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
@@ -74,7 +76,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
     <div className="status-page">
       <div className="status-actions">
         {updatedAt && <small className="status-updated">{t('status.updated', { when: formatTimestamp(updatedAt) })}</small>}
-        <button type="button" onClick={() => void reload()}>{t('status.refresh')}</button>
+        <ActionButton icon={RefreshCw} iconOnly label={t('status.refresh')} onClick={() => void reload()} />
       </div>
       {canSeeServices && (
         <section aria-labelledby="status-services">

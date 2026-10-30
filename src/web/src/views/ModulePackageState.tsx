@@ -1,3 +1,5 @@
+import { RefreshCw } from 'lucide-react';
+import { ActionButton } from '../components/ActionButton';
 import { useEffect, useState } from 'react';
 import { getLogicModulePackageState } from '../api/generated/v1/sdk.gen';
 import type { LogicModuleResponse, LogicModulePackageStateResponse } from '../api/generated/v1/types.gen';
@@ -49,6 +51,6 @@ export function ModulePackageState({ module }: { module: LogicModuleResponse }) 
       {state.compatibilityFailureCode && <p>{state.compatibilityFailureCode}</p>}
     </>}
     <p>{t('packageState.hint')}</p>
-    <button type="button" onClick={() => setRefresh(value => value + 1)}>{t('packageState.refresh')}</button>
+    <ActionButton icon={RefreshCw} iconOnly label={t('packageState.refresh')} onClick={() => setRefresh(value => value + 1)} />
   </section>;
 }

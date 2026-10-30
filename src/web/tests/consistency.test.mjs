@@ -76,3 +76,30 @@ test('a detail card is white and the boxes inside it carry the tint, as on the A
   assert.match(summary.match(/^\.run-input \{[^}]*\}/m)?.[0] ?? '', /background: var\(--color-surface-detail\)/,
     'a box inside a detail card uses the tinted detail surface, not the card colour');
 });
+
+test('every search box says what to type, so none is left empty', () => {
+  const bare = [];
+  for (const path of code) {
+    const text = source(path);
+    for (const match of text.matchAll(/<SearchInput\b[\s\S]*?\/>/g)) {
+      if (!/placeholder=/.test(match[0])) bare.push(`${rel(path)}:${text.slice(0, match.index).split('\n').length}`);
+    }
+  }
+  assert.deepEqual(bare, [], 'Give the SearchInput a placeholder (a short example or what it searches: "Role name or key…")');
+});
+
+test('buttons are not restyled by where they sit: use ActionButton, not a container-specific button rule', () => {
+  // Known, deliberate exceptions: the Runs saved-view controls (their own form row) and the tab strip.
+  const allowed = new Set(['.data-view-controls button', '.administration-tabs button', '.role-actions button']);
+  const styles = source(join(root, 'styles.css'));
+  const found = [...styles.matchAll(/^\s*(\.[\w-]+ button)(?::[\w-]+(?:\([^)]*\))*)*\s*[{,]/gm)].map(match => match[1]);
+  const offenders = [...new Set(found)].filter(selector => !allowed.has(selector));
+  assert.deepEqual(offenders, [],
+    'A rule like ".some-container button { ... }" gives one screen its own button look; use <ActionButton> (or the shared button classes)');
+});
+
+test('table text starts on the same gutter as the panel headings and filters above it', () => {
+  const styles = source(join(root, 'styles.css'));
+  assert.match(styles, /\.activity-table td:first-child \{ padding-inline-start: var\(--space-18\); \}/);
+  assert.match(styles, /\.activity-table td:last-child \{ padding-inline-end: var\(--space-18\); \}/);
+});

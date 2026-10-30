@@ -388,7 +388,7 @@ button:disabled {
 }
 
 .data-view-controls {
-  padding: var(--space-14) var(--space-18);
+  padding: var(--space-12) var(--space-18);
   border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
 }
 
@@ -499,6 +499,12 @@ button:disabled {
   vertical-align: top;
 }
 
+/* The first and last columns use the panel gutter, so table text lines up with the headings and filters above it. */
+.activity-table th:first-child,
+.activity-table td:first-child { padding-inline-start: var(--space-18); }
+.activity-table th:last-child,
+.activity-table td:last-child { padding-inline-end: var(--space-18); }
+
 .activity-table th {
   color: var(--color-text-muted);
   font-size: var(--font-size-caption);
@@ -520,6 +526,8 @@ button:disabled {
 /* A very long identifier wraps instead of widening the whole table past its panel. */
 .activity-table td strong { overflow-wrap: anywhere; }
 .activity-table td button { white-space: nowrap; }
+/* The panel already draws the table's bottom edge, so the last row does not draw a second line on top of it. */
+.activity-table tbody tr:last-child td { border-bottom: 0; }
 
 .activity-table td small {
   color: var(--color-text-tertiary);
@@ -572,24 +580,6 @@ button:disabled {
 }
 .row-link:hover:not(:disabled) strong { color: var(--color-text-link); text-decoration: underline; }
 
-
-.execution-detail-actions button {
-  border: var(--border-width-thin) solid var(--color-border-control);
-  border-radius: var(--radius-6);
-  background: var(--color-surface-input);
-  color: var(--color-text-primary);
-  padding: var(--space-8) var(--space-12);
-  cursor: pointer;
-}
-
-.execution-detail-actions button:hover:not(:disabled) {
-  background: var(--color-surface-control-hover);
-}
-
-.execution-detail-actions button:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
 
 .execution-detail {
   border-top: var(--border-width-thin) solid var(--color-border-control);

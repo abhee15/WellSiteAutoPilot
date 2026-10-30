@@ -68,7 +68,7 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
       <p>{t('sourceChanges.lastComplete', { time: page.lastSuccessfulCheck ? formatTimestamp(page.lastSuccessfulCheck.completedAtUtc!) : t('sourceChanges.never') })}</p>
       <p className="connection-help">{t('sourceChanges.retained')}</p>
       <div className="connection-actions">
-        <div className="connection-source-search"><label htmlFor={searchId}>{t('sourceChanges.search')}</label><SearchInput id={searchId} value={query} maxLength={256} disabled={blocked}
+        <div className="connection-source-search"><label htmlFor={searchId}>{t('sourceChanges.search')}</label><SearchInput id={searchId} value={query} maxLength={256} disabled={blocked} placeholder={t('sourceChanges.searchPlaceholder')}
           action={{ label: t('sourceChanges.search'), type: 'button', disabled: blocked, busy, onClick: () => void run(0, query) }} onChange={e => setQuery(e.target.value)}
           onKeyDown={event => {
             if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); if (!blocked) void run(0, query); }

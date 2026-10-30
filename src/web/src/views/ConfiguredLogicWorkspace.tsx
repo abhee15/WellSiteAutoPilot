@@ -1,3 +1,4 @@
+import { ActionButton } from '../components/ActionButton';
 import { useEffect, useRef, useState } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse, ExecutionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
@@ -163,7 +164,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       onDenied={committed => { setDetail(null); setEditing(false); setSource(undefined);
         setDenied(true); setBlocked(true); setError(t(committed ? 'setup.committed' : 'setup.denied')); }}
       onCancel={() => { setEditing(false); setSource(undefined); if (!detail) onClose(); }} />}
-    {!detail && <button type="button" disabled={busy} onClick={onClose}>{t('configured.close')}</button>}
+    {!detail && <ActionButton label={t('configured.close')} disabled={busy} onClick={onClose} />}
   </section>;
 }
 

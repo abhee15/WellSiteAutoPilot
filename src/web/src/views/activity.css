@@ -11,7 +11,7 @@
 .activity-feed td.activity-time { white-space: normal; min-width: var(--layout-fact-narrow); }
 .activity-table td .activity-sentence strong, .activity-detail h3 strong { display: inline; }
 .split-layout.activity-layout .activity-table td button.activity-open { display: block; padding: 0; font-weight: 400; text-align: left; line-height: inherit; white-space: normal; overflow-wrap: anywhere; }
-.activity-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-12); padding: var(--space-8) var(--space-18) 0; }
+.activity-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-12); padding: var(--space-12) var(--space-18) 0; }
 .activity-toolbar .activity-filter-bar { flex: 1; min-width: 0; padding: 0 0 var(--space-12); border-bottom: 0; }
 .activity-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-6); }
 .activity-meta small, .activity-feed td .activity-meta small { margin: 0; }
@@ -21,7 +21,13 @@
 
 /* The selected event, beside the list (wide) or in place of it (narrow), like a selected run. */
 .activity-layout .split-selected .activity-detail { display: grid; gap: var(--space-16); padding: var(--space-16) var(--space-18);
-  background: var(--color-surface-panel); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); min-width: 0; }
+  min-width: 0; }
+/* The list and the details share one panel, so the details are a pane with a single divider, not a second bordered card
+   (which doubled the panel's own border along its edges). */
+.activity-layout .split-panes { gap: 0; }
+.activity-layout[data-has-selection='true'] .split-panes { align-items: stretch; }
+.activity-layout[data-has-selection='true'] .split-browse { border-right: var(--border-width-thin) solid var(--color-border-subtle); }
+.activity-layout .split-selected { align-self: start; }
 .activity-detail header { display: grid; gap: var(--space-6); }
 .activity-detail h3 { margin: 0; font-size: var(--font-size-body); font-weight: 400; overflow-wrap: anywhere; }
 .activity-detail h4 { margin: 0 0 var(--space-8); font-size: var(--font-size-body-small); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); }

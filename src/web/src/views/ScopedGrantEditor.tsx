@@ -77,7 +77,7 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
         <fieldset className="grant-assets">
           <legend>{t('grants.assets')}</legend>
           <label>{t('grants.search')}
-            <SearchInput controlSize="large" value={query} maxLength={120}
+            <SearchInput controlSize="large" value={query} maxLength={120} placeholder={t('grants.searchPlaceholder')}
               onChange={event => setQuery(event.target.value)} />
           </label>
           {matching.length > visible.length &&
