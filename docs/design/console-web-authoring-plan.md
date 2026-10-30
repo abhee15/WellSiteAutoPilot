@@ -10,7 +10,7 @@ physical-control implementation.
 ## Goal and scope
 
 Let a customer author Logic Modules using either the existing console/local kit
-or a guided workspace in WellSite AutoPilot. Reuse module contracts, validation,
+or an authoring workspace in WellSite AutoPilot. Reuse module contracts, validation,
 package format, saved connections and authorization. Start with a complete,
 bounded ForeSite path; apply the experience to CygNet and PetroVisor as their
 actual supported capabilities become available.
@@ -79,14 +79,81 @@ independently establish all installed-environment acceptance results.
 7. Retain local console build/package workflows. Hosted draft tests remain a
    separate isolated step and do not grant production trust.
 
-The initial guided experience configures reviewed templates. Arbitrary rules,
-diagrams and natural-language generation require additional implementation;
+Reviewed templates can help create a starting module. They do not define the
+complexity limit of authoring. The workspace design must account for the
+calculation/dependency requirements below before its scope is settled. Richer
+authoring, diagrams and natural-language generation require implementation;
 they are not capabilities supplied by the current manifest format.
+
+## Owner correction: the wizard is insufficient
+
+The owner reviewed the conversation mock and rejected its simplicity as a model
+for real Logic Module authoring. A Start/Configure/Build wizard is insufficient
+for modules with dependent parameters, multiple calculations and intermediate
+results. Record the existing mock as an incomplete package-flow illustration,
+not the accepted authoring design or a feature-completion criterion. Simple
+setup assistance may remain, but must lead into a revisitable workspace.
+
+### Sample review and design consequences
+
+The following implementations were read, including their associated manifests.
+This is source review, not new execution or live-provider verification.
+
+| Repository evidence | What it actually does | Requirement for the next design |
+| --- | --- | --- |
+| [WellInputCheck (.NET)](../../modules/authoring/dotnet/WellInputCheck/EntryPoint.cs) and [Python equivalent](../../modules/authoring/python/well_input_check.py) | Validate one pump-fillage observation, identity, units and context; return the observed value | Useful onboarding/contract fixtures, not representative of the full calculation-authoring requirement |
+| [CardCalibrationModule](../../modules/samples/structured-cards/CardCalibrationModule.cs) and [manifest](../../modules/samples/structured-cards/manifest.json) | Consume a card collection plus a separate calibration record; validate paired array lengths, identity and capture times; transform every load sample using scale/offset; derive per-card peaks and an aggregate peak; return curves and a scalar | Support structured inputs, configuration dependencies, repeated calculation over collections, named intermediate values, aggregation, multiple output shapes and failure paths |
+| [ForeSite card-summary POC](https://github.com/abhee15/WellSiteAutoPilot/blob/poc/cards-e2e/modules/poc/foresite-card-summary/EntryPoint.cs) | Select CURRENT cards, reject missing/misaligned input, and derive card count, load extrema, stroke travel and newest-card age | Show selection/conditional logic and several derived outputs with their source/time semantics; identify this as POC evidence rather than current production behavior |
+
+The calibration example is synthetic linear calibration, not a downhole-card
+solver. These samples establish a minimum design exercise, not proof that the
+repository already contains every complex customer algorithm. The SDK permits
+algorithm code inside ExecuteAsync; manifest input/output declarations do not
+describe that code's internal calculation graph. Do not infer a complete visual
+workflow or reconstruct dependencies from the manifest alone.
+
+### Requirements to carry into the revised concept
+
+- Make inputs, parameters, calculations, dependencies and outputs revisitable in
+  one workspace. An author must be able to name an intermediate result, see what
+  consumes it, and trace an output back through its calculations to its inputs.
+- Represent formula dependencies, conditional branches, collection operations
+  and aggregation; account for custom algorithm code through the existing SDK
+  rather than restricting every module to threshold templates. Decide which
+  operations the first visual experience can author and how code-backed steps
+  are represented. Do not promise unrestricted browser code execution.
+- Preserve arrays, records, units, timestamps, quality and asset/source identity.
+  Distinguish invalid/missing inputs from a valid calculated zero. Show validation
+  and test failures at the relevant input or calculation, not only at final build.
+- Show external data and calculation dependencies as named roles, including the
+  ForeSite-to-WAMI scenario below. One provider selector must not define the
+  entire module. Configuration changes must invalidate affected test/build evidence.
+- Let tests inspect intermediate values, branch outcomes and final outputs.
+  Detailed traces require a versioned reporting/instrumentation contract; the
+  current SDK result envelope does not expose arbitrary local variables.
+- Retain console and web clients, standard manifest/binary packaging, separate
+  approval and read-only live-data access with simulated proposed actions.
+
+Proposed visual direction to review: a module outline/dependency view, a central
+calculation workspace, contextual input/parameter properties, and a test/results
+area. A dependency view does not itself select a new workflow engine or commit
+the product to an unrestricted visual language. Explore the representation
+against the samples before choosing a canvas, structured editor, or hybrid.
+
+Next design/probe acceptance: walk through card calibration end to end, including
+paired-array failure and peak aggregation; then a composed example with named
+intermediate calculations and a ForeSite source plus a WAMI-shaped calculation
+stub. Demonstrate editing an upstream parameter, tracing affected outputs and
+invalidating stale results. Preserve the underlying algorithm when moving
+between console and web; explicitly report unsupported authoring operations.
+The simple .NET build/package probe remains useful evidence about packaging,
+but cannot validate this richer authoring experience. No new runtime or visual
+authoring capability is implemented by this note.
 
 ## Near-term design and probe requirement: multiple providers
 
 Owner clarification: a Logic Module must not be permanently restricted to one
-provider, adapter or saved connection. The first guided ForeSite path is an MVP
+provider, adapter or saved connection. The first ForeSite starter is an MVP
 scope choice, not the final module cardinality. A module may need several
 connections of the same provider as well as connections to different providers.
 
@@ -190,14 +257,15 @@ child process or collectible assembly context alone is not an isolation boundary
 | Slice | Deliverable | Completion evidence |
 | --- | --- | --- |
 | A: inventory and capability preview | Adapters tab, general authoring permission, supported-operation metadata and authorized ForeSite preview | Actual adapter inventory; no secrets; scoped/revoked access tests; no provider writes |
-| B: author, build and deliver | Guided ForeSite template and inputs, restricted .NET build, manifest/binaries package, Download and Add to catalog | Same validation in CLI/web; built package passes existing reader/preflight; exact artifact is downloadable/submittable; catalog remains untrusted until separate approval |
+| B: author, build and deliver | Revised calculation/dependency workspace validated against the sample scenarios; restricted .NET build, manifest/binaries package, Download and Add to catalog | Scope follows the revised design/probes; a template wizard alone does not complete authoring; same validation in CLI/web; verified artifact supports download/submission; catalog remains untrusted until separate approval |
 | C: isolated draft testing | Supported .NET draft runner using fixture or explicitly authorized live input snapshots; bounded reports | Timeout/cancellation/isolation checks; report retains module/input identity, units, quality and time; proposed actions never reach provider commands |
 | D: broader authoring | Additional actual CygNet/PetroVisor operations/templates and runtime support | Provider-specific acceptance evidence; Python execution only after a real production/test host is implemented |
 | Later | Agent-assisted creation, diagrams and customer adapter SDK/installation | Reuse established contracts and validation; separate scoped design |
 
-Do not build a generic workflow language or browser IDE to deliver A/B. A custom
-calculation can still be developed through the console and local SDK. Introduce
-shared libraries only when two real callers need them; no general framework or
+Do not assume a generic workflow language or browser IDE is necessary to deliver
+A/B. Custom calculations remain supported through the console and local SDK,
+and the revised web design must account for their representation and handoff.
+Introduce shared libraries only when two real callers need them; no general framework or
 second credential/package store.
 
 For draft storage, begin with an exportable authoring description and local
@@ -238,13 +306,14 @@ authoring before operational modes.
 ## Visual design before probes
 
 Use the existing application shell with Logic > Authoring and Connections >
-Adapters. Show Start, Configure, and Build & package as a short guided flow.
-The first concept uses ForeSite, sample/live input selection, labeled parameters,
-a plain-language proposed adjustment, and Download/Add to catalog after a verified
-build. This is a design concept, not evidence that build or preview endpoints exist.
-Validate required inputs before advancing. Show build pending/cancel/failure states
-in the browser probe and invalidate the artifact on every package-affecting edit.
-Upstream provider/connection changes clear dependent fields and preview evidence.
+Adapters. The initial Start/Configure/Build conversation mock is insufficient and
+must be revised against the sample/dependency requirements above before feature
+implementation. Explore a persistent calculation workspace, using progressive
+disclosure to keep complex logic understandable rather than reducing its expressiveness.
+Retain sample/live input selection, labeled parameters, clear proposed outputs,
+and Download/Add to catalog after a verified build. Show build pending/cancel/failure
+states and invalidate the artifact on every package-affecting edit. Upstream
+provider/connection changes clear dependent fields and preview evidence.
 
 The shell must reuse current grouped navigation, route/tab permissions, shared
 controls, localization, skip-link and mobile focus behavior. The simplified
@@ -256,6 +325,8 @@ An independent GPT-6 Astra review examined this plan, the conversation mockup,
 current UI route/tab authorization, SDK contracts and read/package boundaries.
 Conclusion: ready for disposable probes, not for shipping hosted builds. No
 probe execution or live verification was performed by the reviewer.
+That review predates the owner's wizard correction. It does not approve the
+revised complex-authoring UX; that design still needs its own review and probes.
 
 | Finding | Required response |
 | --- | --- |
@@ -284,8 +355,9 @@ remain explicit rather than claiming that no gaps exist.
 | Package round trip | Generated manifest plus actual compiled payload through existing pack, verify and host preflight | Correct entry point, module identity/version, schemas, managed dependencies and hash; failed build cannot offer a successful package |
 | Download/catalog handoff | The same successful immutable build artifact supports download and existing catalog ingestion | Matching bytes/hash; identity/version conflicts handled by existing rules; catalog submission stays untrusted and requires existing authority |
 | Console/web reuse | Prepare the same starter inputs using both clients and existing validators | Equivalent manifest semantics and errors; import/export preserves inputs/parameters; no duplicate package validator |
-| Multi-provider composition | ForeSite data/configuration/model requirements plus a separately bound WAMI calculation dependency; start with an explicit stub if needed | Named dependency bindings, per-source authority, asset correlation, input/output schemas, single-provider assumptions and limits documented; no claim of live WAMI support |\n| Capability/preview | Actual ForeSite supported operations versus descriptors, authorized input selection and preview | Connection-scoped scalar/structured results; no credentials or provider write calls |
-| Guided UI | Small browser probe with shared controls | Provider/connection selection, parameter help, build pending/failure/success, Download/Add actions and accessible keyboard/mobile flow |
+| Multi-provider composition | ForeSite data/configuration/model requirements plus a separately bound WAMI calculation dependency; start with an explicit stub if needed | Named dependency bindings, per-source authority, asset correlation, input/output schemas, single-provider assumptions and limits documented; no claim of live WAMI support |
+| Capability/preview | Actual ForeSite supported operations versus descriptors, authorized input selection and preview | Connection-scoped scalar/structured results; no credentials or provider write calls |
+| Authoring workspace UI | Revised concept exercised against card calibration and composed calculations, using shared controls | Revisit inputs/calculations; trace intermediate dependencies and branches; inspect structured/test results; invalidate affected evidence; build/package actions and accessible keyboard/mobile flow |
 
 Begin with a constrained .NET starter project, pinned dependencies and no arbitrary
 customer build scripts. Determine the enforceable boundary in the probe, rather
@@ -338,7 +410,8 @@ of the first complete authoring workflow; source-only export is intermediate.
 
 Before implementation, run a small contract/UI probe using existing shared
 controls. Verify provider selection, empty/unavailable capabilities, authorized
-field preview, parameter validation and keyboard/mobile flow. Then implement
+field preview, parameter validation, calculation dependencies, intermediate-result
+inspection and keyboard/mobile flow. Then implement
 small PRs with current-head CI. Use existing ActionButton, SearchInput, Status,
 localization and focus behavior; generate API clients from the server contracts.
 
