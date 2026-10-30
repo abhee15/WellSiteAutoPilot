@@ -166,3 +166,9 @@ test('no unclassed, old-style <button>: use ActionButton (or a shared class) so 
   walk(root);
   assert.deepEqual(offenders, [], 'use <ActionButton label=... /> for an action button');
 });
+
+test('controls share one height: border-box sizing and a control line height keep inputs, selects and buttons at --size-control', () => {
+  const styles = source(join(root, 'styles.css'));
+  assert.match(styles, /:where\(input, select, textarea, button\) \{ box-sizing: border-box; \}/);
+  assert.match(styles, /:is\(input, select, textarea\)[^{]*\{ line-height: var\(--line-height-control\); \}/);
+});
