@@ -88,14 +88,26 @@ describe('Activity page', () => {
     vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1)], nextCursor: null });
     render(<ActivityPage />);
     await screen.findByText('module-1', { exact: false });
+    expect(screen.queryByText('Apply filters')).toBeNull();
+    expect(screen.queryByText('Clear filters')).toBeNull();
     await userEvent.type(screen.getByLabelText('Action starts with'), 'security.');
-    await userEvent.click(screen.getByText('Apply filters'));
     await waitFor(() => expect(vi.mocked(loadAuditPage).mock.calls.at(-1)?.[0])
       .toEqual({ actionPrefix: 'security.', targetType: '' }));
     expect(vi.mocked(loadAuditPage).mock.calls.at(-1)?.[1]).toBeNull();
     await userEvent.click(screen.getByText('Clear filters'));
     await waitFor(() => expect(vi.mocked(loadAuditPage).mock.calls.at(-1)?.[0])
       .toEqual({ actionPrefix: '', targetType: '' }));
+  });
+
+  it('searches once typing pauses, not on every keystroke', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1)], nextCursor: null });
+    render(<ActivityPage />);
+    await screen.findByText('module-1', { exact: false });
+    const before = vi.mocked(loadAuditPage).mock.calls.length;
+    await userEvent.type(screen.getByLabelText('Target type'), 'Role');
+    await waitFor(() => expect(vi.mocked(loadAuditPage).mock.calls.at(-1)?.[0])
+      .toEqual({ actionPrefix: '', targetType: 'Role' }));
+    expect(vi.mocked(loadAuditPage).mock.calls.length - before).toBe(1);
   });
 
   it('says so when nothing matches and shows a stable message when access is refused', async () => {

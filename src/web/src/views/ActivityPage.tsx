@@ -26,6 +26,9 @@ function errorLabel(kind: AuditErrorKind): string {
   }
 }
 
+/** How long typing must pause before the list follows it. */
+const FILTER_DEBOUNCE_MS = 350;
+
 /** Who did what, newest first. Administrators only: the server refuses everyone else. */
 export function ActivityPage() {
   const [draft, setDraft] = useState<AuditFilters>(noFilters);
@@ -88,10 +91,18 @@ export function ActivityPage() {
   };
 
   const apply = (filters: AuditFilters) => { setDraft(filters); setApplied(filters); void loadFirst(filters); };
+  // Type-ahead: the list follows what is typed once typing pauses, so there is nothing to apply.
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
+  useEffect(() => {
+    if (draft.actionPrefix === applied.actionPrefix && draft.targetType === applied.targetType) return;
+    const timer = window.setTimeout(() => applyRef.current(draft), FILTER_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [draft, applied]);
   const busy = loading || loadingMore;
   const selected = events.find(event => event.id === selectedId) ?? null;
   const splitFocus = useSplitPaneFocus(selected?.id ?? null);
-  const activeFilterCount = [applied.actionPrefix, applied.targetType].filter(value => value.trim() !== '').length;
+  const filtersTyped = draft.actionPrefix.trim() !== '' || draft.targetType.trim() !== '';
 
   return (
     <section className="panel activity-panel" data-has-selection={selected !== null}>
@@ -99,11 +110,7 @@ export function ActivityPage() {
       <h2 className="visually-hidden">{t('activity.heading')}</h2>
       <div className="activity-toolbar">
         <FilterBar className="activity-filter-bar" label={t('activity.filters')} onSubmit={() => apply(draft)}
-          note={activeFilterCount > 0 ? t('activity.filtersActive', { count: activeFilterCount }) : undefined}
-          actions={<>
-            <ActionButton type="submit" variant="primary" label={t('activity.apply')} disabled={busy} />
-            <ActionButton variant="secondary" label={t('activity.reset')} disabled={busy} onClick={() => apply(noFilters)} />
-          </>}>
+          actions={filtersTyped ? <ActionButton variant="secondary" label={t('activity.reset')} onClick={() => apply(noFilters)} /> : undefined}>
           <FilterField label={t('activity.actionFilter')}>
             <SearchInput maxLength={128} value={draft.actionPrefix}
               onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
