@@ -18,6 +18,36 @@ no-restore rebuild, and an intentional compiler error. The temporary workspace
 is removed. The report records passed checks and explicit verification limits.
 No compiled package is published, uploaded to a catalog or approved.
 
+## Additional targeted probes
+
+See [confidence review](CONFIDENCE-REVIEW.md) for the evidence matrix, independent
+review findings, resolved defects and remaining implementation gates.
+
+```sh
+dotnet build modules/authoring/probes/composition --configuration Release --disable-build-servers -m:1
+dotnet modules/authoring/probes/composition/bin/Release/net10.0/CompositionProbe.dll modules/authoring/artifacts/composition-probe.json
+node modules/authoring/probes/document_probe.mjs modules/authoring/artifacts/document-probe.json
+python modules/authoring/probes/boundary_probe.py --report modules/authoring/artifacts/boundary-probe.json
+python modules/authoring/probes/offline_restore_probe.py --report modules/authoring/artifacts/offline-probe.json
+```
+
+`workspace.html` is a disposable, fixture-only calculation/dependency design
+probe. It loads application tokens/styles but is not the product React shell.
+With Playwright available and Chromium installed, run:
+
+```sh
+node modules/authoring/probes/workspace_probe.cjs
+```
+
+Set `WSA_PLAYWRIGHT_MODULE` to the installed Playwright module path if needed,
+and `WSA_CHROMIUM_PATH` to an installed Chromium executable. The browser harness
+serves only local repository files on loopback, launches desktop/narrow probes,
+checks editable dependencies/condition and document transport, and writes reports
+and screenshots under the ignored `modules/authoring/artifacts/workspace` folder.
+No product dependency or endpoint is added. The Node console harness tests the
+candidate document, not existing CLI compatibility. Browser numeric/validation
+semantics are reference-only, not a substitute for the actual .NET SDK host.
+
 ## First local evidence
 
 Baseline: `630f1ad4f137488d4f1260781abaf663936e2dd8`.
