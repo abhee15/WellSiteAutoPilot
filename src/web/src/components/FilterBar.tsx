@@ -8,15 +8,20 @@ type FilterBarProps = {
   note?: ReactNode;
   /** Buttons that belong to the bar (Apply, Clear filters). */
   actions?: ReactNode;
+  /** Sits at the end of the field row, bottom-aligned with the inputs (a Reload button, say). */
+  trailing?: ReactNode;
   /** When given the bar is a form, so Enter applies the filters. */
   onSubmit?: () => void;
   className?: string;
 };
 
 /** The one layout every list's search and filters share: labelled fields in a row, then actions and a count. */
-export function FilterBar({ label, children, note, actions, onSubmit, className = '' }: FilterBarProps) {
+export function FilterBar({ label, children, note, actions, trailing, onSubmit, className = '' }: FilterBarProps) {
   const body = <>
-    <div className="data-view-fields filter-bar-fields">{children}</div>
+    <div className="filter-bar-main">
+      <div className="data-view-fields filter-bar-fields">{children}</div>
+      {trailing && <div className="filter-bar-trailing">{trailing}</div>}
+    </div>
     {(actions || note) && <div className="filter-bar-footer">
       {actions && <div className="filter-bar-actions">{actions}</div>}
       {note && <p className="data-view-note">{note}</p>}

@@ -182,6 +182,7 @@ export function OperationsViewControls({
             value={name}
             maxLength={48}
             disabled={!userId}
+            placeholder={t('views.namePlaceholder')}
             onChange={event => {
               setName(event.target.value);
               setNotice(null);
