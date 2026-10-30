@@ -16,12 +16,12 @@ span.asset-tree-toggle { inline-size: var(--space-20); flex: none; }
 /* Names read as text first; the link look appears on hover and for the selected row. */
 .asset-tree-name { flex: 1 1 auto; min-width: 0; color: var(--color-text-primary); text-decoration: none; overflow-wrap: anywhere; }
 .asset-tree-name:hover { color: var(--color-text-link); text-decoration: underline; }
-.asset-tree-name[data-selected='true'] { font-weight: 600; color: var(--color-text-selected); }
+.asset-tree-name[data-selected='true'] { font-weight: var(--font-weight-medium); color: var(--color-text-selected); }
 .asset-tree-status { padding: var(--space-4) 0 var(--space-4) var(--space-24); color: var(--color-text-subtle); }
-.asset-owner-row { font-weight: 600; }
+.asset-owner-row { font-weight: var(--font-weight-medium); }
 /* Count and link sit on their own line under the name, aligned with it, so a long Connection name never squeezes them. */
 .asset-owner-meta { flex-basis: 100%; display: flex; gap: var(--space-12); align-items: baseline;
-  padding-left: calc(var(--space-20) + var(--space-6)); font-weight: 400; }
+  padding-left: calc(var(--space-20) + var(--space-6)); font-weight: var(--font-weight-regular); }
 .asset-node-icon { flex: none; color: var(--color-text-subtle); vertical-align: middle; margin-right: var(--space-4); }
 
 /* How many assets sit below a group: a down chevron and the number, with the full words for hover and screen readers. */

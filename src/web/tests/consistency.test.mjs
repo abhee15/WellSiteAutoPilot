@@ -114,3 +114,25 @@ test('master-detail panes scroll on their own and the page does not (one shared 
   }
   assert.match(source(join(root, 'App.tsx')), /useSplitPaneViewport\(mainRef\)/);
 });
+
+test('type scale: weights and line heights come from tokens, and only the three loaded Roboto weights exist', () => {
+  const dir = join(root);
+  const offenders = [];
+  const walk = folder => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.name.endsWith('.css') && !entry.name.endsWith('tokens.css')) {
+        const css = readFileSync(path, 'utf8');
+        for (const match of css.matchAll(/font-weight:\s*([^;}]+)/g)) {
+          if (!/^(var\(--font-weight-(regular|medium|bold)\)|inherit)$/.test(match[1].trim())) offenders.push(`${entry.name}: ${match[0]}`);
+        }
+      }
+    }
+  };
+  walk(dir);
+  assert.deepEqual(offenders, [], 'use --font-weight-regular/medium/bold; a raw 600 would render as the 700 Roboto file');
+  const tokens = source(join(root, 'tokens.css'));
+  for (const weight of ['400', '500', '700']) assert.match(tokens, new RegExp(`--font-weight-\\w+: ${weight};`));
+  assert.doesNotMatch(tokens, /--font-weight-\w+: 600/);
+});
