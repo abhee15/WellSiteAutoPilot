@@ -293,6 +293,11 @@ jobs:
         working-directory: src/web
         run: npm run generate-api
 
+      # Type errors surface here, right after the client is generated, instead of after every test has run.
+      - name: Typecheck frontend
+        working-directory: src/web
+        run: npm run typecheck
+
       - name: Lint frontend
         working-directory: src/web
         run: npm run lint

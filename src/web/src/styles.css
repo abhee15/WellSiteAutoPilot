@@ -234,7 +234,6 @@ button:disabled {
   margin: 0;
 }
 
-.page-description,
 .last-updated {
   color: var(--color-text-muted);
   font-size: var(--font-size-body-small);
