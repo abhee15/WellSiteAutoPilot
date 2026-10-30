@@ -6,7 +6,7 @@
 .split-tabs [role='tab'] span { color: var(--color-text-subtle); font-weight: 400; }
 .split-add { margin-left: auto; }
 .split-intro, .split-note { margin: 0; padding: var(--space-12) var(--space-18); color: var(--color-text-subtle); }
-.split-panes { display: grid; grid-template-columns: minmax(var(--layout-panel-min), var(--layout-panel-max)) minmax(0, 1fr); gap: var(--space-12); align-items: start; }
+.split-panes { display: grid; grid-template-columns: minmax(var(--layout-panel-min), 1fr) minmax(0, 3fr); gap: var(--space-12); align-items: start; }
 .split-back { display: none; margin: var(--space-12) var(--space-18) 0; }
 .split-results { list-style: none; margin: 0; padding: var(--space-6) 0; display: grid; }
 .split-results li { display: grid; padding: var(--space-6) var(--space-18); }
@@ -62,6 +62,14 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 .runs-layout .split-selected .execution-detail { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
 @media (min-width: 901px) { .runs-layout .split-back { display: none; } }
 
+/* Space is shared by ratio, not capped: beside an open item the list gets two parts and the details three,
+   so a wide window fills up instead of leaving the right-hand side empty. The details stay in view
+   while a long list is scrolled, and scroll on their own when they are taller than the window. */
+@media (min-width: 901px) {
+  .runs-layout[data-has-selection='true'] .split-panes { grid-template-columns: minmax(var(--layout-panel-min), 2fr) minmax(0, 3fr); }
+  .runs-layout[data-has-selection='true'] .split-selected {
+    position: sticky; top: var(--space-12); max-height: calc(100dvh - 2 * var(--space-12)); overflow-y: auto; }
+}
 /* Uploading a package sits in the browse pane like the filters: a quiet disclosure with the same gutters. */
 .module-upload { padding: var(--space-8) 0 0; }
 .module-upload > summary { cursor: pointer; padding: var(--space-4) var(--space-18); color: var(--color-text-subtle); }
@@ -87,3 +95,13 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 
 /* Roles: the editor sits beside the list, which keeps its actions column but drops the long ones. */
 .roles-layout .activity-table tbody tr { cursor: default; }
+
+/* The columns hidden beside the details come back whenever the list is wide enough for them. */
+.runs-layout .split-browse { container-type: inline-size; }
+@container (min-width: 720px) {
+  .runs-layout[data-has-selection='true'] .run-col-secondary { display: table-cell; }
+  .runs-layout[data-has-selection='true'] .run-col-logic { display: table-cell; }
+}
+
+/* A panel that holds a split layout clips instead of hiding, so the details pane can stick to the window as the page scrolls. */
+.panel:has(.runs-layout) { overflow: clip; display: flow-root; }

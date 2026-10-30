@@ -58,3 +58,12 @@ test('every stat/summary heading and table header on a shared page is a message 
   const overview = source(join(root, 'views/OverviewPage.tsx'));
   assert.ok(!/<SummaryCard[^>]*label="/.test(overview));
 });
+
+test('split layouts share space by ratio and keep the details in view', () => {
+  const css = source(join(root, 'views/splitLayout.css'));
+  const base = css.match(/^\.split-panes \{[^}]*\}/m)?.[0] ?? '';
+  assert.match(base, /\d+fr\)/, 'the list/details columns of .split-panes must be fr ratios, so wide windows are filled');
+  assert.doesNotMatch(base, /layout-panel-max|\d+px/, 'do not cap the list column at a fixed width: use ratios');
+  assert.match(css, /\.runs-layout\[data-has-selection='true'\] \.split-selected \{[^}]*position: sticky/,
+    'the open details stay in view while a long list is scrolled');
+});

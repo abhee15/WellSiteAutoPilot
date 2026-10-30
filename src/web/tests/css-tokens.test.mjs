@@ -27,12 +27,12 @@ test('every CSS custom property that is used is defined by the design tokens', (
 });
 
 test('sizes, spacing, radii and timings come from design tokens, not raw lengths', () => {
-  // Only src/tokens.css may hold raw lengths. Media-query breakpoints are exempt because CSS cannot use
-  // custom properties in a media query.
+  // Only src/tokens.css may hold raw lengths. Media- and container-query breakpoints are exempt because CSS
+  // cannot use custom properties in them.
   const offenders = [];
   for (const file of files) {
     if (file.endsWith('tokens.css')) continue;
-    const css = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*/g, '');
+    const css = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/@(media|container)[^{]*/g, '');
     css.split('\n').forEach((line, index) => {
       for (const match of line.matchAll(/(?<![\w.-])-?\d*\.?\d+(px|rem|em|ms|s)\b/g)) {
         offenders.push(`${file.split('/src/')[1]}:${index + 1} ${match[0]}`);
