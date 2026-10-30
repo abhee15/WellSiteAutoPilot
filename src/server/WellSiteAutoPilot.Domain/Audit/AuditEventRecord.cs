@@ -10,4 +10,6 @@ public sealed record AuditEventRecord(
     string? TargetId,
     Guid? AssetId,
     string? CorrelationId,
-    string DetailsJson);
+    string DetailsJson,
+    string? TargetName = null,
+    string? ActorName = null);

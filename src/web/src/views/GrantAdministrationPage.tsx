@@ -198,7 +198,6 @@ export function GrantAdministrationPage(
             disabled={isLoading || saving} onClick={() => void load()} />
         </div>
         <div className="grant-selection">
-        <p className="access-note grant-selection-intro">{t('grants.intro')}</p>
         {isLoading && <LoadingIndicator label={t('access.loading')} />}
         {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
         {notice && <p role="status" className="access-intro">{notice}</p>}

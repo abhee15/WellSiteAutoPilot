@@ -18,6 +18,13 @@ UX plan item B8, delivered in two slices.
 - **Not audited:** reading the audit trail does not write an audit event.
 - **Response:** `items[]` (id, time, actor, action, target, asset, correlation id, `detailsJson`) and
   `nextCursor` (null on the last page). `detailsJson` is raw recorded JSON text for administrators.
+- **Names:** each item also carries `targetName` (the affected record's current name) and `actorName` (the
+  person's display name), so the Activity page can say "ForeSite" instead of a GUID. Both are `null` when
+  there is nothing to show: the record has no name (an access grant, a run), it was deleted, or the actor is
+  a system process. Names are looked up after the page is cut, one query per kind of target on that page,
+  and are the *current* name, not the name at the time of the event. Resolved for connections, configured
+  logic, logic modules (name and version), assets, asset views, asset types, users and roles. The recorded
+  event is never changed or filtered by this lookup.
 
 ## Slice 2 (needs a decision)
 

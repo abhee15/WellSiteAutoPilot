@@ -20,16 +20,55 @@ beforeEach(() => { vi.resetAllMocks(); });
 afterEach(cleanup);
 
 describe('Activity page', () => {
-  it('shows events with a readable action, the recorded code and expandable details', async () => {
-    vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1)], nextCursor: null });
+  it('reads each event as a sentence with the record named, and opens its details beside the list', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({
+      items: [event(1, { targetName: 'Gas lift module v1', actorName: 'Sri Mallepudi' })], nextCursor: null });
     render(<ActivityPage />);
-    const row = (await screen.findByText('module-1', { exact: false })).closest('tr') as HTMLElement;
-    expect(within(row).getByText('Logic module approved')).toBeTruthy();
-    expect(within(row).getByText('(logic-module.approved)')).toBeTruthy();
-    expect(within(row).getByText('FIELD\\admin')).toBeTruthy();
-    await userEvent.click(within(row).getByText('Show details'));
-    expect(within(row).getByText('Reviewed')).toBeTruthy();
+    const row = (await screen.findByText('Gas lift module v1')).closest('tr') as HTMLElement;
+    expect(row.textContent).toContain('Logic module Gas lift module v1 was approved');
+    expect(within(row).getByText('Sri Mallepudi')).toBeTruthy();
+    // The raw code and the details are not in the row; they belong to the opened event.
+    expect(within(row).queryByText('logic-module.approved')).toBeNull();
+    expect(screen.queryByText('Show details')).toBeNull();
+    await userEvent.click(within(row).getByRole('button', { name: /Open event: Logic module Gas lift module v1 was approved/ }));
+    const detail = within(await screen.findByRole('article'));
+    expect(detail.getByText('logic-module.approved')).toBeTruthy();
+    expect(detail.getByText('Reviewed')).toBeTruthy();
+    expect(detail.getByText('Sri Mallepudi (FIELD\\admin)')).toBeTruthy();
     expect(screen.queryByText('Load older events')).toBeNull();
+  });
+
+  it('shows a state change as a status with what it was before, and marks automatic events as such', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1, {
+      action: 'connection.status_changed', targetType: 'connection', targetName: 'ForeSite',
+      actorUserId: null, actorIdentity: 'system:connection-monitor',
+      detailsJson: '{"AdapterKey":"foresite","From":"Unreachable","To":"Healthy"}' })], nextCursor: null });
+    render(<ActivityPage />);
+    const row = (await screen.findByText('ForeSite')).closest('tr') as HTMLElement;
+    expect(row.textContent).toContain('Connection ForeSite status changed');
+    expect(within(row).getByText('Healthy', { selector: '.status-indicator-label' })).toBeTruthy();
+    expect(within(row).getByText('Was Unreachable')).toBeTruthy();
+    expect(within(row).getByText('Connection monitor')).toBeTruthy();
+    expect(within(row).getByText('Automatic')).toBeTruthy();
+  });
+
+  it('falls back to a short id when the record has no name, and still works against a server that sends no names', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1, {
+      action: 'CONFIGURED_LOGIC_CREATED', targetType: 'ConfiguredLogic',
+      targetId: '387b9281-9fee-414f-beb3-034f99ed4f47' })], nextCursor: null });
+    render(<ActivityPage />);
+    const row = (await screen.findByText('387b9281…')).closest('tr') as HTMLElement;
+    expect(row.textContent).toContain('Logic 387b9281… was created');
+    expect(within(row).getByText('FIELD\\admin')).toBeTruthy();
+  });
+
+  it('goes back from an opened event to the list', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1, { targetName: 'Gas lift module v1' })], nextCursor: null });
+    render(<ActivityPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Open event/ }));
+    expect(await screen.findByRole('article')).toBeTruthy();
+    await userEvent.click(screen.getByText('Back to activity'));
+    expect(screen.queryByRole('article')).toBeNull();
   });
 
   it('loads older events with the server cursor and keeps what is already shown', async () => {
@@ -70,9 +109,13 @@ describe('Activity page', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 
-  it('shows an unrecognized action as its recorded code', async () => {
+  it('shows an unrecognized action as readable words, and keeps the exact code in its details', async () => {
     vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1, { action: 'future.thing', detailsJson: '{}' })], nextCursor: null });
     render(<ActivityPage />);
-    expect(await screen.findByText('future.thing')).toBeTruthy();
+    expect(await screen.findByText(/Future thing/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: /Open event/ }));
+    const detail = within(await screen.findByRole('article'));
+    expect(detail.getByText('future.thing')).toBeTruthy();
+    expect(detail.getByText('No further details were recorded for this event.')).toBeTruthy();
   });
 });

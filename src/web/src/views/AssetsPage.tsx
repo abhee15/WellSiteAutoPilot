@@ -8,7 +8,8 @@ import type {
   ConfiguredLogicResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { EmptyRow, StatusPill } from '../components/common';
+import { EmptyRow } from '../components/common';
+import { Status } from '../components/Status';
 import { AssetDetail } from './AssetDetail';
 import { AssetCreationPanel } from './AssetCreationPanel';
 import { AssetTypeDefinitionPanel } from './AssetTypeDefinitionPanel';
@@ -180,7 +181,6 @@ export function AssetsPage({
 
       {onTypesTab ? (
         <section className="panel" aria-label={t('assets.tabTypes')}>
-          <p className="split-intro">{t('assets.typesIntro')}</p>
           {canManageTypes && <AssetTypeDefinitionPanel onCreated={async created => {
             await onRefresh();
             setOpenTypeId(created.id ?? null);
@@ -216,7 +216,7 @@ export function AssetsPage({
                           onClick={() => showTypeAssets(typeName)}>{count}</button>
                         : 0}</td>
                       <td>{type.schemaVersion}</td>
-                      <td><StatusPill value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} /></td>
+                      <td><Status value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} /></td>
                     </tr>
                   );
                 })}

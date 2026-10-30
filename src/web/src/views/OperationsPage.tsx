@@ -4,7 +4,8 @@ import type {
   AssetResponse, ConfiguredLogicResponse, ExecutionResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { EmptyRow, PanelHeader, StatusPill, SummaryCard } from '../components/common';
+import { EmptyRow, PanelHeader, SummaryCard } from '../components/common';
+import { Status } from '../components/Status';
 import { formatTimestamp, shortId } from '../format';
 import { outcomeLabel } from '../words';
 import { describeRunContext, summarizeAssetLabels } from './runContext';
@@ -118,7 +119,7 @@ export function OperationsPage({
                     if (execution.executionId) setSelectedExecutionId(execution.executionId);
                   }}>
                   <td>
-                    <StatusPill value={execution.status} />
+                    <Status value={execution.status} />
                   </td>
                   <td>
                     <strong>{assetText(execution, context)}</strong>

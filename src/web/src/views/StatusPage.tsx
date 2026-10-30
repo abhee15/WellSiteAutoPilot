@@ -2,10 +2,11 @@ import './connections.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
-import { formatTimestamp, toCssToken } from '../format';
+import { formatTimestamp } from '../format';
 import { connectionStatus, loadAdapters, loadConnections } from './connections';
 import type { Adapter, Connection, ConnectionStatus } from './connections';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { Status } from '../components/Status';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 
 const statusLabels: Record<ConnectionStatus, MessageKey> = {
@@ -88,7 +89,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
                     <strong>{component.name}</strong>
                     <small>{t('status.version', { version: component.version })}</small>
                   </div>
-                  <span className={`health-state health-${toCssToken(component.status)}`}>{component.status}</span>
+                  <Status value={component.status} label={component.status} />
                 </div>
               ))}
             </div>
@@ -116,7 +117,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
                         : t('status.neverTested')}</small>
                     </div>
                     <div className="health-row-end">
-                      <span className={`status-pill connection-test-${status.toLowerCase()}`}>{t(statusLabels[status])}</span>
+                      <Status value={status} label={t(statusLabels[status])} />
                       <a className="action-link" href={`#connections/${item.id}`}
                         aria-label={t('status.openConnection', { name: item.name })}>{t('status.open')}</a>
                     </div>

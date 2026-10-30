@@ -123,9 +123,9 @@ public sealed class SecurityDirectoryRepository(WellSiteAutoPilotDbContext db, T
             // One extra row tells whether another page exists without a second count query.
             var rows = await events.OrderByDescending(item => item.OccurredAtUtc).ThenByDescending(item => item.Id)
                 .Take(query.Limit + 1).ToArrayAsync(cancellationToken);
-            var page = rows.Take(query.Limit).Select(item => new AuditEventRecord(
+            var page = await AuditEventNames.AddAsync(db, rows.Take(query.Limit).Select(item => new AuditEventRecord(
                 item.Id, item.OccurredAtUtc, item.ActorUserId, item.ActorIdentity, item.Action, item.TargetType,
-                item.TargetId, item.AssetId, item.CorrelationId, item.DetailsJson)).ToArray();
+                item.TargetId, item.AssetId, item.CorrelationId, item.DetailsJson)).ToArray(), cancellationToken);
             var next = rows.Length > query.Limit
                 ? new AuditEventCursor(page[^1].OccurredAtUtc, page[^1].Id) : null;
             return new AuditEventPage(page, next);

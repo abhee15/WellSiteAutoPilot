@@ -82,7 +82,7 @@
   .connection-control-row > label, .connection-control-row > button { flex: 1 1 100%; }
   .connection-levels li > span { flex-basis: 100%; }
 }
-.connection-row .status-pill { justify-self: start; }
+.connection-row .status-indicator { justify-self: start; }
 
 .connection-source-changes { margin-top: var(--space-18); border-top: var(--border-width-thin) solid var(--color-border-row); padding-top: var(--space-12); }
 .source-change-list { list-style: none; padding: 0; }

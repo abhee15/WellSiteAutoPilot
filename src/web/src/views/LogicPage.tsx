@@ -9,7 +9,8 @@ import type {
   LogicModuleResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { PanelHeader, StatusPill } from '../components/common';
+import { PanelHeader } from '../components/common';
+import { Status } from '../components/Status';
 import { formatTimestamp } from '../format';
 import { profileLabel, statusLabel } from '../words';
 import { moduleStateLabel, moduleStateToken } from './moduleApproval';
@@ -138,7 +139,7 @@ export function LogicPage({
                       {module.displayName}
                     </button>
                     <small>{module.moduleId} · v{module.version} · {module.publisher} · {module.runtime} · {profileLabel(module.executionProfile)}</small>
-                    <small><StatusPill value={moduleStateToken(module)} label={moduleStateLabel(module)} /></small>
+                    <small><Status value={moduleStateToken(module)} label={moduleStateLabel(module)} /></small>
                   </li>
                 ))}
               </ul>
@@ -198,7 +199,7 @@ export function LogicPage({
                         {' · '}{activeRevisionLabel(item)}
                         {canReadRuns && ' · ' + lastRunText(lastRuns.get(item.id ?? ''))}
                       </small>
-                      <small><StatusPill value={listedStatus(item)} /></small>
+                      <small><Status value={listedStatus(item)} /></small>
                     </li>
                   );
                 })}
