@@ -23,6 +23,8 @@ Reference: https://developer.chrome.com/docs/lighthouse/accessibility/managed-fo
 - If both panes remain visible, opening details leaves keyboard focus where it is.
 - The helper owns no selection, routing, authorization, loading or breakpoint constants.
 - Detail sections use tabindex=-1, so programmatic focus adds no extra tab stop.
+- Controls such as Create that are removed while details are open opt into a stable
+  data-split-focus-key, so closing can focus their newly rendered replacement.
 
 Verify with interaction tests for narrow/wide transitions, refreshes, and removed origins;
 then repeat real-browser keyboard probes and inspect responsive screenshots before integration.

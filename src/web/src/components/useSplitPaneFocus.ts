@@ -9,6 +9,7 @@ const visible = (element: HTMLElement | null): element is HTMLElement =>
 export function useSplitPaneFocus(selection: string | null) {
   const ref = useRef<HTMLDivElement>(null);
   const origin = useRef<HTMLElement | null>(null);
+  const originKey = useRef<string | undefined>(undefined);
   const previous = useRef<string | null>(null);
 
   const remember = (event: SyntheticEvent<HTMLDivElement>) => {
@@ -16,6 +17,7 @@ export function useSplitPaneFocus(selection: string | null) {
     if (!(target instanceof HTMLElement) || target.closest('.split-selected')) return;
     origin.current = target.closest<HTMLElement>(controls)
       ?? target.closest('tr, li')?.querySelector<HTMLElement>(controls) ?? null;
+    originKey.current = origin.current?.dataset.splitFocusKey;
   };
 
   useLayoutEffect(() => {
@@ -31,7 +33,10 @@ export function useSplitPaneFocus(selection: string | null) {
     } else if (selection === null && wasSelected &&
       (document.activeElement === document.body || detail?.contains(document.activeElement))) {
       // The origin may have disappeared through filtering, deletion or lost authorization.
-      if (visible(origin.current) && root.contains(origin.current)) origin.current.focus();
+      const destination = visible(origin.current) && root.contains(origin.current) ? origin.current
+        : originKey.current ? [...root.querySelectorAll<HTMLElement>('[data-split-focus-key]')]
+          .find(element => element.dataset.splitFocusKey === originKey.current) ?? null : null;
+      if (visible(destination)) destination.focus();
     }
   }, [selection]);
 

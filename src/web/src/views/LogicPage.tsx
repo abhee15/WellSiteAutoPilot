@@ -99,7 +99,8 @@ export function LogicPage({
           {t('logic.tabModules')} <span>{modules.length}</span>
         </a>}
         {!showModules && canCreate && !creating && !selectedConfiguredId && <button type="button"
-          className="primary-button split-add" onClick={() => setCreating(true)}>{t('setup.heading')}</button>}
+          className="primary-button split-add" data-split-focus-key="create"
+          onClick={() => setCreating(true)}>{t('setup.heading')}</button>}
       </div>
 
       {showModules ? (

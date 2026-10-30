@@ -10,7 +10,7 @@ function Harness({ revision = 0, removeOrigin = false }: { revision?: number; re
   const [selected, select] = useState<string | null>(null);
   const focus = useSplitPaneFocus(selected);
   return <><button>Outside</button><div {...focus} data-selected={selected !== null}>
-    <button onClick={() => select('new')}>Create</button>
+    {!selected && <button data-split-focus-key="create" onClick={() => select('new')}>Create</button>}
     <div className="split-browse">{!removeOrigin && <button onClick={() => select('one')}>Open</button>}</div>
     <section className="split-selected" tabIndex={-1} aria-label="Details">
       {selected && <><button onClick={() => select(null)}>Back</button><input aria-label="Edit" /></>}
@@ -49,7 +49,7 @@ describe('responsive split pane focus', () => {
     await userEvent.click(create);
     expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Details' }));
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(document.activeElement).toBe(create);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Create' }));
   });
 
   it('does not reset focus while the same selected record refreshes', async () => {
