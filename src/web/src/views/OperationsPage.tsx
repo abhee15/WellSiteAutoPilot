@@ -90,7 +90,7 @@ export function OperationsPage({
         />
       </section>
 
-      <div {...splitFocus} className="split-layout runs-layout" data-has-selection={selectedIdStillAuthorized}>
+      <div {...splitFocus} className="split-layout runs-layout operations-layout" data-has-selection={selectedIdStillAuthorized}>
       <div className="split-panes">
       <section className="panel split-browse">
         <PanelHeader title="Recent executions" count={visibleExecutions.length} />

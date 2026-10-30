@@ -67,7 +67,13 @@ const responses = {
     { userId: id(903), identityName: 'FIELD\\10299120', displayName: 'Sam Patel', isActive: false, createdAtUtc: iso(6000), lastSeenAtUtc: iso(4000), activeDirectGrantCount: 0 }],
   '/api/v1/configured-logic': [configuredDetail],
   ['/api/v1/configured-logic/' + id(500)]: configuredDetail,
-  '/api/v1/recommendations': [],
+  '/api/v1/recommendations': [
+    { id: id(700), assetId: id(11), status: 'Created', canDecide: true, command: 'Set pump speed', suggestedValue: 58, unit: 'Hz',
+      moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0', reasonCode: 'pump_efficiency_low', quantity: 'PumpSpeed',
+      executionId: id(600), configuredLogicId: id(500), configurationRevisionId: id(300), createdAtUtc: iso(6), expiresAtUtc: new Date(now + 3_600_000).toISOString() },
+    { id: id(701), assetId: id(12), status: 'Created', canDecide: false, command: 'Lower choke', suggestedValue: 12, unit: '%',
+      moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0', reasonCode: 'intake_pressure_high', quantity: 'ChokePosition',
+      createdAtUtc: iso(40), expiresAtUtc: new Date(now + 3_000_000).toISOString() }],
 };
 // Optional live-update hub (MOCK_HUB=1): just enough of SignalR's long-polling transport for the
 // browser client to connect. Without it /hubs/changes is a 404 and the page falls back to polling,

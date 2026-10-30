@@ -19,6 +19,8 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { ActionButton } from '../components/ActionButton';
 import { humanize } from './auditPresentation';
+import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
+import './splitLayout.css';
 
 type InboxError = 'accessDenied' | 'invalidResponse' | 'unavailable';
 
@@ -31,11 +33,14 @@ export function RecommendationInboxTable({
   items,
   nowUtc,
   onReview,
+  selectedId,
   assetNames,
 }: {
   items: readonly RecommendationSummaryResponse[];
   nowUtc: number;
   onReview?: (recommendationId: string) => void;
+  /** The recommendation open for review beside the table, marked in its row. */
+  selectedId?: string | null;
   /** Asset names by id, when the assets are loaded; the id alone is shown otherwise. */
   assetNames?: ReadonlyMap<string, string>;
 }) {
@@ -46,19 +51,27 @@ export function RecommendationInboxTable({
           <tr>
             <th scope="col">{t('inbox.status')}</th>
             <th scope="col">{t('inbox.asset')}</th>
-            <th scope="col">{t('inbox.module')}</th>
+            <th scope="col" className="run-col-secondary">{t('inbox.module')}</th>
             <th scope="col">{t('inbox.proposal')}</th>
-            <th scope="col">{t('inbox.reason')}</th>
-            <th scope="col">{t('inbox.timing')}</th>
-            <th scope="col">{t('inbox.review')}</th>
+            <th scope="col" className="run-col-secondary">{t('inbox.reason')}</th>
+            <th scope="col" className="run-col-secondary">{t('inbox.timing')}</th>
+            <th scope="col" className="run-col-secondary">{t('inbox.review')}</th>
             {onReview && <th scope="col">{t('decision.action')}</th>}
           </tr>
         </thead>
         <tbody>
-          {items.map(item => (
-            <tr key={item.id}>
+          {items.map(item => {
+            const reviewable = Boolean(onReview && item.id && item.canDecide === true && recommendationIsAwaiting(item, nowUtc));
+            return (
+            <tr key={item.id} data-selected={Boolean(selectedId) && selectedId === item.id}
+              data-reviewable={reviewable || undefined}
+              onClick={event => {
+                // The row is a convenience; the Review button stays the keyboard and screen-reader route.
+                if (!reviewable || (event.target as HTMLElement).closest('button, a')) return;
+                onReview?.(item.id!);
+              }}>
               <td>
-                {item.status ? <Status value={item.status} /> : '—'}
+                {item.status ? <Status value={item.status} tone={recommendationIsAwaiting(item, nowUtc) ? 'warning' : undefined} /> : '—'}
                 {recommendationIsExpired(item, nowUtc) && (
                   <small>{t('inbox.expiredNote')}</small>
                 )}
@@ -66,7 +79,7 @@ export function RecommendationInboxTable({
               <td>{assetNames?.get(item.assetId ?? '')
                 ? <strong title={item.assetId}>{assetNames.get(item.assetId ?? '')}</strong>
                 : item.assetId ?? '—'}</td>
-              <td>
+              <td className="run-col-secondary">
                 <strong>{item.moduleId ?? '—'}</strong>
                 <small>{item.moduleVersion ?? '—'}</small>
               </td>
@@ -75,24 +88,25 @@ export function RecommendationInboxTable({
                 <small>{formatSuggestedValue(item.suggestedValue, item.unit)}</small>
                 <small>{item.quantity ?? '—'}</small>
               </td>
-              <td>{item.reasonCode ? humanize(item.reasonCode) : '—'}</td>
-              <td>
+              <td className="run-col-secondary">{item.reasonCode ? humanize(item.reasonCode) : '—'}</td>
+              <td className="run-col-secondary">
                 <strong>{formatDetailTimestamp(item.createdAtUtc)}</strong>
                 <small>{t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>
               </td>
-              <td>
+              <td className="run-col-secondary">
                 <strong>{item.decisionBy ?? '—'}</strong>
                 <small>{formatDetailTimestamp(item.decisionAtUtc)}</small>
               </td>
               {onReview && (
                 <td>
-                  {item.id && item.canDecide === true && recommendationIsAwaiting(item, nowUtc) ? (
+                  {reviewable ? (
                     <ActionButton label={t('decision.open')} onClick={() => onReview(item.id!)} />
                   ) : '—'}
                 </td>
               )}
             </tr>
-          ))}
+            );
+          })}
           {items.length === 0 && (
             <tr>
               <td className="empty-state" colSpan={onReview ? 8 : 7}>
@@ -187,6 +201,8 @@ export function RecommendationsPage({
       setReviewNotice(t(canDecide ? 'decision.outdated' : 'decision.accessDenied'));
     }
   }, [lastUpdated, selectedReviewId, selectedRecommendation, canDecide, setSelectedReviewId]);
+  const reviewOpen = Boolean(canDecide && selectedRecommendation && recommendationIsAwaiting(selectedRecommendation, nowUtc));
+  const splitFocus = useSplitPaneFocus(reviewOpen ? selectedRecommendation?.id ?? null : null);
   const counts = inboxCounts(items, nowUtc);
   const visible = useMemo(
     () => filterRecommendationInbox(items, criteria, nowUtc),
@@ -217,7 +233,9 @@ export function RecommendationsPage({
           <small>{t('inbox.authorizedWindow')}</small>
         </article>
       </section>
-      <section className="panel">
+      <div {...splitFocus} className="split-layout runs-layout recs-layout" data-has-selection={reviewOpen}>
+      <div className="split-panes">
+      <section className="panel split-browse">
         <div className="panel-header">
           <h2>{t('inbox.heading')}</h2>
           <div className="execution-detail-actions">
@@ -250,13 +268,18 @@ export function RecommendationsPage({
         </p>}
         {(!isLoading || lastUpdated) && !error && (
           <RecommendationInboxTable items={visible} nowUtc={nowUtc} assetNames={assetNames}
+            selectedId={reviewOpen ? selectedRecommendation?.id : null}
             onReview={canDecide ? recommendationId => {
               setSelectedReviewId(recommendationId);
               setReviewNotice(null);
             } : undefined} />
         )}
-        {canDecide && selectedRecommendation &&
-          recommendationIsAwaiting(selectedRecommendation, nowUtc) && (
+      </section>
+      <div className="split-selected">
+        <button type="button" className="secondary-button split-back" onClick={() => setSelectedReviewId(null)}>
+          {t('inbox.backToList')}
+        </button>
+        {canDecide && selectedRecommendation && reviewOpen && (
             <RecommendationDecisionReviewPanel
               key={JSON.stringify(selectedRecommendation)}
               item={selectedRecommendation}
@@ -275,7 +298,9 @@ export function RecommendationsPage({
               }}
             />
           )}
-      </section>
+      </div>
+      </div>
+      </div>
     </>
   );
 }

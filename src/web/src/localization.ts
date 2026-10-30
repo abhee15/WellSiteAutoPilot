@@ -689,6 +689,7 @@ export const englishMessages = {
   'logicCatalog.noMatches': 'No loaded Logic Modules match these filters.',
   'decision.action': 'Decision',
   'decision.open': 'Review',
+  'inbox.backToList': 'Back to recommendations',
   'decision.heading': 'Recommendation decision review',
   'decision.readOnlyUntilConfirmed': 'No decision is written until explicit confirmation.',
   'decision.cancel': 'Cancel',
