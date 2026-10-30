@@ -18,6 +18,7 @@ import { t } from './localization';
 import { UserMenu } from './components/UserMenu';
 import { NavigationLink } from './components/NavigationLink';
 import { useNavCollapsed } from './components/useNavCollapsed';
+import { useSplitPaneViewport } from './components/useSplitPaneViewport';
 import type { Section } from './components/NavigationLink';
 import { PageHeader } from './components/PageHeader';
 import { NavigationGroup } from './components/NavigationGroup';
@@ -42,6 +43,7 @@ export function App() {
   const [systemHealth, setSystemHealth] = useState<SystemHealthResponse | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
+  useSplitPaneViewport(mainRef);
   const nav = useNavCollapsed();
   const activeRefresh = useRef<AbortController | null>(null);
   const accessKey = useRef<string | null>(null);
