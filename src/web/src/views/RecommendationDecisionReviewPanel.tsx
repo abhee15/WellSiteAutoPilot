@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import './decisionBrief.css';
+import { humanize } from './auditPresentation';
 import { formatDetailTimestamp } from './executionDetail';
 import { recommendationIsAwaiting } from './recommendationInbox';
 import { proposalSentence, timeLeft } from './decisionBrief';
@@ -114,7 +115,7 @@ export function RecommendationDecisionReviewPanel({
         </ul>
       </div>
       <dl className="execution-detail-grid">
-        <div><dt>{t('decision.asset')}</dt><dd>{assetName ? `${assetName} (${item.assetId})` : item.assetId ?? '—'}</dd></div>
+        <div><dt>{t('decision.asset')}</dt><dd title={item.assetId ?? undefined}>{assetName ?? item.assetId ?? '—'}</dd></div>
         <div><dt>{t('decision.command')}</dt><dd>{item.command ?? item.code ?? '—'}</dd></div>
         <div><dt>{t('decision.suggestedValue')}</dt>
           <dd>{item.suggestedValue ?? '—'} {item.unit ?? ''}</dd></div>
@@ -123,7 +124,7 @@ export function RecommendationDecisionReviewPanel({
         <div><dt>{t('decision.expires')}</dt>
           <dd>{formatDetailTimestamp(item.expiresAtUtc)}</dd></div>
         <div><dt>{t('decision.reasonCode')}</dt>
-          <dd>{item.reasonCode ?? '—'}</dd></div>
+          <dd title={item.reasonCode ?? undefined}>{item.reasonCode ? humanize(item.reasonCode) : '—'}</dd></div>
       </dl>
       <p className="recommendation-review-warning" role="note">
         {t('decision.governanceNotice')}

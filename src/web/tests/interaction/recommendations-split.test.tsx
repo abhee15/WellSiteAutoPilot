@@ -107,3 +107,15 @@ it('offers Clear filters only when the filters differ from the default, and rest
   expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
   expect(await screen.findByText('Command a')).toBeTruthy();
 });
+
+it('shows the asset by name and the reason in words, keeping the raw values for hover only', async () => {
+  const { RecommendationDecisionReviewPanel } = await import('../../src/views/RecommendationDecisionReviewPanel');
+  const guid = '00000000-0000-4000-8000-000000000011';
+  render(<RecommendationDecisionReviewPanel item={row('a', { assetId: guid }) as never} assetName="Well 7-12H"
+    onCancel={() => {}} onSaved={() => {}} onConflict={() => {}} />);
+  const asset = screen.getByText('Well 7-12H', { selector: 'dd' });
+  expect(asset.getAttribute('title')).toBe(guid);
+  expect(document.body.textContent).not.toContain(guid);
+  const reason = screen.getByText('Pump efficiency low', { selector: 'dd' });
+  expect(reason.getAttribute('title')).toBe('pump_efficiency_low');
+});
