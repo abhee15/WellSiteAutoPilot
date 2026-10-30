@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CloseButton } from '../components/CloseButton';
 import type {
   AssetResponse,
   ConfiguredLogicResponse,
@@ -105,9 +106,7 @@ export function AssetDetail({
               : t('assetPage.locatedUnder', { path: where.join(' › ') })}
           </p>
         </div>
-        <button type="button" className="secondary-button" onClick={onClose}>
-          {t('assets.clearSelection')}
-        </button>
+        <CloseButton label={t('assets.clearSelection')} onClick={onClose} />
       </header>
 
       <section aria-label={t('assetPage.contains')}>

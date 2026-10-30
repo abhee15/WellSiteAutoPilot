@@ -1,4 +1,5 @@
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
+import { CloseButton } from '../components/CloseButton';
 import { t } from '../localization';
 import { Status } from '../components/Status';
 import { AssetTypeActions } from './AssetTypeActions';
@@ -49,8 +50,7 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
       <header>
         <h3>{name}</h3>
         <Status value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} />
-        <button type="button" className="secondary-button" onClick={onClose}>
-          {t('assetTypes.closeDetails')}</button>
+        <CloseButton label={t('assetTypes.closeDetails')} onClick={onClose} />
       </header>
       <p className="split-note">{type.key} · v{type.schemaVersion}</p>
       {!type.isActive && type.hiddenAtUtc && <p className="split-note">
