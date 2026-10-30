@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '../components/ActionButton';
 import type { FormEvent } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
@@ -230,7 +231,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
           </select></label>}
           {canReadViews && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
           {viewRef?.role === r.role && <p className="connection-help">{t('setup.viewSnapshot', { revision: viewRef.expectedRevision, count: bindings[r.role]?.length ?? 0 })}
-            {canReadViews && <ActionButton label={t('setup.refreshView')} disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)} />}</p>}
+            {canReadViews && <ActionButton icon={RefreshCw} iconOnly label={t('setup.refreshView')} disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)} />}</p>}
           {viewLoading && <LoadingIndicator label={t('views.loading')} />}
           {viewError && <p role="alert">{t('setup.viewUnavailable')}</p>}
           <p>{t(viewRef?.role === r.role ? 'setup.viewTargets' : 'setup.loadedAssets')}</p>

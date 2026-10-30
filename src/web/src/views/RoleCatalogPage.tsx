@@ -292,16 +292,12 @@ export function RoleCatalogPage() {
                       <td className="run-col-secondary">{role.permissions.length}</td>
                       <td><Status value={role.isActive ? 'Active' : 'Inactive'}
                         label={role.isActive ? t('roles.active') : t('roles.inactive')} /></td>
-                      <td>
-                        <button className="secondary-button" type="button"
-                          onClick={() => { setEditor({ kind: 'new', template: role }); setNotice(null); }}>
-                          {t('roles.clone')}
-                        </button>
-                        {!role.isSystem && <button className="secondary-button" type="button"
-                          onClick={() => { setEditor({ kind: 'edit', original: role }); setNotice(null); }}>
-                          {t('roles.edit')}
-                        </button>}
-                      </td>
+                      <td><div className="row-actions">
+                        <ActionButton label={t('roles.clone')}
+                          onClick={() => { setEditor({ kind: 'new', template: role }); setNotice(null); }} />
+                        {!role.isSystem && <ActionButton label={t('roles.edit')}
+                          onClick={() => { setEditor({ kind: 'edit', original: role }); setNotice(null); }} />}
+                      </div></td>
                     </tr>
                   ))}
                   {visible.length === 0 && <tr><td colSpan={5} className="empty-state">
