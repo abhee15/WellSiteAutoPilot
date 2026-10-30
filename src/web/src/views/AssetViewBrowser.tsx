@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import { t } from '../localization';
 import { VIEW_PAGE_SIZE, loadViewMembers } from './assetViewsApi';
 import type { ViewAsset } from './assetViewsApi';
@@ -32,8 +33,8 @@ export function AssetViewBrowser({ viewId, selectedId, onSelect, query = '' }: {
         aria-label={t('assetTree.open', { name: asset.name })} onClick={() => onSelect(asset.id)}>{asset.name}</button>
     </li>)}</ul>
     {loading && <LoadingIndicator label={t('views.loading')} />}
-    {failed && <p role="alert">{t('assetBrowse.failed')} <button type="button" onClick={() => setRetry(value => value + 1)}>{t('assetBrowse.retry')}</button></p>}
-    {hasMore && !failed && <button type="button" disabled={loading} onClick={() => setOffset(value => value + VIEW_PAGE_SIZE)}>{t('assetBrowse.more')}</button>}
+    {failed && <p role="alert">{t('assetBrowse.failed')} <ActionButton label={t('assetBrowse.retry')} onClick={() => setRetry(value => value + 1)} /></p>}
+    {hasMore && !failed && <ActionButton label={t('assetBrowse.more')} disabled={loading} onClick={() => setOffset(value => value + VIEW_PAGE_SIZE)} />}
     {!loading && !failed && assets.length === 0 && <p>{t('assetViews.empty')}</p>}
   </nav>;
 }

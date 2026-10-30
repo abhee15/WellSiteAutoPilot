@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import type {
   ConfiguredLogicRevisionResponse, ExecutionResponse, ExecutionStatus, ConfiguredShadowReceiptResponse,
 } from '../api/generated/v1/types.gen';
@@ -97,17 +98,15 @@ export function ConfiguredShadowPanel({ userId, configurationId, revision, canRe
     <h4>{t('shadow.heading')}</h4>
     <p>{t('shadow.scope', { number: revision.revisionNumber ?? '—' })}</p>
     {!canRequest && <p>{t('shadow.readOnly')}</p>}
-    {canRequest && !requestId && !review && <button type="button" disabled={disabled || busy || denied}
-      onClick={() => setReview(true)}>{t('shadow.review')}</button>}
+    {canRequest && !requestId && !review && <ActionButton label={t('shadow.review')} disabled={disabled || busy || denied} onClick={() => setReview(true)} />}
     {review && !requestId && <div role="group" aria-label={t('shadow.confirmHeading')}>
       <p>{t('shadow.confirmText')}</p>
-      <button type="button" disabled={disabled || busy || denied} onClick={() => void submit()}>{t('shadow.confirm')}</button>
-      <button type="button" disabled={busy} onClick={() => setReview(false)}>{t('shadow.cancel')}</button>
+      <ActionButton label={t('shadow.confirm')} disabled={disabled || busy || denied} onClick={() => void submit()} />
+      <ActionButton label={t('shadow.cancel')} disabled={busy} onClick={() => setReview(false)} />
     </div>}
     {requestId && !execution && <div>
       <p>{t('shadow.recoveryHint')}</p><code>{requestId}</code>
-      <button type="button" disabled={disabled || busy || denied || !canRequest}
-        onClick={() => void submit()}>{t('shadow.recover')}</button>
+      <ActionButton label={t('shadow.recover')} disabled={disabled || busy || denied || !canRequest} onClick={() => void submit()} />
     </div>}
     {busy && <p role="status">{t('shadow.submitting')}</p>}
     {error && <p role="alert">{error}</p>}
@@ -116,12 +115,7 @@ export function ConfiguredShadowPanel({ userId, configurationId, revision, canRe
         onObserved={value => { if (receipt(value, configurationId, revisionId)) setExecution(value); }}
         onAccessLost={() => { setExecution(null); setDenied(true); setError(t('shadow.denied')); }}
         onClose={() => setExecution(null)} />
-      {terminal.has(execution.status ?? '') && <button type="button" disabled={disabled || busy || !canRequest}
-        onClick={() => {
-          try { sessionStorage.removeItem(storageKey); }
-          catch { setError(t('shadow.storageUnavailable')); return; }
-          setRequestId(null); setExecution(null); setReview(false); setError(null);
-        }}>{t('shadow.newRun')}</button>}
+      {terminal.has(execution.status ?? '') && <ActionButton label={t('shadow.newRun')} disabled={disabled || busy || !canRequest} onClick={() => { try { sessionStorage.removeItem(storageKey); } catch { setError(t('shadow.storageUnavailable')); return; } setRequestId(null); setExecution(null); setReview(false); setError(null); }} />}
     </>}
   </section>;
 }

@@ -1,4 +1,5 @@
 import { SearchInput } from '../components/SearchInput';
+import { ActionButton } from '../components/ActionButton';
 import { useState } from 'react';
 import { t } from '../localization';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA } from './assetInventory';
@@ -138,11 +139,9 @@ export function AssetInventoryControls({
           <input value={name} maxLength={48} disabled={!userId} placeholder={t('assets.viewNamePlaceholder')}
             onChange={event => { setName(event.target.value); setNotice(null); }} />
         </label>
-        <button type="button" disabled={!userId} onClick={save}>{t('assets.save')}</button>
-        <button type="button" disabled={!selectedId} onClick={remove}>{t('assets.delete')}</button>
-        <button type="button" onClick={() => modify({ ...DEFAULT_ASSET_INVENTORY_CRITERIA })}>
-          {t('assets.reset')}
-        </button>
+        <ActionButton label={t('assets.save')} disabled={!userId} onClick={save} />
+        <ActionButton label={t('assets.delete')} disabled={!selectedId} onClick={remove} />
+        <ActionButton label={t('assets.reset')} onClick={() => modify({ ...DEFAULT_ASSET_INVENTORY_CRITERIA })} />
       </div>
       <p className="data-view-note">
         {t('assets.count', { shown: matchingCount, total: totalCount })}{' '}

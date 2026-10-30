@@ -150,3 +150,19 @@ test('closing a details pane is always the shared ✕ CloseButton, never a text 
   }
   assert.deepEqual(offenders, [], 'use <CloseButton onClick={onClose} /> so every pane closes the same way');
 });
+
+test('no unclassed, old-style <button>: use ActionButton (or a shared class) so every button looks and behaves the same', () => {
+  const offenders = [];
+  const walk = folder => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) { walk(path); continue; }
+      if (!entry.name.endsWith('.tsx') || entry.name === 'ActionButton.tsx') continue;
+      const code = readFileSync(path, 'utf8');
+      // A button with no className at all gets only the bare default look.
+      for (const match of code.matchAll(/<button(?![^>]*className)[^>]*>/g)) offenders.push(`${relative(root, path)}: ${match[0].slice(0, 70)}`);
+    }
+  };
+  walk(root);
+  assert.deepEqual(offenders, [], 'use <ActionButton label=... /> for an action button');
+});

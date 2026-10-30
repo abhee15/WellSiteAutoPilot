@@ -1,4 +1,5 @@
 import './awaitingAccess.css';
+import { ActionButton } from './ActionButton';
 import { useState } from 'react';
 import type { CurrentUserResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
@@ -18,7 +19,7 @@ export function AwaitingAccessNotice({ user }: { user: CurrentUserResponse }) {
         <dt>{t('awaitingAccess.identity')}</dt>
         <dd><code>{identityName}</code></dd>
       </dl>
-      <button type="button" onClick={copy}>{copied ? t('awaitingAccess.copied') : t('awaitingAccess.copy')}</button>
+      <ActionButton label={copied ? t('awaitingAccess.copied') : t('awaitingAccess.copy')} onClick={copy} />
     </section>
   );
 }
