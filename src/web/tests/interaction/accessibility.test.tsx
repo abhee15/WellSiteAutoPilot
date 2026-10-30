@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { OverviewPage } from '../../src/views/OverviewPage';
+import { OperationsPage } from '../../src/views/OperationsPage';
 import { RecommendationsPage } from '../../src/views/RecommendationsPage';
 import { StatusPage } from '../../src/views/StatusPage';
 import { ActivityPage } from '../../src/views/ActivityPage';
@@ -54,6 +56,16 @@ describe('accessibility (names, roles, labels and structure; contrast is checked
       executions={[{ executionId: 'e1', assetId: 'a1', moduleId: 'esp', status: 'Failed',
         requestedAtUtc: new Date().toISOString() }] as never} />);
     await screen.findByText('Latest runs');
+    expect(await accessibilityViolations(container)).toEqual([]);
+  });
+
+  it('Runs with a summary filter on, and with a filter that hides every row', async () => {
+    const runs = [{ executionId: 'e1', status: 'Completed', mode: 'Shadow', moduleId: 'm', moduleVersion: '1',
+      assetExternalId: 'Well 1', requestedAtUtc: '2026-10-28T03:00:00Z' }];
+    const { container } = render(<OperationsPage executions={runs as never} userId="u1" />);
+    expect(await accessibilityViolations(container)).toEqual([]);
+    await userEvent.setup().click(screen.getByRole('button', { name: /Requires attention/ }));
+    await screen.findByRole('button', { name: 'Clear filters' });
     expect(await accessibilityViolations(container)).toEqual([]);
   });
 

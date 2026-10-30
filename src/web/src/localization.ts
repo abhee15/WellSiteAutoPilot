@@ -291,6 +291,7 @@ export const englishMessages = {
   'views.deviceNote': 'Saved views are stored in this browser for the signed-in user.',
   'views.noActivity': 'No execution activity has been recorded.',
   'views.noMatches': 'No recent executions match this view.',
+  'views.clearFilters': 'Clear filters',
   'assets.controls': 'Asset inventory controls',
   'assets.search': 'Search assets',
   'assets.searchPlaceholder': 'Asset name, ID, or type…',

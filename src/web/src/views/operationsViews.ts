@@ -55,6 +55,22 @@ export function filterOperations(
   });
 }
 
+/** Whether two views show the same runs in the same order (the order the statuses were picked in does not matter). */
+export function sameCriteria(left: OperationsViewCriteria, right: OperationsViewCriteria): boolean {
+  return left.search === right.search && left.sort === right.sort &&
+    left.statuses.length === right.statuses.length && left.statuses.every(kind => right.statuses.includes(kind));
+}
+
+/** Whether the list is showing exactly one kind of run, such as only the ones that need attention. */
+export function showsOnly(criteria: OperationsViewCriteria, kind: OperationsStatusFilter): boolean {
+  return criteria.statuses.length === 1 && criteria.statuses[0] === kind;
+}
+
+/** What clicking a summary card does: show only that kind of run, or, if that is already so, show every kind again. */
+export function toggleOnly(criteria: OperationsViewCriteria, kind: OperationsStatusFilter): OperationsViewCriteria {
+  return { ...criteria, statuses: showsOnly(criteria, kind) ? [] : [kind] };
+}
+
 export function savedViewsKey(userId: string): string {
   return 'wsa:operations:views:v1:' + encodeURIComponent(userId);
 }

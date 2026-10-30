@@ -1,5 +1,5 @@
 import { SearchInput } from '../components/SearchInput';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -10,6 +10,7 @@ import {
   MAX_SAVED_OPERATIONS_VIEWS,
   loadSavedOperationsViews,
   persistSavedOperationsViews,
+  sameCriteria,
 } from './operationsViews';
 
 const statusLabels: Record<(typeof OPERATIONS_STATUS_FILTERS)[number], MessageKey> = {
@@ -54,6 +55,14 @@ export function OperationsViewControls({
   const [selectedId, setSelectedId] = useState('');
   const [name, setName] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+
+  // The list can also be changed from outside (a summary card, "Clear filters"); then the chosen saved view no longer
+  // describes what is shown, so it must not stay selected.
+  useEffect(() => {
+    if (!selectedId) return;
+    const selected = savedViews.find(view => view.id === selectedId);
+    if (!selected || !sameCriteria(selected.criteria, criteria)) setSelectedId('');
+  }, [criteria, selectedId, savedViews]);
 
   const changeCriteria = (next: OperationsViewCriteria) => {
     onChange(next);

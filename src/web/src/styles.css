@@ -338,6 +338,21 @@ button:disabled {
   padding: var(--space-16) var(--space-18);
 }
 
+.summary-card-action {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.summary-card-action:hover { background: var(--color-surface-control-hover); }
+
+.summary-card-action[aria-pressed='true'] {
+  border-color: var(--color-focus-ring);
+  box-shadow: inset 0 calc(-1 * var(--border-width-thick)) 0 var(--color-focus-ring);
+}
+
 .summary-card span,
 .summary-card small,
 .health-row small {
@@ -542,6 +557,7 @@ button:disabled {
   text-align: center !important;
 }
 .empty-hint { display: block; margin-top: var(--space-6); }
+.empty-action { margin-top: var(--space-12); }
 
 /* The name in a table row that opens its details: looks like text, acts like a link (the whole row also opens it). */
 .row-link {
