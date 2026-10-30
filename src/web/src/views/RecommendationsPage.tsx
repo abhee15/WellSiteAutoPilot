@@ -219,10 +219,7 @@ export function RecommendationsPage({
       </section>
       <section className="panel">
         <div className="panel-header">
-          <div>
-            <p className="eyebrow">{t('inbox.eyebrow')}</p>
-            <h2>{t('inbox.heading')}</h2>
-          </div>
+          <h2>{t('inbox.heading')}</h2>
           <div className="execution-detail-actions">
             {lastUpdated && (
               <span className="last-updated">{t('inbox.updated')} {formatDetailTimestamp(

@@ -19,20 +19,15 @@ export function SummaryCard({
 }
 
 export function PanelHeader({
-  eyebrow,
   title,
   count,
 }: {
-  eyebrow: string;
   title: string;
   count?: number;
 }) {
   return (
     <div className="panel-header">
-      <div>
-        <p className="eyebrow">{eyebrow}</p>
-        <h2>{title}</h2>
-      </div>
+      <h2>{title}</h2>
       {count !== undefined && <span className="record-count">{count} shown</span>}
     </div>
   );

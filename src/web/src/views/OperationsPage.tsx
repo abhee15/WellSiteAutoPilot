@@ -86,7 +86,7 @@ export function OperationsPage({
       <div className="split-layout runs-layout" data-has-selection={selectedIdStillAuthorized}>
       <div className="split-panes">
       <section className="panel split-browse">
-        <PanelHeader eyebrow="Activity" title="Recent executions" count={visibleExecutions.length} />
+        <PanelHeader title="Recent executions" count={visibleExecutions.length} />
         <OperationsViewControls
           userId={userId}
           criteria={viewCriteria}
