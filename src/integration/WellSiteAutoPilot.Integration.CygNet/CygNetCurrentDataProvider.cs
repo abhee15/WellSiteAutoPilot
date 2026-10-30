@@ -104,8 +104,10 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
         value.Length <= MaximumFacilityTagLength && value.Contains("::", StringComparison.Ordinal) &&
         !value.Any(char.IsControl);
 
-    // True only when no status flag is set, whatever type the CygNet library uses for its status flags.
-    private static bool IsClear<T>(T status) => EqualityComparer<T>.Default.Equals(status, default);
+    // Initialized, Updated and the data-type bits describe the value, not its health; only other flags make it Uncertain.
+    private static bool IsClear(BaseStatusFlags status) =>
+        (status & ~(BaseStatusFlags.Initialized | BaseStatusFlags.Updated | BaseStatusFlags.StringData |
+                    BaseStatusFlags.DigitalData | BaseStatusFlags.OutputData)) == 0;
 
     private static WellSiteAutoPilotException Failure(string code, FailureKind kind, string detail, Exception? inner = null) =>
         new(code, kind, detail,

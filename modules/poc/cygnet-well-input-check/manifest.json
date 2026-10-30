@@ -1,0 +1,36 @@
+{
+  "manifestVersion": 1,
+  "moduleId": "weatherford.cygnet-well-input-check.dotnet",
+  "version": "1.0.1",
+  "displayName": "CygNet Well Input Check (dotnet)",
+  "publisher": "Weatherford",
+  "runtime": "DotNet",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "Weatherford.CygNetWellInputCheck.EntryPoint",
+  "minimumSdkVersion": "1.1.0",
+  "requiredAdapterKey": "cygnet",
+  "description": "Observe one supplied pump-fillage input in Shadow. No provider writes. POC: reads CygNet RRLPFILAVG as PumpFillage.",
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": "well",
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "pump-fillage",
+      "assetRole": "well",
+      "quantity": "PumpFillage",
+      "access": "Current",
+      "canonicalUnit": "%",
+      "maximumAgeSeconds": 86400,
+      "allowUncertainQuality": false
+    }
+  ],
+  "commandRequirements": []
+}
+
+

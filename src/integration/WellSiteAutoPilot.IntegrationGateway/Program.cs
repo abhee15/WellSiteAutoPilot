@@ -25,7 +25,11 @@ builder.Services.AddSingleton<IPetroVisorSessionFactory>(
         ? new PetroVisorKeycloakSessionFactory(Environment.GetEnvironmentVariable)
         : new PetroVisorPasswordSessionFactory(Environment.GetEnvironmentVariable));
 // Builds with the CygNet libraries replace this with the real reader; without them every CygNet call says so plainly.
+#if CYGNET
+builder.Services.AddSingleton<ICygNetFacilityReader, WellSiteAutoPilot.Integration.CygNet.CygNetFacilityReader>();
+#else
 builder.Services.AddSingleton<ICygNetFacilityReader, CygNetUnsupportedFacilityReader>();
+#endif
 builder.Services.AddTransient<AdapterConnectionTester>();
 builder.Services.AddTransient<AdapterDiscoverer>();
 
@@ -118,6 +122,7 @@ builder.Services.AddSingleton(services =>
     return new WellSiteAutoPilot.Integration.CygNet.CygNetProviderOptions(domain, quantities);
 });
 builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.CygNetCurrentDataProvider>();
+builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.CygNetConnectionMeasurements>();
 #endif
 builder.Services.AddTransient<IProviderHealthProvider>(
     serviceProvider =>
@@ -223,6 +228,14 @@ v1.MapPost("/adapters/foresite/current",
     .WithName("ReadAuthorizedForeSiteMeasurement")
     .RequireAuthorization(ServiceCaller.ServerPolicy)
     .Produces<EngineeringValue>(StatusCodes.Status200OK);
+#if CYGNET
+v1.MapPost("/adapters/cygnet/current",
+    async (ConnectionMeasurementRequest request, WellSiteAutoPilot.Integration.CygNet.CygNetConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.ReadAsync(request, cancellationToken)))
+    .WithName("ReadAuthorizedCygNetMeasurement")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<EngineeringValue>(StatusCodes.Status200OK);
+#endif
 
 v1.MapGet(
     "/data/current",

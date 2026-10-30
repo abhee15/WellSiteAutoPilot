@@ -22,6 +22,7 @@ public sealed partial class ExecutionRepository
             var simulatorOwned = asset?.OwnerConnectionId is { } ownerId && await dbContext.Connections.AsNoTracking()
                 .AnyAsync(c => c.Id == ownerId && c.AdapterKey == "simulator", ct);
             if (string.Equals(input.ProviderId, "foresite", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(input.ProviderId, "cygnet", StringComparison.OrdinalIgnoreCase) ||
                 asset?.OwnerConnectionId is not null && !simulatorOwned)
             {
                 if (subject is null) throw ReadFailure("EXECUTION_READ_AUTHORITY_REQUIRED");
@@ -31,16 +32,18 @@ public sealed partial class ExecutionRepository
                     SELECT c.* FROM integration.connections AS c WHERE c."Id" = {connectionId} FOR SHARE OF c
                     """).AsNoTracking().SingleOrDefaultAsync(ct);
                 if (connection is null || !connection.IsEnabled) throw ReadFailure("EXECUTION_CONNECTION_DISABLED");
-                if (connection.AdapterKey != "foresite" || !string.Equals(input.ProviderId, connection.AdapterKey, StringComparison.OrdinalIgnoreCase))
+                var isCygNet = connection.AdapterKey == "cygnet";
+                if (connection.AdapterKey is not ("foresite" or "cygnet") || !string.Equals(input.ProviderId, connection.AdapterKey, StringComparison.OrdinalIgnoreCase))
                     throw ReadFailure("EXECUTION_READ_PROVIDER_UNSUPPORTED");
                 var bindings = await dbContext.SourceBindings.FromSqlInterpolated($"""
                     SELECT b.* FROM integration.source_bindings AS b WHERE b."AssetId" = {input.AssetId}
                     ORDER BY b."Id" FOR SHARE OF b
                     """).AsNoTracking().ToArrayAsync(ct);
                 if (bindings.Length != 1 || bindings[0].ConnectionId != connectionId ||
-                    bindings[0].ResourceKind != "foresite.well" || bindings[0].ExternalId != input.ProviderAssetExternalId)
+                    bindings[0].ResourceKind != (isCygNet ? "cygnet.facility" : "foresite.well") || bindings[0].ExternalId != input.ProviderAssetExternalId)
                     throw ReadFailure("EXECUTION_READ_SOURCE_INVALID");
-                if (input.Access != "Current" || input.Quantity is not ("PumpFillage" or "AveragePumpFillage"))
+                // POC: the Gateway's configured quantity map decides which CygNet quantities can be read.
+                if (input.Access != "Current" || (!isCygNet && input.Quantity is not ("PumpFillage" or "AveragePumpFillage")))
                     throw ReadFailure("EXECUTION_READ_QUANTITY_UNSUPPORTED");
                 using var mapping = JsonDocument.Parse(input.ProviderMappingJson);
                 if (mapping.RootElement.ValueKind != JsonValueKind.Object || mapping.RootElement.EnumerateObject().Any())
