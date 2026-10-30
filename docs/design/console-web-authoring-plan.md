@@ -83,7 +83,7 @@ The initial guided experience configures reviewed templates. Arbitrary rules,
 diagrams and natural-language generation require additional implementation;
 they are not capabilities supplied by the current manifest format.
 
-## Future requirement: modules spanning multiple providers
+## Near-term design and probe requirement: multiple providers
 
 Owner clarification: a Logic Module must not be permanently restricted to one
 provider, adapter or saved connection. The first guided ForeSite path is an MVP
@@ -95,7 +95,7 @@ WAMI supplies a calculation capability that consumes those inputs; the module
 uses the returned engineering results to produce an output or proposed action.
 WAMI here is a calculation service, not an assumption that a general workflow
 orchestration engine already exists. ForeSite configuration/model retrieval and
-this cross-provider calculation path are future capabilities to verify and build.
+this cross-provider calculation path are capabilities to examine in the next design/probe pass; they are not implemented.
 
 Design direction:
 - Represent dependencies by named roles and capability/input requirements, with
@@ -124,14 +124,18 @@ Current limitation: LogicModuleManifest exposes a single optional RequiredAdapte
 and current view-based configuration is bound to a connection. These are existing
 single-provider implementation constraints, not evidence that multi-provider
 execution is supported. Review manifest/configuration/read-plan/SDK evolution in
-a later scoped design; do not replace RequiredAdapterKey with an unvalidated list
+the next scoped design/probe pass; do not replace RequiredAdapterKey with an unvalidated list
 or change current live routing in this documentation PR.
 
-Acceptance for today's design: use a single-provider starter initially, keep
-dependency/connection binding out of a permanent single-provider module identity,
-and record multi-provider execution as deferred. Feature implementation must
-identify touched single-provider assumptions and avoid adding new module-wide
-single-provider restrictions without documenting the MVP boundary.
+Acceptance for today's design: use a single-provider starter as the first working
+example, while making multi-provider dependencies part of the immediate design
+and probe agenda. Before settling the authoring contracts, probe one ForeSite
+source plus a WAMI-shaped calculation dependency, using a clearly labeled stub
+where a real service or model contract is unavailable. A stub proves contract
+composition only, not WAMI integration. Identify touched single-provider
+assumptions and resulting manifest/configuration/read-plan/SDK changes. Full
+implementation follows the findings; do not treat this requirement as a distant
+post-phase-one enhancement.
 
 ## One core, two clients
 
@@ -280,7 +284,7 @@ remain explicit rather than claiming that no gaps exist.
 | Package round trip | Generated manifest plus actual compiled payload through existing pack, verify and host preflight | Correct entry point, module identity/version, schemas, managed dependencies and hash; failed build cannot offer a successful package |
 | Download/catalog handoff | The same successful immutable build artifact supports download and existing catalog ingestion | Matching bytes/hash; identity/version conflicts handled by existing rules; catalog submission stays untrusted and requires existing authority |
 | Console/web reuse | Prepare the same starter inputs using both clients and existing validators | Equivalent manifest semantics and errors; import/export preserves inputs/parameters; no duplicate package validator |
-| Capability/preview | Actual ForeSite supported operations versus descriptors, authorized input selection and preview | Connection-scoped scalar/structured results; no credentials or provider write calls |
+| Multi-provider composition | ForeSite data/configuration/model requirements plus a separately bound WAMI calculation dependency; start with an explicit stub if needed | Named dependency bindings, per-source authority, asset correlation, input/output schemas, single-provider assumptions and limits documented; no claim of live WAMI support |\n| Capability/preview | Actual ForeSite supported operations versus descriptors, authorized input selection and preview | Connection-scoped scalar/structured results; no credentials or provider write calls |
 | Guided UI | Small browser probe with shared controls | Provider/connection selection, parameter help, build pending/failure/success, Download/Add actions and accessible keyboard/mobile flow |
 
 Begin with a constrained .NET starter project, pinned dependencies and no arbitrary
