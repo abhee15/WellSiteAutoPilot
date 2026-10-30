@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useHashDetail } from '../routing';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import type { AssetResponse, ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
@@ -244,10 +245,7 @@ export function RecommendationsPage({
                 lastUpdated.toISOString(),
               )}</span>
             )}
-            <button className="secondary-button" type="button"
-              disabled={isLoading || !userId} onClick={() => void refresh()}>
-              {t('inbox.reload')}
-            </button>
+            <ActionButton icon={RefreshCw} iconOnly label={t('inbox.reload')} busy={isLoading} disabled={!userId} onClick={() => void refresh()} />
           </div>
         </div>
         <p className="recommendation-readonly-note">
