@@ -110,6 +110,7 @@ export function ActivityPage() {
       <h2 className="visually-hidden">{t('activity.heading')}</h2>
       <div className="activity-toolbar">
         <FilterBar className="activity-filter-bar" label={t('activity.filters')} onSubmit={() => apply(draft)}
+          trailing={<ActionButton icon={RefreshCw} iconOnly label={t('activity.refresh')} disabled={busy} onClick={() => void loadFirst(applied)} />}
           actions={filtersTyped ? <ActionButton variant="secondary" label={t('activity.reset')} onClick={() => apply(noFilters)} /> : undefined}>
           <FilterField label={t('activity.actionFilter')}>
             <SearchInput maxLength={128} value={draft.actionPrefix} placeholder={t('activity.actionPlaceholder')}
@@ -120,7 +121,6 @@ export function ActivityPage() {
               onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
           </FilterField>
         </FilterBar>
-        <ActionButton icon={RefreshCw} iconOnly label={t('activity.refresh')} disabled={busy} onClick={() => void loadFirst(applied)} />
       </div>
       {loading && <LoadingIndicator label={t('activity.loading')} />}
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}

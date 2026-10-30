@@ -60,6 +60,8 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 .recs-layout .activity-table tbody tr:not([data-reviewable]) { cursor: default; }
 .runs-layout .activity-table tbody tr[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
 .runs-layout .split-selected .execution-detail { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+/* Logic details already sit in the bordered card of .split-selected, so the summary inside has no second frame. */
+.logic-layout .split-selected .execution-detail { border: 0; border-radius: 0; padding: 0; }
 @media (min-width: 901px) { .runs-layout .split-back { display: none; } }
 
 /* Space is shared by ratio, not capped: beside an open item the list gets two parts and the details three,

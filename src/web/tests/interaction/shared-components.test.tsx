@@ -116,4 +116,14 @@ describe('FilterBar', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Action' }), 'x{Enter}');
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
+
+  it('puts a trailing button in the field row, after the fields, so it lines up with the inputs', () => {
+    const { container } = render(<FilterBar label="Event filters" trailing={<button type="button">Reload</button>}>
+      <FilterField label="Action"><input aria-label="Action" /></FilterField>
+    </FilterBar>);
+    const main = container.querySelector('.filter-bar-main');
+    expect(main?.children[0].classList.contains('filter-bar-fields')).toBe(true);
+    expect(main?.children[1].classList.contains('filter-bar-trailing')).toBe(true);
+    expect(main?.children[1].textContent).toBe('Reload');
+  });
 });

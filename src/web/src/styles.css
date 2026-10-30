@@ -985,12 +985,14 @@ button:disabled {
 .role-fields textarea {
   color: var(--color-text-primary);
   background: var(--color-surface-input);
-  padding: var(--space-10);
+  padding: var(--space-8) var(--space-10);
   border-radius: var(--radius-6);
   border: var(--border-width-thin) solid var(--color-border-control);
   font: inherit;
   width: 100%;
+  box-sizing: border-box;
 }
+.role-fields input:not([type="checkbox"]) { min-height: var(--size-control); }
 .role-permissions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-column-min)), 1fr));
@@ -1232,3 +1234,14 @@ select:not([multiple], [size]) {
 .filter-bar-actions .ui-action-button { width: auto; }
 @media (max-width: 650px) { .filter-bar-fields > label:first-child:not(:last-child) { grid-column: auto; } }
 .filter-bar-fields > label:only-child { max-width: var(--layout-form); }
+
+/* The field row can end with a button (Reload) that lines up with the inputs, not with their labels. */
+.filter-bar-main { display: flex; align-items: flex-end; gap: var(--space-12); }
+.filter-bar-main > .filter-bar-fields { flex: 1; min-width: 0; }
+.filter-bar-trailing { flex: none; }
+
+/* Heading scale (zero specificity, so a component can still set its own): page title 32/700 above; panel and detail
+   titles are body size bold; sub-sections inside a detail are body-small bold. The browser default (1.17em) is never used. */
+:where(h3) { font-size: var(--font-size-body); font-weight: 700; }
+:where(h4) { font-size: var(--font-size-body-small); font-weight: 700; }
+.ui-action-button.quiet-button { border-radius: var(--radius-6); }

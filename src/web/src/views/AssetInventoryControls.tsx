@@ -135,7 +135,7 @@ export function AssetInventoryControls({
         </label>
         <label>
           <span>{t('assets.viewName')}</span>
-          <input value={name} maxLength={48} disabled={!userId}
+          <input value={name} maxLength={48} disabled={!userId} placeholder={t('assets.viewNamePlaceholder')}
             onChange={event => { setName(event.target.value); setNotice(null); }} />
         </label>
         <button type="button" disabled={!userId} onClick={save}>{t('assets.save')}</button>

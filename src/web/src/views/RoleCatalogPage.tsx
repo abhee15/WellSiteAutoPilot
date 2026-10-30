@@ -136,11 +136,11 @@ export function RoleDefinitionEditor({
         <p className="access-note access-intro">{t('roles.assignedRoleWarning')}</p>}
       <div className="role-fields">
         <label><span>{t('roles.name')}</span>
-          <input value={name} maxLength={80} disabled={busy}
+          <input value={name} maxLength={80} disabled={busy} placeholder={t('roles.namePlaceholder')}
             onChange={event => { setName(event.target.value); setAcknowledged(false); }} />
         </label>
         <label><span>{t('roles.description')}</span>
-          <textarea value={description} maxLength={500} rows={3} disabled={busy}
+          <textarea value={description} maxLength={500} rows={3} disabled={busy} placeholder={t('roles.descriptionPlaceholder')}
             onChange={event => { setDescription(event.target.value); setAcknowledged(false); }} />
         </label>
         {original && <label className="access-confirm">

@@ -10,7 +10,7 @@ import type {
   LogicModuleResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { PanelHeader } from '../components/common';
+import { EmptyRow, PanelHeader } from '../components/common';
 import { Status } from '../components/Status';
 import { formatTimestamp } from '../format';
 import { profileLabel, statusLabel } from '../words';
@@ -26,7 +26,6 @@ import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
 import './splitLayout.css';
-import { LoadingIndicator } from '../components/LoadingIndicator';
 
 /** `#logic/modules` opens the Modules tab. */
 const MODULES_TAB = 'modules';
@@ -90,7 +89,7 @@ export function LogicPage({
   const hasConfigurationDetail = Boolean(selectedConfiguration) || (creating && canCreate);
 
   return (
-    <div {...splitFocus} className="split-layout" data-has-selection={showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
+    <div {...splitFocus} className="split-layout runs-layout logic-layout" data-has-selection={showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
       <div className="split-tabs" role="tablist" aria-label={t('logic.tabs')}>
         {canReadConfigurations && <a role="tab" href={hashFor('logic')} aria-selected={!showModules}>
           {t('logic.tabConfigured')} <span>{configuredLogic.length}</span>
@@ -126,28 +125,47 @@ export function LogicPage({
             <ModulePackageUpload canManage={permissions.includes('logic.manage')} onUploaded={async module => {
               await onRefresh(); setAboutModuleId(module.id ?? null);
             }} />
-            {visibleModules.length === 0 ? (
-              <>
-                {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
-                  : <p className="split-note">{modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}</p>}
-                {isLoaded && modules.length === 0 && <p className="split-note">{t('logicCatalog.noneHint')}</p>}
-              </>
-            ) : (
-              <ul className="split-results">
-                {visibleModules.map(module => (
-                  <li key={module.id} data-selected={aboutModuleId === module.id}>
-                    <button type="button" className="asset-select"
-                      aria-expanded={aboutModuleId === module.id}
-                      aria-label={t('modulePanel.about', { name: module.displayName ?? '—' })}
-                      onClick={() => setAboutModuleId(current => (current === module.id ? null : module.id ?? null))}>
-                      {module.displayName}
-                    </button>
-                    <small>{module.moduleId} · v{module.version} · {module.publisher} · {module.runtime} · {profileLabel(module.executionProfile)}</small>
-                    <small><Status value={moduleStateToken(module)} label={moduleStateLabel(module)} /></small>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="table-wrap">
+              <table className="activity-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Module</th>
+                    <th className="run-col-secondary">Publisher</th>
+                    <th className="run-col-secondary">Runtime</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleModules.map(module => (
+                    <tr key={module.id} data-selected={aboutModuleId === module.id}
+                      onClick={event => {
+                        // The row is a convenience; the name button stays the keyboard and screen-reader route.
+                        if ((event.target as HTMLElement).closest('button, a')) return;
+                        if (module.id) setAboutModuleId(module.id);
+                      }}>
+                      <td><Status value={moduleStateToken(module)} label={moduleStateLabel(module)} /></td>
+                      <td>
+                        <button type="button" className="asset-select"
+                          aria-expanded={aboutModuleId === module.id}
+                          aria-label={t('modulePanel.about', { name: module.displayName ?? '—' })}
+                          onClick={() => setAboutModuleId(current => (current === module.id ? null : module.id ?? null))}>
+                          {module.displayName}
+                        </button>
+                        <small>{module.moduleId} · v{module.version}</small>
+                      </td>
+                      <td className="run-col-secondary">{module.publisher}</td>
+                      <td className="run-col-secondary">{module.runtime} · {profileLabel(module.executionProfile)}</td>
+                    </tr>
+                  ))}
+                  {visibleModules.length === 0 && (
+                    <EmptyRow columns={4} loading={!isLoaded}
+                      hint={isLoaded && modules.length === 0 ? t('logicCatalog.noneHint') : undefined}>
+                      {!isLoaded ? t('views.loading') : modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}
+                    </EmptyRow>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
           <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabModules')}>
             <button type="button" className="secondary-button split-back"
@@ -179,36 +197,49 @@ export function LogicPage({
                 hideSearch
               />
             </details>
-            {visibleConfigurations.length === 0 ? (
-              <>
-                {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
-                  : <p className="split-note">{configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}</p>}
-                {isLoaded && configuredLogic.length === 0 && <p className="split-note">{t('configured.noneHint')}</p>}
-              </>
-            ) : (
-              <ul className="split-results">
-                {visibleConfigurations.map(item => {
-                  return (
-                    <li key={item.id} data-selected={selectedConfiguredId === item.id}>
-                      <button type="button" className="asset-select" disabled={!item.id}
-                        aria-expanded={selectedConfiguredId === item.id}
-                        aria-controls={selectedConfiguredId === item.id ? 'configured-revisions' : undefined}
-                        aria-label={t('configured.inspectFor', { name: item.name ?? '—' })}
-                        onClick={() => { setCreating(false); setSelectedConfiguredId(current =>
-                          current === item.id ? null : item.id ?? null); }}>
-                        {item.name}
-                      </button>
-                      <small>
-                        {summarizeAssetLabels(configurationAssetLabels(item, assets)) || '—'}
-                        {' · '}{activeRevisionLabel(item)}
-                        {canReadRuns && ' · ' + lastRunText(lastRuns.get(item.id ?? ''))}
-                      </small>
-                      <small><Status value={listedStatus(item)} /></small>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <div className="table-wrap">
+              <table className="activity-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Logic</th>
+                    <th className="run-col-secondary">Assets</th>
+                    <th className="run-col-secondary">Revision</th>
+                    {canReadRuns && <th className="run-col-secondary">Last run</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleConfigurations.map(item => (
+                    <tr key={item.id} data-selected={selectedConfiguredId === item.id}
+                      onClick={event => {
+                        if ((event.target as HTMLElement).closest('button, a')) return;
+                        if (item.id) { setCreating(false); setSelectedConfiguredId(item.id); }
+                      }}>
+                      <td><Status value={listedStatus(item)} /></td>
+                      <td>
+                        <button type="button" className="asset-select" disabled={!item.id}
+                          aria-expanded={selectedConfiguredId === item.id}
+                          aria-controls={selectedConfiguredId === item.id ? 'configured-revisions' : undefined}
+                          aria-label={t('configured.inspectFor', { name: item.name ?? '—' })}
+                          onClick={() => { setCreating(false); setSelectedConfiguredId(current =>
+                            current === item.id ? null : item.id ?? null); }}>
+                          {item.name}
+                        </button>
+                      </td>
+                      <td className="run-col-secondary">{summarizeAssetLabels(configurationAssetLabels(item, assets)) || '—'}</td>
+                      <td className="run-col-secondary">{activeRevisionLabel(item)}</td>
+                      {canReadRuns && <td className="run-col-secondary">{lastRunText(lastRuns.get(item.id ?? ''))}</td>}
+                    </tr>
+                  ))}
+                  {visibleConfigurations.length === 0 && (
+                    <EmptyRow columns={canReadRuns ? 5 : 4} loading={!isLoaded}
+                      hint={isLoaded && configuredLogic.length === 0 ? t('configured.noneHint') : undefined}>
+                      {!isLoaded ? t('views.loading') : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
+                    </EmptyRow>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
           <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabConfigured')}>
             <button type="button" className="secondary-button split-back"
