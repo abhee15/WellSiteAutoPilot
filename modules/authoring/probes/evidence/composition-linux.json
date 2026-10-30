@@ -77,6 +77,22 @@
     {
       "name": "Proposed actions and state round trip as test-report records",
       "passed": true
+    },
+    {
+      "name": "Decimal literal text survives authoring transport exactly",
+      "passed": true
+    },
+    {
+      "name": "Authoritative decimal division differs from binary-double preview",
+      "passed": true
+    },
+    {
+      "name": "Decimal division by zero rejects",
+      "passed": true
+    },
+    {
+      "name": "Decimal overflow rejects",
+      "passed": true
     }
   ],
   "observations": {

@@ -119,6 +119,16 @@ var proposed = new ControlIntentDraft("PROBE_REVIEW", asset, "SyntheticAdjustmen
 var localReport = RoundTrip(new { proposedActions = new[] { proposed }, stateUpdates = new Dictionary<string, string> { ["probe-state"] = "captured-only" } });
 Check("Proposed actions and state round trip as test-report records", localReport.proposedActions.Single().RequestedValue == 92m && localReport.stateUpdates["probe-state"] == "captured-only");
 
+// Candidate built-in decimal profile; this does not constrain arbitrary SDK algorithms.
+var literal = "0.1234567890123456789012345678";
+var exact = decimal.Parse(literal, System.Globalization.CultureInfo.InvariantCulture);
+Check("Decimal literal text survives authoring transport exactly", decimal.Parse(RoundTrip(literal), System.Globalization.CultureInfo.InvariantCulture) == exact);
+Check("Authoritative decimal division differs from binary-double preview", 0.3m / 0.1m == 3m && 0.3d / 0.1d != 3d);
+try { var zero = decimal.Zero; _ = exact / zero; Check("Decimal division by zero rejects", false); }
+catch (DivideByZeroException) { Check("Decimal division by zero rejects", true); }
+try { var maximum = decimal.MaxValue; _ = checked(maximum + 1m); Check("Decimal overflow rejects", false); }
+catch (OverflowException) { Check("Decimal overflow rejects", true); }
+
 var report = new {
     probe = "complex-sample-and-composition", status = "passed", checks,
     observations = new { peak, predicted, margin, bindings, modelHash,
