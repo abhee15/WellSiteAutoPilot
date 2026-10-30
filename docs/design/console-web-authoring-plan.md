@@ -181,6 +181,42 @@ needs operating outcomes, Recommendation can precede A/B. This plan recommends
 A/B first for the customer journey discussed, not a blanket requirement to finish
 authoring before operational modes.
 
+## Visual design before probes
+
+Use the existing application shell with Logic > Authoring and Connections >
+Adapters. Show Start, Configure, and Build & package as a short guided flow.
+The first concept uses ForeSite, sample/live input selection, labeled parameters,
+a plain-language proposed adjustment, and Download/Add to catalog after a verified
+build. This is a design concept, not evidence that build or preview endpoints exist.
+Validate required inputs before advancing. Show build pending/cancel/failure states
+in the browser probe and invalidate the artifact on every package-affecting edit.
+Upstream provider/connection changes clear dependent fields and preview evidence.
+
+The shell must reuse current grouped navigation, route/tab permissions, shared
+controls, localization, skip-link and mobile focus behavior. The simplified
+conversation mockup is not a replacement shell implementation.
+
+## Independent advanced-model review
+
+An independent GPT-6 Astra review examined this plan, the conversation mockup,
+current UI route/tab authorization, SDK contracts and read/package boundaries.
+Conclusion: ready for disposable probes, not for shipping hosted builds. No
+probe execution or live verification was performed by the reviewer.
+
+| Finding | Required response |
+| --- | --- |
+| Restricted Windows builds are unproven | Use reviewed server-owned templates and allowed parameters/dependencies; prove identity, filesystem/network isolation, resource limits, process-tree cancellation and cleanup. Relocate builds if same-host isolation cannot be enforced |
+| Authoring has no operational execution read plan | Probe explicit authoring preview using the current caller, saved connection revision, scoped Asset and supported quantity; reuse authority/Gateway mechanics without creating operational runs or recommendations |
+| Existing Logic routing requires catalog/configuration read permission | Extend route/tab visibility for authoring-only users; offline authoring must not require administrative or catalog read rights |
+| Administrative connection DTOs contain settings | Return a minimal authorized connection projection to authors; never reuse settings-bearing responses blindly |
+| Build artifacts and previews can become stale | Bind completed artifacts to the full draft revision; clear dependent choices/previews after upstream edits; gate steps and show pending/failure/cancel states |
+| Recommendation output channels differ | Name the starter as a proposed-adjustment example; explicitly choose its SDK output profile and verify it in the round trip. Compilation alone does not create operational recommendations |
+
+Keep the first path ForeSite-only. Other providers are enabled when their actual
+required capabilities are supported. The independent review did not identify a
+reason to add a generic workflow engine, adapter marketplace or Python host to
+this first feature.
+
 ## Probe gate before feature implementation
 
 The next stage after this documentation is disposable, bounded probes, with
