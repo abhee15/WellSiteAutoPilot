@@ -1,0 +1,32 @@
+/* The shared search-and-filter toolbar. Tokens only. */
+.filter-toolbar { display: grid; gap: var(--space-10); padding: var(--space-12) var(--space-18); border-bottom: var(--border-width-thin) solid var(--color-border-subtle); }
+.filter-toolbar-row { display: flex; align-items: center; gap: var(--space-8); }
+.filter-toolbar-search { flex: 1 1 var(--layout-field-min); min-width: 0; max-width: var(--layout-form-wide); }
+.filter-toolbar-trailing { flex: none; margin-inline-start: auto; }
+.filter-toolbar-toggle { display: inline-flex; align-items: center; gap: var(--space-8); flex: none; min-height: var(--size-control); padding: var(--space-6) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); background: var(--color-surface-input); color: var(--color-text-primary); font: inherit; font-size: var(--font-size-control); font-weight: var(--font-weight-medium); cursor: pointer; }
+.filter-toolbar-toggle:hover { background: var(--color-surface-secondary-hover); }
+.filter-toolbar-toggle[aria-expanded='true'] { background: var(--color-surface-navigation-active); }
+.filter-toolbar-badge { min-width: var(--size-control-small); padding: 0 var(--space-6); border-radius: var(--radius-pill); background: var(--color-surface-accent); color: var(--color-text-on-accent); font-size: var(--font-size-tag); text-align: center; line-height: var(--size-control-small); }
+.filter-toolbar-panel[hidden] { display: none; }
+.filter-toolbar-panel.data-view-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-field-min)), 1fr)); gap: var(--space-12); align-items: end; padding: var(--space-12); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); background: var(--color-surface-detail); }
+.filter-toolbar-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.filter-chip { display: inline-flex; align-items: center; gap: var(--space-4); padding: var(--space-2) var(--space-4) var(--space-2) var(--space-10); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-pill); background: var(--color-surface-input); font-size: var(--font-size-body-small); }
+.filter-chip .filter-chip-remove { display: inline-grid; place-items: center; width: var(--size-control-small); height: var(--size-control-small); padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-text-subtle); cursor: pointer; }
+.filter-chip .filter-chip-remove:hover { background: var(--color-surface-control-hover); color: var(--color-text-primary); }
+.filter-toolbar-summary .ui-action-button { width: auto; min-height: var(--size-control-compact); }
+.filter-toolbar-note { margin: 0; color: var(--color-text-subtle); font-size: var(--font-size-tag); }
+/* Narrow containers (a phone, or a narrow list pane): the search takes the whole first row; the panel stacks its fields.
+   The toolbar's own width decides, not the window's. */
+.filter-toolbar { container-type: inline-size; }
+@container (max-width: 28rem) {
+  .filter-toolbar-row { flex-wrap: wrap; }
+  .filter-toolbar-search { flex-basis: 100%; max-width: none; }
+  .filter-toolbar-toggle { flex: 1; justify-content: center; }
+  .filter-toolbar-summary { flex-wrap: nowrap; overflow-x: auto; }
+}
+@media (max-width: 650px) { .filter-toolbar { padding-inline: var(--space-12); } }
+
+/* Saved views sit under the filter fields, across the whole panel. */
+.filter-toolbar-saved { grid-column: 1 / -1; display: grid; gap: var(--space-8); padding-top: var(--space-12); border-top: var(--border-width-thin) solid var(--color-border-subtle); }
+.filter-toolbar-saved .data-saved-view-fields { margin-top: 0; }
+.filter-toolbar-saved .data-view-note, .filter-toolbar-saved .data-view-notice { margin: 0; }

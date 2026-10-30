@@ -1,6 +1,4 @@
-import { ActionButton } from '../components/ActionButton';
-import { FilterBar, FilterField } from '../components/FilterBar';
-import { SearchInput } from '../components/SearchInput';
+import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -25,16 +23,16 @@ export function RecommendationInboxControls({
     && criteria.sort === DEFAULT_RECOMMENDATION_INBOX_CRITERIA.sort
     && criteria.filters.length === DEFAULT_RECOMMENDATION_INBOX_CRITERIA.filters.length
     && DEFAULT_RECOMMENDATION_INBOX_CRITERIA.filters.every(value => criteria.filters.includes(value));
+  const chips = criteria.filters.map(value => ({
+    id: value, label: t(filterLabels[value]),
+    onRemove: () => onChange({ ...criteria, filters: criteria.filters.filter(item => item !== value) }),
+  }));
   return (
-    <FilterBar label={t('inbox.controls')}
-      note={t('inbox.count', { shown: matchingCount, total: loadedCount })}
-      actions={isDefault ? undefined : <ActionButton variant="secondary" label={t('views.clearFilters')}
-        onClick={() => onChange(DEFAULT_RECOMMENDATION_INBOX_CRITERIA)} />}>
-      <FilterField label={t('inbox.search')}>
-        <SearchInput maxLength={120} value={criteria.search}
-          placeholder={t('inbox.searchPlaceholder')}
-          onChange={event => onChange({ ...criteria, search: event.target.value })} />
-      </FilterField>
+    <FilterToolbar label={t('inbox.controls')}
+      search={{ value: criteria.search, label: t('inbox.search'), placeholder: t('inbox.searchPlaceholder'),
+        onChange: search => onChange({ ...criteria, search }) }}
+      chips={chips} isFiltered={!isDefault} onClear={() => onChange(DEFAULT_RECOMMENDATION_INBOX_CRITERIA)}
+      note={t('inbox.count', { shown: matchingCount, total: loadedCount })}>
       <MultiSelect
         label={t('inbox.filter')}
         allLabel={t('inbox.all')}
@@ -52,6 +50,6 @@ export function RecommendationInboxControls({
           <option value="oldest">{t('inbox.oldest')}</option>
         </select>
       </FilterField>
-    </FilterBar>
+    </FilterToolbar>
   );
 }

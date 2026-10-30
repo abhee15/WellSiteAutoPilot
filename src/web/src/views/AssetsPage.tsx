@@ -1,5 +1,4 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
-import { SearchInput } from '../components/SearchInput';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
@@ -284,22 +283,14 @@ export function AssetsPage({
           </div>}
           <div className="split-panes">
             <section className="panel split-browse" aria-label={t('assets.browse')}>
-              <div className="split-search">
-                <SearchInput maxLength={120} value={criteria.search}
-                  aria-label={t('assets.search')} placeholder={t('assets.searchPlaceholder')}
-                  onChange={event => setCriteria({ ...criteria, search: event.target.value })} />
-              </div>
-              {!lazy && !activeView && <details className="split-filters">
-                <summary>{t('assets.moreFilters')}</summary>
-                <AssetInventoryControls
-                  userId={userId}
-                  criteria={criteria}
-                  onChange={setCriteria}
-                  matchingCount={visibleAssets.length}
-                  totalCount={assets.length}
-                  hideSearch
-                />
-              </details>}
+              <AssetInventoryControls
+                userId={userId}
+                criteria={criteria}
+                onChange={setCriteria}
+                matchingCount={visibleAssets.length}
+                totalCount={assets.length}
+                searchOnly={lazy || Boolean(activeView)}
+              />
               {activeView ? null : focus ? (
                 <p className="split-focus">
                   <span>{t('assets.focusedOn', { name: focus.name })}</span>

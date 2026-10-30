@@ -1,5 +1,5 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
-import { FilterBar, FilterField } from '../components/FilterBar';
+import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { SearchInput } from '../components/SearchInput';
 import './activity.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -109,18 +109,19 @@ export function ActivityPage() {
       {/* The tab already says "Activity"; the heading stays for screen readers only. */}
       <h2 className="visually-hidden">{t('activity.heading')}</h2>
       <div className="activity-toolbar">
-        <FilterBar className="activity-filter-bar" label={t('activity.filters')} onSubmit={() => apply(draft)}
-          trailing={<ActionButton icon={RefreshCw} iconOnly label={t('activity.refresh')} disabled={busy} onClick={() => void loadFirst(applied)} />}
-          actions={filtersTyped ? <ActionButton variant="secondary" label={t('activity.reset')} onClick={() => apply(noFilters)} /> : undefined}>
-          <FilterField label={t('activity.actionFilter')}>
-            <SearchInput maxLength={128} value={draft.actionPrefix} placeholder={t('activity.actionPlaceholder')}
-              onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
-          </FilterField>
+        <FilterToolbar className="activity-filter-bar" label={t('activity.filters')} onSubmit={() => apply(draft)}
+          search={{ value: draft.actionPrefix, label: t('activity.actionFilter'), maxLength: 128,
+            placeholder: `${t('activity.actionFilter')} ${t('activity.actionPlaceholder')}`,
+            onChange: actionPrefix => setDraft({ ...draft, actionPrefix }) }}
+          chips={draft.targetType.trim() !== '' ? [{ id: 'target', label: `${t('activity.targetFilter')}: ${draft.targetType.trim()}`,
+            onRemove: () => setDraft({ ...draft, targetType: '' }) }] : []}
+          isFiltered={filtersTyped} onClear={() => apply(noFilters)}
+          trailing={<ActionButton icon={RefreshCw} iconOnly label={t('activity.refresh')} disabled={busy} onClick={() => void loadFirst(applied)} />}>
           <FilterField label={t('activity.targetFilter')}>
             <SearchInput maxLength={128} value={draft.targetType} placeholder={t('activity.targetPlaceholder')}
               onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
           </FilterField>
-        </FilterBar>
+        </FilterToolbar>
       </div>
       {loading && <LoadingIndicator label={t('activity.loading')} />}
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}

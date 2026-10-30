@@ -37,6 +37,7 @@ describe('Asset saved-view interaction', () => {
   it('types filters, persists a named view, and restores it from a select', async () => {
     const user = userEvent.setup();
     render(<AssetViewHarness />);
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
 
     const search = screen.getByRole('searchbox', { name: 'Search assets' });
     await user.type(search, 'pump');
@@ -56,7 +57,7 @@ describe('Asset saved-view interaction', () => {
     expect(stored.views[0].name).toBe('Pump wells');
     expect(stored.views[0].criteria.search).toBe('pump');
 
-    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect((search as HTMLInputElement).value).toBe('');
     await user.selectOptions(
       screen.getByRole('combobox', { name: 'Saved filters (this browser only)' }),
@@ -68,6 +69,7 @@ describe('Asset saved-view interaction', () => {
   it('rejects an empty or duplicate view name without duplicating storage', async () => {
     const user = userEvent.setup();
     render(<AssetViewHarness />);
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
 
     await user.click(screen.getByRole('button', { name: 'Save filter' }));
     expect(screen.getByRole('status').textContent)
@@ -88,12 +90,12 @@ describe('Asset saved-view interaction', () => {
   it('does not permit saving or restoring preferences without an authenticated user', async () => {
     const user = userEvent.setup();
     render(<AssetViewHarness userId={null} />);
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
 
     const save = screen.getByRole('button', { name: 'Save filter' });
     const savedViews = screen.getByRole('combobox', { name: 'Saved filters (this browser only)' });
     expect((save as HTMLButtonElement).disabled).toBe(true);
     expect((savedViews as HTMLSelectElement).disabled).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect(window.localStorage.length).toBe(0);
   });
 });

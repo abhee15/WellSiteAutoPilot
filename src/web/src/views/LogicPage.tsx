@@ -1,5 +1,4 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
-import { SearchInput } from '../components/SearchInput';
 import { useEffect, useMemo, useState } from 'react';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
@@ -106,22 +105,13 @@ export function LogicPage({
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
             <PanelHeader title="Logic Modules" count={visibleModules.length} />
-            <div className="split-search">
-              <SearchInput maxLength={120} value={catalogCriteria.search}
-                aria-label={t('logicCatalog.search')} placeholder={t('logicCatalog.searchPlaceholder')}
-                onChange={event => setCatalogCriteria({ ...catalogCriteria, search: event.target.value })} />
-            </div>
-            <details className="split-filters">
-              <summary>{t('logicCatalog.moreFilters')}</summary>
-              <LogicCatalogControls
-                criteria={catalogCriteria}
-                onChange={setCatalogCriteria}
-                runtimes={runtimes}
-                matchingCount={visibleModules.length}
-                totalCount={modules.length}
-                hideSearch
-              />
-            </details>
+            <LogicCatalogControls
+              criteria={catalogCriteria}
+              onChange={setCatalogCriteria}
+              runtimes={runtimes}
+              matchingCount={visibleModules.length}
+              totalCount={modules.length}
+            />
             <ModulePackageUpload canManage={permissions.includes('logic.manage')} onUploaded={async module => {
               await onRefresh(); setAboutModuleId(module.id ?? null);
             }} />
@@ -182,21 +172,12 @@ export function LogicPage({
           <section className="panel split-browse" aria-label={t('logic.tabConfigured')}>
             <PanelHeader title="Configured Logic"
               count={visibleConfigurations.length} />
-            <div className="split-search">
-              <SearchInput maxLength={120} value={configuredCriteria.search}
-                aria-label={t('configured.search')} placeholder={t('configured.searchPlaceholder')}
-                onChange={event => setConfiguredCriteria({ ...configuredCriteria, search: event.target.value })} />
-            </div>
-            <details className="split-filters">
-              <summary>{t('logicCatalog.moreFilters')}</summary>
-              <ConfiguredLogicControls
-                criteria={configuredCriteria}
-                onChange={setConfiguredCriteria}
-                matchingCount={visibleConfigurations.length}
-                totalCount={configuredLogic.length}
-                hideSearch
-              />
-            </details>
+            <ConfiguredLogicControls
+              criteria={configuredCriteria}
+              onChange={setConfiguredCriteria}
+              matchingCount={visibleConfigurations.length}
+              totalCount={configuredLogic.length}
+            />
             <div className="table-wrap">
               <table className="activity-table">
                 <thead>

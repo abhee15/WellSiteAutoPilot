@@ -63,10 +63,12 @@ test('controls have accessible labels and dynamic runtime options', () => {
   assert.match(html, /Showing 2 of 3 loaded modules/);
 });
 
-test('the search box can be left to the page so the other filters sit under a disclosure', () => {
+test('the toolbar is one search box plus a Filters button, with the other filters in a closed panel', () => {
   const html = renderToStaticMarkup(createElement(controls.LogicCatalogControls, {
-    criteria, onChange: () => {}, runtimes: [], matchingCount: 3, totalCount: 3, hideSearch: true,
+    criteria, onChange: () => {}, runtimes: [], matchingCount: 3, totalCount: 3,
   }));
-  assert.doesNotMatch(html, /type="search"/);
+  assert.equal(html.match(/type="search"/g)?.length, 1);
+  assert.match(html, /aria-expanded="false"/);
+  assert.match(html, /class="filter-toolbar-panel[^"]*" hidden=""/);
   assert.match(html, /Showing 3 of 3 loaded modules/);
 });

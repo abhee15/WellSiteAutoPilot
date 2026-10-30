@@ -1,4 +1,5 @@
-import { SearchInput } from '../components/SearchInput';
+import { FilterToolbar, FilterField } from '../components/FilterToolbar';
+import type { FilterChip } from '../components/FilterToolbar';
 import { ActionButton } from '../components/ActionButton';
 import { useState } from 'react';
 import { t } from '../localization';
@@ -13,8 +14,8 @@ type Props = {
   onChange: (next: AssetInventoryCriteria) => void;
   matchingCount: number;
   totalCount: number;
-  /** The page shows its own search box above, so leave it out here. */
-  hideSearch?: boolean;
+  /** A very large inventory is searched on the server, so only the search box is offered. */
+  searchOnly?: boolean;
 
 };
 
@@ -27,7 +28,7 @@ function newViewId(): string {
     ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
 }
 export function AssetInventoryControls({
-  userId, criteria, onChange, matchingCount, totalCount, hideSearch = false,
+  userId, criteria, onChange, matchingCount, totalCount, searchOnly = false,
 }: Props) {
   const [views, setViews] = useState<SavedAssetView[]>(
     () => loadSavedAssetViews(userId, browserStorage()),
@@ -79,17 +80,22 @@ export function AssetInventoryControls({
     setName('');
     setNotice(t('assets.deleted'));
   };
+  const D = DEFAULT_ASSET_INVENTORY_CRITERIA;
+  const chips = [
+    criteria.activity !== D.activity && { id: 'activity', label: t(criteria.activity === 'active' ? 'assets.active' : 'assets.inactive'),
+      onRemove: () => modify({ ...criteria, activity: D.activity }) },
+    criteria.hierarchy !== D.hierarchy && { id: 'hierarchy', label: t(criteria.hierarchy === 'roots' ? 'assets.roots' : 'assets.children'),
+      onRemove: () => modify({ ...criteria, hierarchy: D.hierarchy }) },
+  ].filter((chip): chip is FilterChip => chip !== false);
+  const isFiltered = criteria.search !== D.search || chips.length > 0 || criteria.sort !== D.sort;
   return (
-    <div className="data-view-controls" role="group" aria-label={t('assets.controls')}>
-      <div className="data-view-fields asset-view-fields">
-        {!hideSearch && <label>
-          <span>{t('assets.search')}</span>
-          <SearchInput value={criteria.search} maxLength={120}
-            placeholder={t('assets.searchPlaceholder')}
-            onChange={event => modify({ ...criteria, search: event.target.value })} />
-        </label>}
-        <label>
-          <span>{t('assets.activity')}</span>
+    <FilterToolbar label={t('assets.controls')}
+      search={{ value: criteria.search, label: t('assets.search'), placeholder: t('assets.searchPlaceholder'),
+        onChange: search => modify({ ...criteria, search }) }}
+      chips={chips} isFiltered={isFiltered} onClear={() => modify({ ...D })}
+      note={t('assets.count', { shown: matchingCount, total: totalCount })}>
+        {!searchOnly && <>
+      <FilterField label={t('assets.activity')}>
           <select value={criteria.activity}
             onChange={event => modify({
               ...criteria,
@@ -99,9 +105,8 @@ export function AssetInventoryControls({
             <option value="active">{t('assets.active')}</option>
             <option value="inactive">{t('assets.inactive')}</option>
           </select>
-        </label>
-        <label>
-          <span>{t('assets.hierarchy')}</span>
+        </FilterField>
+        <FilterField label={t('assets.hierarchy')}>
           <select value={criteria.hierarchy}
             onChange={event => modify({
               ...criteria,
@@ -111,9 +116,8 @@ export function AssetInventoryControls({
             <option value="roots">{t('assets.roots')}</option>
             <option value="children">{t('assets.children')}</option>
           </select>
-        </label>
-        <label>
-          <span>{t('assets.sort')}</span>
+        </FilterField>
+        <FilterField label={t('assets.sort')}>
           <select value={criteria.sort}
             onChange={event => modify({
               ...criteria,
@@ -123,8 +127,8 @@ export function AssetInventoryControls({
             <option value="newest">{t('assets.newest')}</option>
             <option value="oldest">{t('assets.oldest')}</option>
           </select>
-        </label>
-      </div>
+        </FilterField>
+      <div className="filter-toolbar-saved">
       <div className="data-saved-view-fields">
         <label>
           <span>{t('assets.savedViews')}</span>
@@ -141,13 +145,11 @@ export function AssetInventoryControls({
         </label>
         <ActionButton label={t('assets.save')} disabled={!userId} onClick={save} />
         <ActionButton label={t('assets.delete')} disabled={!selectedId} onClick={remove} />
-        <ActionButton label={t('assets.reset')} onClick={() => modify({ ...DEFAULT_ASSET_INVENTORY_CRITERIA })} />
       </div>
-      <p className="data-view-note">
-        {t('assets.count', { shown: matchingCount, total: totalCount })}{' '}
-        {t('assets.localNote')}
-      </p>
-      {notice && <p className="data-view-notice" role="status">{notice}</p>}
-    </div>
+        <p className="data-view-note">{t('assets.localNote')}</p>
+        {notice && <p className="data-view-notice" role="status">{notice}</p>}
+      </div>
+      </>}
+    </FilterToolbar>
   );
 }
