@@ -55,6 +55,15 @@ jobs:
           dotnet run --project tools/WellSiteAutoPilot.Cli --configuration Release --no-build -- module validate modules/authoring/python/manifest.json
       - name: Publish .NET starter for package checks
         run: dotnet publish modules/authoring/dotnet/WellInputCheck --configuration Release --output modules/authoring/artifacts/dotnet-payload
+      - name: Probe trusted .NET build and package round trip
+        run: python modules/authoring/probes/build_package_probe.py --report modules/authoring/artifacts/build-package-probe.json
+      - name: Retain authoring build probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authoring-build-probe-${{ matrix.os }}
+          path: modules/authoring/artifacts/build-package-probe.json
+          if-no-files-found: warn
       - name: Check both runtimes against identical cases
         env:
           WSA_TEST_DOTNET: '1'
