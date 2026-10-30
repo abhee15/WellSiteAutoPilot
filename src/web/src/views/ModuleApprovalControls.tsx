@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import type { LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { SetupApiError, setupResponse } from './configuredLogicSetup';
@@ -61,10 +62,7 @@ export function ModuleApprovalControls({ module, canManage, onChanged }: {
       {notice && <p role="status">{notice}</p>}
       {error && <p role="alert">{error}</p>}
       {canManage && action && !reviewing && (
-        <button type="button" disabled={busy}
-          onClick={() => { setReviewing(action); setReason(''); setError(null); setNotice(null); }}>
-          {t(action === 'approve' ? 'moduleApproval.approve' : 'moduleApproval.retire')}
-        </button>
+        <ActionButton label={t(action === 'approve' ? 'moduleApproval.approve' : 'moduleApproval.retire')} disabled={busy} onClick={() => { setReviewing(action); setReason(''); setError(null); setNotice(null); }} />
       )}
       {canManage && reviewing && (
         <div className="module-approval-review" role="group"
@@ -81,11 +79,9 @@ export function ModuleApprovalControls({ module, canManage, onChanged }: {
             {problem ? t(REASON_TEXT[problem]) : ''}
           </p>
           <div className="module-approval-actions">
-            <button type="button" disabled={busy || problem !== null} onClick={() => void submit(reviewing)}>
-              {busy ? t('moduleApproval.working')
-                : t(reviewing === 'approve' ? 'moduleApproval.confirmApprove' : 'moduleApproval.confirmRetire')}
-            </button>
-            <button type="button" disabled={busy} onClick={() => setReviewing(null)}>{t('moduleApproval.cancel')}</button>
+            <ActionButton variant="primary" label={busy ? t('moduleApproval.working')
+                : t(reviewing === 'approve' ? 'moduleApproval.confirmApprove' : 'moduleApproval.confirmRetire')} disabled={busy || problem !== null} onClick={() => void submit(reviewing)} />
+            <ActionButton label={t('moduleApproval.cancel')} disabled={busy} onClick={() => setReviewing(null)} />
           </div>
         </div>
       )}

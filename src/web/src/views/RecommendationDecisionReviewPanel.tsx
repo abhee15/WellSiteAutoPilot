@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import type { ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import './decisionBrief.css';
@@ -98,9 +99,7 @@ export function RecommendationDecisionReviewPanel({
           <p>{t('decision.readOnlyUntilConfirmed')}</p>
         </div>
         <div className="execution-detail-actions">
-          <button type="button" onClick={onCancel} disabled={submitting}>
-            {t('decision.cancel')}
-          </button>
+          <ActionButton label={t('decision.cancel')} onClick={onCancel} disabled={submitting} />
         </div>
       </div>
       <div className="decision-brief">
@@ -157,9 +156,7 @@ export function RecommendationDecisionReviewPanel({
       {error && <p className="execution-detail-error" role="alert">{errors[error]}</p>}
       {submitting && <p role="status">{t('decision.submitting')}</p>}
       <div className="execution-detail-actions">
-        <button type="button" disabled={!canSubmit} onClick={() => void submit()}>
-          {t('decision.submit')}
-        </button>
+        <ActionButton variant="primary" label={t('decision.submit')} disabled={!canSubmit} onClick={() => void submit()} />
       </div>
     </section>
   );

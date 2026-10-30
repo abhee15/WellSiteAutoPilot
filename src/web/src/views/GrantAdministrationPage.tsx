@@ -194,7 +194,7 @@ export function GrantAdministrationPage(
       <section className="panel grant-management-panel">
         <div className="panel-header">
           <h2>{t('grants.manage')}</h2>
-          <ActionButton icon={RefreshCw} iconOnly label={t('access.refresh')}
+          <ActionButton variant="primary" icon={RefreshCw} iconOnly label={t('access.refresh')}
             disabled={isLoading || saving} onClick={() => void load()} />
         </div>
         <div className="grant-selection">
@@ -283,10 +283,7 @@ export function GrantAdministrationPage(
               onClick={() => { setRetiring(null); setRetireConfirmed(false); }}>
               {t('access.cancel')}
             </button>
-            <button type="button" disabled={saving || !retireConfirmed}
-              onClick={() => void deactivate()}>
-              {saving ? t('access.saving') : t('grants.retireAction')}
-            </button>
+            <ActionButton label={saving ? t('access.saving') : t('grants.retireAction')} disabled={saving || !retireConfirmed} onClick={() => void deactivate()} />
           </div>
         </section>
       )}
@@ -311,10 +308,7 @@ export function GrantAdministrationPage(
           <div className="execution-detail-actions">
             <button type="button" className="secondary-button" disabled={saving}
               onClick={() => setPending(null)}>{t('access.cancel')}</button>
-            <button type="button" disabled={saving}
-              onClick={() => void save()}>
-              {saving ? t('access.saving') : t('grants.saveAssignment')}
-            </button>
+            <ActionButton variant="primary" label={saving ? t('access.saving') : t('grants.saveAssignment')} disabled={saving} onClick={() => void save()} />
           </div>
         </section>
       )}

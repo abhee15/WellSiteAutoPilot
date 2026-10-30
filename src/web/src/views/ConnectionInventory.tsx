@@ -1,4 +1,5 @@
 import { SearchInput } from '../components/SearchInput';
+import { ActionButton } from '../components/ActionButton';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
@@ -113,8 +114,8 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
         {dirty && <p role="status" className="connection-help">{t('inventory.applySearch')}</p>}
         {mode === 'individual' && <div className="connection-actions">
           <strong>{t('inventory.selected', { count: selected.size })}</strong>
-          <button type="button" disabled={dirty || problem !== null} onClick={() => select(new Map([...selected, ...items.map(item => [discoveryKey(item), item] as const)]))}>{t('inventory.selectPage')}</button>
-          <button type="button" disabled={dirty || problem !== null} onClick={() => select(new Map())}>{t('inventory.clear')}</button>
+          <ActionButton label={t('inventory.selectPage')} disabled={dirty || problem !== null} onClick={() => select(new Map([...selected, ...items.map(item => [discoveryKey(item), item] as const)]))} />
+          <ActionButton label={t('inventory.clear')} disabled={dirty || problem !== null} onClick={() => select(new Map())} />
         </div>}
         {!dirty && !problem && !searching && <>
           {count === 0 && <p>{t('connections.findNone')}</p>}
@@ -129,8 +130,8 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
             </li>)}</ul>
           </details>)}</div>
           <nav className="connection-actions" aria-label={t('inventory.paging')}>
-            <button type="button" disabled={offset === 0} onClick={() => void search(query, facets, Math.max(0, offset - pageSize))}>{t('inventory.previous')}</button>
-            <button type="button" disabled={offset + items.length >= count} onClick={() => void search(query, facets, offset + pageSize)}>{t('inventory.next')}</button>
+            <ActionButton label={t('inventory.previous')} disabled={offset === 0} onClick={() => void search(query, facets, Math.max(0, offset - pageSize))} />
+            <ActionButton label={t('inventory.next')} disabled={offset + items.length >= count} onClick={() => void search(query, facets, offset + pageSize)} />
           </nav>
         </>}
       </fieldset>

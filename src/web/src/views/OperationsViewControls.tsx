@@ -1,4 +1,5 @@
 import { SearchInput } from '../components/SearchInput';
+import { ActionButton } from '../components/ActionButton';
 import { useEffect, useState } from 'react';
 import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
@@ -189,18 +190,9 @@ export function OperationsViewControls({
             }}
           />
         </label>
-        <button type="button" onClick={saveView} disabled={!userId}>
-          {t('views.save')}
-        </button>
-        <button type="button" onClick={deleteView} disabled={!selectedId}>
-          {t('views.delete')}
-        </button>
-        <button
-          type="button"
-          onClick={() => changeCriteria({ ...DEFAULT_OPERATIONS_VIEW })}
-        >
-          {t('views.reset')}
-        </button>
+        <ActionButton label={t('views.save')} onClick={saveView} disabled={!userId} />
+        <ActionButton label={t('views.delete')} onClick={deleteView} disabled={!selectedId} />
+        <ActionButton label={t('views.reset')} onClick={() => changeCriteria({ ...DEFAULT_OPERATIONS_VIEW })} />
       </div>
       <p className="data-view-note">
         {t('views.count', { shown: matchingCount, total: recentCount })}{' '}

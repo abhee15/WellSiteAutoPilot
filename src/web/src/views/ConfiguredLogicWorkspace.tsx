@@ -128,17 +128,13 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
           assets.find(a => a.id === b.assetId)?.name ?? b.assetId).join(', ') ?? '' })}</p>
         <RevisionSettings revision={r} />
         {mayManage && !editing && <div className="setup-actions">
-          <button type="button" disabled={busy || blocked} onClick={() => {
-            setSource(r); setEditing(true); setConfirmId(null);
-          }}>{t('setup.copyRevision', { number: r.revisionNumber ?? '—' })}</button>
-          {r.status === 'Draft' && <button type="button" disabled={busy || blocked}
-            onClick={() => void transition(r, 'validate')}>{t('setup.validate', { number: r.revisionNumber ?? '—' })}</button>}
-          {r.status === 'Validated' && <button type="button" disabled={busy || blocked}
-            onClick={() => setConfirmId(r.id)}>{t('setup.reviewActivation', { number: r.revisionNumber ?? '—' })}</button>}
+          <ActionButton label={t('setup.copyRevision', { number: r.revisionNumber ?? '—' })} disabled={busy || blocked} onClick={() => { setSource(r); setEditing(true); setConfirmId(null); }} />
+          {r.status === 'Draft' && <ActionButton label={t('setup.validate', { number: r.revisionNumber ?? '—' })} disabled={busy || blocked} onClick={() => void transition(r, 'validate')} />}
+          {r.status === 'Validated' && <ActionButton label={t('setup.reviewActivation', { number: r.revisionNumber ?? '—' })} disabled={busy || blocked} onClick={() => setConfirmId(r.id)} />}
           {confirmId === r.id && <div role="group" aria-label={t('setup.confirmHeading')}>
             <p>{t('setup.confirmText', { number: r.revisionNumber ?? '—' })}</p>
-            <button type="button" disabled={busy || blocked} onClick={() => void transition(r, 'activate')}>{t('setup.confirm')}</button>
-            <button type="button" disabled={busy} onClick={() => setConfirmId(null)}>{t('setup.cancelActivation')}</button>
+            <ActionButton label={t('setup.confirm')} disabled={busy || blocked} onClick={() => void transition(r, 'activate')} />
+            <ActionButton label={t('setup.cancelActivation')} disabled={busy} onClick={() => setConfirmId(null)} />
           </div>}
         </div>}
         {userId && r.status === 'Active' && r.id === detail.activeRevisionId && !editing && <ConfiguredShadowPanel
@@ -154,8 +150,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         </>;
       })()}
     </>}
-    {(detail || selectedId) && !editing && <button type="button" disabled={busy}
-      onClick={() => void reload()}>{t('setup.reload')}</button>}
+    {(detail || selectedId) && !editing && <ActionButton label={t('setup.reload')} disabled={busy} onClick={() => void reload()} />}
     {editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
       modules={modules} assets={assets} assetTypes={assetTypes} canReadViews={canReadViews}
       configuration={detail ?? undefined} revision={source} initialAssetId={initialAssetId}
