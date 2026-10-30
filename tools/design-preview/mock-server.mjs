@@ -60,6 +60,15 @@ const responses = {
   { id: id(402), moduleId: 'esp-frequency-optimizer', version: '1.0.0', displayName: 'ESP frequency optimizer',
     publisher: 'Weatherford', runtime: 'DotNet', executionProfile: 'Shadow', manifestJson: JSON.stringify(espManifest), packageSha256: 'ef'.repeat(32),
     trustStatus: 'CustomerApproved', isEnabled: false, installedAtUtc: iso(20000) }],
+  '/api/v1/security/roles': [
+    { roleId: id(800), key: 'administrator', name: 'Administrator', description: 'Full access, including security.', isSystem: true, isActive: true, revision: 1, createdAtUtc: iso(9000), updatedAtUtc: iso(9000), permissions: ['assets.read', 'assets.manage', 'security.manage'] },
+    { roleId: id(801), key: 'field-operator', name: 'Field operator', description: 'Runs logic and reviews recommendations for assigned wells.', isSystem: false, isActive: true, revision: 3, createdAtUtc: iso(5000), updatedAtUtc: iso(300), permissions: ['assets.read', 'recommendations.read'] },
+    { roleId: id(802), key: 'retired-viewer', name: 'Retired viewer', description: 'No longer assigned.', isSystem: false, isActive: false, revision: 1, createdAtUtc: iso(4000), updatedAtUtc: iso(2000), permissions: ['assets.read'] }],
+  '/api/v1/security/role-permissions': [
+    { key: 'assets.read', category: 'Assets', scopeKind: 'ResourceScoped', isPrivileged: false },
+    { key: 'assets.manage', category: 'Assets', scopeKind: 'DeploymentWide', isPrivileged: false },
+    { key: 'recommendations.read', category: 'Recommendations', scopeKind: 'ResourceScoped', isPrivileged: false },
+    { key: 'security.manage', category: 'Security', scopeKind: 'DeploymentWide', isPrivileged: true }],
   '/api/v1/security/users': [
     { userId: id(900), identityName: 'FIELD\\10482267', displayName: 'Alex Rivera', isActive: true, createdAtUtc: iso(9000), lastSeenAtUtc: iso(1), activeDirectGrantCount: 2 },
     { userId: id(901), identityName: 'FIELD\\10551903', displayName: null, isActive: true, createdAtUtc: iso(30), lastSeenAtUtc: iso(5), activeDirectGrantCount: 0 },

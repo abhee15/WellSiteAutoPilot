@@ -7,6 +7,9 @@ import type { MessageKey } from '../localization';
 import { loadRoleCatalog, RoleCatalogError, roleChanged, saveRole } from './roleCatalog';
 import type { PermissionDefinition, RoleErrorKind, RoleMutation, RoleRecord } from './roleCatalog';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { Status } from '../components/Status';
+import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
+import './splitLayout.css';
 
 const labels: Record<string, MessageKey> = {
   'assets.read': 'roles.permissionAssetsRead',
@@ -241,13 +244,16 @@ export function RoleCatalogPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [roles, query]);
 
+  const editorKey = editor ? (editor.kind === 'edit' ? editor.original.roleId : 'new-' + (editor.template?.roleId ?? 'empty')) : null;
+  const splitFocus = useSplitPaneFocus(editorKey);
   return (
-    <>
-      <section className="panel">
+    <div {...splitFocus} className="split-layout runs-layout roles-layout" data-has-selection={editor !== null}>
+    <div className="split-panes">
+      <section className="panel split-browse">
         <div className="panel-header">
           <h2>{t('roles.heading')}</h2>
           <div className="role-actions">
-            <ActionButton icon={RefreshCw} label={t('roles.refresh')}
+            <ActionButton icon={RefreshCw} iconOnly label={t('roles.refresh')}
               disabled={loading} onClick={() => void reload()} />
             <button type="button" className="primary-button"
               disabled={loading || !!error} onClick={() => {
@@ -269,18 +275,19 @@ export function RoleCatalogPage() {
               <table className="activity-table" aria-label={t('roles.heading')}>
                 <thead><tr>
                   <th scope="col">{t('roles.name')}</th>
-                  <th scope="col">{t('roles.type')}</th>
-                  <th scope="col">{t('roles.permissions')}</th>
+                  <th scope="col" className="run-col-secondary">{t('roles.type')}</th>
+                  <th scope="col" className="run-col-secondary">{t('roles.permissions')}</th>
                   <th scope="col">{t('roles.status')}</th>
                   <th scope="col">{t('roles.actions')}</th>
                 </tr></thead>
                 <tbody>
                   {visible.map(role => (
-                    <tr key={role.roleId}>
+                    <tr key={role.roleId} data-selected={editor?.kind === 'edit' && editor.original.roleId === role.roleId}>
                       <td><strong>{role.name}</strong><small>{role.description}</small></td>
-                      <td>{role.isSystem ? t('roles.systemRole') : t('roles.customRole')}</td>
-                      <td>{role.permissions.length}</td>
-                      <td>{role.isActive ? t('roles.active') : t('roles.inactive')}</td>
+                      <td className="run-col-secondary">{role.isSystem ? t('roles.systemRole') : t('roles.customRole')}</td>
+                      <td className="run-col-secondary">{role.permissions.length}</td>
+                      <td><Status value={role.isActive ? 'Active' : 'Inactive'}
+                        label={role.isActive ? t('roles.active') : t('roles.inactive')} /></td>
                       <td>
                         <button className="secondary-button" type="button"
                           onClick={() => { setEditor({ kind: 'new', template: role }); setNotice(null); }}>
@@ -301,6 +308,10 @@ export function RoleCatalogPage() {
           </>
         )}
       </section>
+      <div className="split-selected">
+        <button type="button" className="secondary-button split-back" onClick={() => setEditor(null)}>
+          {t('roles.backToList')}
+        </button>
       {editor && (
         <RoleDefinitionEditor
           key={editor.kind === 'edit' ? editor.original.roleId :
@@ -317,6 +328,8 @@ export function RoleCatalogPage() {
           }}
         />
       )}
-    </>
+      </div>
+    </div>
+    </div>
   );
 }
