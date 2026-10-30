@@ -67,3 +67,12 @@ test('split layouts share space by ratio and keep the details in view', () => {
   assert.match(css, /\.runs-layout\[data-has-selection='true'\] \.split-selected \{[^}]*position: sticky/,
     'the open details stay in view while a long list is scrolled');
 });
+
+test('a detail card is white and the boxes inside it carry the tint, as on the Activity details', () => {
+  const styles = source(join(root, 'styles.css'));
+  const card = styles.match(/^\.execution-detail \{[^}]*\}/m)?.[0] ?? '';
+  assert.match(card, /background: var\(--color-surface-panel\)/, 'the run/decision/logic detail card is a panel surface');
+  const summary = source(join(root, 'views/executionSummary.css'));
+  assert.match(summary.match(/^\.run-input \{[^}]*\}/m)?.[0] ?? '', /background: var\(--color-surface-detail\)/,
+    'a box inside a detail card uses the tinted detail surface, not the card colour');
+});
