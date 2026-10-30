@@ -249,6 +249,23 @@ if SDK deployment, offline builds or isolation block a small authoring release,
 complete the advisory ForeSite Recommendation workflow while resolving the build
 design. Do not silently replace the requested binary package with source export.
 
+## Initial probe evidence
+
+[Probe PR #321](https://github.com/abhee15/WellSiteAutoPilot/pull/321) records
+the first trusted .NET build/package check against the reviewed baseline.
+On local Linux x64 with SDK 10.0.100, all 13 probe checks passed: actual binary
+compilation, existing manifest validation and pack/verify/preflight, payload-byte
+preservation, repeat packing, wrong-hash rejection, warmed-cache no-restore build,
+compiler-failure diagnostics and temporary workspace cleanup. The existing
+authoring suite also passed all 11 tests with .NET and package checks enabled.
+
+This evidence does not prove restricted Windows execution, a clean offline
+installation, authenticated artifact delivery/catalog ingestion, or live authoring
+preview. Windows/Linux CI was added in the separate probe PR; record its returned
+results before claiming Windows compilation verification. No feature is enabled.
+The [probe README](https://github.com/abhee15/WellSiteAutoPilot/blob/probe/authoring-build-package/modules/authoring/probes/README.md)
+links the recorded report and outstanding questions.
+
 ## Review iterations and verification
 
 Pass 1 mapped the customer journey to SDK, manifest, packaging, connections and
