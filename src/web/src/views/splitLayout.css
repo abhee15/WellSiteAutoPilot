@@ -56,6 +56,8 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 .runs-layout[data-has-selection='false'] .split-selected { display: none; }
 .runs-layout[data-has-selection='true'] .run-col-secondary { display: none; }
 .runs-layout .activity-table tbody tr { cursor: pointer; }
+/* A recommendation row opens only when it can be reviewed; the others have no details to open. */
+.recs-layout .activity-table tbody tr:not([data-reviewable]) { cursor: default; }
 .runs-layout .activity-table tbody tr[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
 .runs-layout .split-selected .execution-detail { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
 @media (min-width: 901px) { .runs-layout .split-back { display: none; } }
@@ -72,4 +74,13 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* Beside the details the list keeps Status and Asset; the logic name is in the details and would wrap letter by letter here. */
 .runs-layout[data-has-selection='true'] .run-col-logic { display: none; }
 /* On a phone only Status and Asset fit; the rest is in the run's details. */
-@media (max-width: 650px) { .runs-layout .run-col-logic, .runs-layout .run-col-secondary { display: none; } }
+@media (max-width: 650px) { .operations-layout .run-col-logic, .operations-layout .run-col-secondary { display: none; } }
+
+/* Recommendations: with nothing open the list has the whole page, so its filter fields sit in a row again;
+   beside a decision the list is narrow and the "Updated" time (which is also not needed there) would wrap. */
+@media (min-width: 651px) {
+  .recs-layout[data-has-selection='false'] .split-browse .data-view-fields {
+    grid-template-columns: minmax(var(--layout-field-min), 2fr) minmax(var(--layout-field-narrow), 1fr) minmax(var(--layout-field-narrow), 1fr);
+  }
+}
+.recs-layout[data-has-selection='true'] .split-browse .panel-header .last-updated { display: none; }
