@@ -1,4 +1,5 @@
 import { SearchInput } from '../components/SearchInput';
+import { ActionButton } from '../components/ActionButton';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -138,7 +139,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
                 aria-label={t('assetViews.selectWell', { name: node.name })} onChange={() => toggle(node)} />{node.name}</label>)}
             {searchLoading && <LoadingIndicator label={t('views.loading')} />}
             {searchError && <p role="alert">{t('assetBrowse.failed')}</p>}
-            {hasMore && <button type="button" disabled={searchLoading} onClick={() => void moreSearch()}>{t('assetBrowse.more')}</button>}
+            {hasMore && <ActionButton label={t('assetBrowse.more')} disabled={searchLoading} onClick={() => void moreSearch()} />}
           </div> : <AssetBrowser key={connectionId} selectedId={null} ancestorIds={[]} refreshKey={connectionId} onSelect={() => undefined}
             typeNames={new Map(assetTypes.map(type => [type.id, type.name]))}
             selection={{ connectionId, wellTypeIds, selectedIds: selected, onToggle: toggle, onNodes: remember,
@@ -152,7 +153,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
               aria-label={t('assetViews.removeWell', { name: known.get(id)?.name ?? id })}
               onClick={() => setSelected(current => new Set([...current].filter(item => item !== id)))}>{t('assetViews.remove')}</button>
           </li>)}</ul>
-          {selected.size > reviewLimit && <button type="button" onClick={() => setReviewLimit(limit => limit + 100)}>{t('assetBrowse.more')}</button>}
+          {selected.size > reviewLimit && <ActionButton label={t('assetBrowse.more')} onClick={() => setReviewLimit(limit => limit + 100)} />}
         </section>
       </div>}
     </fieldset>
@@ -168,8 +169,8 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
     </div>
     {view?.canDelete && confirmDelete && <div role="alertdialog" aria-label={t('assetViews.delete')}>
       <p>{t('assetViews.deleteConfirm', { name: view.name })}</p>
-      <button type="button" disabled={busy} onClick={() => void run(async () => { await deleteView(view); onDeleted(); })}>{t('assetViews.deleteYes')}</button>
-      <button type="button" disabled={busy} onClick={() => setConfirmDelete(false)}>{t('assetViews.deleteNo')}</button>
+      <ActionButton label={t('assetViews.deleteYes')} disabled={busy} onClick={() => void run(async () => { await deleteView(view); onDeleted(); })} />
+      <ActionButton label={t('assetViews.deleteNo')} disabled={busy} onClick={() => setConfirmDelete(false)} />
     </div>}
   </form>;
 }

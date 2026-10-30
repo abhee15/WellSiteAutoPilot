@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import type { FormEvent } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
@@ -229,7 +230,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
           </select></label>}
           {canReadViews && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
           {viewRef?.role === r.role && <p className="connection-help">{t('setup.viewSnapshot', { revision: viewRef.expectedRevision, count: bindings[r.role]?.length ?? 0 })}
-            {canReadViews && <button type="button" disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)}>{t('setup.refreshView')}</button>}</p>}
+            {canReadViews && <ActionButton label={t('setup.refreshView')} disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)} />}</p>}
           {viewLoading && <LoadingIndicator label={t('views.loading')} />}
           {viewError && <p role="alert">{t('setup.viewUnavailable')}</p>}
           <p>{t(viewRef?.role === r.role ? 'setup.viewTargets' : 'setup.loadedAssets')}</p>
@@ -283,11 +284,11 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
             <label>{t('setup.zone')}<input required value={zone} onChange={e => setZone(e.target.value)} /></label>
           </>}
         </details>}
-        {Object.values(bindings).some(ids => ids.length > detailLimit) && <button type="button" onClick={() => setDetailLimit(limit => limit + 20)}>{t('setup.moreTargets')}</button>}
-        <button type="submit" disabled={!manifest || approved.length === 0 || viewLoading || (!!viewRef && !canReadViews)}>{busy ? t('setup.saving') : t('setup.save')}</button>
+        {Object.values(bindings).some(ids => ids.length > detailLimit) && <ActionButton label={t('setup.moreTargets')} onClick={() => setDetailLimit(limit => limit + 20)} />}
+        <ActionButton type="submit" variant="primary" label={busy ? t('setup.saving') : t('setup.save')} disabled={!manifest || approved.length === 0 || viewLoading || (!!viewRef && !canReadViews)} />
       </fieldset>
       {error && <p role="alert">{error}</p>}
-      <button type="button" disabled={busy} onClick={onCancel}>{t('setup.cancel')}</button>
+      <ActionButton label={t('setup.cancel')} disabled={busy} onClick={onCancel} />
     </form>
   </section>;
 }
