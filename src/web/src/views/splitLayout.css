@@ -84,3 +84,6 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
   }
 }
 .recs-layout[data-has-selection='true'] .split-browse .panel-header .last-updated { display: none; }
+
+/* Roles: the editor sits beside the list, which keeps its actions column but drops the long ones. */
+.roles-layout .activity-table tbody tr { cursor: default; }

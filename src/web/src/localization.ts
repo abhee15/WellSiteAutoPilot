@@ -856,6 +856,7 @@ export const englishMessages = {
   'roles.intro': 'Creating a role does not grant users or groups new access.',
   'roles.inactiveUntilGrants': 'Role definitions do not modify existing user permissions. Scoped user and AD-group assignments will be enabled after the new authorization evaluator is validated.',
   'roles.refresh': 'Reload roles',
+  'roles.backToList': 'Back to roles',
   'roles.create': 'Create role',
   'roles.createHeading': 'Create customer role',
   'roles.editHeading': 'Edit customer role',
