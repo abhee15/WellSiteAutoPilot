@@ -112,11 +112,11 @@ export function ActivityPage() {
         <FilterBar className="activity-filter-bar" label={t('activity.filters')} onSubmit={() => apply(draft)}
           actions={filtersTyped ? <ActionButton variant="secondary" label={t('activity.reset')} onClick={() => apply(noFilters)} /> : undefined}>
           <FilterField label={t('activity.actionFilter')}>
-            <SearchInput maxLength={128} value={draft.actionPrefix}
+            <SearchInput maxLength={128} value={draft.actionPrefix} placeholder={t('activity.actionPlaceholder')}
               onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
           </FilterField>
           <FilterField label={t('activity.targetFilter')}>
-            <SearchInput maxLength={128} value={draft.targetType}
+            <SearchInput maxLength={128} value={draft.targetType} placeholder={t('activity.targetPlaceholder')}
               onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
           </FilterField>
         </FilterBar>

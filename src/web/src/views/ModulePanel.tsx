@@ -1,3 +1,4 @@
+import { ActionButton } from '../components/ActionButton';
 import type { ConfiguredLogicResponse, LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { describeModule } from './moduleSummary';
@@ -20,7 +21,7 @@ export function ModulePanel({ module, configurations, onClose, canManage = false
           <h3>{module.displayName}</h3>
           <p>{summary.provenance} · v{module.version}</p>
         </div>
-        <button type="button" onClick={onClose}>{t('configured.close')}</button>
+        <ActionButton label={t('configured.close')} onClick={onClose} />
       </div>
       <p className="logic-status-sentence">{summary.sentence}</p>
       <p>{t('moduleUpload.identity')} <code>{module.packageSha256 ?? '—'}</code></p>

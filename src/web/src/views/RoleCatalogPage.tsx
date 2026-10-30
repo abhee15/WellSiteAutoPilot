@@ -272,7 +272,7 @@ export function RoleCatalogPage() {
               note={query.trim() !== '' ? t('roles.count', { shown: visible.length, total: roles.length }) : undefined}
               actions={query.trim() !== '' ? <ActionButton variant="secondary" label={t('views.clearFilters')} onClick={() => setQuery('')} /> : undefined}>
               <FilterField label={t('roles.search')}>
-                <SearchInput value={query} maxLength={120} onChange={event => setQuery(event.target.value)} />
+                <SearchInput value={query} maxLength={120} placeholder={t('roles.searchPlaceholder')} onChange={event => setQuery(event.target.value)} />
               </FilterField>
             </FilterBar>
             <div className="table-wrap">
