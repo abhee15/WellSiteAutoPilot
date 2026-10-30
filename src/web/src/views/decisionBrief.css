@@ -1,5 +1,5 @@
 /* Decision brief: semantic tokens only. */
 .decision-brief { display: grid; gap: var(--space-6); padding: var(--space-8) 0; }
 .decision-brief p { margin: 0; }
-.decision-brief-proposal { font-weight: 600; }
+.decision-brief-proposal { font-weight: var(--font-weight-medium); }
 .decision-brief ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-12); }

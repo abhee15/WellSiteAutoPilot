@@ -1,5 +1,5 @@
 /* Logic configuration summary: semantic tokens only. */
-.logic-status-sentence { margin: var(--space-8) 0; font-weight: 600; }
+.logic-status-sentence { margin: var(--space-8) 0; font-weight: var(--font-weight-medium); }
 .logic-recent-runs h4 { margin: 0 0 var(--space-6); }
 .logic-recent-runs ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
 .module-panel { padding: var(--space-16) var(--space-18); display: grid; gap: var(--space-8);

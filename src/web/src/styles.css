@@ -12,6 +12,7 @@
 body {
   margin: 0;
   min-width: var(--layout-page-min);
+  line-height: var(--line-height-body);
   background: var(--color-surface-canvas);
 }
 
@@ -159,7 +160,7 @@ button:disabled {
   background: var(--color-surface-avatar);
   color: var(--color-text-primary);
   font-size: var(--font-size-label);
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
 }
 
 .user-label {
@@ -280,6 +281,7 @@ button:disabled {
   padding: var(--space-6) var(--space-14);
   min-height: var(--size-control);
   font-size: var(--font-size-body-small);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
 }
 
@@ -296,7 +298,7 @@ button:disabled {
   padding: var(--space-6) var(--space-14);
   min-height: var(--size-control);
   font-size: var(--font-size-body-small);
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
 }
 
@@ -437,6 +439,7 @@ button:disabled {
 
 .data-view-controls button {
   cursor: pointer;
+  font-weight: var(--font-weight-medium);
 }
 
 .data-view-controls button:hover:not(:disabled) {
@@ -508,7 +511,7 @@ button:disabled {
 .activity-table th {
   color: var(--color-text-muted);
   font-size: var(--font-size-caption);
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   letter-spacing: var(--letter-spacing-wide);
   text-transform: uppercase;
   background: var(--color-surface-table-head);
@@ -554,7 +557,7 @@ button:disabled {
 .status-indicator[data-tone='error'] .status-indicator-icon { color: var(--color-text-status-error); }
 .status-indicator[data-tone='info'] .status-indicator-icon { color: var(--color-text-status-info); }
 .status-indicator[data-tone='warning'] .status-indicator-label,
-.status-indicator[data-tone='error'] .status-indicator-label { font-weight: 600; }
+.status-indicator[data-tone='error'] .status-indicator-label { font-weight: var(--font-weight-medium); }
 
 .copy-button { margin-inline-start: var(--space-4); }
 .ui-action-button.copy-button[data-icon-only] { width: var(--size-control-compact); min-width: var(--size-control-compact); min-height: var(--size-control-compact); vertical-align: middle; }
@@ -663,7 +666,7 @@ button:disabled {
 }
 
 .recommendation-review-options legend {
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   padding: 0;
 }
 
@@ -877,7 +880,7 @@ button:disabled {
 }
 
 .access-role-options legend {
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   padding: 0;
 }
 
@@ -951,7 +954,8 @@ button:disabled {
 }
 .administration-tabs button {
   padding: var(--space-10) var(--space-16);
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-body-small);
+  font-weight: var(--font-weight-regular);
   border: 0;
   border-bottom: var(--border-width-thick) solid transparent;
   border-radius: 0;
@@ -964,7 +968,7 @@ button:disabled {
 .administration-tabs button[aria-selected="true"] {
   border-bottom-color: var(--color-focus-ring);
   color: var(--color-text-primary);
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
 }
 .role-actions {
   display: flex;
@@ -1003,7 +1007,7 @@ button:disabled {
   min-width: 0;
 }
 .role-permissions legend {
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   padding-bottom: var(--space-12);
 }
 .role-permission-group {
@@ -1142,13 +1146,13 @@ button:disabled {
 /* Form field captions: one size and weight above every control in the forms (filters keep their compact captions). */
 .connection-form label, .connection-field, .asset-create-form label, .setup-form label, .role-fields > label:not(.access-confirm) {
   font-size: var(--font-size-body-small);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);
 }
 /* What is typed or chosen is not a caption: it keeps the control's own weight and colour. */
 .connection-form label input, .connection-form label select, .connection-field input, .connection-field select,
 .asset-create-form label :is(input, select, textarea), .setup-form label :is(input, select, textarea) {
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
   color: var(--color-text-control);
 }
 
@@ -1175,7 +1179,7 @@ a.primary-button:hover { color: var(--color-text-on-accent); }
   background: var(--color-surface-panel);
   color: var(--color-text-primary);
   font-size: var(--font-size-label);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -1195,7 +1199,7 @@ a.primary-button:hover { color: var(--color-text-on-accent); }
 
 /* Inside the filter bars the checkbox dropdown reads like its neighbours. */
 .data-view-controls .multi-select { gap: var(--space-6); }
-.data-view-controls .multi-select > span { color: var(--color-text-subtle); font-size: var(--font-size-tag); font-weight: 400; }
+.data-view-controls .multi-select > span { color: var(--color-text-subtle); font-size: var(--font-size-tag); font-weight: var(--font-weight-regular); }
 .data-view-controls .multi-select-clear { width: auto; min-height: var(--size-control-compact); }
 
 /* Status: each part sits in a card like every other page, with a heading the size of the other panels'. */
@@ -1242,6 +1246,22 @@ select:not([multiple], [size]) {
 
 /* Heading scale (zero specificity, so a component can still set its own): page title 32/700 above; panel and detail
    titles are body size bold; sub-sections inside a detail are body-small bold. The browser default (1.17em) is never used. */
-:where(h3) { font-size: var(--font-size-body); font-weight: 700; }
-:where(h4) { font-size: var(--font-size-body-small); font-weight: 700; }
+:where(h3) { font-size: var(--font-size-body); font-weight: var(--font-weight-medium); }
+:where(h4) { font-size: var(--font-size-body-small); font-weight: var(--font-weight-medium); }
 .ui-action-button.quiet-button { border-radius: var(--radius-6); }
+
+/* Type scale: three weights (Roboto ships 400, 500 and 700, so a 600 would silently render as 700). Regular for text,
+   medium for headings, controls, tabs and column headers, bold only for emphasis inside a sentence and big figures.
+   Zero specificity so a component can still choose its own. */
+:where(h1, h2, h3, h4, h5, h6) { font-weight: var(--font-weight-medium); line-height: var(--line-height-heading); }
+:where(strong, b) { font-weight: var(--font-weight-bold); }
+:where(small) { font-size: var(--font-size-caption); }
+.primary-button, .secondary-button, .quiet-button, .ui-action-button { font-weight: var(--font-weight-medium); }
+.activity-table td strong { font-weight: var(--font-weight-medium); }
+.activity-table td .activity-sentence strong, .activity-detail h3 strong { font-weight: var(--font-weight-bold); }
+/* Tabs, in Assets/Logic (links) and Access (buttons): one size, regular until selected. */
+.split-tabs [role='tab'] { font-size: var(--font-size-body-small); }
+/* Disclosures ("Filters and saved views") and the side navigation read at the control size, like the content they sit beside. */
+:where(summary) { font-size: var(--font-size-body-small); }
+.navigation nav a { font-size: var(--font-size-body-small); }
+.navigation nav a.active { font-weight: var(--font-weight-medium); }

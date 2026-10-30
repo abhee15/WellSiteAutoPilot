@@ -1,6 +1,6 @@
 /* Typed fields generated from a schema. Input styling comes from the form that hosts them. */
 .attribute-fields { display: grid; gap: var(--space-12); border: 0; padding: 0; margin: 0; min-width: 0; }
-.attribute-fields legend { font-weight: 600; padding: 0; margin-bottom: var(--space-6); }
+.attribute-fields legend { font-weight: var(--font-weight-medium); padding: 0; margin-bottom: var(--space-6); }
 .attribute-field { display: grid; gap: var(--space-4); }
 .attribute-field small { color: var(--color-text-subtle); }
 .attribute-field small.attribute-field-error { color: var(--color-text-warning-strong); }

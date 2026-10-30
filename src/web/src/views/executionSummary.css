@@ -5,7 +5,7 @@
 
 /* Run details: grouped as what happened, what it read, what it produced, then technical detail. Semantic tokens only. */
 .run-summary { margin: var(--space-12) 0; display: grid; gap: var(--space-10); }
-.run-summary-lead { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-weight: 600; }
+.run-summary-lead { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-weight: var(--font-weight-medium); }
 .run-facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-fact-wide), 1fr)); gap: var(--space-10) var(--space-16); }
 .run-facts > div, .run-input-facts > div { min-width: 0; }
 .run-facts dt, .run-input-facts dt { color: var(--color-text-detail-label); font-size: var(--font-size-tag); }
@@ -19,7 +19,7 @@
   border-radius: var(--radius-8); background: var(--color-surface-detail); display: grid; gap: var(--space-8); }
 .run-input-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4) var(--space-12); }
 .run-input-head span { color: var(--color-text-subtle); }
-.run-input-value { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-size: var(--font-size-body); font-weight: 600; }
+.run-input-value { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-size: var(--font-size-body); font-weight: var(--font-weight-medium); }
 .run-input-facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-fact-min), 1fr)); gap: var(--space-8) var(--space-14); }
 .run-technical { margin-top: var(--space-16); }
 .run-technical > summary { cursor: pointer; color: var(--color-text-subtle); padding: var(--space-4) 0; }
