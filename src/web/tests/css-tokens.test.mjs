@@ -65,3 +65,13 @@ test('fading, the base button reset and form captions stay on the shared primiti
     assert.deepEqual(restyled, [], `${name} should only lay fields out`);
   }
 });
+
+test('sizes are rem so they grow with the reader\'s text size; px is only for hairlines, strokes, shadows and the measured pane offset', () => {
+  const tokens = readFileSync(files.find(file => file.endsWith('tokens.css')), 'utf8');
+  const allowed = /^--(border-width[\w-]*|focus-ring-[\w-]+|radius-pill|shadow-[\w-]+|pane-top)$/;
+  const offenders = [];
+  for (const match of tokens.matchAll(/^\s*(--[\w-]+):\s*([^;]*\d+px[^;]*);/gm)) {
+    if (!allowed.test(match[1])) offenders.push(`${match[1]}: ${match[2]}`);
+  }
+  assert.deepEqual(offenders, [], 'spacing, control, radius and layout tokens are rem (value / 16)');
+});
