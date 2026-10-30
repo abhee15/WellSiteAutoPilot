@@ -95,7 +95,7 @@ export function OverviewPage({
   const ready = isLoaded && recommendationsLoaded;
   const assetNames = new Map(assets.flatMap(asset => (asset.id && asset.name ? [[asset.id, asset.name] as const] : [])));
   const latestRuns = [...executions].filter(run => run.executionId)
-    .sort((a, b) => Date.parse(b.requestedAtUtc) - Date.parse(a.requestedAtUtc)).slice(0, 5);
+    .sort((a, b) => Date.parse(b.requestedAtUtc ?? '') - Date.parse(a.requestedAtUtc ?? '')).slice(0, 5);
   const unhealthy = systemHealth?.unhealthyCount ?? 0;
 
   return (
@@ -136,7 +136,7 @@ export function OverviewPage({
                   <strong>{run.assetExternalId ?? (run.assetId ? assetNames.get(run.assetId) ?? shortId(run.assetId) : '—')}</strong>
                 </a>
                 <span className="overview-run-module">{run.moduleId}</span>
-                <time dateTime={run.requestedAtUtc}>{relativeTime(run.requestedAtUtc, Date.now())}</time>
+                {run.requestedAtUtc && <time dateTime={run.requestedAtUtc}>{relativeTime(run.requestedAtUtc, Date.now())}</time>}
               </li>
             ))}
           </ul>
