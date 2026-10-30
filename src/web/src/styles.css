@@ -1265,3 +1265,10 @@ select:not([multiple], [size]) {
 :where(summary) { font-size: var(--font-size-body-small); }
 .navigation nav a { font-size: var(--font-size-body-small); }
 .navigation nav a.active { font-weight: var(--font-weight-medium); }
+
+/* Controls are measured border to border, so a 36px control is 36px whatever its padding and border (filters and
+   selects were 38-42px beside 36px buttons). Zero specificity: a component can still choose its own. */
+:where(input, select, textarea, button) { box-sizing: border-box; }
+/* A control's height is its min-height, not its text: with the roomier body line height inherited, padding plus text made
+   filter inputs 38px and selects 42px beside 36px buttons. Fields and the filter-bar buttons use the tighter control line height. */
+:is(input, select, textarea):not([type='checkbox']):not([type='radio']), .data-view-controls button { line-height: var(--line-height-control); }

@@ -14,7 +14,7 @@
 .directory-search > label { font-size: var(--font-size-body-small); font-weight: var(--font-weight-medium); }
 .grant-user-picker select, .directory-group-picker select {
   display: block; width: 100%; min-width: 0; min-height: var(--size-control);
-  padding: var(--space-10) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control);
+  padding: var(--space-8) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control);
   border-radius: var(--radius-6); background-color: var(--color-surface-input); color: var(--color-text-primary);
   font: inherit; font-size: var(--font-size-body-small); font-weight: var(--font-weight-regular);
 }
@@ -29,7 +29,7 @@
 /* Keep role/scope together and Asset/permission review distinct. */
 .grant-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-column-min)), 1fr)); gap: var(--space-20); margin: var(--space-24); }
 .grant-fields label, .grant-assets > label { display: grid; gap: var(--space-8); font-size: var(--font-size-body-small); font-weight: var(--font-weight-medium); }
-.grant-fields select { width: 100%; min-height: var(--size-control); color: var(--color-text-primary); background-color: var(--color-surface-input); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); padding: var(--space-10) var(--space-12); font: inherit; font-size: var(--font-size-control); font-weight: var(--font-weight-regular); }
+.grant-fields select { width: 100%; min-height: var(--size-control); color: var(--color-text-primary); background-color: var(--color-surface-input); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); padding: var(--space-8) var(--space-12); font: inherit; font-size: var(--font-size-control); font-weight: var(--font-weight-regular); }
 .grant-assets { margin: 0 var(--space-24); padding: 0 0 var(--space-20); border: 0; }
 .grant-asset-list { max-height: var(--layout-list-max); overflow-y: auto; margin-top: var(--space-12); padding: var(--space-8) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); }
 .grant-asset-list small { display: block; color: var(--color-text-subtle); overflow-wrap: anywhere; }
