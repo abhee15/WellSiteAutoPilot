@@ -23,10 +23,10 @@ const ICONS: Record<StatusTone, LucideIcon> = {
 /** Which tone each reported state has. Keys are lower-case letters and digits only (see `normalize`). */
 const TONES: Record<string, StatusTone> = {
   // Done, healthy, trusted.
-  completed: 'success', active: 'success', healthy: 'success', good: 'success',
+  completed: 'success', approved: 'success', active: 'success', healthy: 'success', good: 'success',
   trustedpublisher: 'success', customerapproved: 'success',
   // Needs a look, not broken.
-  suspended: 'warning', waiting: 'warning', untrusted: 'warning', draft: 'warning', validated: 'warning',
+  pending: 'warning', awaitingreview: 'warning', suspended: 'warning', waiting: 'warning', untrusted: 'warning', draft: 'warning', validated: 'warning',
   degraded: 'warning', needsattention: 'warning', outdated: 'warning',
   // Broken or unreachable.
   failed: 'error', timedout: 'error', signatureinvalid: 'error', unavailable: 'error', unreachable: 'error', bad: 'error',

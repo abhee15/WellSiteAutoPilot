@@ -105,7 +105,6 @@ export function OperationsPage({
                 <th className="run-col-secondary">Mode</th>
                 <th className="run-col-secondary">Requested</th>
                 <th className="run-col-secondary">Outcome</th>
-                <th>{t('execution.detailsColumn')}</th>
               </tr>
             </thead>
             <tbody>
@@ -114,7 +113,7 @@ export function OperationsPage({
                 return (
                 <tr key={execution.executionId} data-selected={selectedIdStillAuthorized && selectedExecutionId === execution.executionId}
                   onClick={event => {
-                    // The row is a convenience; the Inspect button stays the keyboard and screen-reader route.
+                    // The row is a convenience; the asset name button stays the keyboard and screen-reader route.
                     if ((event.target as HTMLElement).closest('button, a')) return;
                     if (execution.executionId) setSelectedExecutionId(execution.executionId);
                   }}>
@@ -122,23 +121,8 @@ export function OperationsPage({
                     <Status value={execution.status} />
                   </td>
                   <td>
-                    <strong>{assetText(execution, context)}</strong>
-                    {execution.quantity && <small>{execution.quantity}</small>}
-                  </td>
-                  <td className="run-col-logic">
-                    <strong>{context.logicName ?? execution.moduleId}</strong>
-                    <small>{context.logicName
-                      ? `${execution.moduleId} v${execution.moduleVersion}${context.revisionNumber ? ' · ' + t('setup.revision', { number: context.revisionNumber }) : ''}`
-                      : `v${execution.moduleVersion}`}</small>
-                  </td>
-                  <td className="run-col-secondary">{execution.mode}</td>
-                  <td className="activity-time run-col-secondary">{formatTimestamp(execution.requestedAtUtc)}</td>
-                  <td className="run-col-secondary">
-                    <OutcomeCell execution={execution} />
-                  </td>
-                  <td>
                     <button
-                      className="execution-inspect-button"
+                      className="row-link"
                       type="button"
                       disabled={!execution.executionId}
                       aria-controls={selectedIdStillAuthorized &&
@@ -153,14 +137,26 @@ export function OperationsPage({
                       onClick={() => setSelectedExecutionId(current =>
                         current === execution.executionId ? null : execution.executionId ?? null)}
                     >
-                      {t('execution.inspect')}
+                      <strong>{assetText(execution, context)}</strong>
                     </button>
+                    {execution.quantity && <small>{execution.quantity}</small>}
+                  </td>
+                  <td className="run-col-logic">
+                    <strong>{context.logicName ?? execution.moduleId}</strong>
+                    <small>{context.logicName
+                      ? `${execution.moduleId} v${execution.moduleVersion}${context.revisionNumber ? ' · ' + t('setup.revision', { number: context.revisionNumber }) : ''}`
+                      : `v${execution.moduleVersion}`}</small>
+                  </td>
+                  <td className="run-col-secondary">{execution.mode}</td>
+                  <td className="activity-time run-col-secondary">{formatTimestamp(execution.requestedAtUtc)}</td>
+                  <td className="run-col-secondary">
+                    <OutcomeCell execution={execution} />
                   </td>
                 </tr>
                 );
               })}
               {visibleExecutions.length === 0 && (
-                <EmptyRow columns={7} loading={!isLoaded} hint={isLoaded && executions.length === 0 ? t('views.noActivityHint') : undefined}>{!isLoaded ? t('views.loading') : executions.length === 0
+                <EmptyRow columns={6} loading={!isLoaded} hint={isLoaded && executions.length === 0 ? t('views.noActivityHint') : undefined}>{!isLoaded ? t('views.loading') : executions.length === 0
                   ? t('views.noActivity')
                   : t('views.noMatches')}</EmptyRow>
               )}
