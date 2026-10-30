@@ -154,6 +154,9 @@
   --layout-form-wide: 520px;
   --layout-column-min: 240px;
   --layout-panel-min: 280px;
+  --layout-pane-height-min: 360px;
+  /* Where the master-detail panes start; useSplitPaneViewport measures it and overrides this default. */
+  --pane-top: 0px;
   --layout-fact-narrow: 8rem;
   --layout-fact-min: 11rem;
   --layout-fact-wide: 14rem;

@@ -27,7 +27,6 @@
 .activity-layout .split-panes { gap: 0; }
 .activity-layout[data-has-selection='true'] .split-panes { align-items: stretch; }
 .activity-layout[data-has-selection='true'] .split-browse { border-right: var(--border-width-thin) solid var(--color-border-subtle); }
-.activity-layout .split-selected { align-self: start; }
 .activity-detail header { display: grid; gap: var(--space-6); }
 .activity-detail h3 { margin: 0; font-size: var(--font-size-body); font-weight: 400; overflow-wrap: anywhere; }
 .activity-detail h4 { margin: 0 0 var(--space-8); font-size: var(--font-size-body-small); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); }

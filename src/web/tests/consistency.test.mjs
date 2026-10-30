@@ -59,13 +59,13 @@ test('every stat/summary heading and table header on a shared page is a message 
   assert.ok(!/<SummaryCard[^>]*label="/.test(overview));
 });
 
-test('split layouts share space by ratio and keep the details in view', () => {
+test('split layouts share space by ratio and give each pane the window height', () => {
   const css = source(join(root, 'views/splitLayout.css'));
   const base = css.match(/^\.split-panes \{[^}]*\}/m)?.[0] ?? '';
   assert.match(base, /\d+fr\)/, 'the list/details columns of .split-panes must be fr ratios, so wide windows are filled');
   assert.doesNotMatch(base, /layout-panel-max|\d+px/, 'do not cap the list column at a fixed width: use ratios');
-  assert.match(css, /\.runs-layout\[data-has-selection='true'\] \.split-selected \{[^}]*position: sticky/,
-    'the open details stay in view while a long list is scrolled');
+  assert.match(css, /@media \(min-width: 901px\) \{\s*\.split-panes \{\s*height:/,
+    'each pane gets the window height and scrolls on its own, so the open details stay in view');
 });
 
 test('a detail card is white and the boxes inside it carry the tint, as on the Activity details', () => {
@@ -102,4 +102,15 @@ test('table text starts on the same gutter as the panel headings and filters abo
   const styles = source(join(root, 'styles.css'));
   assert.match(styles, /\.activity-table td:first-child \{ padding-inline-start: var\(--space-18\); \}/);
   assert.match(styles, /\.activity-table td:last-child \{ padding-inline-end: var\(--space-18\); \}/);
+});
+
+test('master-detail panes scroll on their own and the page does not (one shared rule, measured by a hook)', () => {
+  const layout = source(join(root, 'views/splitLayout.css'));
+  assert.match(layout, /\.split-panes \{\s*height: max\(var\(--layout-pane-height-min\), calc\(100dvh - var\(--pane-top\)/);
+  assert.match(layout, /\.split-browse, \.split-selected \{[^}]*overflow-y: auto/);
+  // No page re-introduces a sticky details pane or its own height cap: the shared rule is the only one.
+  for (const file of ['views/activity.css', 'views/executionSummary.css', 'styles.css']) {
+    assert.doesNotMatch(source(join(root, file)), /\.split-selected[^{]*\{[^}]*(position: sticky|max-height)/, file);
+  }
+  assert.match(source(join(root, 'App.tsx')), /useSplitPaneViewport\(mainRef\)/);
 });

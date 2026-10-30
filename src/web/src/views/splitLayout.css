@@ -59,18 +59,30 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* A recommendation row opens only when it can be reviewed; the others have no details to open. */
 .recs-layout .activity-table tbody tr:not([data-reviewable]) { cursor: default; }
 .runs-layout .activity-table tbody tr[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
-.runs-layout .split-selected .execution-detail { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+/* Beside the list the details are one full-height card (Activity shares the list's own panel instead). */
+.runs-layout:not(.activity-layout) .split-selected { background: var(--color-surface-panel); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+.runs-layout .split-selected .execution-detail { border: 0; border-radius: 0; }
 /* Logic details already sit in the bordered card of .split-selected, so the summary inside has no second frame. */
 .logic-layout .split-selected .execution-detail { border: 0; border-radius: 0; padding: 0; }
 @media (min-width: 901px) { .runs-layout .split-back { display: none; } }
 
 /* Space is shared by ratio, not capped: beside an open item the list gets two parts and the details three,
-   so a wide window fills up instead of leaving the right-hand side empty. The details stay in view
-   while a long list is scrolled, and scroll on their own when they are taller than the window. */
+   so a wide window fills up instead of leaving the right-hand side empty. */
 @media (min-width: 901px) {
   .runs-layout[data-has-selection='true'] .split-panes { grid-template-columns: minmax(var(--layout-panel-min), 2fr) minmax(0, 3fr); }
-  .runs-layout[data-has-selection='true'] .split-selected {
-    position: sticky; top: var(--space-12); max-height: calc(100dvh - 2 * var(--space-12)); overflow-y: auto; }
+}
+/* The panes fill what is left of the window under the header and tabs (--pane-top is measured by
+   useSplitPaneViewport), and each scrolls on its own: the page itself does not scroll, and the list keeps
+   its place while a long set of details is read. On a phone the list and details replace each other and the page scrolls. */
+@media (min-width: 901px) {
+  .split-panes {
+    height: max(var(--layout-pane-height-min), calc(100dvh - var(--pane-top) - var(--space-28) - var(--border-width-thin)));
+    align-items: stretch;
+  }
+  /* A panel that wraps the panes ends where they end, so its usual bottom margin does not push the page past the window. */
+  .panel:has(> .split-layout) { margin-bottom: 0; }
+  .split-panes > .split-browse { margin-bottom: 0; }
+  .split-browse, .split-selected { min-height: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; }
 }
 /* Uploading a package sits in the browse pane like the filters: a quiet disclosure with the same gutters. */
 .module-upload { padding: var(--space-8) 0 0; }
