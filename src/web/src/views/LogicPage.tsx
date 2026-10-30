@@ -102,7 +102,7 @@ export function LogicPage({
       {showModules ? (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
-            <PanelHeader eyebrow="Catalog" title="Logic Modules" count={visibleModules.length} />
+            <PanelHeader title="Logic Modules" count={visibleModules.length} />
             <div className="split-search">
               <SearchInput maxLength={120} value={catalogCriteria.search}
                 aria-label={t('logicCatalog.search')} placeholder={t('logicCatalog.searchPlaceholder')}
@@ -158,7 +158,7 @@ export function LogicPage({
       ) : (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabConfigured')}>
-            <PanelHeader eyebrow="Configuration" title="Configured Logic"
+            <PanelHeader title="Configured Logic"
               count={visibleConfigurations.length} />
             <div className="split-search">
               <SearchInput maxLength={120} value={configuredCriteria.search}

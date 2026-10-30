@@ -219,14 +219,14 @@ button:disabled {
 
 .page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-20);
-  margin-bottom: var(--space-24);
+  margin-bottom: var(--space-20);
 }
 
 .page-header h1 {
-  margin: var(--space-4) 0 var(--space-6);
+  margin: 0;
   font-size: var(--font-size-heading);
 }
 
@@ -364,7 +364,7 @@ button:disabled {
 }
 
 .panel-header h2 {
-  margin: var(--space-4) 0 0;
+  margin: 0;
   font-size: var(--font-size-body);
 }
 
@@ -544,8 +544,20 @@ button:disabled {
 }
 .empty-hint { display: block; margin-top: var(--space-6); }
 
+/* The name in a table row that opens its details: looks like text, acts like a link (the whole row also opens it). */
+.row-link {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.row-link:hover:not(:disabled) strong { color: var(--color-text-link); text-decoration: underline; }
 
-.execution-inspect-button,
+
 .execution-detail-actions button {
   border: var(--border-width-thin) solid var(--color-border-control);
   border-radius: var(--radius-6);
@@ -555,12 +567,10 @@ button:disabled {
   cursor: pointer;
 }
 
-.execution-inspect-button:hover:not(:disabled),
 .execution-detail-actions button:hover:not(:disabled) {
   background: var(--color-surface-control-hover);
 }
 
-.execution-inspect-button:focus-visible,
 .execution-detail-actions button:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
@@ -779,16 +789,15 @@ button:disabled {
 
 @media (max-width: 900px) {
   .summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .page-header {
-    align-items: stretch;
-    flex-direction: column;
+    flex-wrap: wrap;
   }
 
   .header-actions {
-    justify-content: space-between;
+    margin-inline-start: auto;
   }
 }
 

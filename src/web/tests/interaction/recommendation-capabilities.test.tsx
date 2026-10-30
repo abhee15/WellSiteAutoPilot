@@ -68,14 +68,14 @@ it('changed proposal metadata requires a fresh review for the same recommendatio
   expect(screen.getByRole('button', { name: 'Submit decision' })).toHaveProperty('disabled', true);
 });
 
-it('names the asset when assets are loaded and keeps the id beside it', async () => {
+it('names the asset when assets are loaded and keeps the id as its hover text', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([
     { id: 'r1', assetId: 'asset-1', status: 'Created', moduleId: 'm', moduleVersion: '1', createdAtUtc: new Date().toISOString(),
       expiresAtUtc: new Date(Date.now() + 3600_000).toISOString(), canDecide: false }]), { status: 200 })));
   render(<RecommendationsPage userId={userId} permissions={['recommendations.read']}
     assets={[{ id: 'asset-1', name: 'North Well' }] as never} />);
-  expect(await screen.findByText('North Well')).toBeTruthy();
-  expect(screen.getByText('asset-1')).toBeTruthy();
+  expect((await screen.findByText('North Well')).getAttribute('title')).toBe('asset-1');
+  expect(screen.queryByText('asset-1')).toBeNull();
 });
 
 it('the decision screen states the proposal, its context and that nothing is sent', async () => {

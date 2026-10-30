@@ -71,3 +71,5 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 .module-upload .secondary-button { justify-self: start; }
 /* Beside the details the list keeps Status and Asset; the logic name is in the details and would wrap letter by letter here. */
 .runs-layout[data-has-selection='true'] .run-col-logic { display: none; }
+/* On a phone only Status and Asset fit; the rest is in the run's details. */
+@media (max-width: 650px) { .runs-layout .run-col-logic, .runs-layout .run-col-secondary { display: none; } }

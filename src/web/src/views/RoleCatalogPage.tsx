@@ -245,8 +245,7 @@ export function RoleCatalogPage() {
     <>
       <section className="panel">
         <div className="panel-header">
-          <div><p className="eyebrow">{t('roles.eyebrow')}</p>
-            <h2>{t('roles.heading')}</h2></div>
+          <h2>{t('roles.heading')}</h2>
           <div className="role-actions">
             <ActionButton icon={RefreshCw} label={t('roles.refresh')}
               disabled={loading} onClick={() => void reload()} />

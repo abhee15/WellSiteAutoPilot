@@ -5,6 +5,9 @@ import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import './accessManagement.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { ActionButton } from '../components/ActionButton';
+import { Status } from '../components/Status';
+import { RefreshCw } from 'lucide-react';
 
 interface AccessManagementPageProps {
   currentUserId: string;
@@ -36,8 +39,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
     Boolean(onAssignRole) && user.isActive && user.userId.toLowerCase() !== currentUserId.toLowerCase();
   return <section className="panel">
     <div className="panel-header"><h2>{t('access.users')}</h2>
-      <button type="button" className="secondary-button" disabled={loading} onClick={() => void reload()}>{t('access.refresh')}</button></div>
-    <p className="access-intro">{t('access.identityDirectoryNote')}</p>
+      <ActionButton icon={RefreshCw} iconOnly label={t('access.refresh')} disabled={loading} onClick={() => void reload()} /></div>
     <p className="access-intro">{t('access.groupNote')}</p>
     <label className="access-filter">
       <input type="checkbox" checked={awaitingOnly} disabled={loading}
@@ -54,7 +56,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
       <tbody>{users.map(user => <tr key={user.userId}>
         <td><strong>{user.displayName || user.identityName}</strong>{user.displayName && <small>{user.identityName}</small>}</td>
         <td>{user.activeDirectGrantCount > 0 ? user.activeDirectGrantCount : t('access.noDirectRole')}</td>
-        <td>{user.isActive ? t('session.active') : t('session.inactive')}</td>
+        <td><Status value={user.isActive ? 'Active' : 'Inactive'} label={user.isActive ? t('session.active') : t('session.inactive')} /></td>
         <td>{formatDetailTimestamp(user.lastSeenAtUtc)}</td>
         <td>{canAssign(user) && <button type="button" className="secondary-button"
           aria-label={t('access.assignRoleTo', { name: user.displayName || user.identityName })}

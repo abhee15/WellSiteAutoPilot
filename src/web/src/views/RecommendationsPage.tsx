@@ -16,6 +16,9 @@ import {
 } from './recommendationInbox';
 import type { RecommendationInboxCriteria } from './recommendationInbox';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { Status } from '../components/Status';
+import { ActionButton } from '../components/ActionButton';
+import { humanize } from './auditPresentation';
 
 type InboxError = 'accessDenied' | 'invalidResponse' | 'unavailable';
 
@@ -55,13 +58,13 @@ export function RecommendationInboxTable({
           {items.map(item => (
             <tr key={item.id}>
               <td>
-                <strong>{item.status ?? '—'}</strong>
+                {item.status ? <Status value={item.status} /> : '—'}
                 {recommendationIsExpired(item, nowUtc) && (
                   <small>{t('inbox.expiredNote')}</small>
                 )}
               </td>
               <td>{assetNames?.get(item.assetId ?? '')
-                ? <><strong>{assetNames.get(item.assetId ?? '')}</strong><small>{item.assetId}</small></>
+                ? <strong title={item.assetId}>{assetNames.get(item.assetId ?? '')}</strong>
                 : item.assetId ?? '—'}</td>
               <td>
                 <strong>{item.moduleId ?? '—'}</strong>
@@ -72,7 +75,7 @@ export function RecommendationInboxTable({
                 <small>{formatSuggestedValue(item.suggestedValue, item.unit)}</small>
                 <small>{item.quantity ?? '—'}</small>
               </td>
-              <td>{item.reasonCode ?? '—'}</td>
+              <td>{item.reasonCode ? humanize(item.reasonCode) : '—'}</td>
               <td>
                 <strong>{formatDetailTimestamp(item.createdAtUtc)}</strong>
                 <small>{t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>
@@ -84,10 +87,7 @@ export function RecommendationInboxTable({
               {onReview && (
                 <td>
                   {item.id && item.canDecide === true && recommendationIsAwaiting(item, nowUtc) ? (
-                    <button type="button" className="execution-inspect-button"
-                      onClick={() => onReview(item.id!)}>
-                      {t('decision.open')}
-                    </button>
+                    <ActionButton label={t('decision.open')} onClick={() => onReview(item.id!)} />
                   ) : '—'}
                 </td>
               )}
@@ -219,10 +219,7 @@ export function RecommendationsPage({
       </section>
       <section className="panel">
         <div className="panel-header">
-          <div>
-            <p className="eyebrow">{t('inbox.eyebrow')}</p>
-            <h2>{t('inbox.heading')}</h2>
-          </div>
+          <h2>{t('inbox.heading')}</h2>
           <div className="execution-detail-actions">
             {lastUpdated && (
               <span className="last-updated">{t('inbox.updated')} {formatDetailTimestamp(
