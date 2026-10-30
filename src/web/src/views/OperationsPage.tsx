@@ -13,7 +13,8 @@ import { describeRunContext, summarizeAssetLabels } from './runContext';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { OperationsViewControls } from './OperationsViewControls';
 import { loadConnections } from './connections';
-import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './operationsViews';
+import { DEFAULT_OPERATIONS_VIEW, filterOperations, showsOnly, toggleOnly } from './operationsViews';
+import { ActionButton } from '../components/ActionButton';
 import type { OperationsViewCriteria } from './operationsViews';
 import './splitLayout.css';
 
@@ -77,11 +78,15 @@ export function OperationsPage({
           label="Active executions"
           value={String(activeExecutions)}
           detail="Requested through waiting"
+          selected={showsOnly(viewCriteria, 'active')}
+          onSelect={() => setViewCriteria(current => toggleOnly(current, 'active'))}
         />
         <SummaryCard
           label="Requires attention"
           value={String(attentionExecutions)}
           detail="Failed, suspended, or timed out"
+          selected={showsOnly(viewCriteria, 'attention')}
+          onSelect={() => setViewCriteria(current => toggleOnly(current, 'attention'))}
         />
       </section>
 
@@ -158,7 +163,8 @@ export function OperationsPage({
                 );
               })}
               {visibleExecutions.length === 0 && (
-                <EmptyRow columns={6} loading={!isLoaded} hint={isLoaded && executions.length === 0 ? t('views.noActivityHint') : undefined}>{!isLoaded ? t('views.loading') : executions.length === 0
+                <EmptyRow columns={6} loading={!isLoaded} hint={isLoaded && executions.length === 0 ? t('views.noActivityHint') : undefined}
+                  action={isLoaded && executions.length > 0 ? <ActionButton label={t('views.clearFilters')} onClick={() => setViewCriteria(DEFAULT_OPERATIONS_VIEW)} /> : undefined}>{!isLoaded ? t('views.loading') : executions.length === 0
                   ? t('views.noActivity')
                   : t('views.noMatches')}</EmptyRow>
               )}

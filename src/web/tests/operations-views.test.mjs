@@ -196,3 +196,30 @@ test('search also finds rows by the names shown on screen', () => {
   assert.deepEqual(views.filterOperations(rows, criteria, names).map(row => row.executionId), ['exe-2']);
   assert.deepEqual(views.filterOperations(rows, criteria).map(row => row.executionId), []);
 });
+
+test('a summary card shows only its kind of run, and a second click shows every kind again', () => {
+  const start = views.DEFAULT_OPERATIONS_VIEW;
+  const onlyAttention = views.toggleOnly(start, 'attention');
+  assert.deepEqual(onlyAttention.statuses, ['attention']);
+  assert.equal(views.showsOnly(onlyAttention, 'attention'), true);
+  assert.equal(views.showsOnly(onlyAttention, 'active'), false);
+  assert.deepEqual(views.toggleOnly(onlyAttention, 'attention').statuses, []);
+  // Switching card replaces the kind instead of adding to it; search and sort are kept.
+  const other = views.toggleOnly({ ...onlyAttention, search: 'well', sort: 'oldest' }, 'active');
+  assert.deepEqual(other, { search: 'well', sort: 'oldest', statuses: ['active'] });
+  // Several kinds chosen in the filter is not "only one kind".
+  assert.equal(views.showsOnly({ ...start, statuses: ['active', 'attention'] }, 'active'), false);
+  assert.deepEqual(views.toggleOnly({ ...start, statuses: ['active', 'attention'] }, 'active').statuses, ['active']);
+  // The input is never changed.
+  assert.deepEqual(start.statuses, []);
+});
+
+test('two views are the same when they show the same runs, whatever order the kinds were chosen in', () => {
+  const base = views.DEFAULT_OPERATIONS_VIEW;
+  assert.equal(views.sameCriteria(base, { ...base }), true);
+  assert.equal(views.sameCriteria({ ...base, statuses: ['active', 'attention'] }, { ...base, statuses: ['attention', 'active'] }), true);
+  assert.equal(views.sameCriteria(base, { ...base, search: 'x' }), false);
+  assert.equal(views.sameCriteria(base, { ...base, sort: 'oldest' }), false);
+  assert.equal(views.sameCriteria(base, { ...base, statuses: ['active'] }), false);
+  assert.equal(views.sameCriteria({ ...base, statuses: ['active'] }, { ...base, statuses: ['attention'] }), false);
+});
