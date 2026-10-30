@@ -876,6 +876,8 @@ export const englishMessages = {
   'roles.edit': 'Edit',
   'roles.cancel': 'Cancel',
   'roles.search': 'Search roles',
+  'roles.controls': 'Role filters',
+  'roles.count': 'Showing {shown} of {total} roles.',
   'roles.loading': 'Loading authorized role catalog…',
   'roles.empty': 'No matching roles.',
   'roles.categoryAssets': 'Assets',

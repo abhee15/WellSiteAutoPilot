@@ -1,6 +1,7 @@
 import { ActionButton } from '../components/ActionButton';
 import { RefreshCw } from 'lucide-react';
 import { SearchInput } from '../components/SearchInput';
+import { FilterBar, FilterField } from '../components/FilterBar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -267,10 +268,13 @@ export function RoleCatalogPage() {
         {notice && <p role="status" className="access-intro">{notice}</p>}
         {loading ? <LoadingIndicator label={t('roles.loading')} /> : !error && (
           <>
-            <label className="role-search"><span>{t('roles.search')}</span>
-              <SearchInput value={query} maxLength={120}
-                onChange={event => setQuery(event.target.value)} />
-            </label>
+            <FilterBar label={t('roles.controls')}
+              note={query.trim() !== '' ? t('roles.count', { shown: visible.length, total: roles.length }) : undefined}
+              actions={query.trim() !== '' ? <ActionButton variant="secondary" label={t('views.clearFilters')} onClick={() => setQuery('')} /> : undefined}>
+              <FilterField label={t('roles.search')}>
+                <SearchInput value={query} maxLength={120} onChange={event => setQuery(event.target.value)} />
+              </FilterField>
+            </FilterBar>
             <div className="table-wrap">
               <table className="activity-table" aria-label={t('roles.heading')}>
                 <thead><tr>

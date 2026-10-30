@@ -1,4 +1,5 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
+import { FilterBar, FilterField } from '../components/FilterBar';
 import { SearchInput } from '../components/SearchInput';
 import './activity.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -97,24 +98,21 @@ export function ActivityPage() {
       {/* The tab already says "Activity"; the heading stays for screen readers only. */}
       <h2 className="visually-hidden">{t('activity.heading')}</h2>
       <div className="activity-toolbar">
-        <details className="split-filters activity-filter-disclosure">
-          <summary>{activeFilterCount > 0 ? t('activity.filtersActive', { count: activeFilterCount }) : t('activity.filters')}</summary>
-          <form className="activity-filters" onSubmit={event => { event.preventDefault(); apply(draft); }}>
-            <label>{t('activity.actionFilter')}
-              <SearchInput maxLength={128} value={draft.actionPrefix}
-                onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
-            </label>
-            <label>{t('activity.targetFilter')}
-              <SearchInput maxLength={128} value={draft.targetType}
-                onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
-            </label>
-            <div className="activity-filter-actions">
-              <button type="submit" className="secondary-button" disabled={busy}>{t('activity.apply')}</button>
-              <button type="button" className="secondary-button" disabled={busy}
-                onClick={() => apply(noFilters)}>{t('activity.reset')}</button>
-            </div>
-          </form>
-        </details>
+        <FilterBar className="activity-filter-bar" label={t('activity.filters')} onSubmit={() => apply(draft)}
+          note={activeFilterCount > 0 ? t('activity.filtersActive', { count: activeFilterCount }) : undefined}
+          actions={<>
+            <ActionButton type="submit" variant="primary" label={t('activity.apply')} disabled={busy} />
+            <ActionButton variant="secondary" label={t('activity.reset')} disabled={busy} onClick={() => apply(noFilters)} />
+          </>}>
+          <FilterField label={t('activity.actionFilter')}>
+            <SearchInput maxLength={128} value={draft.actionPrefix}
+              onChange={event => setDraft({ ...draft, actionPrefix: event.target.value })} />
+          </FilterField>
+          <FilterField label={t('activity.targetFilter')}>
+            <SearchInput maxLength={128} value={draft.targetType}
+              onChange={event => setDraft({ ...draft, targetType: event.target.value })} />
+          </FilterField>
+        </FilterBar>
         <ActionButton icon={RefreshCw} iconOnly label={t('activity.refresh')} disabled={busy} onClick={() => void loadFirst(applied)} />
       </div>
       {loading && <LoadingIndicator label={t('activity.loading')} />}

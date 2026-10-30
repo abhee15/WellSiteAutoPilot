@@ -5,6 +5,7 @@ import { CopyButton } from '../../src/views/CopyButton';
 import { Status, StatusIndicator } from '../../src/components/Status';
 import { ActionButton } from '../../src/components/ActionButton';
 import { RefreshCw } from 'lucide-react';
+import { FilterBar, FilterField } from '../../src/components/FilterBar';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -92,5 +93,27 @@ describe('CopyButton', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Could not copy');
     expect(screen.getByRole('button', { name: 'Copy Record ID' }).getAttribute('data-state')).toBe('error');
     vi.unstubAllGlobals();
+  });
+});
+
+describe('FilterBar', () => {
+  it('is a labelled group of labelled fields, with the count and actions beneath', () => {
+    render(<FilterBar label="Role filters" note="Showing 1 of 3" actions={<button type="button">Clear</button>}>
+      <FilterField label="Search"><input aria-label="Search" /></FilterField>
+    </FilterBar>);
+    const group = screen.getByRole('group', { name: 'Role filters' });
+    expect(group.querySelector('.filter-bar-fields input')).toBeTruthy();
+    expect(group.querySelector('.filter-bar-footer')?.textContent).toContain('Showing 1 of 3');
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeTruthy();
+  });
+
+  it('applies on Enter when it has an onSubmit, and omits the footer when it has nothing to show', async () => {
+    const onSubmit = vi.fn();
+    const { container } = render(<FilterBar label="Event filters" onSubmit={onSubmit}>
+      <FilterField label="Action"><input aria-label="Action" /></FilterField>
+    </FilterBar>);
+    expect(container.querySelector('.filter-bar-footer')).toBeNull();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Action' }), 'x{Enter}');
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 });
