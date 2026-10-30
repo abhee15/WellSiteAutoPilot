@@ -337,8 +337,10 @@ revised complex-authoring UX; that design still needs its own review and probes.
 | Build artifacts and previews can become stale | Bind completed artifacts to the full draft revision; clear dependent choices/previews after upstream edits; gate steps and show pending/failure/cancel states |
 | Recommendation output channels differ | Name the starter as a proposed-adjustment example; explicitly choose its SDK output profile and verify it in the round trip. Compilation alone does not create operational recommendations |
 
-Keep the first path ForeSite-only. Other providers are enabled when their actual
-required capabilities are supported. The independent review did not identify a
+That earlier review used a ForeSite-only implementation example. The subsequent
+owner requirement for multi-provider dependencies takes precedence for contract
+design and probes; this paragraph does not permit a permanent single-provider limit.
+Other providers are enabled when their actual required capabilities are supported. The independent review did not identify a
 reason to add a generic workflow engine, adapter marketplace or Python host to
 this first feature.
 
@@ -368,7 +370,10 @@ the operational Server merely to satisfy the web UI.
 Build failure leaves an editable draft and safe diagnostics; catalog actions
 are available only for a completed verified artifact. Pin the draft revision to
 the artifact so edits require a fresh build. Building is distinct from executing
-the module and neither grants approval.
+the module and neither grants approval. A statically valid draft can build without
+executing tests. Record validation, test (not-run/passed/failed/stale/cancelled) and
+verified-package states separately; do not make slice B implicitly depend on the
+isolated execution host deferred to C.
 
 This larger completion criterion can change the earlier priority recommendation:
 if SDK deployment, offline builds or isolation block a small authoring release,
@@ -387,10 +392,60 @@ authoring suite also passed all 11 tests with .NET and package checks enabled.
 
 This evidence does not prove restricted Windows execution, a clean offline
 installation, authenticated artifact delivery/catalog ingestion, or live authoring
-preview. Windows/Linux CI was added in the separate probe PR; record its returned
-results before claiming Windows compilation verification. No feature is enabled.
+preview. The original probe head `5604bf8db859bc411112c6c26d614e18aecb4bd7`
+passed all nine CI checks, including the Windows and Linux authoring jobs. Those
+jobs execute the trusted build/package probe; this confirms runner compilation,
+not deployment isolation. No feature is enabled.
 The [probe README](https://github.com/abhee15/WellSiteAutoPilot/blob/probe/authoring-build-package/modules/authoring/probes/README.md)
 links the recorded report and outstanding questions.
+
+## Targeted confidence review: implementation remains on hold
+
+The extended [probe evidence and review](https://github.com/abhee15/WellSiteAutoPilot/blob/probe/authoring-build-package/modules/authoring/probes/CONFIDENCE-REVIEW.md)
+records two independent advanced-model review passes and the resulting changes.
+Local results: 19 real-sample/synthetic-dispatch checks, 13 candidate-document
+assertions, and browser probes at 1440/390/320px. The browser now creates/edits a
+bounded scalar dependency, changes a condition, rejects a cycle and downloads a
+document that a Node reference harness imports/exports before browser retesting,
+including nondefault parameters. This is candidate-document/reference-semantics
+evidence, not compatibility with the existing .NET CLI or arbitrary code import.
+
+The existing dependency-free starter also restores and compiles with cleared
+NuGet feeds and an empty package cache using a preinstalled SDK. This does not
+prove customer SDK installation or offline provisioning of CLI/Application and
+customer dependencies. Extended Windows/Linux CI is configured to rerun these
+new probes; consult the current probe head and retained reports for its results.
+
+The ordinary-child boundary measurement deliberately remains blocked: the child
+can read a synthetic sibling file and reach a synthetic loopback service. A
+working directory and subprocess do not enforce build/test isolation.
+
+These findings refine the next gates before feature implementation:
+
+1. Define an authoring project document distinct from the manifest/package, with
+   stable typed dependencies, conditions and opaque versioned SDK-code steps.
+   Collection/custom algorithms remain first-class requirements; two scalar
+   operations are a probe scope, not the product's expressiveness limit.
+2. Choose authoritative numeric/unit/validation semantics and shared client
+   conformance. The browser's finite JS doubles are not the sample's checked
+   .NET decimals. Preserve code-backed steps; never infer arbitrary algorithm
+   internals from a manifest or promise lossless visual conversion of all code.
+3. Set ownership and contracts for governed intermediate calculation requests,
+   bounded model artifacts, cancellation, failures and ambiguous completion.
+   The stub coordinator proves synthetic dispatch preconditions only: it does
+   not acquire protected inputs through current Server authority.
+4. Probe actual-authority authoring preview, minimal connection metadata and
+   draft/source revocation without creating operational execution state. Then
+   prove authenticated, revision-bound download and exact-byte catalog ingestion.
+5. Establish restricted-host evidence on the intended deployment before hosted
+   compilation/testing: identity, secret denial, filesystem/network policy,
+   resource limits, complete process-tree cancellation and cleanup.
+
+The disposable workspace is not a production React shell or a settled graph
+compiler. Build-state interactions are simulated; sample arithmetic and code
+execution are tested separately. Existing SDK outputs do not expose arbitrary
+intermediate variables. A reporting/instrumentation contract still needs design.
+No green CI result or synthetic test clears these remaining product/host gates.
 
 ## Review iterations and verification
 
