@@ -2,10 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Guards for the shared building blocks. Each one names the component to use instead, so a new screen that
 // reaches for its own markup fails here with a pointer to the right place, rather than drifting from the rest.
-const root = new URL('../src/', import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: on Windows the pathname is "/D:/...", which is not a usable path.
+const root = fileURLToPath(new URL('../src/', import.meta.url));
 function walk(dir) {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
