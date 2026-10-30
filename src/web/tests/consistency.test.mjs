@@ -150,3 +150,9 @@ test('closing a details pane is always the shared ✕ CloseButton, never a text 
   }
   assert.deepEqual(offenders, [], 'use <CloseButton onClick={onClose} /> so every pane closes the same way');
 });
+
+test('controls share one height: border-box sizing and a control line height keep inputs, selects and buttons at --size-control', () => {
+  const styles = source(join(root, 'styles.css'));
+  assert.match(styles, /:where\(input, select, textarea, button\) \{ box-sizing: border-box; \}/);
+  assert.match(styles, /:is\(input, select, textarea\)[^{]*\{ line-height: var\(--line-height-control\); \}/);
+});
