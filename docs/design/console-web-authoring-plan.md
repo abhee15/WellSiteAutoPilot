@@ -83,6 +83,56 @@ The initial guided experience configures reviewed templates. Arbitrary rules,
 diagrams and natural-language generation require additional implementation;
 they are not capabilities supplied by the current manifest format.
 
+## Future requirement: modules spanning multiple providers
+
+Owner clarification: a Logic Module must not be permanently restricted to one
+provider, adapter or saved connection. The first guided ForeSite path is an MVP
+scope choice, not the final module cardinality. A module may need several
+connections of the same provider as well as connections to different providers.
+
+Example: ForeSite supplies well configuration, measurements and a model file;
+WAMI supplies a calculation capability that consumes those inputs; the module
+uses the returned engineering results to produce an output or proposed action.
+WAMI here is a calculation service, not an assumption that a general workflow
+orchestration engine already exists. ForeSite configuration/model retrieval and
+this cross-provider calculation path are future capabilities to verify and build.
+
+Design direction:
+- Represent dependencies by named roles and capability/input requirements, with
+  deployment-specific saved connections bound separately. A single provider
+  selector in the first UI represents the first source, not a permanent module-
+  wide identity. Later allow adding data and calculation dependencies.
+- Keep data acquisition, governed calculation invocation and final output/action
+  routing distinct. Runtime/adapter boundaries perform provider I/O; modules do
+  not receive credentials or independently call provider services.
+- Associate sources explicitly with the intended logical well/asset. Similar
+  names or matching external IDs across connections do not establish identity.
+  Check authorization and compatibility independently for every dependency.
+- Preserve schema/unit/time/source provenance, connection revisions and calculation
+  service/model versions. Model files need a supported artifact contract and
+  bounded transfer; do not assume the existing inline scalar/card envelope can
+  carry arbitrary files.
+- Probe whether required data can be acquired before module evaluation or whether
+  the algorithm needs governed intermediate calculation requests. Establish
+  timeout, cancellation, failure and test/replay semantics before choosing an
+  execution mechanism; do not introduce a general workflow engine now.
+- Authoring tests must capture proposed writes and isolate production state even
+  when several services participate. Calculation operations must be checked for
+  side effects rather than assumed safe from their name.
+
+Current limitation: LogicModuleManifest exposes a single optional RequiredAdapterKey,
+and current view-based configuration is bound to a connection. These are existing
+single-provider implementation constraints, not evidence that multi-provider
+execution is supported. Review manifest/configuration/read-plan/SDK evolution in
+a later scoped design; do not replace RequiredAdapterKey with an unvalidated list
+or change current live routing in this documentation PR.
+
+Acceptance for today's design: use a single-provider starter initially, keep
+dependency/connection binding out of a permanent single-provider module identity,
+and record multi-provider execution as deferred. Feature implementation must
+identify touched single-provider assumptions and avoid adding new module-wide
+single-provider restrictions without documenting the MVP boundary.
+
 ## One core, two clients
 
 | Responsibility | Shared behavior | Console | Web |
