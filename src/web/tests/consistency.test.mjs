@@ -172,3 +172,10 @@ test('controls share one height: border-box sizing and a control line height kee
   assert.match(styles, /:where\(input, select, textarea, button\) \{ box-sizing: border-box; \}/);
   assert.match(styles, /:is\(input, select, textarea\)[^{]*\{ line-height: var\(--line-height-control\); \}/);
 });
+
+test('the window never scrolls on tablets and wider: the page header stays put and the page body is the one scroll region', () => {
+  const styles = source(join(root, 'styles.css'));
+  const app = source(join(root, 'App.tsx'));
+  assert.match(styles, /@media \(min-width: 761px\)\s*\{[^@]*\.app-shell\s*\{[^}]*overflow:\s*hidden[^}]*\}[^@]*\.page-body\s*\{[^}]*overflow-y:\s*auto/);
+  assert.match(app, /className="page-body"/);
+});

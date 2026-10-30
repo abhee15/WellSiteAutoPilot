@@ -29,6 +29,7 @@ button:disabled {
 
 .app-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: var(--layout-nav-width) minmax(0, 1fr);
 }
@@ -842,6 +843,16 @@ button:disabled {
   bottom: var(--space-12);
   left: var(--layout-nav-panel-offset);
   width: min(var(--layout-popover-width), calc(100vw - var(--layout-nav-panel-offset) - var(--space-18)));
+}
+
+/* Tablet and wider: the window itself never scrolls. The navigation and the page header stay put and the page body
+   below them is the one scroll region (master-detail pages fill it and scroll their panes instead). On phones
+   the page scrolls normally, which is what they expect. */
+@media (min-width: 761px) {
+  .app-shell { height: 100vh; height: 100dvh; overflow: hidden; }
+  .content { display: flex; flex-direction: column; min-height: 0; padding-bottom: 0; overflow: hidden; }
+  .page-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
+    margin-inline: calc(-1 * var(--space-28)); padding: 0 var(--space-28) var(--space-28); }
 }
 
 @media (max-width: 760px) {

@@ -209,90 +209,92 @@ export function App() {
           onRefresh={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? undefined : () => void refresh()}
         />
 
-        {error && (
-          <div className="status-error" role="alert">
-            {error}
-          </div>
-        )}
+        <div className="page-body" key={section}>
+          {error && (
+            <div className="status-error" role="alert">
+              {error}
+            </div>
+          )}
 
-        {/* Until the session is read there is nothing else to show, so say so instead of leaving the page blank. */}
-        {!currentUser && !error && <LoadingIndicator size="large" label={t('session.opening')} />}
-        {isAwaitingAccess(currentUser) && currentUser && <AwaitingAccessNotice user={currentUser} />}
-        {currentUser && !isAwaitingAccess(currentUser) && section !== 'access' && !canOpenSection(currentUser, section) && (
-          <div className="status-error" role="alert">{t('session.sectionDenied')}</div>
-        )}
-        {section === 'overview' && canOpenSection(currentUser, section) && (
-          <OverviewPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            permissions={currentUser?.permissions ?? []}
-            systemHealth={systemHealth}
-            executions={executions}
-            assets={assets}
-            configuredLogic={configuredLogic}
-            isLoaded={isLoaded}
-          />
-        )}
-        {section === 'operations' && canOpenSection(currentUser, section) && (
-          <OperationsPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            executions={executions}
-            assets={assets}
-            configuredLogic={configuredLogic}
-            isLoaded={isLoaded}
-            userId={currentUser?.userId}
-            canReadConnections={hasPermission(currentUser, 'connections.read')}
-          />
-        )}
-        {section === 'recommendations' && canOpenSection(currentUser, section) && (
-          <RecommendationsPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            userId={currentUser?.userId}
-            permissions={currentUser?.permissions}
-            assets={assets}
-            configuredLogic={configuredLogic}
-          />
-        )}
-        {section === 'connections' && canOpenSection(currentUser, section) && (
-          <ConnectionsPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            canManage={hasPermission(currentUser, 'connections.manage')} />
-        )}
-        {section === 'status' && canOpenSection(currentUser, section) && (
-          <StatusPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            canSeeServices={hasPermission(currentUser, 'connections.read') || hasPermission(currentUser, 'security.manage')}
-            canSeeConnections={hasPermission(currentUser, 'connections.read')} />
-        )}
-        {section === 'access' && (
-          currentUser?.userId && canOpenSection(currentUser, 'access')
-            ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId} />
-            : <div className="status-error" role="alert">{t('access.denied')}</div>
-        )}
-        {section === 'assets' && canOpenSection(currentUser, section) && (
-          <AssetsPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            assetTypes={assetTypes}
-            assets={assets}
-            isLoaded={isLoaded}
-            userId={currentUser?.userId}
-            capabilities={assetCapabilities}
-            configuredLogic={configuredLogic}
-            permissions={currentUser?.permissions ?? []}
-            onRefresh={refresh}
-          />
-        )}
-        {section === 'logic' && canOpenSection(currentUser, section) && (
-          <LogicPage
-            key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-            userId={currentUser?.userId}
-            assets={assets}
-            assetTypes={assetTypes.filter(type => type.isActive !== false)}
-            onRefresh={refresh}
-            modules={logicModules}
-            configuredLogic={configuredLogic}
-            executions={executions}
-            isLoaded={isLoaded}
-            permissions={currentUser?.permissions ?? []}
-          />
-        )}
+          {/* Until the session is read there is nothing else to show, so say so instead of leaving the page blank. */}
+          {!currentUser && !error && <LoadingIndicator size="large" label={t('session.opening')} />}
+          {isAwaitingAccess(currentUser) && currentUser && <AwaitingAccessNotice user={currentUser} />}
+          {currentUser && !isAwaitingAccess(currentUser) && section !== 'access' && !canOpenSection(currentUser, section) && (
+            <div className="status-error" role="alert">{t('session.sectionDenied')}</div>
+          )}
+          {section === 'overview' && canOpenSection(currentUser, section) && (
+            <OverviewPage
+              key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+              permissions={currentUser?.permissions ?? []}
+              systemHealth={systemHealth}
+              executions={executions}
+              assets={assets}
+              configuredLogic={configuredLogic}
+              isLoaded={isLoaded}
+            />
+          )}
+          {section === 'operations' && canOpenSection(currentUser, section) && (
+            <OperationsPage
+              key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+              executions={executions}
+              assets={assets}
+              configuredLogic={configuredLogic}
+              isLoaded={isLoaded}
+              userId={currentUser?.userId}
+              canReadConnections={hasPermission(currentUser, 'connections.read')}
+            />
+          )}
+          {section === 'recommendations' && canOpenSection(currentUser, section) && (
+            <RecommendationsPage
+              key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+              userId={currentUser?.userId}
+              permissions={currentUser?.permissions}
+              assets={assets}
+              configuredLogic={configuredLogic}
+            />
+          )}
+          {section === 'connections' && canOpenSection(currentUser, section) && (
+            <ConnectionsPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+              canManage={hasPermission(currentUser, 'connections.manage')} />
+          )}
+          {section === 'status' && canOpenSection(currentUser, section) && (
+            <StatusPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+              canSeeServices={hasPermission(currentUser, 'connections.read') || hasPermission(currentUser, 'security.manage')}
+              canSeeConnections={hasPermission(currentUser, 'connections.read')} />
+          )}
+          {section === 'access' && (
+            currentUser?.userId && canOpenSection(currentUser, 'access')
+              ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId} />
+              : <div className="status-error" role="alert">{t('access.denied')}</div>
+          )}
+          {section === 'assets' && canOpenSection(currentUser, section) && (
+            <AssetsPage
+              key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+              assetTypes={assetTypes}
+              assets={assets}
+              isLoaded={isLoaded}
+              userId={currentUser?.userId}
+              capabilities={assetCapabilities}
+              configuredLogic={configuredLogic}
+              permissions={currentUser?.permissions ?? []}
+              onRefresh={refresh}
+            />
+          )}
+          {section === 'logic' && canOpenSection(currentUser, section) && (
+            <LogicPage
+              key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
+              userId={currentUser?.userId}
+              assets={assets}
+              assetTypes={assetTypes.filter(type => type.isActive !== false)}
+              onRefresh={refresh}
+              modules={logicModules}
+              configuredLogic={configuredLogic}
+              executions={executions}
+              isLoaded={isLoaded}
+              permissions={currentUser?.permissions ?? []}
+            />
+          )}
+        </div>
       </main>
     </div>
   );
