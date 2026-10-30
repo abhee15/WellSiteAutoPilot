@@ -178,4 +178,20 @@ test('the window never scrolls on tablets and wider: the page header stays put a
   const app = source(join(root, 'App.tsx'));
   assert.match(styles, /@media \(min-width: 761px\)\s*\{[^@]*\.app-shell\s*\{[^}]*overflow:\s*hidden[^}]*\}[^@]*\.page-body\s*\{[^}]*overflow-y:\s*auto/);
   assert.match(app, /className="page-body"/);
+
+test('refresh and reload actions are always the shared icon-only button', () => {
+  const offenders = [];
+  const walk = folder => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) { walk(path); continue; }
+      if (!entry.name.endsWith('.tsx')) continue;
+      const code = readFileSync(path, 'utf8');
+      for (const match of code.matchAll(/<ActionButton\b[^>]*label=\{[^}]*\b(?:refresh|reload)[A-Za-z]*'[^}]*\}[^>]*>/g)) {
+        if (!/iconOnly/.test(match[0])) offenders.push(`${relative(root, path)}: ${match[0].slice(0, 80)}`);
+      }
+    }
+  };
+  walk(root);
+  assert.deepEqual(offenders, [], 'Refresh/Reload is a RefreshCw icon-only ActionButton everywhere');
 });

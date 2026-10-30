@@ -1283,3 +1283,6 @@ select:not([multiple], [size]) {
 /* A control's height is its min-height, not its text: with the roomier body line height inherited, padding plus text made
    filter inputs 38px and selects 42px beside 36px buttons. Fields and the filter-bar buttons use the tighter control line height. */
 :is(input, select, textarea):not([type='checkbox']):not([type='radio']), .data-view-controls button { line-height: var(--line-height-control); }
+
+/* Several actions on one table row sit together with the same gap as other button groups. */
+.row-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }

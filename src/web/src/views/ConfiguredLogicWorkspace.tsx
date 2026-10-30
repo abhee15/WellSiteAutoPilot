@@ -1,4 +1,5 @@
 import { ActionButton } from '../components/ActionButton';
+import { RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse, ExecutionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
@@ -150,7 +151,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         </>;
       })()}
     </>}
-    {(detail || selectedId) && !editing && <ActionButton label={t('setup.reload')} disabled={busy} onClick={() => void reload()} />}
+    {(detail || selectedId) && !editing && <ActionButton icon={RefreshCw} iconOnly label={t('setup.reload')} disabled={busy} onClick={() => void reload()} />}
     {editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
       modules={modules} assets={assets} assetTypes={assetTypes} canReadViews={canReadViews}
       configuration={detail ?? undefined} revision={source} initialAssetId={initialAssetId}
