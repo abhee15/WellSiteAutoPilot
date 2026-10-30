@@ -218,7 +218,7 @@ export const englishMessages = {
   'execution.backToList': 'Back to runs',
   'execution.heading': 'Run details',
   'execution.refresh': 'Refresh',
-  'execution.close': 'Close',
+  'action.close': 'Close',
   'execution.loading': 'Loading execution details…',
   'execution.invalidRequest': 'Invalid execution identifier.',
   'execution.accessDenied': 'Session expired or this execution is no longer accessible.',

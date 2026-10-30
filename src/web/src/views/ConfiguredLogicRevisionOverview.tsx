@@ -1,4 +1,5 @@
 import type { ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
+import { CloseButton } from '../components/CloseButton';
 import { t } from '../localization';
 import { logicStatusSentence, recentRunsFor, scheduleText } from './logicSummary';
 import { orderedRevisions } from './configuredLogicViews';
@@ -31,9 +32,7 @@ export function ConfiguredLogicRevisionOverview({ logic, onClose, executions }: 
       <div className="execution-detail-header">
         <h3>{logic.name ?? '—'}</h3>
         <div className="execution-detail-actions">
-          <button type="button" onClick={onClose}>
-            {t('configured.close')}
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
       </div>
       <p className="logic-status-sentence">{logicStatusSentence(logic, runs[0])}</p>

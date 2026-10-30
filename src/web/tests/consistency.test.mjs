@@ -136,3 +136,17 @@ test('type scale: weights and line heights come from tokens, and only the three 
   for (const weight of ['400', '500', '700']) assert.match(tokens, new RegExp(`--font-weight-\\w+: ${weight};`));
   assert.doesNotMatch(tokens, /--font-weight-\w+: 600/);
 });
+
+test('closing a details pane is always the shared ✕ CloseButton, never a text button of its own', () => {
+  // The one allowed exception: the form footer in ConfiguredLogicWorkspace, where Close sits beside the setup form.
+  const allowed = new Set(['ConfiguredLogicWorkspace.tsx']);
+  const offenders = [];
+  for (const file of readdirSync(join(root, 'views'))) {
+    if (!file.endsWith('.tsx') || allowed.has(file)) continue;
+    const code = readFileSync(join(root, 'views', file), 'utf8');
+    for (const match of code.matchAll(/<(\w+)[^>]*onClick=\{onClose\}/g)) {
+      if (match[1] !== 'CloseButton') offenders.push(`${file}: <${match[1]} onClick={onClose}>`);
+    }
+  }
+  assert.deepEqual(offenders, [], 'use <CloseButton onClick={onClose} /> so every pane closes the same way');
+});

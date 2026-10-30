@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CloseButton } from '../components/CloseButton';
 import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '../components/ActionButton';
 import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
@@ -119,7 +120,7 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
         <div className="execution-detail-actions">
           <ActionButton icon={RefreshCw} iconOnly label={t('execution.refresh')} busy={isLoading}
             onClick={() => setRefreshNumber(value => value + 1)} />
-          <ActionButton label={t('execution.close')} onClick={onClose} />
+          <CloseButton onClick={onClose} />
         </div>
       </div>
       {isLoading && !detail && <LoadingIndicator label={t('execution.loading')} />}
