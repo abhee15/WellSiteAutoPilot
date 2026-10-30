@@ -413,8 +413,11 @@ evidence, not compatibility with the existing .NET CLI or arbitrary code import.
 The existing dependency-free starter also restores and compiles with cleared
 NuGet feeds and an empty package cache using a preinstalled SDK. This does not
 prove customer SDK installation or offline provisioning of CLI/Application and
-customer dependencies. Extended Windows/Linux CI is configured to rerun these
-new probes; consult the current probe head and retained reports for its results.
+customer dependencies. The extended Windows and Linux authoring jobs passed at probe head
+`931a6730b691e24aad6af8c86ab8d759e15a28b6`, including the new composition,
+document, empty-cache and boundary measurements and existing authoring/SDK
+tests. Browser evidence is local. Retained CI reports distinguish completed
+measurements from implementation release gates; the boundary remains blocked.
 
 The ordinary-child boundary measurement deliberately remains blocked: the child
 can read a synthetic sibling file and reach a synthetic loopback service. A
