@@ -97,3 +97,9 @@ test('buttons are not restyled by where they sit: use ActionButton, not a contai
   assert.deepEqual(offenders, [],
     'A rule like ".some-container button { ... }" gives one screen its own button look; use <ActionButton> (or the shared button classes)');
 });
+
+test('table text starts on the same gutter as the panel headings and filters above it', () => {
+  const styles = source(join(root, 'styles.css'));
+  assert.match(styles, /\.activity-table td:first-child \{ padding-inline-start: var\(--space-18\); \}/);
+  assert.match(styles, /\.activity-table td:last-child \{ padding-inline-end: var\(--space-18\); \}/);
+});

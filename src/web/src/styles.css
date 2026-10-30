@@ -388,7 +388,7 @@ button:disabled {
 }
 
 .data-view-controls {
-  padding: var(--space-14) var(--space-18);
+  padding: var(--space-12) var(--space-18);
   border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
 }
 
@@ -498,6 +498,12 @@ button:disabled {
   border-bottom: var(--border-width-thin) solid var(--color-border-row);
   vertical-align: top;
 }
+
+/* The first and last columns use the panel gutter, so table text lines up with the headings and filters above it. */
+.activity-table th:first-child,
+.activity-table td:first-child { padding-inline-start: var(--space-18); }
+.activity-table th:last-child,
+.activity-table td:last-child { padding-inline-end: var(--space-18); }
 
 .activity-table th {
   color: var(--color-text-muted);
