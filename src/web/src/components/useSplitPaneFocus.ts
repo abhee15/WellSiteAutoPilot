@@ -25,8 +25,11 @@ export function useSplitPaneFocus(selection: string | null) {
     const detail = root?.querySelector<HTMLElement>('.split-selected') ?? null;
     const browse = root?.querySelector<HTMLElement>('.split-browse') ?? null;
     const wasSelected = previous.current !== null;
+    const previousSelection = previous.current;
     previous.current = selection;
     if (!root) return;
+    // A newly opened item starts at its top, not wherever the previous one was scrolled to.
+    if (selection !== null && selection !== previousSelection) detail?.scrollTo?.({ top: 0 });
 
     if (selection !== null && visible(detail) && !visible(browse)) {
       detail.focus();
