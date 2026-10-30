@@ -68,12 +68,16 @@ independently establish all installed-environment acceptance results.
 4. Configure module inputs and parameters with labels, help, units, validation
    and sample values. Keep provider credentials and server configuration in
    connection administration.
-5. Validate and export the starter project/manifest and a small authoring
-   description. The first web slice does not claim to compile arbitrary code.
-   A compiled executable payload is still required for an executable .wsamodule.
-6. Build locally with the supported kit and use the existing package
-   upload/approval path. Later isolated web tests may execute drafts without
-   making them production-approved.
+5. Validate the authored module, then Build package. For .NET, a restricted build
+   host compiles the supported project against a pinned SDK and produces the
+   manifest plus managed binaries/dependencies in a standard .wsamodule archive.
+   Source export is an optional intermediate artifact, not completion of authoring.
+6. Offer Download package and Add to module catalog using the same verified build
+   artifact. Catalog submission reuses existing upload validation, identity/hash
+   checks and disabled/untrusted registration. Existing upload permission is still
+   required; submission does not approve, publish or activate the module.
+7. Retain local console build/package workflows. Hosted draft tests remain a
+   separate isolated step and do not grant production trust.
 
 The initial guided experience configures reviewed templates. Arbitrary rules,
 diagrams and natural-language generation require additional implementation;
@@ -85,7 +89,7 @@ they are not capabilities supplied by the current manifest format.
 | --- | --- | --- | --- |
 | Manifest/schema validation | Existing bounded validators and stable errors | Local library calls | Server calls the same validators |
 | Package inspection/compatibility | Existing reader, hash and runtime/SDK checks | validate/verify/preflight | Existing server package path |
-| Package construction | Extract deterministic archive writer when needed | Local files and compiled payload | Export sources first; server packing only when a complete supported payload exists |
+| Build and package | Pinned module SDK, supported project inputs, shared archive writer and preflight | Local .NET SDK compilation and CLI packaging | Restricted build host compiles binaries, packs and verifies the same format |
 | Deployment discovery/preview | Same authenticated Server authority and saved connection semantics | Future authenticated client commands | API-backed guided controls |
 | Offline evaluation | Versioned fixtures and common result semantics | Retain current kit support | Recorded-input testing only after a supported execution host exists |
 | Publication | Existing immutable catalog approval/publication | Existing supported delivery path | Existing upload/approval UI |
@@ -122,14 +126,17 @@ Never execute untrusted customer drafts in the Server, Gateway or existing
 in-process operational worker. Hosted draft execution requires a separately
 restricted process identity, network/filesystem access, time/resource limits and
 cancellation enforcement. Authorization at an SDK boundary alone is insufficient.
-The first slice exports drafts and previews data without executing customer code.
+Initial inventory/preview work does not execute customer code. Building also needs
+isolation: project targets, analyzers and restore hooks can execute code during
+compilation. Build and test hosts receive no operational credentials. A normal
+child process or collectible assembly context alone is not an isolation boundary.
 
 ## Small implementation slices
 
 | Slice | Deliverable | Completion evidence |
 | --- | --- | --- |
 | A: inventory and capability preview | Adapters tab, general authoring permission, supported-operation metadata and authorized ForeSite preview | Actual adapter inventory; no secrets; scoped/revoked access tests; no provider writes |
-| B: starter preparation | Guided ForeSite template, input/parameter forms, validation and downloadable source/manifest description | Same manifest errors in CLI/web; console/web import/export parity; template compiles and validates in CI |
+| B: author, build and deliver | Guided ForeSite template and inputs, restricted .NET build, manifest/binaries package, Download and Add to catalog | Same validation in CLI/web; built package passes existing reader/preflight; exact artifact is downloadable/submittable; catalog remains untrusted until separate approval |
 | C: isolated draft testing | Supported .NET draft runner using fixture or explicitly authorized live input snapshots; bounded reports | Timeout/cancellation/isolation checks; report retains module/input identity, units, quality and time; proposed actions never reach provider commands |
 | D: broader authoring | Additional actual CygNet/PetroVisor operations/templates and runtime support | Provider-specific acceptance evidence; Python execution only after a real production/test host is implemented |
 | Later | Agent-assisted creation, diagrams and customer adapter SDK/installation | Reuse established contracts and validation; separate scoped design |
@@ -150,7 +157,7 @@ Recommended sequence, subject to the owner's product priority decision:
 
 1. Close any remaining live Shadow acceptance issues from owner testing.
 2. Deliver bounded authoring A/B so a customer can discover supported inputs and
-   prepare a valid module using either client.
+   build and download or submit a valid module package using either client.
 3. Complete the ForeSite Recommendation workflow using existing materialization,
    decisions, pinned package/source evidence and scoped result UI. Define whether
    approval merely records an operator decision or is intended to request a
@@ -174,6 +181,38 @@ needs operating outcomes, Recommendation can precede A/B. This plan recommends
 A/B first for the customer journey discussed, not a blanket requirement to finish
 authoring before operational modes.
 
+## Probe gate before feature implementation
+
+The next stage after this documentation is disposable, bounded probes, with
+results recorded here or in a linked probe report. Feature implementation starts
+only after probe review resolves known blockers for its scope; untested areas
+remain explicit rather than claiming that no gaps exist.
+
+| Probe | What to establish | Evidence required |
+| --- | --- | --- |
+| Build host | On a representative Windows/on-prem deployment, build one supported .NET starter with pinned SDK/target and allowed dependencies; evaluate preinstalled SDK versus a separate restricted build worker | SDK availability, offline restore/cache needs, build duration, actionable errors, cancellation, cleanup, restricted identity/network/filesystem behavior |
+| Package round trip | Generated manifest plus actual compiled payload through existing pack, verify and host preflight | Correct entry point, module identity/version, schemas, managed dependencies and hash; failed build cannot offer a successful package |
+| Download/catalog handoff | The same successful immutable build artifact supports download and existing catalog ingestion | Matching bytes/hash; identity/version conflicts handled by existing rules; catalog submission stays untrusted and requires existing authority |
+| Console/web reuse | Prepare the same starter inputs using both clients and existing validators | Equivalent manifest semantics and errors; import/export preserves inputs/parameters; no duplicate package validator |
+| Capability/preview | Actual ForeSite supported operations versus descriptors, authorized input selection and preview | Connection-scoped scalar/structured results; no credentials or provider write calls |
+| Guided UI | Small browser probe with shared controls | Provider/connection selection, parameter help, build pending/failure/success, Download/Add actions and accessible keyboard/mobile flow |
+
+Begin with a constrained .NET starter project, pinned dependencies and no arbitrary
+customer build scripts. Determine the enforceable boundary in the probe, rather
+than assuming a template makes compilation safe. Unrestricted source/projects
+need a later reviewed expansion. Do not install the entire build toolchain into
+the operational Server merely to satisfy the web UI.
+
+Build failure leaves an editable draft and safe diagnostics; catalog actions
+are available only for a completed verified artifact. Pin the draft revision to
+the artifact so edits require a fresh build. Building is distinct from executing
+the module and neither grants approval.
+
+This larger completion criterion can change the earlier priority recommendation:
+if SDK deployment, offline builds or isolation block a small authoring release,
+complete the advisory ForeSite Recommendation workflow while resolving the build
+design. Do not silently replace the requested binary package with source export.
+
 ## Review iterations and verification
 
 Pass 1 mapped the customer journey to SDK, manifest, packaging, connections and
@@ -185,9 +224,10 @@ from production trust, identified missing process isolation, corrected the claim
 that Recommendation is wholly absent, and deferred the generic adapter platform.
 
 Pass 3 incorporated the owner's simplification and checked priority dependencies.
-It narrowed the first release to templates/source export, identified ForeSite
-descriptor/read-path drift, distinguished workflow definitions from executable
-packages, and kept a live preview distinct from arbitrary code execution.
+It identified ForeSite descriptor/read-path drift, distinguished workflow
+definitions from executable packages, and kept preview separate from execution.
+The owner's subsequent clarification makes compilation and package delivery part
+of the first complete authoring workflow; source-only export is intermediate.
 
 Before implementation, run a small contract/UI probe using existing shared
 controls. Verify provider selection, empty/unavailable capabilities, authorized
