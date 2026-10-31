@@ -15,6 +15,7 @@ public static class CygNetAdapter
     public const string DomainSetting = "domain";
     public const string SiteServiceSetting = "siteService";
     public const string FacilityFilterSetting = "facilityFilter";
+    public const string PointMapSetting = "pointMap";
     public const string ResourceKind = AdapterReadRules.CygNetResourceKind;
 
     /// <summary>Longest facility tag a read accepts; a longer discovered facility is not offered.</summary>
@@ -32,14 +33,18 @@ public static class CygNetAdapter
                 "The facility service as SITE.SERVICE, for example WSANET.UIS.", AdapterSettingKind.Text, true, 65),
             new AdapterSettingField(FacilityFilterSetting, "Facility filter",
                 "Optional. Only facilities whose id matches are listed. Use * for any characters and ? for one, for example WELL_*.",
-                AdapterSettingKind.Text, false, 64)
+                AdapterSettingKind.Text, false, 64),
+            new AdapterSettingField(PointMapSetting, "Point mapping",
+                "Optional. Which CygNet point serves a quantity, as Quantity=UDC|unit separated by semicolons, for example " +
+                "MotorAmps=MTRAMPS|A;PumpFillage=RRLPFILCUR|%. Quantities not listed use the Gateway's defaults.",
+                AdapterSettingKind.Text, false, 400)
         ],
         [
             new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Facilities"),
             new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current point values")
         ],
         [
-            new DiscoveryField("area", "Area", "Unspecified area"),
+            new DiscoveryField("category", "Category", "Uncategorised"),
             new DiscoveryField("facilityType", "Facility type", "Unspecified type")
         ]);
 
@@ -51,6 +56,7 @@ public static class CygNetAdapter
         settings.TryGetValue(DomainSetting, out var rawDomain);
         settings.TryGetValue(SiteServiceSetting, out var rawSiteService);
         settings.TryGetValue(FacilityFilterSetting, out var rawFilter);
+        settings.TryGetValue(PointMapSetting, out var rawPointMap);
         if (!int.TryParse(rawDomain?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var domain) || domain is < 0 or > 65535)
         {
             problem = "The domain must be a whole number from 0 to 65535.";
@@ -68,7 +74,32 @@ public static class CygNetAdapter
             problem = "The facility filter may use only letters, digits, underscores, hyphens, dots, * and ?.";
             return null;
         }
-        return new CygNetConnection(domain, parts[0], parts[1], string.IsNullOrEmpty(filter) ? null : filter);
+        var pointMap = ParsePointMap(rawPointMap, out problem);
+        if (problem is not null) return null;
+        return new CygNetConnection(domain, parts[0], parts[1], string.IsNullOrEmpty(filter) ? null : filter, pointMap);
+    }
+
+    private static Dictionary<string, CygNetPointMapping>? ParsePointMap(string? raw, out string? problem)
+    {
+        problem = null;
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var map = new Dictionary<string, CygNetPointMapping>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in raw.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var pair = entry.Split('=', 2);
+            var quantity = pair[0].Trim();
+            var parts = (pair.Length == 2 ? pair[1] : string.Empty).Split('|');
+            var canonical = AdapterReadRules.CygNetQuantities.FirstOrDefault(
+                item => string.Equals(item, quantity, StringComparison.OrdinalIgnoreCase));
+            if (canonical is null || parts.Length != 2 || !IsName(parts[0].Trim()) || parts[1].Trim() is not { Length: > 0 and <= 12 } unit ||
+                unit.Any(char.IsControl) || !map.TryAdd(canonical, new CygNetPointMapping(parts[0].Trim(), unit)))
+            {
+                problem = "The point mapping must be Quantity=UDC|unit pairs separated by semicolons, each quantity once, " +
+                    "using a quantity CygNet offers (" + string.Join(", ", AdapterReadRules.CygNetQuantities.Order()) + ").";
+                return null;
+            }
+        }
+        return map;
     }
 
     private static bool IsName(string? value) =>
@@ -206,7 +237,7 @@ public static class CygNetAdapter
                 };
                 if (!string.IsNullOrWhiteSpace(facility.Description)) facts["description"] = facility.Description.Trim();
                 if (!string.IsNullOrWhiteSpace(facility.Type)) facts["facilityType"] = facility.Type.Trim();
-                if (!string.IsNullOrWhiteSpace(facility.Area)) facts["area"] = facility.Area.Trim();
+                if (!string.IsNullOrWhiteSpace(facility.Category)) facts["category"] = facility.Category.Trim();
                 return new DiscoveredAsset(tag, facility.Id, ResourceKind, null, facts);
             }).ToArray();
 
