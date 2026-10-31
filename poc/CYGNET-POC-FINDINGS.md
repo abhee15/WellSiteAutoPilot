@@ -59,3 +59,39 @@ Against CygNet domain 27212 (site `CYG_DEMO`), on a box with a CygNet licence an
 4. Per-connection point mapping and the realtime read for saved connections (findings 3, 6, 7).
 5. Fix the status-flag quality mapping in #303 with a unit test (finding 4).
 6. Client caching and timeout handling (finding 11).
+
+## POC shortcuts and assumptions (nothing here is production-ready)
+Every item below was a deliberate shortcut or an unverified assumption. Each needs a decision or real work in the GitHub build.
+
+### Code shortcuts
+1. **Quantity check skipped for CygNet.** In `ExecutionRepository.Reads.cs` the `PumpFillage`/`AveragePumpFillage` allow-list is bypassed when the adapter is `cygnet` (`!isCygNet && ...`). Any quantity name passes the Server; only the Gateway's configured map decides what can be read. The Server should validate against the adapter's declared quantities.
+2. **`providerMappingJson` still must be `{}`** for CygNet. Point mapping is not per binding.
+3. **Facility discovery cap of 500** returns `complete=true` (finding 2). Asset name is the bare facility id and only `facilityType` is stored as an attribute, so facility ids from different sites or services can collide and the description is dropped.
+4. **`CheckAsync` only proves the FAC service can be resolved.** It does not run a facility query, so a connection can test Healthy yet fail at discovery (for example a wrong site/service pair that still resolves).
+5. **Error text can reach the user.** `CygNetFacilityReader` puts `ex.Message` into `CygNetUnavailableException`. #311's contract is plain-words, redacted results. Use stable codes and keep CygNet text in the inner exception, as `CygNetCurrentDataProvider` does.
+6. **No settings validation in the current-value route.** `CygNetConnectionMeasurements` reads `domain` only and does not run `AdapterSettingsValidator` or check connection id/revision as the ForeSite route does. It builds a provider per read; there is no client or session caching.
+7. **Facility filter is built by string interpolation** (`facility_site = '<site>' ...`). It is safe today only because settings validation limits site/service to letters, digits, underscore and hyphen. Keep that validation or parameterize.
+8. **`/adapters/cygnet/current` exists only in `CYGNET` builds.** A normal build has no route, so Server reads for CygNet connections would fail there with a not-found, which the Server reports as a generic gateway failure.
+9. **Assembly resolver registered twice** (facility reader and provider static constructors). Harmless, but should be one registration.
+10. **#303 status mapping:** flags treated as neutral (Initialized, Updated, StringData, DigitalData, OutputData) are my judgement. A point carrying `ConfigurableBit1` (for example `RRLPFILCUR`) still maps to Uncertain, and the meaning of the configurable bits is site-specific and unconfirmed. No unit test was added.
+11. **No tests were added** for the reader, the route, the Server changes or the quality mapping.
+
+### Module and data assumptions
+12. **Semantic mismatch.** The module asks for current `PumpFillage`, but the POC maps it to the UDC `RRLPFILAVG` (an average). Which UDC is correct for "current pump fillage" (`RRLPFILCUR` vs `RRLPFILAVG`) was not decided; I chose the one that was not flagged.
+13. **The module is a copy of the ForeSite input check** with a new id. Version 1.0.0 (max age 60 s) failed on quality and stays installed in the POC database; 1.0.1 (max age 86400 s) is the one that ran. The 86400 s is only to accommodate stale demo data.
+14. **Gateway-wide quantity map via environment variables** (`Providers__CygNet__Quantities__PumpFillage__Udc/Unit`). Missing or wrong entries are not surfaced in the UI.
+15. **Demo-domain data is not representative.** Some points on `RPOC_0001` carry 2023 timestamps and others are about 15 minutes old. Behaviour on a live producing site (update rates, quality flags, point naming) is unknown.
+16. **UDC names and the facility/point model are specific to the demo site's RPOC configuration** (`RRL*` UDCs). Other sites may differ.
+
+### What was and was not tested
+- Tested: one domain (27212), one site, one service (UIS); connection test; discovery; import of 3 wells; one configured logic; one Shadow run, run by the bootstrap administrator account.
+- Not tested: the web UI, scoped grants and permissions for CygNet assets, Live mode, scheduled runs, source checks and source changes for CygNet connections (`SourceChanges.cs` is ForeSite-specific), connection revision changes, disabling a connection, more than one concurrent read, Python modules, a non-`CYGNET` build under real use (it compiles, see below), and the persistence/application test suites (they need `WSA_DATABASE_CONNECTION_STRING`, which I did not set up).
+- Build/test checks done: Gateway builds with and without `CYGNET_LIBRARY_PATH`; `WellSiteAutoPilot.CygNetAdapterTests` passes. The CygNet-specific projects are not in `WellSiteAutoPilot.slnx`, so CI never compiles the reader or the route.
+- Carried over from the #311 review and still open: the catalog lists the CygNet type even on builds that cannot use it; the CI script relaxes the "baseUrl first field" assertion; all connections share the Gateway's Windows account and licence.
+
+### Environment and local-only state (not in the branch)
+- Library source: `D:\P4\WFT_Services\ForeSiteService\Trunk\Libraries\CygNet` (ForeSite's CygNet libraries, v18.0.0.0). Licensing of redistributing them with the Gateway was not checked.
+- Dev box, Windows account `WFT\E206862`, ARS registry entries under `HKLM\SOFTWARE\Visual Systems, Inc.\CygNet\Domains\<id>`. The domain 27212 CAL happened to be enabled for this workstation.
+- The AppHost csproj carries a local DCP 13.5.1 pin and `appsettings.Local.json` was copied from another worktree (database `wsa_cardspoc`, NATS under `D:\AppData\wsa-cardspoc`). Neither belongs in the real change.
+- The generated web client (`src/web/src/api/generated/v1`) is untracked and was not committed.
+- POC data (the CygNet connection, 3 imported wells, two configured logics and modules 1.0.0/1.0.1) lives only in the `wsa_cardspoc` database.
