@@ -215,6 +215,7 @@ builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddSingleton(builder.Configuration.GetSection(AuthoringOptions.SectionName).Get<AuthoringOptions>()
     ?? new AuthoringOptions());
 builder.Services.AddSingleton<IAuthoringDraftStore, FileAuthoringDraftStore>();
+builder.Services.AddSingleton<IIsolatedProcessRunner, JobObjectProcessRunner>();
 builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
 builder.Services.AddSingleton<AuthoringBuildRunner>();
 builder.Services.AddScoped<AuthoringService>();

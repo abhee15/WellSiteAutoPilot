@@ -10,7 +10,12 @@ public sealed class AuthoringOptions
     public string? SdkProjectPath { get; set; }
     public int BuildTimeoutSeconds { get; set; } = 240;
     public string DotnetPath { get; set; } = "dotnet";
+    public int BuildMemoryLimitMegabytes { get; set; } = 4096;
+    /// <summary>Job is always applied on Windows; AppContainer additionally removes network and broad file access.</summary>
+    public AuthoringIsolationMode Isolation { get; set; } = AuthoringIsolationMode.Job;
 }
+
+public enum AuthoringIsolationMode { Job = 1, AppContainer }
 
 public enum AuthoringValidationState { NotRun = 1, Valid, Invalid, Stale }
 public enum AuthoringTestState { NotRun = 1, Passed, Failed, Stale, Cancelled }

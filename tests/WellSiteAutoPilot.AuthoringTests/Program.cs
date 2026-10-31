@@ -140,7 +140,7 @@ try
     {
         var options = new AuthoringOptions { Enabled = enabled, StorePath = Path.Combine(root, "store"), WorkRoot = Path.Combine(root, "work") };
         var store = new FileAuthoringDraftStore(options);
-        var runner = new AuthoringBuildRunner(store, new LocalDotNetAuthoringBuilder(options), clock);
+        var runner = new AuthoringBuildRunner(store, new LocalDotNetAuthoringBuilder(options, new JobObjectProcessRunner()), clock);
         repository = new FakePackageRepository();
         return new AuthoringService(options, store, runner, new LogicModulePackageService(repository, clock), clock);
     }
@@ -266,6 +266,87 @@ finally
     catch (IOException) { }
 }
 
+// Process isolation: Job object cancellation, timeout, memory limit and the optional AppContainer.
+if (OperatingSystem.IsWindows())
+{
+    var isolationRoot = Path.Combine(Path.GetTempPath(), "wsa-isolation-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(isolationRoot);
+    var runner = new JobObjectProcessRunner();
+    var baseEnvironment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SystemRoot"] = Environment.GetEnvironmentVariable("SystemRoot")!, ["PATH"] = Environment.GetEnvironmentVariable("PATH")!,
+        ["TEMP"] = Path.GetTempPath(), ["TMP"] = Path.GetTempPath()
+    };
+    IsolatedProcessSpec Spec(string script, TimeSpan timeout, long memory = 2L * 1024 * 1024 * 1024, bool container = false) =>
+        new("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], isolationRoot, baseEnvironment, memory, timeout, container, [isolationRoot]);
+    static async Task<int> WaitForPidAsync(string pidFile)
+    {
+        for (var i = 0; i < 200; i++)
+        {
+            if (File.Exists(pidFile) && int.TryParse((await File.ReadAllTextAsync(pidFile)).Trim(), out var pid)) return pid;
+            await Task.Delay(100);
+        }
+        throw new InvalidOperationException("Authoring check failed: the grandchild never started.");
+    }
+    static bool Alive(int pid)
+    {
+        try { return !System.Diagnostics.Process.GetProcessById(pid).HasExited; }
+        catch (ArgumentException) { return false; }
+    }
+    static async Task WaitDeadAsync(int pid, string message)
+    {
+        for (var i = 0; i < 100 && Alive(pid); i++) await Task.Delay(100);
+        Check(!Alive(pid), message);
+    }
+    string Grandchild(string pidFile) =>
+        $"$p = Start-Process ping -ArgumentList '-n','300','127.0.0.1' -PassThru -WindowStyle Hidden; $p.Id | Out-File -Encoding ascii '{pidFile}'; Start-Sleep 300";
+
+    var cancelPid = Path.Combine(isolationRoot, "cancel.pid");
+    using (var cancel = new CancellationTokenSource())
+    {
+        var running = runner.RunAsync(Spec(Grandchild(cancelPid), TimeSpan.FromMinutes(5)), cancel.Token);
+        var child = await WaitForPidAsync(cancelPid);
+        Check(Alive(child), "the grandchild is running before cancellation");
+        cancel.Cancel();
+        await Throws<OperationCanceledException>(() => running, "cancellation surfaces to the caller");
+        await WaitDeadAsync(child, "cancellation kills the whole process tree, including the grandchild");
+    }
+
+    var timeoutPid = Path.Combine(isolationRoot, "timeout.pid");
+    var timedOut = await runner.RunAsync(Spec(Grandchild(timeoutPid), TimeSpan.FromSeconds(4)), CancellationToken.None);
+    Check(timedOut.TimedOut && timedOut.Isolated && timedOut.Mode == "job", "a runaway process is reported as timed out under the job");
+    await WaitDeadAsync(await WaitForPidAsync(timeoutPid), "a timeout kills the grandchild too");
+
+    var quick = await runner.RunAsync(Spec("Write-Output 'hello'", TimeSpan.FromSeconds(60)), CancellationToken.None);
+    Check(quick.ExitCode == 0 && quick.Output.Contains("hello", StringComparison.Ordinal) && !quick.TimedOut, "a normal process returns its output");
+
+    var hungry = await runner.RunAsync(Spec("$ErrorActionPreference = 'Stop'; $a = [byte[]]::new(900MB); for ($i = 0; $i -lt $a.Length; $i += 4096) { $a[$i] = 1 }; Write-Output 'allocated'",
+        TimeSpan.FromSeconds(60), memory: 300L * 1024 * 1024), CancellationToken.None);
+    Check(hungry.ExitCode != 0 && hungry.Output.Contains("OutOfMemory", StringComparison.Ordinal) && !hungry.Output.Contains("allocated", StringComparison.Ordinal), "the job memory limit stops a process that exceeds it");
+
+    // Optional hardened mode: only meaningful where an AppContainer profile can be created for this account.
+    var secret = Path.Combine(Path.GetTempPath(), "wsa-outside-" + Guid.NewGuid().ToString("N") + ".txt");
+    await File.WriteAllTextAsync(secret, "outside");
+    try
+    {
+        var granted = Path.Combine(isolationRoot, "granted.txt");
+        await File.WriteAllTextAsync(granted, "inside");
+        try
+        {
+            var inside = await runner.RunAsync(Spec($"Get-Content '{granted}'", TimeSpan.FromSeconds(60), container: true), CancellationToken.None);
+            var outside = await runner.RunAsync(Spec($"Get-Content '{secret}'", TimeSpan.FromSeconds(60), container: true), CancellationToken.None);
+            Check(inside.Mode == "job+appcontainer" && inside.Output.Contains("inside", StringComparison.Ordinal), "an AppContainer child can read its granted folder");
+            Check(!outside.Output.Contains("outside", StringComparison.Ordinal), "an AppContainer child cannot read a file outside its grant");
+        }
+        catch (System.ComponentModel.Win32Exception error)
+        {
+            Console.WriteLine("AppContainer isolation unavailable in this environment, skipped: " + error.Message);
+        }
+    }
+    finally { File.Delete(secret); }
+    try { Directory.Delete(isolationRoot, recursive: true); }
+    catch (IOException) { }
+}
 Console.WriteLine("Authoring checks passed.");
 
 internal sealed class FakePackageRepository : ILogicModulePackageRepository
