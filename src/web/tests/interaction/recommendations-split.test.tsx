@@ -102,7 +102,7 @@ it('offers Clear filters only when the filters differ from the default, and rest
   expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
   await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'zzz');
   expect(screen.getByText('Showing 0 of 3 loaded recommendations (up to 50).')).toBeTruthy();
-  await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+  await user.click(screen.getAllByRole('button', { name: 'Clear filters' })[0]);
   expect((screen.getByRole('searchbox', { name: 'Search' }) as HTMLInputElement).value).toBe('');
   expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
   expect(await screen.findByText('Command a')).toBeTruthy();

@@ -148,7 +148,8 @@ export function LogicPage({
                   ))}
                   {visibleModules.length === 0 && (
                     <EmptyRow columns={4} loading={!isLoaded}
-                      hint={isLoaded && modules.length === 0 ? t('logicCatalog.noneHint') : undefined}>
+                      hint={isLoaded && modules.length === 0 ? t('logicCatalog.noneHint') : undefined}
+                      action={isLoaded && modules.length > 0 ? <ActionButton label={t('views.clearFilters')} onClick={() => setCatalogCriteria(DEFAULT_LOGIC_CATALOG_CRITERIA)} /> : undefined}>
                       {!isLoaded ? t('views.loading') : modules.length === 0 ? t('logicCatalog.none') : t('logicCatalog.noMatches')}
                     </EmptyRow>
                   )}
@@ -212,7 +213,8 @@ export function LogicPage({
                   ))}
                   {visibleConfigurations.length === 0 && (
                     <EmptyRow columns={canReadRuns ? 5 : 4} loading={!isLoaded}
-                      hint={isLoaded && configuredLogic.length === 0 ? t('configured.noneHint') : undefined}>
+                      hint={isLoaded && configuredLogic.length === 0 ? t('configured.noneHint') : undefined}
+                      action={isLoaded && configuredLogic.length > 0 ? <ActionButton label={t('views.clearFilters')} onClick={() => setConfiguredCriteria(DEFAULT_CONFIGURED_LOGIC_CRITERIA)} /> : undefined}>
                       {!isLoaded ? t('views.loading') : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
                     </EmptyRow>
                   )}

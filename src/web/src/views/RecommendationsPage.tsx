@@ -20,7 +20,7 @@ import type { RecommendationInboxCriteria } from './recommendationInbox';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { ActionButton } from '../components/ActionButton';
-import { SummaryCard } from '../components/common';
+import { EmptyRow, SummaryCard } from '../components/common';
 import type { MessageKey } from '../localization';
 import { humanize } from './auditPresentation';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
@@ -39,7 +39,10 @@ export function RecommendationInboxTable({
   onReview,
   selectedId,
   assetNames,
+  onClearFilters,
 }: {
+  /** Offered in the empty state when filters are what hid the rows. */
+  onClearFilters?: () => void;
   items: readonly RecommendationSummaryResponse[];
   nowUtc: number;
   onReview?: (recommendationId: string) => void;
@@ -112,11 +115,10 @@ export function RecommendationInboxTable({
             );
           })}
           {items.length === 0 && (
-            <tr>
-              <td className="empty-state" colSpan={onReview ? 8 : 7}>
-                {t('inbox.noMatches')}
-              </td>
-            </tr>
+            <EmptyRow columns={onReview ? 8 : 7}
+              action={onClearFilters ? <ActionButton label={t('views.clearFilters')} onClick={onClearFilters} /> : undefined}>
+              {t('inbox.noMatches')}
+            </EmptyRow>
           )}
         </tbody>
       </table>
@@ -267,6 +269,7 @@ export function RecommendationsPage({
         </p>}
         {(!isLoading || lastUpdated) && !error && (
           <RecommendationInboxTable items={visible} nowUtc={nowUtc} assetNames={assetNames}
+            onClearFilters={items.length > 0 ? () => setCriteria(DEFAULT_RECOMMENDATION_INBOX_CRITERIA) : undefined}
             selectedId={reviewOpen ? selectedRecommendation?.id : null}
             onReview={canDecide ? recommendationId => {
               setSelectedReviewId(recommendationId);
