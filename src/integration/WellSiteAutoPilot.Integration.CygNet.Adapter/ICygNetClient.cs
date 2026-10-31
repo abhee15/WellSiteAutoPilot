@@ -34,7 +34,8 @@ public sealed record CygNetFacilityList(IReadOnlyList<CygNetFacility> Facilities
 public interface ICygNetClient
 {
     /// <summary>Reaches the facility service. Throws when it cannot.</summary>
-    Task CheckAsync(CygNetConnection connection, CancellationToken cancellationToken);
+    /// <remarks>Returns some facility ids (after the connection's filter) for the caller to sample reads on.</remarks>
+    Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken);
 
     Task<CygNetFacilityList> ListFacilitiesAsync(CygNetConnection connection, CancellationToken cancellationToken);
 
@@ -61,8 +62,8 @@ public sealed class CygNetUnconfiguredClient : ICygNetClient
         "This Integration Gateway has no CygNet backend. Set Providers:CygNet:Backend to \"simulated\" for the built-in " +
         "simulated CygNet, or use a Gateway built on a CygNet machine (CYGNET_LIBRARY_PATH) with Backend \"live\".";
 
-    public Task CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
-        Task.FromException(new CygNetUnavailableException(Message));
+    public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<string>>(new CygNetUnavailableException(Message));
 
     public Task<CygNetFacilityList> ListFacilitiesAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
         Task.FromException<CygNetFacilityList>(new CygNetUnavailableException(Message));

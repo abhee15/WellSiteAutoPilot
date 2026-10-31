@@ -46,3 +46,23 @@ and packs them with the CLI.
 - All connections use the Gateway's Windows account, which needs a CygNet CAL.
 - The CygNet API is synchronous; a timed-out read leaves a thread running (mitigated by client caching).
 - Some demo points carry old timestamps; module `maximumAgeSeconds` must allow for that.
+
+## Failure reasons, freshness and point mapping
+
+- `CYGNET_POINT_NO_VALUE`: the point exists but never received a value (blank record, e.g. CYG_DEMO RPOC_00003).
+  `CYGNET_VALUE_NOT_NUMERIC`: the point holds text or a state; map the quantity to a numeric point.
+  `CYGNET_POINT_NOT_FOUND`: no such UDC on the facility. `CYGNET_BUSY`: earlier calls to the service are still hung.
+- The connection test and discovery sample up to 3 facilities and report each quantity's data age, missing points and
+  unmapped quantities. A `pointMap` entry that matches no sampled facility makes the test "needs attention".
+  The discovery note is a warning (`UnavailableFields` is declared empty so import grouping is unaffected).
+- **Recommended pattern for stale data:** read the age from the connection test, then set the module's
+  `maximumAgeSeconds` just above it. Do not use years-long ages in production; point the connection at live points
+  instead. On CYG_DEMO, RPOC_0001 has current fillage/rod load but 2023 pressures; RPOC_00001..3 are from 2020.
+- Offline stale demo: `Providers__CygNet__Simulated__Profile=DemoStale` (default `Current`). WELL_006 simulates a
+  point with no value.
+- CYG_DEMO has no motor-current point (only `RRLSPMAVG`, strokes per minute), so MotorAmps stays unmapped there.
+- Bounded calls: one cached FAC and realtime client per domain/service; at most 4 concurrent CygNet calls per service,
+  and a timed-out call keeps its slot until it returns, so a hung service cannot pile up threads.
+- Discovery of more than 5000 facilities is reported incomplete with a warning; import is refused until the facility
+  filter narrows it. External ids are `SITE.SERVICE::FACILITY`; bindings are per connection, so equal ids in other
+  services or domains do not collide.

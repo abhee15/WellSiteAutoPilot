@@ -107,17 +107,28 @@ public static class CygNetAdapter
         value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
 
     /// <summary>Tries the connection: reaches the facility service. Failures are results, never exceptions.</summary>
+    public static Task<AdapterTestResult> CheckAsync(
+        ICygNetClient client, CygNetConnection connection, string actingAs, CancellationToken cancellationToken = default) =>
+        CheckAsync(client, connection, actingAs, null, cancellationToken);
+
+    /// <summary>As above, with the clock the sampled data ages are measured against (tests pass a fixed one).</summary>
     public static async Task<AdapterTestResult> CheckAsync(
-        ICygNetClient client, CygNetConnection connection, string actingAs, CancellationToken cancellationToken = default)
+        ICygNetClient client, CygNetConnection connection, string actingAs, TimeProvider? clock, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(actingAs);
         try
         {
-            await client.CheckAsync(connection, cancellationToken);
-            return new(AdapterTestOutcomes.Healthy,
-                $"CygNet answered and this account can reach {connection.SiteService} in domain {connection.Domain}.", actingAs);
+            var sampleIds = await client.CheckAsync(connection, cancellationToken);
+            var healthy = $"CygNet answered and this account can reach {connection.SiteService} in domain {connection.Domain}.";
+            var report = await SampleAsync(client, connection, sampleIds, clock, cancellationToken);
+            if (report is null) return new(AdapterTestOutcomes.Healthy, healthy, actingAs);
+            var wrong = report.Broken.Where(quantity => connection.PointMap?.ContainsKey(quantity) == true).ToArray();
+            return wrong.Length > 0
+                ? new(AdapterTestOutcomes.NeedsAttention,
+                    $"{healthy} The point mapping names points that were not found on the sampled facilities: {string.Join(", ", wrong)}. {report.Summary}", actingAs)
+                : new(AdapterTestOutcomes.Healthy, $"{healthy} {report.Summary}", actingAs);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -151,8 +162,13 @@ public static class CygNetAdapter
     /// Lists the facilities of the connection's service. A failure is a result, not an exception: an incomplete answer with
     /// the reason, so nothing downstream treats it as "there are no facilities".
     /// </summary>
+    public static Task<DiscoveryResult> DiscoverAsync(
+        ICygNetClient client, CygNetConnection connection, string actingAs, CancellationToken cancellationToken = default) =>
+        DiscoverAsync(client, connection, actingAs, null, cancellationToken);
+
+    /// <summary>As above, with the clock the sampled data ages are measured against.</summary>
     public static async Task<DiscoveryResult> DiscoverAsync(
-        ICygNetClient client, CygNetConnection connection, string actingAs, CancellationToken cancellationToken = default)
+        ICygNetClient client, CygNetConnection connection, string actingAs, TimeProvider? clock, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(connection);
@@ -160,7 +176,10 @@ public static class CygNetAdapter
         try
         {
             var list = await client.ListFacilitiesAsync(connection, cancellationToken);
-            return MapFacilities(connection, list, actingAs);
+            var result = MapFacilities(connection, list, actingAs);
+            if (!result.Complete && result.Items.Count == 0) return result;
+            var report = await SampleAsync(client, connection, CygNetFreshness.Pick(result.Items.Select(item => item.DisplayName).ToArray()), clock, cancellationToken);
+            return report is null ? result : result with { Warnings = [.. result.Warnings, "Data freshness. " + report.Summary] };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -241,7 +260,21 @@ public static class CygNetAdapter
                 return new DiscoveredAsset(tag, facility.Id, ResourceKind, null, facts);
             }).ToArray();
 
-        return new DiscoveryResult(skipped == 0 && !list.Truncated, mapped, warnings, actingAs);
+        return new DiscoveryResult(skipped == 0 && !list.Truncated, mapped, warnings, actingAs, UnavailableFields: []);
+    }
+
+    // Best effort: a failed, slow or cancelled sample never fails the check or the discovery it rides on, which already succeeded.
+    private static async Task<CygNetFreshnessReport?> SampleAsync(
+        ICygNetClient client, CygNetConnection connection, IReadOnlyList<string> ids, TimeProvider? clock, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await CygNetFreshness.SampleAsync(client, connection, ids, clock ?? TimeProvider.System, cancellationToken);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>Case-insensitive wildcard match: * any characters, ? one character.</summary>
