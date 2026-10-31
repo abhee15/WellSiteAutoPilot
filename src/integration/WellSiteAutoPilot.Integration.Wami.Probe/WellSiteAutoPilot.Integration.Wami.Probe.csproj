@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Live probe against a real WAMI server; opt-in like the NetTcp project. Run with
+       dotnet run with the project, property WamiInterfacesPath set to the DLL, then the router uri, the model file and optional wellhead pressures. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1902;NU1903</WarningsNotAsErrors>
+  </PropertyGroup>
+  <Target Name="RequireWamiInterfaces" BeforeTargets="BeforeBuild;BeforeResolveReferences">
+    <Error Condition="'$(WamiInterfacesPath)' == '' Or !Exists('$(WamiInterfacesPath)')"
+           Text="Set -p:WamiInterfacesPath to the full path of Weatherford.WAMI.Interfaces.dll." />
+  </Target>
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.Wami.NetTcp/WellSiteAutoPilot.Integration.Wami.NetTcp.csproj" />
+    <!-- Copied into this project's gitignored bin only so the probe can run; never commit it. -->
+    <Reference Include="Weatherford.WAMI.Interfaces">
+      <HintPath>$(WamiInterfacesPath)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

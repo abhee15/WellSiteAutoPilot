@@ -105,8 +105,8 @@ public sealed class FakeWamiClient : IWamiClient
             if (request.Function != NodalAnalysis)
                 throw new WamiException(WamiFailureCodes.FunctionUnsupported, $"WAMI has no function '{request.Function}'.", WamiCallOutcome.NotStarted);
             owner.Refuse(checkLicense: false);
-            if (!request.Inputs.TryGetValue("wellheadPressure", out var whp) || !string.Equals(whp.Unit, "psi", StringComparison.Ordinal))
-                throw new WamiException(WamiFailureCodes.InputInvalid, "wellheadPressure is required in psi.", WamiCallOutcome.NotStarted);
+            if (!request.Inputs.TryGetValue("wellheadPressure", out var whp) || !string.Equals(whp.Unit, "psia", StringComparison.Ordinal))
+                throw new WamiException(WamiFailureCodes.InputInvalid, "wellheadPressure is required in psia.", WamiCallOutcome.NotStarted);
 
             Interlocked.Increment(ref owner._dispatched);
             if (owner.Mode == FakeWamiMode.Hangs) await Task.Delay(Timeout.Infinite, cancellationToken);
@@ -119,7 +119,7 @@ public sealed class FakeWamiClient : IWamiClient
                 new Dictionary<string, WamiQuantity>
                 {
                     ["operatingPoint.liquidRate"] = new(decimal.Round(rate, 3), "stb/d"),
-                    ["operatingPoint.bottomholePressure"] = new(decimal.Round(bottomhole, 3), "psi")
+                    ["operatingPoint.bottomholePressure"] = new(decimal.Round(bottomhole, 3), "psia")
                 },
                 Version,
                 rate == 0m ? ["No inflow at this wellhead pressure."] : []);
