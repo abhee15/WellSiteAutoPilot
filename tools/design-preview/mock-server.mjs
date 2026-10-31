@@ -1,6 +1,30 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
+
+// Built-in roles come straight from the server source, so the preview always shows what each role really gets.
+// Pick one with a `persona` cookie (Admin, Engineer, Operator); the default is the original all-access preview user.
+const securityDir = new URL('../../src/server/WellSiteAutoPilot.Application/Security/', import.meta.url);
+const permissionConstants = new Map([...readFileSync(new URL('WellSitePermissions.cs', securityDir), 'utf8')
+  .matchAll(/public const string (\w+) = "([^"]+)";/g)].map(m => [m[1], m[2]]));
+const roleMap = readFileSync(new URL('RolePermissionMap.cs', securityDir), 'utf8');
+function permissionsForRole(role) {
+  if (role === 'Admin') return [...permissionConstants.values()];
+  const start = roleMap.indexOf(`[ApplicationRole.${role}]`);
+  const end = roleMap.indexOf('StringComparer.Ordinal', start);
+  return [...roleMap.slice(start, end).matchAll(/WellSitePermissions\.(\w+)/g)].map(m => permissionConstants.get(m[1]));
+}
+const personaOf = req => /(?:^|;\s*)persona=([^;]+)/.exec(req.headers.cookie ?? '')?.[1] ?? null;
+const personaPermissions = persona => persona === null ? null
+  : persona === 'None' ? [] : permissionsForRole(persona);
+// What the real server demands before answering; a request without it is a 403, which the page must handle.
+const needs = [
+  [/^\/api\/v1\/executions/, 'executions.read'], [/^\/api\/v1\/logic-modules/, 'logic.read'],
+  [/^\/api\/v1\/configured-logic/, 'configured-logic.read'], [/^\/api\/v1\/recommendations/, 'recommendations.read'],
+  [/^\/api\/v1\/(assets|asset-types)/, 'assets.read'], [/^\/api\/v1\/connections/, 'connections.read'],
+  [/^\/api\/v1\/security\/(users|roles|role-permissions|grants|groups|directory|directories|audit-events|assets)/, 'security.manage'],
+];
 
 const dist = process.argv[2];
 const port = Number(process.argv[3] ?? 5199);
@@ -42,6 +66,7 @@ const responses = {
   '/api/v1/security/me': { userId: id(900), identityName: 'FIELD\\10482267', displayName: 'Alex Rivera', isActive: true,
     permissions: ['assets.read', 'assets.manage', 'configured-logic.read', 'configured-logic.manage', 'executions.read',
       'executions.request', 'recommendations.read', 'recommendations.decide', 'logic.read', 'logic.manage', 'security.manage'] },
+  '/api/v1/system/health': { status: 'Healthy' },
   '/api/v1/system/info': { product: 'WellSite AutoPilot', components: [
     { name: 'Server', version: '0.1.0', status: 'Healthy' }, { name: 'Integration Gateway', version: '0.1.0', status: 'Healthy' },
     { name: '.NET Worker', version: '0.1.0', status: 'Healthy' }, { name: 'NATS JetStream', version: '2.11', status: 'Degraded' }] },
@@ -74,6 +99,13 @@ const responses = {
     { userId: id(901), identityName: 'FIELD\\10551903', displayName: null, isActive: true, createdAtUtc: iso(30), lastSeenAtUtc: iso(5), activeDirectGrantCount: 0 },
     { userId: id(902), identityName: 'FIELD\\10337741', displayName: 'Morgan Lee', isActive: true, createdAtUtc: iso(5000), lastSeenAtUtc: iso(90), activeDirectGrantCount: 1 },
     { userId: id(903), identityName: 'FIELD\\10299120', displayName: 'Sam Patel', isActive: false, createdAtUtc: iso(6000), lastSeenAtUtc: iso(4000), activeDirectGrantCount: 0 }],
+  '/api/v1/connections': [{ id: id(950), name: 'ForeSite', adapterKey: 'foresite', settingsVersion: 1,
+    settings: { baseUrl: 'https://foresite.example.com' }, isEnabled: true, revision: 2, createdAtUtc: iso(9000), updatedAtUtc: iso(300),
+    lastTest: { outcome: 'Healthy', message: 'Connected.', actingAs: 'FIELD\\10482267', testedAtUtc: iso(5), testedRevision: 2, source: 'scheduled' }, lastTestIsCurrent: true }],
+  '/api/v1/connections/adapters': [{ key: 'foresite', displayName: 'ForeSite', description: 'Weatherford ForeSite production data.',
+    settingsVersion: 1, capabilities: ['Discover', 'Import'], canDiscover: true, groupingFields: [],
+    fields: [{ key: 'baseUrl', label: 'Server address', helpText: 'The ForeSite server.', kind: 'Url', required: true, maxLength: 200 }] }],
+  '/api/v1/assets/owners': [{ connectionId: null, name: null, isEnabled: true, assetCount: 4 }],
   '/api/v1/configured-logic': [configuredDetail],
   ['/api/v1/configured-logic/' + id(500)]: configuredDetail,
   '/api/v1/recommendations': [
@@ -182,6 +214,40 @@ http.createServer(async (req, res) => {
     const next = offset + limit < matches.length ? Buffer.from(String(offset + limit)).toString('base64url') : null;
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ items, nextCursor: next })); return;
   }
+  const persona = personaOf(req);
+  const granted = personaPermissions(persona);
+  if (url.pathname === '/api/v1/security/me' && granted) {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ...responses['/api/v1/security/me'], displayName: persona + ' (preview)', permissions: granted })); return;
+  }
+  if (granted && url.pathname.startsWith('/api/') && req.method === 'GET') {
+    const rule = needs.find(([pattern]) => pattern.test(url.pathname));
+    if (rule && !granted.includes(rule[1])) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{}'); return; }
+  }
+  if (granted && url.pathname === '/api/v1/assets/capabilities') {
+    const can = granted.includes('assets.manage');
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ canCreateRoot: can, canCreateUnderAuthorizedParents: can })); return;
+  }
+  if (granted && url.pathname.startsWith('/api/v1/recommendations') && req.method === 'GET') {
+    const decide = granted.includes('recommendations.decide');
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(responses['/api/v1/recommendations'].map(item => ({ ...item, canDecide: item.canDecide && decide })))); return;
+  }
+  if (granted && url.pathname.startsWith('/api/v1/configured-logic') && req.method === 'GET') {
+    const manage = granted.includes('configured-logic.manage'), request = granted.includes('executions.request');
+    const shape = item => ({ ...item, canManage: manage, canRequestShadow: request });
+    const body = responses[url.pathname] ?? [];
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(Array.isArray(body) ? body.map(shape) : shape(body))); return;
+  }
+  const one = url.pathname.match(/^\/api\/v1\/(executions|assets)\/([^/]+)$/);
+  if (one && req.method === 'GET') {
+    const list = one[1] === 'executions' ? executions : assets;
+    const item = list.find(entry => (entry.executionId ?? entry.id) === decodeURIComponent(one[2]));
+    res.writeHead(item ? 200 : 404, { 'content-type': 'application/json' }); res.end(JSON.stringify(item ?? {})); return;
+  }
+  if (/^\/api\/v1\/assets\/[^/]+\/source$/.test(url.pathname)) { res.writeHead(404); res.end(); return; }
   if (url.pathname.startsWith('/api/')) {
     const body = responses[url.pathname] ?? [];
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); return;

@@ -328,3 +328,20 @@ test('UI text is sentence case: only the first word and proper nouns are capital
   }
   assert.deepEqual(offenders, [], 'use sentence case ("Add asset", not "Add Asset"); add real proper nouns to the allow list');
 });
+
+
+test('the Filters panel can actually close: its [hidden] rule comes after, and is as specific as, its display rule', () => {
+  // `.filter-toolbar-panel.data-view-controls { display: grid }` beat `.filter-toolbar-panel[hidden] { display: none }`
+  // (same specificity, later wins), so the panel never closed and the Filters button seemed to do nothing.
+  const css = source(join(root, 'components/filterToolbar.css'));
+  const grid = css.indexOf('.filter-toolbar-panel.data-view-controls {');
+  const hidden = css.indexOf('.filter-toolbar-panel.data-view-controls[hidden] { display: none; }');
+  assert.ok(grid >= 0 && hidden > grid, 'the [hidden] rule must follow the display rule and name the same classes');
+});
+
+test('narrow toolbars keep the Filters button beside the search as an icon with its count', () => {
+  const css = source(join(root, 'components/filterToolbar.css'));
+  assert.doesNotMatch(css, /@container[^{]*\{[^}]*filter-toolbar-row \{ flex-wrap: wrap/);
+  assert.match(css, /@container \(width <= 28em\) \{[\s\S]*filter-toolbar-toggle > span:not\(\.filter-toolbar-badge\)/);
+  assert.match(source(join(root, 'components/FilterToolbar.tsx')), /title=\{t\('filters\.toggle'\)\}/);
+});

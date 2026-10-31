@@ -3,12 +3,14 @@
 .filter-toolbar-row { display: flex; align-items: center; gap: var(--space-8); }
 .filter-toolbar-search { flex: 1 1 var(--layout-field-min); min-width: 0; max-width: var(--layout-form-wide); }
 .filter-toolbar-trailing { flex: none; margin-inline-start: auto; }
-.filter-toolbar-toggle { display: inline-flex; align-items: center; gap: var(--space-8); flex: none; min-height: var(--size-control); padding: var(--space-6) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); background: var(--color-surface-input); color: var(--color-text-primary); font: inherit; font-size: var(--font-size-control); font-weight: var(--font-weight-medium); cursor: pointer; }
+.filter-toolbar-toggle { position: relative; display: inline-flex; align-items: center; gap: var(--space-8); flex: none; min-height: var(--size-control); padding: var(--space-6) var(--space-12); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); background: var(--color-surface-input); color: var(--color-text-primary); font: inherit; font-size: var(--font-size-control); font-weight: var(--font-weight-medium); cursor: pointer; }
 .filter-toolbar-toggle:hover { background: var(--color-surface-secondary-hover); }
 .filter-toolbar-toggle[aria-expanded='true'] { background: var(--color-surface-navigation-active); }
 .filter-toolbar-badge { min-width: var(--size-control-small); padding: 0 var(--space-6); border-radius: var(--radius-pill); background: var(--color-surface-accent); color: var(--color-text-on-accent); font-size: var(--font-size-tag); text-align: center; line-height: var(--size-control-small); }
-.filter-toolbar-panel[hidden] { display: none; }
 .filter-toolbar-panel.data-view-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-field-min)), 1fr)); gap: var(--space-12); align-items: end; padding: var(--space-12); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); background: var(--color-surface-detail); }
+/* After the rule above, and as specific: a closed panel must stay closed (`display: grid` would otherwise win and the
+   Filters button would toggle nothing). */
+.filter-toolbar-panel.data-view-controls[hidden] { display: none; }
 .filter-toolbar-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .filter-chip { display: inline-flex; align-items: center; gap: var(--space-4); padding: var(--space-2) var(--space-4) var(--space-2) var(--space-10); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-pill); background: var(--color-surface-input); font-size: var(--font-size-body-small); }
 .filter-chip .filter-chip-remove { display: inline-grid; place-items: center; width: var(--size-control-small); height: var(--size-control-small); padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-text-subtle); cursor: pointer; }
@@ -19,9 +21,12 @@
    The toolbar's own width decides, not the window's. */
 .filter-toolbar { container-type: inline-size; }
 @container (width <= 28em) {
-  .filter-toolbar-row { flex-wrap: wrap; }
-  .filter-toolbar-search { flex-basis: 100%; max-width: none; }
-  .filter-toolbar-toggle { flex: 1; justify-content: center; }
+  /* Narrow: the button shrinks to its icon and count and stays on the search row instead of taking a row of its own.
+     The word is still there for screen readers and as the tooltip. */
+  .filter-toolbar-search { max-width: none; }
+  .filter-toolbar-toggle { padding-inline: var(--space-10); gap: var(--space-6); }
+  .filter-toolbar-toggle > span:not(.filter-toolbar-badge) { position: absolute; width: var(--border-width-thin); height: var(--border-width-thin);
+    margin: calc(-1 * var(--border-width-thin)); padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .filter-toolbar-summary { flex-wrap: nowrap; overflow-x: auto; }
 }
 @media (width <= 40em) { .filter-toolbar { padding-inline: var(--space-12); } }
