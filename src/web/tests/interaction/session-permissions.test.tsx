@@ -59,8 +59,8 @@ it('catalog-only access does not load configuration capabilities or expose confi
     ? { userId, identityName: 'FIELD\\catalog', isActive: true, roles: ['Catalog Reader'], permissions: ['logic.read'], assetScopeIds: [] }
     : url.includes('system/health') ? {} : []));
   vi.stubGlobal('fetch', http); render(<App />);
-  await screen.findByText('Logic Modules');
-  expect(screen.queryByText('Configured Logic')).toBeNull();
+  await screen.findByText('Logic modules');
+  expect(screen.queryByText('Configured logic')).toBeNull();
   expect(http.mock.calls.some(([url]) => url.includes('/configured-logic'))).toBe(false);
 });
 

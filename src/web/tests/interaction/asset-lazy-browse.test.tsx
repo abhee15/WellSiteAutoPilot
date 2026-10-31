@@ -51,7 +51,7 @@ it('a full first page switches to server browsing: levels load when opened', asy
   const child = await within(tree).findByRole('button', { name: 'Open North Well from the hierarchy' });
   await userEvent.setup().click(child);
   expect(window.location.hash).toBe('#assets/' + wellId);
-  const page = (await screen.findByText('Selected Asset')).closest('.asset-page') as HTMLElement;
+  const page = (await screen.findByText('Selected asset')).closest('.asset-page') as HTMLElement;
   expect(await within(page).findByText('Located under Pad 7')).toBeTruthy();
 });
 
@@ -60,7 +60,7 @@ it('an address to an asset outside the first page opens the asset and reveals it
   host(calls);
   window.location.hash = '#assets/' + wellId;
   render(<App />);
-  const page = (await screen.findByText('Selected Asset')).closest('.asset-page') as HTMLElement;
+  const page = (await screen.findByText('Selected asset')).closest('.asset-page') as HTMLElement;
   expect(await within(page).findByText('Located under Pad 7')).toBeTruthy();
   const tree = await screen.findByRole('navigation', { name: 'Asset hierarchy' });
   const open = await within(tree).findByRole('button', { name: 'Open North Well from the hierarchy' });
@@ -77,7 +77,7 @@ it('search runs on the server and shows where each match sits', async () => {
   const results = await screen.findByRole('list', { name: 'Matching assets' });
   expect(await within(results).findByText('Well · Pad 7')).toBeTruthy();
   expect(calls.some(url => url.startsWith('/api/v1/assets/search?q=north'))).toBe(true);
-  await userEvent.setup().click(within(results).getByRole('button', { name: 'Select Asset North Well' }));
+  await userEvent.setup().click(within(results).getByRole('button', { name: 'Select asset North Well' }));
   expect(window.location.hash).toBe('#assets/' + wellId);
 });
 
@@ -86,5 +86,5 @@ it('an asset that is not there (or not visible) is not shown', async () => {
   window.location.hash = '#assets/' + guid(999);
   render(<App />);
   await screen.findByRole('button', { name: 'Open Pad 7 from the hierarchy' });
-  expect(screen.queryByText('Selected Asset')).toBeNull();
+  expect(screen.queryByText('Selected asset')).toBeNull();
 });

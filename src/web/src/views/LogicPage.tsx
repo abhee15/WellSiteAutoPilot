@@ -103,7 +103,7 @@ export function LogicPage({
       {showModules ? (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
-            <PanelHeader title="Logic Modules" count={visibleModules.length} />
+            <PanelHeader title="Logic modules" count={visibleModules.length} />
             <LogicCatalogControls
               criteria={catalogCriteria}
               onChange={setCatalogCriteria}
@@ -169,7 +169,7 @@ export function LogicPage({
       ) : (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabConfigured')}>
-            <PanelHeader title="Configured Logic"
+            <PanelHeader title="Configured logic"
               count={visibleConfigurations.length} />
             <ConfiguredLogicControls
               criteria={configuredCriteria}

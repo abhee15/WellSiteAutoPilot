@@ -20,7 +20,7 @@ SCEN=[
  ('Asset types: details of Well','#assets',[('click','tab',r'Asset types'),('click','button',r'Show details of Well')]),
  ('Asset types: details of Pad','#assets',[('click','tab',r'Asset types'),('click','button',r'Show details of Pad')]),
  ('Logic: open configured logic','#logic',[('click','button',r'Inspect revisions')]),
- ('Logic: Configure Logic form','#logic',[('click','button',r'Configure Logic')]),
+ ('Logic: Configure logic form','#logic',[('click','button',r'Configure logic')]),
  ('Modules: about 1.2.0 (trusted)','#logic',[('click','tab',r'Modules'),('click','button',r'About ESP')]),
  ('Connections: open one','#connections',[('click','button',r'ForeSite')]),
  ('Access: assign a role','#access',[('click','button',r'Assign a role to Morgan')]),

@@ -57,7 +57,7 @@ async function prepareForm(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(
     screen.getByRole('combobox', { name: 'Asset type' }), wellType.id);
   await user.selectOptions(
-    screen.getByRole('combobox', { name: 'Parent Asset' }), field.id);
+    screen.getByRole('combobox', { name: 'Parent asset' }), field.id);
   await user.type(screen.getByRole('textbox', { name: 'Asset name' }), 'Well 101');
 }
 
@@ -79,9 +79,9 @@ describe('Asset create workflow with real DOM events', () => {
     // Capability hints are restrictive: ordinary users may create children
     // but the root-admin option must never appear in the parent dropdown.
     expect(screen.queryByRole('option', {
-      name: 'Root Asset (administrator only)'
+      name: 'Root asset (administrator only)'
     })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
 
     expect(await screen.findByRole('status')).toHaveProperty(
       'textContent', 'Asset Well 101 created and verified.');
@@ -106,7 +106,7 @@ describe('Asset create workflow with real DOM events', () => {
       screen.getByRole('combobox', { name: 'Asset type' }), wellType.id);
     await user.type(screen.getByRole('textbox', { name: 'Asset name' }), 'Root');
     expect((screen.getByRole('button', {
-      name: 'Create Asset'
+      name: 'Create asset'
     }) as HTMLButtonElement).disabled).toBe(true);
     expect(http).not.toHaveBeenCalled();
   });
@@ -117,24 +117,24 @@ describe('Asset create workflow with real DOM events', () => {
     vi.stubGlobal('fetch', http);
     panel({ allowRoot: true, allowChildren: false });
     expect(screen.getByRole('option', {
-      name: 'Root Asset (administrator only)'
+      name: 'Root asset (administrator only)'
     })).not.toBeNull();
     expect(screen.queryByRole('option', { name: 'Field Alpha' })).toBeNull();
     await user.selectOptions(
       screen.getByRole('combobox', { name: 'Asset type' }), wellType.id);
     await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Parent Asset' }), '__root__');
+      screen.getByRole('combobox', { name: 'Parent asset' }), '__root__');
     await user.type(screen.getByRole('textbox', { name: 'Asset name' }), 'Root');
-    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
     expect(http).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(http.mock.calls[0][1]?.body)).parentAssetId).toBeNull();
   });
 
   it.each([
-    [403, 'You do not have permission to create this Asset. Refresh your access.'],
-    [409, 'The Asset conflicts with an existing value. Refresh before trying again.'],
-    [400, 'The server rejected the Asset values or schema. Review the selected type and attributes.'],
-    [404, 'The selected Asset Type or parent no longer exists. Refresh and try again.'],
+    [403, 'You do not have permission to create this asset. Refresh your access.'],
+    [409, 'The asset conflicts with an existing value. Refresh before trying again.'],
+    [400, 'The server rejected the asset values or schema. Review the selected type and attributes.'],
+    [404, 'The selected asset type or parent no longer exists. Refresh and try again.'],
   ])('displays stable failure feedback for HTTP %d without blind retry',
     async (status, message) => {
       const user = userEvent.setup();
@@ -142,7 +142,7 @@ describe('Asset create workflow with real DOM events', () => {
       vi.stubGlobal('fetch', http);
       panel();
       await prepareForm(user);
-      await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+      await user.click(screen.getByRole('button', { name: 'Create asset' }));
       expect(await screen.findByRole('alert')).toHaveProperty('textContent', message);
       expect(http).toHaveBeenCalledTimes(1);
     });
@@ -156,7 +156,7 @@ describe('Asset create workflow with real DOM events', () => {
     vi.stubGlobal('fetch', http);
     panel({ onCreated, onRefresh });
     await prepareForm(user);
-    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
 
     expect(await screen.findByRole('status')).toHaveProperty(
       'textContent',
@@ -175,10 +175,10 @@ describe('Asset create workflow with real DOM events', () => {
     vi.stubGlobal('fetch', http);
     panel();
     await prepareForm(user);
-    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
-      'Creation could not be confirmed. Refresh and check the Asset list before retrying.');
+      'Creation could not be confirmed. Refresh and check the asset list before retrying.');
     expect(http).toHaveBeenCalledTimes(1);
   });
 
@@ -193,16 +193,16 @@ describe('Asset create workflow with real DOM events', () => {
     // Set a malformed JSON string without invoking user-event keyboard syntax.
     await user.type(screen.getByRole('textbox', { name: 'Attributes (JSON object)' }),
       'not-json');
-    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
     expect(await screen.findByRole('alert')).toHaveProperty(
-      'textContent', 'Enter a valid JSON object for Asset attributes.');
+      'textContent', 'Enter a valid JSON object for asset attributes.');
     expect(http).not.toHaveBeenCalled();
 
     cleanup();
     panel({ authenticated: false });
     expect(screen.getByText('Asset creation access is unavailable for this session.'))
       .not.toBeNull();
-    expect(screen.queryByRole('button', { name: 'Create Asset' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create asset' })).toBeNull();
   });
 });
 
@@ -217,7 +217,7 @@ it('preserves raw duplicate attribute keys for authoritative server rejection', 
   const editor = screen.getByRole('textbox', { name: 'Attributes (JSON object)' });
   await user.clear(editor);
   await user.paste(raw);
-  await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+  await user.click(screen.getByRole('button', { name: 'Create asset' }));
   await screen.findByRole('alert');
   expect(JSON.parse(String(http.mock.calls[0][1]?.body)).attributeValuesJson).toBe(raw);
   expect(http).toHaveBeenCalledTimes(1);
@@ -237,7 +237,7 @@ it.each([
   vi.stubGlobal('fetch', http);
   panel({ onCreated });
   await prepareForm(user);
-  await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+  await user.click(screen.getByRole('button', { name: 'Create asset' }));
   await screen.findByRole('alert');
   expect(onCreated).not.toHaveBeenCalled();
   expect(http).toHaveBeenCalledTimes(2);
@@ -252,7 +252,7 @@ it('aborts a pending create on removal and never starts stale readback or select
   vi.stubGlobal('fetch', http);
   const view = panel({ onCreated, onRefresh });
   await prepareForm(user);
-  await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+  await user.click(screen.getByRole('button', { name: 'Create asset' }));
   const signal = http.mock.calls[0][1]?.signal;
   view.unmount();
   expect(signal?.aborted).toBe(true);
@@ -281,15 +281,15 @@ describe('Asset create form generated from the type schema', () => {
     vi.stubGlobal('fetch', http);
     render_();
     await user.selectOptions(screen.getByRole('combobox', { name: 'Asset type' }), typed.id);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Parent Asset' }), field.id);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Parent asset' }), field.id);
     await user.type(screen.getByRole('textbox', { name: 'Asset name' }), 'Well 101');
     expect(screen.queryByRole('textbox', { name: 'Attributes (JSON object)' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
     expect(await screen.findByText('This detail is required.')).toBeTruthy();
     expect(http).not.toHaveBeenCalled();
     await user.type(screen.getByRole('textbox', { name: 'Depth (ft)' }), '1200');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Lift (optional)' }), 'Rod');
-    await user.click(screen.getByRole('button', { name: 'Create Asset' }));
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
     await vi.waitFor(() => expect(http).toHaveBeenCalled());
     const body = JSON.parse(String(http.mock.calls[0][1]?.body));
     expect(JSON.parse(body.attributeValuesJson)).toEqual({ depthFt: 1200, lift: 'Rod' });

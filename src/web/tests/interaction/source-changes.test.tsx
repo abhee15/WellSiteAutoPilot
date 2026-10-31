@@ -21,7 +21,7 @@ afterEach(cleanup);
 it('waits for explicit review and shows retained evidence, Views and pinned input revisions', async () => {
   render(<ConnectionSourceChanges {...props} />);
   expect(api.loadSourceChanges).not.toHaveBeenCalled();
-  expect(screen.getByText(/does not update Assets or block execution/)).toBeTruthy();
+  expect(screen.getByText(/does not update assets or block execution/)).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Review saved findings' }));
   await userEvent.click(await screen.findByText(/Well 10000 · Changed/));
   expect(screen.getByText('ESP')).toBeTruthy(); expect(screen.getByText('RRL')).toBeTruthy();
@@ -54,7 +54,7 @@ it('disables checking dirty or read-only connections and explains denied review 
   render(<ConnectionSourceChanges {...props} canCheck={false} />);
   expect((screen.getByRole('button', { name: 'Check for changes' }) as HTMLButtonElement).disabled).toBe(true);
   await userEvent.click(screen.getByRole('button', { name: 'Review saved findings' }));
-  expect(await screen.findByText(/Review needs Connection read/)).toBeTruthy();
+  expect(await screen.findByText(/Review needs connection read/)).toBeTruthy();
 });
 it('clears previously visible details when read scope is revoked', async () => {
   render(<ConnectionSourceChanges {...props} />);

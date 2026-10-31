@@ -36,7 +36,7 @@ it('hidden types are listed only on request and a manager can restore one', asyn
   const calls = host(['assets.read', 'asset-types.manage'], { isActive: false, hiddenBy: 'FIELD\\admin', hiddenAtUtc: '2026-10-02T00:00:00Z', hiddenNote: 'old' });
   window.location.hash = '#assets/types';
   render(<App />);
-  await screen.findByText('No Asset Types are configured.');
+  await screen.findByText('No asset types are configured.');
   fireEvent.click(screen.getByLabelText('Show hidden types'));
   fireEvent.click(await screen.findByRole('button', { name: 'Show details of Well' }));
   expect(screen.getByText(/Note: old/)).toBeTruthy();

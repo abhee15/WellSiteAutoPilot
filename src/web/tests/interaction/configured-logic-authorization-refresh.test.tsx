@@ -38,14 +38,14 @@ it('clears selected details and an editor when resource access disappears withou
   await screen.findByRole('textbox', { name: 'Parameters (JSON object)' });
   state.visible = false;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
-  await waitFor(() => expect(screen.queryByRole('region', { name: 'Configured Logic setup' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'Configured logic setup' })).toBeNull());
   expect(screen.queryByRole('textbox', { name: 'Parameters (JSON object)' })).toBeNull();
   expect(screen.queryByText('Scoped observer')).toBeNull();
   // Restored list visibility does not silently reopen the retired selection.
   state.visible = true;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
   await screen.findByRole('button', { name: 'Inspect revisions of Scoped observer' });
-  expect(screen.queryByRole('region', { name: 'Configured Logic setup' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Configured logic setup' })).toBeNull();
   expect(http.mock.calls.filter(([url]) => url === '/api/v1/configured-logic/' + configurationId)).toHaveLength(1);
 });
 
@@ -68,12 +68,12 @@ it('a late detail response cannot restore a configuration removed by the next au
   const { state } = fixture(() => pending);
   const user = userEvent.setup(); render(<App />);
   await user.click(await screen.findByRole('button', { name: 'Inspect revisions of Scoped observer' }));
-  await screen.findByRole('region', { name: 'Configured Logic setup' });
+  await screen.findByRole('region', { name: 'Configured logic setup' });
   state.visible = false;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
-  await waitFor(() => expect(screen.queryByRole('region', { name: 'Configured Logic setup' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'Configured logic setup' })).toBeNull());
   await act(async () => { complete(response(draft)); await pending; });
-  expect(screen.queryByRole('region', { name: 'Configured Logic setup' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Configured logic setup' })).toBeNull();
   expect(screen.queryByText('Scoped observer')).toBeNull();
 });
 

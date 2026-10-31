@@ -57,7 +57,7 @@ test('controls have accessible labels and dynamic runtime options', () => {
     criteria, onChange: () => {}, runtimes: ['DotNet', 'Python'],
     matchingCount: 2, totalCount: 3,
   }));
-  assert.match(html, /Logic Module catalog controls/);
+  assert.match(html, /Logic module catalog controls/);
   assert.match(html, /role="group"/);
   assert.match(html, /<option value="DotNet">DotNet<\/option>/);
   assert.match(html, /Showing 2 of 3 loaded modules/);

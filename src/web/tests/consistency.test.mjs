@@ -313,6 +313,23 @@ test('a tree row keeps its count and actions on the row: only the name flexes, a
   assert.match(css, /\.asset-tree-row > small[^{]*\{ flex: none; \}/);
 });
 
+test('UI text is sentence case: only the first word and proper nouns are capitalized', () => {
+  const source = readFileSync(new URL('../src/localization.ts', import.meta.url), 'utf8');
+  // Words that stay capitalized mid-sentence: proper nouns, role names, and names of buttons quoted in help text.
+  const allowed = new Set(['Windows', 'Python', 'Admin', 'Add', 'Create', 'Refresh', 'Discover', 'Shadow']);
+  const offenders = [];
+  for (const [, key, value] of source.matchAll(/^\s*'([\w.]+)': '((?:[^'\\]|\\.)*)'/gm)) {
+    let start = true;
+    for (const token of value.replace(/\{[^}]*\}/g, '{}').split(/\s+/)) {
+      const word = token.replace(/^[“"(]+|[.,:;?!”")]+$/g, '');
+      if (!start && /^[A-Z][a-z]+$/.test(word) && !allowed.has(word)) offenders.push(`${key}: ${word}`);
+      start = /[.?!:·]$/.test(token) || token === 'e.g.' || token.endsWith('“');
+    }
+  }
+  assert.deepEqual(offenders, [], 'use sentence case ("Add asset", not "Add Asset"); add real proper nouns to the allow list');
+});
+
+
 test('the Filters panel can actually close: its [hidden] rule comes after, and is as specific as, its display rule', () => {
   // `.filter-toolbar-panel.data-view-controls { display: grid }` beat `.filter-toolbar-panel[hidden] { display: none }`
   // (same specificity, later wins), so the panel never closed and the Filters button seemed to do nothing.

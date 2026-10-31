@@ -107,7 +107,7 @@ export function OperationsPage({
               <tr>
                 <th>Status</th>
                 <th>Asset</th>
-                <th className="run-col-logic">Logic Module</th>
+                <th className="run-col-logic">Logic module</th>
                 <th className="run-col-secondary">Mode</th>
                 <th className="run-col-secondary">Requested</th>
                 <th className="run-col-secondary">Outcome</th>

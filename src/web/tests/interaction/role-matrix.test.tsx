@@ -95,10 +95,10 @@ function signInWithData(permissions: string[]) {
 const has = (permissions: string[], ...required: string[]) => required.every(p => permissions.includes(p));
 /** [where, control as the person sees it, who should be offered it]. */
 const controls: [string, string, (p: string[]) => boolean][] = [
-  ['#assets', 'Create View', p => has(p, 'asset-views.create', 'connections.read', 'assets.read')],
+  ['#assets', 'Create view', p => has(p, 'asset-views.create', 'connections.read', 'assets.read')],
   ['#connections', 'New connection', p => has(p, 'connections.read', 'connections.manage')],
   // Needs an active Asset to configure, so it also needs to read Assets.
-  ['#logic', 'Configure Logic', p => has(p, 'configured-logic.read', 'configured-logic.manage', 'assets.read')],
+  ['#logic', 'Configure logic', p => has(p, 'configured-logic.read', 'configured-logic.manage', 'assets.read')],
 ];
 
 describe.each(Object.entries(personas))('controls as %s', (_name, permissions) => {

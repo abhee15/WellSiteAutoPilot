@@ -58,7 +58,7 @@ async function prepareGrant() {
   await user.click(screen.getByRole('checkbox', { name: /^Well Alpha/ }));
   const next = screen.getByRole('button', { name: 'Continue to final review' });
   expect((next as HTMLButtonElement).disabled).toBe(true);
-  await user.click(screen.getByRole('checkbox', { name: 'I reviewed the role, permissions, and Asset boundaries.' }));
+  await user.click(screen.getByRole('checkbox', { name: 'I reviewed the role, permissions, and asset boundaries.' }));
   await user.click(next);
   expect(createGrant).not.toHaveBeenCalled();
   return user;
@@ -128,7 +128,7 @@ it('records and retires a Windows group custom-role assignment through the share
   await user.click(await screen.findByRole('button', { name: 'Prepare a scoped grant' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Role' }), roleId);
   await user.click(screen.getByRole('checkbox', { name: /^Well Alpha/ }));
-  await user.click(screen.getByRole('checkbox', { name: 'I reviewed the role, permissions, and Asset boundaries.' }));
+  await user.click(screen.getByRole('checkbox', { name: 'I reviewed the role, permissions, and asset boundaries.' }));
   await user.click(screen.getByRole('button', { name: 'Continue to final review' }));
   expect(createGrant).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Save assignment' }));

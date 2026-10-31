@@ -23,15 +23,15 @@ function host(permissions: string[], post: (body: Record<string, string>) => Res
   return posts;
 }
 
-it('an Asset Type manager defines a type and the list is refreshed', async () => {
+it('an asset type manager defines a type and the list is refreshed', async () => {
   const posts = host(['assets.read', 'assets.manage', 'asset-types.manage'], body => response({ id: '88888888-8888-4888-8888-888888888888', ...body, schemaVersion: 1, isActive: true }, 201));
   window.location.hash = '#assets/types';
   render(<App />);
-  fireEvent.click(await screen.findByText('Define an Asset Type'));
+  fireEvent.click(await screen.findByText('Define an asset type'));
   fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: ' well ' } });
   fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Well' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Create Asset Type' }));
-  expect(await screen.findByText('Asset Type Well created.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Create asset type' }));
+  expect(await screen.findByText('Asset type Well created.')).toBeTruthy();
   expect(posts).toEqual([{ key: 'well', displayName: 'Well', attributeSchemaJson: '{}' }]);
 });
 
@@ -39,16 +39,16 @@ it('bad JSON is caught before any request and a duplicate key is explained', asy
   const posts = host(['assets.read', 'assets.manage', 'asset-types.manage'], () => response({ code: 'ASSET_TYPE_KEY_CONFLICT' }, 409));
   window.location.hash = '#assets/types';
   render(<App />);
-  fireEvent.click(await screen.findByText('Define an Asset Type'));
+  fireEvent.click(await screen.findByText('Define an asset type'));
   fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: 'well' } });
   fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Well' } });
   fireEvent.change(screen.getByLabelText('Attribute schema (JSON)'), { target: { value: '{' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Create Asset Type' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create asset type' }));
   const form = () => document.querySelector('.asset-type-define') as HTMLElement;
   await waitFor(() => expect(within(form()).getByRole('alert').textContent).toContain('not valid JSON'));
   expect(posts).toHaveLength(0);
   fireEvent.change(screen.getByLabelText('Attribute schema (JSON)'), { target: { value: '{}' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Create Asset Type' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create asset type' }));
   await waitFor(() => expect(within(form()).getByRole('alert').textContent).toContain('already exists'));
   expect(posts).toHaveLength(1);
 });
@@ -57,28 +57,28 @@ it('people without the manage permission are not offered the form', async () => 
   host(['assets.read'], () => response({}, 403));
   window.location.hash = '#assets/types';
   render(<App />);
-  await screen.findByText('No Asset Types are configured.');
-  expect(screen.queryByText('Define an Asset Type')).toBeNull();
+  await screen.findByText('No asset types are configured.');
+  expect(screen.queryByText('Define an asset type')).toBeNull();
 });
 
 it('managing assets alone does not offer the type form; it needs the asset-types permission', async () => {
   host(['assets.read', 'assets.manage'], () => response({}, 403));
   window.location.hash = '#assets/types';
   render(<App />);
-  await screen.findByText('No Asset Types are configured.');
-  expect(screen.queryByText('Define an Asset Type')).toBeNull();
+  await screen.findByText('No asset types are configured.');
+  expect(screen.queryByText('Define an asset type')).toBeNull();
 });
 
 it('invalid JSON says where it goes wrong, and the example can be used as a starting point', async () => {
   const posts = host(['assets.read', 'assets.manage', 'asset-types.manage'], () => response({}, 201));
   window.location.hash = '#assets/types';
   render(<App />);
-  fireEvent.click(await screen.findByText('Define an Asset Type'));
+  fireEvent.click(await screen.findByText('Define an asset type'));
   fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: 'well' } });
   fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Well' } });
   fireEvent.change(screen.getByLabelText('Attribute schema (JSON)'), {
     target: { value: '{\n  "type": "object",\n  "properties": {\n    "a": { "type": "string" },\n  }\n}' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Create Asset Type' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create asset type' }));
   const form = () => document.querySelector('.asset-type-define') as HTMLElement;
   await waitFor(() => expect(within(form()).getByRole('alert').textContent).toMatch(/near line 5, column 3/));
   fireEvent.click(screen.getByText('Show an example schema'));

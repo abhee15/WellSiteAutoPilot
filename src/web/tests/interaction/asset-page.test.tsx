@@ -28,7 +28,7 @@ it('the asset page explains where the asset sits, what runs on it and what it ha
     return response([]);
   }));
   render(<App />);
-  const page = (await screen.findByText('Selected Asset')).closest('.asset-page') as HTMLElement;
+  const page = (await screen.findByText('Selected asset')).closest('.asset-page') as HTMLElement;
   expect(within(page).getByText('Located under Pad 7')).toBeTruthy();
   expect(await within(page).findByRole('link', { name: 'Pressure watch' })).toBeTruthy();
   expect(await within(page).findByText('Succeeded')).toBeTruthy();
@@ -52,7 +52,7 @@ it('the hierarchy tree shows children under their parent and opens an asset on c
   const tree = await screen.findByRole('navigation', { name: 'Asset hierarchy' });
   expect(within(tree).getByText('1 below')).toBeTruthy();
   within(tree).getByRole('button', { name: 'Open North Well from the hierarchy' }).click();
-  expect(await screen.findByText('Selected Asset')).toBeTruthy();
+  expect(await screen.findByText('Selected asset')).toBeTruthy();
   expect(window.location.hash).toBe('#assets/' + assetId);
 });
 
@@ -64,7 +64,7 @@ it('an empty asset list says what to do about it', async () => {
     return response([]);
   }));
   render(<App />);
-  expect(await screen.findByText('No Assets are configured.')).toBeTruthy();
+  expect(await screen.findByText('No assets are configured.')).toBeTruthy();
   expect(screen.getByText(/Assets are the wells and equipment logic runs on/)).toBeTruthy();
 });
 
@@ -77,7 +77,7 @@ it('an empty asset list offers importing only to people who can manage connectio
   }));
   as(['assets.read']);
   const first = render(<App />);
-  await screen.findByText('No Assets are configured.');
+  await screen.findByText('No assets are configured.');
   expect(screen.queryByText('Import from a connection')).toBeNull();
   first.unmount();
   as(['assets.read', 'connections.read', 'connections.manage']);
@@ -100,7 +100,7 @@ it('selecting an asset highlights it in the hierarchy and brings the asset page 
     return response([]);
   }));
   render(<App />);
-  await screen.findByText('Selected Asset');
+  await screen.findByText('Selected asset');
   const selected = Array.from(document.querySelectorAll('[role="treeitem"][aria-selected="true"]'));
   expect(selected).toHaveLength(1);
   expect(selected[0].textContent).toContain('North Well');

@@ -75,7 +75,7 @@ it('selecting an asset re-renders only the rows on the path to the old and new s
   const tree = await screen.findByRole('navigation', { name: 'Asset hierarchy' });
   const user = userEvent.setup();
   await user.click(await within(tree).findByRole('button', { name: 'Open Well 3 from the hierarchy' }));
-  await screen.findByText('Selected Asset');
+  await screen.findByText('Selected asset');
   await waitFor(() => expect(within(tree).getByRole('button', { name: 'Open Well 3 from the hierarchy' }).getAttribute('data-selected')).toBe('true'));
 
   rows.renders = 0;
@@ -181,7 +181,7 @@ it('selecting siblings reads their shared ancestors once, and the server signal 
   const padReads = () => calls.filter(url => url === '/api/v1/assets/' + padId).length;
 
   await user.click(await within(tree).findByRole('button', { name: 'Open North Well from the hierarchy' }));
-  const page = () => screen.getByText('Selected Asset').closest('.asset-page') as HTMLElement;
+  const page = () => screen.getByText('Selected asset').closest('.asset-page') as HTMLElement;
   await waitFor(() => expect(within(page()).getByText('North Well')).toBeTruthy());
   expect(padReads()).toBe(1);
 
