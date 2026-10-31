@@ -19,6 +19,7 @@ import { configurationAssetLabels, latestRunByConfiguration, summarizeAssetLabel
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { ModulePanel } from './ModulePanel';
+import { AuthoringWorkspace } from './AuthoringWorkspace';
 import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
 import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, listedStatus } from './configuredLogicViews';
@@ -29,6 +30,8 @@ import './splitLayout.css';
 
 /** `#logic/modules` opens the Modules tab. */
 const MODULES_TAB = 'modules';
+/** `#logic/authoring` opens the local authoring workspace. */
+const AUTHORING_TAB = 'authoring';
 
 export function LogicPage({
   modules,
@@ -61,8 +64,10 @@ export function LogicPage({
   // `#logic/modules` opens the Modules tab. Any other detail is a configuration id.
   const startAssetId = rawDetail?.startsWith('new:') ? rawDetail.slice(4) : null;
   const modulesRequested = rawDetail === MODULES_TAB;
-  const selectedConfiguredId = startAssetId || modulesRequested ? null : rawDetail;
-  const showModules = canReadCatalog && (modulesRequested || !canReadConfigurations);
+  const canAuthor = permissions.includes('logic.manage');
+  const showAuthoring = canAuthor && rawDetail === AUTHORING_TAB;
+  const selectedConfiguredId = startAssetId || modulesRequested || showAuthoring ? null : rawDetail;
+  const showModules = !showAuthoring && canReadCatalog && (modulesRequested || !canReadConfigurations);
   const [creating, setCreating] = useState(Boolean(startAssetId));
   useEffect(() => { if (startAssetId) setCreating(true); }, [startAssetId]);
   const prefillAssetId = startAssetId && assets.some(asset => asset.id === startAssetId && asset.isActive)
@@ -91,16 +96,19 @@ export function LogicPage({
   return (
     <div {...splitFocus} className="split-layout runs-layout logic-layout" data-has-selection={showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
       <div className="split-tabs" role="tablist" aria-label={t('logic.tabs')}>
-        {canReadConfigurations && <a role="tab" href={hashFor('logic')} aria-selected={!showModules}>
+        {canReadConfigurations && <a role="tab" href={hashFor('logic')}         aria-selected={!showModules && !showAuthoring}>
           {t('logic.tabConfigured')} <span>{configuredLogic.length}</span>
         </a>}
         {canReadCatalog && <a role="tab" href={hashFor('logic', MODULES_TAB)} aria-selected={showModules}>
           {t('logic.tabModules')} <span>{modules.length}</span>
         </a>}
-        {!showModules && canCreate && !creating && !selectedConfiguredId && <ActionButton label={t('setup.heading')} variant="primary" className="split-add" data-split-focus-key="create" onClick={() => setCreating(true)} />}
+        {canAuthor && <a role="tab" href={hashFor('logic', AUTHORING_TAB)} aria-selected={showAuthoring}>
+          {t('logic.tabAuthoring')}
+        </a>}
+        {!showModules && !showAuthoring && canCreate && !creating && !selectedConfiguredId && <ActionButton label={t('setup.heading')} variant="primary" className="split-add" data-split-focus-key="create" onClick={() => setCreating(true)} />}
       </div>
 
-      {showModules ? (
+      {showAuthoring ? <AuthoringWorkspace onCatalogChanged={onRefresh} /> : showModules ? (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
             <PanelHeader title="Logic modules" count={visibleModules.length} />

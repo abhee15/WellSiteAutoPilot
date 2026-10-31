@@ -10,7 +10,7 @@ const sdk = new URL('sdk.gen.ts', generated);
 const standIn = !existsSync(sdk);
 if (standIn) {
   mkdirSync(generated, { recursive: true });
-  writeFileSync(sdk, 'export const uploadLogicModulePackage = async () => ({});\nexport const getLogicModulePackageState = async () => ({});\n');
+  writeFileSync(sdk, 'export const uploadLogicModulePackage = async () => ({});\nexport const getLogicModulePackageState = async () => ({});\n' + ['getAuthoringCapabilities', 'listAuthoringDrafts', 'createAuthoringDraft', 'getAuthoringDraft', 'updateAuthoringDraft', 'validateAuthoringDraft', 'buildAuthoringDraft', 'cancelAuthoringDraftBuild', 'downloadAuthoringDraftPackage', 'addAuthoringDraftToCatalog'].map(name => `export const ${name} = async () => ({});\n`).join(''));
 }
 const steps = [
   ['lint', ['run', 'lint']],

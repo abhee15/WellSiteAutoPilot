@@ -1075,6 +1075,9 @@ jobs:
       - name: Verify Configured Logic persistence
         run: dotnet run --project tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj --configuration Release --no-build
 
+      - name: Verify local module authoring
+        run: dotnet run --project tests/WellSiteAutoPilot.AuthoringTests/WellSiteAutoPilot.AuthoringTests.csproj --configuration Release --no-build
+
       - name: Verify Logic Module catalog persistence
         run: dotnet run --project tests/WellSiteAutoPilot.LogicModuleCatalogTests/WellSiteAutoPilot.LogicModuleCatalogTests.csproj --configuration Release --no-build
 
