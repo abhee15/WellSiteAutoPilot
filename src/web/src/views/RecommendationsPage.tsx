@@ -14,11 +14,14 @@ import {
   inboxCounts,
   recommendationIsAwaiting,
   recommendationIsExpired,
+  RECOMMENDATION_INBOX_FILTERS,
 } from './recommendationInbox';
 import type { RecommendationInboxCriteria } from './recommendationInbox';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { ActionButton } from '../components/ActionButton';
+import { SummaryCard } from '../components/common';
+import type { MessageKey } from '../localization';
 import { humanize } from './auditPresentation';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import './splitLayout.css';
@@ -121,6 +124,12 @@ export function RecommendationInboxTable({
   );
 }
 
+const cardLabels: Record<'awaiting' | 'expired' | 'decided', { label: MessageKey; detail: MessageKey }> = {
+  awaiting: { label: 'inbox.awaiting', detail: 'inbox.authorizedWindow' },
+  expired: { label: 'inbox.expired', detail: 'inbox.expiryDescription' },
+  decided: { label: 'inbox.decided', detail: 'inbox.authorizedWindow' },
+};
+
 export function RecommendationsPage({
   userId, permissions, assets = [], configuredLogic = [],
 }: {
@@ -218,21 +227,13 @@ export function RecommendationsPage({
   return (
     <>
       <section className="summary-grid" aria-label={t('inbox.summary')}>
-        <article className="summary-card">
-          <span>{t('inbox.awaiting')}</span>
-          <strong>{counts.awaiting}</strong>
-          <small>{t('inbox.authorizedWindow')}</small>
-        </article>
-        <article className="summary-card">
-          <span>{t('inbox.expired')}</span>
-          <strong>{counts.expired}</strong>
-          <small>{t('inbox.expiryDescription')}</small>
-        </article>
-        <article className="summary-card">
-          <span>{t('inbox.decided')}</span>
-          <strong>{counts.decided}</strong>
-          <small>{t('inbox.authorizedWindow')}</small>
-        </article>
+        {RECOMMENDATION_INBOX_FILTERS.map(kind => (
+          <SummaryCard key={kind} label={t(cardLabels[kind].label)} value={String(counts[kind])}
+            detail={t(cardLabels[kind].detail)}
+            selected={criteria.filters.length === 1 && criteria.filters[0] === kind}
+            onSelect={() => setCriteria(current => ({ ...current,
+              filters: current.filters.length === 1 && current.filters[0] === kind ? [] : [kind] }))} />
+        ))}
       </section>
       <div {...splitFocus} className="split-layout runs-layout recs-layout" data-has-selection={reviewOpen}>
       <div className="split-panes">
