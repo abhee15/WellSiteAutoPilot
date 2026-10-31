@@ -1,6 +1,7 @@
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Logic;
@@ -8,12 +9,19 @@ using WellSiteAutoPilot.Failures;
 
 namespace WellSiteAutoPilot.Application.Scheduling;
 
+/// <summary>
+/// Explicit local opt-in principal whose grants authorize scheduled live provider reads.
+/// Grants are re-checked when each read plan is resolved.
+/// </summary>
+public sealed record ScheduledReadAuthority(Guid UserId);
+
 public sealed class ScheduledShadowSchedulerService(
     IConfiguredLogicRepository configuredLogicRepository,
     ILogicModuleCatalogRepository moduleCatalogRepository,
     IExecutionRepository executionRepository,
     ExecutionService executionService,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ScheduledReadAuthority? readAuthority = null)
 {
     public async Task<ScheduledShadowSweepResult> DispatchDueAsync(
         int limit,
@@ -209,7 +217,14 @@ public sealed class ScheduledShadowSchedulerService(
             execution = await executionService.RequestConfiguredShadowAsync(
                 command,
                 BuildCorrelationId(configuredLogic.Id, revision.Id, scheduledForUtc.Value),
+                readAuthority is null ? null : new AccessSubject(readAuthority.UserId),
                 cancellationToken);
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Code.StartsWith("EXECUTION_READ_", StringComparison.Ordinal))
+        {
+            // Live reads need an authority; without a configured one the occurrence is blocked with a visible reason.
+            return Decision(configuredLogic, revision, scheduledForUtc,
+                ScheduledShadowDispatchOutcome.InvalidConfiguration, exception.Code);
         }
         catch (WellSiteAutoPilotException exception) when (exception.Code == "MODULE_NOT_ENABLED")
         {

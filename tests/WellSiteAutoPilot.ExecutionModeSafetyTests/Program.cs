@@ -100,7 +100,7 @@ async Task<(Guid ConfiguredLogicId, Guid ExecutionId, int Created)> RunExecution
     var execution = new ExecutionRecord(Guid.NewGuid(), logic.Id, revision.ModuleId, revision.ModuleVersion, revision.Id,
         null, null, null, mode, ExecutionStatus.Requested, $"mode-safety-{Guid.NewGuid():N}", clock.GetUtcNow(), 2,
         ExecutionTriggerKind.Manual);
-    await executionRepository.AddConfiguredRequestedAsync(execution, command);
+    await executionRepository.AddConfiguredRequestedAsync(execution, command, null);
 
     var result = new LogicModuleExecutionResult("MODE_TEST_COMPLETED", [],
         advisory ? [new RecommendationIntentDraft("REVIEW_FILLAGE", well.Id, "Review fillage", "Fillage is low.", "PumpFillage", 40m, "%")] : [],

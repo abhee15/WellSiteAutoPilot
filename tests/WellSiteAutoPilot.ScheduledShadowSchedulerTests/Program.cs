@@ -503,6 +503,36 @@ foreach (var scheduledMode in new[] { ExecutionMode.Recommendation, ExecutionMod
     }
 }
 
+// Scheduled live reads need an explicit read authority; without one the occurrence is blocked with a visible reason.
+{
+    var liveWell = await assetService.CreateAssetAsync(
+        new CreateAssetCommand(wellType.Id, "Scheduler Live Read Well", null, "{}"));
+    var liveLogic = await configuredLogicService.CreateAsync(
+        new CreateConfiguredLogicCommand(
+            $"Scheduled live read {Guid.NewGuid():N}",
+            manifest,
+            """{"targetFillage":75}""",
+            [new ConfiguredLogicAssetBindingCommand("well", liveWell.Id, "{}")],
+            [new ConfiguredLogicDataBindingCommand("pump-fillage", liveWell.Id, "cygnet", "SITE::WELL", "{}")],
+            new ConfiguredLogicScheduleCommand(true, 60, scheduleStart, "UTC")));
+    var liveRevision = liveLogic.Revisions.Single();
+    await configuredLogicService.ValidateRevisionAsync(liveLogic.Id, liveRevision.Id);
+    await configuredLogicService.ActivateRevisionAsync(liveLogic.Id, liveRevision.Id);
+
+    var withoutAuthority = (await scheduler.DispatchDueAsync(100)).Decisions
+        .Single(item => item.ConfiguredLogicId == liveLogic.Id);
+    var authorizedScheduler = new ScheduledShadowSchedulerService(
+        configuredLogicRepository, moduleRepository, executionRepository, executionService, clock,
+        new ScheduledReadAuthority(Guid.NewGuid()));
+    var withAuthority = (await authorizedScheduler.DispatchDueAsync(100)).Decisions
+        .Single(item => item.ConfiguredLogicId == liveLogic.Id);
+    if (withoutAuthority.ReasonCode != "EXECUTION_READ_AUTHORITY_REQUIRED" ||
+        withAuthority.ReasonCode != "EXECUTION_READ_SOURCE_INVALID")
+    {
+        throw new InvalidOperationException("Scheduled live read did not require, then accept, a read authority.");
+    }
+}
+
 Console.WriteLine(
     "Scheduled Shadow due calculation, durable dispatch, idempotency, overlap blocking, and no-burst replay, candidate failure isolation, recovery, and cancellation checks passed.");
 return 0;
