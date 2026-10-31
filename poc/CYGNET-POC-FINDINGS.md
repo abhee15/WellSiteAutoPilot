@@ -19,7 +19,7 @@ Against CygNet domain 27212 (site `CYG_DEMO`), on a box with a CygNet licence an
 | Per-connection current-value read and Gateway route `POST /adapters/cygnet/current` | `Integration.CygNet/CygNetConnectionMeasurements.cs`, `IntegrationGateway/Program.cs` |
 | Reader registered in opt-in (`CYGNET`) builds; the unsupported reader stays for other builds | `IntegrationGateway/Program.cs` |
 | Status-flag mapping fix (see below) | `CygNetCurrentDataProvider.cs` |
-| Server accepts `cygnet` in three places that only allowed `foresite` | `ExecutionRepository.Reads.cs`, `ConfiguredLogicRepository.DirectSources.cs`, `ConfiguredLogicService.cs` |
+| Server's three hard-coded ForeSite checks also accept `cygnet` (POC shortcut; see finding 5) | `ExecutionRepository.Reads.cs`, `ConfiguredLogicRepository.DirectSources.cs`, `ConfiguredLogicService.cs` |
 | Sample module | `modules/poc/cygnet-well-input-check` |
 | Probe used for all CygNet exploration | `poc/cygnet-probe` |
 | Local AppHost DCP pin (machine-specific, drop it elsewhere) | `dev/.../WellSiteAutoPilot.AppHost.csproj` |
@@ -29,7 +29,7 @@ Against CygNet domain 27212 (site `CYG_DEMO`), on a box with a CygNet licence an
 2. **Discovery needs paging and an honest completeness flag.** CYG_DEMO.UIS has 2063 facilities. The POC caps at 500 and still returns `complete=true`. A real reader should page and report truncation.
 3. **Current values come from the realtime client on the UIS service.** `new RealtimeClient(uis).GetPointValueRecord(pointTag)` works. Using the PNT service fails with "is of type DBS, not CVS". (CYG_DEMO has no separately registered CVS; UIS serves realtime.)
 4. **Quality mapping bug (#303).** Any non-zero status flag was mapped to Uncertain, but healthy points carry `Initialized, Updated` (and data-type bits such as `StringData`, `DigitalData`), so every read was rejected with `EXECUTION_INPUT_QUALITY_REJECTED`. Treat Initialized, Updated, StringData, DigitalData and OutputData as neutral; Unreliable is Bad; any other flag is Uncertain.
-5. **Server is ForeSite-only in three places.** Direct-source resource kind (`foresite.well`), the allowed quantities (`PumpFillage`, `AveragePumpFillage`) and `RequiredAdapterKey == "foresite"`. This needs an adapter-neutral rule (for example, each adapter declares its resource kind and readable quantities) instead of the string checks the POC loosened.
+5. **Shared Server code hard-codes ForeSite's rules in three places.** The direct-source resource kind (`foresite.well`), the allowed quantities (`PumpFillage`, `AveragePumpFillage`) and `RequiredAdapterKey == "foresite"` run for every adapter, so CygNet was blocked by rules written for ForeSite. The POC only added `cygnet` and `cygnet.facility` beside those strings, which means every new adapter needs another edit in three places. The real fix: each adapter declares its own rules (CygNet: resource kind `cygnet.facility`, quantities from its configured point mapping; ForeSite: `foresite.well` and its own list) and the shared Server code asks the adapter. The CygNet-specific part then lives in the CygNet adapter project.
 6. **Quantity to point mapping is Gateway-wide.** The POC maps `PumpFillage` to UDC `RRLPFILAVG` with `Providers__CygNet__Quantities__PumpFillage__Udc/Unit`. Per-connection or per-asset mapping is likely needed. Note that CygNet points are keyed by facility and UDC, and `providerMappingJson` is currently required to be empty.
 7. **Domain is per connection, but the provider options carry a Gateway-wide domain.** `CygNetConnectionMeasurements` overrides it from the connection. #303's `data/current` route should follow.
 8. **Freshness.** The demo data was about 15 minutes old, so `maximumAgeSeconds: 60` would reject it. The POC module uses 86400. Real modules need realistic ages.
@@ -55,7 +55,7 @@ Against CygNet domain 27212 (site `CYG_DEMO`), on a box with a CygNet licence an
 ## Suggested work breakdown
 1. Fix #311 wording (UIS owner, FAC association) and merge it.
 2. Real facility reader with paging and truncation flag.
-3. Adapter-neutral source rules in the Server (finding 5), with tests.
+3. Adapter-declared source rules (resource kind, readable quantities) that the Server asks for instead of ForeSite string checks (finding 5), with tests.
 4. Per-connection point mapping and the realtime read for saved connections (findings 3, 6, 7).
 5. Fix the status-flag quality mapping in #303 with a unit test (finding 4).
 6. Client caching and timeout handling (finding 11).
