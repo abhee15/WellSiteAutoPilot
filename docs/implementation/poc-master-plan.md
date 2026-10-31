@@ -114,3 +114,63 @@ Safety rule for all probes: no writes to real providers; read-only against CYG_D
 2. Next wave: E1, E6, F2/F4 (needs F1 probe), G2, G3 designs, D2/D3/D4.
 3. Then: A4/A5, B1/B2, C3/C4, E7 outcomes, F5 outcomes.
 4. Hardening: H2, H4, H5, H6, H8, C5/C6.
+
+### I. Event-driven, real-time behaviour (`probe/poc-realtime-events`)
+Owner direction: the system should behave like one that listens for actions and shows updates and notifications as things happen. Today SignalR only sends area names; every signal makes the client refetch the whole workspace snapshot.
+| # | Pri | Item | Status |
+|---|---|---|---|
+| I1 | P1 | Event model: typed events (entity, id, kind, version/sequence, actor, correlation id) instead of area-only signals; keep area signals as fallback | Probe |
+| I2 | P1 | Delivery: targeted refetch or patch from event payload; per-entity/group subscriptions (asset, configuration, execution) with authorization | Probe |
+| I3 | P1 | Reliability: sequence numbers, missed-event detection and resync after reconnect, heartbeat, connection state indicator | Probe |
+| I4 | P1 | Notification centre and toasts: run failed, recommendation awaiting decision, gate blocked, kill switch, provider unhealthy, schedule lag; per-user preferences, severity, ack/dismiss, deep links | Design/probe |
+| I5 | P1 | Run progress streaming from the Worker (queued, reading, calculating, gate, done) and live status on runs and detail | Probe |
+| I6 | P2 | Producer coverage matrix: every state change in server, scheduler, worker, gateway and authoring raises an event; tests enforce it | Probe |
+| I7 | P2 | Multi-instance: SignalR backplane or NATS fan-out so events reach clients on any server instance | Design |
+| I8 | P2 | Provider health push (connection monitor) and data freshness changes | Not started |
+| I9 | P3 | External notification channels (email, webhook, chat) fed from the same events | Later |
+
+## Recommendations and ideas (not yet in any workstream)
+
+1. **Make the scheduler due-based.** Fix the silent cap (only `Scheduler:BatchSize` configurations are ever dispatched), batch the per-configuration checks, add jitter, record skipped occurrences, expose schedule lag as a metric (see `docs/design/scheduler-load-probe.md`). P1, before any pilot.
+2. **Shadow-to-autonomy promotion with evidence.** Track, per configuration, shadow-vs-actual agreement, recommendation acceptance rate and false-alert rate; only allow promotion when thresholds hold for a period. A "what would have happened" report for any past window. P2.
+3. **Run replay and explainability.** Store the inputs (values, timestamps, quality, model hash) and intermediate values for each run so any result can be replayed or compared across module versions. P2.
+4. **Module lifecycle.** Versioned releases, canary on a few wells in Shadow, compare against the previous version, one-click rollback. P2.
+5. **Data-quality layer.** Common freshness, quality and unit handling across providers, so logic receives `value, unit, age, quality` instead of provider-specific shapes. P1 (needed for CygNet and WAMI alike).
+6. **Provider health as a first-class state.** Provider health feeds scheduling (pause or degrade when a provider is unhealthy), notifications and run reasons. P1.
+7. **Dry-run first for control.** Use the dry-run sink on real systems (read-only) before any real write; show would-write values next to current values. P1.
+8. **Idempotent, resumable work.** Result consumers and dispatch must tolerate redelivery; add dead-letter handling and an operator view of stuck runs. P2.
+9. **Cost and licence guard.** Per-provider rate limits and concurrency (CygNet call gate exists; add WAMI worker-limit and ForeSite limits) with visibility in the UI. P2.
+10. **Operator experience.** Saved views, per-well timeline (reads, runs, recommendations, actions, operator decisions in one stream), mobile-friendly recommendation approval. P2.
+11. **Environment parity.** One command to bring up the local stack (AppHost + NATS + simulator + optional WAMI), documented, with seeded demo data and a stale-data profile. P1.
+12. **Contract tests per adapter.** A shared adapter conformance suite run against simulators and (opt-in) live read-only systems. P1.
+13. **Security review before pilot.** Authoring sandboxing, package trust, permission catalog, audit export, secrets. P1 gate.
+
+## Using `feature/poc-integration` as the reference branch
+
+Yes, with these rules:
+- It is the integration branch for the PoC: always based on current `develop` (0 behind at `d78865d`), and every workstream branch merges into it.
+- Branch new work from it as `feature/<area>-<topic>` and open PRs back into it; promote to `develop` through the PR order in `poc-gap-register.md`.
+- Some work is still in flight on workstream branches (see the branch map) and is not merged yet; check the "Status" columns before relying on an item.
+- It carries local-only items that must not go to `develop`: the DCP pin (gap 16) and local run settings. The probe branches (`probe/poc-*`) are evidence/prototypes; take what is useful through PRs.
+- Merge `develop` into it regularly so it never drifts.
+
+### J. CygNet relative (linked) facilities and hierarchy (`probe/poc-cygnet-relative-facilities`)
+Finding from ForeSite source (`Server/Support/CygNetWrapper/CygNetRelativeFacilityHelper.cs`, `CygNetWellManager.cs`, ForeSiteToolbox `RelativeFacilityMapping*`): CygNet exposes relative facilities through `CygNet.API.Facilities.Relative`. Definitions are loaded from a CygNet settings package (`RelativeFacilityContent`) per FAC service and resolved from an origin facility with a named relation (`ResolveRelativeFacility(origin, relation, facClient)`). ForeSite layers a `RelativeFacilityMapping` per well type: each well quantity, additional UDC and command maps to a relation, so a point can live on a related facility (controller, meter, device) instead of the well facility. Tags are re-pointed through `GetRelativeFacilityPointTag`. Our CygNet adapter today only reads points on the discovered facility itself.
+| # | Pri | Item | Status |
+|---|---|---|---|
+| J1 | P0 | Adapter reads must resolve quantity point tags through relation mappings (otherwise wells whose data sits on related facilities show missing data) | Probe |
+| J2 | P1 | Determine whether the hierarchy (field > route > well > devices) can be built from relations or facility attributes, and what the relation names/depth are on CYG_DEMO | Probe |
+| J3 | P1 | Import: asset tree from relations, with related device facilities as child assets or as data sources of the well | Design |
+| J4 | P1 | Mapping UI: per well type quantity/UDC to relation, reusing ForeSite mapping definitions where available | Design (see UX doc connections-point-map.md) |
+| J5 | P2 | Commands: relation-aware command targets for future control sink | After J1 |
+
+### K. Adapter experience: connect, understand, author (`probe/poc-adapter-experience`)
+Owner direction: make it easy to connect a software system through an adapter, understand what the adapter exposes, and author logic modules against it. Proposal: an Adapters tab that shows each adapter's interface.
+| # | Pri | Item | Status |
+|---|---|---|---|
+| K1 | P1 | Adapter self-description schema (capabilities, quantities with units/types, discovery, read/write, limits, minimum cadence, auth, health, examples) | Research + design (advanced model) |
+| K2 | P1 | Adapters tab: catalog, interface per adapter, health, connections using it, example modules | Probe prototype |
+| K3 | P1 | Guided connect flow: settings form from schema, test connection, browse and preview data | Design |
+| K4 | P1 | Authoring uses the schema: typed input picker, autocomplete, validation against capabilities, live preview (D3) | Design |
+| K5 | P2 | Adapter authoring SDK for new adapters: contract, scaffold, conformance tests (recommendation 12) | Design |
+| K6 | P2 | Versioning and compatibility between adapters and modules | Design |

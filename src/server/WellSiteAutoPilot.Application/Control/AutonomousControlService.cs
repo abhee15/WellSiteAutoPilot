@@ -28,7 +28,21 @@ public static class GateCodes
     public const string SinkUnavailable = "GATE_SINK_UNAVAILABLE";
     public const string SinkRefused = "SINK_REFUSED";
     public const string SinkFailed = "SINK_FAILED";
+    public const string SinkAmbiguous = "SINK_AMBIGUOUS";
+    public const string ApprovedNotEnabled = "GATE_APPROVED_EXECUTION_NOT_ENABLED";
+    public const string ReadbackConfirmed = "READBACK_CONFIRMED";
+    public const string ReadbackMismatch = "READBACK_MISMATCH";
+    public const string ReadbackNotApplied = "READBACK_NOT_APPLIED";
+    public const string OperatorResolvedApplied = "OPERATOR_RESOLVED_APPLIED";
+    public const string OperatorResolvedNotApplied = "OPERATOR_RESOLVED_NOT_APPLIED";
 }
+
+public static class ControlActor
+{
+    public const string Gate = "system:autonomy-gate";
+}
+
+public sealed record ControlExecutionResult(ControlActionRecord? Action, string? RefusalCode);
 
 /// <summary>
 /// The single path from an Autonomous-mode ControlIntent to a ControlAction. Every refusal is recorded
@@ -116,20 +130,81 @@ public sealed class AutonomousControlService(
             return;
         }
 
+        await DispatchClaimedAsync(action, sink, cancellationToken);
+    }
+
+    /// <summary>
+    /// Approved Recommendation -> governed action. Operator approval is the authority, but the same gate
+    /// (kill switch, global flag, per-configuration opt-in, allowlist, bounds, expiry, rate limit) still applies.
+    /// Idempotent: a recommendation can only ever produce one ControlAction.
+    /// </summary>
+    public async Task<ControlExecutionResult> ExecuteApprovedAsync(Guid recommendationId, string actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actor) || actor.Length > 256 || actor.Any(char.IsControl))
+            throw Validation("CONTROL_POLICY_ACTOR_INVALID", "An authenticated actor is required.");
+
+        var recommendation = await recommendations.GetAsync(recommendationId, cancellationToken) ??
+            throw new WellSiteAutoPilotException("RECOMMENDATION_NOT_FOUND", FailureKind.NotFound,
+                "The requested recommendation was not found.");
+        if (await control.GetActionByRecommendationAsync(recommendationId, cancellationToken) is { } existing)
+            return new ControlExecutionResult(existing, null);
+
+        if (recommendation.Status != RecommendationStatus.Approved || string.IsNullOrWhiteSpace(recommendation.DecisionBy) ||
+            recommendation.DecisionBy.StartsWith("system:", StringComparison.Ordinal))
+            throw new WellSiteAutoPilotException("CONTROL_RECOMMENDATION_NOT_APPROVED", FailureKind.Conflict,
+                "Only an operator-approved recommendation can be executed.");
+
+        var now = timeProvider.GetUtcNow();
+        var policy = await control.GetPolicyAsync(recommendation.ConfiguredLogicId, cancellationToken);
+        var killSwitch = await control.GetKillSwitchAsync(cancellationToken);
+        var definition = await configuredLogic.GetAsync(recommendation.ConfiguredLogicId, cancellationToken);
+        var revision = definition?.Revisions.SingleOrDefault(item => item.Id == recommendation.ConfigurationRevisionId);
+
+        var refusal = Evaluate(recommendation, policy, killSwitch, definition, revision, now, ControlOrigins.ApprovedRecommendation);
+        var sink = refusal is null
+            ? sinks.FirstOrDefault(item => string.Equals(item.Kind, policy!.SinkKind, StringComparison.Ordinal))
+            : null;
+        refusal ??= sink is null ? GateCodes.SinkUnavailable : null;
+        if (refusal is not null)
+        {
+            await control.RecordRefusalAsync(recommendation, refusal, actor.Trim(), now, cancellationToken);
+            return new ControlExecutionResult(null, refusal);
+        }
+
+        var (outcome, action) = await control.TryClaimAsync(
+            new ControlClaim(recommendation, policy!.SinkKind, policy.MaxActionsPerWindow, policy.WindowSeconds, now,
+                ControlOrigins.ApprovedRecommendation), cancellationToken);
+        if (outcome == ControlClaimOutcome.RateLimited)
+        {
+            await control.RecordRefusalAsync(recommendation, GateCodes.RateLimited, actor.Trim(), now, cancellationToken);
+            return new ControlExecutionResult(null, GateCodes.RateLimited);
+        }
+
+        if (outcome != ControlClaimOutcome.Claimed || action is null)
+        {
+            var current = await control.GetActionByRecommendationAsync(recommendationId, cancellationToken);
+            return new ControlExecutionResult(current, current is null ? GateCodes.Expired : null);
+        }
+
+        await DispatchClaimedAsync(action, sink!, cancellationToken);
+        return new ControlExecutionResult(await control.GetActionAsync(action.Id, cancellationToken), null);
+    }
+
+    private async Task DispatchClaimedAsync(ControlActionRecord action, IControlCommandSink sink,
+        CancellationToken cancellationToken)
+    {
         // Re-read the kill switch after the claim: it must be able to stop a command that has not left yet.
         if ((await control.GetKillSwitchAsync(cancellationToken)).Engaged)
         {
             await control.CompleteAsync(action.Id, ControlActionStatus.Blocked, GateCodes.KillSwitch, null,
-                timeProvider.GetUtcNow(), cancellationToken);
+                timeProvider.GetUtcNow(), null, cancellationToken);
             return;
         }
 
         try
         {
-            var result = await sink.DispatchAsync(
-                new ControlDispatchRequest(action.Id, action.AssetId, action.Command, action.Quantity,
-                    action.Value, action.Unit, $"control-action:{action.Id:N}"),
-                cancellationToken);
+            var result = await sink.DispatchAsync(DispatchRequest(action), cancellationToken);
             await control.CompleteAsync(
                 action.Id,
                 result.Accepted ? ControlActionStatus.Dispatched : ControlActionStatus.Failed,
@@ -137,25 +212,111 @@ public sealed class AutonomousControlService(
                     ? GateCodes.RealWritesDisabled : GateCodes.SinkRefused,
                 result.Reference,
                 timeProvider.GetUtcNow(),
+                null,
                 CancellationToken.None);
+            if (!result.Accepted) return;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await control.CompleteAsync(action.Id, ControlActionStatus.Failed, GateCodes.SinkFailed, null,
-                timeProvider.GetUtcNow(), CancellationToken.None);
+            // The command may or may not have reached the target: never assume Failed.
+            await control.CompleteAsync(action.Id, ControlActionStatus.Ambiguous, GateCodes.SinkAmbiguous, null,
+                timeProvider.GetUtcNow(), null, CancellationToken.None);
+        }
+
+        await VerifyCoreAsync(action.Id, sink, ControlActor.Gate, CancellationToken.None);
+    }
+
+    /// <summary>Reads the target back for a Dispatched or Ambiguous action and settles it when the readback is conclusive.</summary>
+    public async Task<ControlActionRecord> VerifyAsync(Guid actionId, string actor, CancellationToken cancellationToken = default)
+    {
+        var action = await control.GetActionAsync(actionId, cancellationToken) ??
+            throw new WellSiteAutoPilotException("CONTROL_ACTION_NOT_FOUND", FailureKind.NotFound, "The control action was not found.");
+        if (action.Status is not (ControlActionStatus.Dispatched or ControlActionStatus.Ambiguous))
+            throw new WellSiteAutoPilotException("CONTROL_ACTION_NOT_VERIFIABLE", FailureKind.Conflict,
+                "Only Dispatched or Ambiguous actions can be verified.");
+        var sink = sinks.FirstOrDefault(item => string.Equals(item.Kind, action.Sink, StringComparison.Ordinal)) ??
+            throw new WellSiteAutoPilotException(GateCodes.SinkUnavailable, FailureKind.Conflict, "The sink is unavailable.");
+        await VerifyCoreAsync(actionId, sink, actor.Trim(), cancellationToken);
+        return (await control.GetActionAsync(actionId, cancellationToken))!;
+    }
+
+    private async Task VerifyCoreAsync(Guid actionId, IControlCommandSink sink, string actor,
+        CancellationToken cancellationToken)
+    {
+        var action = await control.GetActionAsync(actionId, cancellationToken);
+        if (action is null || action.Status is not (ControlActionStatus.Dispatched or ControlActionStatus.Ambiguous)) return;
+
+        ControlReadback readback;
+        try
+        {
+            readback = await sink.ReadbackAsync(DispatchRequest(action), cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var from = new[] { action.Status };
+        switch (readback.State)
+        {
+            case ControlReadbackState.Applied when readback.ObservedValue == action.Value:
+                await control.TransitionAsync(actionId, from, ControlActionStatus.Verified, GateCodes.ReadbackConfirmed,
+                    readback.ObservedValue, actor, null, now, cancellationToken);
+                break;
+            case ControlReadbackState.Applied:
+                if (action.Status == ControlActionStatus.Dispatched)
+                    await control.TransitionAsync(actionId, from, ControlActionStatus.Ambiguous, GateCodes.ReadbackMismatch,
+                        readback.ObservedValue, actor, null, now, cancellationToken);
+                break;
+            case ControlReadbackState.NotApplied when action.Status == ControlActionStatus.Ambiguous && action.SinkReference is null:
+                // The dispatch never reached the target (readback is authoritative by idempotency key).
+                await control.TransitionAsync(actionId, from, ControlActionStatus.Failed, GateCodes.ReadbackNotApplied,
+                    null, actor, null, now, cancellationToken);
+                break;
+            case ControlReadbackState.NotApplied when action.Status == ControlActionStatus.Dispatched:
+                await control.TransitionAsync(actionId, from, ControlActionStatus.Ambiguous, GateCodes.ReadbackNotApplied,
+                    null, actor, null, now, cancellationToken);
+                break;
         }
     }
 
+    /// <summary>Operator resolution of an Ambiguous (or unverified Dispatched) action; always audited with a note.</summary>
+    public async Task<ControlActionRecord> ResolveAsync(Guid actionId, bool applied, string note, string actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actor) || actor.Length > 256 || actor.Any(char.IsControl) ||
+            string.IsNullOrWhiteSpace(note) || note.Length > 1024 || note.Any(char.IsControl))
+            throw Validation("CONTROL_RESOLUTION_INVALID", "A resolution note and authenticated actor are required.");
+        var resolved = await control.TransitionAsync(actionId,
+            [ControlActionStatus.Ambiguous, ControlActionStatus.Dispatched],
+            applied ? ControlActionStatus.Verified : ControlActionStatus.Failed,
+            applied ? GateCodes.OperatorResolvedApplied : GateCodes.OperatorResolvedNotApplied,
+            null, actor.Trim(), note.Trim(), timeProvider.GetUtcNow(), cancellationToken);
+        if (resolved is not null) return resolved;
+        _ = await control.GetActionAsync(actionId, cancellationToken) ??
+            throw new WellSiteAutoPilotException("CONTROL_ACTION_NOT_FOUND", FailureKind.NotFound, "The control action was not found.");
+        throw new WellSiteAutoPilotException("CONTROL_ACTION_NOT_RESOLVABLE", FailureKind.Conflict,
+            "Only Ambiguous or Dispatched actions can be resolved.");
+    }
+
+    private static ControlDispatchRequest DispatchRequest(ControlActionRecord action) =>
+        new(action.Id, action.AssetId, action.Command, action.Quantity, action.Value, action.Unit,
+            $"control-action:{action.Id:N}");
+
     internal string? Evaluate(RecommendationRecord recommendation, AutonomyPolicy? policy,
         ControlKillSwitch killSwitch, ConfiguredLogicDefinition? definition, ConfiguredLogicRevision? revision,
-        DateTimeOffset now)
+        DateTimeOffset now, string origin = ControlOrigins.Autonomous)
     {
+        var approvedOrigin = origin == ControlOrigins.ApprovedRecommendation;
         if (killSwitch.Engaged) return GateCodes.KillSwitch;
         if (!options.Enabled) return GateCodes.GlobalDisabled;
         if (policy is null) return GateCodes.NoPolicy;
         if (!policy.Enabled) return GateCodes.PolicyDisabled;
-        if (policy.SinkKind != ControlSinkKinds.Simulator) return GateCodes.RealWritesDisabled;
-        if (revision is null || revision.Mode != ExecutionMode.Autonomous) return GateCodes.NotAutonomous;
+        if (policy.SinkKind is not (ControlSinkKinds.Simulator or ControlSinkKinds.DryRun)) return GateCodes.RealWritesDisabled;
+        if (approvedOrigin && !policy.AllowApprovedRecommendations) return GateCodes.ApprovedNotEnabled;
+        if (revision is null || revision.Mode != (approvedOrigin ? ExecutionMode.Recommendation : ExecutionMode.Autonomous))
+            return GateCodes.NotAutonomous;
         if (definition!.ActiveRevisionId != revision.Id || revision.Status != ConfiguredLogicRevisionStatus.Active)
             return GateCodes.SourceInvalid;
         if (recommendation.ExpiresAtUtc is { } expiry && expiry <= now) return GateCodes.Expired;
@@ -177,13 +338,13 @@ public sealed class AutonomousControlService(
 
     public async Task<AutonomyPolicy> SetPolicyAsync(Guid configuredLogicId, bool enabled, string sinkKind,
         IReadOnlyCollection<AutonomyCommandLimit> limits, int maxActionsPerWindow, int windowSeconds,
-        string actor, CancellationToken cancellationToken = default)
+        string actor, bool allowApprovedRecommendations = false, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(actor) || actor.Length > 256 || actor.Any(char.IsControl))
             throw Validation("CONTROL_POLICY_ACTOR_INVALID", "An authenticated actor is required.");
-        if (sinkKind != ControlSinkKinds.Simulator)
+        if (sinkKind is not (ControlSinkKinds.Simulator or ControlSinkKinds.DryRun))
             throw new WellSiteAutoPilotException("CONTROL_REAL_WRITES_DISABLED", FailureKind.Validation,
-                "Real provider writes are disabled; only the Simulator sink can be configured.");
+                "Real provider writes are disabled; only the Simulator and DryRun sinks can be configured.");
         if (maxActionsPerWindow is < 1 or > 1000 || windowSeconds is < 1 or > 86400)
             throw Validation("CONTROL_POLICY_RATE_INVALID", "Rate limit must be 1-1000 actions per 1-86400 seconds.");
         if (limits is null || limits.Count > 64 || limits.Any(item =>
@@ -201,7 +362,7 @@ public sealed class AutonomousControlService(
 
         var policy = new AutonomyPolicy(definition.Id, enabled, sinkKind,
             limits.Select(item => item with { Command = item.Command.Trim() }).ToArray(),
-            maxActionsPerWindow, windowSeconds, actor.Trim(), timeProvider.GetUtcNow());
+            maxActionsPerWindow, windowSeconds, actor.Trim(), timeProvider.GetUtcNow(), allowApprovedRecommendations);
         await control.UpsertPolicyAsync(policy, cancellationToken);
         return policy;
     }

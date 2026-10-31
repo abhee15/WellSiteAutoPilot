@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/workers/WellSiteAutoPilot.Worker.DotNet/WellSiteAutoPilot.Worker.DotNet.csproj" />
+    <ProjectReference Include="../../src/server/WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
+    <ProjectReference Include="../../src/modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
+    <ProjectReference Include="../../src/platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
+  </ItemGroup>
+</Project>

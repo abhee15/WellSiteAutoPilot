@@ -71,6 +71,48 @@ app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
     .Produces<EngineeringValue>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status503ServiceUnavailable);
 
+// Simulated command endpoint for the governed Autonomous/approved-recommendation path. It never touches a real
+// provider; it records the command, updates simulator state and supports readback by idempotency key.
+app.MapPost("/api/sim/v1/commands", (SimulatedCommandRequest request, SimulatorState state) =>
+    {
+        if (string.IsNullOrWhiteSpace(request.IdempotencyKey) || string.IsNullOrWhiteSpace(request.AssetId) ||
+            string.IsNullOrWhiteSpace(request.Command))
+        {
+            return Results.BadRequest();
+        }
+
+        try
+        {
+            return Results.Ok(state.ApplyCommand(request));
+        }
+        catch (SimulatorProviderUnavailableException)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+    })
+    .WithName("SendSimulatedCommand")
+    .Produces<SimulatedCommandResult>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status503ServiceUnavailable);
+
+app.MapGet("/api/sim/v1/commands/{idempotencyKey}", (string idempotencyKey, SimulatorState state) =>
+    {
+        try
+        {
+            return Results.Ok(state.ReadbackCommand(idempotencyKey));
+        }
+        catch (SimulatorProviderUnavailableException)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+    })
+    .WithName("ReadbackSimulatedCommand")
+    .Produces<SimulatedCommandResult>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status503ServiceUnavailable);
+
+app.MapGet("/api/sim/v1/commands", (SimulatorState state) => Results.Ok(state.Commands))
+    .WithName("ListSimulatedCommands");
+
 // A stand-in for the parts of ForeSite's web services that discovery reads, so CI can exercise the whole path
 // without ForeSite. It lives under its own prefix: the simulator's root address must keep answering 404 to a
 // ForeSite connection, which is how the "this is not ForeSite" check works.

@@ -40,8 +40,9 @@ public sealed class WamiNetTcpClient : IWamiClient
         _binding.Security.Transport.ClientCredentialType = TcpClientCredentialType.Windows;
     }
 
-    // wellheadPressure maps to IModel.SetOperatingPointTopNode(-1, pressure) (-1 keeps the model's top node); WAMI's source
-    // documents no unit for it, so it is taken in the model's own pressure unit. Setting it changes the session's model.
+    // wellheadPressure maps to IModel.SetOperatingPointTopNode(-1, pressure) (-1 keeps the model's top node). WAMI works in
+    // oilfield units regardless of the model (SolutionPointData documents psia and STB/d); confirmed live: raising the
+    // pressure lowers the rate. Setting it changes the session's model.
     public IReadOnlyList<WamiFunctionDescriptor> Functions { get; } =
     [
         new(NodalAnalysis, "Nodal-analysis operating point; optional wellhead (top node) pressure override.", WamiFunctionEffect.ChangesSessionModel,
@@ -125,6 +126,11 @@ public sealed class WamiNetTcpClient : IWamiClient
             // The router faults before routing when MaxAllowedWorkers workers are in use: it never queues and nothing ran.
             throw new WamiException(WamiFailureCodes.Busy, $"WAMI has no free worker (limit {error.Detail?.MaxAllowedWorkers}).", WamiCallOutcome.NotStarted, error);
         }
+        catch (FaultException error) when (error.Message.Contains("workers are already being used", StringComparison.OrdinalIgnoreCase))
+        {
+            // Observed live: the 11th concurrent session arrives as an untyped fault with this text (limit = MaxAllowedWorkers).
+            throw new WamiException(WamiFailureCodes.Busy, "WAMI has no free worker.", WamiCallOutcome.NotStarted, error);
+        }
         catch (FaultException error)
         {
             throw new WamiException(WamiFailureCodes.CalculationFailed, "WAMI reported a fault.", WamiCallOutcome.Failed, error);
@@ -171,6 +177,9 @@ public sealed class WamiNetTcpClient : IWamiClient
             if (request.Inputs.Keys.Any(k => k != WellheadPressure))
                 throw new WamiException(WamiFailureCodes.InputInvalid, $"{NodalAnalysis} accepts only {WellheadPressure}.", WamiCallOutcome.NotStarted);
 
+            if (request.Inputs.TryGetValue(WellheadPressure, out var supplied) && supplied.Unit != "psia")
+                throw new WamiException(WamiFailureCodes.InputInvalid, $"{WellheadPressure} must be in psia.", WamiCallOutcome.NotStarted);
+
             // Dispatched from here on: failures and cancels are ambiguous.
             var result = await Guarded(channel, () =>
             {
@@ -178,19 +187,16 @@ public sealed class WamiNetTcpClient : IWamiClient
                     channel.Proxy.SetOperatingPointTopNode(-1, (double)pressure.Value);
                 return channel.Proxy.DoNodalAnalysis();
             }, WamiCallOutcome.Ambiguous, cancellationToken);
-            if (result.Status != ResultStatus.Success || result.OperatingPoint is null)
-            {
-                var detail = result.ModelValidationResult is { ValidationErrors: > 0 } ? " The model failed validation." : "";
-                throw new WamiException(WamiFailureCodes.CalculationFailed, $"WAMI returned {result.Status}.{detail}", WamiCallOutcome.Failed);
-            }
-
+            // The installed 7.2 contract has no Status/validation members (the ForeSite 7.7 build does); a missing operating point is the failure signal.
+            if (result?.OperatingPoint is null)
+                throw new WamiException(WamiFailureCodes.CalculationFailed, "WAMI returned no operating point.", WamiCallOutcome.Failed);
             var point = result.OperatingPoint;
             return new WamiCalculationResult(
                 request.Function,
                 new Dictionary<string, WamiQuantity>
                 {
-                    ["operatingPoint.liquidRate"] = new(Convert.ToDecimal(point.LiquidRate, System.Globalization.CultureInfo.InvariantCulture), NativeUnits),
-                    ["operatingPoint.bottomholePressure"] = new(Convert.ToDecimal(point.BottomholePressure, System.Globalization.CultureInfo.InvariantCulture), NativeUnits)
+                    ["operatingPoint.liquidRate"] = new(Convert.ToDecimal(point.LiquidRate, System.Globalization.CultureInfo.InvariantCulture), "stb/d"),
+                    ["operatingPoint.bottomholePressure"] = new(Convert.ToDecimal(point.BottomholePressure, System.Globalization.CultureInfo.InvariantCulture), "psia")
                 },
                 "wami",
                 point.OperatingPointStatus is { Length: > 0 } status ? [status] : []);

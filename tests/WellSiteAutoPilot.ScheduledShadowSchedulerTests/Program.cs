@@ -521,9 +521,12 @@ foreach (var scheduledMode in new[] { ExecutionMode.Recommendation, ExecutionMod
 
     var withoutAuthority = (await scheduler.DispatchDueAsync(100)).Decisions
         .Single(item => item.ConfiguredLogicId == liveLogic.Id);
+    var principalId = Guid.NewGuid();
+    var identities = new FakeIdentityRepository(principalId);
     var authorizedScheduler = new ScheduledShadowSchedulerService(
         configuredLogicRepository, moduleRepository, executionRepository, executionService, clock,
-        new ScheduledReadAuthority(Guid.NewGuid()));
+        new ScheduledReadAuthorityProvider(new ScheduledReadAuthorityOptions { ServicePrincipalUserId = principalId },
+            identities, new WellSiteAutoPilot.Persistence.Control.DelegatedAuthorityAuditWriter(dbContext), clock));
     var withAuthority = (await authorizedScheduler.DispatchDueAsync(100)).Decisions
         .Single(item => item.ConfiguredLogicId == liveLogic.Id);
     if (withoutAuthority.ReasonCode != "EXECUTION_READ_AUTHORITY_REQUIRED" ||
@@ -531,11 +534,39 @@ foreach (var scheduledMode in new[] { ExecutionMode.Recommendation, ExecutionMod
     {
         throw new InvalidOperationException("Scheduled live read did not require, then accept, a read authority.");
     }
+
+    // Revocation: deactivating the service principal refuses the occurrence and is audited.
+    identities.Active = false;
+    var revoked = (await authorizedScheduler.DispatchDueAsync(100)).Decisions
+        .Single(item => item.ConfiguredLogicId == liveLogic.Id);
+    var refusedAudits = await dbContext.AuditEvents.CountAsync(item =>
+        item.Action == "scheduler.delegation.refused" && item.TargetId == liveLogic.Id.ToString());
+    if (revoked.ReasonCode != "SCHEDULER_READ_AUTHORITY_REVOKED" || refusedAudits < 1)
+    {
+        throw new InvalidOperationException("Revoked service principal was not refused and audited.");
+    }
 }
 
 Console.WriteLine(
     "Scheduled Shadow due calculation, durable dispatch, idempotency, overlap blocking, and no-burst replay, candidate failure isolation, recovery, and cancellation checks passed.");
 return 0;
+
+file sealed class FakeIdentityRepository(Guid id) : IUserIdentityRepository
+{
+    public bool Active { get; set; } = true;
+
+    public Task<WellSiteAutoPilot.Domain.Security.UserIdentity?> GetIdentityAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<WellSiteAutoPilot.Domain.Security.UserIdentity?>(userId == id
+            ? new WellSiteAutoPilot.Domain.Security.UserIdentity(id, "svc", "svc", null, Active, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+            : null);
+
+    public Task<IReadOnlyCollection<WellSiteAutoPilot.Domain.Security.UserIdentity>> ListIdentitiesAsync(int limit, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<WellSiteAutoPilot.Domain.Security.UserIdentity> UpsertIdentityAsync(string identityKey, string identityName,
+        string normalizedIdentityName, string? displayName, DateTimeOffset seenAtUtc, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+}
 
 file sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
 {

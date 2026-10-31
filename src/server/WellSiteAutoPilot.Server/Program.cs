@@ -215,25 +215,54 @@ builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddSingleton(builder.Configuration.GetSection(AuthoringOptions.SectionName).Get<AuthoringOptions>()
     ?? new AuthoringOptions());
 builder.Services.AddSingleton<IAuthoringDraftStore, FileAuthoringDraftStore>();
+builder.Services.AddSingleton<IIsolatedProcessRunner, JobObjectProcessRunner>();
+builder.Services.AddSingleton<IAuthoringTestExecutor, OutOfProcessAuthoringTestExecutor>();
 builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
 builder.Services.AddSingleton<AuthoringBuildRunner>();
 builder.Services.AddScoped<AuthoringService>();
+builder.Services.AddScoped<IAuthoringPreviewSource, WellSiteAutoPilot.Persistence.Authoring.AuthoringPreviewSource>();
+builder.Services.AddScoped<AuthoringPreviewService>();
+builder.Services.AddScoped<IScheduleFloorResolver, AdapterScheduleFloorResolver>();
+builder.Services.AddScoped<ScheduleManagementService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
-if (builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthorityUserId") is { } schedulerReadUserId && schedulerReadUserId != Guid.Empty)
-    builder.Services.AddSingleton(new ScheduledReadAuthority(schedulerReadUserId));
+builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
+{
+    ServicePrincipalUserId = builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthority:ServicePrincipalUserId")
+        ?? builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthorityUserId")
+});
+builder.Services.AddScoped<IDelegatedAuthorityAuditWriter, WellSiteAutoPilot.Persistence.Control.DelegatedAuthorityAuditWriter>();
+builder.Services.AddScoped<IScheduledReadAuthorityProvider, ScheduledReadAuthorityProvider>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddSingleton(new WellSiteAutoPilot.Application.Control.AutonomousControlOptions
 {
-    Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled")
+    Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled"),
+    DryRunSink = builder.Configuration.GetValue<bool>("Control:Autonomous:DryRunSink")
 });
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.IControlRepository, WellSiteAutoPilot.Persistence.Control.ControlRepository>();
-builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>();
-builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
-    sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>());
+// With Control:Simulator:BaseUrl set, the Simulator sink speaks HTTP to the Provider Simulator; otherwise it is in-process.
+var controlSimulatorBaseUrl = builder.Configuration["Control:Simulator:BaseUrl"];
+if (!string.IsNullOrWhiteSpace(controlSimulatorBaseUrl))
+{
+    builder.Services.AddHttpClient<WellSiteAutoPilot.Application.Control.HttpSimulatorControlCommandSink>(client =>
+    {
+        client.BaseAddress = new Uri(controlSimulatorBaseUrl.TrimEnd('/') + "/");
+        client.Timeout = TimeSpan.FromSeconds(10);
+    });
+    builder.Services.AddTransient<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
+        sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.HttpSimulatorControlCommandSink>());
+}
+else
+{
+    builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>();
+    builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
+        sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>());
+}
 builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink, WellSiteAutoPilot.Application.Control.RefusingProviderControlCommandSink>();
+builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCurrentValueReader, WellSiteAutoPilot.Application.Control.UnavailableControlCurrentValueReader>();
+builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink, WellSiteAutoPilot.Application.Control.DryRunControlCommandSink>();
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.AutonomousControlService>();
 builder.Services.AddScoped<UserIdentityService>();
 builder.Services.AddScoped<RoleCatalogService>();
@@ -1020,6 +1049,59 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
+v1.MapGet(
+    "/schedules",
+    async (int? limit, Guid? assetId, Guid? viewId, ScheduleManagementService schedules, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+        (await schedules.ListAsync(access.Subject, new ScheduleListFilter(assetId, viewId), PageLimit(limit ?? 100),
+            cancellationToken)).Select(ToScheduleResponse).ToArray())
+    .WithName("ListSchedules")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
+    .Produces<ScheduleResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapPut(
+    "/configured-logic/{configuredLogicId:guid}/schedule",
+    async (Guid configuredLogicId, UpdateScheduleRequest request, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ScheduleManagementService schedules, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToScheduleResponse(await schedules.UpdateAsync(configuredLogicId,
+            new ScheduleChange(request.CadenceSeconds, request.Enabled, ifMatch ?? ""),
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("UpdateConfiguredLogicSchedule")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ScheduleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/schedule/pause",
+    async (Guid configuredLogicId, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ScheduleManagementService schedules, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToScheduleResponse(await schedules.UpdateAsync(configuredLogicId, new ScheduleChange(null, false, ifMatch ?? ""),
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("PauseConfiguredLogicSchedule")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ScheduleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/schedule/resume",
+    async (Guid configuredLogicId, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ScheduleManagementService schedules, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToScheduleResponse(await schedules.UpdateAsync(configuredLogicId, new ScheduleChange(null, true, ifMatch ?? ""),
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("ResumeConfiguredLogicSchedule")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ScheduleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
 v1.MapPost(
     "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/shadow",
     async (Guid configuredLogicId, Guid revisionId, RequestConfiguredShadowRequest request,
@@ -1297,6 +1379,16 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 v1.MapPost(
+    "/authoring/drafts/{draftId:guid}/test",
+    async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
+        AuthoringResponseMapping.ToResponse(await authoring.TestAsync(draftId, cancellationToken)))
+    .WithName("TestAuthoringDraft")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
     "/authoring/drafts/{draftId:guid}/build",
     async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
         Results.Accepted($"/api/v1/authoring/drafts/{draftId}",
@@ -1347,6 +1439,22 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/preview",
+    async (AuthoringPreviewRequest request, AuthoringPreviewService preview, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var value = await preview.PreviewAsync(access.Subject, request.AssetId, request.Quantity, cancellationToken);
+        return new AuthoringPreviewResponse(value.AssetId, value.Quantity, value.Value, value.Unit, value.TimestampUtc,
+            value.Quality, value.Source, value.AdapterKey);
+    })
+    .WithName("PreviewAuthoringLiveValue")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringPreviewResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 v1.MapGet(
     "/recommendations",
@@ -1422,7 +1530,7 @@ v1.MapPut(
     .WithName("SetControlKillSwitch")
     .NotifiesChange(ChangeArea.Recommendations)
     .NotifiesChange(ChangeArea.Control)
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
@@ -1440,20 +1548,22 @@ v1.MapPut(
     "/control/policies/{configuredLogicId:guid}",
     async (Guid configuredLogicId, WellSiteAutoPilot.Api.Contracts.Control.SetAutonomyPolicyRequest request,
         WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        WellSiteAutoPilot.Application.Control.AutonomousControlOptions options,
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
         if (request.Limits is null || request.Limits.Any(item => item is null))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "Command limits are required.");
         var policy = await control.SetPolicyAsync(configuredLogicId, request.Enabled,
-            WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
+            options.DryRunSink ? WellSiteAutoPilot.Domain.Control.ControlSinkKinds.DryRun : WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
             request.Limits.Select(item => new WellSiteAutoPilot.Domain.Control.AutonomyCommandLimit(item.Command, item.Unit, item.MinimumValue, item.MaximumValue)).ToArray(),
-            request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName, cancellationToken);
+            request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName,
+            request.AllowApprovedRecommendations, cancellationToken);
         return ToAutonomyPolicyResponse(policy);
     })
     .WithName("SetAutonomyPolicy")
     .NotifiesChange(ChangeArea.ConfiguredLogic)
     .NotifiesChange(ChangeArea.Control)
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -1463,14 +1573,55 @@ v1.MapGet(
     async (Guid? configuredLogicId, int? limit, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
         CancellationToken cancellationToken) =>
         (await control.ListActionsAsync(configuredLogicId, PageLimit(limit ?? 50, 200), cancellationToken))
-            .Select(item => new WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse(item.Id, item.RecommendationId,
-                item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command, item.Quantity, item.Value, item.Unit,
-                item.Status.ToString(), item.GateCode, item.Sink, item.SinkReference, item.CreatedAtUtc, item.CompletedAtUtc))
+            .Select(ToControlActionResponse)
             .ToArray())
     .WithName("ListControlActions")
     .RequireAuthorization(WellSitePolicies.RecommendationsRead)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapPost(
+    "/control/recommendations/{recommendationId:guid}/execute",
+    async (Guid recommendationId, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var result = await control.ExecuteApprovedAsync(recommendationId, access.CreateActor(context).IdentityName, cancellationToken);
+        return new WellSiteAutoPilot.Api.Contracts.Control.ControlExecutionResponse(
+            result.Action is null ? null : ToControlActionResponse(result.Action), result.RefusalCode);
+    })
+    .WithName("ExecuteApprovedRecommendation")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlExecutionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/control/actions/{actionId:guid}/verify",
+    async (Guid actionId, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToControlActionResponse(await control.VerifyAsync(actionId, access.CreateActor(context).IdentityName, cancellationToken)))
+    .WithName("VerifyControlAction")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/control/actions/{actionId:guid}/resolve",
+    async (Guid actionId, WellSiteAutoPilot.Api.Contracts.Control.ResolveControlActionRequest request,
+        WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToControlActionResponse(await control.ResolveAsync(actionId, request.Applied, request.Note ?? string.Empty,
+            access.CreateActor(context).IdentityName, cancellationToken)))
+    .WithName("ResolveControlAction")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
 v1.MapGet(
     "/connections",
@@ -1759,7 +1910,13 @@ static WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse ToAutonomy
     new(item.ConfiguredLogicId, item.Enabled, item.SinkKind,
         item.Limits.Select(limit => new WellSiteAutoPilot.Api.Contracts.Control.AutonomyCommandLimitDto(
             limit.Command, limit.Unit, limit.MinimumValue, limit.MaximumValue)).ToArray(),
-        item.MaxActionsPerWindow, item.WindowSeconds, item.UpdatedBy, item.UpdatedAtUtc);
+        item.MaxActionsPerWindow, item.WindowSeconds, item.UpdatedBy, item.UpdatedAtUtc, item.AllowApprovedRecommendations);
+
+static WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse ToControlActionResponse(
+    WellSiteAutoPilot.Domain.Control.ControlActionRecord item) =>
+    new(item.Id, item.RecommendationId, item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command,
+        item.Quantity, item.Value, item.Unit, item.Status.ToString(), item.GateCode, item.Sink, item.SinkReference,
+        item.CreatedAtUtc, item.CompletedAtUtc, item.Origin, item.ReadbackValue, item.VerifiedAtUtc, item.ResolutionNote);
 
 static RecommendationSummaryResponse ToRecommendationSummaryResponse(
     RecommendationRecord recommendation) => new(
@@ -1859,6 +2016,15 @@ static string SearchText(string? text) => text?.Trim() is { Length: >= 1 and <= 
 static T? ParseFilter<T>(string? raw) where T : struct, Enum => raw is null ? null :
     Enum.TryParse<T>(raw, ignoreCase: true, out var value) && Enum.IsDefined(value) ? value :
         throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested status filter is invalid.");
+
+static ScheduleResponse ToScheduleResponse(ScheduleOverviewItem item) => new(
+    item.ConfiguredLogicId, item.Name, item.ActiveRevisionId, item.RevisionNumber, item.Mode.ToContract(),
+    item.Targets.Select(target => new ScheduleTargetResponse(target.AssetId, target.Name)).ToArray(), item.ViewId,
+    item.Enabled, item.CadenceSeconds, item.EffectiveCadenceSeconds, item.MinimumCadenceSeconds, item.StartAtUtc,
+    item.TimeZoneId, item.NextRunAtUtc, item.Running,
+    item.LastRun is null ? null : new ScheduleLastRunResponse(item.LastRun.ExecutionId, item.LastRun.ScheduledForUtc,
+        item.LastRun.Status.ToContract(), item.LastRun.ResultCode, item.LastRun.FailureCode),
+    item.CanManage, "skip-if-running");
 
 static ConfiguredLogicResponse WithConfigurationActions(ConfiguredLogicDefinition item, ConfiguredLogicActions? capability) =>
     ToConfiguredLogicResponse(item) with { CanManage = capability?.CanManage == true, CanRequestShadow = capability?.CanRequestShadow == true };

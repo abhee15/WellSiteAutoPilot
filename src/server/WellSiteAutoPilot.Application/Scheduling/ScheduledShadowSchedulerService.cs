@@ -9,19 +9,14 @@ using WellSiteAutoPilot.Failures;
 
 namespace WellSiteAutoPilot.Application.Scheduling;
 
-/// <summary>
-/// Explicit local opt-in principal whose grants authorize scheduled live provider reads.
-/// Grants are re-checked when each read plan is resolved.
-/// </summary>
-public sealed record ScheduledReadAuthority(Guid UserId);
-
 public sealed class ScheduledShadowSchedulerService(
     IConfiguredLogicRepository configuredLogicRepository,
     ILogicModuleCatalogRepository moduleCatalogRepository,
     IExecutionRepository executionRepository,
     ExecutionService executionService,
     TimeProvider timeProvider,
-    ScheduledReadAuthority? readAuthority = null)
+    IScheduledReadAuthorityProvider? authorityProvider = null,
+    IScheduleFloorResolver? scheduleFloor = null)
 {
     public async Task<ScheduledShadowSweepResult> DispatchDueAsync(
         int limit,
@@ -102,8 +97,15 @@ public sealed class ScheduledShadowSchedulerService(
                 "SCHEDULER_ACTIVE_REVISION_INVALID");
         }
 
+        // An adapter may raise its minimum after a schedule was saved; dispatch never runs faster than the floor.
+        var minimumSeconds = scheduleFloor is null
+            ? SchedulePolicy.DefaultMinimumCadenceSeconds
+            : await scheduleFloor.MinimumCadenceSecondsAsync(
+                revision.DataBindings.Select(item => item.ProviderId).ToArray(),
+                revision.View?.ConnectionId,
+                cancellationToken);
         var scheduledForUtc = GetLatestDueOccurrence(
-            revision.Schedule,
+            SchedulePolicy.Clamp(revision.Schedule, minimumSeconds),
             nowUtc);
 
         if (scheduledForUtc is null)
@@ -211,14 +213,28 @@ public sealed class ScheduledShadowSchedulerService(
                 "SCHEDULER_CONFIGURATION_INVALID");
         }
 
+        var authority = authorityProvider is null
+            ? DelegatedReadAuthority.None
+            : await authorityProvider.ResolveAsync(configuredLogic.Id, revision.Id, scheduledForUtc.Value, cancellationToken);
+        if (authority.RefusalCode is { } refusal)
+        {
+            return Decision(configuredLogic, revision, scheduledForUtc,
+                ScheduledShadowDispatchOutcome.InvalidConfiguration, refusal);
+        }
+
         ExecutionRecord execution;
         try
         {
             execution = await executionService.RequestConfiguredShadowAsync(
                 command,
                 BuildCorrelationId(configuredLogic.Id, revision.Id, scheduledForUtc.Value),
-                readAuthority is null ? null : new AccessSubject(readAuthority.UserId),
+                authority.Subject,
                 cancellationToken);
+            if (authority.PrincipalId is { } principalId && authorityProvider is not null)
+            {
+                await authorityProvider.RecordUseAsync(configuredLogic.Id, revision.Id, scheduledForUtc.Value,
+                    principalId, execution.Id, cancellationToken);
+            }
         }
         catch (WellSiteAutoPilotException exception) when (exception.Code.StartsWith("EXECUTION_READ_", StringComparison.Ordinal))
         {

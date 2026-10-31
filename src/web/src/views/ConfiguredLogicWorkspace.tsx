@@ -11,6 +11,7 @@ import { scheduleText } from './logicSummary';
 import { orderedRevisions } from './configuredLogicViews';
 import { formatDetailTimestamp } from './executionDetail';
 import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOverview';
+import { SchedulesPanel } from './SchedulesPanel';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
 import type { VerifiedConfiguration } from './configuredLogicSetup';
 import { LoadingIndicator } from '../components/LoadingIndicator';
@@ -107,6 +108,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     {!detail && selectedId && !error && <LoadingIndicator label={t('setup.loading')} />}
     {detail && <>
       <ConfiguredLogicRevisionOverview logic={detail} onClose={onClose} executions={executions} />
+      {selectedId && !editing && <SchedulesPanel configuredLogicId={detail.id} canManage={mayManage} heading={t('schedules.forConfiguration')} />}
       <p>{t('setup.immutable')}</p>
       {(() => {
         const ordered = orderedRevisions(detail);

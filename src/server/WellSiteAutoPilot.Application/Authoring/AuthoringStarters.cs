@@ -10,6 +10,7 @@ public static class AuthoringStarters
 {
     public const string CardCalibrationId = "card-calibration";
     public const string ThresholdAlertId = "threshold-alert";
+    public const string CardPeakGraphId = "card-peak-graph";
     public const string ObserveInputId = "observe-input";
 
     public static IReadOnlyList<AuthoringStarter> All { get; } =
@@ -20,6 +21,9 @@ public static class AuthoringStarters
         new(CardCalibrationId, "Card calibration (structured, code-backed)",
             "Reproduces the structured card calibration sample: card collection plus calibration record, calibrated curves and peak load. The calibration algorithm is an opaque code step.",
             CardCalibration()),
+        new(CardPeakGraphId, "Card peak load (structured graph, no code)",
+            "Collection steps reduce a structured card input to count, peak and mean load; ordinary calculation, condition and action steps finish the graph. Runs through the V2 host.",
+            CardPeakGraph()),
         new(ObserveInputId, "Observe one input",
             "Pass one scalar input through as an output.", ObserveInput())
     ];
@@ -59,7 +63,18 @@ public static class AuthoringStarters
         ],
         [new("review-low-fillage", "Review low fillage", "is-low", "Pump fillage below threshold",
             "Observed pump fillage is below the configured threshold. Review the well; this is a proposal only.",
-            "PumpFillageThreshold", "%", new("parameter", "low-threshold"))]);
+            "PumpFillageThreshold", "%", new("parameter", "low-threshold"))],
+        [
+            new("low-fillage", "Fillage 30% (below threshold)",
+                new Dictionary<string, JsonElement> { ["pump-fillage"] = Parse("30") }, null,
+                new Dictionary<string, JsonElement>
+                {
+                    ["observed-fillage"] = Parse("30"), ["fillage-shortfall"] = Parse("10"), ["fillage-ratio-result"] = Parse("0.75")
+                }, ["review-low-fillage"]),
+            new("healthy-fillage", "Fillage 55% (above threshold)",
+                new Dictionary<string, JsonElement> { ["pump-fillage"] = Parse("55") }, null,
+                new Dictionary<string, JsonElement> { ["fillage-shortfall"] = Parse("-15"), ["fillage-ratio-result"] = Parse("1.375") }, [])
+        ]);
 
     private static AuthoringDocument CardCalibration() => new(
         AuthoringDocument.SchemaId,
@@ -86,10 +101,66 @@ public static class AuthoringStarters
             new("peak-load", "Peak load", "PeakLoad", "lbf", new("step", "calibrate", "peak-load"),
                 new("sample.peak-load/v1", Parse("""{"type":"number"}""")))
         ],
-        []);
+        [],
+        [
+            new("one-card", "One card, scale 1.1 offset 50",
+                new Dictionary<string, JsonElement>
+                {
+                    ["cards"] = Parse("""
+                        [{"id":"card-1","kind":"CURRENT","representation":"SURFACE","capturedAtUtc":"2025-12-31T23:00:00Z",
+                        "source":"fixture","positionUnit":"in","loadUnit":"lbf","position":[0,10,20],"load":[1000,2000,1500]}]
+                        """),
+                    ["calibration"] = Parse("""{"loadScale":1.1,"loadOffset":50}""")
+                }, null,
+                new Dictionary<string, JsonElement> { ["peak-load"] = Parse("2250") }, [])
+        ]);
 
     public const string CardModuleId = "authored.card-calibration";
     public const string CardModuleVersion = "1.0.0";
+
+    private const string OneCardJson = """
+        [{"id":"card-1","kind":"CURRENT","representation":"SURFACE","capturedAtUtc":"2025-12-31T23:00:00Z",
+        "source":"fixture","positionUnit":"in","loadUnit":"lbf","position":[0,10,20],"load":[1000,2000,1500]}]
+        """;
+
+    private static AuthoringDocument CardPeakGraph() => new(
+        AuthoringDocument.SchemaId,
+        new("authored.card-peak-graph", "1.0.0", "Card peak load (graph)", "Authoring",
+            "Reduces a collection of surface cards to count, peak and mean load with graph steps (no code), applies a linear calibration and proposes a review above a limit."),
+        AuthoringDocument.DecimalProfile,
+        [new("well", null)],
+        [new("cards", "Surface cards", "SurfaceCards", null, "well", 60, false,
+            new("sample.cards/v1", CardSchema(calibrated: false)), "structured.current")],
+        [
+            new("load-scale", "Load scale", "1"),
+            new("load-offset", "Load offset", "0", "lbf"),
+            new("peak-limit", "Peak load limit", "2000", "lbf")
+        ],
+        [
+            new("card-count", "Number of cards", "collection", "count", [new("input", "cards")]),
+            new("raw-peak", "Highest recorded load", "collection", "max", [new("input", "cards", "load")]),
+            new("mean-load", "Mean recorded load", "collection", "mean", [new("input", "cards", "load")]),
+            new("scaled-peak", "Peak after scale", "calculation", "multiply", [new("step", "raw-peak"), new("parameter", "load-scale")]),
+            new("calibrated-peak", "Calibrated peak", "calculation", "add", [new("step", "scaled-peak"), new("parameter", "load-offset")])
+        ],
+        [new("over-limit", "Peak above limit", new("step", "calibrated-peak"), "gt", new("parameter", "peak-limit"))],
+        [
+            new("peak-load", "Peak load", "PeakLoad", "lbf", new("step", "calibrated-peak")),
+            new("card-count-result", "Card count", "CardCount", "1", new("step", "card-count")),
+            new("mean-load-result", "Mean load", "MeanLoad", "lbf", new("step", "mean-load"))
+        ],
+        [new("review-peak-load", "Review peak load", "over-limit", "Calibrated peak load above the limit",
+            "The calibrated peak load exceeds the configured limit. Review the cards; this is a proposal only.",
+            "PeakLoadLimit", "lbf", new("parameter", "peak-limit"))],
+        [
+            new("one-card", "One card, scale 1.1 offset 50",
+                new Dictionary<string, JsonElement> { ["cards"] = Parse(OneCardJson) },
+                new Dictionary<string, string> { ["load-scale"] = "1.1", ["load-offset"] = "50" },
+                new Dictionary<string, JsonElement>
+                {
+                    ["peak-load"] = Parse("2250"), ["card-count-result"] = Parse("1"), ["mean-load-result"] = Parse("1500")
+                }, ["review-peak-load"])
+        ]);
 
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement.Clone();
 

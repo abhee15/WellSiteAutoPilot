@@ -24,17 +24,17 @@ var clock = new FixedClock(now);
 var fake = new FakeWamiClient();
 await using (var session = await fake.OpenModelAsync(new ModelArtifact("m1", "1", "fake", Model())))
 {
-    var inputs = new Dictionary<string, WamiQuantity> { ["wellheadPressure"] = new(300m, "psi") };
+    var inputs = new Dictionary<string, WamiQuantity> { ["wellheadPressure"] = new(300m, "psia") };
     var first = await session.CalculateAsync(new WamiCalculationRequest("r1", FakeWamiClient.NodalAnalysis, inputs));
     var again = await session.CalculateAsync(new WamiCalculationRequest("r2", FakeWamiClient.NodalAnalysis, inputs));
     Expect(first.Outputs["operatingPoint.liquidRate"] == new WamiQuantity(200m, "stb/d") &&
-           first.Outputs["operatingPoint.bottomholePressure"] == new WamiQuantity(2400m, "psi"), "fake: inflow balance solves 200 stb/d at 2400 psi");
+           first.Outputs["operatingPoint.bottomholePressure"] == new WamiQuantity(2400m, "psia"), "fake: inflow balance solves 200 stb/d at 2400 psi");
     Expect(first.Outputs["operatingPoint.liquidRate"] == again.Outputs["operatingPoint.liquidRate"], "fake: repeat calls agree");
 }
 Expect(fake.SessionsOpen == 0, "fake: disposing the session releases it");
 await using (var session = await fake.OpenModelAsync(new ModelArtifact("m2", "1", "fake", Model(productivityIndex: 3))))
     Expect((await session.CalculateAsync(new WamiCalculationRequest("r3", FakeWamiClient.NodalAnalysis,
-        new Dictionary<string, WamiQuantity> { ["wellheadPressure"] = new(300m, "psi") }))).Outputs["operatingPoint.liquidRate"].Value == 300m,
+        new Dictionary<string, WamiQuantity> { ["wellheadPressure"] = new(300m, "psia") }))).Outputs["operatingPoint.liquidRate"].Value == 300m,
         "fake: a different model file gives a different answer");
 await ExpectWami(() => fake.OpenModelAsync(new ModelArtifact("bad", "1", "fake", [1, 2, 3])).AsTask(), WamiFailureCodes.ModelRejected, WamiCallOutcome.Failed, "fake: a corrupt model is rejected");
 foreach (var (mode, code) in new[] { (FakeWamiMode.Busy, WamiFailureCodes.Busy), (FakeWamiMode.Down, WamiFailureCodes.Unavailable), (FakeWamiMode.NoLicense, WamiFailureCodes.LicenseMissing) })
@@ -76,10 +76,10 @@ var bindings = new[]
 };
 CompositionPlan Plan(IReadOnlyList<DependencyBinding>? use = null, TimeSpan? timeout = null) => new(
     "well-analysis", dependencies, use ?? bindings, "model", "calc", FakeWamiClient.NodalAnalysis,
-    [new CalculationInput("data", "WellheadPressure", "wellheadPressure", "psi")],
+    [new CalculationInput("data", "WellheadPressure", "wellheadPressure", "psia")],
     timeout ?? TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(10), MaximumBusyAttempts: 2);
 
-var data = new ScriptedData() { ["597/WellheadPressure"] = new("WellheadPressure", 300m, "psi", now.AddMinutes(-1), "Good", "foresite-a") };
+var data = new ScriptedData() { ["597/WellheadPressure"] = new("WellheadPressure", 300m, "psia", now.AddMinutes(-1), "Good", "foresite-a") };
 var wami = new FakeWamiClient();
 var live = new StubForeSite(modelBytes);
 var registry = new ProviderRegistry()
@@ -141,7 +141,7 @@ data["597/WellheadPressure"] = data["597/WellheadPressure"] with { TimestampUtc 
 await Stopped("input: poor quality reading", Plan(), null, "INPUT_QUALITY");
 data["597/WellheadPressure"] = data["597/WellheadPressure"] with { Quality = "Good", Unit = "kPa" };
 await Stopped("input: unit is checked, never guessed", Plan(), null, "INPUT_UNIT");
-data["597/WellheadPressure"] = data["597/WellheadPressure"] with { Unit = "psi", Value = null };
+data["597/WellheadPressure"] = data["597/WellheadPressure"] with { Unit = "psia", Value = null };
 await Stopped("input: a missing value is not a zero", Plan(), null, "INPUT_MISSING");
 data["597/WellheadPressure"] = data["597/WellheadPressure"] with { Value = 300m };
 

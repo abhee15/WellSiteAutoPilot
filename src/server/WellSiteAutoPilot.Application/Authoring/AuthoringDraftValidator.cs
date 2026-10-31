@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Application.Authoring;
 
@@ -22,6 +23,9 @@ public static class AuthoringOperations
         };
 
     public static readonly IReadOnlyList<string> Comparators = ["lt", "le", "gt", "ge", "eq", "ne"];
+
+    /// <summary>Collection step operations: each reduces the numbers found at a path inside a structured input to one decimal.</summary>
+    public static readonly IReadOnlyList<string> CollectionOperations = ["count", "sum", "min", "max", "mean"];
 }
 
 public static partial class AuthoringDraftValidator
@@ -67,6 +71,16 @@ public static partial class AuthoringDraftValidator
             Error("AUTHORING_FIELD_REQUIRED", "module/displayName", "A display name is required.");
         if (string.IsNullOrWhiteSpace(module.Publisher))
             Error("AUTHORING_FIELD_REQUIRED", "module/publisher", "A publisher is required.");
+        if (module.RequiredAdapterKey is { } adapterKey)
+        {
+            var rule = AdapterReadRules.Find(adapterKey);
+            if (rule is null || rule.AdapterKey != adapterKey)
+                Error("AUTHORING_ADAPTER_UNKNOWN", "module/requiredAdapterKey", "The required adapter must be one of the supported providers (foresite or cygnet).");
+            else
+                foreach (var input in document.Inputs.Where(input => input.ValueSchema is null && !rule.CurrentQuantities.Contains(input.Quantity)))
+                    Error("AUTHORING_ADAPTER_QUANTITY_UNSUPPORTED", $"inputs/{input.Id}",
+                        $"The {rule.AdapterKey} adapter cannot read the quantity '{input.Quantity}' directly.");
+        }
 
         if (document.AssetRoles.Count != 1)
             Error("AUTHORING_ASSET_ROLE_UNSUPPORTED", "assetRoles", "This profile supports exactly one asset role.");
@@ -177,6 +191,7 @@ public static partial class AuthoringDraftValidator
             if (codeModule) Error("AUTHORING_OPERATION_UNSUPPORTED", path, "Actions cannot be combined with a code-backed module step.");
         }
 
+        ValidateFixtures(document, inputs, parameters, issues);
         ReportUnused(document, issues);
         var valid = issues.All(i => i.Severity != AuthoringIssueSeverity.Error);
         return new AuthoringValidationReport(valid, issues, order);
@@ -216,7 +231,8 @@ public static partial class AuthoringDraftValidator
         foreach (var step in document.Steps)
         {
             var path = $"steps/{step.Id}";
-            if (step.Kind != "calculation") { Error("AUTHORING_STEP_KIND_UNSUPPORTED", path, "Step kind must be calculation or code."); continue; }
+            if (step.Kind == "collection") { ValidateCollectionStep(step, path, inputs, issues); continue; }
+            if (step.Kind != "calculation") { Error("AUTHORING_STEP_KIND_UNSUPPORTED", path, "Step kind must be calculation, collection or code."); continue; }
             if (step.Operation is null || !AuthoringOperations.Arity.TryGetValue(step.Operation, out var arity))
             {
                 Error("AUTHORING_OPERATION_UNSUPPORTED", path + "/operation",
@@ -252,6 +268,30 @@ public static partial class AuthoringDraftValidator
         }
         return order;
     }
+
+    private static void ValidateCollectionStep(AuthoringStep step, string path, Dictionary<string, AuthoringInput> inputs,
+        List<AuthoringIssue> issues)
+    {
+        void Error(string code, string detail, string message) =>
+            issues.Add(new(AuthoringIssueSeverity.Error, code, path + detail, message));
+        if (step.Operation is null || !AuthoringOperations.CollectionOperations.Contains(step.Operation))
+            Error("AUTHORING_OPERATION_UNSUPPORTED", "/operation",
+                "Collection operations: " + string.Join(", ", AuthoringOperations.CollectionOperations) + ".");
+        var operands = step.Operands ?? [];
+        if (operands.Count != 1) { Error("AUTHORING_ARITY_INVALID", "/operands", "A collection step reads exactly one structured input."); return; }
+        var operand = operands[0];
+        if (operand.Kind != "input" || operand.Ref is null || !inputs.TryGetValue(operand.Ref, out var input))
+        { Error("AUTHORING_REFERENCE_MISSING", "/operands/0", "A collection step reads a declared structured input."); return; }
+        if (input.ValueSchema is null)
+            Error("AUTHORING_OPERATION_UNSUPPORTED", "/operands/0", $"Input {input.Id} is scalar; collection steps need a structured input.");
+        if (operand.Port is { } port && !PortPathPattern().IsMatch(port))
+            Error("AUTHORING_FIELD_INVALID", "/operands/0/port", "The path is dotted property names such as load or readings.value.");
+        if (step.Operation != "count" && operand.Port is null)
+            Error("AUTHORING_FIELD_REQUIRED", "/operands/0/port", $"{step.Operation} needs the path of the numbers to reduce.");
+    }
+
+    [GeneratedRegex(@"^[A-Za-z0-9_-]{1,64}(\.[A-Za-z0-9_-]{1,64}){0,7}$", RegexOptions.CultureInvariant)]
+    private static partial Regex PortPathPattern();
 
     private static void ValidateCodeStep(AuthoringDocument document, AuthoringStep step,
         Dictionary<string, AuthoringInput> inputs, List<AuthoringIssue> issues)
@@ -321,8 +361,8 @@ public static partial class AuthoringDraftValidator
             case "step":
                 if (operand.Ref is null || !steps.TryGetValue(operand.Ref, out var step))
                 { Error("AUTHORING_REFERENCE_MISSING", $"Unknown step {operand.Ref}."); return new(false, null); }
-                if (step.Kind != "calculation")
-                { Error("AUTHORING_OPERATION_UNSUPPORTED", "Only calculation steps can feed calculations."); return new(false, null); }
+                if (step.Kind is not ("calculation" or "collection"))
+                { Error("AUTHORING_OPERATION_UNSUPPORTED", "Only calculation and collection steps can feed calculations."); return new(false, null); }
                 return new(true, StepUnit(step, document, inputs, parameters, steps, new HashSet<string>()));
             default:
                 Error("AUTHORING_REFERENCE_INVALID", "Operand kind must be input, parameter, step or literal.");
@@ -335,11 +375,12 @@ public static partial class AuthoringDraftValidator
         Dictionary<string, AuthoringParameter> parameters, Dictionary<string, AuthoringStep> steps, HashSet<string> visiting)
     {
         if (!visiting.Add(step.Id) || step.Operands is null) return null;
+        if (step.Kind == "collection") { visiting.Remove(step.Id); return step.Operation == "count" ? UnitDimensionless : null; }
         string? UnitOf(AuthoringOperand operand) => operand.Kind switch
         {
             "input" when operand.Ref is not null && inputs.TryGetValue(operand.Ref, out var i) => string.IsNullOrEmpty(i.Unit) ? null : i.Unit,
             "parameter" when operand.Ref is not null && parameters.TryGetValue(operand.Ref, out var p) => string.IsNullOrEmpty(p.Unit) ? null : p.Unit,
-            "step" when operand.Ref is not null && steps.TryGetValue(operand.Ref, out var s) && s.Kind == "calculation" =>
+            "step" when operand.Ref is not null && steps.TryGetValue(operand.Ref, out var s) && s.Kind is "calculation" or "collection" =>
                 StepUnit(s, document, inputs, parameters, steps, visiting),
             _ => null
         };
@@ -378,7 +419,7 @@ public static partial class AuthoringDraftValidator
             order.Add(id);
             return true;
         }
-        return document.Steps.Where(s => s.Kind == "calculation").All(s => Visit(s.Id)) ? order : null;
+        return document.Steps.Where(s => s.Kind is "calculation" or "collection").All(s => Visit(s.Id)) ? order : null;
     }
 
     public static List<string> Order(AuthoringDocument document) =>
@@ -403,6 +444,46 @@ public static partial class AuthoringDraftValidator
         return found ?? [];
     }
 
+    private static void ValidateFixtures(AuthoringDocument document, Dictionary<string, AuthoringInput> inputs,
+        Dictionary<string, AuthoringParameter> parameters, List<AuthoringIssue> issues)
+    {
+        void Error(string code, string path, string message) =>
+            issues.Add(new(AuthoringIssueSeverity.Error, code, path, message));
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var outputs = document.Outputs.Select(o => o.Id).ToHashSet(StringComparer.Ordinal);
+        var actions = document.Actions.Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var fixture in document.Fixtures ?? [])
+        {
+            var path = $"fixtures/{fixture.Id}";
+            if (!IsIdentifier(fixture.Id)) Error("AUTHORING_ID_INVALID", path, "Fixture IDs are 1-128 letters, digits, '.', '_' or '-'.");
+            else if (!seen.Add(fixture.Id)) Error("AUTHORING_ID_DUPLICATE", path, "Fixture IDs must be unique.");
+            foreach (var input in document.Inputs.Where(i => !fixture.Inputs.ContainsKey(i.Id)))
+                Error("AUTHORING_FIXTURE_INPUT_MISSING", $"{path}/inputs/{input.Id}", "The fixture must supply a value for every input.");
+            foreach (var (id, value) in fixture.Inputs)
+            {
+                if (!inputs.TryGetValue(id, out var input)) { Error("AUTHORING_REFERENCE_MISSING", $"{path}/inputs/{id}", "The fixture names an unknown input."); continue; }
+                if (input.ValueSchema is null && !IsScalarFixtureValue(value))
+                    Error("AUTHORING_DECIMAL_INVALID", $"{path}/inputs/{id}", "Scalar fixture values are JSON numbers or canonical decimal text.");
+            }
+            foreach (var (id, value) in fixture.Parameters ?? new Dictionary<string, string>())
+            {
+                if (!parameters.ContainsKey(id)) Error("AUTHORING_REFERENCE_MISSING", $"{path}/parameters/{id}", "The fixture names an unknown parameter.");
+                else if (!IsCanonicalDecimal(value)) Error("AUTHORING_DECIMAL_INVALID", $"{path}/parameters/{id}", "Parameter values are canonical decimal text.");
+            }
+            foreach (var id in (fixture.ExpectedOutputs ?? new Dictionary<string, global::System.Text.Json.JsonElement>()).Keys.Where(k => !outputs.Contains(k)))
+                Error("AUTHORING_REFERENCE_MISSING", $"{path}/expectedOutputs/{id}", "The fixture expects an unknown output.");
+            foreach (var id in (fixture.ExpectedActions ?? []).Where(a => !actions.Contains(a)))
+                Error("AUTHORING_REFERENCE_MISSING", $"{path}/expectedActions/{id}", "The fixture expects an unknown action.");
+        }
+    }
+
+    private static bool IsScalarFixtureValue(global::System.Text.Json.JsonElement value) => value.ValueKind switch
+    {
+        global::System.Text.Json.JsonValueKind.Number => value.TryGetDecimal(out _),
+        global::System.Text.Json.JsonValueKind.String => IsCanonicalDecimal(value.GetString()),
+        _ => false
+    };
+
     private static void ReportUnused(AuthoringDocument document, List<AuthoringIssue> issues)
     {
         var used = new HashSet<string>(StringComparer.Ordinal);
@@ -419,7 +500,7 @@ public static partial class AuthoringDraftValidator
             issues.Add(new(AuthoringIssueSeverity.Warning, "AUTHORING_INPUT_UNUSED", $"inputs/{input.Id}", "No calculation or output uses this input."));
         foreach (var parameter in document.Parameters.Where(p => !used.Contains("parameter:" + p.Id)))
             issues.Add(new(AuthoringIssueSeverity.Warning, "AUTHORING_PARAMETER_UNUSED", $"parameters/{parameter.Id}", "No calculation or condition uses this parameter."));
-        foreach (var step in document.Steps.Where(s => s.Kind == "calculation" && !used.Contains("step:" + s.Id)))
+        foreach (var step in document.Steps.Where(s => s.Kind is "calculation" or "collection" && !used.Contains("step:" + s.Id)))
             issues.Add(new(AuthoringIssueSeverity.Warning, "AUTHORING_STEP_UNUSED", $"steps/{step.Id}", "Nothing consumes this result."));
     }
 }

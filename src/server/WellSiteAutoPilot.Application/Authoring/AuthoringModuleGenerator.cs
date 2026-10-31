@@ -30,7 +30,7 @@ public static class AuthoringModuleGenerator
     public static string GenerateManifest(AuthoringDocument document, AuthoringStep? code = null)
     {
         code ??= document.Steps.FirstOrDefault(s => s.Kind == "code");
-        var structured = code is not null;
+        var structured = code is not null || document.Inputs.Any(i => i.ValueSchema is not null);
         var module = document.Module;
         var manifest = new JsonObject
         {
@@ -72,7 +72,7 @@ public static class AuthoringModuleGenerator
             {
                 ["id"] = output.Id, ["quantity"] = output.Quantity,
                 ["unit"] = string.IsNullOrEmpty(output.Unit) ? null : output.Unit,
-                ["valueSchema"] = SchemaNode(output.ValueSchema!)
+                ["valueSchema"] = SchemaNode(output.ValueSchema ?? GraphOutputSchema(output))
             }).ToArray());
         if (document.Parameters.Count > 0)
         {
@@ -86,6 +86,10 @@ public static class AuthoringModuleGenerator
         }
         return manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
+
+    /// <summary>Graph outputs are decimals; they travel as JSON numbers under a generated schema identity.</summary>
+    public static AuthoringValueSchema GraphOutputSchema(AuthoringOutput output) =>
+        new("authored." + output.Id + "/v1", JsonDocument.Parse("{\"type\":\"number\"}").RootElement.Clone());
 
     private static JsonObject SchemaNode(AuthoringValueSchema schema) =>
         new() { ["schemaId"] = schema.SchemaId, ["schema"] = JsonNode.Parse(schema.Schema.GetRawText()) };
@@ -117,6 +121,9 @@ public static class AuthoringModuleGenerator
 
     private static string GenerateEntryPoint(AuthoringDocument document)
     {
+        var v2 = document.Inputs.Any(i => i.ValueSchema is not null);
+        var contextType = v2 ? "LogicModuleExecutionContextV2" : "LogicModuleExecutionContext";
+        var resultType = v2 ? "LogicModuleExecutionResultV2" : "LogicModuleExecutionResult";
         var inputIndex = document.Inputs.Select((x, i) => (x.Id, i)).ToDictionary(x => x.Id, x => x.i);
         var parameterIndex = document.Parameters.Select((x, i) => (x.Id, i)).ToDictionary(x => x.Id, x => x.i);
         var stepOrder = AuthoringDraftValidator.Order(document);
@@ -141,19 +148,24 @@ public static class AuthoringModuleGenerator
         code.AppendLine();
         code.AppendLine("namespace Authored;");
         code.AppendLine();
-        code.AppendLine("public sealed class EntryPoint : ILogicModuleV1");
+        code.AppendLine("public sealed class EntryPoint : " + (v2 ? "ILogicModuleV2" : "ILogicModuleV1"));
         code.AppendLine("{");
         code.AppendLine("    public LogicModuleIdentity Identity { get; } = new(" + CSharpString(document.Module.ModuleId) + ", " + CSharpString(document.Module.Version) + ");");
         code.AppendLine();
-        code.AppendLine("    public ValueTask<LogicModuleExecutionResult> ExecuteAsync(LogicModuleExecutionContext context, CancellationToken cancellationToken = default)");
+        code.AppendLine("    // Instrumentation contract: the test host reads the intermediate values of the last execution from here.");
+        code.AppendLine("    private readonly Dictionary<string, string> _trace = new(StringComparer.Ordinal);");
+        code.AppendLine("    public IReadOnlyDictionary<string, string> AuthoringTrace => _trace;");
+        code.AppendLine();
+        code.AppendLine("    public ValueTask<" + resultType + "> ExecuteAsync(" + contextType + " context, CancellationToken cancellationToken = default)");
         code.AppendLine("    {");
         code.AppendLine("        cancellationToken.ThrowIfCancellationRequested();");
         code.AppendLine("        try { return ValueTask.FromResult(Run(context)); }");
         code.AppendLine("        catch (OverflowException) { return ValueTask.FromResult(Failed(\"ARITHMETIC_OVERFLOW\")); }");
         code.AppendLine("    }");
         code.AppendLine();
-        code.AppendLine("    private LogicModuleExecutionResult Run(LogicModuleExecutionContext context)");
+        code.AppendLine("    private " + resultType + " Run(" + contextType + " context)");
         code.AppendLine("    {");
+        Line("_trace.Clear();");
         Line("if (context is null || context.ModuleIdentity != Identity) return Failed(\"MODULE_IDENTITY_MISMATCH\");");
         Line("if (context.ExecutionId == Guid.Empty || string.IsNullOrWhiteSpace(context.CorrelationId) ||");
         Line("    context.EvaluationTimeUtc == default || context.EvaluationTimeUtc.Offset != TimeSpan.Zero) return Failed(\"CONTEXT_INVALID\");");
@@ -173,7 +185,10 @@ public static class AuthoringModuleGenerator
                 Line($"if (!string.Equals(input{n}.Unit, {CSharpString(input.Unit)}, StringComparison.OrdinalIgnoreCase)) return Failed(\"EXECUTION_INPUT_QUANTITY_MISMATCH\");");
             Line($"if (input{n}.TimestampUtc == default || input{n}.TimestampUtc.Offset != TimeSpan.Zero) return Failed(\"CONTEXT_INVALID\");");
             Line($"if (string.IsNullOrWhiteSpace(input{n}.Source)) return Failed(\"INPUT_SOURCE_MISSING\");");
-            Line($"var in{n} = input{n}.Value;");
+            if (v2) Line($"var in{n} = input{n}.Value.Data;");
+            else Line($"var in{n} = input{n}.Value;");
+            if (v2 && input.ValueSchema is { } inputSchema)
+                Line($"if (input{n}.Value.SchemaId != {CSharpString(inputSchema.SchemaId)}) return Failed(\"INPUT_BINDING_INVALID\");");
         }
         foreach (var parameter in document.Parameters)
         {
@@ -185,8 +200,31 @@ public static class AuthoringModuleGenerator
         foreach (var id in stepOrder)
         {
             var step = document.Steps.First(s => s.Id == id);
-            var operands = step.Operands!.Select(Operand).ToArray();
             var n = stepIndex[id];
+            if (step.Kind == "collection")
+            {
+                var source = step.Operands![0];
+                var path = string.Join(", ", (source.Port ?? "").Split('.', StringSplitOptions.RemoveEmptyEntries).Select(CSharpString));
+                Line($"var vals{n} = new List<decimal>();");
+                if (step.Operation == "count" && source.Port is null)
+                    Line($"var st{n} = (decimal)(in{inputIndex[source.Ref!]}.ValueKind == JsonValueKind.Array ? in{inputIndex[source.Ref!]}.GetArrayLength() : 1);");
+                else
+                {
+                    Line($"if (!Collect(in{inputIndex[source.Ref!]}, new string[] {{ {path} }}, 0, vals{n})) return Failed(\"COLLECTION_VALUE_INVALID\");");
+                    if (step.Operation is "min" or "max" or "mean") Line($"if (vals{n}.Count == 0) return Failed(\"COLLECTION_EMPTY\");");
+                    Line(step.Operation switch
+                    {
+                        "count" => $"var st{n} = (decimal)vals{n}.Count;",
+                        "sum" => $"var st{n} = checked(vals{n}.Aggregate(0m, (a, b) => a + b));",
+                        "min" => $"var st{n} = vals{n}.Min();",
+                        "max" => $"var st{n} = vals{n}.Max();",
+                        _ => $"var st{n} = checked(vals{n}.Aggregate(0m, (a, b) => a + b) / vals{n}.Count);"
+                    });
+                }
+                Line($"_trace[{CSharpString(id)}] = st{n}.ToString(CultureInfo.InvariantCulture);");
+                continue;
+            }
+            var operands = step.Operands!.Select(Operand).ToArray();
             switch (step.Operation)
             {
                 case "add": Line($"var st{n} = checked({string.Join(" + ", operands)});"); break;
@@ -200,15 +238,26 @@ public static class AuthoringModuleGenerator
                 case "max": Line($"var st{n} = {operands.Aggregate((a, b) => $"Math.Max({a}, {b})")};"); break;
                 case "abs": Line($"var st{n} = Math.Abs({operands[0]});"); break;
             }
+            Line($"_trace[{CSharpString(id)}] = st{n}.ToString(CultureInfo.InvariantCulture);");
         }
         foreach (var condition in document.Conditions)
         {
             var op = condition.Comparator switch { "lt" => "<", "le" => "<=", "gt" => ">", "ge" => ">=", "eq" => "==", _ => "!=" };
             Line($"var cond{conditionIndex[condition.Id]} = {Operand(condition.Left)} {op} {Operand(condition.Right)};");
+            Line($"_trace[{CSharpString(condition.Id)}] = cond{conditionIndex[condition.Id]} ? \"true\" : \"false\";");
         }
-        Line("var results = new List<EngineeringResultValue>();");
+        Line(v2 ? "var results = new List<StructuredResultValue>();" : "var results = new List<EngineeringResultValue>();");
         foreach (var output in document.Outputs)
-            Line($"results.Add(new EngineeringResultValue({CSharpString(output.Id)}, assetId, {CSharpString(output.Quantity)}, {Operand(output.Source)}, {CSharpString(output.Unit)}));");
+        {
+            if (!v2)
+            {
+                Line($"results.Add(new EngineeringResultValue({CSharpString(output.Id)}, assetId, {CSharpString(output.Quantity)}, {Operand(output.Source)}, {CSharpString(output.Unit)}));");
+                continue;
+            }
+            var schemaId = (output.ValueSchema ?? GraphOutputSchema(output)).SchemaId;
+            var unit = string.IsNullOrEmpty(output.Unit) ? "null" : CSharpString(output.Unit);
+            Line($"results.Add(new StructuredResultValue({CSharpString(output.Id)}, assetId, {CSharpString(output.Quantity)}, new StructuredValue({CSharpString(schemaId)}, JsonSerializer.SerializeToElement({Operand(output.Source)})), {unit}));");
+        }
         Line("var recommendations = new List<RecommendationIntentDraft>();");
         Line("var controlIntents = new List<ControlIntentDraft>();");
         foreach (var action in document.Actions)
@@ -222,10 +271,29 @@ public static class AuthoringModuleGenerator
             else
                 Line($"if (cond{conditionIndex[action.Condition]}) recommendations.Add(new RecommendationIntentDraft({CSharpString(intent)}, assetId, {CSharpString(action.Title)}, {CSharpString(action.Detail)}, {quantity}, {suggested}, {unit}));");
         }
-        Line("return new LogicModuleExecutionResult(\"AUTHORED_MODULE_COMPLETED\", results, recommendations, controlIntents, new Dictionary<string, string>());");
+        Line($"return new {resultType}(\"AUTHORED_MODULE_COMPLETED\", results, recommendations, controlIntents, new Dictionary<string, string>());");
         code.AppendLine("    }");
         code.AppendLine();
-        code.AppendLine("    private static LogicModuleExecutionResult Failed(string code) =>");
+        if (v2 && document.Steps.Any(s => s.Kind == "collection"))
+        {
+            code.AppendLine("    private static bool Collect(JsonElement element, string[] path, int index, List<decimal> values)");
+            code.AppendLine("    {");
+            code.AppendLine("        if (element.ValueKind == JsonValueKind.Array)");
+            code.AppendLine("        {");
+            code.AppendLine("            foreach (var item in element.EnumerateArray()) if (!Collect(item, path, index, values)) return false;");
+            code.AppendLine("            return true;");
+            code.AppendLine("        }");
+            code.AppendLine("        if (index == path.Length)");
+            code.AppendLine("        {");
+            code.AppendLine("            if (element.ValueKind != JsonValueKind.Number || !element.TryGetDecimal(out var number)) return false;");
+            code.AppendLine("            values.Add(number);");
+            code.AppendLine("            return true;");
+            code.AppendLine("        }");
+            code.AppendLine("        return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(path[index], out var next) && Collect(next, path, index + 1, values);");
+            code.AppendLine("    }");
+            code.AppendLine();
+        }
+        code.AppendLine("    private static " + resultType + " Failed(string code) =>");
         code.AppendLine("        new(code, [], [], [], new Dictionary<string, string>()) { FailureCode = code };");
         code.AppendLine("}");
         return code.ToString();
