@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WellSiteAutoPilot.Api.Contracts.Assets;
+using WellSiteAutoPilot.Api.Contracts.Authoring;
+using WellSiteAutoPilot.Application.Authoring;
+using WellSiteAutoPilot.Infrastructure.Authoring;
+using WellSiteAutoPilot.Server.Authoring;
 using WellSiteAutoPilot.Api.Contracts.Connections;
 using WellSiteAutoPilot.Api.Contracts.Executions;
 using WellSiteAutoPilot.Api.Contracts.Logic;
@@ -207,6 +211,13 @@ builder.Services.AddScoped<ManualShadowRequestService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<LogicModulePackageService>();
 builder.Services.AddScoped<LogicModuleApprovalService>();
+// Local proof-of-concept authoring: inert unless Authoring:LocalBuild:Enabled is true.
+builder.Services.AddSingleton(builder.Configuration.GetSection(AuthoringOptions.SectionName).Get<AuthoringOptions>()
+    ?? new AuthoringOptions());
+builder.Services.AddSingleton<IAuthoringDraftStore, FileAuthoringDraftStore>();
+builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
+builder.Services.AddSingleton<AuthoringBuildRunner>();
+builder.Services.AddScoped<AuthoringService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
@@ -1198,6 +1209,122 @@ v1.MapPost(
     .NotifiesChange(ChangeArea.Modules)
     .RequireAuthorization(WellSitePolicies.LogicManage)
     .Produces<LogicModuleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+// Local proof-of-concept authoring. Every route except capabilities answers 404 unless
+// Authoring:LocalBuild:Enabled is set, and nothing here approves, enables or executes a module.
+v1.MapGet(
+    "/authoring/capabilities",
+    (AuthoringOptions options) => AuthoringResponseMapping.ToCapabilities(options))
+    .WithName("GetAuthoringCapabilities")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringCapabilitiesResponse>(StatusCodes.Status200OK);
+
+v1.MapGet(
+    "/authoring/drafts",
+    async (AuthoringService authoring, CancellationToken cancellationToken) =>
+        (await authoring.ListAsync(cancellationToken)).Select(AuthoringResponseMapping.ToSummary).ToArray())
+    .WithName("ListAuthoringDrafts")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftSummaryResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/drafts",
+    async (CreateAuthoringDraftRequest request, AuthoringService authoring, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var view = await authoring.CreateAsync(request.StarterId, request.Document,
+            access.CreateActor(context).IdentityName, cancellationToken);
+        return Results.Created($"/api/v1/authoring/drafts/{view.Draft.Id}", AuthoringResponseMapping.ToResponse(view));
+    })
+    .WithName("CreateAuthoringDraft")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status201Created)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet(
+    "/authoring/drafts/{draftId:guid}",
+    async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
+        AuthoringResponseMapping.ToResponse(await authoring.GetAsync(draftId, cancellationToken)))
+    .WithName("GetAuthoringDraft")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPut(
+    "/authoring/drafts/{draftId:guid}",
+    async (Guid draftId, UpdateAuthoringDraftRequest request, AuthoringService authoring,
+        CancellationToken cancellationToken) =>
+        AuthoringResponseMapping.ToResponse(
+            await authoring.UpdateAsync(draftId, request.ExpectedRevision, request.Document, cancellationToken)))
+    .WithName("UpdateAuthoringDraft")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/drafts/{draftId:guid}/validate",
+    async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
+        AuthoringResponseMapping.ToResponse(await authoring.ValidateAsync(draftId, cancellationToken)))
+    .WithName("ValidateAuthoringDraft")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/drafts/{draftId:guid}/build",
+    async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
+        Results.Accepted($"/api/v1/authoring/drafts/{draftId}",
+            AuthoringResponseMapping.ToResponse(await authoring.BuildAsync(draftId, cancellationToken))))
+    .WithName("BuildAuthoringDraft")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status202Accepted)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/drafts/{draftId:guid}/build/cancel",
+    async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
+        AuthoringResponseMapping.ToResponse(await authoring.CancelBuildAsync(draftId, cancellationToken)))
+    .WithName("CancelAuthoringDraftBuild")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet(
+    "/authoring/drafts/{draftId:guid}/package",
+    async Task<IResult> (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
+    {
+        var (package, fileName, sha256) = await authoring.DownloadAsync(draftId, cancellationToken);
+        return Results.File(package, "application/octet-stream", fileName, entityTag: new Microsoft.Net.Http.Headers.EntityTagHeaderValue($"\"{sha256}\""));
+    })
+    .WithName("DownloadAuthoringDraftPackage")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces(StatusCodes.Status200OK, contentType: "application/octet-stream")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/drafts/{draftId:guid}/catalog",
+    async (Guid draftId, AuthoringService authoring, RequestAccessContext access, HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var module = await authoring.AddToCatalogAsync(draftId, access.Subject, access.CreateActor(context), cancellationToken);
+        return Results.Created(
+            $"/api/v1/logic-modules/{Uri.EscapeDataString(module.ModuleId)}/{Uri.EscapeDataString(module.Version)}",
+            ToLogicModuleResponse(module));
+    })
+    .WithName("AddAuthoringDraftToCatalog")
+    .NotifiesChange(ChangeArea.Modules)
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<LogicModuleResponse>(StatusCodes.Status201Created)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");

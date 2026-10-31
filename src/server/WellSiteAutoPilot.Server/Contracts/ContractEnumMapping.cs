@@ -46,6 +46,19 @@ public static class ContractEnumMapping
     public static ContractConfiguredLogicRevisionStatus ToContract(this DomainConfiguredLogicRevisionStatus value) => Map<ContractConfiguredLogicRevisionStatus>(value);
     public static ContractPlatformComponentStatus ToContract(this DomainPlatformComponentStatus value) => Map<ContractPlatformComponentStatus>(value);
 
+    public static WellSiteAutoPilot.Api.Contracts.Authoring.AuthoringValidationState ToContract(
+        this WellSiteAutoPilot.Application.Authoring.AuthoringValidationState value) =>
+        Map<WellSiteAutoPilot.Api.Contracts.Authoring.AuthoringValidationState>(value);
+    public static WellSiteAutoPilot.Api.Contracts.Authoring.AuthoringTestState ToContract(
+        this WellSiteAutoPilot.Application.Authoring.AuthoringTestState value) =>
+        Map<WellSiteAutoPilot.Api.Contracts.Authoring.AuthoringTestState>(value);
+    public static WellSiteAutoPilot.Api.Contracts.Authoring.AuthoringBuildState ToContract(
+        this WellSiteAutoPilot.Application.Authoring.AuthoringBuildState value) =>
+        Map<WellSiteAutoPilot.Api.Contracts.Authoring.AuthoringBuildState>(value);
+    public static WellSiteAutoPilot.Api.Contracts.Authoring.AuthoringIssueSeverity ToContract(
+        this WellSiteAutoPilot.Application.Authoring.AuthoringIssueSeverity value) =>
+        Map<WellSiteAutoPilot.Api.Contracts.Authoring.AuthoringIssueSeverity>(value);
+
     /// <summary>An omitted or undefined request value is a validation failure, never a default.</summary>
     public static DomainGrantScopeKind ToDomain(this ContractGrantScopeKind value) => MapRequest<DomainGrantScopeKind>(value);
 
