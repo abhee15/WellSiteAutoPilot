@@ -219,8 +219,13 @@ builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
 builder.Services.AddSingleton<AuthoringBuildRunner>();
 builder.Services.AddScoped<AuthoringService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
-if (builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthorityUserId") is { } schedulerReadUserId && schedulerReadUserId != Guid.Empty)
-    builder.Services.AddSingleton(new ScheduledReadAuthority(schedulerReadUserId));
+builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
+{
+    ServicePrincipalUserId = builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthority:ServicePrincipalUserId")
+        ?? builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthorityUserId")
+});
+builder.Services.AddScoped<IDelegatedAuthorityAuditWriter, WellSiteAutoPilot.Persistence.Control.DelegatedAuthorityAuditWriter>();
+builder.Services.AddScoped<IScheduledReadAuthorityProvider, ScheduledReadAuthorityProvider>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
