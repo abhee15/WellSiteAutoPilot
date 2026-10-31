@@ -59,7 +59,18 @@ public static class AuthoringStarters
         ],
         [new("review-low-fillage", "Review low fillage", "is-low", "Pump fillage below threshold",
             "Observed pump fillage is below the configured threshold. Review the well; this is a proposal only.",
-            "PumpFillageThreshold", "%", new("parameter", "low-threshold"))]);
+            "PumpFillageThreshold", "%", new("parameter", "low-threshold"))],
+        [
+            new("low-fillage", "Fillage 30% (below threshold)",
+                new Dictionary<string, JsonElement> { ["pump-fillage"] = Parse("30") }, null,
+                new Dictionary<string, JsonElement>
+                {
+                    ["observed-fillage"] = Parse("30"), ["fillage-shortfall"] = Parse("10"), ["fillage-ratio-result"] = Parse("0.75")
+                }, ["review-low-fillage"]),
+            new("healthy-fillage", "Fillage 55% (above threshold)",
+                new Dictionary<string, JsonElement> { ["pump-fillage"] = Parse("55") }, null,
+                new Dictionary<string, JsonElement> { ["fillage-shortfall"] = Parse("-15"), ["fillage-ratio-result"] = Parse("1.375") }, [])
+        ]);
 
     private static AuthoringDocument CardCalibration() => new(
         AuthoringDocument.SchemaId,
@@ -86,7 +97,19 @@ public static class AuthoringStarters
             new("peak-load", "Peak load", "PeakLoad", "lbf", new("step", "calibrate", "peak-load"),
                 new("sample.peak-load/v1", Parse("""{"type":"number"}""")))
         ],
-        []);
+        [],
+        [
+            new("one-card", "One card, scale 1.1 offset 50",
+                new Dictionary<string, JsonElement>
+                {
+                    ["cards"] = Parse("""
+                        [{"id":"card-1","kind":"CURRENT","representation":"SURFACE","capturedAtUtc":"2025-12-31T23:00:00Z",
+                        "source":"fixture","positionUnit":"in","loadUnit":"lbf","position":[0,10,20],"load":[1000,2000,1500]}]
+                        """),
+                    ["calibration"] = Parse("""{"loadScale":1.1,"loadOffset":50}""")
+                }, null,
+                new Dictionary<string, JsonElement> { ["peak-load"] = Parse("2250") }, [])
+        ]);
 
     public const string CardModuleId = "authored.card-calibration";
     public const string CardModuleVersion = "1.0.0";

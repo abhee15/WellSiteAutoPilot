@@ -142,7 +142,8 @@ try
         var store = new FileAuthoringDraftStore(options);
         var runner = new AuthoringBuildRunner(store, new LocalDotNetAuthoringBuilder(options, new JobObjectProcessRunner()), clock);
         repository = new FakePackageRepository();
-        return new AuthoringService(options, store, runner, new LogicModulePackageService(repository, clock), clock);
+        return new AuthoringService(options, store, runner, new LogicModulePackageService(repository, clock),
+            new OutOfProcessAuthoringTestExecutor(options, new JobObjectProcessRunner()), clock);
     }
 
     var disabled = Create(false, out _);
@@ -207,12 +208,24 @@ try
         Check(wrong.FailureCode == "MODULE_IDENTITY_MISMATCH", "identity is checked");
     }
 
+    // Test state: fixtures run in the out-of-process host against the built package, with intermediate values.
+    var tested = await service.TestAsync(id, CancellationToken.None);
+    Check(tested.Test == AuthoringTestState.Passed && tested.EffectiveTest!.Cases.Count == 2,
+        "threshold fixtures pass: " + string.Join("; ", tested.EffectiveTest!.Cases.SelectMany(c => c.Mismatches).Concat(tested.EffectiveTest.Diagnostics.Select(d => d.Message))));
+    var lowCase = tested.EffectiveTest!.Cases.Single(c => c.FixtureId == "low-fillage");
+    Check(lowCase.Intermediates.Any(i => i.Id == "shortfall" && i.Value.GetString() == "10") &&
+        lowCase.Intermediates.Any(i => i.Id == "is-low" && i.Value.GetString() == "true"),
+        "instrumentation reports intermediate step and condition values");
+    Check(lowCase.Actions.SequenceEqual(["REVIEW_LOW_FILLAGE"]), "fired actions are reported");
+    Check(tested.EffectiveTest.BuildId == built.EffectiveBuild.BuildId && tested.EffectiveTest.Revision == 1, "the test is pinned to the build and revision");
+
     // Optimistic concurrency and invalidation.
     await Throws<WellSiteAutoPilotException>(() => service.UpdateAsync(id, 99, AuthoringJson.ToElement(threshold), CancellationToken.None), "stale revision rejected");
     var edited = threshold with { Parameters = [new("low-threshold", "Low fillage threshold", "45", "%")] };
     var updated = await service.UpdateAsync(id, 1, AuthoringJson.ToElement(edited), CancellationToken.None);
     Check(updated.Draft.Revision == 2 && updated.Build == AuthoringBuildState.Stale && updated.Validation == AuthoringValidationState.Stale,
         "an edit stales validation and the build");
+    Check(updated.Test == AuthoringTestState.Stale, "an edit stales the test result");
     var conflict = await Throws<WellSiteAutoPilotException>(() => service.DownloadAsync(id, CancellationToken.None), "stale build download");
     Check(conflict.Code == "AUTHORING_BUILD_NOT_CURRENT", "stale builds cannot be downloaded");
     await Throws<WellSiteAutoPilotException>(() => service.AddToCatalogAsync(id, new AccessSubject(Guid.NewGuid()),
@@ -229,6 +242,10 @@ try
     await service.BuildAsync(id, CancellationToken.None);
     var rebuilt = await WaitForBuild(id);
     Check(rebuilt.Build == AuthoringBuildState.Succeeded && rebuilt.Draft.Revision == 4, "rebuild succeeds for the new revision");
+    var regressed = await service.TestAsync(id, CancellationToken.None);
+    Check(regressed.Test == AuthoringTestState.Failed &&
+        regressed.EffectiveTest!.Cases.Any(c => c.Mismatches.Any(m => m.Contains("fillage-shortfall", StringComparison.Ordinal))),
+        "a changed parameter fails the fixture expectations");
 
     var installed = await service.AddToCatalogAsync(id, new AccessSubject(Guid.NewGuid()), new SecurityActorContext(null, "tester", null),
         CancellationToken.None);
@@ -245,6 +262,10 @@ try
     var cardPackage = await service.DownloadAsync(card.Draft.Id, CancellationToken.None);
     var cardInspected = await LogicModulePackageReader.ReadAsync(new MemoryStream(cardPackage.Package));
     Check(cardInspected.Manifest.ModuleId == "authored.card-calibration", "card package carries its identity");
+    var cardTested = await service.TestAsync(card.Draft.Id, CancellationToken.None);
+    Check(cardTested.Test == AuthoringTestState.Passed,
+        "card calibration runs through the V2 host: " + string.Join("; ", cardTested.EffectiveTest!.Cases.SelectMany(c => c.Mismatches)
+            .Concat(cardTested.EffectiveTest.Diagnostics.Select(d => d.Message)).Concat(cardTested.EffectiveTest.Cases.Select(c => c.Message ?? ""))));
 
     var broken = Starter(AuthoringStarters.CardCalibrationId);
     broken = broken with

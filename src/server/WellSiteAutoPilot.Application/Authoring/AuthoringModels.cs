@@ -10,6 +10,9 @@ public sealed class AuthoringOptions
     public string? SdkProjectPath { get; set; }
     public int BuildTimeoutSeconds { get; set; } = 240;
     public string DotnetPath { get; set; } = "dotnet";
+    /// <summary>Path to the authoring test host assembly; found next to the repository build output when unset.</summary>
+    public string? TestHostPath { get; set; }
+    public int TestTimeoutSeconds { get; set; } = 60;
     public int BuildMemoryLimitMegabytes { get; set; } = 4096;
     /// <summary>Job is always applied on Windows; AppContainer additionally removes network and broad file access.</summary>
     public AuthoringIsolationMode Isolation { get; set; } = AuthoringIsolationMode.Job;
@@ -34,11 +37,12 @@ public sealed record AuthoringBuildRecord(
 public sealed record AuthoringDraftRecord(
     Guid Id, int Revision, string ContentDigest, AuthoringDocument Document,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string CreatedBy,
-    AuthoringValidationRecord? Validation = null, AuthoringBuildRecord? Build = null);
+    AuthoringValidationRecord? Validation = null, AuthoringBuildRecord? Build = null,
+    AuthoringTestRecord? Test = null);
 
 public sealed record AuthoringDraftView(
     AuthoringDraftRecord Draft, AuthoringValidationState Validation, AuthoringTestState Test,
-    AuthoringBuildState Build, AuthoringBuildRecord? EffectiveBuild);
+    AuthoringBuildState Build, AuthoringBuildRecord? EffectiveBuild, AuthoringTestRecord? EffectiveTest = null);
 
 public sealed record AuthoringBuilderResult(bool Success, byte[]? Package, IReadOnlyList<AuthoringIssue> Diagnostics);
 

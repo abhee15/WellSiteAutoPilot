@@ -92,6 +92,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/authoring/drafts/{draftId:guid}"): ("GetAuthoringDraft", "LogicManage"),
     ("PUT", "/authoring/drafts/{draftId:guid}"): ("UpdateAuthoringDraft", "LogicManage"),
     ("POST", "/authoring/drafts/{draftId:guid}/validate"): ("ValidateAuthoringDraft", "LogicManage"),
+    ("POST", "/authoring/drafts/{draftId:guid}/test"): ("TestAuthoringDraft", "LogicManage"),
     ("POST", "/authoring/drafts/{draftId:guid}/build"): ("BuildAuthoringDraft", "LogicManage"),
     ("POST", "/authoring/drafts/{draftId:guid}/build/cancel"): ("CancelAuthoringDraftBuild", "LogicManage"),
     ("GET", "/authoring/drafts/{draftId:guid}/package"): ("DownloadAuthoringDraftPackage", "LogicManage"),

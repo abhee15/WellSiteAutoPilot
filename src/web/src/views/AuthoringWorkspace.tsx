@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addAuthoringDraftToCatalog, buildAuthoringDraft, cancelAuthoringDraftBuild, createAuthoringDraft,
   downloadAuthoringDraftPackage, getAuthoringCapabilities, getAuthoringDraft, listAuthoringDrafts,
-  updateAuthoringDraft, validateAuthoringDraft,
+  updateAuthoringDraft, validateAuthoringDraft, testAuthoringDraft,
 } from '../api/generated/v1/sdk.gen';
 import type {
   AuthoringBuildState, AuthoringCapabilitiesResponse, AuthoringDraftResponse,
-  AuthoringDraftSummaryResponse, AuthoringIssueResponse, AuthoringTestState, AuthoringValidationState,
+  AuthoringDraftSummaryResponse, AuthoringIssueResponse, AuthoringTestResponse, AuthoringTestState, AuthoringValidationState,
 } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { PanelHeader } from '../components/common';
@@ -46,6 +46,8 @@ function failureText(status: number | undefined, code: string | null): string {
   if (code === 'AUTHORING_REVISION_CONFLICT') return t('authoring.conflict');
   if (code === 'AUTHORING_DRAFT_INVALID') return t('authoring.invalidDraft');
   if (code === 'AUTHORING_BUILD_NOT_CURRENT') return t('authoring.buildNotCurrent');
+  if (code === 'AUTHORING_TEST_HOST_UNAVAILABLE') return t('authoring.testHostUnavailable');
+  if (code === 'AUTHORING_FIXTURE_REQUIRED') return t('authoring.fixtureRequired');
   if (code === 'AUTHORING_LOCAL_DISABLED') return t('authoring.disabledResponse');
   if (status === 403) return t('authoring.denied');
   return t('authoring.failed');
@@ -177,6 +179,17 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
     });
   }
 
+  async function runTests() {
+    if (!draft?.id) return;
+    const id = draft.id;
+    await run('test', async () => {
+      const result = await testAuthoringDraft({ path: { draftId: id }, credentials: 'same-origin' });
+      if (!result.data) return fail(result.response, result.error);
+      adopt(result.data);
+      return { tone: 'status', text: t('authoring.testRan') };
+    });
+  }
+
   async function cancel() {
     if (!draft?.id) return;
     const id = draft.id;
@@ -289,6 +302,7 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
           <ActionButton label={t('authoring.validate')} disabled={!idle || dirty} onClick={() => void validate()} />
           <ActionButton label={t('authoring.build')} disabled={!idle || dirty || building} onClick={() => void build()} />
           {building && <ActionButton label={t('authoring.cancelBuild')} disabled={!idle} onClick={() => void cancel()} />}
+          <ActionButton label={t('authoring.test')} disabled={!idle || dirty || !buildSucceeded} onClick={() => void runTests()} />
           <ActionButton label={t('authoring.download')} disabled={!idle || dirty || !buildSucceeded} onClick={() => void download()} />
           <ActionButton label={t('authoring.addToCatalog')} disabled={!idle || dirty || !buildSucceeded || catalogued}
             onClick={() => void addToCatalog()} />
@@ -325,6 +339,8 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
           </div>
         </div>
 
+        <TestResults test={draft.test ?? null} state={draft.testState ?? 'NotRun'} />
+
         <div className="authoring-issues">
           <h3>{issues.length > 0 && draft.buildState === 'Failed' ? t('authoring.diagnostics') : t('authoring.issues')}</h3>
           {issues.length === 0 ? <p className="authoring-note">{t('authoring.noIssues')}</p> : <ul>
@@ -341,6 +357,35 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
         </div>
       </>}
     </section>
+  </div>;
+}
+
+function valueText(value: unknown): string {
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+function TestResults({ test, state }: { test: AuthoringTestResponse | null; state: AuthoringTestState }) {
+  const values = (items: { id?: string | null; value?: unknown; unit?: string | null }[]) => items.length === 0
+    ? <p className="authoring-note">{t('authoring.testNoValues')}</p>
+    : <dl className="authoring-values">{items.map(item => <div key={item.id}>
+      <dt>{item.id}</dt><dd>{valueText(item.value)}{item.unit ? ` ${item.unit}` : ''}</dd>
+    </div>)}</dl>;
+  return <div className="authoring-tests" aria-label={t('authoring.tests')}>
+    <h3>{t('authoring.tests')}</h3>
+    {!test ? <p className="authoring-note">{t('authoring.testNone')}</p> : <>
+      {state === 'Stale' && <p className="authoring-note" role="status">{t('authoring.testStale')}</p>}
+      {(test.diagnostics ?? []).map(issue => <p key={issue.code} role="alert">{issue.message}</p>)}
+      {(test.cases ?? []).map(item => <section key={item.fixtureId} className="authoring-case">
+        <h4>{item.label} <Status tone={item.passed ? 'success' : 'error'}
+          label={t(item.passed ? 'authoring.testCasePassed' : 'authoring.testCaseFailed')} /></h4>
+        {(item.mismatches ?? []).map(text => <p key={text} role="alert">{text}</p>)}
+        <h5>{t('authoring.testOutputs')}</h5>{values(item.outputs ?? [])}
+        <h5>{t('authoring.testIntermediates')}</h5>{values(item.intermediates ?? [])}
+        <h5>{t('authoring.testActions')}</h5>
+        {(item.actions ?? []).length === 0 ? <p className="authoring-note">{t('authoring.testNoValues')}</p>
+          : <p>{(item.actions ?? []).join(', ')}</p>}
+      </section>)}
+    </>}
   </div>;
 }
 

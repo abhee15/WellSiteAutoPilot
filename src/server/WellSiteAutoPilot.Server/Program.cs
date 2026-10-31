@@ -216,6 +216,7 @@ builder.Services.AddSingleton(builder.Configuration.GetSection(AuthoringOptions.
     ?? new AuthoringOptions());
 builder.Services.AddSingleton<IAuthoringDraftStore, FileAuthoringDraftStore>();
 builder.Services.AddSingleton<IIsolatedProcessRunner, JobObjectProcessRunner>();
+builder.Services.AddSingleton<IAuthoringTestExecutor, OutOfProcessAuthoringTestExecutor>();
 builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
 builder.Services.AddSingleton<AuthoringBuildRunner>();
 builder.Services.AddScoped<AuthoringService>();
@@ -1291,6 +1292,16 @@ v1.MapPost(
     .RequireAuthorization(WellSitePolicies.LogicManage)
     .Produces<AuthoringDraftResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/drafts/{draftId:guid}/test",
+    async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
+        AuthoringResponseMapping.ToResponse(await authoring.TestAsync(draftId, cancellationToken)))
+    .WithName("TestAuthoringDraft")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
 v1.MapPost(
     "/authoring/drafts/{draftId:guid}/build",

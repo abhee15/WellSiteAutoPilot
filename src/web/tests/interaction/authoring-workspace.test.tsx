@@ -8,7 +8,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   getAuthoringCapabilities: vi.fn(), listAuthoringDrafts: vi.fn(), createAuthoringDraft: vi.fn(),
   getAuthoringDraft: vi.fn(), updateAuthoringDraft: vi.fn(), validateAuthoringDraft: vi.fn(),
   buildAuthoringDraft: vi.fn(), cancelAuthoringDraftBuild: vi.fn(), downloadAuthoringDraftPackage: vi.fn(),
-  addAuthoringDraftToCatalog: vi.fn(),
+  addAuthoringDraftToCatalog: vi.fn(), testAuthoringDraft: vi.fn(),
 }));
 const api = vi.mocked(sdk);
 const ok = (data: unknown, status = 200) => ({ data, response: new Response(null, { status }) }) as never;
@@ -76,6 +76,28 @@ it('creates a draft from a starter, blocks actions on edits, then builds and add
   api.getAuthoringDraft.mockResolvedValue(ok({ ...built, build: { ...built.build, catalogModuleRecordId: 'x' } }));
   await user.click(add);
   await waitFor(() => expect(screen.getByRole('status').textContent).toContain('untrusted and disabled'));
+});
+
+it('runs fixture tests on a built draft and shows intermediates, actions and mismatches', async () => {
+  const user = userEvent.setup();
+  const built = draft({ buildState: 'Succeeded', build: { revision: 1, state: 'Succeeded', packageSha256: 'b'.repeat(64), packageBytes: 5 } });
+  api.createAuthoringDraft.mockResolvedValue(ok(built, 201));
+  render(<AuthoringWorkspace onCatalogChanged={vi.fn()} />);
+  await user.click(await screen.findByRole('button', { name: 'New draft' }));
+  await screen.findByRole('heading', { name: 'Demo' });
+  expect(screen.getByText('No tests have been run for this revision.')).toBeTruthy();
+
+  api.testAuthoringDraft.mockResolvedValue(ok({
+    ...built, testState: 'Failed',
+    test: { state: 'Failed', diagnostics: [], cases: [{
+      fixtureId: 'low', label: 'Low fillage', passed: false, mismatches: ['Output ratio expected 1 but was 0.75'],
+      outputs: [{ id: 'ratio', value: '0.75' }], intermediates: [{ id: 'shortfall', value: '10' }], actions: ['REVIEW_LOW_FILLAGE'],
+    }] },
+  }));
+  await user.click(screen.getByRole('button', { name: 'Run tests' }));
+  expect(await screen.findByText('Output ratio expected 1 but was 0.75')).toBeTruthy();
+  expect(screen.getByText('shortfall')).toBeTruthy();
+  expect(screen.getByText('REVIEW_LOW_FILLAGE')).toBeTruthy();
 });
 
 it('reports a revision conflict without discarding the local edit', async () => {

@@ -98,6 +98,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj" />
+    <Project Path="tools/WellSiteAutoPilot.AuthoringTestHost/WellSiteAutoPilot.AuthoringTestHost.csproj" />
     <Project Path="tools/WellSiteAutoPilot.DatabaseMigrator/WellSiteAutoPilot.DatabaseMigrator.csproj" />
     <Project Path="tools/WellSiteAutoPilot.Bootstrapper/WellSiteAutoPilot.Bootstrapper.csproj" />
   </Folder>

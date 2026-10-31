@@ -145,6 +145,10 @@ public static class AuthoringModuleGenerator
         code.AppendLine("{");
         code.AppendLine("    public LogicModuleIdentity Identity { get; } = new(" + CSharpString(document.Module.ModuleId) + ", " + CSharpString(document.Module.Version) + ");");
         code.AppendLine();
+        code.AppendLine("    // Instrumentation contract: the test host reads the intermediate values of the last execution from here.");
+        code.AppendLine("    private readonly Dictionary<string, string> _trace = new(StringComparer.Ordinal);");
+        code.AppendLine("    public IReadOnlyDictionary<string, string> AuthoringTrace => _trace;");
+        code.AppendLine();
         code.AppendLine("    public ValueTask<LogicModuleExecutionResult> ExecuteAsync(LogicModuleExecutionContext context, CancellationToken cancellationToken = default)");
         code.AppendLine("    {");
         code.AppendLine("        cancellationToken.ThrowIfCancellationRequested();");
@@ -154,6 +158,7 @@ public static class AuthoringModuleGenerator
         code.AppendLine();
         code.AppendLine("    private LogicModuleExecutionResult Run(LogicModuleExecutionContext context)");
         code.AppendLine("    {");
+        Line("_trace.Clear();");
         Line("if (context is null || context.ModuleIdentity != Identity) return Failed(\"MODULE_IDENTITY_MISMATCH\");");
         Line("if (context.ExecutionId == Guid.Empty || string.IsNullOrWhiteSpace(context.CorrelationId) ||");
         Line("    context.EvaluationTimeUtc == default || context.EvaluationTimeUtc.Offset != TimeSpan.Zero) return Failed(\"CONTEXT_INVALID\");");
@@ -200,11 +205,13 @@ public static class AuthoringModuleGenerator
                 case "max": Line($"var st{n} = {operands.Aggregate((a, b) => $"Math.Max({a}, {b})")};"); break;
                 case "abs": Line($"var st{n} = Math.Abs({operands[0]});"); break;
             }
+            Line($"_trace[{CSharpString(id)}] = st{n}.ToString(CultureInfo.InvariantCulture);");
         }
         foreach (var condition in document.Conditions)
         {
             var op = condition.Comparator switch { "lt" => "<", "le" => "<=", "gt" => ">", "ge" => ">=", "eq" => "==", _ => "!=" };
             Line($"var cond{conditionIndex[condition.Id]} = {Operand(condition.Left)} {op} {Operand(condition.Right)};");
+            Line($"_trace[{CSharpString(condition.Id)}] = cond{conditionIndex[condition.Id]} ? \"true\" : \"false\";");
         }
         Line("var results = new List<EngineeringResultValue>();");
         foreach (var output in document.Outputs)

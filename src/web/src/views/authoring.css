@@ -165,3 +165,28 @@
   display: grid;
   gap: var(--space-4);
 }
+
+.authoring-tests,
+.authoring-case {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.authoring-values {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.authoring-values div {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.authoring-values dt {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.authoring-values dd {
+  margin: 0;
+}

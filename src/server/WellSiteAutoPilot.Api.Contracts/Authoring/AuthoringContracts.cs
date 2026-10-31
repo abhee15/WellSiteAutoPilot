@@ -85,6 +85,32 @@ public sealed record AuthoringDraftSummaryResponse(
     AuthoringBuildState BuildState,
     DateTimeOffset UpdatedAt);
 
+public sealed record AuthoringTestValueResponse(string Id, JsonElement Value, string? Unit);
+
+public sealed record AuthoringTestCaseResponse(
+    string FixtureId,
+    string Label,
+    bool Passed,
+    string Outcome,
+    string? FailureCode,
+    string? Message,
+    IReadOnlyList<AuthoringTestValueResponse> Outputs,
+    IReadOnlyList<AuthoringTestValueResponse> Intermediates,
+    IReadOnlyList<string> Actions,
+    IReadOnlyList<string> Mismatches);
+
+/// <summary>The last test run, pinned to a draft revision and the built package it exercised.</summary>
+public sealed record AuthoringTestResponse(
+    Guid TestId,
+    int Revision,
+    Guid BuildId,
+    string PackageSha256,
+    AuthoringTestState State,
+    IReadOnlyList<AuthoringTestCaseResponse> Cases,
+    IReadOnlyList<AuthoringIssueResponse> Diagnostics,
+    DateTimeOffset StartedAt,
+    DateTimeOffset CompletedAt);
+
 public sealed record AuthoringDraftResponse(
     Guid Id,
     int Revision,
@@ -98,4 +124,5 @@ public sealed record AuthoringDraftResponse(
     IReadOnlyList<AuthoringIssueResponse> ValidationIssues,
     AuthoringTestState TestState,
     AuthoringBuildState BuildState,
-    AuthoringBuildResponse? Build);
+    AuthoringBuildResponse? Build,
+    AuthoringTestResponse? Test = null);

@@ -35,7 +35,13 @@ that is not wired in.
 - Web: Logic > Authoring tab (`#logic/authoring`) with outline/dependencies, calculation workspace, properties,
   and validate/build/download/add actions.
 
+- Test: `POST /authoring/drafts/{id}/test` runs the draft's sample fixtures against the built package in a
+  separate process (`tools/WellSiteAutoPilot.AuthoringTestHost`, job-object limited) using the production
+  `DotNetModulePackageHost` (V1) or structured offline host (V2). The generated module exposes `AuthoringTrace`
+  (step and condition values) as the instrumentation contract; results include outputs, intermediates, fired
+  actions and mismatches against expected values. Results are pinned to revision and build and go Stale on edit.
+
 ## Known gaps
 
-No isolation; the test state is never run; structured-input calculations are only available as opaque code steps;
-V2 modules package and catalog but the production host does not execute them; one asset role; scalar decimal operations.
+AppContainer mode fails in this environment (CreateProcess error 203); job-object mode is the verified baseline;
+structured-input calculations are only available as opaque code steps; one asset role; scalar decimal operations.

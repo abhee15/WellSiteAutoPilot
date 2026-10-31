@@ -177,6 +177,7 @@ public static partial class AuthoringDraftValidator
             if (codeModule) Error("AUTHORING_OPERATION_UNSUPPORTED", path, "Actions cannot be combined with a code-backed module step.");
         }
 
+        ValidateFixtures(document, inputs, parameters, issues);
         ReportUnused(document, issues);
         var valid = issues.All(i => i.Severity != AuthoringIssueSeverity.Error);
         return new AuthoringValidationReport(valid, issues, order);
@@ -402,6 +403,46 @@ public static partial class AuthoringDraftValidator
         foreach (var step in document.Steps) Visit(step.Id);
         return found ?? [];
     }
+
+    private static void ValidateFixtures(AuthoringDocument document, Dictionary<string, AuthoringInput> inputs,
+        Dictionary<string, AuthoringParameter> parameters, List<AuthoringIssue> issues)
+    {
+        void Error(string code, string path, string message) =>
+            issues.Add(new(AuthoringIssueSeverity.Error, code, path, message));
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var outputs = document.Outputs.Select(o => o.Id).ToHashSet(StringComparer.Ordinal);
+        var actions = document.Actions.Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var fixture in document.Fixtures ?? [])
+        {
+            var path = $"fixtures/{fixture.Id}";
+            if (!IsIdentifier(fixture.Id)) Error("AUTHORING_ID_INVALID", path, "Fixture IDs are 1-128 letters, digits, '.', '_' or '-'.");
+            else if (!seen.Add(fixture.Id)) Error("AUTHORING_ID_DUPLICATE", path, "Fixture IDs must be unique.");
+            foreach (var input in document.Inputs.Where(i => !fixture.Inputs.ContainsKey(i.Id)))
+                Error("AUTHORING_FIXTURE_INPUT_MISSING", $"{path}/inputs/{input.Id}", "The fixture must supply a value for every input.");
+            foreach (var (id, value) in fixture.Inputs)
+            {
+                if (!inputs.TryGetValue(id, out var input)) { Error("AUTHORING_REFERENCE_MISSING", $"{path}/inputs/{id}", "The fixture names an unknown input."); continue; }
+                if (input.ValueSchema is null && !IsScalarFixtureValue(value))
+                    Error("AUTHORING_DECIMAL_INVALID", $"{path}/inputs/{id}", "Scalar fixture values are JSON numbers or canonical decimal text.");
+            }
+            foreach (var (id, value) in fixture.Parameters ?? new Dictionary<string, string>())
+            {
+                if (!parameters.ContainsKey(id)) Error("AUTHORING_REFERENCE_MISSING", $"{path}/parameters/{id}", "The fixture names an unknown parameter.");
+                else if (!IsCanonicalDecimal(value)) Error("AUTHORING_DECIMAL_INVALID", $"{path}/parameters/{id}", "Parameter values are canonical decimal text.");
+            }
+            foreach (var id in (fixture.ExpectedOutputs ?? new Dictionary<string, global::System.Text.Json.JsonElement>()).Keys.Where(k => !outputs.Contains(k)))
+                Error("AUTHORING_REFERENCE_MISSING", $"{path}/expectedOutputs/{id}", "The fixture expects an unknown output.");
+            foreach (var id in (fixture.ExpectedActions ?? []).Where(a => !actions.Contains(a)))
+                Error("AUTHORING_REFERENCE_MISSING", $"{path}/expectedActions/{id}", "The fixture expects an unknown action.");
+        }
+    }
+
+    private static bool IsScalarFixtureValue(global::System.Text.Json.JsonElement value) => value.ValueKind switch
+    {
+        global::System.Text.Json.JsonValueKind.Number => value.TryGetDecimal(out _),
+        global::System.Text.Json.JsonValueKind.String => IsCanonicalDecimal(value.GetString()),
+        _ => false
+    };
 
     private static void ReportUnused(AuthoringDocument document, List<AuthoringIssue> issues)
     {

@@ -21,7 +21,8 @@ public sealed record AuthoringDocument(
     IReadOnlyList<AuthoringStep> Steps,
     IReadOnlyList<AuthoringCondition> Conditions,
     IReadOnlyList<AuthoringOutput> Outputs,
-    IReadOnlyList<AuthoringAction> Actions)
+    IReadOnlyList<AuthoringAction> Actions,
+    IReadOnlyList<AuthoringFixture>? Fixtures = null)
 {
     public const string SchemaId = "wsa-authoring-draft/1";
     public const string DecimalProfile = "decimal-checked/1";
@@ -64,6 +65,17 @@ public sealed record AuthoringOutput(
 public sealed record AuthoringAction(
     string Id, string Label, string Condition, string Title, string Detail,
     string? Quantity = null, string? Unit = null, AuthoringOperand? SuggestedValue = null, string? Command = null);
+
+/// <summary>
+/// A sample input set for the Test state. Inputs and expected outputs are JSON values keyed by input/output ID
+/// (numbers or decimal strings for scalars). ExpectedActions lists the action IDs that must fire; when set,
+/// no other action may fire.
+/// </summary>
+public sealed record AuthoringFixture(
+    string Id, string Label, IReadOnlyDictionary<string, JsonElement> Inputs,
+    IReadOnlyDictionary<string, string>? Parameters = null,
+    IReadOnlyDictionary<string, JsonElement>? ExpectedOutputs = null,
+    IReadOnlyList<string>? ExpectedActions = null);
 
 public static class AuthoringJson
 {
