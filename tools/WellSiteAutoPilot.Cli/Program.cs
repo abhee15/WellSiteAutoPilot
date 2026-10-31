@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using WellSiteAutoPilot.Application.Logic;
@@ -9,9 +8,6 @@ return await Cli.RunAsync(args);
 
 internal static class Cli
 {
-    private static readonly DateTimeOffset DeterministicZipTimestamp =
-        new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
     public static async Task<int> RunAsync(string[] args)
     {
         if (args.Length == 3 &&
@@ -126,32 +122,8 @@ internal static class Cli
             try
             {
                 await using (var stream = File.Create(temporaryPath))
-                using (var archive = new ZipArchive(
-                           stream,
-                           ZipArchiveMode.Create,
-                           leaveOpen: false))
                 {
-                    await AddFileAsync(
-                        archive,
-                        manifestFullPath,
-                        "manifest.json");
-
-                    var payloadFiles = Directory
-                        .EnumerateFiles(payloadFullPath, "*", SearchOption.AllDirectories)
-                        .OrderBy(path => path, StringComparer.Ordinal)
-                        .ToArray();
-
-                    foreach (var payloadFile in payloadFiles)
-                    {
-                        var relative = Path
-                            .GetRelativePath(payloadFullPath, payloadFile)
-                            .Replace(Path.DirectorySeparatorChar, '/');
-
-                        await AddFileAsync(
-                            archive,
-                            payloadFile,
-                            $"payload/{relative}");
-                    }
+                    await LogicModulePackageWriter.WriteAsync(stream, manifestFullPath, payloadFullPath);
                 }
 
                 await using (var candidate = File.OpenRead(temporaryPath))
@@ -235,21 +207,6 @@ internal static class Cli
 
         await using var stream = File.OpenRead(fullPath);
         return await LogicModuleManifestReader.ReadAsync(stream);
-    }
-
-    private static async Task AddFileAsync(
-        ZipArchive archive,
-        string sourcePath,
-        string entryName)
-    {
-        var entry = archive.CreateEntry(
-            entryName,
-            CompressionLevel.Optimal);
-        entry.LastWriteTime = DeterministicZipTimestamp;
-
-        await using var source = File.OpenRead(sourcePath);
-        await using var destination = entry.Open();
-        await source.CopyToAsync(destination);
     }
 
     private static async Task<string> ComputeSha256Async(string path)

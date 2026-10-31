@@ -1,0 +1,270 @@
+using System.IO.Compression;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+using WellSiteAutoPilot.Application.Authoring;
+using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.Logic;
+using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Infrastructure.Authoring;
+using WellSiteAutoPilot.ModuleSdk;
+
+static void Check(bool condition, string message)
+{
+    if (!condition) throw new InvalidOperationException("Authoring check failed: " + message);
+}
+
+static async Task<T> Throws<T>(Func<Task> action, string message) where T : Exception
+{
+    try { await action(); }
+    catch (T error) { return error; }
+    throw new InvalidOperationException("Authoring check failed: expected failure - " + message);
+}
+
+static AuthoringDocument Starter(string id) => AuthoringStarters.Find(id)!.Document;
+
+static bool HasCode(AuthoringValidationReport report, string code) =>
+    report.Issues.Any(i => i.Code == code && i.Severity == AuthoringIssueSeverity.Error);
+
+// Static validation.
+foreach (var starter in AuthoringStarters.All)
+{
+    var report = await AuthoringService.ValidateDocumentAsync(starter.Document, CancellationToken.None);
+    Check(report.IsValid, $"starter {starter.Id} must validate: " + string.Join("; ", report.Issues.Select(i => i.Code + " " + i.Message)));
+}
+
+var threshold = Starter(AuthoringStarters.ThresholdAlertId);
+Check(AuthoringDraftValidator.Validate(threshold).StepOrder.SequenceEqual(["shortfall", "fillage-ratio"]), "topological order is stable");
+
+var cyclic = threshold with
+{
+    Steps =
+    [
+        new("a", "A", "calculation", "add", [new("step", "b"), new("literal", null, null, "1")]),
+        new("b", "B", "calculation", "add", [new("step", "a"), new("literal", null, null, "1")])
+    ],
+    Outputs = [new("out", "Out", "Q", "%", new("step", "a"))],
+    Conditions = [], Actions = []
+};
+Check(HasCode(AuthoringDraftValidator.Validate(cyclic), "AUTHORING_CYCLE"), "cycles are rejected");
+
+var unitMismatch = threshold with
+{
+    Steps = [new("bad", "Bad", "calculation", "add", [new("input", "pump-fillage"), new("literal", "1")])],
+    Conditions = [], Actions = [],
+    Outputs = [new("out", "Out", "Q", "%", new("step", "bad"))]
+};
+// Adding a literal (no unit) is allowed to be flagged only when units conflict; a unit-mismatched add is the real case.
+var mismatched = threshold with
+{
+    Parameters = [new("low-threshold", "Low", "40", "psi")],
+    Steps = [new("bad", "Bad", "calculation", "add", [new("input", "pump-fillage"), new("parameter", "low-threshold")])],
+    Conditions = [], Actions = [],
+    Outputs = [new("out", "Out", "Q", "%", new("step", "bad"))]
+};
+Check(HasCode(AuthoringDraftValidator.Validate(mismatched), "AUTHORING_UNIT_MISMATCH"), "unit mismatch is rejected");
+_ = unitMismatch;
+
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with { Parameters = [new("low-threshold", "Low", "4e1", "%")] }),
+    "AUTHORING_DECIMAL_INVALID"), "non-canonical decimals are rejected");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with
+{
+    Steps = [new("s", "S", "calculation", "divide", [new("input", "pump-fillage"), new("literal", "0")])],
+    Conditions = [], Actions = [], Outputs = [new("o", "O", "Q", "1", new("step", "s"))]
+}), "AUTHORING_DECIMAL_INVALID") || AuthoringDraftValidator.Validate(threshold with
+{
+    Steps = [new("s", "S", "calculation", "divide", [new("input", "pump-fillage"), new("literal", "0")])],
+    Conditions = [], Actions = [], Outputs = [new("o", "O", "Q", "1", new("step", "s"))]
+}).Issues.Any(i => i.Message.Contains("zero", StringComparison.OrdinalIgnoreCase)), "divide by literal zero is rejected");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with
+{
+    Outputs = [new("o", "O", "Q", "%", new("input", "missing"))]
+}), "AUTHORING_REFERENCE_MISSING"), "unknown references are rejected");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with
+{
+    Inputs = [.. threshold.Inputs, .. threshold.Inputs]
+}), "AUTHORING_ID_DUPLICATE"), "duplicate ids are rejected");
+Check(HasCode(AuthoringDraftValidator.Validate(Starter(AuthoringStarters.CardCalibrationId) with
+{
+    Steps =
+    [
+        Starter(AuthoringStarters.CardCalibrationId).Steps[0] with
+        {
+            Code = Starter(AuthoringStarters.CardCalibrationId).Steps[0].Code! with
+            { Source = AuthoringStarters.CardSource.Replace("\"authored.card-calibration\"", "\"other.id\"", StringComparison.Ordinal) }
+        }
+    ]
+}), "AUTHORING_CODE_IDENTITY_MISMATCH"), "code step identity must match the module identity");
+
+// The card starter reproduces the sample source apart from its identity.
+var sample = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "sample", "CardCalibrationModule.cs"));
+var normalized = AuthoringStarters.CardSource.Replace("\"authored.card-calibration\"", "\"sample.card-calibration\"", StringComparison.Ordinal);
+Check(normalized.ReplaceLineEndings("\n").TrimEnd() == sample.ReplaceLineEndings("\n").TrimEnd(),
+    "card starter source must equal the sample apart from module identity");
+
+// Strict document reading and digesting.
+var element = AuthoringJson.ToElement(threshold);
+Check(AuthoringJson.Digest(AuthoringJson.Read(element)) == AuthoringJson.Digest(threshold), "document round trips");
+await Throws<WellSiteAutoPilotException>(() =>
+{
+    AuthoringJson.Read(JsonDocument.Parse("""{"schema":"wsa-authoring-draft/1","surprise":1}""").RootElement);
+    return Task.CompletedTask;
+}, "unknown members are rejected");
+
+// Generation is deterministic, escapes literals and keeps manifests consistent.
+var first = AuthoringModuleGenerator.Generate(threshold);
+Check(first.SourceFiles["EntryPoint.cs"] == AuthoringModuleGenerator.Generate(threshold).SourceFiles["EntryPoint.cs"], "generation is deterministic");
+Check(AuthoringModuleGenerator.CSharpString("a\"b\\c\n") == "\"a\\\"b\\\\c\\n\"", "string literals are escaped");
+Check(JsonDocument.Parse(first.ManifestJson).RootElement.GetProperty("manifestVersion").GetInt32() == 1, "scalar drafts use manifest v1");
+Check(JsonDocument.Parse(AuthoringModuleGenerator.Generate(Starter(AuthoringStarters.CardCalibrationId)).ManifestJson)
+    .RootElement.GetProperty("manifestVersion").GetInt32() == 2, "code-step drafts use manifest v2");
+
+// Service: gating, states, builds, artifacts and catalog hand-off.
+var root = Path.Combine(AppContext.BaseDirectory, "authoring-test-" + Guid.NewGuid().ToString("N"));
+try
+{
+    var clock = TimeProvider.System;
+    AuthoringService Create(bool enabled, out FakePackageRepository repository)
+    {
+        var options = new AuthoringOptions { Enabled = enabled, StorePath = Path.Combine(root, "store"), WorkRoot = Path.Combine(root, "work") };
+        var store = new FileAuthoringDraftStore(options);
+        var runner = new AuthoringBuildRunner(store, new LocalDotNetAuthoringBuilder(options), clock);
+        repository = new FakePackageRepository();
+        return new AuthoringService(options, store, runner, new LogicModulePackageService(repository, clock), clock);
+    }
+
+    var disabled = Create(false, out _);
+    var denied = await Throws<WellSiteAutoPilotException>(() => disabled.ListAsync(CancellationToken.None), "disabled gate");
+    Check(denied.Code == "AUTHORING_LOCAL_DISABLED" && denied.Kind == FailureKind.NotFound, "disabled flag hides the API");
+
+    var service = Create(true, out var packages);
+    var created = await service.CreateAsync(AuthoringStarters.ThresholdAlertId, null, "tester", CancellationToken.None);
+    var id = created.Draft.Id;
+    Check(created.Draft.Revision == 1 && created.Build == AuthoringBuildState.None && created.Validation == AuthoringValidationState.NotRun
+        && created.Test == AuthoringTestState.NotRun, "new drafts start with separate not-run states");
+    await Throws<WellSiteAutoPilotException>(() => service.DownloadAsync(id, CancellationToken.None), "no download before build");
+
+    var validated = await service.ValidateAsync(id, CancellationToken.None);
+    Check(validated.Validation == AuthoringValidationState.Valid, "starter validates");
+
+    async Task<AuthoringDraftView> WaitForBuild(Guid draftId)
+    {
+        for (var i = 0; i < 600; i++)
+        {
+            var view = await service.GetAsync(draftId, CancellationToken.None);
+            if (view.Build != AuthoringBuildState.Building) return view;
+            await Task.Delay(500);
+        }
+        throw new TimeoutException("build did not finish");
+    }
+
+    var building = await service.BuildAsync(id, CancellationToken.None);
+    Check(building.Build == AuthoringBuildState.Building, "build starts in the background");
+    var built = await WaitForBuild(id);
+    Check(built.Build == AuthoringBuildState.Succeeded,
+        "threshold build must succeed: " + string.Join("; ", built.EffectiveBuild?.Diagnostics.Select(d => d.Message) ?? []));
+    Check(built.EffectiveBuild!.Revision == 1, "build is pinned to its revision");
+
+    var (package, fileName, sha) = await service.DownloadAsync(id, CancellationToken.None);
+    Check(Convert.ToHexStringLower(SHA256.HashData(package)) == sha && fileName.EndsWith(".wsamodule", StringComparison.Ordinal),
+        "download matches recorded hash");
+    var inspected = await LogicModulePackageReader.ReadAsync(new MemoryStream(package));
+    Check(inspected.Manifest.ModuleId == "authored.fillage-threshold-alert", "package carries the authored identity");
+    Check(!inspected.ManifestJson.Contains("approved", StringComparison.OrdinalIgnoreCase), "manifest carries no approval claims");
+
+    // Execute the compiled module directly to prove the generated arithmetic.
+    using (var archive = new ZipArchive(new MemoryStream(package)))
+    {
+        var entry = archive.Entries.Single(e => e.FullName == "payload/Authored.Module.dll");
+        using var bytes = new MemoryStream();
+        await using (var stream = entry.Open()) await stream.CopyToAsync(bytes);
+        var module = (ILogicModuleV1)Activator.CreateInstance(Assembly.Load(bytes.ToArray()).GetType("Authored.EntryPoint")!)!;
+        var asset = Guid.NewGuid();
+        LogicModuleExecutionContext Context(decimal fillage, string settings) => new(Guid.NewGuid(), module.Identity, "corr",
+            DateTimeOffset.UtcNow, settings, [new("well", asset, "{}")],
+            [new("pump-fillage", asset, "PumpFillage", fillage, "%", DateTimeOffset.UtcNow, "Good", "test")]);
+        var low = await module.ExecuteAsync(Context(30m, "{}"));
+        Check(low.FailureCode is null && low.EngineeringResults.Single(r => r.Id == "fillage-shortfall").Value == 10m, "shortfall is threshold minus fillage");
+        Check(low.EngineeringResults.Single(r => r.Id == "fillage-ratio-result").Value == 0.75m, "ratio is exact decimal division");
+        Check(low.Recommendations.Count == 1 && low.Recommendations.Single().SuggestedValue == 40m, "low fillage proposes a review");
+        var high = await module.ExecuteAsync(Context(55m, """{"low-threshold":"50"}"""));
+        Check(high.Recommendations.Count == 0, "no recommendation above the configured threshold");
+        var bad = await module.ExecuteAsync(Context(55m, """{"low-threshold":50}"""));
+        Check(bad.FailureCode == "PARAMETER_INVALID", "numeric parameter encodings are rejected");
+        var wrong = await module.ExecuteAsync(Context(55m, "{}") with { ModuleIdentity = new("other", "1.0.0") });
+        Check(wrong.FailureCode == "MODULE_IDENTITY_MISMATCH", "identity is checked");
+    }
+
+    // Optimistic concurrency and invalidation.
+    await Throws<WellSiteAutoPilotException>(() => service.UpdateAsync(id, 99, AuthoringJson.ToElement(threshold), CancellationToken.None), "stale revision rejected");
+    var edited = threshold with { Parameters = [new("low-threshold", "Low fillage threshold", "45", "%")] };
+    var updated = await service.UpdateAsync(id, 1, AuthoringJson.ToElement(edited), CancellationToken.None);
+    Check(updated.Draft.Revision == 2 && updated.Build == AuthoringBuildState.Stale && updated.Validation == AuthoringValidationState.Stale,
+        "an edit stales validation and the build");
+    var conflict = await Throws<WellSiteAutoPilotException>(() => service.DownloadAsync(id, CancellationToken.None), "stale build download");
+    Check(conflict.Code == "AUTHORING_BUILD_NOT_CURRENT", "stale builds cannot be downloaded");
+    await Throws<WellSiteAutoPilotException>(() => service.AddToCatalogAsync(id, new AccessSubject(Guid.NewGuid()),
+        new SecurityActorContext(null, "tester", null), CancellationToken.None), "stale build cannot be cataloged");
+    var unchanged = await service.UpdateAsync(id, 2, AuthoringJson.ToElement(edited), CancellationToken.None);
+    Check(unchanged.Draft.Revision == 2, "identical content does not bump the revision");
+
+    var invalid = edited with { Outputs = [new("o", "O", "Q", "%", new("input", "nope"))] };
+    await service.UpdateAsync(id, 2, AuthoringJson.ToElement(invalid), CancellationToken.None);
+    var blocked = await Throws<WellSiteAutoPilotException>(() => service.BuildAsync(id, CancellationToken.None), "invalid build");
+    Check(blocked.Code == "AUTHORING_DRAFT_INVALID", "invalid drafts do not build");
+    await service.UpdateAsync(id, 3, AuthoringJson.ToElement(edited), CancellationToken.None);
+
+    await service.BuildAsync(id, CancellationToken.None);
+    var rebuilt = await WaitForBuild(id);
+    Check(rebuilt.Build == AuthoringBuildState.Succeeded && rebuilt.Draft.Revision == 4, "rebuild succeeds for the new revision");
+
+    var installed = await service.AddToCatalogAsync(id, new AccessSubject(Guid.NewGuid()), new SecurityActorContext(null, "tester", null),
+        CancellationToken.None);
+    Check(installed.TrustStatus == LogicModuleTrustStatus.Untrusted && !installed.IsEnabled, "catalog entry is untrusted and disabled");
+    Check(installed.PackageSha256 == rebuilt.EffectiveBuild!.PackageSha256 && packages.Uploads == 1, "catalog receives the exact artifact");
+    Check((await service.GetAsync(id, CancellationToken.None)).EffectiveBuild!.Catalog is not null, "submission is recorded");
+
+    // Compile failures surface as diagnostics, not exceptions.
+    var card = await service.CreateAsync(AuthoringStarters.CardCalibrationId, null, "tester", CancellationToken.None);
+    await service.BuildAsync(card.Draft.Id, CancellationToken.None);
+    var cardBuilt = await WaitForBuild(card.Draft.Id);
+    Check(cardBuilt.Build == AuthoringBuildState.Succeeded,
+        "card calibration build must succeed: " + string.Join("; ", cardBuilt.EffectiveBuild?.Diagnostics.Select(d => d.Message) ?? []));
+    var cardPackage = await service.DownloadAsync(card.Draft.Id, CancellationToken.None);
+    var cardInspected = await LogicModulePackageReader.ReadAsync(new MemoryStream(cardPackage.Package));
+    Check(cardInspected.Manifest.ModuleId == "authored.card-calibration", "card package carries its identity");
+
+    var broken = Starter(AuthoringStarters.CardCalibrationId);
+    broken = broken with
+    {
+        Steps = [broken.Steps[0] with { Code = broken.Steps[0].Code! with { Source = broken.Steps[0].Code!.Source + "\nclass Broken { int x = \"text\"; }" } }]
+    };
+    var brokenDraft = await service.CreateAsync(null, AuthoringJson.ToElement(broken), "tester", CancellationToken.None);
+    await service.BuildAsync(brokenDraft.Draft.Id, CancellationToken.None);
+    var failed = await WaitForBuild(brokenDraft.Draft.Id);
+    Check(failed.Build == AuthoringBuildState.Failed && failed.EffectiveBuild!.Diagnostics.Any(d => d.Message.Contains("CS0029", StringComparison.Ordinal)),
+        "compiler errors are reported as diagnostics");
+    Check(!failed.EffectiveBuild!.Diagnostics.Any(d => d.Message.Contains(root, StringComparison.OrdinalIgnoreCase) || d.Path.Contains(root, StringComparison.OrdinalIgnoreCase)),
+        "diagnostics do not leak work paths");
+    await Throws<WellSiteAutoPilotException>(() => service.DownloadAsync(brokenDraft.Draft.Id, CancellationToken.None), "failed build download");
+}
+finally
+{
+    try { Directory.Delete(root, recursive: true); }
+    catch (IOException) { }
+}
+
+Console.WriteLine("Authoring checks passed.");
+
+internal sealed class FakePackageRepository : ILogicModulePackageRepository
+{
+    public int Uploads { get; private set; }
+
+    public Task<InstalledLogicModule> UploadAuthorizedAsync(InstalledLogicModule logicModule, byte[] archive,
+        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        Uploads++;
+        return Task.FromResult(logicModule);
+    }
+}

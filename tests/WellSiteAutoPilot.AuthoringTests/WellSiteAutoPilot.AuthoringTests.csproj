@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
+    <ProjectReference Include="../../src/server/WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
+    <ProjectReference Include="../../src/server/WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
+    <ProjectReference Include="../../src/server/WellSiteAutoPilot.Infrastructure/WellSiteAutoPilot.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
+    <Content Include="../../modules/samples/structured-cards/CardCalibrationModule.cs" Link="sample/CardCalibrationModule.cs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
