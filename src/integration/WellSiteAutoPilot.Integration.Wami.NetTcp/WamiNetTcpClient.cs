@@ -14,7 +14,8 @@ namespace WellSiteAutoPilot.Integration.Wami.NetTcp;
 /// </summary>
 public sealed class WamiNetTcpClient : IWamiClient
 {
-    public const string OperatingPoint = "model-operating-point";
+    public const string NodalAnalysis = "nodal-analysis";
+    public const string WellheadPressure = "wellheadPressure";
     public const string NativeUnits = "wami-native";
 
     private readonly Uri _router;
@@ -39,12 +40,12 @@ public sealed class WamiNetTcpClient : IWamiClient
         _binding.Security.Transport.ClientCredentialType = TcpClientCredentialType.Windows;
     }
 
-    // Stored-model operating point only: feeding live inputs needs the node-id mapping (SetOperatingPointTopNode), which
-    // has not been confirmed with WAMI's owners. Outputs are in the model's own units until the unit contract is known.
+    // wellheadPressure maps to IModel.SetOperatingPointTopNode(-1, pressure) (-1 keeps the model's top node); WAMI's source
+    // documents no unit for it, so it is taken in the model's own pressure unit. Setting it changes the session's model.
     public IReadOnlyList<WamiFunctionDescriptor> Functions { get; } =
     [
-        new(OperatingPoint, "Nodal-analysis operating point of the model as stored; takes no inputs.", WamiFunctionEffect.None,
-            [], ["operatingPoint.liquidRate", "operatingPoint.bottomholePressure"])
+        new(NodalAnalysis, "Nodal-analysis operating point; optional wellhead (top node) pressure override.", WamiFunctionEffect.ChangesSessionModel,
+            [WellheadPressure], ["operatingPoint.liquidRate", "operatingPoint.bottomholePressure"])
     ];
 
     public async ValueTask<WamiServerInfo> GetServerInfoAsync(CancellationToken cancellationToken = default)
@@ -97,8 +98,8 @@ public sealed class WamiNetTcpClient : IWamiClient
     }
 
     /// <summary>
-    /// WCF calls here are synchronous. Cancelling aborts the channel; a worker already running keeps going, so after
-    /// <paramref name="beforeDispatch"/> is false a cancel or timeout is reported as ambiguous.
+    /// WCF calls here are synchronous. Cancelling aborts the channel; a worker already running keeps going, so when
+    /// <paramref name="failureOutcome"/> is Ambiguous a timeout or lost connection is reported as ambiguous.
     /// </summary>
     internal static async Task<TResult> Guarded<T, TResult>(Channel<T> channel, Func<TResult> call, WamiCallOutcome failureOutcome, CancellationToken cancellationToken)
     {
@@ -118,6 +119,11 @@ public sealed class WamiNetTcpClient : IWamiClient
         catch (ServerTooBusyException error)
         {
             throw new WamiException(WamiFailureCodes.Busy, "WAMI is too busy.", WamiCallOutcome.NotStarted, error);
+        }
+        catch (FaultException<WorkerLimitFault> error)
+        {
+            // The router faults before routing when MaxAllowedWorkers workers are in use: it never queues and nothing ran.
+            throw new WamiException(WamiFailureCodes.Busy, $"WAMI has no free worker (limit {error.Detail?.MaxAllowedWorkers}).", WamiCallOutcome.NotStarted, error);
         }
         catch (FaultException error)
         {
@@ -160,13 +166,18 @@ public sealed class WamiNetTcpClient : IWamiClient
         public async ValueTask<WamiCalculationResult> CalculateAsync(WamiCalculationRequest request, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(request);
-            if (request.Function != OperatingPoint)
+            if (request.Function != NodalAnalysis)
                 throw new WamiException(WamiFailureCodes.FunctionUnsupported, $"No WAMI function '{request.Function}'.", WamiCallOutcome.NotStarted);
-            if (request.Inputs.Count != 0)
-                throw new WamiException(WamiFailureCodes.InputInvalid, $"{OperatingPoint} takes no inputs.", WamiCallOutcome.NotStarted);
+            if (request.Inputs.Keys.Any(k => k != WellheadPressure))
+                throw new WamiException(WamiFailureCodes.InputInvalid, $"{NodalAnalysis} accepts only {WellheadPressure}.", WamiCallOutcome.NotStarted);
 
             // Dispatched from here on: failures and cancels are ambiguous.
-            var result = await Guarded(channel, () => channel.Proxy.DoNodalAnalysis(), WamiCallOutcome.Ambiguous, cancellationToken);
+            var result = await Guarded(channel, () =>
+            {
+                if (request.Inputs.TryGetValue(WellheadPressure, out var pressure))
+                    channel.Proxy.SetOperatingPointTopNode(-1, (double)pressure.Value);
+                return channel.Proxy.DoNodalAnalysis();
+            }, WamiCallOutcome.Ambiguous, cancellationToken);
             if (result.Status != ResultStatus.Success || result.OperatingPoint is null)
             {
                 var detail = result.ModelValidationResult is { ValidationErrors: > 0 } ? " The model failed validation." : "";

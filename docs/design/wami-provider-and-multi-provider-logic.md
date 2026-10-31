@@ -15,11 +15,15 @@ dependency; later it might become an external adapter exposing selected function
 
 | Topic | Finding |
 |---|---|
-| Protocol | WCF `net.tcp`, router at `net.tcp://<host>:5656/Weatherford/IRouter/<Contract>` (contracts `IModel`, `IReciprocatingRodLift`, `IESP`, `IPCP`, `IGasLift`, `IPlungerLift`, `ILicense`, `IConfiguration`, `IModelFile`). |
-| Auth / binding | `SecurityMode.Transport`, Windows credentials, very large message limits, 6 min send/receive timeouts (as ForeSite's `WAMIBinding`). The caller's Windows identity must be accepted by WAMI. |
-| Contract | Proprietary `Weatherford.WAMI.Interfaces.dll` (.NET Framework 4.0, v7.7.x). Not redistributed here; referenced only through an opt-in MSBuild property. ForeSite itself loads it on net10 through `System.ServiceModel.NetTcp` `ChannelFactory`. |
-| Statefulness | Session per channel: `OpenFileData(FileData{File=bytes})` returns `FileStatus`, then operations act on that opened model. Workers are COM-based processes, so calls may be slow, busy or hang. |
-| Functions | IModel: `DoNodalAnalysis`, `...WithOption`, `...WithModelData`, `GenerateWellPerformanceCurve`, `CalculatePVTData`, `CalculateFlowAssurance`, `ValidateModel`, `Get/SetModelData`, `SetOperatingPointTopNode`. Rod lift: `PerformAnalysis`, `PerformCalibration`, `PerformDesign`, `BalancePumpingUnit`, pattern match. ESP: `DoESPNodalAnalysis`, pump wear calibration. ILicense: `HasWAMILicense`, diagnostics. |
+| Protocol | WCF `net.tcp`, router at `net.tcp://<host>:5656/Weatherford/IRouter/<Contract>` (contracts `IModel`, `IReciprocatingRodLift`, `IESP`, `IPCP`, `IGasLift`, `IPlungerLift`, `ILicense`, `IConfiguration`, `IModelFile`). Primary source: WellFlo trunk `API\Server` (`Weatherford.WAMI.Server`, hosted with CoreWCF on net10 or WCF on net472) and `Utilities\WamiClient` (reference client, `App.config`). |
+| Server internals | `Router` is one untyped passthrough service (`PerSession`): per session it takes a worker process from `RouterEndpointManager.GetWorker` and forwards each message over net.tcp (Windows transport) to that worker, so **one client session = one dedicated COM-based worker** (state lives there). Port, `MinFreeWorkers` (5), `MaxAllowedWorkers` (10, also capped by the licence's max-concurrent-connections), `WCFAllowedGroups` (`Users, Administrators`), `FlowAssuranceTimeoutMillis` (25 s) come from the server `App.config`/`ServerOverrides.config`. Workers that fault or exceed ~350 MB are recycled. |
+| Busy behaviour | **No queue**: when `MaxAllowedWorkers` workers are in use, `GetWorker` throws `FaultException<WorkerLimitFault>{Message, MaxAllowedWorkers}` before anything runs. The client maps it to `Busy` / `NotStarted`, which is safe to retry with backoff. |
+| Hosting restriction | In **Edge mode** (ForeSite Edge node-lock licence) the router refuses non-local clients, so WAMI must then run on the same machine as the Gateway. |
+| Auth / binding | `SecurityMode.Transport`, Windows credentials, very large message limits, 6 min timeouts (server `Router`, ForeSite `WAMIBinding` and the WellFlo `WamiClient` `App.config` agree); the sample client sets an empty `servicePrincipalName` identity so SPN matching is skipped. The caller's Windows identity must belong to a group in `WCFAllowedGroups`. |
+| Contract | `Weatherford.WAMI.Interfaces` (source in WellFlo trunk `API\Common\WellFlo.API.Interfaces`; ForeSite carries a .NET Framework 4.0 build v7.7.x). Redistribution of the binary is unconfirmed, so it is referenced only through an opt-in MSBuild property. `IModel : IConfiguration`, `IModelFile : ILicense`; the client uses `IModel` and `ILicense` endpoints. |
+| Model files | `IModelFile.OpenFileData(FileData{Name, Extension, File=bytes})` returns `FileStatus`; `Open(path)` reads a server-local path (not used: the model comes from ForeSite). `GetFileData()` returns the in-session model; `GetModelFileVersion()` and `GetApplicationVersion()` give versions. |
+| Statefulness | Session per channel: open the model, then operations act on it. Workers are COM-based processes, so calls may be slow or hang. |
+| Functions | IModel: `DoNodalAnalysis`, `...WithOption`, `...FromModelData`, `GenerateWellPerformanceCurve`, `CalculatePVTData`, `CalculateFlowAssurance`, `ValidateModel`, `Get/SetModelData`, `SetOperatingPointTopNode(nodeID, pressure)` (`-1` = keep the model's value). Rod lift: `PerformAnalysis`, `PerformCalibration`, `PerformDesign`, `BalancePumpingUnit`, pattern match. ESP: `DoESPNodalAnalysis`, pump wear calibration. ILicense: `HasWAMILicense`, `IsLicenseAvailable`, `GetCurrentLicense`, diagnostics. |
 | Results | e.g. `NodalAnalysisResultData`: `OperatingPoint` (liquid/oil/water/gas rate, bottomhole pressure, ...), `ResultStatus` (Success/Failure/Exception/ValidationErrors), `ModelValidationResult`. Units unknown (ForeSite has a UnitLibrary). |
 | Side effects | `SetModelData`, `SetOperatingPointTopNode`, calibration mutate the *session's* model, not ForeSite's stored one. Declared per function, never assumed. |
 | Model files via ForeSite | `IModelFileService` (webHttp JSON, `http://host/ModelFiles`): `GET CurrentWellModel/{wellId}` returns `ModelFileDTO` {Id, ApplicableDate, WellId, WellType, IsProsper, base64 `Contents`, ...}; also `Model/{modelId}`, `ModelConfig/{wellId}`. "Current" is the newest `ApplicableDate <= now` for the well's current well type *(unverified live)*. |
@@ -102,19 +106,20 @@ per-function authorization are new.
 ## 6. Risks
 - Proprietary DLL: redistribution rights unconfirmed; keep it out of the repo and the main solution.
 - Windows-only, Windows-auth net.tcp; Linux hosts cannot call WAMI directly.
-- Worker busy/hang and double-execution after timeout; WAMI queue behaviour unknown.
+- Worker busy: no queue, hard fault at `MaxAllowedWorkers` (confirmed in server source); hang/double-execution after a timeout remains (one session = one worker, so a retry after an ambiguous timeout opens a new worker and may rerun).
 - Units of results and inputs unknown; wrong units silently corrupt recommendations.
 - Model size and transfer time (8 MiB cap in POC); stale "current" model selection.
 - Licence expiry mid-operation; transitive WCF crypto packages carry open advisories (the opt-in project downgrades NU1902/3 to warnings).
 
 ## 7. Open questions for the owner
-1. Units and node-id/input mapping for live inputs (`SetOperatingPointTopNode`)?
-2. WAMI behaviour when workers are busy: queue, fault or timeout? Is a calculation idempotent?
-3. Which functions to expose first (nodal analysis, rod-lift analysis, ESP)?
+1. Units: the interfaces document none for `SetOperatingPointTopNode` pressure or `SolutionPointData`; are they the model's unit system?
+2. Is a calculation idempotent / safe to rerun after an ambiguous timeout?
+3. Which functions to expose first (nodal analysis, rod-lift analysis, ESP)? The client currently implements `nodal-analysis` only.
 4. Is the ForeSite `ModelFiles` route reachable by the AutoPilot service identity?
 5. May `Weatherford.WAMI.Interfaces.dll` be redistributed, or must builds take it from an install?
-6. Which Windows identity calls WAMI?
+6. Which Windows identity calls WAMI, and is it in `WCFAllowedGroups`? Is WAMI co-located with the Gateway (required in Edge mode)?
 7. Manifest V3 shape acceptable (roles with kind + adapter key)?
+8. How many concurrent sessions may AutoPilot take given `MaxAllowedWorkers` (licence-capped, shared with ForeSite)?
 
 ## 8. What the POC proves
 Offline (fake WAMI, stubbed ForeSite HTTP): multi-connection role binding, pins and hash checks, per-role authority,
