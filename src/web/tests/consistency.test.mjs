@@ -196,3 +196,18 @@ test('refresh and reload actions are always the shared icon-only button', () => 
   walk(root);
   assert.deepEqual(offenders, [], 'Refresh/Reload is a RefreshCw icon-only ActionButton everywhere');
 });
+
+test('every list searches and filters through the shared FilterToolbar; the old bars and pane search boxes are gone', () => {
+  const offenders = [];
+  const walk = folder => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) { walk(path); continue; }
+      if (!/\.(tsx|css)$/.test(entry.name)) continue;
+      const code = readFileSync(path, 'utf8');
+      if (/FilterBar|filter-bar(?!-)|className="split-(search|filters)"|data-view-fields/.test(code.replace(/activity-filter-bar/g, ''))) offenders.push(relative(root, path));
+    }
+  };
+  walk(root);
+  assert.deepEqual(offenders, [], 'use <FilterToolbar> from components/FilterToolbar');
+});

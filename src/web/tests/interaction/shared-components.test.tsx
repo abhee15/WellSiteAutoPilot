@@ -5,7 +5,7 @@ import { CopyButton } from '../../src/views/CopyButton';
 import { Status, StatusIndicator } from '../../src/components/Status';
 import { ActionButton } from '../../src/components/ActionButton';
 import { RefreshCw } from 'lucide-react';
-import { FilterBar, FilterField } from '../../src/components/FilterBar';
+import { FilterToolbar, FilterField } from '../../src/components/FilterToolbar';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -96,34 +96,34 @@ describe('CopyButton', () => {
   });
 });
 
-describe('FilterBar', () => {
-  it('is a labelled group of labelled fields, with the count and actions beneath', () => {
-    render(<FilterBar label="Role filters" note="Showing 1 of 3" actions={<button type="button">Clear</button>}>
-      <FilterField label="Search"><input aria-label="Search" /></FilterField>
-    </FilterBar>);
-    const group = screen.getByRole('group', { name: 'Role filters' });
-    expect(group.querySelector('.filter-bar-fields input')).toBeTruthy();
-    expect(group.querySelector('.filter-bar-footer')?.textContent).toContain('Showing 1 of 3');
-    expect(screen.getByRole('button', { name: 'Clear' })).toBeTruthy();
+describe('FilterToolbar', () => {
+  it('is one search box and a Filters button; the fields stay behind the button until it is opened', async () => {
+    render(<FilterToolbar label="Role filters" search={{ value: '', label: 'Search', onChange: () => {} }}>
+      <FilterField label="Type"><select aria-label="Type"><option>All</option></select></FilterField>
+    </FilterToolbar>);
+    expect(screen.getByRole('group', { name: 'Role filters' })).toBeTruthy();
+    expect(screen.queryByRole('combobox', { name: 'Type' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
+    expect(screen.getByRole('combobox', { name: 'Type' })).toBeTruthy();
   });
 
-  it('applies on Enter when it has an onSubmit, and omits the footer when it has nothing to show', async () => {
+  it('shows a removable chip per applied filter and clears everything from one button', async () => {
+    const remove = vi.fn(); const clear = vi.fn();
+    render(<FilterToolbar label="Filters" chips={[{ id: 'a', label: 'Awaiting', onRemove: remove }]}
+      isFiltered onClear={clear} note="Showing 1 of 3"><span /></FilterToolbar>);
+    expect(screen.getByText('Showing 1 of 3')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Remove filter: Awaiting' }));
+    expect(remove).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies on Enter when it has an onSubmit, and offers no Filters button when it has no fields', async () => {
     const onSubmit = vi.fn();
-    const { container } = render(<FilterBar label="Event filters" onSubmit={onSubmit}>
-      <FilterField label="Action"><input aria-label="Action" /></FilterField>
-    </FilterBar>);
-    expect(container.querySelector('.filter-bar-footer')).toBeNull();
-    await userEvent.type(screen.getByRole('textbox', { name: 'Action' }), 'x{Enter}');
+    render(<FilterToolbar label="Event filters" onSubmit={onSubmit}
+      search={{ value: 'x', label: 'Action', onChange: () => {} }} />);
+    expect(screen.queryByRole('button', { name: /^Filters/ })).toBeNull();
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Action' }), '{Enter}');
     expect(onSubmit).toHaveBeenCalledTimes(1);
-  });
-
-  it('puts a trailing button in the field row, after the fields, so it lines up with the inputs', () => {
-    const { container } = render(<FilterBar label="Event filters" trailing={<button type="button">Reload</button>}>
-      <FilterField label="Action"><input aria-label="Action" /></FilterField>
-    </FilterBar>);
-    const main = container.querySelector('.filter-bar-main');
-    expect(main?.children[0].classList.contains('filter-bar-fields')).toBe(true);
-    expect(main?.children[1].classList.contains('filter-bar-trailing')).toBe(true);
-    expect(main?.children[1].textContent).toBe('Reload');
   });
 });
