@@ -153,3 +153,13 @@ Yes, with these rules:
 - Some work is still in flight on workstream branches (see the branch map) and is not merged yet; check the "Status" columns before relying on an item.
 - It carries local-only items that must not go to `develop`: the DCP pin (gap 16) and local run settings. The probe branches (`probe/poc-*`) are evidence/prototypes; take what is useful through PRs.
 - Merge `develop` into it regularly so it never drifts.
+
+### J. CygNet relative (linked) facilities and hierarchy (`probe/poc-cygnet-relative-facilities`)
+Finding from ForeSite source (`Server/Support/CygNetWrapper/CygNetRelativeFacilityHelper.cs`, `CygNetWellManager.cs`, ForeSiteToolbox `RelativeFacilityMapping*`): CygNet exposes relative facilities through `CygNet.API.Facilities.Relative`. Definitions are loaded from a CygNet settings package (`RelativeFacilityContent`) per FAC service and resolved from an origin facility with a named relation (`ResolveRelativeFacility(origin, relation, facClient)`). ForeSite layers a `RelativeFacilityMapping` per well type: each well quantity, additional UDC and command maps to a relation, so a point can live on a related facility (controller, meter, device) instead of the well facility. Tags are re-pointed through `GetRelativeFacilityPointTag`. Our CygNet adapter today only reads points on the discovered facility itself.
+| # | Pri | Item | Status |
+|---|---|---|---|
+| J1 | P0 | Adapter reads must resolve quantity point tags through relation mappings (otherwise wells whose data sits on related facilities show missing data) | Probe |
+| J2 | P1 | Determine whether the hierarchy (field > route > well > devices) can be built from relations or facility attributes, and what the relation names/depth are on CYG_DEMO | Probe |
+| J3 | P1 | Import: asset tree from relations, with related device facilities as child assets or as data sources of the well | Design |
+| J4 | P1 | Mapping UI: per well type quantity/UDC to relation, reusing ForeSite mapping definitions where available | Design (see UX doc connections-point-map.md) |
+| J5 | P2 | Commands: relation-aware command targets for future control sink | After J1 |
