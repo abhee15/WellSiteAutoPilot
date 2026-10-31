@@ -177,6 +177,7 @@
   --layout-empty-min: 8.125rem;
   --size-line: 1.25em;
   --size-listbox-min: 8rem;
+  --size-notification-width: 24rem;
   --layout-viewport-gutter: 7.5rem;
   /* How faded a disabled secondary control is. A disabled primary action and disabled text fields use the
      --color-*-disabled pair instead, so their text keeps 4.5:1. */

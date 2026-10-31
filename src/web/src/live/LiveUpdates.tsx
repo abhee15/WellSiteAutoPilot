@@ -1,14 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { ChangeSignalClient, POLL_INTERVAL_FALLBACK_MS, isChangeArea, pollIntervalMs } from './changeSignal';
-import type { ChangeArea, LiveState } from './changeSignal';
+import type { ChangeArea, ChangeEvent, LiveState, SubscribeOptions } from './changeSignal';
 import { createSignalrConnection } from './signalrConnection';
 
 export type LiveUpdates = {
   state: LiveState;
   /** How often a view should still poll, given the connection state. */
   pollIntervalMs: number;
-  subscribe(areas: readonly ChangeArea[], handler: () => void): () => void;
+  subscribe(areas: readonly ChangeArea[], handler: () => void, options?: SubscribeOptions): () => void;
+  /** Typed entity events, in order and without gaps; a gap becomes an area refetch instead. */
+  subscribeEvents(handler: (event: ChangeEvent) => void): () => void;
   /** Connect only while there is a signed-in session; disconnect otherwise. */
   setEnabled(enabled: boolean): void;
 };
@@ -21,6 +23,7 @@ const inert: LiveUpdates = {
   state: 'idle',
   pollIntervalMs: POLL_INTERVAL_FALLBACK_MS,
   subscribe: () => () => undefined,
+  subscribeEvents: () => () => undefined,
   setEnabled: () => undefined,
 };
 
@@ -32,7 +35,9 @@ export function LiveUpdatesProvider({ client: provided, children }: { client?: C
   // subscribe and setEnabled keep their identity for the life of the client, so effects that
   // depend on them do not re-run on every connection state change.
   const actions = useMemo(() => ({
-    subscribe: (areas: readonly ChangeArea[], handler: () => void) => client.subscribe(areas, handler),
+    subscribe: (areas: readonly ChangeArea[], handler: () => void, options?: SubscribeOptions) =>
+      client.subscribe(areas, handler, options),
+    subscribeEvents: (handler: (event: ChangeEvent) => void) => client.subscribeEvents(handler),
     setEnabled: (enabled: boolean) => client.setEnabled(enabled),
   }), [client]);
   const value = useMemo<LiveUpdates>(
@@ -46,15 +51,24 @@ export function useLiveUpdates(): LiveUpdates {
 }
 
 /** Run `refresh` when the Server reports a change in any of `areas`. */
-export function useChangeRefresh(areas: readonly ChangeArea[], refresh: () => void): void {
+export function useChangeRefresh(areas: readonly ChangeArea[], refresh: () => void, options?: SubscribeOptions): void {
   const { subscribe } = useLiveUpdates();
   const latest = useRef(refresh);
   useEffect(() => { latest.current = refresh; }, [refresh]);
   const key = areas.join('|');
+  const skipWhenCovered = options?.skipWhenCovered === true;
   useEffect(
-    () => subscribe(key.split('|').filter(isChangeArea), () => latest.current()),
-    [subscribe, key],
+    () => subscribe(key.split('|').filter(isChangeArea), () => latest.current(), { skipWhenCovered }),
+    [subscribe, key, skipWhenCovered],
   );
+}
+
+/** Run `handle` for every typed event. Without live updates it never runs. */
+export function useChangeEvents(handle: (event: ChangeEvent) => void): void {
+  const { subscribeEvents } = useLiveUpdates();
+  const latest = useRef(handle);
+  useEffect(() => { latest.current = handle; }, [handle]);
+  useEffect(() => subscribeEvents(event => latest.current(event)), [subscribeEvents]);
 }
 
 /**
