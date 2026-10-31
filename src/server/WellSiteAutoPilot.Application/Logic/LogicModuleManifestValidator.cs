@@ -23,11 +23,11 @@ public static partial class LogicModuleManifestValidator
             Fail("MODULE_MANIFEST_INVALID", "The module runtime or execution profile is unsupported.");
         }
 
-        if (manifest.ManifestVersion is not (1 or 2))
+        if (manifest.ManifestVersion is not (1 or 2 or 3))
         {
             Fail(
                 "MODULE_MANIFEST_VERSION_UNSUPPORTED",
-                "Only Logic Module manifest versions 1 and 2 are supported.");
+                "Only Logic Module manifest versions 1, 2 and 3 are supported.");
         }
 
         RequireIdentifier(manifest.ModuleId, "Module ID");
@@ -67,6 +67,43 @@ public static partial class LogicModuleManifestValidator
         ValidateCommandRequirements(manifest.AssetRequirements, manifest.CommandRequirements);
         ValidateDescription(manifest.Description);
         ValidateStructuredContract(manifest);
+        ValidateProviderDependencies(manifest);
+    }
+
+    /// <summary>Most provider roles one module can declare.</summary>
+    public const int MaximumProviderDependencies = 8;
+
+    private static void ValidateProviderDependencies(LogicModuleManifest manifest)
+    {
+        var dependencies = manifest.ProviderDependencies;
+        if (manifest.ManifestVersion != 3)
+        {
+            if (dependencies is not null) Fail("MODULE_CONTRACT_INVALID", "Provider dependencies require manifest version 3.");
+            return;
+        }
+
+        if (manifest.RequiredAdapterKey is not null)
+            Fail("MODULE_CONTRACT_INVALID", "Manifest version 3 declares providers as dependencies, not a required adapter key.");
+        if (dependencies is null || dependencies.Count is < 1 or > MaximumProviderDependencies || dependencies.Any(d => d is null))
+            Fail("MODULE_PROVIDER_DEPENDENCY_INVALID", $"Provider dependencies must list 1-{MaximumProviderDependencies} roles.");
+
+        var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var dependency in dependencies!)
+        {
+            RequireIdentifier(dependency.Role, "Provider role");
+            RequireIdentifier(dependency.AdapterKey, "Provider adapter key");
+            if (!Enum.IsDefined(dependency.Kind))
+                Fail("MODULE_PROVIDER_DEPENDENCY_INVALID", $"Provider role '{dependency.Role}' has an unsupported kind.");
+            if (!roles.Add(dependency.Role))
+                Fail("MODULE_PROVIDER_ROLE_DUPLICATE", $"Provider role '{dependency.Role}' is declared more than once.");
+            if (dependency.Functions is { Count: > 0 } functions)
+            {
+                if (dependency.Kind != LogicProviderDependencyKind.Calculation || functions.Count > 32 ||
+                    functions.Any(f => f is null) || !functions.All(f => Identifier().IsMatch(f)) ||
+                    functions.Distinct(StringComparer.OrdinalIgnoreCase).Count() != functions.Count)
+                    Fail("MODULE_PROVIDER_DEPENDENCY_INVALID", $"Provider role '{dependency.Role}' declares invalid functions.");
+            }
+        }
     }
 
     private static void ValidateStructuredContract(LogicModuleManifest manifest)
@@ -124,7 +161,7 @@ public static partial class LogicModuleManifestValidator
     {
         Validate(manifest);
         await ValidateParameterSchemaAsync(manifest, cancellationToken);
-        if (manifest.ManifestVersion != 2) return;
+        if (manifest.ManifestVersion < 2) return;
         foreach (var schema in manifest.DataRequirements.Select(r => r.ValueSchema!)
             .Concat(manifest.OutputRequirements!.Select(r => r.ValueSchema)))
         {
