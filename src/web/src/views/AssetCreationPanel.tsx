@@ -1,5 +1,6 @@
 import './assetCreation.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import type { FormEvent } from 'react';
 import type {
   AssetCreationCapabilitiesResponse,
@@ -216,8 +217,7 @@ export function AssetCreationPanel({
       <header className="asset-create-heading">
         <h2 id="asset-create-title">{t('assets.createTitle')}</h2>
         <p>{t('assets.createHelp')}</p>
-        {onCancel && <button type="button" className="secondary-button" onClick={onCancel}>
-          {t('assets.cancelAdd')}</button>}
+        {onCancel && <ActionButton label={t('assets.cancelAdd')} onClick={onCancel} />}
       </header>
       {!userId || !capabilities ? (
         <p className="asset-create-hint">{t('assets.createUnavailable')}</p>
@@ -294,11 +294,8 @@ export function AssetCreationPanel({
           {error && <p className="asset-create-error" role="alert">{error}</p>}
           {notice && <p className="asset-create-success" role="status">{notice}</p>}
           <div className="asset-create-actions">
-            <button type="submit" className="secondary-button" disabled={
-              isSubmitting || !selectedType || !selectedParentValid || !name.trim()
-            }>{isSubmitting ? t('assets.creating') : t('assets.createSubmit')}</button>
-            {onCancel && <button type="button" className="secondary-button" disabled={isSubmitting}
-              onClick={onCancel}>{t('assets.cancelAdd')}</button>}
+            <ActionButton label={isSubmitting ? t('assets.creating') : t('assets.createSubmit')} type="submit" disabled={ isSubmitting || !selectedType || !selectedParentValid || !name.trim() } />
+            {onCancel && <ActionButton label={t('assets.cancelAdd')} disabled={isSubmitting} onClick={onCancel} />}
           </div>
         </form>
       )}

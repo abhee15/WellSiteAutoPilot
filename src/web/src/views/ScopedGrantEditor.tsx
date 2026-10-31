@@ -47,9 +47,7 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
       aria-label={t('grants.heading')}>
       <div className="panel-header">
         <h3>{t('grants.heading')}</h3>
-        <button type="button" className="secondary-button" onClick={onCancel}>
-          {t('access.cancel')}
-        </button>
+        <ActionButton label={t('access.cancel')} onClick={onCancel} />
       </div>
       <p className="access-note access-intro">{t(user.groupId ? 'grants.forGroup' : 'grants.forUser', { name: user.identityName })}</p>
       <div className="grant-fields">

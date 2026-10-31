@@ -151,7 +151,8 @@ export function OperationsViewControls({
           <option value="oldest">{t('views.oldest')}</option>
         </select>
       </FilterField>
-      <div className="filter-toolbar-saved">
+      <details className="filter-toolbar-saved">
+        <summary>{t('views.savedViews')}</summary>
       <div className="data-saved-view-fields">
         <label>
           <span>{t('views.savedViews')}</span>
@@ -184,7 +185,7 @@ export function OperationsViewControls({
       </div>
         <p className="data-view-note">{t('views.deviceNote')}</p>
         {notice && <p className="data-view-notice" role="status">{notice}</p>}
-      </div>
+      </details>
     </FilterToolbar>
   );
 }

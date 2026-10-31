@@ -1,5 +1,6 @@
 import { SearchInput } from '../components/SearchInput';
 import { useEffect, useId, useRef, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import { formatTimestamp } from '../format';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { t } from '../localization';
@@ -48,10 +49,8 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
     <h3>{t('sourceChanges.heading')}</h3>
     <p className="connection-help">{t('sourceChanges.diagnostic')}</p>
     <div className="connection-actions">
-      <button type="button" className="secondary-button" disabled={blocked || !canCheck}
-        onClick={() => void run(0, '', true)}>{t('sourceChanges.check')}</button>
-      <button type="button" className="secondary-button" disabled={blocked}
-        onClick={() => void run(0, '')}>{t('sourceChanges.review')}</button>
+      <ActionButton label={t('sourceChanges.check')} disabled={blocked || !canCheck} onClick={() => void run(0, '', true)} />
+      <ActionButton label={t('sourceChanges.review')} disabled={blocked} onClick={() => void run(0, '')} />
     </div>
     {busy && <LoadingIndicator label={t('sourceChanges.loading')} size="small" />}
     {error && <p role="alert" className="status-error">{error}</p>}
@@ -97,10 +96,8 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
         </details>
       </li>)}</ul>
       <div className="connection-actions">
-        <button type="button" className="secondary-button" disabled={blocked || page.offset === 0}
-          onClick={() => void run(Math.max(0, page.offset - 25), appliedQuery)}>{t('sourceChanges.previous')}</button>
-        <button type="button" className="secondary-button" disabled={blocked || page.offset + page.items.length >= page.total}
-          onClick={() => void run(page.offset + 25, appliedQuery)}>{t('sourceChanges.next')}</button>
+        <ActionButton label={t('sourceChanges.previous')} disabled={blocked || page.offset === 0} onClick={() => void run(Math.max(0, page.offset - 25), appliedQuery)} />
+        <ActionButton label={t('sourceChanges.next')} disabled={blocked || page.offset + page.items.length >= page.total} onClick={() => void run(page.offset + 25, appliedQuery)} />
       </div>
     </>}
   </section>;

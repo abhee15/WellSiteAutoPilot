@@ -1,3 +1,4 @@
+import { ActionButton } from '../components/ActionButton';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { CloseButton } from '../components/CloseButton';
 import { t } from '../localization';
@@ -58,8 +59,7 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
         {type.hiddenNote ? ` · ${t('assetTypes.hiddenNote', { note: type.hiddenNote })}` : ''}</p>}
       {onChanged && <AssetTypeActions type={type} count={count} countKnown={countKnown}
         canHide={canHide} canManage={canManage} onChanged={onChanged} />}
-      {count > 0 && <button type="button" className="secondary-button" onClick={() => onShowAssets(name)}>
-        {t('assets.showOfType', { count, name })}</button>}
+      {count > 0 && <ActionButton onClick={() => onShowAssets(name)} label={t('assets.showOfType', { count, name })} />}
       <h4>{t('assetTypes.fields')}</h4>
       {fields.length === 0 ? <p className="split-note">{t('assetTypes.noFields')}</p> : (
         <div className="table-wrap">

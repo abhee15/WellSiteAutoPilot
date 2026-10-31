@@ -58,9 +58,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
         <td>{user.activeDirectGrantCount > 0 ? user.activeDirectGrantCount : t('access.noDirectRole')}</td>
         <td><Status value={user.isActive ? 'Active' : 'Inactive'} label={user.isActive ? t('session.active') : t('session.inactive')} /></td>
         <td>{formatDetailTimestamp(user.lastSeenAtUtc)}</td>
-        <td>{canAssign(user) && <button type="button" className="secondary-button"
-          aria-label={t('access.assignRoleTo', { name: user.displayName || user.identityName })}
-          onClick={() => onAssignRole?.(user.userId)}>{t('access.assignRole')}</button>}</td>
+        <td>{canAssign(user) && <ActionButton label={t('access.assignRole')} aria-label={t('access.assignRoleTo', { name: user.displayName || user.identityName })} onClick={() => onAssignRole?.(user.userId)} />}</td>
       </tr>)}</tbody></table></div>}
   </section>;
 }

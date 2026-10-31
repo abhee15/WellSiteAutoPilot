@@ -83,7 +83,7 @@ describe('Connections page', () => {
     vi.mocked(api.testConnection).mockResolvedValue(tested);
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
-    const test = await screen.findByText('Test connection') as HTMLButtonElement;
+    const test = (await screen.findByText('Test connection')).closest('button') as HTMLButtonElement;
     await userEvent.type(screen.getByLabelText('Name'), 'x');
     expect(test.disabled).toBe(true);
     expect(screen.getByText('Save your changes before testing.')).toBeTruthy();
@@ -99,7 +99,7 @@ describe('Connections page', () => {
     vi.mocked(api.loadConnections).mockResolvedValue([saved({ isEnabled: false })]);
     render(<ConnectionsPage canManage />);
     await userEvent.click(await screen.findByText('Field simulator'));
-    expect((await screen.findByText('Test connection') as HTMLButtonElement).disabled).toBe(true);
+    expect(((await screen.findByText('Test connection')).closest('button') as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByText('Disabled').length).toBeGreaterThan(0);
     expect(screen.getByText('Enable')).toBeTruthy();
   });
@@ -151,7 +151,7 @@ describe('Connections page', () => {
     render(<ConnectionsPage canManage />);
     await screen.findByText('Field simulator');
     expect(screen.getByText(/could not be loaded, so new connections cannot be created/)).toBeTruthy();
-    expect((screen.getByText('New connection') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText('New connection').closest('button') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('shows when the found list is kept until and warns when settings changed after looking', async () => {
@@ -360,7 +360,7 @@ describe('Connections page', () => {
     await openImporter();
     await userEvent.click(screen.getByText('Review import'));
     expect((await screen.findByText(/does not accept the values/)).getAttribute('role')).toBe('alert');
-    expect((screen.getByText('Import 3 wells') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText('Import 3 wells').closest('button') as HTMLButtonElement).disabled).toBe(true);
     await userEvent.click(screen.getByText('Review import'));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/permission to manage all Assets/));
     expect(screen.queryByText('Import 3 wells')).toBeNull();

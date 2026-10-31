@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
+import { ActionButton } from '../components/ActionButton';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { problemCode } from './assetTypeDefinition';
@@ -55,8 +56,7 @@ export function AssetTypeActions({ type, count, countKnown, canHide, canManage, 
   if (!(hidden ? canManage : canHide) && !canDelete) return null;
   return (
     <div className="asset-create-form" aria-label={t('assetTypes.actions')}>
-      {hidden && canManage && <button type="button" className="secondary-button" disabled={busy}
-        onClick={() => void send('/unhide', 'PUT')}>{t('assetTypes.unhide')}</button>}
+      {hidden && canManage && <ActionButton label={t('assetTypes.unhide')} disabled={busy} onClick={() => void send('/unhide', 'PUT')} />}
       {!hidden && canHide && <>
         <p className="asset-create-hint">{t('assetTypes.hideHelp')}</p>
         <label>
@@ -64,19 +64,15 @@ export function AssetTypeActions({ type, count, countKnown, canHide, canManage, 
           <input type="text" value={note} maxLength={NOTE_LIMIT} disabled={busy}
             onChange={event => setNote(event.target.value)} />
         </label>
-        <button type="button" className="secondary-button" disabled={busy}
-          onClick={() => void send('/hide', 'PUT', { note: note.trim() || null })}>{t('assetTypes.hide')}</button>
+        <ActionButton label={t('assetTypes.hide')} disabled={busy} onClick={() => void send('/hide', 'PUT', { note: note.trim() || null })} />
       </>}
       {canDelete && (confirmDelete
         ? <>
           <p className="asset-create-hint">{t('assetTypes.deleteConfirm', { name: type.displayName ?? type.key ?? '' })}</p>
-          <button type="button" className="secondary-button" disabled={busy}
-            onClick={() => void send('', 'DELETE')}>{t('assetTypes.deleteYes')}</button>
-          <button type="button" className="secondary-button" disabled={busy}
-            onClick={() => setConfirmDelete(false)}>{t('assetTypes.deleteNo')}</button>
+          <ActionButton label={t('assetTypes.deleteYes')} disabled={busy} onClick={() => void send('', 'DELETE')} />
+          <ActionButton label={t('assetTypes.deleteNo')} disabled={busy} onClick={() => setConfirmDelete(false)} />
         </>
-        : <button type="button" className="secondary-button" disabled={busy}
-          onClick={() => setConfirmDelete(true)}>{t('assetTypes.delete')}</button>)}
+        : <ActionButton label={t('assetTypes.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} />)}
       {error && <p role="alert" className="status-error">{t(error)}</p>}
     </div>
   );

@@ -128,7 +128,8 @@ export function AssetInventoryControls({
             <option value="oldest">{t('assets.oldest')}</option>
           </select>
         </FilterField>
-      <div className="filter-toolbar-saved">
+      <details className="filter-toolbar-saved">
+        <summary>{t('assets.savedViews')}</summary>
       <div className="data-saved-view-fields">
         <label>
           <span>{t('assets.savedViews')}</span>
@@ -148,7 +149,7 @@ export function AssetInventoryControls({
       </div>
         <p className="data-view-note">{t('assets.localNote')}</p>
         {notice && <p className="data-view-notice" role="status">{notice}</p>}
-      </div>
+      </details>
       </>}
     </FilterToolbar>
   );

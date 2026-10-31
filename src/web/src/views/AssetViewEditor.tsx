@@ -132,7 +132,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
       {connectionId && <div className="well-selection-layout">
         <section aria-label={t('assetViews.availableWells')}>
           <label><span>{t('assetViews.findWells')}</span><SearchInput value={query} maxLength={120} placeholder={t('assetViews.findWellsPlaceholder')} onChange={event => setQuery(event.target.value)} /></label>
-          <button type="button" className="secondary-button" onClick={() => void selectBranch(null)}>{t('assetViews.selectAllWells')}</button>
+          <ActionButton label={t('assetViews.selectAllWells')} onClick={() => void selectBranch(null)} />
           {query.trim() ? <div>
             {hits.filter(node => node.isActive && wellTypeIds.has(node.assetTypeId)).map(node =>
               <label key={node.id} className="asset-view-check"><input type="checkbox" checked={selected.has(node.id)}
@@ -147,7 +147,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
         </section>
         <section aria-label={t('assetViews.selectedWells')}>
           <h4>{t('assetViews.selectedCount', { count: selected.size })}</h4>
-          <button type="button" className="secondary-button" onClick={() => setSelected(new Set())}>{t('assetViews.clearSelection')}</button>
+          <ActionButton label={t('assetViews.clearSelection')} onClick={() => setSelected(new Set())} />
           <ul className="well-selection-list">{selectedIds.slice(0, reviewLimit).map(id => <li key={id}>
             <span>{known.get(id)?.name ?? id}{unavailableIds.has(id) ? ' · ' + t('assetViews.unavailableWell') : ''}</span><button type="button" className="asset-select"
               aria-label={t('assetViews.removeWell', { name: known.get(id)?.name ?? id })}
@@ -161,11 +161,9 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
     {busy && <p role="status">{t('assetViews.working')}</p>}
     {error && <p role="alert" className="status-error">{error}</p>}
     <div className="connection-actions">
-      {!readOnly && <button type="submit" className="primary-button" disabled={busy || loading || !selectionReady || !name.trim() || !connectionId || selected.size === 0 || selected.size > 50_000 || [...unavailableIds].some(id => selected.has(id))}>
-        {t('assetViews.save')}</button>}
-      <button type="button" className="secondary-button" disabled={busy} onClick={onCancel}>{t('assetViews.cancel')}</button>
-      {view?.canDelete && !confirmDelete && <button type="button" className="secondary-button" disabled={busy}
-        onClick={() => setConfirmDelete(true)}>{t('assetViews.delete')}</button>}
+      {!readOnly && <ActionButton label={t('assetViews.save')} variant="primary" type="submit" disabled={busy || loading || !selectionReady || !name.trim() || !connectionId || selected.size === 0 || selected.size > 50_000 || [...unavailableIds].some(id => selected.has(id))} />}
+      <ActionButton label={t('assetViews.cancel')} disabled={busy} onClick={onCancel} />
+      {view?.canDelete && !confirmDelete && <ActionButton label={t('assetViews.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} />}
     </div>
     {view?.canDelete && confirmDelete && <div role="alertdialog" aria-label={t('assetViews.delete')}>
       <p>{t('assetViews.deleteConfirm', { name: view.name })}</p>

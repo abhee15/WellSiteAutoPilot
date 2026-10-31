@@ -28,5 +28,6 @@
 
 /* Saved views sit under the filter fields, across the whole panel. */
 .filter-toolbar-saved { grid-column: 1 / -1; display: grid; gap: var(--space-8); padding-top: var(--space-12); border-top: var(--border-width-thin) solid var(--color-border-subtle); }
-.filter-toolbar-saved .data-saved-view-fields { margin-top: 0; }
+.filter-toolbar-saved .data-saved-view-fields { margin-top: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-field-narrow)), 1fr)); }
 .filter-toolbar-saved .data-view-note, .filter-toolbar-saved .data-view-notice { margin: 0; }
+.filter-toolbar-saved > summary { cursor: pointer; color: var(--color-text-subtle); font-size: var(--font-size-body-small); }

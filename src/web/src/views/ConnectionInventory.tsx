@@ -101,15 +101,14 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
               setFacets(current => ({ ...current, [facet.key]: values })); setNeedsApply(true); onSelect(null, 0);
             }} />)}</div>
           {found.facets.length === 0 && <p className="connection-help">{t('inventory.noFacets')}</p>}
-          <button type="button" className="secondary-button" disabled={Object.values(facets).every(values => values.length === 0)}
-            onClick={() => { setFacets({}); setNeedsApply(true); onSelect(null, 0); }}>{t('inventory.clearFilters')}</button>
+          <ActionButton label={t('inventory.clearFilters')} disabled={Object.values(facets).every(values => values.length === 0)} onClick={() => { setFacets({}); setNeedsApply(true); onSelect(null, 0); }} />
         </details>
         <div className="connection-control-row">
           <label><span>{t('connections.findSearch')}</span><SearchInput value={query} maxLength={100} placeholder={t('connections.findSearchPlaceholder')}
             onChange={event => { setQuery(event.target.value); setNeedsApply(true); onSelect(null, 0); }} onKeyDown={event => {
               if (event.key === 'Enter') { event.preventDefault(); void search(query, facets); }
             }} /></label>
-          <button type="button" className="secondary-button" onClick={() => void search(query, facets)}>{t('inventory.applyFilters')}</button>
+          <ActionButton label={t('inventory.applyFilters')} onClick={() => void search(query, facets)} />
         </div>
         {dirty && <p role="status" className="connection-help">{t('inventory.applySearch')}</p>}
         {mode === 'individual' && <div className="connection-actions">

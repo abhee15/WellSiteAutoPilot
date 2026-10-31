@@ -1,5 +1,6 @@
 import './assetCreation.css';
 import { useEffect, useRef, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import type { FormEvent } from 'react';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
@@ -114,17 +115,12 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
         <details className="asset-create-schema">
           <summary>{t('assetTypes.example')}</summary>
           <pre>{EXAMPLE_SCHEMA}</pre>
-          <button type="button" className="secondary-button" disabled={isSubmitting}
-            onClick={() => { setSchemaJson(EXAMPLE_SCHEMA); setError(null); }}>
-            {t('assetTypes.useExample')}</button>
+          <ActionButton label={t('assetTypes.useExample')} disabled={isSubmitting} onClick={() => { setSchemaJson(EXAMPLE_SCHEMA); setError(null); }} />
         </details>
         <p className="asset-create-hint">{t('assetTypes.immutableNote')}</p>
         {error && <p className="asset-create-error" role="alert">{error}</p>}
         {notice && <p className="asset-create-success" role="status">{notice}</p>}
-        <button type="submit" className="secondary-button"
-          disabled={isSubmitting || !key.trim() || !displayName.trim()}>
-          {isSubmitting ? t('assetTypes.creating') : t('assetTypes.submit')}
-        </button>
+        <ActionButton label={isSubmitting ? t('assetTypes.creating') : t('assetTypes.submit')} type="submit" disabled={isSubmitting || !key.trim() || !displayName.trim()} />
       </form>
     </details>
   );

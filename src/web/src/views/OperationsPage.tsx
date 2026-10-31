@@ -172,9 +172,7 @@ export function OperationsPage({
         </div>
       </section>
       <section className="split-selected" tabIndex={-1} aria-label={t('execution.heading')}>
-        <button type="button" className="secondary-button split-back" onClick={() => setSelectedExecutionId(null)}>
-          {t('execution.backToList')}
-        </button>
+        <ActionButton label={t('execution.backToList')} className="split-back" onClick={() => setSelectedExecutionId(null)} />
         {selectedExecutionId && (
           <ExecutionDetailPanel
             key={selectedExecutionId}

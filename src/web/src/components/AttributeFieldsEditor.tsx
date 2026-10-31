@@ -1,5 +1,6 @@
 import type { AttributeField, AttributeFieldError, AttributeValues } from '../views/assetAttributeForm';
 import { t } from '../localization';
+import { ActionButton } from './ActionButton';
 import './attributeFields.css';
 
 type Props = {
@@ -59,8 +60,7 @@ export function AttributeFieldsEditor({
             {t(('assets.createField.' + problem) as 'assets.createField.required')}</small>}
         </div>;
       })}
-      <button type="button" className="secondary-button" onClick={onUseJson}>
-        {t('assets.createUseJson')}</button>
+      <ActionButton label={t('assets.createUseJson')} onClick={onUseJson} />
     </fieldset>
   );
 }

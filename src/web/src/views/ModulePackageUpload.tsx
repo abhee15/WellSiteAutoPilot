@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { uploadLogicModulePackage } from '../api/generated/v1/sdk.gen';
+import { ActionButton } from '../components/ActionButton';
 import type { LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { isSecurityId } from '../security/identifiers';
 import { t } from '../localization';
@@ -60,8 +61,6 @@ export function ModulePackageUpload({ canManage, onUploaded }: {
     {tooLarge && <p role="alert">{t('moduleUpload.tooLarge')}</p>}
     {error && <p role="alert">{error}</p>}
     {notice && <p role="status">{notice}</p>}
-    <button type="button" className="secondary-button" disabled={busy || !file || file.size === 0 || tooLarge} onClick={() => void upload()}>
-      {t(busy ? 'moduleUpload.working' : 'moduleUpload.upload')}
-    </button>
+    <ActionButton label={t(busy ? 'moduleUpload.working' : 'moduleUpload.upload')} disabled={busy || !file || file.size === 0 || tooLarge} onClick={() => void upload()} />
   </details>;
 }

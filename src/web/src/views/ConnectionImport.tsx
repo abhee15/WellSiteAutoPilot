@@ -1,5 +1,7 @@
+import { ArrowDown, ArrowUp, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { t } from '../localization';
+import { ActionButton } from '../components/ActionButton';
 import { ConnectionsError, importFromConnection, previewImport } from './connections';
 import type { Adapter, Connection, ImportGroup, ImportPreview, ImportResult, ImportSelection, ImportHierarchy } from './connections';
 
@@ -112,8 +114,7 @@ export function ConnectionImport({ connection, adapter, selection = null, select
         <h4>{t('hierarchy.heading')}</h4>
         <p className="connection-help">{t('hierarchy.help')}</p>
         {savedLevels === null ? <div className="hierarchy-presets" role="group" aria-label={t('hierarchy.presets')}>
-          {presets.map(preset => <button key={preset.key} type="button" className="secondary-button" disabled={busy !== null || disabled}
-            aria-pressed={JSON.stringify(levels) === JSON.stringify(preset.levels)} onClick={() => changeLevels(preset.levels)}>{preset.label}</button>)}
+          {presets.map(preset => <ActionButton label={preset.label} key={preset.key} disabled={busy !== null || disabled} aria-pressed={JSON.stringify(levels) === JSON.stringify(preset.levels)} onClick={() => changeLevels(preset.levels)} />)}
         </div> : <p role="status" className="connection-help">{t('hierarchy.saved')}</p>}
         <ol className="hierarchy-path" aria-label={t('hierarchy.path')}>
           {[connection.name, ...levels.map(label), t('hierarchy.wells')].map((name, index) => <li key={index}>{name}</li>)}
@@ -124,12 +125,9 @@ export function ConnectionImport({ connection, adapter, selection = null, select
             {levels.map((key, index) => <li key={key}>
               <span>{t('connections.importLevel', { number: index + 1, field: label(key) })}</span>
               <div className="connection-actions">
-                <button type="button" className="secondary-button" disabled={busy !== null || disabled || index === 0}
-                  aria-label={t('connections.importMoveUp', { field: label(key) })} onClick={() => move(index, -1)}>↑</button>
-                <button type="button" className="secondary-button" disabled={busy !== null || disabled || index === levels.length - 1}
-                  aria-label={t('connections.importMoveDown', { field: label(key) })} onClick={() => move(index, 1)}>↓</button>
-                <button type="button" className="secondary-button" disabled={busy !== null || disabled}
-                  aria-label={t('connections.importRemove', { field: label(key) })} onClick={() => changeLevels(levels.filter(item => item !== key))}>×</button>
+                <ActionButton icon={ArrowUp} iconOnly label={t('connections.importMoveUp', { field: label(key) })} disabled={busy !== null || disabled || index === 0} onClick={() => move(index, -1)} />
+                <ActionButton icon={ArrowDown} iconOnly label={t('connections.importMoveDown', { field: label(key) })} disabled={busy !== null || disabled || index === levels.length - 1} onClick={() => move(index, 1)} />
+                <ActionButton icon={X} iconOnly label={t('connections.importRemove', { field: label(key) })} disabled={busy !== null || disabled} onClick={() => changeLevels(levels.filter(item => item !== key))} />
               </div>
             </li>)}
           </ol>
@@ -138,8 +136,7 @@ export function ConnectionImport({ connection, adapter, selection = null, select
               <option value="">{t('connections.importChooseLevel')}</option>
               {unused.map(field => <option key={field.key} value={field.key}>{field.label}</option>)}
             </select></label>
-            <button type="button" className="secondary-button" disabled={busy !== null || disabled || !unused.some(field => field.key === nextLevel)}
-              onClick={() => { changeLevels([...levels, nextLevel]); setNextLevel(''); }}>{t('hierarchy.add')}</button>
+            <ActionButton label={t('hierarchy.add')} disabled={busy !== null || disabled || !unused.some(field => field.key === nextLevel)} onClick={() => { changeLevels([...levels, nextLevel]); setNextLevel(''); }} />
           </div>}
         </details>}
         {legacy && <div className="connection-test">
@@ -153,9 +150,7 @@ export function ConnectionImport({ connection, adapter, selection = null, select
       {selectedCount !== null && selectedCount > 5000 && <p role="status" className="connection-help">{t('inventory.batchLimit')}</p>}
       <div className="hierarchy-review-action">
         <p className="connection-help">{t('hierarchy.reviewHelp')}</p>
-        <button type="button" className="primary-button" disabled={busy !== null || !ready} onClick={() => void review()}>
-          {busy === 'review' ? t('connections.importReviewing') : t('connections.importReview')}
-        </button>
+        <ActionButton label={busy === 'review' ? t('connections.importReviewing') : t('connections.importReview')} variant="primary" disabled={busy !== null || !ready} onClick={() => void review()} />
       </div>
       {error && <p role="alert" className="status-error">{error}</p>}
       {preview && <ImportReview preview={preview} label={label} busy={busy} disabled={!ready} confirming={confirming}
@@ -198,15 +193,12 @@ function ImportReview({ preview, label, busy, disabled, confirming, onConfirm, o
         : confirming ? (
           <div className="connection-actions">
             <span>{preview.adoptingHierarchy ? t('hierarchy.adoptConfirm', { count: preview.objectCount, existing: preview.existingWells ?? 0 }) : t('connections.importConfirm', { count: preview.objectCount })}</span>
-            <button type="button" className="primary-button" disabled={busy !== null || disabled || !preview.canImport} onClick={onApply}>
-              {busy === 'import' ? t('connections.importing') : t('connections.importYes')}
-            </button>
-            <button type="button" className="secondary-button" disabled={busy !== null || disabled} onClick={onCancel}>{t('connections.importNo')}</button>
+            <ActionButton label={busy === 'import' ? t('connections.importing') : t('connections.importYes')} variant="primary" disabled={busy !== null || disabled || !preview.canImport} onClick={onApply} />
+            <ActionButton label={t('connections.importNo')} disabled={busy !== null || disabled} onClick={onCancel} />
           </div>
         ) : (
-          <button type="button" className="primary-button" disabled={busy !== null || disabled || !preview.canImport} onClick={onConfirm}>
-            {preview.adoptingHierarchy && preview.objectCount === 0 ? t('hierarchy.adoptButton') : t('connections.importButton', { count: preview.objectCount })}
-          </button>
+          <ActionButton variant="primary" disabled={busy !== null || disabled || !preview.canImport} onClick={onConfirm}
+            label={preview.adoptingHierarchy && preview.objectCount === 0 ? t('hierarchy.adoptButton') : t('connections.importButton', { count: preview.objectCount })} />
         )}
     </div>
   );

@@ -247,19 +247,11 @@ export function GrantAdministrationPage(
                       assets.find(asset => asset.id === id)?.name ?? id).join(', ') + ')'}
                   {' — '}{grant.isActive ? t('grants.active') : t('grants.inactive')}
                   {grant.isActive && !retiring && (
-                    <button type="button" className="secondary-button"
-                      disabled={saving} onClick={() => {
-                        setRetiring(grant); setRetireConfirmed(false); setNotice(null);
-                      }}>{t('grants.retireAction')}</button>
+                    <ActionButton label={t('grants.retireAction')} disabled={saving} onClick={() => { setRetiring(grant); setRetireConfirmed(false); setNotice(null); }} />
                   )}
                 </li>;
               })}</ul>}
-            <button type="button" className="primary-button" disabled={saving || grantsLoading || Boolean(retiring)}
-              onClick={() => setPending({
-                subjectKind, userId: selectedUser.userId,
-                ...('groupId' in selectedUser ? { groupId: selectedUser.groupId, directoryId: selectedUser.directoryId } : {}),
-                roleId: '', scopeKind: 'ExactAssets', assetIds: [], expectedRoleRevision: 0,
-              })}>{t('grants.new')}</button>
+            <ActionButton label={t('grants.new')} variant="primary" disabled={saving || grantsLoading || Boolean(retiring)} onClick={() => setPending({ subjectKind, userId: selectedUser.userId, ...('groupId' in selectedUser ? { groupId: selectedUser.groupId, directoryId: selectedUser.directoryId } : {}), roleId: '', scopeKind: 'ExactAssets', assetIds: [], expectedRoleRevision: 0, })} />
           </div>
         )}
       </section>
@@ -279,10 +271,7 @@ export function GrantAdministrationPage(
             {t('grants.retireConfirm')}
           </label>
           <div className="execution-detail-actions">
-            <button type="button" className="secondary-button" disabled={saving}
-              onClick={() => { setRetiring(null); setRetireConfirmed(false); }}>
-              {t('access.cancel')}
-            </button>
+            <ActionButton label={t('access.cancel')} disabled={saving} onClick={() => { setRetiring(null); setRetireConfirmed(false); }} />
             <ActionButton label={saving ? t('access.saving') : t('grants.retireAction')} disabled={saving || !retireConfirmed} onClick={() => void deactivate()} />
           </div>
         </section>
@@ -306,8 +295,7 @@ export function GrantAdministrationPage(
           {preview.assetNames.length > 0 && <p>{preview.assetNames.join(', ')}</p>}
           <p className="access-warning">{t('grants.noRuntimeEffect')}</p>
           <div className="execution-detail-actions">
-            <button type="button" className="secondary-button" disabled={saving}
-              onClick={() => setPending(null)}>{t('access.cancel')}</button>
+            <ActionButton label={t('access.cancel')} disabled={saving} onClick={() => setPending(null)} />
             <ActionButton variant="primary" label={saving ? t('access.saving') : t('grants.saveAssignment')} disabled={saving} onClick={() => void save()} />
           </div>
         </section>
