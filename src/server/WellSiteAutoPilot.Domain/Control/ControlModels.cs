@@ -13,6 +13,9 @@ public static class ControlSinkKinds
 {
     public const string Simulator = "Simulator";
     public const string Provider = "Provider";
+
+    // Validates and records what would be written; never writes. Only a read-only current-value lookup is allowed.
+    public const string DryRun = "DryRun";
 }
 
 public sealed record ControlActionRecord(

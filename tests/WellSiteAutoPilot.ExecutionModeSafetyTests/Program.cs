@@ -41,8 +41,10 @@ var decisionService = new RecommendationDecisionService(recommendationRepository
 var materializer = new RecommendationMaterializer(executionRepository, recommendationRepository, clock);
 var simulator = new SimulatedControlCommandSink();
 var gateOptions = new AutonomousControlOptions { Enabled = true };
+var dryRunReader = new FixedCurrentValueReader(7.5m);
+var dryRun = new DryRunControlCommandSink(dryRunReader, clock);
 var gate = new AutonomousControlService(controlRepository, recommendationRepository, executionRepository,
-    configuredLogicRepository, [simulator, new RefusingProviderControlCommandSink()], gateOptions, clock);
+    configuredLogicRepository, [simulator, new RefusingProviderControlCommandSink(), dryRun], gateOptions, clock);
 
 var suffix = Guid.NewGuid().ToString("N");
 var wellType = await assetService.CreateAssetTypeAsync(new CreateAssetTypeCommand(
@@ -192,6 +194,19 @@ async Task RunAsync()
     Require(await db.AuditEvents.CountAsync(item => item.TargetType == "control-action" && item.Action == "control.action.dispatched") >= 2,
         "Dispatch was not audited.");
 
+    // DryRun sink: gated like any other sink, records the would-be write with readback, never reaches the simulator.
+    var dryRunCase = await RunExecutionAsync(ExecutionMode.Autonomous, false, 9m, 50m);
+    await gate.SetPolicyAsync(dryRunCase.ConfiguredLogicId, true, ControlSinkKinds.DryRun, limits, 10, 3600, "admin");
+    var simulatorBeforeDryRun = simulator.Sent.Count;
+    await gate.ProcessExecutionAsync(dryRunCase.ExecutionId);
+    var dryRunActions = await gate.ListActionsAsync(dryRunCase.ConfiguredLogicId, 10);
+    Require(dryRun.Records.Count == 1 && dryRun.Records.Single().Request.Value == 9m &&
+        dryRun.Records.Single().CurrentValue == 7.5m, "DryRun must record exactly the in-bounds intent with its readback.");
+    Require(dryRunActions.Count(item => item.Status == ControlActionStatus.Dispatched && item.Sink == ControlSinkKinds.DryRun) == 1 &&
+        dryRunActions.Single(item => item.Value == 50m).GateCode == GateCodes.OutOfBounds,
+        "DryRun must keep the gate bounds.");
+    Require(simulator.Sent.Count == simulatorBeforeDryRun, "DryRun intents must not reach another sink.");
+
     // Kill switch halts everything, even with a valid policy.
     killSwitchTouched = true;
     await gate.SetKillSwitchAsync(true, "operator", "test");
@@ -213,6 +228,12 @@ async Task RunAsync()
         (await gate.ListActionsAsync(globallyOff.ConfiguredLogicId, 10)).Single().GateCode == GateCodes.GlobalDisabled,
         "Disabled global autonomous option did not block dispatch.");
     gateOptions.Enabled = true;
+}
+
+file sealed class FixedCurrentValueReader(decimal value) : IControlCurrentValueReader
+{
+    public Task<decimal?> ReadCurrentAsync(Guid assetId, string command, CancellationToken cancellationToken = default) =>
+        Task.FromResult<decimal?>(value);
 }
 
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

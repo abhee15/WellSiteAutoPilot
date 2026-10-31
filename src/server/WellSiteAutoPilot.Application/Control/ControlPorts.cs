@@ -9,6 +9,9 @@ public sealed class AutonomousControlOptions
 
     // Deployment-level master switch. Off unless an operator turns it on in configuration.
     public bool Enabled { get; set; }
+
+    // Policies created through the API use the DryRun sink instead of the Simulator. Still never writes.
+    public bool DryRunSink { get; set; }
 }
 
 public sealed record ControlDispatchRequest(
