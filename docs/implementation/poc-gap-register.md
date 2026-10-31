@@ -52,3 +52,19 @@ Repo: https://github.com/abhee15/WellSiteAutoPilot. All branches are pushed to o
 | `feature/poc-wami-provider` | WAMI provider design, WCF client, multi-provider coordinator, WAMI sample module | `docs/design/wami-provider-and-multi-provider-logic.md` |
 | `feature/poc-integration` | Merge of all of the above, e2e fixes, runbook, this register | `docs/implementation/local-poc-runbook.md` |
 | `origin/poc/cygnet-reader` | Earlier CygNet POC findings (reference) | `poc/CYGNET-POC-FINDINGS.md` |
+
+## Landing the PoC on `develop`
+
+`develop` head is `d78865d` (#358, UI sentence case, 2026-10-31). `feature/poc-integration` is 0 behind and about 42 ahead (149 files), so it merges cleanly today. Land it as reviewable PRs, in this order, each rebuilt and tested on its own:
+
+| Step | PR | Why this order | Gate before merge |
+|---|---|---|---|
+| 1 | CygNet adapter (`feature/poc-cygnet-adapter`) | Adapter-declared read rules and clear failure codes are the base every other change reads through; off by default (`Providers:CygNet:Backend`) | Offline tests, build with `CYGNET_LIBRARY_PATH` unset; live check on CYG_DEMO |
+| 2 | Execution modes + control (`feature/poc-recommendation-modes`) | Recommendation/Autonomous behaviour, gate, kill switch, `control.manage`; real sink still refuses | `ExecutionModeSafetyTests`, `ExecutionDispatchTests` with NATS, permission catalog guard (#355) |
+| 3 | Real-time `control` change area + e2e fixes (integration) | Small, fixes the visible UI complaint | `ChangeSignalChecks`, web tests |
+| 4 | Schedules UI (gap 19) | Needs step 2 scheduler identity | New work, not started |
+| 5 | Local authoring (`feature/poc-authoring-local`) | Off by default (`Authoring:LocalBuild:Enabled`); do not merge before isolation is proven | Job isolation tests pass and AppContainer test result recorded |
+| 6 | WAMI provider (`feature/poc-wami-provider`) | Self-contained project, opt-in client, no behaviour change until V3 manifest support lands | WAMI provider tests; owner answers on DLL redistribution and identity |
+| 7 | Probes + docs (`feature/authoring-build-package`) | Evidence and CI only | CI green on Windows step |
+
+Not for `develop`: the local DCP pin (gap 16) and `appsettings.Local.json`; keep them out of the CygNet/Aspire PRs.
