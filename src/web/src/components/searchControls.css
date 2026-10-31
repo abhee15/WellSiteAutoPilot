@@ -21,7 +21,7 @@
 }
 
 .ui-search-input[data-disabled] > .ui-search-control { color: var(--color-text-disabled); cursor: not-allowed; }
-/* Explicit action geometry/variants survive filter-bar button rules. */
+/* Explicit action geometry/variants survive toolbar button rules. */
 /* Components own their variants even inside legacy toolbar button selectors. */
 .ui-action-button.primary-button { background: var(--color-surface-accent); color: var(--color-text-on-accent); border-color: var(--color-surface-accent); font-weight: var(--font-weight-medium); }
 .ui-action-button.primary-button:hover:not(:disabled) { background: var(--color-surface-accent-hover); border-color: var(--color-surface-accent-hover); }

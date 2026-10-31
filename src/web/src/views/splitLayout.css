@@ -13,13 +13,6 @@
 .split-results li[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
 .split-results small { color: var(--color-text-subtle); }
 
-/* The browse pane is narrow: stack the filter fields instead of letting them overflow. */
-.split-browse .data-view-fields,
-.split-browse .data-saved-view-fields { grid-template-columns: minmax(0, 1fr); }
-.split-search { padding: var(--space-12) var(--space-18) 0; }
-.split-search input { width: 100%; box-sizing: border-box; min-height: var(--size-control); padding: var(--space-8) var(--space-10); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); background: var(--color-surface-input); color: var(--color-text-primary); }
-.split-filters { padding: var(--space-8) 0 0; }
-.split-filters > summary { cursor: pointer; padding: var(--space-4) var(--space-18); color: var(--color-text-subtle); }
 .split-browse { min-width: 0; }
 
 @media (max-width: 900px) {
@@ -98,13 +91,7 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* On a phone only Status and Asset fit; the rest is in the run's details. */
 @media (max-width: 650px) { .operations-layout .run-col-logic, .operations-layout .run-col-secondary { display: none; } }
 
-/* Recommendations: with nothing open the list has the whole page, so its filter fields sit in a row again;
-   beside a decision the list is narrow and the "Updated" time (which is also not needed there) would wrap. */
-@media (min-width: 651px) {
-  .recs-layout[data-has-selection='false'] .split-browse .data-view-fields {
-    grid-template-columns: minmax(var(--layout-field-min), 2fr) minmax(var(--layout-field-narrow), 1fr) minmax(var(--layout-field-narrow), 1fr);
-  }
-}
+/* Recommendations: beside a decision the list is narrow and the "Updated" time would wrap. */
 .recs-layout[data-has-selection='true'] .split-browse .panel-header .last-updated { display: none; }
 
 /* Roles: the editor sits beside the list, which keeps its actions column but drops the long ones. */
@@ -120,5 +107,3 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* A panel that holds a split layout clips instead of hiding, so the details pane can stick to the window as the page scrolls. */
 .panel:has(.runs-layout) { overflow: clip; display: flow-root; }
 
-/* Inside a narrow list pane the filter fields are one column, so the search field must not claim two. */
-.split-browse .filter-bar-fields > label:first-child:not(:last-child) { grid-column: auto; }

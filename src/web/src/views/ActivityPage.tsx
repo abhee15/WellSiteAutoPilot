@@ -109,7 +109,7 @@ export function ActivityPage() {
       {/* The tab already says "Activity"; the heading stays for screen readers only. */}
       <h2 className="visually-hidden">{t('activity.heading')}</h2>
       <div className="activity-toolbar">
-        <FilterToolbar className="activity-filter-bar" label={t('activity.filters')} onSubmit={() => apply(draft)}
+        <FilterToolbar className="activity-filters" label={t('activity.filters')} onSubmit={() => apply(draft)}
           search={{ value: draft.actionPrefix, label: t('activity.actionFilter'), maxLength: 128,
             placeholder: `${t('activity.actionFilter')} ${t('activity.actionPlaceholder')}`,
             onChange: actionPrefix => setDraft({ ...draft, actionPrefix }) }}

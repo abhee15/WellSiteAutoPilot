@@ -395,21 +395,12 @@ button:disabled {
   border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
 }
 
-.data-view-fields,
 .data-saved-view-fields {
   display: grid;
-  grid-template-columns: minmax(var(--layout-field-min), 2fr) minmax(var(--layout-field-narrow), 1fr) minmax(var(--layout-field-narrow), 1fr);
+  grid-template-columns: minmax(var(--layout-field-narrow), 1.2fr) minmax(var(--layout-field-narrow), 1.2fr) repeat(2, auto);
   gap: var(--space-12);
   align-items: end;
-}
-
-.data-saved-view-fields {
-  grid-template-columns: minmax(var(--layout-field-narrow), 1.2fr) minmax(var(--layout-field-narrow), 1.2fr) repeat(3, auto);
   margin-top: var(--space-12);
-}
-
-.asset-view-fields {
-  grid-template-columns: minmax(var(--layout-field-min), 2fr) repeat(3, minmax(var(--layout-field-narrow), 1fr));
 }
 
 .data-view-controls label {
@@ -467,20 +458,12 @@ button:disabled {
 
 @media (max-width: 1100px) {
   .data-saved-view-fields {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 900px) {
-  .asset-view-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 650px) {
-  .data-view-fields,
-  .data-saved-view-fields,
-  .asset-view-fields {
+  .data-saved-view-fields {
     grid-template-columns: 1fr;
   }
 }
@@ -1240,21 +1223,6 @@ select:not([multiple], [size]) {
 .chevron-mark { flex: none; }
 .asset-tree-count .chevron-mark { color: var(--color-text-subtle); }
 
-/* FilterBar: one field row, then actions and a count. */
-.filter-bar-fields { grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-field-narrow)), 1fr)); }
-.filter-bar-fields > label:first-child:not(:last-child) { grid-column: span 2; }
-.filter-bar-footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12); margin-top: var(--space-10); }
-.filter-bar-footer .data-view-note { margin: 0; }
-.filter-bar-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
-.filter-bar-actions .ui-action-button { width: auto; }
-@media (max-width: 650px) { .filter-bar-fields > label:first-child:not(:last-child) { grid-column: auto; } }
-.filter-bar-fields > label:only-child { max-width: var(--layout-form); }
-
-/* The field row can end with a button (Reload) that lines up with the inputs, not with their labels. */
-.filter-bar-main { display: flex; align-items: flex-end; gap: var(--space-12); }
-.filter-bar-main > .filter-bar-fields { flex: 1; min-width: 0; }
-.filter-bar-trailing { flex: none; }
-
 /* Heading scale (zero specificity, so a component can still set its own): page title 32/700 above; panel and detail
    titles are body size bold; sub-sections inside a detail are body-small bold. The browser default (1.17em) is never used. */
 :where(h3) { font-size: var(--font-size-body); font-weight: var(--font-weight-medium); }
@@ -1281,7 +1249,7 @@ select:not([multiple], [size]) {
    selects were 38-42px beside 36px buttons). Zero specificity: a component can still choose its own. */
 :where(input, select, textarea, button) { box-sizing: border-box; }
 /* A control's height is its min-height, not its text: with the roomier body line height inherited, padding plus text made
-   filter inputs 38px and selects 42px beside 36px buttons. Fields and the filter-bar buttons use the tighter control line height. */
+   filter inputs 38px and selects 42px beside 36px buttons. Fields and the toolbar buttons use the tighter control line height. */
 :is(input, select, textarea):not([type='checkbox']):not([type='radio']), .data-view-controls button { line-height: var(--line-height-control); }
 
 /* Several actions on one table row sit together with the same gap as other button groups. */
