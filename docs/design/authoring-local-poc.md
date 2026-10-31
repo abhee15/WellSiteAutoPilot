@@ -53,6 +53,11 @@ that is not wired in.
   step generates a V2 module (`ILogicModuleV2`, schema-checked structured inputs); graph outputs stay scalar. Starter
   `card-peak-graph` reproduces the card peak/mean/count analysis with no code and runs through the V2 host in tests.
 
+- Provider choice: the module properties declare an optional required provider (`foresite` or `cygnet`), which the
+  generator writes as `requiredAdapterKey`. Validation rejects unknown keys (case-exact) and scalar inputs whose
+  quantity the provider cannot read directly (`AdapterReadRules`). Binding to a connection happens afterwards in
+  configured logic, as for any module.
+
 ## Known gaps
 
 AppContainer mode fails in this environment (CreateProcess error 203); job-object mode is the verified baseline;

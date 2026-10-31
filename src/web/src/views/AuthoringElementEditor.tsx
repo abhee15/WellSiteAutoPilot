@@ -12,6 +12,10 @@ const OPERATION_LABELS: Record<string, MessageKey> = {
   divide: 'authoring.operation.divide', min: 'authoring.operation.min', max: 'authoring.operation.max',
   abs: 'authoring.operation.abs',
 };
+const ADAPTER_KEYS = ['foresite', 'cygnet'] as const;
+const ADAPTER_LABELS: Record<string, MessageKey> = {
+  foresite: 'authoring.adapter.foresite', cygnet: 'authoring.adapter.cygnet',
+};
 const COLLECTION_LABELS: Record<string, MessageKey> = {
   count: 'authoring.collection.count', sum: 'authoring.collection.sum', min: 'authoring.collection.min',
   max: 'authoring.collection.max', mean: 'authoring.collection.mean',
@@ -82,7 +86,14 @@ export function ElementEditor({ doc, selection, onChange, onRemove, removable }:
       <TextField label={t('authoring.field.displayName')} value={doc.module.displayName} onChange={displayName => set({ displayName })} />
       <TextField label={t('authoring.field.publisher')} value={doc.module.publisher} onChange={publisher => set({ publisher })} />
       <TextField label={t('authoring.field.description')} value={doc.module.description} onChange={description => set({ description })} />
-    </div>;
+      <Field label={t('authoring.field.adapter')}>
+        <select value={doc.module.requiredAdapterKey ?? ''}
+          onChange={event => set({ requiredAdapterKey: event.target.value === '' ? null : event.target.value })}>
+          <option value="">{t('authoring.adapter.none')}</option>
+          {ADAPTER_KEYS.map(key => <option key={key} value={key}>{t(ADAPTER_LABELS[key])}</option>)}
+        </select>
+      </Field>
+      <p className="authoring-note">{t('authoring.adapterNote')}</p>    </div>;
   }
 
   if (selection.kind === 'input') {

@@ -96,6 +96,19 @@ Check(HasCode(AuthoringDraftValidator.Validate(threshold with
 {
     Outputs = [new("o", "O", "Q", "%", new("input", "missing"))]
 }), "AUTHORING_REFERENCE_MISSING"), "unknown references are rejected");
+Check(!AuthoringDraftValidator.Validate(threshold with { Module = threshold.Module with { RequiredAdapterKey = "cygnet" } })
+    .Issues.Any(i => i.Code.StartsWith("AUTHORING_ADAPTER", StringComparison.Ordinal)), "a supported adapter with a served quantity is accepted");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with { Module = threshold.Module with { RequiredAdapterKey = "petrovisor" } }),
+    "AUTHORING_ADAPTER_UNKNOWN"), "an unknown adapter key is rejected");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with { Module = threshold.Module with { RequiredAdapterKey = "CygNet" } }),
+    "AUTHORING_ADAPTER_UNKNOWN"), "adapter keys are case-exact like the manifest");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with
+{
+    Module = threshold.Module with { RequiredAdapterKey = "foresite" },
+    Inputs = [threshold.Inputs[0] with { Quantity = "RodLoad" }]
+}), "AUTHORING_ADAPTER_QUANTITY_UNSUPPORTED"), "quantities the adapter cannot read directly are rejected");
+Check(System.Text.Json.JsonDocument.Parse(AuthoringModuleGenerator.Generate(threshold with { Module = threshold.Module with { RequiredAdapterKey = "cygnet" } }).ManifestJson)
+    .RootElement.GetProperty("requiredAdapterKey").GetString() == "cygnet", "the manifest carries the chosen adapter");
 Check(HasCode(AuthoringDraftValidator.Validate(threshold with
 {
     Inputs = [.. threshold.Inputs, .. threshold.Inputs]
@@ -337,7 +350,8 @@ if (OperatingSystem.IsWindows())
     {
         for (var i = 0; i < 200; i++)
         {
-            if (File.Exists(pidFile) && int.TryParse((await File.ReadAllTextAsync(pidFile)).Trim(), out var pid)) return pid;
+            try { if (File.Exists(pidFile) && int.TryParse((await File.ReadAllTextAsync(pidFile)).Trim(), out var pid)) return pid; }
+            catch (IOException) { /* the writer still holds the file */ }
             await Task.Delay(100);
         }
         throw new InvalidOperationException("Authoring check failed: the grandchild never started.");

@@ -138,3 +138,15 @@ it('reports a revision conflict without discarding the local edit', async () => 
   expect((await screen.findByRole('alert')).textContent).toContain('changed elsewhere');
   expect((screen.getByLabelText('Label') as HTMLInputElement).value).toBe('Level!');
 });
+
+it('declares the required provider on the module and sends it with the saved document', async () => {
+  const user = userEvent.setup();
+  api.createAuthoringDraft.mockResolvedValue(ok(draft(), 201));
+  render(<AuthoringWorkspace onCatalogChanged={vi.fn()} />);
+  await user.click(await screen.findByRole('button', { name: 'New draft' }));
+  await user.click(await screen.findByRole('button', { name: 'Module' }));
+  await user.selectOptions(screen.getByLabelText('Required provider'), 'cygnet');
+  api.updateAuthoringDraft.mockResolvedValue(ok(draft({ revision: 2 })));
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  expect(api.updateAuthoringDraft.mock.calls[0][0].body.document.module.requiredAdapterKey).toBe('cygnet');
+});

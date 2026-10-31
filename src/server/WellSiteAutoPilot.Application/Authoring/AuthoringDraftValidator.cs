@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Application.Authoring;
 
@@ -70,6 +71,16 @@ public static partial class AuthoringDraftValidator
             Error("AUTHORING_FIELD_REQUIRED", "module/displayName", "A display name is required.");
         if (string.IsNullOrWhiteSpace(module.Publisher))
             Error("AUTHORING_FIELD_REQUIRED", "module/publisher", "A publisher is required.");
+        if (module.RequiredAdapterKey is { } adapterKey)
+        {
+            var rule = AdapterReadRules.Find(adapterKey);
+            if (rule is null || rule.AdapterKey != adapterKey)
+                Error("AUTHORING_ADAPTER_UNKNOWN", "module/requiredAdapterKey", "The required adapter must be one of the supported providers (foresite or cygnet).");
+            else
+                foreach (var input in document.Inputs.Where(input => input.ValueSchema is null && !rule.CurrentQuantities.Contains(input.Quantity)))
+                    Error("AUTHORING_ADAPTER_QUANTITY_UNSUPPORTED", $"inputs/{input.Id}",
+                        $"The {rule.AdapterKey} adapter cannot read the quantity '{input.Quantity}' directly.");
+        }
 
         if (document.AssetRoles.Count != 1)
             Error("AUTHORING_ASSET_ROLE_UNSUPPORTED", "assetRoles", "This profile supports exactly one asset role.");
