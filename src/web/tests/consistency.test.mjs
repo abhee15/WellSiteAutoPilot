@@ -345,3 +345,11 @@ test('narrow toolbars keep the Filters button beside the search as an icon with 
   assert.match(css, /@container \(width <= 28em\) \{[\s\S]*filter-toolbar-toggle > span:not\(\.filter-toolbar-badge\)/);
   assert.match(source(join(root, 'components/FilterToolbar.tsx')), /title=\{t\('filters\.toggle'\)\}/);
 });
+
+test('scroll regions contain their absolutely positioned helpers, so a long list never gives the window a scrollbar', () => {
+  // `.visually-hidden` is position: absolute. With no positioned ancestor it is placed against the window, escapes every
+  // overflow clip, and makes the whole document as tall as the longest list (a page-level scrollbar on Assets).
+  const styles = source(join(root, 'styles.css'));
+  assert.match(styles, /\.page-body \{ position: relative;/);
+  assert.match(source(join(root, 'views/splitLayout.css')), /\.split-panes > \.split-browse, \.split-panes > \.split-selected \{ position: relative;/);
+});
