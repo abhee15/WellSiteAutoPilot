@@ -22,7 +22,8 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext) : IC
         return entity is null ? null : new AutonomyPolicy(
             entity.ConfiguredLogicId, entity.Enabled, entity.SinkKind,
             JsonSerializer.Deserialize<AutonomyCommandLimit[]>(entity.LimitsJson, Json) ?? [],
-            entity.MaxActionsPerWindow, entity.WindowSeconds, entity.UpdatedBy, entity.UpdatedAtUtc);
+            entity.MaxActionsPerWindow, entity.WindowSeconds, entity.UpdatedBy, entity.UpdatedAtUtc,
+            entity.AllowApprovedRecommendations);
     }
 
     public async Task UpsertPolicyAsync(AutonomyPolicy policy, CancellationToken cancellationToken = default)
@@ -41,11 +42,12 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext) : IC
         entity.LimitsJson = JsonSerializer.Serialize(policy.Limits, Json);
         entity.MaxActionsPerWindow = policy.MaxActionsPerWindow;
         entity.WindowSeconds = policy.WindowSeconds;
+        entity.AllowApprovedRecommendations = policy.AllowApprovedRecommendations;
         entity.UpdatedBy = policy.UpdatedBy;
         entity.UpdatedAtUtc = policy.UpdatedAtUtc;
         dbContext.AuditEvents.Add(Audit(policy.UpdatedAtUtc, policy.UpdatedBy, "control.policy.updated",
             "configured-logic", policy.ConfiguredLogicId.ToString(), null,
-            new { policy.Enabled, policy.SinkKind, policy.Limits, policy.MaxActionsPerWindow, policy.WindowSeconds }));
+            new { policy.Enabled, policy.SinkKind, policy.Limits, policy.MaxActionsPerWindow, policy.WindowSeconds, policy.AllowApprovedRecommendations }));
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -88,14 +90,31 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext) : IC
         var recent = await dbContext.ControlActions.CountAsync(item =>
             item.ConfiguredLogicId == rec.ConfiguredLogicId && item.CreatedAtUtc >= since &&
             (item.Status == nameof(ControlActionStatus.Requested) ||
-             item.Status == nameof(ControlActionStatus.Dispatched)), cancellationToken);
+             item.Status == nameof(ControlActionStatus.Dispatched) ||
+             item.Status == nameof(ControlActionStatus.Verified) ||
+             item.Status == nameof(ControlActionStatus.Ambiguous)), cancellationToken);
         if (recent >= claim.MaxActionsPerWindow)
         {
             await transaction.RollbackAsync(cancellationToken);
             return (ControlClaimOutcome.RateLimited, null);
         }
 
-        var approved = await dbContext.Recommendations
+        if (claim.Origin == ControlOrigins.ApprovedRecommendation)
+        {
+            // Operator approval is the authority; idempotency is the unique action per recommendation.
+            var eligible = await dbContext.Recommendations.AnyAsync(item => item.Id == rec.Id &&
+                item.Status == nameof(RecommendationStatus.Approved) &&
+                (item.ExpiresAtUtc == null || item.ExpiresAtUtc > claim.NowUtc) &&
+                dbContext.Executions.Any(execution => execution.Id == item.ExecutionId &&
+                    execution.Mode == nameof(ExecutionMode.Recommendation) &&
+                    execution.Status == nameof(ExecutionStatus.Completed)), cancellationToken);
+            if (!eligible || await dbContext.ControlActions.AnyAsync(item => item.RecommendationId == rec.Id, cancellationToken))
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return (ControlClaimOutcome.AlreadyDecided, null);
+            }
+        }
+        else if (await dbContext.Recommendations
             .Where(item => item.Id == rec.Id && item.Status == nameof(RecommendationStatus.Created) &&
                 dbContext.Executions.Any(execution => execution.Id == item.ExecutionId &&
                     execution.Mode == nameof(ExecutionMode.Autonomous) &&
@@ -104,14 +123,14 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext) : IC
                 .SetProperty(item => item.Status, nameof(RecommendationStatus.Approved))
                 .SetProperty(item => item.DecisionBy, GateActor)
                 .SetProperty(item => item.DecisionAtUtc, claim.NowUtc)
-                .SetProperty(item => item.DecisionReason, GateCodes.Allowed), cancellationToken);
-        if (approved != 1)
+                .SetProperty(item => item.DecisionReason, GateCodes.Allowed), cancellationToken) != 1)
         {
             await transaction.RollbackAsync(cancellationToken);
             return (ControlClaimOutcome.AlreadyDecided, null);
         }
 
-        var action = NewAction(rec, ControlActionStatus.Requested, GateCodes.Allowed, claim.SinkKind, claim.NowUtc);
+        var action = NewAction(rec, ControlActionStatus.Requested, GateCodes.Allowed, claim.SinkKind, claim.NowUtc) with
+        { Origin = claim.Origin };
         dbContext.ControlActions.Add(ToEntity(action));
         dbContext.AuditEvents.Add(Audit(claim.NowUtc, GateActor, "control.action.requested", "control-action",
             action.Id.ToString(), rec.AssetId, new { RecommendationId = rec.Id, rec.Command, Value = rec.SuggestedValue, rec.Unit, claim.SinkKind }));
@@ -123,29 +142,118 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext) : IC
     }
 
     public async Task CompleteAsync(Guid actionId, ControlActionStatus status, string gateCode, string? sinkReference,
-        DateTimeOffset nowUtc, CancellationToken cancellationToken = default)
+        DateTimeOffset nowUtc, decimal? readbackValue = null, CancellationToken cancellationToken = default)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var action = await dbContext.ControlActions.AsNoTracking()
             .SingleAsync(item => item.Id == actionId, cancellationToken);
-        await dbContext.ControlActions.Where(item => item.Id == actionId &&
+        var updated = await dbContext.ControlActions.Where(item => item.Id == actionId &&
                 item.Status == nameof(ControlActionStatus.Requested))
             .ExecuteUpdateAsync(set => set
                 .SetProperty(item => item.Status, status.ToString())
                 .SetProperty(item => item.GateCode, gateCode)
                 .SetProperty(item => item.SinkReference, sinkReference)
+                .SetProperty(item => item.ReadbackValue, readbackValue)
+                .SetProperty(item => item.VerifiedAtUtc, status == ControlActionStatus.Verified ? nowUtc : (DateTimeOffset?)null)
                 .SetProperty(item => item.CompletedAtUtc, nowUtc), cancellationToken);
-        var recommendationStatus = status == ControlActionStatus.Dispatched
-            ? RecommendationStatus.Executed : RecommendationStatus.Invalidated;
-        await dbContext.Recommendations.Where(item => item.Id == action.RecommendationId &&
-                item.Status == nameof(RecommendationStatus.Approved))
-            .ExecuteUpdateAsync(set => set
-                .SetProperty(item => item.Status, recommendationStatus.ToString())
-                .SetProperty(item => item.DecisionReason, gateCode), cancellationToken);
+        if (updated != 1)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return;
+        }
+
+        if (status != ControlActionStatus.Ambiguous)
+        {
+            var recommendationStatus = status is ControlActionStatus.Dispatched or ControlActionStatus.Verified
+                ? RecommendationStatus.Executed : RecommendationStatus.Invalidated;
+            await dbContext.Recommendations.Where(item => item.Id == action.RecommendationId &&
+                    item.Status == nameof(RecommendationStatus.Approved))
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(item => item.Status, recommendationStatus.ToString())
+                    .SetProperty(item => item.DecisionReason, gateCode), cancellationToken);
+        }
+
         dbContext.AuditEvents.Add(Audit(nowUtc, GateActor, $"control.action.{status.ToString().ToLowerInvariant()}",
-            "control-action", actionId.ToString(), action.AssetId, new { GateCode = gateCode, SinkReference = sinkReference, action.Sink }));
+            "control-action", actionId.ToString(), action.AssetId, new { GateCode = gateCode, SinkReference = sinkReference, action.Sink, ReadbackValue = readbackValue }));
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<ControlActionRecord?> TransitionAsync(Guid actionId, IReadOnlyCollection<ControlActionStatus> from,
+        ControlActionStatus target, string gateCode, decimal? readbackValue, string actor, string? note, DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var fromNames = from.Select(item => item.ToString()).ToArray();
+        var action = await dbContext.ControlActions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == actionId, cancellationToken);
+        var mergedReadback = readbackValue ?? action?.ReadbackValue;
+        DateTimeOffset? mergedVerifiedAt = target == ControlActionStatus.Verified ? nowUtc : action?.VerifiedAtUtc;
+        var updated = action is null ? 0 : await dbContext.ControlActions.Where(item => item.Id == actionId &&
+                fromNames.Contains(item.Status))
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(item => item.Status, target.ToString())
+                .SetProperty(item => item.GateCode, gateCode)
+                .SetProperty(item => item.ReadbackValue, mergedReadback)
+                .SetProperty(item => item.VerifiedAtUtc, mergedVerifiedAt)
+                .SetProperty(item => item.ResolutionNote, note), cancellationToken);
+        if (updated != 1)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
+        if (target == ControlActionStatus.Ambiguous)
+        {
+            // The command may not have landed: the recommendation is no longer considered executed.
+            await dbContext.Recommendations.Where(item => item.Id == action!.RecommendationId &&
+                    item.Status == nameof(RecommendationStatus.Executed))
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.Status, nameof(RecommendationStatus.Approved)),
+                    cancellationToken);
+        }
+
+        if (target is ControlActionStatus.Verified or ControlActionStatus.Failed)
+        {
+            var recommendationStatus = target == ControlActionStatus.Verified
+                ? RecommendationStatus.Executed : RecommendationStatus.Invalidated;
+            await dbContext.Recommendations.Where(item => item.Id == action!.RecommendationId &&
+                    (item.Status == nameof(RecommendationStatus.Approved) ||
+                     item.Status == nameof(RecommendationStatus.Executed)))
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(item => item.Status, recommendationStatus.ToString())
+                    .SetProperty(item => item.DecisionReason, gateCode), cancellationToken);
+        }
+
+        dbContext.AuditEvents.Add(Audit(nowUtc, actor, $"control.action.{target.ToString().ToLowerInvariant()}",
+            "control-action", actionId.ToString(), action!.AssetId,
+            new { From = fromNames, GateCode = gateCode, ReadbackValue = readbackValue, Note = note }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return await GetActionAsync(actionId, cancellationToken);
+    }
+
+    public async Task<ControlActionRecord?> GetActionAsync(Guid actionId, CancellationToken cancellationToken = default)
+    {
+        var entity = await dbContext.ControlActions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == actionId, cancellationToken);
+        return entity is null ? null : ToDomain(entity);
+    }
+
+    public async Task<ControlActionRecord?> GetActionByRecommendationAsync(Guid recommendationId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await dbContext.ControlActions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.RecommendationId == recommendationId, cancellationToken);
+        return entity is null ? null : ToDomain(entity);
+    }
+
+    public async Task RecordRefusalAsync(RecommendationRecord recommendation, string gateCode, string actor,
+        DateTimeOffset nowUtc, CancellationToken cancellationToken = default)
+    {
+        dbContext.AuditEvents.Add(Audit(nowUtc, actor, "control.action.refused", "recommendation",
+            recommendation.Id.ToString(), recommendation.AssetId,
+            new { GateCode = gateCode, recommendation.Command, Value = recommendation.SuggestedValue }));
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> RecordBlockedAsync(RecommendationRecord recommendation, string gateCode, string sinkKind,
@@ -205,13 +313,15 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext) : IC
         ConfiguredLogicId = item.ConfiguredLogicId, AssetId = item.AssetId, Command = item.Command,
         Quantity = item.Quantity, Value = item.Value, Unit = item.Unit, Status = item.Status.ToString(),
         GateCode = item.GateCode, Sink = item.Sink, SinkReference = item.SinkReference,
-        CreatedAtUtc = item.CreatedAtUtc, CompletedAtUtc = item.CompletedAtUtc
+        CreatedAtUtc = item.CreatedAtUtc, CompletedAtUtc = item.CompletedAtUtc, Origin = item.Origin,
+        ReadbackValue = item.ReadbackValue, VerifiedAtUtc = item.VerifiedAtUtc, ResolutionNote = item.ResolutionNote
     };
 
     private static ControlActionRecord ToDomain(ControlActionEntity item) => new(
         item.Id, item.RecommendationId, item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command,
         item.Quantity, item.Value, item.Unit, Enum.Parse<ControlActionStatus>(item.Status), item.GateCode,
-        item.Sink, item.SinkReference, item.CreatedAtUtc, item.CompletedAtUtc);
+        item.Sink, item.SinkReference, item.CreatedAtUtc, item.CompletedAtUtc, item.Origin, item.ReadbackValue,
+        item.VerifiedAtUtc, item.ResolutionNote);
 
     private static AuditEventEntity Audit(DateTimeOffset at, string actor, string action, string targetType,
         string targetId, Guid? assetId, object details) => new()

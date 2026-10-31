@@ -740,6 +740,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.Property<Guid>("ConfiguredLogicId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AllowApprovedRecommendations")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean");
 
@@ -802,12 +805,26 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Autonomous");
+
                     b.Property<string>("Quantity")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<decimal?>("ReadbackValue")
+                        .HasColumnType("numeric");
+
                     b.Property<Guid>("RecommendationId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
 
                     b.Property<string>("Sink")
                         .IsRequired()
@@ -829,6 +846,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
 
                     b.Property<decimal?>("Value")
                         .HasColumnType("numeric");
+
+                    b.Property<DateTimeOffset?>("VerifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 

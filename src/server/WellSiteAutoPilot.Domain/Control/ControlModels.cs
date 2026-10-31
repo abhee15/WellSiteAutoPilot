@@ -4,9 +4,27 @@ public enum ControlActionStatus
 {
     // Claimed by the gate; the sink has not confirmed. Never auto-redispatched.
     Requested = 0,
+    // Accepted by the sink; readback has not confirmed it yet.
     Dispatched = 1,
     Blocked = 2,
-    Failed = 3
+    Failed = 3,
+    // Readback confirmed the commanded value.
+    Verified = 4,
+    // Outcome unknown (sink error/timeout or readback mismatch); needs operator resolution.
+    Ambiguous = 5
+}
+
+public static class ControlOrigins
+{
+    public const string Autonomous = "Autonomous";
+    public const string ApprovedRecommendation = "ApprovedRecommendation";
+}
+
+public enum ControlReadbackState
+{
+    Unknown = 0,
+    Applied = 1,
+    NotApplied = 2
 }
 
 public static class ControlSinkKinds
@@ -30,7 +48,11 @@ public sealed record ControlActionRecord(
     string Sink,
     string? SinkReference,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? CompletedAtUtc = null);
+    DateTimeOffset? CompletedAtUtc = null,
+    string Origin = ControlOrigins.Autonomous,
+    decimal? ReadbackValue = null,
+    DateTimeOffset? VerifiedAtUtc = null,
+    string? ResolutionNote = null);
 
 // An allowlist entry is the explicit permission for one command. Bounds are inclusive.
 public sealed record AutonomyCommandLimit(
@@ -47,7 +69,9 @@ public sealed record AutonomyPolicy(
     int MaxActionsPerWindow,
     int WindowSeconds,
     string UpdatedBy,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    // Opt-in: lets an operator-approved Recommendation-mode recommendation be executed through the same gate.
+    bool AllowApprovedRecommendations = false);
 
 public sealed record ControlKillSwitch(
     bool Engaged,

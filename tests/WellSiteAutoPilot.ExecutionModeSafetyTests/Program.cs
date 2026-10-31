@@ -181,8 +181,8 @@ async Task RunAsync()
     await gate.ProcessExecutionAsync(gated.ExecutionId);
     var actions = await gate.ListActionsAsync(gated.ConfiguredLogicId, 50);
     Require(actions.Count == 4, "Gate must record exactly one action per intent (idempotent).");
-    Require(actions.Count(item => item.Status == ControlActionStatus.Dispatched) == 2 && simulator.Sent.Count == 2,
-        "Exactly two in-bounds intents within the rate limit should dispatch.");
+    Require(actions.Count(item => item.Status == ControlActionStatus.Verified && item.ReadbackValue == item.Value) == 2 && simulator.Sent.Count == 2,
+        "Exactly two in-bounds intents within the rate limit should dispatch and verify by readback.");
     Require(actions.Single(item => item.Value == 50m).GateCode == GateCodes.OutOfBounds, "Out-of-bounds intent was not blocked.");
     Require(actions.Single(item => item.Value == 11m).GateCode == GateCodes.RateLimited, "Rate limit did not block the third command.");
     Require(simulator.Sent.All(item => item.Value is 9m or 10m), "Unexpected command reached the sink.");
@@ -213,6 +213,119 @@ async Task RunAsync()
         (await gate.ListActionsAsync(globallyOff.ConfiguredLogicId, 10)).Single().GateCode == GateCodes.GlobalDisabled,
         "Disabled global autonomous option did not block dispatch.");
     gateOptions.Enabled = true;
+
+    await RunApprovedRecommendationScenarioAsync(limits);
+    await RunReadbackScenarioAsync(limits);
+}
+
+async Task RunApprovedRecommendationScenarioAsync(AutonomyCommandLimit[] limits)
+{
+    var run = await RunExecutionAsync(ExecutionMode.Recommendation, false, 9m, 50m, 10m);
+    var items = (await recommendationRepository.ListByExecutionAsync(run.ExecutionId)).OrderBy(item => item.IntentIndex).ToArray();
+    var sentBefore = simulator.Sent.Count;
+
+    // Undecided recommendations can never be executed.
+    await ExpectFailureAsync(() => gate.ExecuteApprovedAsync(items[0].Id, "control-admin"), "CONTROL_RECOMMENDATION_NOT_APPROVED");
+    foreach (var item in items)
+        Require(await recommendationRepository.TryDecideAsync(item.Id, RecommendationStatus.Approved, "operator", "ok", clock.GetUtcNow()),
+            "Operator could not approve.");
+
+    // No policy / no opt-in: refused, audited, nothing sent, recommendation stays Approved for a retry.
+    var noPolicy = await gate.ExecuteApprovedAsync(items[0].Id, "control-admin");
+    Require(noPolicy.Action is null && noPolicy.RefusalCode == GateCodes.NoPolicy, "Approved execution ran without a policy.");
+    await gate.SetPolicyAsync(run.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 10, 3600, "admin");
+    var noOptIn = await gate.ExecuteApprovedAsync(items[0].Id, "control-admin");
+    Require(noOptIn.RefusalCode == GateCodes.ApprovedNotEnabled && simulator.Sent.Count == sentBefore,
+        "Approved execution ran without the per-configuration opt-in.");
+    Require(await db.AuditEvents.CountAsync(item => item.Action == "control.action.refused" && item.TargetId == items[0].Id.ToString()) == 2,
+        "Refusals were not audited.");
+
+    await gate.SetPolicyAsync(run.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 10, 3600, "admin", allowApprovedRecommendations: true);
+
+    // Kill switch beats operator approval.
+    killSwitchTouched = true;
+    await gate.SetKillSwitchAsync(true, "operator", "test");
+    Require((await gate.ExecuteApprovedAsync(items[0].Id, "control-admin")).RefusalCode == GateCodes.KillSwitch &&
+        simulator.Sent.Count == sentBefore, "Kill switch did not stop an approved execution.");
+    await gate.SetKillSwitchAsync(false, "operator", "test over");
+
+    // Out of bounds is refused even though an operator approved it.
+    Require((await gate.ExecuteApprovedAsync(items[1].Id, "control-admin")).RefusalCode == GateCodes.OutOfBounds,
+        "Out-of-bounds approved recommendation was not refused.");
+
+    // Expired approvals are refused.
+    await db.Recommendations.Where(item => item.Id == items[2].Id)
+        .ExecuteUpdateAsync(set => set.SetProperty(item => item.ExpiresAtUtc, clock.GetUtcNow().AddMinutes(-1)));
+    Require((await gate.ExecuteApprovedAsync(items[2].Id, "control-admin")).RefusalCode == GateCodes.Expired,
+        "Expired approved recommendation was not refused.");
+
+    // Happy path: gate -> simulator sink, once; repeats return the same action (idempotent).
+    var first = await gate.ExecuteApprovedAsync(items[0].Id, "control-admin");
+    var again = await gate.ExecuteApprovedAsync(items[0].Id, "control-admin");
+    Require(first.Action is { Status: ControlActionStatus.Verified, Origin: ControlOrigins.ApprovedRecommendation } &&
+        again.Action?.Id == first.Action.Id && simulator.Sent.Count == sentBefore + 1,
+        "Approved execution was not governed, verified and idempotent.");
+    Require((await recommendationRepository.GetAsync(items[0].Id))!.Status == RecommendationStatus.Executed,
+        "Executed approved recommendation was not marked Executed.");
+
+    // The real provider sink is never reachable.
+    var real = new RefusingProviderControlCommandSink();
+    Require(!(await real.DispatchAsync(new ControlDispatchRequest(Guid.NewGuid(), well.Id, "SetSpeed", null, 9m, "spm", "k"))).Accepted,
+        "The real provider sink accepted a command.");
+}
+
+async Task RunReadbackScenarioAsync(AutonomyCommandLimit[] limits)
+{
+    async Task<ControlActionRecord> AutonomousActionAsync()
+    {
+        var run = await RunExecutionAsync(ExecutionMode.Autonomous, false, 9m);
+        await gate.SetPolicyAsync(run.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 10, 3600, "admin");
+        await gate.ProcessExecutionAsync(run.ExecutionId);
+        return (await gate.ListActionsAsync(run.ConfiguredLogicId, 5)).Single();
+    }
+
+    // Readback mismatch: ambiguous (recommendation no longer Executed) until re-verified.
+    simulator.Readback = SimulatedReadbackBehavior.Mismatch;
+    var mismatch = await AutonomousActionAsync();
+    Require(mismatch.Status == ControlActionStatus.Ambiguous && mismatch.ReadbackValue == 10m &&
+        (await recommendationRepository.GetAsync(mismatch.RecommendationId))!.Status == RecommendationStatus.Approved,
+        "Readback mismatch did not leave the action Ambiguous.");
+    simulator.Readback = SimulatedReadbackBehavior.Echo;
+    var reverified = await gate.VerifyAsync(mismatch.Id, "control-admin");
+    Require(reverified.Status == ControlActionStatus.Verified &&
+        (await recommendationRepository.GetAsync(mismatch.RecommendationId))!.Status == RecommendationStatus.Executed,
+        "Re-verification did not settle the ambiguous action.");
+
+    // Sink timeout with unknown readback: ambiguous, then operator resolution with a mandatory note.
+    simulator.FailAfterApplying = true;
+    simulator.Readback = SimulatedReadbackBehavior.Unknown;
+    var ambiguous = await AutonomousActionAsync();
+    simulator.FailAfterApplying = false;
+    Require(ambiguous.Status == ControlActionStatus.Ambiguous && ambiguous.GateCode == GateCodes.SinkAmbiguous,
+        "A sink timeout was not recorded as Ambiguous.");
+    await ExpectFailureAsync(() => gate.ResolveAsync(ambiguous.Id, false, " ", "control-admin"), "CONTROL_RESOLUTION_INVALID");
+    var resolved = await gate.ResolveAsync(ambiguous.Id, false, "Confirmed on site: not applied.", "control-admin");
+    Require(resolved.Status == ControlActionStatus.Failed && resolved.ResolutionNote is not null &&
+        (await recommendationRepository.GetAsync(ambiguous.RecommendationId))!.Status == RecommendationStatus.Invalidated,
+        "Operator resolution did not settle the ambiguous action.");
+    await ExpectFailureAsync(() => gate.ResolveAsync(ambiguous.Id, true, "again", "control-admin"), "CONTROL_ACTION_NOT_RESOLVABLE");
+    Require(await db.AuditEvents.CountAsync(item => item.TargetId == ambiguous.Id.ToString() && item.ActorIdentity == "control-admin") == 1,
+        "Operator resolution was not audited.");
+    simulator.Readback = SimulatedReadbackBehavior.Echo;
+}
+
+static async Task ExpectFailureAsync(Func<Task> action, string code)
+{
+    try
+    {
+        await action();
+    }
+    catch (WellSiteAutoPilot.Failures.WellSiteAutoPilotException exception) when (exception.Code == code)
+    {
+        return;
+    }
+
+    throw new InvalidOperationException($"Expected failure {code}.");
 }
 
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

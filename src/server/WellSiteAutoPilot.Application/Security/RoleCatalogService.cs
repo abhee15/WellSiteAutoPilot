@@ -34,6 +34,7 @@ public static class ProductPermissionCatalog
         new(WellSitePermissions.RecommendationsRead, "Recommendations", "ResourceScoped", false),
         new(WellSitePermissions.RecommendationsDecide, "Recommendations", "ResourceScoped", false),
         new(WellSitePermissions.SecurityManage, "Security", "DeploymentWide", true),
+        new(WellSitePermissions.ControlManage, "Control", "DeploymentWide", false),
         new(WellSitePermissions.AssetTypesManage, "AssetTypes", "DeploymentWide", false),
         new(WellSitePermissions.AssetTypesHide, "AssetTypes", "DeploymentWide", false),
         new(WellSitePermissions.ConnectionsRead, "Connections", "DeploymentWide", false),
