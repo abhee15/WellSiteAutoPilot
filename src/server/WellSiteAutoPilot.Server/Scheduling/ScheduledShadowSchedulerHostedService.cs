@@ -71,6 +71,12 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
             // The dispatch committed its Execution requests before DispatchDueAsync returned.
             if (dispatched > 0) changes.Notify(ChangeArea.Executions);
 
+            // Candidates are cut by name order, so configurations past the batch are never scheduled.
+            if (result.CandidateCount >= batchSize)
+            {
+                LogBatchSaturated(logger, result.CandidateCount, batchSize);
+            }
+
             if (dispatched > 0 || blocked > 0)
             {
                 LogSweepCompleted(
@@ -122,6 +128,15 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
         DateTimeOffset? scheduledForUtc,
         string outcome,
         string reasonCode);
+
+    [LoggerMessage(
+        EventId = 2313,
+        Level = LogLevel.Warning,
+        Message = "Scheduled Shadow sweep returned {CandidateCount} candidates, equal to the batch size {BatchSize}. Scheduled configurations beyond the batch are not being dispatched; raise Scheduler:BatchSize (max 500).")]
+    private static partial void LogBatchSaturated(
+        ILogger logger,
+        int candidateCount,
+        int batchSize);
 
     [LoggerMessage(
         EventId = 2312,
