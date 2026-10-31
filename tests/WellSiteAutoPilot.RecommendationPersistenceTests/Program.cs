@@ -196,7 +196,7 @@ var result = new LogicModuleExecutionResult(
             "INFORMATIONAL_ONLY",
             well.Id,
             "Informational draft",
-            "This draft type is intentionally not materialized as a governed control recommendation.")
+            "In Recommendation mode this advisory draft is materialized for operator review; it carries no command.")
     ],
     [
         new ControlIntentDraft(
@@ -226,15 +226,21 @@ var created = await materializer.MaterializeAsync(
     recommendationExecution.Id,
     outputJson);
 
-if (created != 1)
+if (created != 2)
 {
     throw new InvalidOperationException(
-        "Recommendation materializer did not create exactly one governed control recommendation.");
+        "Recommendation materializer did not create the control recommendation and the advisory recommendation.");
 }
 
 var recommendations = await recommendationRepository.ListByExecutionAsync(
     recommendationExecution.Id);
-var recommendation = recommendations.Single();
+var recommendation = recommendations.Single(item => item.Code == "SET_PUMPING_SPEED");
+var advisory = recommendations.Single(item => item.Code == "INFORMATIONAL_ONLY");
+if (advisory.Command != RecommendationMaterializer.AdvisoryCommand || advisory.Status != RecommendationStatus.Created ||
+    advisory.SuggestedValue is not null || advisory.IntentIndex == recommendation.IntentIndex)
+{
+    throw new InvalidOperationException("Advisory recommendation was not materialized as an advisory intent.");
+}
 
 if (recommendation.Status != RecommendationStatus.Created ||
     recommendation.AssetId != well.Id ||
@@ -258,7 +264,7 @@ var duplicateCreated = await materializer.MaterializeAsync(
 
 if (duplicateCreated != 0 ||
     (await recommendationRepository.ListByExecutionAsync(
-        recommendationExecution.Id)).Count != 1)
+        recommendationExecution.Id)).Count != 2)
 {
     throw new InvalidOperationException(
         "Recommendation materialization was not idempotent.");
@@ -268,7 +274,7 @@ if (duplicateCreated != 0 ||
 var rejectable = recommendation with
 {
     Id = Guid.NewGuid(),
-    IntentIndex = recommendation.IntentIndex + 1
+    IntentIndex = recommendations.Max(item => item.IntentIndex) + 1
 };
 await recommendationRepository.AddMissingAsync([rejectable]);
 await dbContext.Assets
@@ -573,7 +579,7 @@ if (decisionAuditCount != 1)
 }
 
 var approved = (await recommendationRepository.ListByExecutionAsync(
-    recommendationExecution.Id)).Single();
+    recommendationExecution.Id)).Single(item => item.Id == recommendation.Id);
 if (approved.Status != RecommendationStatus.Approved ||
     approved.DecisionBy != "FIELD\\reviewer" ||
     approved.DecisionAtUtc != clock.GetUtcNow() ||
@@ -615,7 +621,7 @@ if (replayedAfterApproval != 0 ||
     replayedRecommendation.DecisionAtUtc != clock.GetUtcNow() ||
     replayedRecommendation.ControlActionId is not null ||
     replayedAuditCount != 1 ||
-    (await recommendationRepository.ListByExecutionAsync(recommendationExecution.Id)).Count != 1)
+    (await recommendationRepository.ListByExecutionAsync(recommendationExecution.Id)).Count != 2)
 {
     throw new InvalidOperationException(
         "Replaying materialization changed an approved decision or duplicated its audit.");

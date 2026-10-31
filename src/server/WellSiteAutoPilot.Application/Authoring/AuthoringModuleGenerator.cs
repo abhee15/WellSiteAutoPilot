@@ -210,15 +210,19 @@ public static class AuthoringModuleGenerator
         foreach (var output in document.Outputs)
             Line($"results.Add(new EngineeringResultValue({CSharpString(output.Id)}, assetId, {CSharpString(output.Quantity)}, {Operand(output.Source)}, {CSharpString(output.Unit)}));");
         Line("var recommendations = new List<RecommendationIntentDraft>();");
+        Line("var controlIntents = new List<ControlIntentDraft>();");
         foreach (var action in document.Actions)
         {
             var suggested = action.SuggestedValue is null ? "null" : Operand(action.SuggestedValue);
             var quantity = action.Quantity is null ? "null" : CSharpString(action.Quantity);
             var unit = action.Unit is null ? "null" : CSharpString(action.Unit);
             var intent = action.Id.ToUpperInvariant().Replace('-', '_').Replace('.', '_');
-            Line($"if (cond{conditionIndex[action.Condition]}) recommendations.Add(new RecommendationIntentDraft({CSharpString(intent)}, assetId, {CSharpString(action.Title)}, {CSharpString(action.Detail)}, {quantity}, {suggested}, {unit}));");
+            if (action.Command is not null)
+                Line($"if (cond{conditionIndex[action.Condition]}) controlIntents.Add(new ControlIntentDraft({CSharpString(intent)}, assetId, {CSharpString(action.Command)}, {quantity}, {suggested}, {unit}, {CSharpString(intent)}));");
+            else
+                Line($"if (cond{conditionIndex[action.Condition]}) recommendations.Add(new RecommendationIntentDraft({CSharpString(intent)}, assetId, {CSharpString(action.Title)}, {CSharpString(action.Detail)}, {quantity}, {suggested}, {unit}));");
         }
-        Line("return new LogicModuleExecutionResult(\"AUTHORED_MODULE_COMPLETED\", results, recommendations, [], new Dictionary<string, string>());");
+        Line("return new LogicModuleExecutionResult(\"AUTHORED_MODULE_COMPLETED\", results, recommendations, controlIntents, new Dictionary<string, string>());");
         code.AppendLine("    }");
         code.AppendLine();
         code.AppendLine("    private static LogicModuleExecutionResult Failed(string code) =>");

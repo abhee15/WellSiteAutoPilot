@@ -80,7 +80,7 @@ Console.WriteLine("Execution mode safety tests passed.");
 return;
 
 async Task<(Guid ConfiguredLogicId, Guid ExecutionId, int Created)> RunExecutionAsync(
-    ExecutionMode mode, params decimal[] speeds)
+    ExecutionMode mode, bool advisory, params decimal[] speeds)
 {
     var logic = await configuredLogicService.CreateAsync(new CreateConfiguredLogicCommand(
         $"Mode {mode} {Guid.NewGuid():N}", manifest, "{}",
@@ -102,7 +102,8 @@ async Task<(Guid ConfiguredLogicId, Guid ExecutionId, int Created)> RunExecution
         ExecutionTriggerKind.Manual);
     await executionRepository.AddConfiguredRequestedAsync(execution, command);
 
-    var result = new LogicModuleExecutionResult("MODE_TEST_COMPLETED", [], [],
+    var result = new LogicModuleExecutionResult("MODE_TEST_COMPLETED", [],
+        advisory ? [new RecommendationIntentDraft("REVIEW_FILLAGE", well.Id, "Review fillage", "Fillage is low.", "PumpFillage", 40m, "%")] : [],
         speeds.Select(speed => new ControlIntentDraft("SET_PUMPING_SPEED", well.Id, "SetSpeed", "PumpingSpeed", speed, "spm", "OPTIMIZED")).ToArray(),
         new Dictionary<string, string>());
     var output = JsonSerializer.Serialize(result, JsonSerializerOptions.Web);
@@ -123,16 +124,18 @@ static void Require(bool condition, string message)
 async Task RunAsync()
 {
     // Shadow: intents are observed only; no recommendation, no ControlAction, no sink call.
-    var shadow = await RunExecutionAsync(ExecutionMode.Shadow, 9m);
+    var shadow = await RunExecutionAsync(ExecutionMode.Shadow, true, 9m);
     Require(shadow.Created == 0 && (await recommendationRepository.ListByExecutionAsync(shadow.ExecutionId)).Count == 0,
         "Shadow execution produced recommendations.");
     Require(await gate.ProcessExecutionAsync(shadow.ExecutionId) == 0 && await ActionCountAsync(shadow.ConfiguredLogicId) == 0,
         "Shadow execution reached the control gate.");
 
     // Recommendation: materializes; operator decisions never produce a command.
-    var rec = await RunExecutionAsync(ExecutionMode.Recommendation, 9m, 10m);
-    Require(rec.Created == 2, "Recommendation mode did not materialize its intents.");
+    var rec = await RunExecutionAsync(ExecutionMode.Recommendation, true, 9m, 10m);
+    Require(rec.Created == 3, "Recommendation mode did not materialize its control and advisory intents.");
     var recs = await recommendationRepository.ListByExecutionAsync(rec.ExecutionId);
+    Require(recs.Count(item => item.Command == RecommendationMaterializer.AdvisoryCommand && item.SuggestedValue == 40m) == 1,
+        "The advisory recommendation was not materialized as advisory.");
     Require(recs.All(item => item.Status == RecommendationStatus.Created), "Recommendations must start Created.");
     Require(await gate.ProcessExecutionAsync(rec.ExecutionId) == 0, "Recommendation mode reached the control gate.");
     Require(await recommendationRepository.TryDecideAsync(recs.First().Id, RecommendationStatus.Approved, "operator", "ok", clock.GetUtcNow()),
@@ -146,8 +149,8 @@ async Task RunAsync()
         "Operator decisions were not audited.");
 
     // Autonomous: operators cannot approve; nothing dispatches without a policy.
-    var auto = await RunExecutionAsync(ExecutionMode.Autonomous, 9m, 50m, 10m, 11m);
-    Require(auto.Created == 4, "Autonomous mode did not materialize its intents.");
+    var auto = await RunExecutionAsync(ExecutionMode.Autonomous, true, 9m, 50m, 10m, 11m);
+    Require(auto.Created == 4, "Autonomous mode must materialize control intents only, not advisory drafts.");
     var autoRecs = (await recommendationRepository.ListByExecutionAsync(auto.ExecutionId)).ToArray();
     Require(!await recommendationRepository.TryDecideAsync(autoRecs[0].Id, RecommendationStatus.Approved, "operator", "x", clock.GetUtcNow()),
         "A human approved an Autonomous recommendation.");
@@ -172,7 +175,7 @@ async Task RunAsync()
 
     // New execution with the policy: bounds, rate limit, and idempotency.
     await gate.SetPolicyAsync(auto.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 2, 3600, "admin");
-    var gated = await RunExecutionAsync(ExecutionMode.Autonomous, 9m, 50m, 10m, 11m);
+    var gated = await RunExecutionAsync(ExecutionMode.Autonomous, true, 9m, 50m, 10m, 11m);
     await gate.SetPolicyAsync(gated.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 2, 3600, "admin");
     await gate.ProcessExecutionAsync(gated.ExecutionId);
     await gate.ProcessExecutionAsync(gated.ExecutionId);
@@ -192,7 +195,7 @@ async Task RunAsync()
     // Kill switch halts everything, even with a valid policy.
     killSwitchTouched = true;
     await gate.SetKillSwitchAsync(true, "operator", "test");
-    var halted = await RunExecutionAsync(ExecutionMode.Autonomous, 9m);
+    var halted = await RunExecutionAsync(ExecutionMode.Autonomous, false, 9m);
     await gate.SetPolicyAsync(halted.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 10, 3600, "admin");
     var sentBefore = simulator.Sent.Count;
     await gate.ProcessExecutionAsync(halted.ExecutionId);
@@ -203,7 +206,7 @@ async Task RunAsync()
 
     // Global option off halts everything as well.
     gateOptions.Enabled = false;
-    var globallyOff = await RunExecutionAsync(ExecutionMode.Autonomous, 9m);
+    var globallyOff = await RunExecutionAsync(ExecutionMode.Autonomous, false, 9m);
     await gate.SetPolicyAsync(globallyOff.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 10, 3600, "admin");
     await gate.ProcessExecutionAsync(globallyOff.ExecutionId);
     Require(simulator.Sent.Count == sentBefore &&

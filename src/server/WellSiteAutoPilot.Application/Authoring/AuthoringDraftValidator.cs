@@ -167,6 +167,13 @@ public static partial class AuthoringDraftValidator
                 else if (resolved.Ok && resolved.Unit is not null && resolved.Unit != action.Unit)
                     Error("AUTHORING_UNIT_MISMATCH", path + "/unit", $"The suggested value is in {resolved.Unit}.");
             }
+            if (action.Command is not null)
+            {
+                if (!IsIdentifier(action.Command))
+                    Error("AUTHORING_FIELD_INVALID", path + "/command", "A command must be an identifier.");
+                if (action.SuggestedValue is null)
+                    Error("AUTHORING_FIELD_REQUIRED", path + "/suggestedValue", "A command proposal needs a suggested value.");
+            }
             if (codeModule) Error("AUTHORING_OPERATION_UNSUPPORTED", path, "Actions cannot be combined with a code-backed module step.");
         }
 

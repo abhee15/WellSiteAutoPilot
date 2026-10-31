@@ -63,7 +63,7 @@ public sealed record AuthoringOutput(
 
 public sealed record AuthoringAction(
     string Id, string Label, string Condition, string Title, string Detail,
-    string? Quantity = null, string? Unit = null, AuthoringOperand? SuggestedValue = null);
+    string? Quantity = null, string? Unit = null, AuthoringOperand? SuggestedValue = null, string? Command = null);
 
 public static class AuthoringJson
 {

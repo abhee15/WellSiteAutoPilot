@@ -115,6 +115,17 @@ await Throws<WellSiteAutoPilotException>(() =>
 // Generation is deterministic, escapes literals and keeps manifests consistent.
 var first = AuthoringModuleGenerator.Generate(threshold);
 Check(first.SourceFiles["EntryPoint.cs"] == AuthoringModuleGenerator.Generate(threshold).SourceFiles["EntryPoint.cs"], "generation is deterministic");
+var commandAction = threshold.Actions[0] with { Command = "SetFillageTarget" };
+var withCommand = threshold with { Actions = [commandAction] };
+Check(AuthoringDraftValidator.Validate(withCommand).IsValid, "a command action with a suggested value is valid");
+var commandSource = AuthoringModuleGenerator.Generate(withCommand).SourceFiles["EntryPoint.cs"];
+Check(commandSource.Contains("controlIntents.Add(new ControlIntentDraft(", StringComparison.Ordinal) &&
+    commandSource.Contains("\"SetFillageTarget\"", StringComparison.Ordinal) &&
+    !commandSource.Contains("recommendations.Add(", StringComparison.Ordinal), "a command action generates a control intent, not an advisory draft");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with { Actions = [commandAction with { SuggestedValue = null }] }),
+    "AUTHORING_FIELD_REQUIRED"), "a command action needs a suggested value");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with { Actions = [commandAction with { Command = "bad command!" }] }),
+    "AUTHORING_FIELD_INVALID"), "a command must be an identifier");
 Check(AuthoringModuleGenerator.CSharpString("a\"b\\c\n") == "\"a\\\"b\\\\c\\n\"", "string literals are escaped");
 Check(JsonDocument.Parse(first.ManifestJson).RootElement.GetProperty("manifestVersion").GetInt32() == 1, "scalar drafts use manifest v1");
 Check(JsonDocument.Parse(AuthoringModuleGenerator.Generate(Starter(AuthoringStarters.CardCalibrationId)).ManifestJson)
