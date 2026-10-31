@@ -130,4 +130,22 @@ describe('Activity page', () => {
     expect(detail.getByText('future.thing')).toBeTruthy();
     expect(detail.getByText('No further details were recorded for this event.')).toBeTruthy();
   });
+
+  it('opens the event named by the address, and reports a selection through onSelect so the address can follow it', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({
+      items: [event(1, { targetName: 'Gas lift module v1' }), event(2, { targetName: 'Other module' })], nextCursor: null });
+    const onSelect = vi.fn();
+    render(<ActivityPage selectedId={id(2)} onSelect={onSelect} />);
+    const detail = within(await screen.findByRole('article'));
+    expect(detail.getAllByText(/Other module/).length).toBeGreaterThan(0);
+    const row = screen.getByText('Gas lift module v1').closest('tr') as HTMLElement;
+    await userEvent.click(within(row).getByRole('button', { name: /Open event/ }));
+    expect(onSelect).toHaveBeenCalledWith(id(1));
+  });
+
+  it('says so when the event in the address is not among the loaded events', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1, { targetName: 'Gas lift module v1' })], nextCursor: null });
+    render(<ActivityPage selectedId={id(77)} onSelect={() => {}} />);
+    expect(await screen.findByText(/not among the loaded events/)).toBeTruthy();
+  });
 });

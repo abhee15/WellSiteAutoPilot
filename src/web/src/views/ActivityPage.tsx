@@ -30,7 +30,7 @@ function errorLabel(kind: AuditErrorKind): string {
 const FILTER_DEBOUNCE_MS = 350;
 
 /** Who did what, newest first. Administrators only: the server refuses everyone else. */
-export function ActivityPage() {
+export function ActivityPage({ selectedId = null, onSelect }: { selectedId?: string | null; onSelect?: (id: string | null) => void } = {}) {
   const [draft, setDraft] = useState<AuditFilters>(noFilters);
   const [applied, setApplied] = useState<AuditFilters>(noFilters);
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -39,7 +39,13 @@ export function ActivityPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The selection lives in the address when the parent provides it (shareable), otherwise in the page.
+  const [localId, setLocalId] = useState<string | null>(null);
+  const chosenId = onSelect ? selectedId : localId;
+  const setSelectedId = (next: string | null | ((current: string | null) => string | null)) => {
+    const value = typeof next === 'function' ? next(chosenId) : next;
+    if (onSelect) onSelect(value); else setLocalId(value);
+  };
   // "5 minutes ago" stays honest while the page is left open.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -100,7 +106,7 @@ export function ActivityPage() {
     return () => window.clearTimeout(timer);
   }, [draft, applied]);
   const busy = loading || loadingMore;
-  const selected = events.find(event => event.id === selectedId) ?? null;
+  const selected = events.find(event => event.id === chosenId) ?? null;
   const splitFocus = useSplitPaneFocus(selected?.id ?? null);
   const filtersTyped = draft.actionPrefix.trim() !== '' || draft.targetType.trim() !== '';
 
@@ -125,6 +131,7 @@ export function ActivityPage() {
       </div>
       {loading && <LoadingIndicator label={t('activity.loading')} />}
       {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
+      {!loading && !error && chosenId && !selected && events.length > 0 && <p className="access-note access-intro">{t('activity.notLoaded')}</p>}
       {!loading && !error && events.length === 0 && <p className="access-note access-intro">{t('activity.empty')}</p>}
       {events.length > 0 && (
         <div {...splitFocus} className="split-layout runs-layout activity-layout" data-has-selection={selected !== null}>

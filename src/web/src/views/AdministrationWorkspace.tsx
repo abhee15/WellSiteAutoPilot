@@ -11,8 +11,11 @@ type Tab = 'users' | 'roles' | 'grants' | 'activity';
 /** Keep Administration in the user menu, not the industrial primary navigation. */
 export function AdministrationWorkspace({ currentUserId }: { currentUserId: string }) {
   const [detail, setDetail] = useHashDetail('access');
-  const tab: Tab = detail === 'roles' || detail === 'grants' || detail === 'activity' ? detail : 'users';
+  // `#access/activity/<event id>` also names the selected event, so an address can point at one event.
+  const [head = '', eventId = ''] = (detail ?? '').split('/');
+  const tab: Tab = head === 'roles' || head === 'grants' || head === 'activity' ? head : 'users';
   const setTab = (next: Tab) => setDetail(next === 'users' ? null : next);
+  const selectEvent = (id: string | null) => setDetail(id ? `activity/${id}` : 'activity');
   // The user chosen by "Assign role" on the Users tab; only the next Grants view consumes it.
   const [assignUserId, setAssignUserId] = useState('');
   return (
@@ -36,7 +39,7 @@ export function AdministrationWorkspace({ currentUserId }: { currentUserId: stri
           ? <AccessManagementPage currentUserId={currentUserId}
             onAssignRole={userId => { setAssignUserId(userId); setTab('grants'); }} />
           : tab === 'roles' ? <RoleCatalogPage />
-            : tab === 'activity' ? <ActivityPage />
+            : tab === 'activity' ? <ActivityPage selectedId={eventId || null} onSelect={selectEvent} />
               : <GrantAdministrationPage currentUserId={currentUserId} initialUserId={assignUserId} />}
       </div>
     </div>
