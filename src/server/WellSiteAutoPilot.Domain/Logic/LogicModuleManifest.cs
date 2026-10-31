@@ -21,4 +21,6 @@ public sealed record LogicModuleManifest(
     JsonElement? ParameterSchema = null,
     // When set, all targets must belong to a Connection using this adapter.
     string? RequiredAdapterKey = null,
-    IReadOnlyCollection<LogicOutputRequirement>? OutputRequirements = null);
+    IReadOnlyCollection<LogicOutputRequirement>? OutputRequirements = null,
+    // Manifest version 3 only: named provider roles. Mutually exclusive with RequiredAdapterKey.
+    IReadOnlyCollection<LogicProviderDependency>? ProviderDependencies = null);
