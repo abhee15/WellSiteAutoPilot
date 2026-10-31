@@ -138,7 +138,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
             <ActionButton label={t('setup.cancelActivation')} disabled={busy} onClick={() => setConfirmId(null)} />
           </div>}
         </div>}
-        {userId && r.status === 'Active' && r.id === detail.activeRevisionId && !editing && <ConfiguredShadowPanel
+        {userId && r.status === 'Active' && r.id === detail.activeRevisionId && r.mode !== 'Autonomous' && !editing && <ConfiguredShadowPanel
           key={r.id} userId={userId} configurationId={detail.id} revision={r}
           canRequest={canRequestShadow === true && detail.canRequestShadow === true} disabled={busy || blocked} />}
       </li>;

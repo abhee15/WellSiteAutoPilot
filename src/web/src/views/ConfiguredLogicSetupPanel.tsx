@@ -3,14 +3,15 @@ import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '../components/ActionButton';
 import type { FormEvent } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
-  LogicModuleResponse } from '../api/generated/v1/types.gen';
+  ExecutionMode, LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { modeSentence } from '../words';
 import { loadViews, loadViewSelection, loadViewMembers, VIEW_PAGE_SIZE } from './assetViewsApi';
 import type { AssetView } from './assetViewsApi';
 import { loadConnections } from './connections';
 import type { Connection } from './connections';
 import { eligibleAssets, isJsonObject, prefillBindings, readConfiguration, setupManifest,
-  setupResponse, SetupApiError, verifiedConfiguration, matchesSetupRevision } from './configuredLogicSetup';
+  setupResponse, SetupApiError, verifiedConfiguration, matchesSetupRevision, SETUP_MODES } from './configuredLogicSetup';
 import type { SetupRequest, VerifiedConfiguration } from './configuredLogicSetup';
 import { attributeFields, attributeValues, buildAttributes } from './assetAttributeForm';
 import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
@@ -82,6 +83,8 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
   const [start, setStart] = useState(revision?.schedule?.startAtUtc ?? '');
   const [zone, setZone] = useState(revision?.schedule?.timeZoneId ?? 'UTC');
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<ExecutionMode>(() =>
+    SETUP_MODES.find(m => m === revision?.mode) ?? 'Shadow');
   const [blocked, setBlocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -145,7 +148,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
       parametersJson, assetBindings, dataBindings,
       schedule: useSchedule ? { enabled: scheduleEnabled, cadenceSeconds: Number(cadence),
         startAtUtc: new Date(start).toISOString(), timeZoneId: zone.trim() } : undefined,
-      view: viewRef ?? undefined };
+      view: viewRef ?? undefined, mode };
     pending.current = true; setBusy(true); setError(null);
     const request = new AbortController(); controller.current = request;
     let committed = false;
@@ -269,6 +272,11 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
               </label>)}
           </fieldset>;
         }))}
+        <label>{t('setup.mode')}<select value={mode} onChange={e => setMode(e.target.value as ExecutionMode)}>
+          {SETUP_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+        </select></label>
+        <p>{modeSentence(mode)}</p>
+        {mode === 'Autonomous' && <p>{t('setup.autonomousNote')}</p>}
         {manifest?.executionProfile === 'ScheduledOneShot' && <h4 className="setup-step">{t('setupStep.schedule')}</h4>}
         {manifest?.executionProfile === 'ScheduledOneShot' && <details>
           <summary>{t('setup.schedule')}</summary>
