@@ -128,3 +128,28 @@ Owner direction: the system should behave like one that listens for actions and 
 | I7 | P2 | Multi-instance: SignalR backplane or NATS fan-out so events reach clients on any server instance | Design |
 | I8 | P2 | Provider health push (connection monitor) and data freshness changes | Not started |
 | I9 | P3 | External notification channels (email, webhook, chat) fed from the same events | Later |
+
+## Recommendations and ideas (not yet in any workstream)
+
+1. **Make the scheduler due-based.** Fix the silent cap (only `Scheduler:BatchSize` configurations are ever dispatched), batch the per-configuration checks, add jitter, record skipped occurrences, expose schedule lag as a metric (see `docs/design/scheduler-load-probe.md`). P1, before any pilot.
+2. **Shadow-to-autonomy promotion with evidence.** Track, per configuration, shadow-vs-actual agreement, recommendation acceptance rate and false-alert rate; only allow promotion when thresholds hold for a period. A "what would have happened" report for any past window. P2.
+3. **Run replay and explainability.** Store the inputs (values, timestamps, quality, model hash) and intermediate values for each run so any result can be replayed or compared across module versions. P2.
+4. **Module lifecycle.** Versioned releases, canary on a few wells in Shadow, compare against the previous version, one-click rollback. P2.
+5. **Data-quality layer.** Common freshness, quality and unit handling across providers, so logic receives `value, unit, age, quality` instead of provider-specific shapes. P1 (needed for CygNet and WAMI alike).
+6. **Provider health as a first-class state.** Provider health feeds scheduling (pause or degrade when a provider is unhealthy), notifications and run reasons. P1.
+7. **Dry-run first for control.** Use the dry-run sink on real systems (read-only) before any real write; show would-write values next to current values. P1.
+8. **Idempotent, resumable work.** Result consumers and dispatch must tolerate redelivery; add dead-letter handling and an operator view of stuck runs. P2.
+9. **Cost and licence guard.** Per-provider rate limits and concurrency (CygNet call gate exists; add WAMI worker-limit and ForeSite limits) with visibility in the UI. P2.
+10. **Operator experience.** Saved views, per-well timeline (reads, runs, recommendations, actions, operator decisions in one stream), mobile-friendly recommendation approval. P2.
+11. **Environment parity.** One command to bring up the local stack (AppHost + NATS + simulator + optional WAMI), documented, with seeded demo data and a stale-data profile. P1.
+12. **Contract tests per adapter.** A shared adapter conformance suite run against simulators and (opt-in) live read-only systems. P1.
+13. **Security review before pilot.** Authoring sandboxing, package trust, permission catalog, audit export, secrets. P1 gate.
+
+## Using `feature/poc-integration` as the reference branch
+
+Yes, with these rules:
+- It is the integration branch for the PoC: always based on current `develop` (0 behind at `d78865d`), and every workstream branch merges into it.
+- Branch new work from it as `feature/<area>-<topic>` and open PRs back into it; promote to `develop` through the PR order in `poc-gap-register.md`.
+- Some work is still in flight on workstream branches (see the branch map) and is not merged yet; check the "Status" columns before relying on an item.
+- It carries local-only items that must not go to `develop`: the DCP pin (gap 16) and local run settings. The probe branches (`probe/poc-*`) are evidence/prototypes; take what is useful through PRs.
+- Merge `develop` into it regularly so it never drifts.
