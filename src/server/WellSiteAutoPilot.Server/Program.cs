@@ -238,7 +238,8 @@ builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddSingleton(new WellSiteAutoPilot.Application.Control.AutonomousControlOptions
 {
-    Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled")
+    Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled"),
+    DryRunSink = builder.Configuration.GetValue<bool>("Control:Autonomous:DryRunSink")
 });
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.IControlRepository, WellSiteAutoPilot.Persistence.Control.ControlRepository>();
 // With Control:Simulator:BaseUrl set, the Simulator sink speaks HTTP to the Provider Simulator; otherwise it is in-process.
@@ -260,6 +261,8 @@ else
         sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>());
 }
 builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink, WellSiteAutoPilot.Application.Control.RefusingProviderControlCommandSink>();
+builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCurrentValueReader, WellSiteAutoPilot.Application.Control.UnavailableControlCurrentValueReader>();
+builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink, WellSiteAutoPilot.Application.Control.DryRunControlCommandSink>();
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.AutonomousControlService>();
 builder.Services.AddScoped<UserIdentityService>();
 builder.Services.AddScoped<RoleCatalogService>();
@@ -1536,12 +1539,13 @@ v1.MapPut(
     "/control/policies/{configuredLogicId:guid}",
     async (Guid configuredLogicId, WellSiteAutoPilot.Api.Contracts.Control.SetAutonomyPolicyRequest request,
         WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        WellSiteAutoPilot.Application.Control.AutonomousControlOptions options,
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
     {
         if (request.Limits is null || request.Limits.Any(item => item is null))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "Command limits are required.");
         var policy = await control.SetPolicyAsync(configuredLogicId, request.Enabled,
-            WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
+            options.DryRunSink ? WellSiteAutoPilot.Domain.Control.ControlSinkKinds.DryRun : WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
             request.Limits.Select(item => new WellSiteAutoPilot.Domain.Control.AutonomyCommandLimit(item.Command, item.Unit, item.MinimumValue, item.MaximumValue)).ToArray(),
             request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName,
             request.AllowApprovedRecommendations, cancellationToken);

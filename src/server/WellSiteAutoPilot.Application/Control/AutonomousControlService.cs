@@ -313,7 +313,7 @@ public sealed class AutonomousControlService(
         if (!options.Enabled) return GateCodes.GlobalDisabled;
         if (policy is null) return GateCodes.NoPolicy;
         if (!policy.Enabled) return GateCodes.PolicyDisabled;
-        if (policy.SinkKind != ControlSinkKinds.Simulator) return GateCodes.RealWritesDisabled;
+        if (policy.SinkKind is not (ControlSinkKinds.Simulator or ControlSinkKinds.DryRun)) return GateCodes.RealWritesDisabled;
         if (approvedOrigin && !policy.AllowApprovedRecommendations) return GateCodes.ApprovedNotEnabled;
         if (revision is null || revision.Mode != (approvedOrigin ? ExecutionMode.Recommendation : ExecutionMode.Autonomous))
             return GateCodes.NotAutonomous;
@@ -342,9 +342,9 @@ public sealed class AutonomousControlService(
     {
         if (string.IsNullOrWhiteSpace(actor) || actor.Length > 256 || actor.Any(char.IsControl))
             throw Validation("CONTROL_POLICY_ACTOR_INVALID", "An authenticated actor is required.");
-        if (sinkKind != ControlSinkKinds.Simulator)
+        if (sinkKind is not (ControlSinkKinds.Simulator or ControlSinkKinds.DryRun))
             throw new WellSiteAutoPilotException("CONTROL_REAL_WRITES_DISABLED", FailureKind.Validation,
-                "Real provider writes are disabled; only the Simulator sink can be configured.");
+                "Real provider writes are disabled; only the Simulator and DryRun sinks can be configured.");
         if (maxActionsPerWindow is < 1 or > 1000 || windowSeconds is < 1 or > 86400)
             throw Validation("CONTROL_POLICY_RATE_INVALID", "Rate limit must be 1-1000 actions per 1-86400 seconds.");
         if (limits is null || limits.Count > 64 || limits.Any(item =>

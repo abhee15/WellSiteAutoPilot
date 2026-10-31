@@ -56,4 +56,6 @@ with a completed Execution's output; the worker never sends commands itself.
 - No readback verification, ambiguous-dispatch resolution UI, or dedicated control RBAC permissions.
 - Autonomy policy editing is API-only (no web editor yet).
 - No operator-approved Recommendation to ControlAction path (Recommendation mode stays advisory by design).
-- Real provider writes require a separate reviewed design (authority, readback, interlocks) and remain disabled.
+- Real provider writes require a separate reviewed design (authority, readback, interlocks) and remain disabled. See
+  `docs/design/autonomous-real-sink-readiness.md`; it also describes the optional `DryRun` sink
+  (`Control:Autonomous:DryRunSink=true`) that validates and records would-be writes with read-only readback and never writes.
