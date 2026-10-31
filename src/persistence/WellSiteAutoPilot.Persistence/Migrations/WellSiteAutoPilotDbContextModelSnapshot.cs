@@ -735,6 +735,145 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.ToTable("source_checks", "integration");
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Control.AutonomyPolicyEntity", b =>
+                {
+                    b.Property<Guid>("ConfiguredLogicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LimitsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("MaxActionsPerWindow")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SinkKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int>("WindowSeconds")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ConfiguredLogicId");
+
+                    b.ToTable("autonomy_policies", "control");
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Control.ControlActionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Command")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConfiguredLogicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("GateCode")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Quantity")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("RecommendationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Sink")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("SinkReference")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal?>("Value")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecommendationId")
+                        .IsUnique();
+
+                    b.HasIndex("ConfiguredLogicId", "CreatedAtUtc");
+
+                    b.ToTable("control_actions", "control");
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Control.ControlKillSwitchEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ChangedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("Engaged")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("kill_switch", "control", t =>
+                        {
+                            t.HasCheckConstraint("CK_kill_switch_singleton", "\"Id\" = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Engaged = false
+                        });
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Executions.ExecutionAssetScopeEntity", b =>
                 {
                     b.Property<Guid>("ExecutionId")
@@ -1127,10 +1266,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DirectoryId")
-                        .UseCollation("C")
-                        .UsePropertyAccessMode(PropertyAccessMode.Property)
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("character varying(64)")
+                        .UseCollation("C");
 
                     b.Property<string>("GroupDisplayName")
                         .HasMaxLength(256)
@@ -1141,9 +1279,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.Property<string>("GroupId")
-                        .UseCollation("C")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("character varying(256)")
+                        .UseCollation("C");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1508,6 +1646,24 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
                         .WithMany()
                         .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Control.AutonomyPolicyEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConfiguredLogicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Control.ControlActionEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Recommendations.RecommendationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RecommendationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

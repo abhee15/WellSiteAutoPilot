@@ -115,7 +115,7 @@ public sealed partial class ExecutionRepository
             _ = ExecutionService.CreateConfiguredRequest(command, execution.CorrelationId, execution.RequestedAtUtc, execution.Id);
             if (snapshot.ExecutionId != execution.Id || snapshot.ConfiguredLogicId != execution.LogicInstanceId || snapshot.ConfigurationRevisionId != execution.ConfigurationRevisionId ||
                 snapshot.ModuleId != execution.ModuleId || snapshot.ModuleVersion != execution.ModuleVersion ||
-                snapshot.Mode != nameof(ExecutionMode.Shadow) ||
+                snapshot.Mode != execution.Mode.ToString() ||
                 snapshot.RequestedAtUtc.UtcTicks / TimeSpan.TicksPerMicrosecond != execution.RequestedAtUtc.UtcTicks / TimeSpan.TicksPerMicrosecond ||
                 !snapshot.Assets.Select(item => item.AssetId).Concat(snapshot.Inputs.Select(item => item.AssetId))
                     .Distinct().Order().SequenceEqual(targets)) throw RequestConflict();

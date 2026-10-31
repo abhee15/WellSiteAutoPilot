@@ -97,15 +97,12 @@ public sealed partial class ExecutionRequestV2Consumer(
 
         try
         {
-            if (!string.Equals(
-                    envelope.Payload.Mode,
-                    "Shadow",
-                    StringComparison.OrdinalIgnoreCase))
+            if (envelope.Payload.Mode is not ("Shadow" or "Recommendation" or "Autonomous"))
             {
                 throw new WellSiteAutoPilotException(
                     "EXECUTION_MODE_NOT_SUPPORTED",
                     FailureKind.Validation,
-                    "The .NET foundation worker currently accepts Shadow executions only.");
+                    "The execution mode is not recognized.");
             }
 
             await PublishResultAsync(Subjects.ExecutionStartedV2, envelope,
