@@ -8,3 +8,19 @@ public sealed record SetCurrentValueRequest(
 public sealed record SetAvailabilityRequest(bool Available);
 
 public sealed record ResetScenarioRequest(string Scenario);
+
+public sealed record SimulatedCommandRequest(
+    string IdempotencyKey,
+    string AssetId,
+    string Command,
+    string? Quantity,
+    decimal Value,
+    string? Unit);
+
+public sealed record SimulatedCommandResult(
+    string Reference,
+    string State,
+    string AssetId,
+    string Command,
+    decimal? ObservedValue,
+    DateTimeOffset AppliedAtUtc);
