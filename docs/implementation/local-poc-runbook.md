@@ -98,3 +98,18 @@ ran and failed `CYGNET_VALUE_NOT_NUMERIC` (that well's point is not numeric), wh
 - The CygNet sample modules ship with a 120 s maximum age and emit only advisory drafts.
 - ExecutionDispatchTests needs a NATS server with matching credentials and was not run locally.
 - Scheduled configurations and the Autonomous policy keep running until deactivated; the policy was disabled at the end.
+
+## Live updates (SignalR) in the local PoC
+
+The hub (`/hubs/changes`) works under Windows/Negotiate auth: negotiate returns 200 and the browser opens a WebSocket. A signal names only an area; the web refetches. Areas and producers:
+
+| Area | Permission | Raised by |
+| --- | --- | --- |
+| `executions` | executions.read | manual/scheduled dispatch, result consumers (started, completed, failed) |
+| `recommendations` | recommendations.read | recommendation created/decided, gate pass, kill switch |
+| `control` | recommendations.read | autonomous gate pass (actions dispatched/blocked), kill switch, per-configuration policy |
+| `configured-logic`, `assets`, `modules`, `connections` | matching read permission | their API writes; connection monitor |
+
+Gap found and fixed: control actions had no area, and the Autonomous control panel loaded once and never refreshed. It now refetches on `control` and on the poll fallback (10 s while the hub is down, 60 s while connected). The header indicator ("Live updates on" or "Checking every N s") shows connection state. Authoring draft builds are file-based and still poll while building.
+
+To observe messages, drive headless Edge with `playwright-core` and `--auth-server-allowlist=<COMPUTERNAME>`, log `page.on('websocket')` frames, then toggle the kill switch or wait for a scheduled run: `changed` frames for `executions`, `recommendations` and `control` arrive and the page refetches.

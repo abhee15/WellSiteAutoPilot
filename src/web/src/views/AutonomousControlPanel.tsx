@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ControlActionResponse, KillSwitchResponse } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { t } from '../localization';
+import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { formatDetailTimestamp } from './executionDetail';
 
 /** Read-only governed-control audit plus the kill switch. Commands are only ever sent to the simulator. */
@@ -34,6 +35,10 @@ export function AutonomousControlPanel({ canManage }: { canManage: boolean }) {
     void load(controller.signal);
     return () => controller.abort();
   }, [load]);
+
+  // The gate and the kill switch name the control area; polling is only the safety net.
+  useChangeRefresh(['control'], () => void load());
+  usePollingRefresh(() => void load());
 
   async function toggle() {
     if (!killSwitch || busy) return;

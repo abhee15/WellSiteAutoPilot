@@ -152,6 +152,7 @@ public sealed partial class ExecutionResultV2Consumer(
                         await gate.ProcessExecutionAsync(
                             envelope.Payload.ExecutionId, cancellationToken);
                         changes.Notify(ChangeArea.Recommendations);
+                        changes.Notify(ChangeArea.Control);
                     }
                 }
             }

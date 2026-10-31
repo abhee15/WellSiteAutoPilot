@@ -1412,6 +1412,7 @@ v1.MapPut(
         ToKillSwitchResponse(await control.SetKillSwitchAsync(request.Engaged, access.CreateActor(context).IdentityName, request.Reason, cancellationToken), options))
     .WithName("SetControlKillSwitch")
     .NotifiesChange(ChangeArea.Recommendations)
+    .NotifiesChange(ChangeArea.Control)
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
@@ -1442,6 +1443,7 @@ v1.MapPut(
     })
     .WithName("SetAutonomyPolicy")
     .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .NotifiesChange(ChangeArea.Control)
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
