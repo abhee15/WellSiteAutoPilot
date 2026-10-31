@@ -30,7 +30,7 @@
 .asset-selected h3 { margin: 0; font-size: var(--font-size-body); }
 .asset-selected p { margin: 0; }
 .asset-selected code { overflow-wrap: anywhere; }
-@media (max-width: 760px) {
+@media (width < 48em) {
   .asset-create-form { grid-template-columns: minmax(0, 1fr); }
   .asset-create-attributes, .asset-create-schema, .asset-create-hint, .asset-create-fields,
   .asset-create-error, .asset-create-success { grid-column: auto; }

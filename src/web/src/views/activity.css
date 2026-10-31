@@ -39,12 +39,12 @@
 .activity-raw pre { overflow-x: auto; user-select: text; margin: var(--space-8) 0; padding: var(--space-12); background: var(--color-surface-code); border-radius: var(--radius-6); }
 
 /* While an event is open on a narrow screen, it gets the whole panel: the intro and filters wait behind "Back". */
-@media (max-width: 900px) {
+@media (width <= 56.25em) {
   .activity-panel[data-has-selection='true'] .activity-toolbar { display: none; }
 }
 
 /* Narrow windows: a fact stacks its label over its value, and the list becomes one card per event. */
-@media (max-width: 650px) {
+@media (width <= 40em) {
   .activity-fact { grid-template-columns: minmax(0, 1fr); }
   .activity-table.activity-feed { min-width: 0; }
   .activity-table.activity-feed thead { position: absolute; width: var(--border-width-thin); height: var(--border-width-thin); overflow: hidden; clip-path: inset(50%); }

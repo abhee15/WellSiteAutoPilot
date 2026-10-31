@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'wsa.nav.collapsed';
-const NARROW_QUERY = '(max-width: 760px)';
+const NARROW_QUERY = '(width < 48em)';
 
 function readStored(): boolean {
   try { return window.localStorage.getItem(STORAGE_KEY) === '1'; } catch { return false; }

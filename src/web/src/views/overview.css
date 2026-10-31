@@ -14,7 +14,7 @@
 .overview-run-module, .overview-runs time { color: var(--color-text-muted); font-size: var(--font-size-body-small); }
 .overview-run-module { grid-column: 2; }
 .overview-runs time { grid-row: 1; grid-column: 3; }
-@media (max-width: 650px) {
+@media (width <= 40em) {
   .overview-runs li { grid-template-columns: 1fr auto; }
   .overview-runs li > :nth-child(2) { grid-column: 1; grid-row: 2; }
   .overview-run-module { grid-column: 1; grid-row: 3; }

@@ -15,7 +15,7 @@
 
 .split-browse { min-width: 0; }
 
-@media (max-width: 900px) {
+@media (width <= 56.25em) {
   .split-panes { grid-template-columns: minmax(0, 1fr); }
   .split-layout[data-has-selection='true'] .split-browse { display: none; }
   .split-layout[data-has-selection='true'] .split-back { display: inline-flex; }
@@ -57,17 +57,17 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 .runs-layout .split-selected .execution-detail { border: 0; border-radius: 0; }
 /* Logic details already sit in the bordered card of .split-selected, so the summary inside has no second frame. */
 .logic-layout .split-selected .execution-detail { border: 0; border-radius: 0; padding: 0; }
-@media (min-width: 901px) { .runs-layout .split-back { display: none; } }
+@media (width > 56.25em) { .runs-layout .split-back { display: none; } }
 
 /* Space is shared by ratio, not capped: beside an open item the list gets two parts and the details three,
    so a wide window fills up instead of leaving the right-hand side empty. */
-@media (min-width: 901px) {
+@media (width > 56.25em) {
   .runs-layout[data-has-selection='true'] .split-panes { grid-template-columns: minmax(var(--layout-panel-min), 2fr) minmax(0, 3fr); }
 }
 /* The panes fill what is left of the window under the header and tabs (--pane-top is measured by
    useSplitPaneViewport), and each scrolls on its own: the page itself does not scroll, and the list keeps
    its place while a long set of details is read. On a phone the list and details replace each other and the page scrolls. */
-@media (min-width: 901px) {
+@media (width > 56.25em) {
   .split-panes {
     height: max(var(--layout-pane-height-min), calc(100dvh - var(--pane-top) - var(--space-28) - var(--border-width-thin)));
     align-items: stretch;
@@ -89,7 +89,7 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* Beside the details the list keeps Status and Asset; the logic name is in the details and would wrap letter by letter here. */
 .runs-layout[data-has-selection='true'] .run-col-logic { display: none; }
 /* On a phone only Status and Asset fit; the rest is in the run's details. */
-@media (max-width: 650px) { .operations-layout .run-col-logic, .operations-layout .run-col-secondary { display: none; } }
+@media (width <= 40em) { .operations-layout .run-col-logic, .operations-layout .run-col-secondary { display: none; } }
 
 /* Recommendations: beside a decision the list is narrow and the "Updated" time would wrap. */
 .recs-layout[data-has-selection='true'] .split-browse .panel-header .last-updated { display: none; }
@@ -99,7 +99,7 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 
 /* The columns hidden beside the details come back whenever the list is wide enough for them. */
 .runs-layout .split-browse { container-type: inline-size; }
-@container (min-width: 720px) {
+@container (width >= 45em) {
   .runs-layout[data-has-selection='true'] .run-col-secondary { display: table-cell; }
   .runs-layout[data-has-selection='true'] .run-col-logic { display: table-cell; }
 }

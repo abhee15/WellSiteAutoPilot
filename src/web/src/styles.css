@@ -456,13 +456,13 @@ button:disabled {
   color: var(--color-text-warning);
 }
 
-@media (max-width: 1100px) {
+@media (width <= 68.75em) {
   .data-saved-view-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 650px) {
+@media (width <= 40em) {
   .data-saved-view-fields {
     grid-template-columns: 1fr;
   }
@@ -735,13 +735,13 @@ button:disabled {
 /* Dates stay on one line so a row's height comes from its content, not from a wrapped timestamp. */
 .activity-table td.activity-time { white-space: nowrap; }
 
-@media (max-width: 1100px) {
+@media (width <= 68.75em) {
   .execution-detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 650px) {
+@media (width <= 40em) {
   .execution-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -780,7 +780,7 @@ button:disabled {
   margin-top: var(--space-4);
 }
 
-@media (max-width: 900px) {
+@media (width <= 56.25em) {
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -831,14 +831,14 @@ button:disabled {
 /* Tablet and wider: the window itself never scrolls. The navigation and the page header stay put and the page body
    below them is the one scroll region (master-detail pages fill it and scroll their panes instead). On phones
    the page scrolls normally, which is what they expect. */
-@media (min-width: 761px) {
+@media (width >= 48em) {
   .app-shell { height: 100vh; height: 100dvh; overflow: hidden; }
   .content { display: flex; flex-direction: column; min-height: 0; padding-bottom: 0; overflow: hidden; }
   .page-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
     margin-inline: calc(-1 * var(--space-28)); padding: 0 var(--space-28) var(--space-28); }
 }
 
-@media (max-width: 760px) {
+@media (width < 48em) {
   .content {
     padding: var(--space-18);
   }
@@ -930,7 +930,7 @@ button:disabled {
   align-items: flex-start;
 }
 
-@media (max-width: 650px) {
+@media (width <= 40em) {
   .access-role-options {
     display: grid;
     gap: var(--space-12);
@@ -1024,7 +1024,7 @@ button:disabled {
 .role-editor > .access-review,
 .role-editor > .access-confirm { margin-inline: var(--space-18); }
 .role-editor > .primary-button { margin: 0 var(--space-18) var(--space-20); }
-@media (max-width: 650px) {
+@media (width <= 40em) {
   .administration-tabs button,
   .role-actions button { flex: 1; }
 }

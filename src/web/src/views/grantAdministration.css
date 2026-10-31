@@ -39,7 +39,7 @@
 .grant-final-review { margin-top: var(--space-20); }
 .grant-final-review > p, .grant-final-review > ul { margin-inline: var(--space-24); }
 .grant-final-review > .execution-detail-actions { margin: var(--space-24); }
-@media (max-width: 640px) {
+@media (width <= 40em) {
   .grant-management-panel > .panel-header, .grant-selection, .grant-management-panel .grant-current-list { padding: var(--space-20); }
   .grant-current-list li { align-items: flex-start; flex-direction: column; }
   .grant-fields { margin: var(--space-20); }

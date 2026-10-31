@@ -23,4 +23,4 @@
 .well-selection-list { list-style: none; padding: 0; max-block-size: var(--layout-list-max-large); overflow: auto; }
 .well-selection-list li { display: flex; justify-content: space-between; gap: var(--space-8); padding-block: var(--space-6); }
 .well-selection-list li > span { overflow-wrap: anywhere; }
-@media (max-width: 767px) { .well-selection-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (width < 48em) { .well-selection-layout { grid-template-columns: minmax(0, 1fr); } }

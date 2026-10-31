@@ -64,7 +64,7 @@ test('split layouts share space by ratio and give each pane the window height', 
   const base = css.match(/^\.split-panes \{[^}]*\}/m)?.[0] ?? '';
   assert.match(base, /\d+fr\)/, 'the list/details columns of .split-panes must be fr ratios, so wide windows are filled');
   assert.doesNotMatch(base, /layout-panel-max|\d+px/, 'do not cap the list column at a fixed width: use ratios');
-  assert.match(css, /@media \(min-width: 901px\) \{\s*\.split-panes \{\s*height:/,
+  assert.match(css, /@media \(width > 56\.25em\) \{\s*\.split-panes \{\s*height:/,
     'each pane gets the window height and scrolls on its own, so the open details stay in view');
 });
 
@@ -176,7 +176,7 @@ test('controls share one height: border-box sizing and a control line height kee
 test('the window never scrolls on tablets and wider: the page header stays put and the page body is the one scroll region', () => {
   const styles = source(join(root, 'styles.css'));
   const app = source(join(root, 'App.tsx'));
-  assert.match(styles, /@media \(min-width: 761px\)\s*\{[^@]*\.app-shell\s*\{[^}]*overflow:\s*hidden[^}]*\}[^@]*\.page-body\s*\{[^}]*overflow-y:\s*auto/);
+  assert.match(styles, /@media \(width >= 48em\)\s*\{[^@]*\.app-shell\s*\{[^}]*overflow:\s*hidden[^}]*\}[^@]*\.page-body\s*\{[^}]*overflow-y:\s*auto/);
   assert.match(app, /className="page-body"/);
 });
 
@@ -226,4 +226,20 @@ test('action buttons are the shared ActionButton, not <button className="primary
   };
   walk(root);
   assert.deepEqual(offenders, [], 'use <ActionButton label=... variant=... />');
+});
+
+test('breakpoints are in em (they follow the reader\'s text size) and use the range syntax, never px', () => {
+  const offenders = [];
+  const walk = folder => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) { walk(path); continue; }
+      if (!entry.name.endsWith('.css')) continue;
+      readFileSync(path, 'utf8').split('\n').forEach((line, index) => {
+        if (/@(media|container)[^{]*\b(min|max)-width\s*:/.test(line) || /@(media|container)[^{]*\d+px/.test(line)) offenders.push(`${relative(root, path)}:${index + 1}`);
+      });
+    }
+  };
+  walk(root);
+  assert.deepEqual(offenders, [], 'write (width <= 40em) / (width >= 48em); see docs/design/ui-conventions.md');
 });

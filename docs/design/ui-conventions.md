@@ -42,12 +42,26 @@ consequence, and anything whose icon is ambiguous.
 `rem` for spacing, control, radius, layout and font sizes (value / 16); `px` only for hairlines (borders, focus ring),
 spinner strokes, shadows, the pill radius and the measured `--pane-top`. Everything goes through `src/tokens.css`.
 
+## Scrolling
+
+On tablets and wider (>= 48em) the window never scrolls. The navigation and page header stay put and the page body is
+the one scroll region; master-detail pages give each pane its own scroll instead. Never put a scroller inside another
+scroller (nested scroll areas are hard to use with keyboard, screen readers and magnifiers). Phones scroll the page.
+
+## Search and filters
+
+Every list uses `FilterToolbar`: one search box and a Filters button (with the active count) on a row, the fields in a panel
+that opens in place, a chip per applied filter, Clear filters and a result count. Saved views live in a collapsed section of
+the panel. The toolbar adapts to its own width (container query), so a narrow list pane stacks like a phone.
+
+## Breakpoints
+
+In `em`, range syntax: `(width <= 40em)` phone, `(width < 48em)` / `(width >= 48em)` tablet, `(width <= 56.25em)` /
+`(width > 56.25em)` split panes, `(width <= 68.75em)` wide forms. A guard test rejects px breakpoints.
+
 ## Backlog
 
-- Migrate the remaining raw `<button>` elements (about 40) to `ActionButton`, with a shrinking allowlist in the guard test.
-- Move Runs, Assets and Logic filters with saved views onto `FilterBar`.
 - Pin the detail header (title and actions) while the details body scrolls.
-- Media-query breakpoints in `em` so layouts reflow with text size.
 - Clickable stat cards on Recommendations; empty states with a next action; Activity day grouping.
 - Readable names for remaining raw identifiers; consistent target-type casing; shareable event URLs.
 - Grants selects are 38px, controls are 36px.
