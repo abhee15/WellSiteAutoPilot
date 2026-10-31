@@ -219,8 +219,13 @@ builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
 builder.Services.AddSingleton<AuthoringBuildRunner>();
 builder.Services.AddScoped<AuthoringService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
-if (builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthorityUserId") is { } schedulerReadUserId && schedulerReadUserId != Guid.Empty)
-    builder.Services.AddSingleton(new ScheduledReadAuthority(schedulerReadUserId));
+builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
+{
+    ServicePrincipalUserId = builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthority:ServicePrincipalUserId")
+        ?? builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthorityUserId")
+});
+builder.Services.AddScoped<IDelegatedAuthorityAuditWriter, WellSiteAutoPilot.Persistence.Control.DelegatedAuthorityAuditWriter>();
+builder.Services.AddScoped<IScheduledReadAuthorityProvider, ScheduledReadAuthorityProvider>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
@@ -1413,7 +1418,7 @@ v1.MapPut(
     .WithName("SetControlKillSwitch")
     .NotifiesChange(ChangeArea.Recommendations)
     .NotifiesChange(ChangeArea.Control)
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
@@ -1438,13 +1443,14 @@ v1.MapPut(
         var policy = await control.SetPolicyAsync(configuredLogicId, request.Enabled,
             WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
             request.Limits.Select(item => new WellSiteAutoPilot.Domain.Control.AutonomyCommandLimit(item.Command, item.Unit, item.MinimumValue, item.MaximumValue)).ToArray(),
-            request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName, cancellationToken);
+            request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName,
+            request.AllowApprovedRecommendations, cancellationToken);
         return ToAutonomyPolicyResponse(policy);
     })
     .WithName("SetAutonomyPolicy")
     .NotifiesChange(ChangeArea.ConfiguredLogic)
     .NotifiesChange(ChangeArea.Control)
-    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -1454,14 +1460,55 @@ v1.MapGet(
     async (Guid? configuredLogicId, int? limit, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
         CancellationToken cancellationToken) =>
         (await control.ListActionsAsync(configuredLogicId, PageLimit(limit ?? 50, 200), cancellationToken))
-            .Select(item => new WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse(item.Id, item.RecommendationId,
-                item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command, item.Quantity, item.Value, item.Unit,
-                item.Status.ToString(), item.GateCode, item.Sink, item.SinkReference, item.CreatedAtUtc, item.CompletedAtUtc))
+            .Select(ToControlActionResponse)
             .ToArray())
     .WithName("ListControlActions")
     .RequireAuthorization(WellSitePolicies.RecommendationsRead)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapPost(
+    "/control/recommendations/{recommendationId:guid}/execute",
+    async (Guid recommendationId, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var result = await control.ExecuteApprovedAsync(recommendationId, access.CreateActor(context).IdentityName, cancellationToken);
+        return new WellSiteAutoPilot.Api.Contracts.Control.ControlExecutionResponse(
+            result.Action is null ? null : ToControlActionResponse(result.Action), result.RefusalCode);
+    })
+    .WithName("ExecuteApprovedRecommendation")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlExecutionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/control/actions/{actionId:guid}/verify",
+    async (Guid actionId, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToControlActionResponse(await control.VerifyAsync(actionId, access.CreateActor(context).IdentityName, cancellationToken)))
+    .WithName("VerifyControlAction")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/control/actions/{actionId:guid}/resolve",
+    async (Guid actionId, WellSiteAutoPilot.Api.Contracts.Control.ResolveControlActionRequest request,
+        WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToControlActionResponse(await control.ResolveAsync(actionId, request.Applied, request.Note ?? string.Empty,
+            access.CreateActor(context).IdentityName, cancellationToken)))
+    .WithName("ResolveControlAction")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
 v1.MapGet(
     "/connections",
@@ -1750,7 +1797,13 @@ static WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse ToAutonomy
     new(item.ConfiguredLogicId, item.Enabled, item.SinkKind,
         item.Limits.Select(limit => new WellSiteAutoPilot.Api.Contracts.Control.AutonomyCommandLimitDto(
             limit.Command, limit.Unit, limit.MinimumValue, limit.MaximumValue)).ToArray(),
-        item.MaxActionsPerWindow, item.WindowSeconds, item.UpdatedBy, item.UpdatedAtUtc);
+        item.MaxActionsPerWindow, item.WindowSeconds, item.UpdatedBy, item.UpdatedAtUtc, item.AllowApprovedRecommendations);
+
+static WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse ToControlActionResponse(
+    WellSiteAutoPilot.Domain.Control.ControlActionRecord item) =>
+    new(item.Id, item.RecommendationId, item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command,
+        item.Quantity, item.Value, item.Unit, item.Status.ToString(), item.GateCode, item.Sink, item.SinkReference,
+        item.CreatedAtUtc, item.CompletedAtUtc, item.Origin, item.ReadbackValue, item.VerifiedAtUtc, item.ResolutionNote);
 
 static RecommendationSummaryResponse ToRecommendationSummaryResponse(
     RecommendationRecord recommendation) => new(
