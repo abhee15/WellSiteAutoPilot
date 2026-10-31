@@ -37,3 +37,18 @@ Open questions for the owner are in `docs/design/wami-provider-and-multi-provide
 6. **Production hardening (design): gaps 16 and 17.** Decide the supported local-dev path and the per-connection identity model before any pilot outside a developer machine.
 
 Merge order into `feature/poc-integration`: cygnet-adapter, recommendation-modes, authoring-local, wami-provider (smallest conflict surface first), rebuilding and re-running the live path after each.
+
+## Branch map (where the PoC work lives)
+
+Repo: https://github.com/abhee15/WellSiteAutoPilot. All branches are pushed to origin.
+
+| Branch | Purpose | Key docs |
+|---|---|---|
+| `origin/probe/authoring-build-package`, `origin/docs/console-web-authoring-plan` | Original probes and authoring plan (inputs) | `docs/design/console-web-authoring-plan.md`, `modules/authoring/probes/` |
+| `feature/authoring-build-package` | Probes re-run on Windows, AppContainer/Job isolation probe, CI step | `modules/authoring/probes/CONFIDENCE-REVIEW.md` |
+| `feature/poc-cygnet-adapter` | CygNet adapter (live/simulated), discovery, sample modules, freshness diagnostics | `docs/implementation/cygnet-adapter.md` |
+| `feature/poc-authoring-local` | Local authoring API/UI, Job-object build isolation | `docs/design/authoring-local-poc.md` |
+| `feature/poc-recommendation-modes` | Shadow/Recommendation/Autonomous modes, policy gate, kill switch, readback | `docs/architecture/execution-modes.md` |
+| `feature/poc-wami-provider` | WAMI provider design, WCF client, multi-provider coordinator, WAMI sample module | `docs/design/wami-provider-and-multi-provider-logic.md` |
+| `feature/poc-integration` | Merge of all of the above, e2e fixes, runbook, this register | `docs/implementation/local-poc-runbook.md` |
+| `origin/poc/cygnet-reader` | Earlier CygNet POC findings (reference) | `poc/CYGNET-POC-FINDINGS.md` |
