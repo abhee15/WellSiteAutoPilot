@@ -1,0 +1,61 @@
+{
+  "manifestVersion": 1,
+  "moduleId": "weatherford.cygnet.motor-load-check",
+  "version": "1.0.0",
+  "displayName": "CygNet motor and rod load check",
+  "publisher": "Weatherford",
+  "runtime": "DotNet",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "Weatherford.CygNet.MotorLoadCheck.EntryPoint",
+  "minimumSdkVersion": "1.1.0",
+  "requiredAdapterKey": "cygnet",
+  "description": "Recommends a review when a CygNet well's motor current or polished rod load is above a limit (defaults 60 A and 25000 lbf). Recommendation only; sends nothing to CygNet.",
+  "parameterSchema": {
+    "type": "object",
+    "properties": {
+      "maxMotorAmps": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1000,
+        "description": "Motor current above this value raises the alert. Default 60."
+      },
+      "maxRodLoadLbf": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1000000,
+        "description": "Rod load above this value raises the alert. Default 25000."
+      }
+    },
+    "additionalProperties": false
+  },
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": null,
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "motor-amps",
+      "assetRole": "well",
+      "quantity": "MotorAmps",
+      "access": "Current",
+      "canonicalUnit": "A",
+      "maximumAgeSeconds": 120,
+      "allowUncertainQuality": false
+    },
+    {
+      "id": "rod-load",
+      "assetRole": "well",
+      "quantity": "RodLoad",
+      "access": "Current",
+      "canonicalUnit": "lbf",
+      "maximumAgeSeconds": 120,
+      "allowUncertainQuality": false
+    }
+  ],
+  "commandRequirements": []
+}

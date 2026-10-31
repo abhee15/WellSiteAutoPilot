@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CygNet connection adapter: settings, test, discovery and read mapping over ICygNetClient. No CygNet libraries here,
+       so it builds and is tested everywhere. The CygNet.API-backed client lives in the opt-in Integration.CygNet project. -->
+  <ItemGroup>
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
+    <ProjectReference Include="../../platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
+  </ItemGroup>
+</Project>

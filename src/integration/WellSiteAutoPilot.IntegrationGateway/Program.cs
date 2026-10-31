@@ -16,6 +16,18 @@ builder.Configuration.AddServiceCallerSettingsFile("gateway.keys.json");
 builder.Services.AddServiceCallerAuthentication(builder.Configuration);
 builder.Services.AddSingleton<AdapterCatalog>();
 builder.Services.AddSingleton<ForeSiteConnectionMeasurements>();
+builder.Services.AddSingleton<CygNetConnectionMeasurements>();
+// "simulated" serves a built-in deterministic CygNet; "live" needs a Gateway built with CYGNET_LIBRARY_PATH.
+builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.Adapter.ICygNetClient>(services =>
+    builder.Configuration["Providers:CygNet:Backend"]?.Trim().ToLowerInvariant() switch
+    {
+        "simulated" => new WellSiteAutoPilot.Integration.CygNet.Adapter.SimulatedCygNetClient(services.GetRequiredService<TimeProvider>()),
+#if CYGNET
+        "live" => new WellSiteAutoPilot.Integration.CygNet.CygNetApiClient(
+            services.GetRequiredService<WellSiteAutoPilot.Integration.CygNet.CygNetProviderOptions>()),
+#endif
+        _ => new WellSiteAutoPilot.Integration.CygNet.Adapter.CygNetUnconfiguredClient()
+    });
 builder.Services.AddHttpClient("adapter-test");
 builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true, UseCookies = false });
@@ -213,6 +225,13 @@ v1.MapPost(
     .RequireAuthorization(ServiceCaller.ServerPolicy)
     .Produces<DiscoveryResult>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound);
+
+v1.MapPost("/adapters/cygnet/current",
+    async (ConnectionMeasurementRequest request, CygNetConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.ReadAsync(request, cancellationToken)))
+    .WithName("ReadAuthorizedCygNetMeasurement")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<EngineeringValue>(StatusCodes.Status200OK);
 
 v1.MapPost("/adapters/foresite/current",
     async (ConnectionMeasurementRequest request, ForeSiteConnectionMeasurements provider, CancellationToken cancellationToken) =>

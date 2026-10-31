@@ -1,0 +1,55 @@
+{
+  "manifestVersion": 1,
+  "moduleId": "weatherford.cygnet.pressure-differential-check",
+  "version": "1.0.0",
+  "displayName": "CygNet casing-tubing pressure check",
+  "publisher": "Weatherford",
+  "runtime": "DotNet",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "Weatherford.CygNet.PressureDifferentialCheck.EntryPoint",
+  "minimumSdkVersion": "1.1.0",
+  "requiredAdapterKey": "cygnet",
+  "description": "Compares current casing and tubing pressure on a CygNet well and recommends a review when casing pressure exceeds tubing pressure by more than a limit (default 150 psi). A point-in-time check, not a trend: trends need history reads, which the CygNet adapter does not offer yet.",
+  "parameterSchema": {
+    "type": "object",
+    "properties": {
+      "maxDifferentialPsi": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10000,
+        "description": "Casing minus tubing pressure above this value raises the alert. Default 150."
+      }
+    },
+    "additionalProperties": false
+  },
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": null,
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "casing-pressure",
+      "assetRole": "well",
+      "quantity": "CasingPressure",
+      "access": "Current",
+      "canonicalUnit": "psi",
+      "maximumAgeSeconds": 120,
+      "allowUncertainQuality": false
+    },
+    {
+      "id": "tubing-pressure",
+      "assetRole": "well",
+      "quantity": "TubingPressure",
+      "access": "Current",
+      "canonicalUnit": "psi",
+      "maximumAgeSeconds": 120,
+      "allowUncertainQuality": false
+    }
+  ],
+  "commandRequirements": []
+}
