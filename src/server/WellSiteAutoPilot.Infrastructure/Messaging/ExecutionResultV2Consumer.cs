@@ -7,6 +7,7 @@ using NATS.Client.JetStream.Models;
 using NATS.Net;
 using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Control;
 using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
@@ -142,7 +143,16 @@ public sealed partial class ExecutionResultV2Consumer(
                         envelope.Payload.ExecutionId,
                         envelope.Payload.OutputJson,
                         cancellationToken);
-                    if (created > 0) changes.Notify(ChangeArea.Recommendations);
+                    if (created > 0)
+                    {
+                        changes.Notify(ChangeArea.Recommendations);
+                        var gate = scope.ServiceProvider
+                            .GetRequiredService<AutonomousControlService>();
+                        // No-op for non-Autonomous executions; Autonomous intents go through the gate only.
+                        await gate.ProcessExecutionAsync(
+                            envelope.Payload.ExecutionId, cancellationToken);
+                        changes.Notify(ChangeArea.Recommendations);
+                    }
                 }
             }
             else if (string.Equals(

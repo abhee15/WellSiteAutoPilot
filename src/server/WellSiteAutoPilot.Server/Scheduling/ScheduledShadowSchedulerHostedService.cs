@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using WellSiteAutoPilot.Application.Changes;
+using WellSiteAutoPilot.Application.Control;
 using WellSiteAutoPilot.Application.Scheduling;
 
 namespace WellSiteAutoPilot.Server.Scheduling;
@@ -58,6 +59,11 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
                     ScheduledShadowDispatchOutcome.ModuleDisabled or
                     ScheduledShadowDispatchOutcome.InvalidConfiguration or
                     ScheduledShadowDispatchOutcome.DispatchFailed);
+
+            // Retry intents left undecided by an interrupted gate pass.
+            var gate = scope.ServiceProvider.GetRequiredService<AutonomousControlService>();
+            if (await gate.SweepAsync(batchSize, cancellationToken) > 0)
+                changes.Notify(ChangeArea.Recommendations);
 
             // The dispatch committed its Execution requests before DispatchDueAsync returned.
             if (dispatched > 0) changes.Notify(ChangeArea.Executions);

@@ -1014,6 +1014,9 @@ jobs:
       - name: Verify Recommendation persistence
         run: dotnet run --project tests/WellSiteAutoPilot.RecommendationPersistenceTests/WellSiteAutoPilot.RecommendationPersistenceTests.csproj --configuration Release --no-build
 
+      - name: Verify execution mode safety (Shadow, Recommendation, Autonomous gate)
+        run: dotnet run --project tests/WellSiteAutoPilot.ExecutionModeSafetyTests/WellSiteAutoPilot.ExecutionModeSafetyTests.csproj --configuration Release --no-build
+
       - name: Verify security identity, RBAC, and Asset scope persistence
         run: dotnet run --project tests/WellSiteAutoPilot.SecurityPersistenceTests/WellSiteAutoPilot.SecurityPersistenceTests.csproj --configuration Release --no-build
 
