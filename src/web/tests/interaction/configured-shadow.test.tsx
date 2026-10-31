@@ -20,8 +20,8 @@ function panel(canRequest = true) {
     revision={revision} canRequest={canRequest} />);
 }
 async function confirm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Review Shadow run' }));
-  await user.click(screen.getByRole('button', { name: 'Run reviewed Shadow revision' }));
+  await user.click(screen.getByRole('button', { name: 'Review shadow run' }));
+  await user.click(screen.getByRole('button', { name: 'Run reviewed shadow revision' }));
 }
 describe('configured Shadow execution', () => {
   it('accepts a hosted V3 request receipt and verifies its scoped execution detail', async () => {
@@ -49,14 +49,14 @@ describe('configured Shadow execution', () => {
       return response(completed);
     });
     vi.stubGlobal('fetch', http); panel();
-    await user.click(screen.getByRole('button', { name: 'Review Shadow run' }));
+    await user.click(screen.getByRole('button', { name: 'Review shadow run' }));
     expect(http).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Run reviewed Shadow revision' }));
+    await user.click(screen.getByRole('button', { name: 'Run reviewed shadow revision' }));
     await screen.findByRole('region', { name: 'Run details' });
     await screen.findByText('Completed');
     expect(http.mock.calls.filter(c => c[1]?.method === 'POST')).toHaveLength(1);
     expect(http.mock.calls[0][0]).toBe(`/api/v1/configured-logic/${configurationId}/revisions/${revisionId}/shadow`);
-    expect(screen.getByRole('button', { name: 'Prepare another Shadow run' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Prepare another shadow run' })).toBeTruthy();
   });
   it('recovers a lost response with exactly the same key and never retries automatically', async () => {
     const user = userEvent.setup(); let fail = true;
@@ -69,7 +69,7 @@ describe('configured Shadow execution', () => {
     const firstKey = JSON.parse(String(http.mock.calls[0][1]?.body)).requestId;
     expect(http).toHaveBeenCalledTimes(1);
     view.unmount(); fail = false; panel();
-    await user.click(screen.getByRole('button', { name: 'Recover saved Shadow request' }));
+    await user.click(screen.getByRole('button', { name: 'Recover saved shadow request' }));
     await screen.findByText('Completed');
     const posts = http.mock.calls.filter(c => c[1]?.method === 'POST');
     expect(posts).toHaveLength(2); expect(JSON.parse(String(posts[1][1]?.body)).requestId).toBe(firstKey);
@@ -82,13 +82,13 @@ describe('configured Shadow execution', () => {
   });
   it('fails closed on corrupted recovery state instead of silently creating a new key', async () => {
     sessionStorage.setItem(storageKey, 'invalid'); const user = userEvent.setup(); const http = vi.fn(); vi.stubGlobal('fetch', http);
-    panel(); await user.click(screen.getByRole('button', { name: 'Recover saved Shadow request' }));
+    panel(); await user.click(screen.getByRole('button', { name: 'Recover saved shadow request' }));
     expect(screen.getByRole('alert').textContent).toContain('recovery key is invalid'); expect(http).not.toHaveBeenCalled();
   });
   it('does not load another user\'s saved key', () => {
     sessionStorage.setItem(shadowRequestStorageKey(executionId, configurationId, revisionId), savedKey);
-    panel(); expect(screen.getByRole('button', { name: 'Review Shadow run' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Recover saved Shadow request' })).toBeNull();
+    panel(); expect(screen.getByRole('button', { name: 'Review shadow run' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Recover saved shadow request' })).toBeNull();
   });
   it('uses secure random bytes when randomUUID is unavailable on an on-prem HTTP origin', async () => {
     const user = userEvent.setup();
@@ -107,7 +107,7 @@ describe('configured Shadow execution', () => {
       init?.method === 'POST' ? response(completed) : response({}, 403)));
     panel(); await confirm(user);
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('Execution access is unavailable'));
-    expect(screen.getByRole('button', { name: 'Recover saved Shadow request' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Recover saved shadow request' })).toHaveProperty('disabled', true);
     expect(screen.queryByText('Completed')).toBeNull();
   });
   it('rejects a receipt for another revision without selecting an execution', async () => {
@@ -123,7 +123,7 @@ describe('configured Shadow execution', () => {
     expect(sessionStorage.getItem(storageKey)).toBeTruthy();
   });
   it('offers no submission controls to a reader', () => {
-    panel(false); expect(screen.queryByRole('button', { name: 'Review Shadow run' })).toBeNull();
+    panel(false); expect(screen.queryByRole('button', { name: 'Review shadow run' })).toBeNull();
     expect(screen.getByText(/do not allow requesting execution/)).toBeTruthy();
   });
   it('polls durable pending status through Running to Completed, and only then offers a new request', async () => {
@@ -134,11 +134,11 @@ describe('configured Shadow execution', () => {
       return response({ ...completed, status: reads < 3 ? 'Running' : 'Completed' });
     }));
     panel(); await confirm(user); await screen.findByText('Running');
-    expect(screen.queryByRole('button', { name: 'Prepare another Shadow run' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Prepare another shadow run' })).toBeNull();
     await waitFor(() => expect(screen.getByText('Completed')).toBeTruthy(), { timeout: 4000 });
-    await user.click(screen.getByRole('button', { name: 'Prepare another Shadow run' }));
+    await user.click(screen.getByRole('button', { name: 'Prepare another shadow run' }));
     expect(sessionStorage.getItem(storageKey)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Review Shadow run' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Review shadow run' })).toBeTruthy();
   });
   it('renders bounded input quality and provenance as escaped text with locale-aware values', () => {
     render(<ExecutionDetailContent detail={{ ...completed, outputJson: JSON.stringify({ inputObservations: [{

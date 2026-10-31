@@ -61,7 +61,7 @@ it('keeps the long columns in the list marked so they fold away beside the decis
   const { container } = show();
   await screen.findByText('Command a');
   const secondary = [...container.querySelectorAll('thead th.run-col-secondary')].map(th => th.textContent);
-  expect(secondary).toEqual(['Logic Module', 'Reason code', 'Created / expiry', 'Decision actor']);
+  expect(secondary).toEqual(['Logic module', 'Reason code', 'Created / expiry', 'Decision actor']);
   // The status, asset and suggested change stay in the narrow list.
   const kept = [...container.querySelectorAll('thead th:not(.run-col-secondary)')].map(th => th.textContent);
   expect(kept.slice(0, 3)).toEqual(['Status', 'Asset', 'Suggested change']);

@@ -37,7 +37,7 @@ async function fill(user: ReturnType<typeof userEvent.setup>) {
     JSON.stringify(['sample', '1.0.0']));
   await user.selectOptions(screen.getByRole('listbox', { name: 'Assets for well' }), assetId);
   await user.type(screen.getByRole('textbox', { name: 'Provider ID' }), 'provider-simulator');
-  await user.type(screen.getByRole('textbox', { name: 'Provider Asset external ID' }), 'WELL-101');
+  await user.type(screen.getByRole('textbox', { name: 'Provider asset external ID' }), 'WELL-101');
 }
 function workspace(canManage = true) {
   return render(<ConfiguredLogicWorkspace selectedId={configId} canManage={canManage}
@@ -67,12 +67,12 @@ describe('Revision settings summary', () => {
     workspace();
     const summary = await screen.findByLabelText('Settings used by this revision');
     expect(summary.textContent).toContain('View revision 7 · 1 selected wells');
-    expect(summary.textContent).toContain('Later View edits do not change these targets');
+    expect(summary.textContent).toContain('Later view edits do not change these targets');
   });
   it('shows nothing when a revision has no settings', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => response(draft)));
     workspace();
-    await screen.findByText(/Exact Asset scope/);
+    await screen.findByText(/Exact asset scope/);
     expect(screen.queryByLabelText('Settings used by this revision')).toBeNull();
   });
 });
@@ -87,16 +87,16 @@ describe('Module settings form', () => {
     await fill(user);
     expect(screen.queryByRole('textbox', { name: 'Parameters (JSON object)' })).toBeNull();
     expect(screen.getByText(/Holds the pump near a target fillage/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(screen.getByText('This detail is required.')).toBeTruthy();
     expect(http).not.toHaveBeenCalled();
     await user.type(screen.getByRole('textbox', { name: 'Target fillage (%)' }), '150');
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(screen.getByText('This is above the allowed maximum.')).toBeTruthy();
     await user.clear(screen.getByRole('textbox', { name: 'Target fillage (%)' }));
     await user.type(screen.getByRole('textbox', { name: 'Target fillage (%)' }), '75');
     await user.selectOptions(screen.getByRole('combobox', { name: /Mode/ }), 'Trim');
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(http).toHaveBeenCalled());
     expect(JSON.parse(http.mock.calls[0][1]?.body as string).parametersJson).toBe('{"targetFillage":75,"mode":"Trim"}');
   });
@@ -110,7 +110,7 @@ describe('Module settings form', () => {
     expect((screen.getByRole('textbox', { name: 'Parameters (JSON object)' }) as HTMLTextAreaElement).value).toBe('{"targetFillage":60}');
   });
 });
-describe('Configured Logic setup journey', () => {
+describe('Configured logic setup journey', () => {
   it('uses keyboard navigation, saves raw JSON once, verifies persistence and reports the Draft', async () => {
     const user = userEvent.setup();
     const http = vi.fn(async (_url: string, init?: RequestInit) => response(draft, init?.method === 'POST' ? 201 : 200));
@@ -120,7 +120,7 @@ describe('Configured Logic setup journey', () => {
     // Step 1 is choosing the logic, so it is first in keyboard order.
     expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Approved module version' }));
     await fill(user);
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(props.onSaved).toHaveBeenCalledWith(draft));
     expect(http).toHaveBeenCalledTimes(2);
     const body = JSON.parse(http.mock.calls[0][1]?.body as string);
@@ -144,7 +144,7 @@ describe('Configured Logic setup journey', () => {
   it('shows an actionable empty catalog without allowing submission', () => {
     render(<ConfiguredLogicSetupPanel {...props} modules={[]} />);
     expect(screen.getByRole('status').textContent).toContain('No approved');
-    expect(screen.getByRole('button', { name: 'Save Draft' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Save draft' })).toHaveProperty('disabled', true);
   });
   it('rejects invalid parameter objects and missing role bindings locally', async () => {
     const user = userEvent.setup(); const http = vi.fn(); vi.stubGlobal('fetch', http);
@@ -152,7 +152,7 @@ describe('Configured Logic setup journey', () => {
     await user.clear(screen.getByRole('textbox', { name: 'Parameters (JSON object)' }));
     await user.click(screen.getByRole('textbox', { name: 'Parameters (JSON object)' }));
     await user.paste('[1]');
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(screen.getByRole('alert').textContent).toContain('Check JSON'); expect(http).not.toHaveBeenCalled();
   });
   it('preserves duplicate properties so authoritative validation can reject them', async () => {
@@ -161,7 +161,7 @@ describe('Configured Logic setup journey', () => {
     vi.stubGlobal('fetch', http); render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
     const field = screen.getByRole('textbox', { name: 'Parameters (JSON object)' });
     await user.clear(field); await user.click(field); await user.paste('{"x":1,"x":2}');
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(JSON.parse(http.mock.calls[0][1]?.body as string).parametersJson).toBe('{"x":1,"x":2}');
     expect(screen.getByRole('alert').textContent).toContain('VALIDATION_FAILED');
     expect(screen.getByRole('alert').textContent).not.toContain('secret');
@@ -169,16 +169,16 @@ describe('Configured Logic setup journey', () => {
   it('blocks blind retry after a lost write response', async () => {
     const user = userEvent.setup(); const http = vi.fn(async () => { throw new TypeError('network'); });
     vi.stubGlobal('fetch', http); render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(screen.getByRole('alert').textContent).toContain('outcome is unknown');
-    await user.click(screen.getByRole('button', { name: 'Save Draft' })); expect(http).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Save draft' })); expect(http).toHaveBeenCalledTimes(1);
     expect(props.onSaved).not.toHaveBeenCalled();
   });
   it('distinguishes committed creation with failed scoped readback', async () => {
     const user = userEvent.setup(); const http = vi.fn(async (_url: string, init?: RequestInit) =>
       init?.method === 'POST' ? response(draft, 201) : response({}, 403));
     vi.stubGlobal('fetch', http); render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('server accepted'));
     expect(props.onSaved).not.toHaveBeenCalled();
   });
@@ -186,7 +186,7 @@ describe('Configured Logic setup journey', () => {
     const user = userEvent.setup(); let resolve!: (r: Response) => void; let signal: AbortSignal | undefined;
     vi.stubGlobal('fetch', vi.fn((_url, init) => { signal = init?.signal; return new Promise<Response>(r => { resolve = r; }); }));
     const view = render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
-    await user.click(screen.getByRole('button', { name: 'Save Draft' })); view.unmount();
+    await user.click(screen.getByRole('button', { name: 'Save draft' })); view.unmount();
     expect(signal?.aborted).toBe(true);
     await act(async () => { resolve(response(draft, 201)); });
     expect(props.onSaved).not.toHaveBeenCalled();
@@ -248,7 +248,7 @@ describe('Configured Logic setup journey', () => {
     vi.stubGlobal('fetch', http);
     render(<ConfiguredLogicSetupPanel {...props} configuration={draft} revision={draft.revisions[0]} />);
     expect(screen.getByRole('textbox', { name: 'Configuration name' })).toHaveProperty('disabled', true);
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(props.onSaved).toHaveBeenCalled());
     expect(http.mock.calls[0][0]).toBe('/api/v1/configured-logic/' + configId + '/revisions');
     expect(draft.revisions).toHaveLength(1);
@@ -258,7 +258,7 @@ describe('Configured Logic setup journey', () => {
     vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => init?.method === 'POST'
       ? response(draft, 201) : response({ ...draft, revisions: [{ ...draft.revisions[0], parametersJson: '{"changed":true}' }] })));
     render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('server accepted'));
     expect(props.onSaved).not.toHaveBeenCalled();
   });
@@ -267,9 +267,9 @@ describe('Configured Logic setup journey', () => {
     render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
     await user.click(screen.getByText('Schedule (optional)'));
     await user.click(screen.getByRole('checkbox', { name: 'Include a cadence schedule' }));
-    expect(screen.getByRole('checkbox', { name: 'Enable scheduled Shadow runs after activation' })).toHaveProperty('checked', false);
+    expect(screen.getByRole('checkbox', { name: 'Enable scheduled shadow runs after activation' })).toHaveProperty('checked', false);
     await user.type(screen.getByRole('textbox', { name: 'Start timestamp (UTC, ending in Z)' }), '2026-10-16T12:00:00');
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(screen.getByRole('alert').textContent).toContain('explicit UTC'); expect(http).not.toHaveBeenCalled();
   });
   it('clears the draft and selected configuration when the same user loses scope in the real App', async () => {
@@ -287,12 +287,12 @@ describe('Configured Logic setup journey', () => {
       return response(value);
     }));
     const user = userEvent.setup(); render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Configure Logic' }));
+    await user.click(await screen.findByRole('button', { name: 'Configure logic' }));
     await user.type(screen.getByRole('textbox', { name: 'Configuration name' }), 'Sensitive draft');
     revoked = true;
     await user.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(screen.queryByDisplayValue('Sensitive draft')).toBeNull());
-    expect(screen.queryByRole('region', { name: 'Configured Logic setup' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Configured logic setup' })).toBeNull();
     window.location.hash = '';
   });
 

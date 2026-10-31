@@ -24,11 +24,11 @@ it('an address to an asset opens it once the list loads, and clearing it returns
   window.location.hash = '#assets/' + assetId;
   signIn(['assets.read']);
   const user = userEvent.setup(); render(<App />);
-  await screen.findByText('Selected Asset');
+  await screen.findByText('Selected asset');
   expect(window.location.hash).toBe('#assets/' + assetId);
   await user.click(screen.getByRole('button', { name: 'Clear selection' }));
   expect(window.location.hash).toBe('#assets');
-  expect(screen.queryByText('Selected Asset')).toBeNull();
+  expect(screen.queryByText('Selected asset')).toBeNull();
 });
 
 it('selecting an asset puts it in the address so it can be shared', async () => {
@@ -37,7 +37,7 @@ it('selecting an asset puts it in the address so it can be shared', async () => 
   const user = userEvent.setup(); render(<App />);
   await user.click(await screen.findByRole('button', { name: 'Open North Well from the hierarchy' }));
   await waitFor(() => expect(window.location.hash).toBe('#assets/' + assetId));
-  await screen.findByText('Selected Asset');
+  await screen.findByText('Selected asset');
 });
 
 it('an unknown record address is kept and shows no selection', async () => {
@@ -45,7 +45,7 @@ it('an unknown record address is kept and shows no selection', async () => {
   signIn(['assets.read']);
   render(<App />);
   await screen.findByRole('button', { name: 'Open North Well from the hierarchy' });
-  expect(screen.queryByText('Selected Asset')).toBeNull();
+  expect(screen.queryByText('Selected asset')).toBeNull();
 });
 
 it('the administration tab is part of the address', async () => {

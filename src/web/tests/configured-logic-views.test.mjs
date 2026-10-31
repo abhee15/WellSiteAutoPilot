@@ -75,7 +75,7 @@ test('responsive filter controls provide labels and scoped result counts', () =>
   const html = renderToStaticMarkup(createElement(controls.ConfiguredLogicControls, {
     criteria, onChange: () => {}, matchingCount: 2, totalCount: 3,
   }));
-  assert.match(html, /Configured Logic filters/);
+  assert.match(html, /Configured logic filters/);
   assert.match(html, /role="group"/);
   assert.match(html, /Latest revision status/);
   assert.match(html, /Showing 2 of 3 loaded configurations/);

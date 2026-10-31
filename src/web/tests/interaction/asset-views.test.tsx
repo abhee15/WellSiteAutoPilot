@@ -56,8 +56,8 @@ function host(requests: Request[], existing: unknown[] = [], permissions = allPe
 async function createForm(requests: Request[], conflict = false) {
   host(requests, [], allPermissions, conflict); window.location.hash = '#assets';
   const user = userEvent.setup(); render(<App />);
-  await user.click(await screen.findByRole('button', { name: 'Create View' }));
-  const form = await screen.findByRole('form', { name: 'Create a View' });
+  await user.click(await screen.findByRole('button', { name: 'Create view' }));
+  const form = await screen.findByRole('form', { name: 'Create a view' });
   await user.selectOptions(within(form).getByLabelText('Connection'), connectionId);
   return { user, form };
 }
@@ -65,7 +65,7 @@ async function openBranch(form: HTMLElement) {
   await userEvent.setup().click(await within(form).findByRole('button', { name: 'Open Field from the hierarchy' }));
   return within(form).findByRole('checkbox', { name: 'Select North Well' });
 }
-it('saves one Connection and the explicit wells; parents remain navigation and there is no sharing toggle', async () => {
+it('saves one connection and the explicit wells; parents remain navigation and there is no sharing toggle', async () => {
   const requests: Request[] = []; const { user, form } = await createForm(requests);
   expect((within(form).getByLabelText('Connection') as HTMLSelectElement).multiple).toBe(false);
   expect(within(form).queryByText(/Share with everyone/)).toBeNull();
@@ -74,7 +74,7 @@ it('saves one Connection and the explicit wells; parents remain navigation and t
   await user.type(within(form).getByLabelText('View name'), '  Selected ESP wells ');
   await user.click(await openBranch(form));
   expect(within(form).queryByRole('checkbox', { name: 'Select Field' })).toBeNull();
-  await user.click(within(form).getByRole('button', { name: 'Save View' }));
+  await user.click(within(form).getByRole('button', { name: 'Save view' }));
   await waitFor(() => expect(requests.some(request => request.init?.method === 'POST')).toBe(true));
   expect(JSON.parse(String(requests.find(request => request.init?.method === 'POST')!.init?.body)))
     .toEqual({ name: 'Selected ESP wells', connectionId, assetIds: [wellId] });
@@ -83,11 +83,11 @@ it('keeps selection across hierarchy collapse and scoped search, and clears it w
   const requests: Request[] = []; const { user, form } = await createForm(requests);
   await user.click(await openBranch(form));
   await user.click(within(form).getByRole('button', { name: 'Hide children of Field' }));
-  await user.type(within(form).getByLabelText('Find wells in this Connection'), 'South');
+  await user.type(within(form).getByLabelText('Find wells in this connection'), 'South');
   await user.click(await within(form).findByRole('checkbox', { name: 'Select South Well' }));
   expect(within(form).getByText('Selected wells (2)')).toBeTruthy();
   expect(requests.some(request => request.url.includes('/assets/search?') && request.url.includes('ownerConnectionId=' + connectionId))).toBe(true);
-  await user.clear(within(form).getByLabelText('Find wells in this Connection'));
+  await user.clear(within(form).getByLabelText('Find wells in this connection'));
   expect((await openBranch(form) as HTMLInputElement).checked).toBe(true);
   await user.selectOptions(within(form).getByLabelText('Connection'), otherConnection);
   expect(within(form).getByText('Selected wells (0)')).toBeTruthy();
@@ -102,8 +102,8 @@ it('selects descendant wells under an unopened group and allows exceptions', asy
 it('keeps the form and selection when a name conflicts', async () => {
   const requests: Request[] = []; const { user, form } = await createForm(requests, true);
   await user.type(within(form).getByLabelText('View name'), 'Taken'); await user.click(await openBranch(form));
-  await user.click(within(form).getByRole('button', { name: 'Save View' }));
-  expect((await within(form).findByRole('alert')).textContent).toContain('already exists in this Connection');
+  await user.click(within(form).getByRole('button', { name: 'Save view' }));
+  expect((await within(form).findByRole('alert')).textContent).toContain('already exists in this connection');
   expect(within(form).getByText('Selected wells (1)')).toBeTruthy();
 });
 it('readers see Connection Views without a create or edit permission', async () => {
@@ -111,9 +111,9 @@ it('readers see Connection Views without a create or edit permission', async () 
   window.location.hash = '#assets'; const user = userEvent.setup(); render(<App />);
   const selector = await screen.findByLabelText('View');
   await waitFor(() => expect(within(selector).queryByText('ESP Wells · Houston Production')).toBeTruthy());
-  expect(screen.queryByRole('button', { name: 'Create View' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Create view' })).toBeNull();
   await user.selectOptions(selector, viewId);
-  expect(await screen.findByRole('navigation', { name: 'Assets in this View' })).toBeTruthy();
+  expect(await screen.findByRole('navigation', { name: 'Assets in this view' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Edit view' })).toBeNull();
   expect(screen.queryByText('My views')).toBeNull();
 });
@@ -128,7 +128,7 @@ it('a permitted non-creator edits explicit membership with the expected revision
   await user.click(await openBranch(form));
   expect(within(form).getByText('Selected wells (0)')).toBeTruthy();
   await user.click(within(form).getByRole('checkbox', { name: 'Select South Well' }));
-  await user.click(within(form).getByRole('button', { name: 'Save View' }));
+  await user.click(within(form).getByRole('button', { name: 'Save view' }));
   await waitFor(() => expect(requests.some(request => request.init?.method === 'PUT')).toBe(true));
   expect(JSON.parse(String(requests.find(request => request.init?.method === 'PUT')!.init?.body)))
     .toEqual({ expectedRevision: 1, name: 'ESP Wells', assetIds: [otherWellId] });
@@ -136,7 +136,7 @@ it('a permitted non-creator edits explicit membership with the expected revision
 it('post-import navigation preselects the Connection without selecting or saving wells', async () => {
   const requests: Request[] = []; host(requests);
   window.location.hash = '#assets/' + encodeURIComponent('new-view:' + connectionId); render(<App />);
-  const form = await screen.findByRole('form', { name: 'Create a View' });
+  const form = await screen.findByRole('form', { name: 'Create a view' });
   expect((within(form).getByLabelText('Connection') as HTMLSelectElement).value).toBe(connectionId);
   expect(within(form).getByText('Selected wells (0)')).toBeTruthy();
   expect(requests.some(request => request.init?.method === 'POST')).toBe(false);
@@ -153,8 +153,8 @@ it('allows an authorized editor to remove an unavailable well before saving', as
   const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
   await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
   const form = await screen.findByRole('form', { name: 'Edit view' }); await within(form).findByText('Selected wells (2)');
-  expect((within(form).getByRole('button', { name: 'Save View' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((within(form).getByRole('button', { name: 'Save view' }) as HTMLButtonElement).disabled).toBe(true);
   expect(within(form).getByText(/Inactive or ineligible: remove before saving/)).toBeTruthy();
   await user.click(within(form).getByRole('button', { name: 'Remove South Well from selection' }));
-  expect((within(form).getByRole('button', { name: 'Save View' }) as HTMLButtonElement).disabled).toBe(false);
+  expect((within(form).getByRole('button', { name: 'Save view' }) as HTMLButtonElement).disabled).toBe(false);
 });

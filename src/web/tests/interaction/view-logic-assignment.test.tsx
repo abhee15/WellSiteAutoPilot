@@ -50,11 +50,11 @@ async function chooseModule() {
 }
 it('assigns the complete saved selection beyond the workspace snapshot and verifies its pinned revision', async () => {
   const requests: Request[] = []; host(requests); const onSaved = vi.fn(); editor(onSaved);
-  const user = await chooseModule(); const selector = await screen.findByLabelText('Target View');
+  const user = await chooseModule(); const selector = await screen.findByLabelText('Target view');
   await waitFor(() => expect(within(selector).queryByText(/ESP group/)).toBeTruthy());
   await user.selectOptions(selector, viewId);
   await screen.findByText(/View revision 2 · 2 selected wells/);
-  await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
   const body = JSON.parse(String(requests.find(request => request.init?.method === 'POST')!.init?.body));
   expect(body.view).toEqual({ viewId, expectedRevision: 2, role: 'well' });
@@ -62,29 +62,29 @@ it('assigns the complete saved selection beyond the workspace snapshot and verif
 });
 it('disables incompatible adapter and cardinality choices instead of changing the module requirements', async () => {
   const requests: Request[] = []; host(requests); editor(); await chooseModule();
-  const selector = await screen.findByLabelText('Target View');
+  const selector = await screen.findByLabelText('Target view');
   await waitFor(() => expect(within(selector).queryByText(/Too many wells/)).toBeTruthy());
   expect((within(selector).getByRole('option', { name: /Too many wells/ }) as HTMLOptionElement).disabled).toBe(true);
   expect((within(selector).getByRole('option', { name: /Wrong adapter/ }) as HTMLOptionElement).disabled).toBe(true);
 });
 it('rejects a stale selection before assigning any subset', async () => {
   const requests: Request[] = []; host(requests, 3); editor(); const user = await chooseModule();
-  const selector = await screen.findByLabelText('Target View'); await waitFor(() => expect(within(selector).queryByText(/ESP group/)).toBeTruthy());
+  const selector = await screen.findByLabelText('Target view'); await waitFor(() => expect(within(selector).queryByText(/ESP group/)).toBeTruthy());
   await user.selectOptions(selector, viewId);
-  expect((await screen.findByRole('alert')).textContent).toContain('complete View selection could not be loaded');
+  expect((await screen.findByRole('alert')).textContent).toContain('complete view selection could not be loaded');
   expect(requests.some(request => request.init?.method === 'POST')).toBe(false);
 });
 it('does not enable validation when the persisted View revision differs from the request', async () => {
   const requests: Request[] = []; host(requests, 2, 3); const onSaved = vi.fn(); editor(onSaved); const user = await chooseModule();
-  const selector = await screen.findByLabelText('Target View'); await waitFor(() => expect(within(selector).queryByText(/ESP group/)).toBeTruthy());
+  const selector = await screen.findByLabelText('Target view'); await waitFor(() => expect(within(selector).queryByText(/ESP group/)).toBeTruthy());
   await user.selectOptions(selector, viewId); await screen.findByText(/View revision 2 · 2 selected wells/);
-  await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
   await screen.findByRole('alert'); expect(onSaved).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: 'Save Draft' }).matches(':disabled')).toBe(true);
+  expect(screen.getByRole('button', { name: 'Save draft' }).matches(':disabled')).toBe(true);
 });
 it('does not fetch or offer Views without Connection read access', async () => {
   const requests: Request[] = []; host(requests); editor(vi.fn(), false); await chooseModule();
-  expect(screen.queryByLabelText('Target View')).toBeNull(); expect(requests).toHaveLength(0);
+  expect(screen.queryByLabelText('Target view')).toBeNull(); expect(requests).toHaveLength(0);
 });
 
 it('saves a direct imported well through the same editor without View browsing permission', async () => {
@@ -92,8 +92,8 @@ it('saves a direct imported well through the same editor without View browsing p
   const user = await chooseModule();
   await user.selectOptions(screen.getByRole('listbox', { name: 'Assets for well' }), wellId);
   expect(screen.getByText('Selected connection: ' + connectionId)).toBeTruthy();
-  expect(screen.queryByLabelText('Target View')).toBeNull();
-  await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+  expect(screen.queryByLabelText('Target view')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
   const body = JSON.parse(String(requests.find(request => request.init?.method === 'POST')!.init?.body));
   expect(body.view).toBeUndefined();

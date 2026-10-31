@@ -163,7 +163,7 @@ it('uses the saved canonical hierarchy and hides ordinary regrouping controls', 
   vi.mocked(api.previewImport).mockResolvedValue({ ...preview, levels: [] });
   render(<ConnectionImport connection={connection} adapter={adapter} hierarchy={{ status: 'Saved', levels: [] }}
     selection={{ snapshotId, query: '', facets: {} }} selectedCount={2} totalCount={2} />);
-  expect(screen.getByText(/This Connection has one saved hierarchy/)).toBeTruthy();
+  expect(screen.getByText(/This connection has one saved hierarchy/)).toBeTruthy();
   expect(screen.queryByText('Recommended hierarchy')).toBeNull();
   expect(screen.queryByText('Customize grouping levels')).toBeNull();
   expect(within(screen.getByLabelText('Import hierarchy')).getAllByRole('listitem').map(item => item.textContent)).toEqual(['Production ForeSite', 'Wells']);
