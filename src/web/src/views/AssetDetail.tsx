@@ -18,6 +18,7 @@ import { fetchAssetSource } from './assetBrowseApi';
 import type { AssetSource } from './assetBrowseApi';
 import './assetPage.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { SchedulesPanel } from './SchedulesPanel';
 
 type Activity = {
   runs: ExecutionResponse[];
@@ -27,7 +28,7 @@ type Activity = {
 
 /** One asset explained in words: where it sits, what is on it, what it has done. */
 export function AssetDetail({
-  asset, assets, typeName, configuredLogic, canReadRuns, canReadRecommendations, canConfigureLogic, onSelect, onClose,
+  asset, assets, typeName, configuredLogic, canReadRuns, canReadRecommendations, canConfigureLogic, canReadSchedules = false, onSelect, onClose,
   owner = null, canOpenConnection = false,
 }: {
   asset: AssetResponse;
@@ -35,6 +36,7 @@ export function AssetDetail({
   typeName: string;
   configuredLogic: readonly ConfiguredLogicResponse[];
   canConfigureLogic?: boolean;
+  canReadSchedules?: boolean;
   canReadRuns: boolean;
   canReadRecommendations: boolean;
   onSelect: (assetId: string) => void;
@@ -137,6 +139,8 @@ export function AssetDetail({
         {canConfigureLogic && asset.isActive && <a className="secondary-button" href={hashFor('logic', 'new:' + assetId)}>
           {t('assetPage.putLogic')}</a>}
       </section>
+
+      {canReadSchedules && logic.length > 0 && <SchedulesPanel assetId={assetId} hideWhenEmpty canManage={canConfigureLogic === true} />}
 
       {canReadRuns && <section aria-label={t('assetPage.runs')}>
         <h4>{t('assetPage.runs')}</h4>
