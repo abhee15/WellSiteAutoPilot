@@ -68,6 +68,9 @@ jobs:
         run: node modules/authoring/probes/decimal_conformance.cjs modules/authoring/artifacts/decimal-conformance-probe.json
       - name: Measure ordinary-child boundary using synthetic resources
         run: python modules/authoring/probes/boundary_probe.py --report modules/authoring/artifacts/boundary-probe.json
+      - name: Measure Windows AppContainer and Job object boundary
+        if: runner.os == 'Windows'
+        run: python modules/authoring/probes/windows_isolation_probe.py --report modules/authoring/artifacts/windows-isolation-probe.json
       - name: Probe candidate calculation document
         run: node modules/authoring/probes/document_probe.mjs modules/authoring/artifacts/document-probe.json
       - name: Probe existing starter with empty NuGet cache and cleared feeds

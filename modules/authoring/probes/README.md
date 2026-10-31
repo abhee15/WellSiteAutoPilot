@@ -31,6 +31,16 @@ python modules/authoring/probes/boundary_probe.py --report modules/authoring/art
 python modules/authoring/probes/offline_restore_probe.py --report modules/authoring/artifacts/offline-probe.json
 ```
 
+```sh
+python modules/authoring/probes/windows_isolation_probe.py --report modules/authoring/artifacts/windows-isolation-probe.json
+```
+
+The Windows-only isolation probe starts a child in a capability-less AppContainer
+with a kill-on-close Job object, then records denied reads/writes/loopback and
+whether cancelling the job ends the whole process tree. It measures a mechanism;
+it does not deploy a sandbox, and `releaseGate` stays blocked. Recorded:
+[isolation-windows.json](evidence/isolation-windows.json).
+
 `workspace.html` is a disposable, fixture-only calculation/dependency design
 probe. It loads application tokens/styles but is not the product React shell.
 With Playwright available and Chromium installed, run:

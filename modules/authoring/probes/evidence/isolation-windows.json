@@ -1,0 +1,29 @@
+{
+  "probe": "windows-appcontainer-job-boundary",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "status": "measurement-completed",
+  "observed": {
+    "pidfileRaw": "40060",
+    "child": {
+      "loopback": false,
+      "writeWork": true,
+      "writeOutside": false,
+      "grandchildError": null,
+      "readOutside": false
+    },
+    "grandchildStarted": true,
+    "listenerAccepted": false,
+    "rootAliveAfterCancel": false,
+    "grandchildAliveAfterCancel": false
+  },
+  "notEstablished": [
+    "Deployment identity and secret denial on the intended server",
+    "Hosted compiler/SDK access under AppContainer (build toolchain not run inside)",
+    "Clean offline SDK provisioning",
+    "Authenticated preview/delivery"
+  ],
+  "isolationHeld": true,
+  "treeCancellationHeld": true,
+  "releaseGate": "blocked",
+  "conclusion": "AppContainer+Job measured on this account only; release remains blocked until verified on the intended deployment with the real build toolchain."
+}
