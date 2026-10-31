@@ -75,7 +75,9 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
   /* A panel that wraps the panes ends where they end, so its usual bottom margin does not push the page past the window. */
   .panel:has(> .split-layout) { margin-bottom: 0; }
   .split-panes > .split-browse { margin-bottom: 0; }
-  .split-browse, .split-selected { min-height: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+  /* Written as children of .split-panes so it outranks `.panel { overflow: hidden }`, which loads later and would
+     otherwise cancel the scrolling on every pane that is also a panel. */
+  .split-panes > .split-browse, .split-panes > .split-selected { min-height: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; }
 }
 /* Uploading a package sits in the browse pane like the filters: a quiet disclosure with the same gutters. */
 .module-upload { padding: var(--space-8) 0 0; }

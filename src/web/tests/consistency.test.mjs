@@ -107,7 +107,9 @@ test('table text starts on the same gutter as the panel headings and filters abo
 test('master-detail panes scroll on their own and the page does not (one shared rule, measured by a hook)', () => {
   const layout = source(join(root, 'views/splitLayout.css'));
   assert.match(layout, /\.split-panes \{\s*height: max\(var\(--layout-pane-height-min\), calc\(100dvh - var\(--pane-top\)/);
-  assert.match(layout, /\.split-browse, \.split-selected \{[^}]*overflow-y: auto/);
+  // Both panes are also often a `.panel` (overflow: hidden, loaded later); the scroll rule must outrank it, so it is
+  // written as children of .split-panes. A bare `.split-browse` rule silently turns scrolling off in the Runs list.
+  assert.match(layout, /\.split-panes > \.split-browse, \.split-panes > \.split-selected \{[^}]*overflow-y: auto/);
   // No page re-introduces a sticky details pane or its own height cap: the shared rule is the only one.
   for (const file of ['views/activity.css', 'views/executionSummary.css', 'styles.css']) {
     assert.doesNotMatch(source(join(root, file)), /\.split-selected[^{]*\{[^}]*(position: sticky|max-height)/, file);
