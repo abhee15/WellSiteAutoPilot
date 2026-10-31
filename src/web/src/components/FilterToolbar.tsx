@@ -55,7 +55,7 @@ export function FilterToolbar({ label, search, children, chips = [], isFiltered 
           placeholder={search.placeholder ?? search.label} onChange={event => search.onChange(event.target.value)} />
       </div>}
       {children && <button type="button" className="filter-toolbar-toggle" aria-expanded={open} aria-controls={panelId}
-        onClick={() => setOpen(value => !value)}>
+        title={t('filters.toggle')} onClick={() => setOpen(value => !value)}>
         <SlidersHorizontal size={16} aria-hidden="true" />
         <span>{t('filters.toggle')}</span>
         {chips.length > 0 && <span className="filter-toolbar-badge" aria-label={t('filters.active', { count: chips.length })}>{chips.length}</span>}
