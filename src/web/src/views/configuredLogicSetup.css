@@ -35,10 +35,9 @@
 /* Saved settings of a revision, as label and value pairs. */
 .revision-settings { display: flex; flex-wrap: wrap; gap: var(--space-8) var(--space-18); margin: var(--space-8) 0; }
 .revision-settings div { display: grid; gap: var(--space-4); min-width: 0; }
-.revision-settings dt { font-size: var(--font-size-caption); color: var(--color-text-subtle); }
 .revision-settings dd { margin: 0; overflow-wrap: anywhere; }
 
-.revision-live { margin-left: var(--space-8); font-size: var(--font-size-caption); color: var(--color-text-subtle); }
+.revision-live { margin-left: var(--space-8); font-size: var(--font-size-label); color: var(--color-text-subtle); }
 .setup-revisions li[data-live='true'] { border-color: var(--color-focus-ring); }
 .revision-meta { margin: var(--space-4) 0 0; }
 .revision-history { margin-top: var(--space-12); }

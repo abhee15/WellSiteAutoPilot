@@ -288,3 +288,18 @@ test('a scrolling list is never also a .panel with a rule that loses to `.panel 
   }
   assert.deepEqual(risky, []);
 });
+
+test('label and value pairs share one type scale: a <dt> is never caption or tag sized', () => {
+  // Labels set at 12px were hard to read beside 16px values (Logic "Live revision" row). The base rule in styles.css
+  // sets dt/dd once; a component styles colour or layout, not a smaller label.
+  const small = [];
+  for (const path of files.filter(p => p.endsWith('.css'))) {
+    const css = source(path).replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const [, selectors, body] of css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)) {
+      if (!/(^|[\s,>])dt\b/.test(selectors) || /:where\(/.test(selectors)) continue;
+      if (/font-size:\s*var\(--font-size-(caption|tag)\)/.test(body)) small.push(`${rel(path)}: ${selectors.trim()}`);
+    }
+  }
+  assert.deepEqual(small, []);
+  assert.match(source(join(root, 'styles.css')), /:where\(dt\) \{ font-size: var\(--font-size-label\)/);
+});
