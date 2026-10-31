@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/integration/WellSiteAutoPilot.Integration.CygNet.Adapter/WellSiteAutoPilot.Integration.CygNet.Adapter.csproj" />
+    <ProjectReference Include="../../src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj" />
+    <ProjectReference Include="../../src/modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
+    <Compile Include="../../modules/samples/cygnet/pump-fillage-low-alert/EntryPoint.cs" Link="Modules/PumpFillageLowAlert.cs" />
+    <Compile Include="../../modules/samples/cygnet/pressure-differential-check/EntryPoint.cs" Link="Modules/PressureDifferentialCheck.cs" />
+    <Compile Include="../../modules/samples/cygnet/motor-load-check/EntryPoint.cs" Link="Modules/MotorLoadCheck.cs" />
+  </ItemGroup>
+</Project>

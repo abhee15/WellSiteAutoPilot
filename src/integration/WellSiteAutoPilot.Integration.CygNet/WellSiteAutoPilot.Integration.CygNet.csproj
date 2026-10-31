@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="System.Configuration.ConfigurationManager" />
     <ProjectReference Include="../WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.CygNet.Adapter/WellSiteAutoPilot.Integration.CygNet.Adapter.csproj" />
     <ProjectReference Include="../../platform/WellSiteAutoPilot.Failures/WellSiteAutoPilot.Failures.csproj" />
   </ItemGroup>
   <ItemGroup>

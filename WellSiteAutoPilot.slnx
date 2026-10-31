@@ -26,6 +26,7 @@
   </Folder>
   <Folder Name="/src/integration/">
     <Project Path="src/integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
+    <Project Path="src/integration/WellSiteAutoPilot.Integration.CygNet.Adapter/WellSiteAutoPilot.Integration.CygNet.Adapter.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.Integration.ForeSite/WellSiteAutoPilot.Integration.ForeSite.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.Integration.PetroVisor/WellSiteAutoPilot.Integration.PetroVisor.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj" />
@@ -52,6 +53,7 @@
     <Project Path="tests/WellSiteAutoPilot.AssetApiTests/WellSiteAutoPilot.AssetApiTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.CygNetAdapterTests/WellSiteAutoPilot.CygNetAdapterTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ForeSiteAdapterTests/WellSiteAutoPilot.ForeSiteAdapterTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.PetroVisorAdapterTests/WellSiteAutoPilot.PetroVisorAdapterTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ConnectionImportTests/WellSiteAutoPilot.ConnectionImportTests.csproj" />
@@ -62,6 +64,9 @@
     <Project Path="tests/WellSiteAutoPilot.ExecutionContractV2Tests/WellSiteAutoPilot.ExecutionContractV2Tests.csproj" />
   </Folder>
   <Folder Name="/modules/">
+    <Project Path="modules/samples/cygnet/pump-fillage-low-alert/PumpFillageLowAlert.csproj" />
+    <Project Path="modules/samples/cygnet/pressure-differential-check/PressureDifferentialCheck.csproj" />
+    <Project Path="modules/samples/cygnet/motor-load-check/MotorLoadCheck.csproj" />
     <File Path="modules/samples/sample-shadow-read.manifest.json" />
     <File Path="modules/samples/sample-shadow-read/payload/README.txt" />
   </Folder>
