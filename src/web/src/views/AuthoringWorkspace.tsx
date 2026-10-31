@@ -14,7 +14,7 @@ import { Status } from '../components/Status';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import {
-  addInput, addOutput, addParameter, addStep, buildOutline, buildTone, documentsEqual, readDocument,
+  addCollectionStep, addInput, addOutput, addParameter, addStep, buildOutline, buildTone, documentsEqual, readDocument,
   removeElement, selectionForIssuePath, testTone, usedBy, usesOf, validationTone,
 } from './authoring';
 import type { DraftDocument, OutlineNode, Selection, SelectionKind } from './authoring';
@@ -231,9 +231,10 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
   }
 
   function change(next: DraftDocument) { setWorking(next); setNotice(null); }
-  function add(maker: (doc: DraftDocument) => { doc: DraftDocument; id: string }, kind: SelectionKind) {
+  function add(maker: (doc: DraftDocument) => { doc: DraftDocument; id: string } | null, kind: SelectionKind) {
     if (!working) return;
     const made = maker(working);
+    if (!made) return;
     change(made.doc); setSelection({ kind, id: made.id });
   }
 
@@ -327,6 +328,7 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
             </ul>
             {GROUPS.map(kind => <OutlineGroup key={kind} kind={kind} nodes={outline.filter(node => node.kind === kind)}
               selection={selection} onSelect={setSelection}
+              onAddCollection={kind === 'step' && working?.inputs.some(item => item.valueSchema) ? () => add(addCollectionStep, 'step') : undefined}
               onAdd={kind === 'input' ? () => add(addInput, 'input') : kind === 'parameter' ? () => add(addParameter, 'parameter')
                 : kind === 'step' ? () => add(addStep, 'step') : kind === 'output' ? () => add(addOutput, 'output') : undefined} />)}
           </nav>
@@ -400,8 +402,8 @@ function DependencyLine({ reads, readBy }: { reads: OutlineNode[]; readBy: Outli
   </p>;
 }
 
-function OutlineGroup({ kind, nodes, selection, onSelect, onAdd }: {
-  kind: SelectionKind; nodes: OutlineNode[]; selection: Selection; onSelect: (selection: Selection) => void; onAdd?: () => void;
+function OutlineGroup({ kind, nodes, selection, onSelect, onAdd, onAddCollection }: {
+  kind: SelectionKind; nodes: OutlineNode[]; selection: Selection; onSelect: (selection: Selection) => void; onAdd?: () => void; onAddCollection?: () => void;
 }) {
   const titles: Record<SelectionKind, MessageKey> = {
     module: 'authoring.group.module', input: 'authoring.group.input', parameter: 'authoring.group.parameter',
@@ -420,5 +422,6 @@ function OutlineGroup({ kind, nodes, selection, onSelect, onAdd }: {
       </li>)}
     </ul>
     {onAdd && addLabels[kind] && <ActionButton label={t(addLabels[kind])} onClick={onAdd} />}
+    {onAddCollection && <ActionButton label={t('authoring.add.collection')} onClick={onAddCollection} />}
   </div>;
 }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addStep, buildOutline, documentsEqual, readDocument, removeElement, selectionForIssuePath, usedBy, usesOf,
+  addCollectionStep, addStep, buildOutline, documentsEqual, readDocument, removeElement, selectionForIssuePath, usedBy, usesOf,
 } from '../src/views/authoring.ts';
 
 const doc = () => readDocument({
@@ -41,3 +41,13 @@ test('adding a step gives a unique id and removal leaves the rest untouched', ()
   assert.equal(next.steps.length, 2);
   assert.equal(documentsEqual(removeElement(next, { kind: 'step', id }), start), true);
 });
+
+test('a collection step needs a structured input and reads it in the outline', () => {
+  assert.equal(addCollectionStep(doc()), null);
+  const start = doc();
+  start.inputs.push({ id: 'cards', label: 'Cards', quantity: 'q', assetRole: 'asset', valueSchema: { schemaId: 's/v1', schema: {} } });
+  const made = addCollectionStep(start);
+  assert.equal(made.doc.steps.at(-1).kind, 'collection');
+  const outline = buildOutline(made.doc);
+  assert.deepEqual(usedBy(outline, { kind: 'input', id: 'cards' }).map(n => n.id), [made.id]);
+}); 

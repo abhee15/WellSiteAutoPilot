@@ -49,6 +49,21 @@ var cyclic = threshold with
 };
 Check(HasCode(AuthoringDraftValidator.Validate(cyclic), "AUTHORING_CYCLE"), "cycles are rejected");
 
+var cardGraph = Starter(AuthoringStarters.CardPeakGraphId);
+AuthoringDocument WithStep(AuthoringStep step) => cardGraph with { Steps = [.. cardGraph.Steps.Where(s => s.Id != step.Id), step] };
+Check(HasCode(AuthoringDraftValidator.Validate(WithStep(new("raw-peak", "x", "collection", "max", [new("input", "cards")]))),
+    "AUTHORING_FIELD_REQUIRED"), "max over a collection needs a path");
+Check(HasCode(AuthoringDraftValidator.Validate(WithStep(new("raw-peak", "x", "collection", "median", [new("input", "cards", "load")]))),
+    "AUTHORING_OPERATION_UNSUPPORTED"), "unknown collection operations are rejected");
+Check(HasCode(AuthoringDraftValidator.Validate(WithStep(new("raw-peak", "x", "collection", "max", [new("input", "cards", "load[0]")]))),
+    "AUTHORING_FIELD_INVALID"), "collection paths are dotted names only");
+Check(HasCode(AuthoringDraftValidator.Validate(WithStep(new("raw-peak", "x", "collection", "max", [new("parameter", "load-scale", "load")]))),
+    "AUTHORING_REFERENCE_MISSING"), "collection steps read inputs");
+Check(HasCode(AuthoringDraftValidator.Validate(cardGraph with
+    { Steps = [.. cardGraph.Steps, new("bad", "Bad", "calculation", "add", [new("input", "cards"), new("literal", null, null, "1")])] }),
+    "AUTHORING_OPERATION_UNSUPPORTED"), "calculations cannot read a structured input directly");
+Check(AuthoringDraftValidator.Validate(cardGraph).StepOrder.Contains("raw-peak"), "collection steps are ordered with calculations");
+
 var unitMismatch = threshold with
 {
     Steps = [new("bad", "Bad", "calculation", "add", [new("input", "pump-fillage"), new("literal", "1")])],
@@ -266,6 +281,24 @@ try
     Check(cardTested.Test == AuthoringTestState.Passed,
         "card calibration runs through the V2 host: " + string.Join("; ", cardTested.EffectiveTest!.Cases.SelectMany(c => c.Mismatches)
             .Concat(cardTested.EffectiveTest.Diagnostics.Select(d => d.Message)).Concat(cardTested.EffectiveTest.Cases.Select(c => c.Message ?? ""))));
+
+    var graph = await service.CreateAsync(AuthoringStarters.CardPeakGraphId, null, "tester", CancellationToken.None);
+    await service.BuildAsync(graph.Draft.Id, CancellationToken.None);
+    var graphBuilt = await WaitForBuild(graph.Draft.Id);
+    Check(graphBuilt.Build == AuthoringBuildState.Succeeded,
+        "graph card build must succeed: " + string.Join("; ", graphBuilt.EffectiveBuild?.Diagnostics.Select(d => d.Message) ?? []));
+    var graphPackage = await service.DownloadAsync(graph.Draft.Id, CancellationToken.None);
+    var graphInspected = await LogicModulePackageReader.ReadAsync(new MemoryStream(graphPackage.Package));
+    Check(graphInspected.Manifest.ManifestVersion == 2, "a graph over structured inputs packages as a V2 module");
+    var graphTested = await service.TestAsync(graph.Draft.Id, CancellationToken.None);
+    var graphCase = graphTested.EffectiveTest!.Cases.SingleOrDefault();
+    Check(graphTested.Test == AuthoringTestState.Passed,
+        "collection graph runs through the V2 host: " + string.Join("; ", graphTested.EffectiveTest.Cases.SelectMany(c => c.Mismatches)
+            .Concat(graphTested.EffectiveTest.Diagnostics.Select(d => d.Message)).Concat(graphTested.EffectiveTest.Cases.Select(c => c.Message ?? ""))));
+    Check(graphCase!.Intermediates.Any(v => v.Id == "raw-peak" && v.Value.ToString().StartsWith("2000", StringComparison.Ordinal)) &&
+          graphCase.Intermediates.Any(v => v.Id == "card-count" && v.Value.ToString() == "1") &&
+          graphCase.Actions.SequenceEqual(["REVIEW_PEAK_LOAD"]),
+        "collection results are reported as intermediates and drive the condition");
 
     var broken = Starter(AuthoringStarters.CardCalibrationId);
     broken = broken with

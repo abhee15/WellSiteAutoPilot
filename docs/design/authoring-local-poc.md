@@ -48,7 +48,13 @@ that is not wired in.
   Verified with fakes (gate, subject, trimmed quantity, denial never reaches the provider); not exercised against a
   live provider in this round.
 
+- Collection steps: a `collection` step reduces a structured (schema-declared) input to a number with `count`, `sum`,
+  `min`, `max` or `mean` over a dotted value path (arrays are flattened). A draft with any structured input or code
+  step generates a V2 module (`ILogicModuleV2`, schema-checked structured inputs); graph outputs stay scalar. Starter
+  `card-peak-graph` reproduces the card peak/mean/count analysis with no code and runs through the V2 host in tests.
+
 ## Known gaps
 
 AppContainer mode fails in this environment (CreateProcess error 203); job-object mode is the verified baseline;
-structured-input calculations are only available as opaque code steps; one asset role; scalar decimal operations.
+one asset role; collection steps are numeric reductions only (no per-item filtering or structured outputs without
+a code step).

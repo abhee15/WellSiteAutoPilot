@@ -12,7 +12,7 @@ export interface DraftInput {
 export interface DraftParameter { id: string; label: string; defaultValue: string; unit?: string | null }
 export interface DraftCode { language: string; entryPoint: string; source: string; inputPorts: string[]; outputPorts: string[] }
 export interface DraftStep {
-  id: string; label: string; kind: 'calculation' | 'code'; operation?: string | null;
+  id: string; label: string; kind: 'calculation' | 'collection' | 'code'; operation?: string | null;
   operands?: Operand[] | null; code?: DraftCode | null;
 }
 export interface DraftCondition { id: string; label: string; left: Operand; comparator: string; right: Operand }
@@ -129,6 +129,20 @@ export function addStep(doc: DraftDocument): { doc: DraftDocument; id: string } 
   const step: DraftStep = {
     id, label: 'New calculation', kind: 'calculation', operation: 'add',
     operands: [operand, { kind: 'literal', value: '1' }],
+  };
+  return { doc: { ...doc, steps: [...doc.steps, step] }, id };
+}
+
+export const COLLECTION_OPERATIONS = ['count', 'sum', 'min', 'max', 'mean'] as const;
+
+/** Adds a collection step over the first structured input; null when the draft has none. */
+export function addCollectionStep(doc: DraftDocument): { doc: DraftDocument; id: string } | null {
+  const input = doc.inputs.find(item => item.valueSchema);
+  if (!input) return null;
+  const id = uniqueId(doc.steps.map(step => step.id), 'collection');
+  const step: DraftStep = {
+    id, label: 'New collection step', kind: 'collection', operation: 'count',
+    operands: [{ kind: 'input', ref: input.id }],
   };
   return { doc: { ...doc, steps: [...doc.steps, step] }, id };
 }
