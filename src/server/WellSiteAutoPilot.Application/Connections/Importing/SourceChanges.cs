@@ -33,10 +33,10 @@ public static class SourceChangeComparison
                 differences.Add(new("sourceName", baseline.SourceName, observed.DisplayName));
             foreach (var key in baseline.Facts.Keys.Union(observed.Metadata.Keys).Union(foresite ? ForeSiteFacts : []).Order(StringComparer.Ordinal))
             {
-                baseline.Facts.TryGetValue(key, out var before);
-                observed.Metadata.TryGetValue(key, out var after);
+                var hadBefore = baseline.Facts.TryGetValue(key, out var before);
+                var hasAfter = observed.Metadata.TryGetValue(key, out var after);
                 if (unavailable is null || unavailable.Contains(key) || baseline.UnavailableFields?.Contains(key) == true ||
-                    string.IsNullOrWhiteSpace(before) || string.IsNullOrWhiteSpace(after))
+                    !hadBefore || !hasAfter || foresite && (string.IsNullOrWhiteSpace(before) || string.IsNullOrWhiteSpace(after)))
                 { unknown.Add(key); continue; }
                 if (Clean(before) != Clean(after)) differences.Add(new(key, before, after));
             }

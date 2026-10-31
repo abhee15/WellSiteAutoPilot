@@ -149,6 +149,12 @@ jobs:
       - name: Verify PetroVisor adapter POC
         run: dotnet run --project tests/WellSiteAutoPilot.PetroVisorAdapterTests/WellSiteAutoPilot.PetroVisorAdapterTests.csproj --configuration Release --no-build
 
+      - name: Verify CygNet adapter rules and bounded calls
+        run: dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests --configuration Release --no-build
+
+      - name: Verify CygNet Gateway caller boundaries without native libraries
+        run: python tools/ci/verify_cygnet_gateway.py
+
       - name: Verify connection import planner
         run: dotnet run --project tests/WellSiteAutoPilot.ConnectionImportTests/WellSiteAutoPilot.ConnectionImportTests.csproj --configuration Release --no-build
 

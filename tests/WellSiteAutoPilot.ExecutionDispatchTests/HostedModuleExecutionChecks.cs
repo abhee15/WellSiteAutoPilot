@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using System.Net;
 using System.Reflection;
 using System.Text.Json;
@@ -38,7 +39,7 @@ internal static class HostedModuleExecutionChecks
     { Converters = { new JsonStringEnumConverter() } };
 
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, NatsConnection connection,
-        bool savedConnection = false, bool disabledConnection = false, string? foreSitePayload = null, bool structured = false, string structuredQuality = "Good")
+        bool savedConnection = false, bool disabledConnection = false, string? foreSitePayload = null, bool structured = false, string structuredQuality = "Good", bool cygnet = false)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
         var structuredRejected = structured && structuredQuality == "Unknown";
@@ -78,6 +79,8 @@ internal static class HostedModuleExecutionChecks
         if (structured)
             command = command with { Inputs = [command.Inputs.Single() with
             { Quantity = "SurfaceCards", CanonicalUnit = null, RequiredCapability = "structured.current", SchemaId = "foresite.surface-cards/v1" }] };
+        var adapter = cygnet ? "cygnet" : "foresite";
+        var externalId = cygnet ? "SITE.UIS::WELL1" : "42";
         var connectionId = Guid.NewGuid();
         if (savedConnection)
         {
@@ -88,16 +91,18 @@ internal static class HostedModuleExecutionChecks
             var type = Guid.NewGuid();
             db.AssetTypes.Add(new() { Id = type, Key = moduleId, DisplayName = moduleId, AttributeSchemaJson = "{\"type\":\"object\"}",
                 SchemaVersion = 1, IsActive = true, CreatedAtUtc = now });
-            db.Connections.Add(new() { Id = connectionId, Name = moduleId, NormalizedName = moduleId, AdapterKey = "foresite", SettingsVersion = 1,
-                SettingsJson = "{\"baseUrl\":\"http://private-fixture/prefix/\"}", Revision = 1, IsEnabled = true, CreatedAtUtc = now, UpdatedAtUtc = now });
+            db.Connections.Add(new() { Id = connectionId, Name = moduleId, NormalizedName = moduleId, AdapterKey = adapter, SettingsVersion = 1,
+                SettingsJson = cygnet ? JsonSerializer.Serialize(new Dictionary<string, string?> {
+                    ["domain"] = "111", ["site"] = "SITE", ["service"] = "UIS",
+                    ["pointMappings"] = "{\"PumpFillage\":{\"udc\":\"CURRENT_FILLAGE\",\"unit\":\"%\"}}" }) : "{\"baseUrl\":\"http://private-fixture/prefix/\"}", Revision = 1, IsEnabled = true, CreatedAtUtc = now, UpdatedAtUtc = now });
             db.Assets.Add(new() { Id = asset, AssetTypeId = type, Name = moduleId, OwnerConnectionId = connectionId, IsActive = true, CreatedAtUtc = now });
-            db.SourceBindings.Add(new() { Id = Guid.NewGuid(), AssetId = asset, ConnectionId = connectionId, ExternalId = "42",
-                ResourceKind = "foresite.well", CreatedAtUtc = now });
+            db.SourceBindings.Add(new() { Id = Guid.NewGuid(), AssetId = asset, ConnectionId = connectionId, ExternalId = externalId,
+                ResourceKind = cygnet ? "cygnet.facility" : "foresite.well", CreatedAtUtc = now });
             db.ConfiguredLogicDefinitions.Add(new() { Id = command.ConfiguredLogicId, Name = moduleId, ActiveRevisionId = command.ConfigurationRevisionId, CreatedAtUtc = now });
             db.ConfiguredLogicRevisions.Add(new() { Id = command.ConfigurationRevisionId, ConfiguredLogicId = command.ConfiguredLogicId, RevisionNumber = 1,
                 ModuleId = moduleId, ModuleVersion = "1.0.0", Mode = "Shadow", Status = "Active", CreatedAtUtc = now });
             await db.SaveChangesAsync();
-            command = command with { Inputs = [command.Inputs.Single() with { ProviderId = "foresite", ProviderAssetExternalId = "42" }],
+            command = command with { Inputs = [command.Inputs.Single() with { ProviderId = adapter, ProviderAssetExternalId = externalId }],
                 Trigger = ExecutionTriggerKind.Manual, ScheduledForUtc = null };
         }
         else await RefuseDispatchAsync("MODULE_NOT_ENABLED");
@@ -129,7 +134,7 @@ internal static class HostedModuleExecutionChecks
         using var measurements = new ForeSiteConnectionMeasurements(fixture, TimeProvider.System);
         var services = new ServiceCollection().AddScoped(_ => new WellSiteAutoPilotDbContext(options))
             .AddScoped<IExecutionReadRepository>(provider => new ExecutionRepository(provider.GetRequiredService<WellSiteAutoPilotDbContext>()))
-            .AddSingleton<IExecutionMeasurementGateway>(new RecordedMeasurements(connectionId, now, foreSitePayload is null ? null : measurements, structured, structuredQuality));
+            .AddSingleton<IExecutionMeasurementGateway>(new RecordedMeasurements(connectionId, now, foreSitePayload is null ? null : measurements, structured, structuredQuality, cygnet));
         await using var readProvider = services.BuildServiceProvider();
         using var reads = new ExecutionMeasurementReadConsumer(readProvider.GetRequiredService<IServiceScopeFactory>(), connection,
             NullLogger<ExecutionMeasurementReadConsumer>.Instance);
@@ -297,12 +302,15 @@ internal static class HostedModuleExecutionChecks
         return bytes.ToArray();
     }
     // Retain synthetic execution-contract cases alongside the real ForeSite parser cases.
-    private sealed class RecordedMeasurements(Guid connectionId, DateTimeOffset timestamp, ForeSiteConnectionMeasurements? measurements, bool structured, string structuredQuality) : IExecutionMeasurementGateway
+    private sealed class RecordedMeasurements(Guid connectionId, DateTimeOffset timestamp, ForeSiteConnectionMeasurements? measurements, bool structured, string structuredQuality, bool cygnet) : IExecutionMeasurementGateway
     {
         public Task<EngineeringValue> GetCurrentAsync(AuthorizedExecutionRead read, CancellationToken cancellationToken = default)
         {
-            Assert(read.ConnectionId == connectionId && read.ConnectionRevision == 1 && read.ExternalId == "42" && read.Quantity == (structured ? "SurfaceCards" : "PumpFillage"),
+            Assert(read.ConnectionId == connectionId && read.ConnectionRevision == 1 && read.ExternalId == (cygnet ? "SITE.UIS::WELL1" : "42") && read.Quantity == (structured ? "SurfaceCards" : "PumpFillage"),
                 "Hosted read escaped its authorized saved source.");
+            if (cygnet)
+                return new CygNetConnectionMeasurements(new CygNetPoints(timestamp), TimeProvider.System).ReadAsync(
+                    new(read.ConnectionId, read.ConnectionRevision, read.Settings.ToDictionary(x => x.Key, x => x.Value), read.ExternalId, read.Quantity), cancellationToken);
             if (structured)
                 return Task.FromResult(new EngineeringValue("SurfaceCards", null, "", timestamp, structuredQuality, "synthetic-structured-fixture")
                 { StructuredValue = new("foresite.surface-cards/v1", JsonSerializer.SerializeToElement(CardPointCounts.Select((count, i) => new { id = "card-" + i, kind = i == 0 ? "CURRENT" : "FULL", capturedAtUtc = timestamp.AddSeconds(-i), positionUnit = "in", loadUnit = "lb", position = Enumerable.Range(0, count).ToArray(), load = Enumerable.Range(0, count).Select(n => n * 12345.67890123456789m).ToArray() }))) });
@@ -311,6 +319,14 @@ internal static class HostedModuleExecutionChecks
                 : measurements.ReadAsync(new ConnectionMeasurementRequest(read.ConnectionId, read.ConnectionRevision,
                     read.Settings.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal),
                     read.ExternalId, read.Quantity), cancellationToken);
+        }
+    }
+    private sealed class CygNetPoints(DateTimeOffset timestamp) : ICygNetPointReader
+    {
+        public Task<CygNetPointValue> ReadAsync(CygNetConnection c, string tag, string udc, CancellationToken ct)
+        {
+            Assert(c.Domain == 111 && tag == "SITE.UIS::WELL1" && udc == "CURRENT_FILLAGE", "CygNet read escaped connection mapping.");
+            return Task.FromResult(new CygNetPointValue(99.6m, timestamp, "Good"));
         }
     }
     // Real Gateway session and parser with only the external HTTP transport replaced.

@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Http;
 using WellSiteAutoPilot.Http.ServiceCallers;
 using WellSiteAutoPilot.IntegrationGateway.Adapters;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.Integration.PetroVisor;
 using WellSiteAutoPilot.IntegrationGateway.Providers;
 using WellSiteAutoPilot.Messaging.Nats;
@@ -25,6 +26,15 @@ builder.Services.AddSingleton<IPetroVisorSessionFactory>(
         : new PetroVisorPasswordSessionFactory(Environment.GetEnvironmentVariable));
 builder.Services.AddTransient<AdapterConnectionTester>();
 builder.Services.AddTransient<AdapterDiscoverer>();
+#if CYGNET
+builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.CygNetRuntime>();
+builder.Services.AddSingleton<ICygNetFacilityReader>(s => s.GetRequiredService<WellSiteAutoPilot.Integration.CygNet.CygNetRuntime>());
+builder.Services.AddSingleton<ICygNetPointReader>(s => s.GetRequiredService<WellSiteAutoPilot.Integration.CygNet.CygNetRuntime>());
+#else
+builder.Services.AddSingleton<ICygNetFacilityReader, CygNetUnsupportedFacilityReader>();
+builder.Services.AddSingleton<ICygNetPointReader, CygNetUnsupportedPointReader>();
+#endif
+builder.Services.AddSingleton<CygNetConnectionMeasurements>();
 
 builder.Services.AddWindowsService(options =>
 {
@@ -90,8 +100,8 @@ builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
     return new CurrentDataProviderRouter(providers, "simulator");
 });
 #if CYGNET
-// Opt-in build only (CYGNET_LIBRARY_PATH set). The CygNet domain and the quantity-to-UDC map are Gateway-wide
-// settings. A wrong or incomplete setting stops the Gateway at startup instead of reading from another domain.
+// Development data/current route only. Saved-connection reads use their pinned settings and never these defaults.
+// Native access is opt-in (CYGNET_LIBRARY_PATH); the development route also requires an explicit domain.
 builder.Services.AddSingleton(services =>
 {
     var section = services.GetRequiredService<IConfiguration>().GetSection("Providers:CygNet");
@@ -180,7 +190,7 @@ v1.MapPost(
     "/adapters/{adapterKey}/validate",
     (string adapterKey, AdapterSettingsRequest request, AdapterCatalog catalog) =>
         catalog.Find(adapterKey) is { } descriptor
-            ? Results.Ok(new AdapterValidationResponse(AdapterSettingsValidator.Validate(
+            ? Results.Ok(new AdapterValidationResponse(AdapterCatalog.Validate(
                 descriptor, request.Settings ?? new Dictionary<string, string?>())))
             : Results.NotFound())
     .WithName("ValidateAdapterSettings")
@@ -218,6 +228,13 @@ v1.MapPost("/adapters/foresite/current",
     async (ConnectionMeasurementRequest request, ForeSiteConnectionMeasurements provider, CancellationToken cancellationToken) =>
         Results.Ok(await provider.ReadAsync(request, cancellationToken)))
     .WithName("ReadAuthorizedForeSiteMeasurement")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<EngineeringValue>(StatusCodes.Status200OK);
+
+v1.MapPost("/adapters/cygnet/current",
+    async (ConnectionMeasurementRequest request, CygNetConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.ReadAsync(request, cancellationToken)))
+    .WithName("ReadAuthorizedCygNetMeasurement")
     .RequireAuthorization(ServiceCaller.ServerPolicy)
     .Produces<EngineeringValue>(StatusCodes.Status200OK);
 

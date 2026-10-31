@@ -12,4 +12,8 @@
     <ProjectReference Include="../../server/WellSiteAutoPilot.Domain/WellSiteAutoPilot.Domain.csproj" />
     <ProjectReference Include="../../messaging/WellSiteAutoPilot.Messaging.Contracts/WellSiteAutoPilot.Messaging.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../integration/WellSiteAutoPilot.Integration.ForeSite/WellSiteAutoPilot.Integration.ForeSite.csproj" />
+    <ProjectReference Include="../../integration/WellSiteAutoPilot.Integration.CygNet.Adapter/WellSiteAutoPilot.Integration.CygNet.Adapter.csproj" />
+  </ItemGroup>
 </Project>

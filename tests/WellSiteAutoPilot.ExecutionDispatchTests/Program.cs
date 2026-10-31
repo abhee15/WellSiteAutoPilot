@@ -247,6 +247,8 @@ await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAs
 await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, structured: true);
 await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, structured: true, structuredQuality: "Unknown");
 await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true);
+await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, cygnet: true);
+await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, disabledConnection: true, cygnet: true);
 await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, disabledConnection: true);
 
 await WellSiteAutoPilot.ExecutionDispatchTests.HostedModuleExecutionChecks.RunAsync(dbOptions, connection, savedConnection: true, foreSitePayload: "scan");

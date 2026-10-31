@@ -3,6 +3,7 @@ using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.ForeSite;
 
+CygNetSourceComparisonChecks.Run();
 HierarchyChecks.Verify();
 SourceChangeChecks.Verify();
 ConnectionMonitorChecks.Verify();

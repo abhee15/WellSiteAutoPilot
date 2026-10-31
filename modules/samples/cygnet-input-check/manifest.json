@@ -1,0 +1,34 @@
+{
+  "manifestVersion": 1,
+  "moduleId": "weatherford.cygnet-input-check.dotnet",
+  "version": "1.0.0",
+  "displayName": "CygNet Average Fillage Input Check",
+  "publisher": "Weatherford",
+  "runtime": "DotNet",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "Weatherford.CygNetInputCheck.EntryPoint",
+  "minimumSdkVersion": "1.1.0",
+  "requiredAdapterKey": "cygnet",
+  "description": "Observe a mapped average pump-fillage point in Shadow. No provider writes. Site point meaning, units, quality and timestamp semantics require live acceptance.",
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": "well",
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "average-fillage",
+      "assetRole": "well",
+      "quantity": "AveragePumpFillage",
+      "access": "Current",
+      "canonicalUnit": "%",
+      "maximumAgeSeconds": 60,
+      "allowUncertainQuality": false
+    }
+  ],
+  "commandRequirements": []
+}
