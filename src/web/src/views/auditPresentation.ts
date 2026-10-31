@@ -141,6 +141,13 @@ export function describeAuditEvent(event: AuditEvent): AuditSummary {
     }
   } else if (templates[action]) {
     parts = sentence(templates[action], subject);
+    if (action === 'security.grant.created' || action === 'security.grant.deactivated') {
+      // The sentence stands alone; the note says who the grant was for and how wide it reached.
+      const details = detailValues(event.detailsJson);
+      const who = details.groupDisplayName || (details.subjectKind ? humanize(details.subjectKind) : '');
+      const scope = details.scopeKind ? humanize(details.scopeKind).toLowerCase() : '';
+      note = [who, scope && t('activity.ev.grantScope', { scope })].filter(Boolean).join(' · ') || null;
+    }
   } else {
     // An action this page does not know yet still reads as words, with the record it touched.
     const words = humanize(event.action);

@@ -118,3 +118,11 @@ test('events are grouped under Today, Yesterday, then the date', () => {
   assert.equal(view.dayLabel(at(1, 20), now), 'Yesterday');
   assert.match(view.dayLabel(at(3, 12), now), /Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday/);
 });
+
+test('a grant event notes who it was for and how wide it reached, when those were recorded', () => {
+  const grant = view.describeAuditEvent(event({ action: 'security.grant.created', targetType: 'security-access-grant',
+    targetId: id(7), detailsJson: '{"subjectKind":"Group","groupDisplayName":"Field Ops","scopeKind":"Assets"}' }));
+  assert.equal(grant.note, 'Field Ops · Scope: assets');
+  assert.equal(view.describeAuditEvent(event({ action: 'security.grant.deactivated', targetType: 'security-access-grant',
+    targetId: id(7), detailsJson: '{}' })).note, null);
+});

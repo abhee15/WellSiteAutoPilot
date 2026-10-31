@@ -766,6 +766,7 @@ export const englishMessages = {
   'activity.kind.recommendation': 'Recommendation',
   'activity.kind.execution': 'Run',
   'activity.ev.was': 'Was {from}',
+  'activity.ev.grantScope': 'Scope: {scope}',
   'activity.ev.connectionStatus': 'Connection {target} status changed',
   'activity.ev.connectionImported': 'Assets were imported from connection {target}',
   'activity.ev.connectionUpdated': 'Settings of connection {target} were changed',
