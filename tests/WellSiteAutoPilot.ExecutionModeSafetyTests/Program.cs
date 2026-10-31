@@ -76,8 +76,32 @@ finally
         await controlRepository.SetKillSwitchAsync(false, "mode-safety-test", "test cleanup", clock.GetUtcNow());
 }
 
+await RunHttpSinkScenarioAsync();
+
 Console.WriteLine("Execution mode safety tests passed.");
 return;
+
+// The HTTP simulator sink: idempotent dispatch, readback by key, and transport failure surfaces as an exception
+// (which the service records as Ambiguous).
+static async Task RunHttpSinkScenarioAsync()
+{
+    var handler = new StubSimulatorHandler();
+    using var client = new HttpClient(handler) { BaseAddress = new Uri("http://simulator.test/") };
+    var sink = new HttpSimulatorControlCommandSink(client);
+    Require(sink.Kind == ControlSinkKinds.Simulator, "The HTTP sink must be a simulator sink.");
+    var request = new ControlDispatchRequest(Guid.NewGuid(), Guid.NewGuid(), "SetSpeed", "CurrentSPM", 6m, "spm", "key-1");
+    Require((await sink.ReadbackAsync(request)).State == ControlReadbackState.NotApplied, "Nothing is applied before dispatch.");
+    var first = await sink.DispatchAsync(request);
+    var second = await sink.DispatchAsync(request);
+    Require(first.Accepted && first.Reference == second.Reference && handler.Applied.Count == 1, "Dispatch must be idempotent per key.");
+    var readback = await sink.ReadbackAsync(request);
+    Require(readback is { State: ControlReadbackState.Applied, ObservedValue: 6m }, "Readback must return the applied value.");
+    handler.Down = true;
+    var threw = false;
+    try { await sink.DispatchAsync(request with { IdempotencyKey = "key-2" }); }
+    catch (HttpRequestException) { threw = true; }
+    Require(threw, "A simulator outage must surface as an exception so the action is Ambiguous.");
+}
 
 async Task<(Guid ConfiguredLogicId, Guid ExecutionId, int Created)> RunExecutionAsync(
     ExecutionMode mode, bool advisory, params decimal[] speeds)
@@ -331,4 +355,31 @@ static async Task ExpectFailureAsync(Func<Task> action, string code)
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => utcNow.ToUniversalTime();
+}
+
+file sealed class StubSimulatorHandler : HttpMessageHandler
+{
+    public Dictionary<string, decimal> Applied { get; } = [];
+
+    public bool Down { get; set; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        if (Down) return new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable);
+        if (request.Method == HttpMethod.Post)
+        {
+            using var doc = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+            var key = doc.RootElement.GetProperty("idempotencyKey").GetString()!;
+            Applied.TryAdd(key, doc.RootElement.GetProperty("value").GetDecimal());
+            return Json($"{{\"reference\":\"ref-{key}\",\"state\":\"Applied\",\"observedValue\":{Applied[key]}}}");
+        }
+
+        var readKey = request.RequestUri!.Segments[^1];
+        return Applied.TryGetValue(readKey, out var value)
+            ? Json($"{{\"reference\":\"ref-{readKey}\",\"state\":\"Applied\",\"observedValue\":{value}}}")
+            : Json("{\"reference\":\"\",\"state\":\"NotApplied\"}");
+    }
+
+    private static HttpResponseMessage Json(string body) =>
+        new(System.Net.HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
 }

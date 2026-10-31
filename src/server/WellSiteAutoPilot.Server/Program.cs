@@ -235,9 +235,24 @@ builder.Services.AddSingleton(new WellSiteAutoPilot.Application.Control.Autonomo
     Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled")
 });
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.IControlRepository, WellSiteAutoPilot.Persistence.Control.ControlRepository>();
-builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>();
-builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
-    sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>());
+// With Control:Simulator:BaseUrl set, the Simulator sink speaks HTTP to the Provider Simulator; otherwise it is in-process.
+var controlSimulatorBaseUrl = builder.Configuration["Control:Simulator:BaseUrl"];
+if (!string.IsNullOrWhiteSpace(controlSimulatorBaseUrl))
+{
+    builder.Services.AddHttpClient<WellSiteAutoPilot.Application.Control.HttpSimulatorControlCommandSink>(client =>
+    {
+        client.BaseAddress = new Uri(controlSimulatorBaseUrl.TrimEnd('/') + "/");
+        client.Timeout = TimeSpan.FromSeconds(10);
+    });
+    builder.Services.AddTransient<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
+        sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.HttpSimulatorControlCommandSink>());
+}
+else
+{
+    builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>();
+    builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
+        sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>());
+}
 builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink, WellSiteAutoPilot.Application.Control.RefusingProviderControlCommandSink>();
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.AutonomousControlService>();
 builder.Services.AddScoped<UserIdentityService>();
