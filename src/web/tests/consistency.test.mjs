@@ -244,3 +244,21 @@ test('breakpoints are in em (they follow the reader\'s text size) and use the ra
   walk(root);
   assert.deepEqual(offenders, [], 'write (width <= 40em) / (width >= 48em); see docs/design/ui-conventions.md');
 });
+
+test('every localization key is used somewhere (dynamic families are listed), so dead copy does not pile up', () => {
+  const loc = readFileSync(join(root, 'localization.ts'), 'utf8');
+  const keys = [...loc.matchAll(/^\s*'([\w.]+)':/gm)].map(match => match[1]);
+  let used = '';
+  const walk = folder => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) { walk(path); continue; }
+      if (/\.(ts|tsx|mjs)$/.test(entry.name) && entry.name !== 'localization.ts' && entry.name !== 'consistency.test.mjs') used += readFileSync(path, 'utf8');
+    }
+  };
+  walk(root);
+  walk(join(root, '..', 'tests'));
+  const dynamic = ['assets.createField.', 'moduleApproval.', 'setup.', 'nav.'];
+  const dead = keys.filter(key => !used.includes(`'${key}'`) && !used.includes(`"${key}"`) && !used.includes(`\`${key}\``) && !dynamic.some(prefix => key.startsWith(prefix)));
+  assert.deepEqual(dead, [], 'delete the unused key, or add its dynamic prefix to this test');
+});
