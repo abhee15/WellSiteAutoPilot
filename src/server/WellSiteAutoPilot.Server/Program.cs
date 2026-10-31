@@ -212,6 +212,16 @@ builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
+builder.Services.AddSingleton(new WellSiteAutoPilot.Application.Control.AutonomousControlOptions
+{
+    Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled")
+});
+builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.IControlRepository, WellSiteAutoPilot.Persistence.Control.ControlRepository>();
+builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>();
+builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
+    sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>());
+builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink, WellSiteAutoPilot.Application.Control.RefusingProviderControlCommandSink>();
+builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.AutonomousControlService>();
 builder.Services.AddScoped<UserIdentityService>();
 builder.Services.AddScoped<RoleCatalogService>();
 builder.Services.AddScoped<AccessGrantAdministrationService>();
@@ -867,7 +877,8 @@ v1.MapPost(
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
                         request.Schedule.TimeZoneId),
-                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role)),
+                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role),
+                request.Mode?.ToDomain() ?? WellSiteAutoPilot.Domain.Executions.ExecutionMode.Shadow),
             access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
@@ -951,7 +962,8 @@ v1.MapPost(
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
                         request.Schedule.TimeZoneId),
-                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role)),
+                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role),
+                request.Mode?.ToDomain() ?? WellSiteAutoPilot.Domain.Executions.ExecutionMode.Shadow),
             access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
@@ -1254,6 +1266,73 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
 v1.MapGet(
+    "/control/kill-switch",
+    async (WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        WellSiteAutoPilot.Application.Control.AutonomousControlOptions options, CancellationToken cancellationToken) =>
+        ToKillSwitchResponse(await control.GetKillSwitchAsync(cancellationToken), options))
+    .WithName("GetControlKillSwitch")
+    .RequireAuthorization(WellSitePolicies.RecommendationsRead)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse>(StatusCodes.Status200OK);
+
+v1.MapPut(
+    "/control/kill-switch",
+    async (WellSiteAutoPilot.Api.Contracts.Control.SetKillSwitchRequest request,
+        WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        WellSiteAutoPilot.Application.Control.AutonomousControlOptions options,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToKillSwitchResponse(await control.SetKillSwitchAsync(request.Engaged, access.CreateActor(context).IdentityName, request.Reason, cancellationToken), options))
+    .WithName("SetControlKillSwitch")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapGet(
+    "/control/policies/{configuredLogicId:guid}",
+    async (Guid configuredLogicId, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        CancellationToken cancellationToken) =>
+        ToAutonomyPolicyResponse(RequireFound(await control.GetPolicyAsync(configuredLogicId, cancellationToken), "AUTONOMY_POLICY_NOT_FOUND")))
+    .WithName("GetAutonomyPolicy")
+    .RequireAuthorization(WellSitePolicies.RecommendationsRead)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPut(
+    "/control/policies/{configuredLogicId:guid}",
+    async (Guid configuredLogicId, WellSiteAutoPilot.Api.Contracts.Control.SetAutonomyPolicyRequest request,
+        WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+    {
+        if (request.Limits is null || request.Limits.Any(item => item is null))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "Command limits are required.");
+        var policy = await control.SetPolicyAsync(configuredLogicId, request.Enabled,
+            WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
+            request.Limits.Select(item => new WellSiteAutoPilot.Domain.Control.AutonomyCommandLimit(item.Command, item.Unit, item.MinimumValue, item.MaximumValue)).ToArray(),
+            request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName, cancellationToken);
+        return ToAutonomyPolicyResponse(policy);
+    })
+    .WithName("SetAutonomyPolicy")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet(
+    "/control/actions",
+    async (Guid? configuredLogicId, int? limit, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        CancellationToken cancellationToken) =>
+        (await control.ListActionsAsync(configuredLogicId, PageLimit(limit ?? 50, 200), cancellationToken))
+            .Select(item => new WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse(item.Id, item.RecommendationId,
+                item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command, item.Quantity, item.Value, item.Unit,
+                item.Status.ToString(), item.GateCode, item.Sink, item.SinkReference, item.CreatedAtUtc, item.CompletedAtUtc))
+            .ToArray())
+    .WithName("ListControlActions")
+    .RequireAuthorization(WellSitePolicies.RecommendationsRead)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapGet(
     "/connections",
     async (ConnectionService connections, CancellationToken cancellationToken) =>
         (await connections.ListAsync(cancellationToken)).Select(ConnectionMapping.ToResponse).ToArray())
@@ -1529,6 +1608,18 @@ static LogicModuleResponse ToLogicModuleResponse(
     module.TrustStatus.ToContract(),
     module.IsEnabled,
     module.InstalledAtUtc);
+
+static WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse ToKillSwitchResponse(
+    WellSiteAutoPilot.Domain.Control.ControlKillSwitch item,
+    WellSiteAutoPilot.Application.Control.AutonomousControlOptions options) =>
+    new(item.Engaged, item.ChangedBy, item.ChangedAtUtc, item.Reason, options.Enabled);
+
+static WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse ToAutonomyPolicyResponse(
+    WellSiteAutoPilot.Domain.Control.AutonomyPolicy item) =>
+    new(item.ConfiguredLogicId, item.Enabled, item.SinkKind,
+        item.Limits.Select(limit => new WellSiteAutoPilot.Api.Contracts.Control.AutonomyCommandLimitDto(
+            limit.Command, limit.Unit, limit.MinimumValue, limit.MaximumValue)).ToArray(),
+        item.MaxActionsPerWindow, item.WindowSeconds, item.UpdatedBy, item.UpdatedAtUtc);
 
 static RecommendationSummaryResponse ToRecommendationSummaryResponse(
     RecommendationRecord recommendation) => new(

@@ -475,6 +475,34 @@ if (await executionRepository.ScheduledOccurrenceExistsAsync(
         "Cancelled sweep persisted a scheduled occurrence.");
 }
 
+// Every execution mode is schedulable and the mode is persisted on the scheduled Execution.
+foreach (var scheduledMode in new[] { ExecutionMode.Recommendation, ExecutionMode.Autonomous })
+{
+    var modeWell = await assetService.CreateAssetAsync(
+        new CreateAssetCommand(wellType.Id, $"Scheduler Mode Well {scheduledMode}", null, "{}"));
+    var modeLogic = await configuredLogicService.CreateAsync(
+        new CreateConfiguredLogicCommand(
+            $"Scheduled {scheduledMode} {Guid.NewGuid():N}",
+            manifest,
+            """{"targetFillage":75}""",
+            [new ConfiguredLogicAssetBindingCommand("well", modeWell.Id, "{}")],
+            [new ConfiguredLogicDataBindingCommand("pump-fillage", modeWell.Id, "simulator", "WELL-MODE", "{}")],
+            new ConfiguredLogicScheduleCommand(true, 60, scheduleStart, "UTC"),
+            Mode: scheduledMode));
+    var modeRevision = modeLogic.Revisions.Single();
+    await configuredLogicService.ValidateRevisionAsync(modeLogic.Id, modeRevision.Id);
+    await configuredLogicService.ActivateRevisionAsync(modeLogic.Id, modeRevision.Id);
+
+    var modeSweep = await scheduler.DispatchDueAsync(100);
+    var modeDecision = modeSweep.Decisions.Single(item => item.ConfiguredLogicId == modeLogic.Id);
+    if (modeDecision.Outcome != ScheduledShadowDispatchOutcome.Dispatched ||
+        modeDecision.ExecutionId is null ||
+        (await executionService.GetRequiredAsync(modeDecision.ExecutionId.Value)).Mode != scheduledMode)
+    {
+        throw new InvalidOperationException($"Scheduler did not dispatch a {scheduledMode} Execution with its mode.");
+    }
+}
+
 Console.WriteLine(
     "Scheduled Shadow due calculation, durable dispatch, idempotency, overlap blocking, and no-burst replay, candidate failure isolation, recovery, and cancellation checks passed.");
 return 0;

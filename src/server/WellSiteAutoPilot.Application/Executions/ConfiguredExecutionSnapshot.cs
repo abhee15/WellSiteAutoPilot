@@ -90,7 +90,8 @@ public static class ConfiguredExecutionSnapshot
                 .ToArray(),
             inputs,
             trigger,
-            scheduledForUtc);
+            scheduledForUtc,
+            revision.Mode);
     }
 
 }

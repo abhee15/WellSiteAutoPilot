@@ -46,6 +46,7 @@
     <Project Path="tests/WellSiteAutoPilot.ExecutionPersistenceTests/WellSiteAutoPilot.ExecutionPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ScheduledShadowSchedulerTests/WellSiteAutoPilot.ScheduledShadowSchedulerTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.RecommendationPersistenceTests/WellSiteAutoPilot.RecommendationPersistenceTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.ExecutionModeSafetyTests/WellSiteAutoPilot.ExecutionModeSafetyTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.SecurityPersistenceTests/WellSiteAutoPilot.SecurityPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ExecutionDispatchTests/WellSiteAutoPilot.ExecutionDispatchTests.csproj" />

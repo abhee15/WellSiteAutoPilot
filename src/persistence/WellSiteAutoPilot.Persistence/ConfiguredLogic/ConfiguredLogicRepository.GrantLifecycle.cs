@@ -36,7 +36,7 @@ public sealed partial class ConfiguredLogicRepository
             throw new InvalidOperationException("Manual request preparation requires a serializable transaction.");
         var revision = definition.Revisions.SingleOrDefault(item => item.Id == revisionId);
         if (revision is null || definition.ActiveRevisionId != revisionId ||
-            revision.Status != ConfiguredLogicRevisionStatus.Active || revision.Mode != ExecutionMode.Shadow) throw Conflict();
+            revision.Status != ConfiguredLogicRevisionStatus.Active || !Application.ConfiguredLogic.ConfiguredLogicService.IsManualRunMode(revision.Mode)) throw Conflict();
         var time = clock ?? TimeProvider.System;
         await GrantWriteGuard.RequireAssetsAsync(dbContext, subject, WellSitePermissions.ExecutionsRequest,
             DraftAssets(revision), time, cancellationToken);
@@ -61,7 +61,7 @@ public sealed partial class ConfiguredLogicRepository
         ArgumentNullException.ThrowIfNull(reviewed);
         var expectedStatus = activate ? ConfiguredLogicRevisionStatus.Validated : ConfiguredLogicRevisionStatus.Draft;
         if (reviewed.Id == Guid.Empty || reviewed.ConfiguredLogicId == Guid.Empty ||
-            reviewed.Mode != ExecutionMode.Shadow || reviewed.Status != expectedStatus) throw Conflict();
+            !Enum.IsDefined(reviewed.Mode) || reviewed.Status != expectedStatus) throw Conflict();
         return WriteConfigurationAuthorizedAsync(subject, actor, async () =>
         {
             var definition = await LockConfigurationAsync(reviewed.ConfiguredLogicId, cancellationToken);

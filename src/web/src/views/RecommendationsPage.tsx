@@ -7,6 +7,7 @@ import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { RecommendationInboxControls } from './RecommendationInboxControls';
 import { RecommendationDecisionReviewPanel } from './RecommendationDecisionReviewPanel';
+import { AutonomousControlPanel } from './AutonomousControlPanel';
 import {
   DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
   fetchRecommendationInbox,
@@ -301,6 +302,7 @@ export function RecommendationsPage({
       </div>
       </div>
       </div>
+      <AutonomousControlPanel canManage={Boolean(userId && permissions?.includes('security.manage'))} />
     </>
   );
 }

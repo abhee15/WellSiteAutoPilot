@@ -71,7 +71,7 @@ public sealed partial class ExecutionRepository
             SELECT e.* FROM operations.executions AS e WHERE e."Id" = {executionId} FOR SHARE OF e
             """).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
         var now = (clock ?? TimeProvider.System).GetUtcNow();
-        if (execution is null || execution.RequestContractVersion != 3 || execution.Mode != "Shadow" ||
+        if (execution is null ||         execution.RequestContractVersion != 3 ||
             !ActiveExecutionStatuses.Contains(execution.Status) || execution.RequestPayloadJson is null || execution.ReadAuthorityJson is null)
             throw ReadFailure("EXECUTION_READ_PLAN_INVALID");
         var request = JsonSerializer.Deserialize<ExecutionRequestedV3>(execution.RequestPayloadJson, SerializerOptions)

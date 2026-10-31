@@ -27,7 +27,7 @@ public static partial class ScopedAccessQueries
                 revisions.Any(revision => revision.ConfiguredLogicId == definition.Id &&
                     revision.Id == definition.ActiveRevisionId &&
                     revision.Status == nameof(ConfiguredLogicRevisionStatus.Active) &&
-                    revision.Mode == nameof(ExecutionMode.Shadow) &&
+                    (revision.Mode == nameof(ExecutionMode.Shadow) || revision.Mode == nameof(ExecutionMode.Recommendation)) &&
                     targets.Any(target => target.RevisionId == revision.Id) &&
                     !targets.Any(target => target.RevisionId == revision.Id &&
                         !requestAssets.Any(asset => asset.Id == target.AssetId)) &&

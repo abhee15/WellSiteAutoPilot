@@ -1,10 +1,12 @@
 import type {
   AssetResponse, AssetTypeResponse, ConfiguredLogicResponse,
   ConfiguredLogicRevisionResponse, ConfiguredLogicRevisionStatus, CreateConfiguredLogicRequest,
-  LogicModuleResponse,
+  ExecutionMode, LogicModuleResponse,
 } from '../api/generated/v1/types.gen';
 import { isSecurityId } from '../security/identifiers';
 
+// `satisfies` has the compiler check each name against the server's contract.
+export const SETUP_MODES = ['Shadow', 'Recommendation', 'Autonomous'] as const satisfies readonly ExecutionMode[];
 // `satisfies` has the compiler check each name against the server's contract.
 const REVISION_STATUSES: readonly string[] =
   ['Draft', 'Validated', 'Active', 'Superseded'] satisfies ConfiguredLogicRevisionStatus[];
@@ -70,7 +72,7 @@ export function verifiedConfiguration(value: unknown): value is VerifiedConfigur
     v.revisions.every(r => isSecurityId(r.id) &&
       Number.isSafeInteger(r.revisionNumber) && (r.revisionNumber ?? 0) > 0 &&
       REVISION_STATUSES.includes(r.status ?? '') &&
-      r.mode === 'Shadow' && (!r.view || (isSecurityId(r.view.viewId) && isSecurityId(r.view.connectionId) &&
+      r.mode !== undefined && (SETUP_MODES as readonly string[]).includes(r.mode) && (!r.view || (isSecurityId(r.view.viewId) && isSecurityId(r.view.connectionId) &&
         Number.isSafeInteger(r.view.revision) && (r.view.revision ?? 0) > 0 && typeof r.view.role === 'string' && r.view.role.length > 0)) &&
       Array.isArray(r.assetBindings) &&
       r.assetBindings.every(b => isSecurityId(b.assetId)) && Array.isArray(r.dataBindings)) &&
@@ -123,6 +125,7 @@ export function matchesSetupRevision(revision: ConfiguredLogicRevisionResponse, 
     items?.map(b => JSON.stringify([b.requirementId, b.assetId, b.providerId?.trim(),
       b.providerAssetExternalId?.trim(), json(b.providerMappingJson)])).sort();
   return json(revision.moduleManifestJson) === json(request.moduleManifestJson) &&
+    revision.mode === (request.mode ?? 'Shadow') &&
     json(revision.parametersJson) === json(request.parametersJson) &&
     JSON.stringify(bindings(revision.assetBindings)) === JSON.stringify(bindings(request.assetBindings)) &&
     JSON.stringify(data(revision.dataBindings)) === JSON.stringify(data(request.dataBindings)) &&

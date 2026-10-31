@@ -51,6 +51,8 @@ public static class ContractEnumMapping
 
     public static DomainRecommendationStatus ToDomain(this ContractRecommendationDecision value) => MapRequest<DomainRecommendationStatus>(value);
 
+    public static DomainExecutionMode ToDomain(this ContractExecutionMode value) => MapRequest<DomainExecutionMode>(value);
+
     private static TTo Map<TTo>(Enum value) where TTo : struct, Enum
     {
         var name = value.ToString();

@@ -28,4 +28,5 @@ public sealed record ConfiguredShadowExecutionCommand(
     IReadOnlyCollection<ConfiguredExecutionAssetCommand> Assets,
     IReadOnlyCollection<ConfiguredExecutionInputCommand> Inputs,
     ExecutionTriggerKind Trigger,
-    DateTimeOffset? ScheduledForUtc);
+    DateTimeOffset? ScheduledForUtc,
+    ExecutionMode Mode = ExecutionMode.Shadow);
