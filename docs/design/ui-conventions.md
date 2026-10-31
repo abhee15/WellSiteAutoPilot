@@ -61,7 +61,5 @@ In `em`, range syntax: `(width <= 40em)` phone, `(width < 48em)` / `(width >= 48
 
 ## Backlog
 
-- Pin the detail header (title and actions) while the details body scrolls.
-- Clickable stat cards on Recommendations; empty states with a next action; Activity day grouping.
-- Readable names for remaining raw identifiers; consistent target-type casing; shareable event URLs.
-- Grants selects are 38px, controls are 36px.
+- Pin the detail header (title and actions) while the details body scrolls. It needs the detail panels restructured so the header sits outside the scrolling body; a sticky header inside the current wrappers ends early.
+- Audit events could name the user and role of a grant; the server records only their ids, so the server would need to add names to the event details first.
