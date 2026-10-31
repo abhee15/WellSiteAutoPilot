@@ -19,6 +19,7 @@ public sealed partial class ExecutionResultConsumer(
     INatsConnection connection,
     JetStreamConsumerSettings consumerSettings,
     IChangeNotifier changes,
+    IChangeEventPublisher events,
     ILogger<ExecutionResultConsumer> logger) : BackgroundService
 {
     public const string ConsumerName = "wsa-server-execution-results-v1";
@@ -90,7 +91,7 @@ public sealed partial class ExecutionResultConsumer(
                     envelope.Payload.OutputJson,
                     cancellationToken);
                 ObserveResult(disposition, envelope.Payload.ExecutionId,
-                    envelope.MessageId, "Completed");
+                    envelope.MessageId, "Completed", envelope.CorrelationId);
             }
             else if (string.Equals(message.Subject, Subjects.ExecutionFailedV1, StringComparison.Ordinal))
             {
@@ -110,7 +111,7 @@ public sealed partial class ExecutionResultConsumer(
                     envelope.Payload.FailureCode,
                     cancellationToken);
                 ObserveResult(disposition, envelope.Payload.ExecutionId,
-                    envelope.MessageId, "Failed");
+                    envelope.MessageId, "Failed", envelope.CorrelationId, envelope.Payload.FailureCode);
             }
             else
             {
@@ -122,11 +123,17 @@ public sealed partial class ExecutionResultConsumer(
     }
 
     private void ObserveResult(ExecutionResultDisposition disposition,
-        Guid executionId, Guid messageId, string incomingStatus)
+        Guid executionId, Guid messageId, string incomingStatus, string correlationId, string? code = null)
     {
         ExecutionResultDiagnostics.Record(disposition, "v1", incomingStatus);
         // The repository call that produced this disposition has already committed.
-        if (disposition == ExecutionResultDisposition.Applied) changes.Notify(ChangeArea.Executions);
+        if (disposition == ExecutionResultDisposition.Applied)
+        {
+            changes.Notify(ChangeArea.Executions);
+            events.Publish(new ChangeEventDraft(ChangeArea.Executions, ChangeEventNames.Execution, executionId,
+                incomingStatus == "Failed" ? ChangeEventNames.Failed : ChangeEventNames.Completed, null, correlationId,
+                new Dictionary<string, string?> { ["status"] = incomingStatus, ["code"] = code }));
+        }
         if (disposition == ExecutionResultDisposition.ConflictingTerminalResult)
         {
             LogTerminalConflict(logger, executionId, messageId, incomingStatus);

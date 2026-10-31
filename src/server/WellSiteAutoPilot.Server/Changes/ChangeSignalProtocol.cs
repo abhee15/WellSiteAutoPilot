@@ -12,6 +12,9 @@ public static class ChangeSignalProtocol
     public const string Route = "/hubs/changes";
     public const string ClientMethod = "changed";
 
+    /// <summary>Typed entity event, sent alongside <see cref="ClientMethod"/> when typed events are enabled.</summary>
+    public const string EventMethod = "event";
+
     /// <summary>The read permission a user must currently hold to hear about an area.</summary>
     public static string ReadPermission(ChangeArea area) => area switch
     {

@@ -18,6 +18,7 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
     TimeProvider timeProvider,
     IOptions<ScheduledShadowSchedulerOptions> options,
     IChangeNotifier changes,
+    IChangeEventPublisher events,
     ILogger<ScheduledShadowSchedulerHostedService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -70,6 +71,11 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
 
             // The dispatch committed its Execution requests before DispatchDueAsync returned.
             if (dispatched > 0) changes.Notify(ChangeArea.Executions);
+            foreach (var decision in result.Decisions.Where(item =>
+                         item.Outcome == ScheduledShadowDispatchOutcome.Dispatched && item.ExecutionId is not null))
+                events.Publish(new ChangeEventDraft(ChangeArea.Executions, ChangeEventNames.Execution,
+                    decision.ExecutionId!.Value, ChangeEventNames.Requested, "scheduler", null,
+                    new Dictionary<string, string?> { ["status"] = "Requested" }));
 
             if (dispatched > 0 || blocked > 0)
             {
