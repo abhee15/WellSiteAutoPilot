@@ -133,3 +133,9 @@ test('decision visibility follows server permission even for a custom role name'
   assert.match(deciding, /Approval records a governed review decision/);
   assert.match(readOnly, /Read-only review/);
 });
+
+test('the three count cards are filter buttons for the list beneath them, like the Runs cards', () => {
+  const html = renderToStaticMarkup(createElement(page.RecommendationsPage, { userId: null }));
+  assert.equal(html.match(/class="summary-card summary-card-action"/g)?.length, 3);
+  assert.match(html, /aria-pressed="false"/);
+});

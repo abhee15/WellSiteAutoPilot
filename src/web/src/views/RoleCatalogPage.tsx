@@ -1,4 +1,5 @@
 import { ActionButton } from '../components/ActionButton';
+import { EmptyRow } from '../components/common';
 import { RefreshCw } from 'lucide-react';
 import { FilterToolbar } from '../components/FilterToolbar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -289,8 +290,9 @@ export function RoleCatalogPage() {
                       </div></td>
                     </tr>
                   ))}
-                  {visible.length === 0 && <tr><td colSpan={5} className="empty-state">
-                    {t('roles.empty')}</td></tr>}
+                  {visible.length === 0 && <EmptyRow columns={5}
+                    action={roles.length > 0 && query.trim() !== '' ? <ActionButton label={t('views.clearFilters')} onClick={() => setQuery('')} /> : undefined}>
+                    {t('roles.empty')}</EmptyRow>}
                 </tbody>
               </table>
             </div>
