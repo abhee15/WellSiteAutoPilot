@@ -264,3 +264,27 @@ test('every localization key is used somewhere (dynamic families are listed), so
   const dead = keys.filter(key => !used.includes(`'${key}'`) && !used.includes(`"${key}"`) && !used.includes(`\`${key}\``) && !dynamic.some(prefix => key.startsWith(prefix)));
   assert.deepEqual(dead, [], 'delete the unused key, or add its dynamic prefix to this test');
 });
+
+test('a scrolling list is never also a .panel with a rule that loses to `.panel { overflow: hidden }`', () => {
+  // View stylesheets load before styles.css, so a one-class scroll rule loses to .panel on an element that has both
+  // classes and scrolling silently stops (the Runs list hid its older rows). Such a rule must be more specific.
+  const panelClasses = new Set();
+  for (const path of code.filter(p => p.endsWith('.tsx'))) {
+    for (const [, value] of source(path).matchAll(/className="([^"]*)"/g)) {
+      const names = value.split(/\s+/);
+      if (names.includes('panel')) names.filter(n => n !== 'panel').forEach(n => panelClasses.add(n));
+    }
+  }
+  const risky = [];
+  for (const path of files.filter(p => p.endsWith('.css'))) {
+    const css = source(path).replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const [, selectors, body] of css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)) {
+      if (!/overflow(-y|-block)?:\s*(auto|scroll)/.test(body)) continue;
+      for (const selector of selectors.split(',').map(s => s.trim())) {
+        const single = selector.match(/^\.([\w-]+)$/);
+        if (single && panelClasses.has(single[1])) risky.push(`${rel(path)}: ${selector}`);
+      }
+    }
+  }
+  assert.deepEqual(risky, []);
+});
