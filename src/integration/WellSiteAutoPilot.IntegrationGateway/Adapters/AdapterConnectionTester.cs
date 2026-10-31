@@ -1,11 +1,13 @@
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.Integration.ForeSite;
 using WellSiteAutoPilot.Integration.PetroVisor;
 
 namespace WellSiteAutoPilot.IntegrationGateway.Adapters;
 
 /// <summary>Tries a connection's settings against the outside system. One branch per adapter, kept next to its descriptor.</summary>
-public sealed class AdapterConnectionTester(IHttpClientFactory clients, IPetroVisorSessionFactory petroVisorSessions)
+public sealed class AdapterConnectionTester(
+    IHttpClientFactory clients, IPetroVisorSessionFactory petroVisorSessions, ICygNetFacilityReader cygNet)
 {
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
@@ -15,7 +17,7 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients, IPetroVi
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(settings);
         var actingAs = ActingAs();
-        if (AdapterSettingsValidator.Validate(descriptor, settings).Count > 0)
+        if (AdapterCatalog.Validate(descriptor, settings).Count > 0)
             return new(AdapterTestOutcomes.NeedsAttention, "The saved settings are no longer valid for this adapter.", actingAs);
 
         return descriptor.Key switch
@@ -23,6 +25,7 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients, IPetroVi
             "simulator" => await TestSimulatorAsync(settings, actingAs, cancellationToken),
             ForeSiteAdapter.Key => await TestForeSiteAsync(settings, actingAs, cancellationToken),
             PetroVisorAdapter.Key => await TestPetroVisorAsync(settings, cancellationToken),
+            CygNetAdapter.Key => await TestCygNetAsync(settings, actingAs, cancellationToken),
             _ => new(AdapterTestOutcomes.NeedsAttention, "This adapter cannot be tested yet.", actingAs)
         };
     }
@@ -74,6 +77,20 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients, IPetroVi
         var reader = new PetroVisorSdkEntityReader(petroVisorSessions, address, PetroVisorAdapter.IdentityAddress(settings));
         return await PetroVisorAdapter.CheckAsync(
             reader, settings[PetroVisorAdapter.WorkspaceSetting]!.Trim(), petroVisorSessions.Identity, timeout.Token);
+    }
+
+    private async Task<AdapterTestResult> TestCygNetAsync(
+        IReadOnlyDictionary<string, string?> settings, string actingAs, CancellationToken cancellationToken)
+    {
+        var connection = CygNetAdapter.ReadConnection(settings, out var problem);
+        if (connection is null) return new(AdapterTestOutcomes.NeedsAttention, problem!, actingAs);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(Timeout);
+        try { return await CygNetAdapter.CheckAsync(cygNet, connection, actingAs, timeout.Token); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new(AdapterTestOutcomes.Unreachable, "CygNet did not answer in time.", actingAs);
+        }
     }
 
     public const string WindowsClientName = "adapter-test-windows";

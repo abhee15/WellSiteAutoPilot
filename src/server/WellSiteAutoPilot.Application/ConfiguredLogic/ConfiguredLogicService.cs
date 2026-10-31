@@ -425,10 +425,10 @@ public sealed class ConfiguredLogicService(
         if (requested is null)
         {
             if (manifest.RequiredAdapterKey is not null &&
-                (subject is null || !string.Equals(manifest.RequiredAdapterKey, "foresite", StringComparison.OrdinalIgnoreCase) ||
+                (subject is null ||
                  bindings.Select(binding => binding.AssetId).Distinct().Count() != 1))
                 throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
-                    "Select one authorized ForeSite well directly, or use a compatible Connection View.");
+                    "Select one authorized imported asset directly, or use a compatible Connection View.");
             return (bindings, null);
         }
         if (subject is null || assetViews is null || connections is null || requested.ViewId == Guid.Empty || requested.ExpectedRevision < 1)

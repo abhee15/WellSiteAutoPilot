@@ -46,7 +46,7 @@ public sealed class ConnectionService(
         // The required settings are the ones that say which system this is (an address, a workspace, a site).
         var sourceKeys = (await gateway.ListAsync(cancellationToken))
             .FirstOrDefault(item => string.Equals(item.Key, existing.AdapterKey, StringComparison.Ordinal))?.Fields
-            .Where(field => field.Required).Select(field => field.Key).ToArray() ?? [];
+            .Where(field => field.Required && field.IdentifiesSource).Select(field => field.Key).ToArray() ?? [];
         return await repository.UpdateAuthorizedAsync(id, command.ExpectedRevision, name, version, settings, sourceKeys, subject,
             actor, cancellationToken);
     }

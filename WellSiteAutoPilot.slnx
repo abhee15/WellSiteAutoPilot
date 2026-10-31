@@ -25,6 +25,7 @@
     <Project Path="src/infrastructure/WellSiteAutoPilot.NatsHost/WellSiteAutoPilot.NatsHost.csproj" />
   </Folder>
   <Folder Name="/src/integration/">
+    <Project Path="src/integration/WellSiteAutoPilot.Integration.CygNet.Adapter/WellSiteAutoPilot.Integration.CygNet.Adapter.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.Integration.Contracts/WellSiteAutoPilot.Integration.Contracts.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.Integration.ForeSite/WellSiteAutoPilot.Integration.ForeSite.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.Integration.PetroVisor/WellSiteAutoPilot.Integration.PetroVisor.csproj" />
@@ -37,6 +38,7 @@
     <Project Path="src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/WellSiteAutoPilot.CygNetAdapterTests/WellSiteAutoPilot.CygNetAdapterTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.SecurityBoundaryTests/WellSiteAutoPilot.SecurityBoundaryTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ApiContractTests/WellSiteAutoPilot.ApiContractTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ScopedGrantEvaluatorTests/WellSiteAutoPilot.ScopedGrantEvaluatorTests.csproj" />
@@ -62,6 +64,7 @@
     <Project Path="tests/WellSiteAutoPilot.ExecutionContractV2Tests/WellSiteAutoPilot.ExecutionContractV2Tests.csproj" />
   </Folder>
   <Folder Name="/modules/">
+    <Project Path="modules/samples/cygnet-input-check/CygNetInputCheck.csproj" />
     <File Path="modules/samples/sample-shadow-read.manifest.json" />
     <File Path="modules/samples/sample-shadow-read/payload/README.txt" />
   </Folder>

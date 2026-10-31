@@ -15,7 +15,8 @@ public sealed record AdapterSettingField(
     string HelpText,
     AdapterSettingKind Kind,
     bool Required,
-    int MaxLength = 256);
+    int MaxLength = 256,
+    bool IdentifiesSource = true);
 
 /// <summary>
 /// What one adapter is and what a connection to it needs. The adapter owns this, so the Server and the web UI stay
