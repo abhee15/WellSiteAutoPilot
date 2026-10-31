@@ -19,6 +19,7 @@ import {
 } from './authoring';
 import type { DraftDocument, OutlineNode, Selection, SelectionKind } from './authoring';
 import { ElementEditor, KIND_LABELS } from './AuthoringElementEditor';
+import { LivePreview } from './AuthoringLivePreview';
 import './authoring.css';
 
 const POLL_MILLISECONDS = 1500;
@@ -340,6 +341,7 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
         </div>
 
         <TestResults test={draft.test ?? null} state={draft.testState ?? 'NotRun'} />
+        <LivePreview doc={working} />
 
         <div className="authoring-issues">
           <h3>{issues.length > 0 && draft.buildState === 'Failed' ? t('authoring.diagnostics') : t('authoring.issues')}</h3>

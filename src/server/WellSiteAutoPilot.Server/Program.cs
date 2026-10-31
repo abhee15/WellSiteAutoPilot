@@ -220,6 +220,8 @@ builder.Services.AddSingleton<IAuthoringTestExecutor, OutOfProcessAuthoringTestE
 builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
 builder.Services.AddSingleton<AuthoringBuildRunner>();
 builder.Services.AddScoped<AuthoringService>();
+builder.Services.AddScoped<IAuthoringPreviewSource, WellSiteAutoPilot.Persistence.Authoring.AuthoringPreviewSource>();
+builder.Services.AddScoped<AuthoringPreviewService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 if (builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthorityUserId") is { } schedulerReadUserId && schedulerReadUserId != Guid.Empty)
     builder.Services.AddSingleton(new ScheduledReadAuthority(schedulerReadUserId));
@@ -1354,6 +1356,22 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/preview",
+    async (AuthoringPreviewRequest request, AuthoringPreviewService preview, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var value = await preview.PreviewAsync(access.Subject, request.AssetId, request.Quantity, cancellationToken);
+        return new AuthoringPreviewResponse(value.AssetId, value.Quantity, value.Value, value.Unit, value.TimestampUtc,
+            value.Quality, value.Source, value.AdapterKey);
+    })
+    .WithName("PreviewAuthoringLiveValue")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringPreviewResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 v1.MapGet(
     "/recommendations",

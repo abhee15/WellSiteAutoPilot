@@ -368,7 +368,54 @@ if (OperatingSystem.IsWindows())
     try { Directory.Delete(isolationRoot, recursive: true); }
     catch (IOException) { }
 }
+{
+    var read = new WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead("cygnet", Guid.NewGuid(), 1, "FAC1", "PumpFillage",
+        new Dictionary<string, string?>());
+    var source = new FakePreviewSource(read);
+    var gateway = new FakeGateway();
+    var subject = new AccessSubject(Guid.NewGuid());
+    var asset = Guid.NewGuid();
+    var preview = new AuthoringPreviewService(new AuthoringOptions { Enabled = true }, source, gateway);
+    var value = await preview.PreviewAsync(subject, asset, " PumpFillage ", CancellationToken.None);
+    Check(value.Value == 42.5m && value.Unit == "%" && value.AdapterKey == "cygnet", "preview returns the gateway value with its adapter");
+    Check(source.LastQuantity == "PumpFillage" && source.LastSubject == subject && gateway.Reads == 1, "preview resolves with the caller's subject and trimmed quantity");
+    await Throws<WellSiteAutoPilotException>(() => new AuthoringPreviewService(new AuthoringOptions { Enabled = false }, source, gateway)
+        .PreviewAsync(subject, asset, "PumpFillage", CancellationToken.None), "preview honours the local gate");
+    await Throws<WellSiteAutoPilotException>(() => preview.PreviewAsync(subject, Guid.Empty, "PumpFillage", CancellationToken.None), "preview needs an asset");
+    await Throws<WellSiteAutoPilotException>(() => preview.PreviewAsync(subject, asset, " ", CancellationToken.None), "preview needs a quantity");
+    source.Deny = true;
+    var reads = gateway.Reads;
+    await Throws<WellSiteAutoPilotException>(() => preview.PreviewAsync(subject, asset, "PumpFillage", CancellationToken.None), "denied source blocks the read");
+    Check(gateway.Reads == reads, "a denied preview never reaches the provider gateway");
+}
 Console.WriteLine("Authoring checks passed.");
+
+internal sealed class FakePreviewSource(WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead read) : IAuthoringPreviewSource
+{
+    public bool Deny { get; set; }
+    public string? LastQuantity { get; private set; }
+    public AccessSubject? LastSubject { get; private set; }
+
+    public Task<WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead> ResolveAsync(AccessSubject subject, Guid assetId,
+        string quantity, CancellationToken cancellationToken = default)
+    {
+        LastSubject = subject; LastQuantity = quantity;
+        return Deny ? throw new WellSiteAutoPilotException("DENIED", FailureKind.Authorization, "denied") : Task.FromResult(read);
+    }
+}
+
+internal sealed class FakeGateway : WellSiteAutoPilot.Application.Executions.IExecutionMeasurementGateway
+{
+    public int Reads { get; private set; }
+
+    public Task<WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue> GetCurrentAsync(
+        WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead read, CancellationToken cancellationToken = default)
+    {
+        Reads++;
+        return Task.FromResult(new WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue(read.Quantity, 42.5m, "%",
+            DateTimeOffset.UnixEpoch, "Good", "fake"));
+    }
+}
 
 internal sealed class FakePackageRepository : ILogicModulePackageRepository
 {

@@ -41,6 +41,13 @@ that is not wired in.
   (step and condition values) as the instrumentation contract; results include outputs, intermediates, fired
   actions and mismatches against expected values. Results are pinned to revision and build and go Stale on edit.
 
+- Live preview: `POST /authoring/preview` (`LogicManage`) reads one current value for an imported asset and quantity
+  through the Gateway measurement client, after the Shadow read-plan rules (active imported asset, enabled
+  connection, one source binding, adapter-supported quantity) and a `configured-logic.read` asset grant for the
+  caller. It creates no execution or plan and cannot write. The Authoring page has a Live data preview panel.
+  Verified with fakes (gate, subject, trimmed quantity, denial never reaches the provider); not exercised against a
+  live provider in this round.
+
 ## Known gaps
 
 AppContainer mode fails in this environment (CreateProcess error 203); job-object mode is the verified baseline;

@@ -126,3 +126,9 @@ public sealed record AuthoringDraftResponse(
     AuthoringBuildState BuildState,
     AuthoringBuildResponse? Build,
     AuthoringTestResponse? Test = null);
+
+/// <summary>Reads one current value from an imported asset for authoring preview; creates no execution.</summary>
+public sealed record AuthoringPreviewRequest(Guid AssetId, string Quantity);
+
+public sealed record AuthoringPreviewResponse(Guid AssetId, string Quantity, decimal? Value, string Unit,
+    DateTimeOffset TimestampUtc, string Quality, string Source, string AdapterKey);

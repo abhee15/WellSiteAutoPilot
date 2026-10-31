@@ -8,7 +8,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   getAuthoringCapabilities: vi.fn(), listAuthoringDrafts: vi.fn(), createAuthoringDraft: vi.fn(),
   getAuthoringDraft: vi.fn(), updateAuthoringDraft: vi.fn(), validateAuthoringDraft: vi.fn(),
   buildAuthoringDraft: vi.fn(), cancelAuthoringDraftBuild: vi.fn(), downloadAuthoringDraftPackage: vi.fn(),
-  addAuthoringDraftToCatalog: vi.fn(), testAuthoringDraft: vi.fn(),
+  addAuthoringDraftToCatalog: vi.fn(), testAuthoringDraft: vi.fn(), previewAuthoringLiveValue: vi.fn(), searchAssets: vi.fn(),
 }));
 const api = vi.mocked(sdk);
 const ok = (data: unknown, status = 200) => ({ data, response: new Response(null, { status }) }) as never;
@@ -98,6 +98,31 @@ it('runs fixture tests on a built draft and shows intermediates, actions and mis
   expect(await screen.findByText('Output ratio expected 1 but was 0.75')).toBeTruthy();
   expect(screen.getByText('shortfall')).toBeTruthy();
   expect(screen.getByText('REVIEW_LOW_FILLAGE')).toBeTruthy();
+});
+
+it('previews a live value for a chosen asset and explains a refused read', async () => {
+  const user = userEvent.setup();
+  api.createAuthoringDraft.mockResolvedValue(ok(draft(), 201));
+  render(<AuthoringWorkspace onCatalogChanged={vi.fn()} />);
+  await user.click(await screen.findByRole('button', { name: 'New draft' }));
+  await screen.findByRole('heading', { name: 'Demo' });
+
+  api.searchAssets.mockResolvedValue(ok([{ id: '22222222-2222-4222-8222-222222222222', name: 'Well 7' }]));
+  await user.type(screen.getByLabelText('Search assets'), 'well');
+  await user.click(screen.getByRole('button', { name: 'Find assets' }));
+  await screen.findByRole('option', { name: 'Well 7' });
+  expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('q');
+
+  api.previewAuthoringLiveValue.mockResolvedValue(ok({ quantity: 'q', value: 42.5, unit: '%', quality: 'Good',
+    timestampUtc: '2026-01-01T00:00:00Z', adapterKey: 'cygnet' }));
+  await user.click(screen.getByRole('button', { name: 'Read current value' }));
+  expect((await screen.findByText(/42\.5 %/)).textContent).toContain('42.5');
+  expect(api.previewAuthoringLiveValue.mock.calls[0][0].body).toEqual({ assetId: '22222222-2222-4222-8222-222222222222', quantity: 'q' });
+
+  api.previewAuthoringLiveValue.mockResolvedValue({ error: { code: 'AUTHORING_PREVIEW_QUANTITY_UNSUPPORTED' },
+    response: new Response(null, { status: 400 }) } as never);
+  await user.click(screen.getByRole('button', { name: 'Read current value' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('cannot serve that quantity');
 });
 
 it('reports a revision conflict without discarding the local edit', async () => {
