@@ -774,6 +774,8 @@ export const englishMessages = {
   'activity.targetPlaceholder': 'e.g. Connection',
   'activity.reset': 'Clear filters',
   'activity.when': 'When',
+  'activity.today': 'Today',
+  'activity.yesterday': 'Yesterday',
   'activity.who': 'Who',
   'activity.what': 'What',
   'activity.target': 'Target',

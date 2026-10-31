@@ -108,3 +108,13 @@ test('every sentence template names its record unless the event has no single re
     assert.ok(!text.includes('·'), `${action} fell back to the generic wording`);
   }
 });
+
+test('events are grouped under Today, Yesterday, then the date', () => {
+  const now = new Date(2026, 9, 29, 15, 0, 0).getTime();
+  const at = (days, hour) => new Date(2026, 9, 29 - days, hour, 0, 0).toISOString();
+  assert.equal(view.dayKey(at(0, 9)), view.dayKey(at(0, 14)));
+  assert.notEqual(view.dayKey(at(0, 9)), view.dayKey(at(1, 9)));
+  assert.equal(view.dayLabel(at(0, 9), now), 'Today');
+  assert.equal(view.dayLabel(at(1, 20), now), 'Yesterday');
+  assert.match(view.dayLabel(at(3, 12), now), /Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday/);
+});
