@@ -46,7 +46,6 @@
 .connection-control-row > label { flex: 1 1 var(--layout-field-min); min-width: 0; }
 .inventory-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-field-narrow), 1fr)); gap: var(--space-12); margin: 0; }
 .inventory-summary > div { background: var(--color-surface-row-hover); padding: var(--space-10); border-radius: var(--radius-6); }
-.inventory-summary dt { color: var(--color-text-subtle); font-size: var(--font-size-label); }
 .inventory-summary dd { margin: var(--space-4) 0 0; font-weight: var(--font-weight-medium); }
 .inventory-controls { display: grid; gap: var(--space-12); min-width: 0; border: 0; padding: 0; margin: 0; }
 .inventory-controls legend { font-weight: var(--font-weight-medium); padding: 0 0 var(--space-8); }

@@ -610,15 +610,9 @@ button:disabled {
   min-width: 0;
 }
 
-.execution-detail-grid dt {
-  color: var(--color-text-detail-label);
-  font-size: var(--font-size-tag);
-}
-
 .execution-detail-grid dd {
   margin: var(--space-6) 0 0;
   overflow-wrap: anywhere;
-  font-size: var(--font-size-body-small);
 }
 
 .configured-revisions-summary {
@@ -1235,6 +1229,10 @@ select:not([multiple], [size]) {
 :where(h1, h2, h3, h4, h5, h6) { font-weight: var(--font-weight-medium); line-height: var(--line-height-heading); }
 :where(strong, b) { font-weight: var(--font-weight-bold); }
 :where(small) { font-size: var(--font-size-caption); }
+/* Label and value pairs (<dt>/<dd>) read the same everywhere: the label is the label size in the quiet detail colour,
+   the value is body text. A label is never caption-sized: at 12px it is hard to read beside a 16px value. */
+:where(dt) { font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-text-detail-label); }
+:where(dd) { font-size: var(--font-size-body); }
 .primary-button, .secondary-button, .quiet-button, .ui-action-button { font-weight: var(--font-weight-medium); }
 .activity-table td strong { font-weight: var(--font-weight-medium); }
 .activity-table td .activity-sentence strong, .activity-detail h3 strong { font-weight: var(--font-weight-bold); }

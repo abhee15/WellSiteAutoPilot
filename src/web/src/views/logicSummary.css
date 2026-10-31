@@ -10,5 +10,4 @@
 
 .logic-facts { margin: var(--space-8) 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-fact-narrow), 1fr)); gap: var(--space-8) var(--space-16); }
 .logic-facts div { display: grid; gap: var(--space-4); min-width: 0; }
-.logic-facts dt { font-size: var(--font-size-caption); color: var(--color-text-subtle); }
 .logic-facts dd { margin: 0; overflow-wrap: anywhere; }

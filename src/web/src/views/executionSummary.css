@@ -8,8 +8,7 @@
 .run-summary-lead { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font-weight: var(--font-weight-medium); }
 .run-facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-fact-wide), 1fr)); gap: var(--space-10) var(--space-16); }
 .run-facts > div, .run-input-facts > div { min-width: 0; }
-.run-facts dt, .run-input-facts dt { color: var(--color-text-detail-label); font-size: var(--font-size-tag); }
-.run-facts dd, .run-input-facts dd { margin: var(--space-4) 0 0; overflow-wrap: anywhere; font-size: var(--font-size-body-small); }
+.run-facts dd, .run-input-facts dd { margin: var(--space-4) 0 0; overflow-wrap: anywhere; }
 .run-facts small, .run-input-facts small { display: block; color: var(--color-text-subtle); }
 .run-section { margin-top: var(--space-16); display: grid; gap: var(--space-8); }
 .run-section h4, .run-technical h4 { margin: 0; }
