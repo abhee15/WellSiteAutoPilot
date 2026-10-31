@@ -712,6 +712,7 @@ export const englishMessages = {
   'activity.targetPlaceholder': 'e.g. Connection',
   'activity.when': 'When',
   'activity.today': 'Today',
+  'activity.notLoaded': 'The event in this address is not among the loaded events. Load older events to find it.',
   'activity.yesterday': 'Yesterday',
   'activity.who': 'Who',
   'activity.loadOlder': 'Load older events',
