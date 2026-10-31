@@ -23,7 +23,7 @@
 .setup-revisions { list-style: none; padding: 0; display: grid; gap: var(--space-14); }
 .setup-revisions li { padding: var(--space-12); border: var(--border-width-thin) solid var(--color-border-subtle); }
 .setup-actions { display: flex; flex-wrap: wrap; gap: var(--space-10); }
-@media (min-width: 760px) {
+@media (width >= 48em) {
   .setup-form > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .setup-form > fieldset > :is(fieldset,details,p,h4) { grid-column: 1 / -1; }
 }

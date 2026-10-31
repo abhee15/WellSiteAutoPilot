@@ -18,13 +18,13 @@
 /* Narrow containers (a phone, or a narrow list pane): the search takes the whole first row; the panel stacks its fields.
    The toolbar's own width decides, not the window's. */
 .filter-toolbar { container-type: inline-size; }
-@container (max-width: 28rem) {
+@container (width <= 28em) {
   .filter-toolbar-row { flex-wrap: wrap; }
   .filter-toolbar-search { flex-basis: 100%; max-width: none; }
   .filter-toolbar-toggle { flex: 1; justify-content: center; }
   .filter-toolbar-summary { flex-wrap: nowrap; overflow-x: auto; }
 }
-@media (max-width: 650px) { .filter-toolbar { padding-inline: var(--space-12); } }
+@media (width <= 40em) { .filter-toolbar { padding-inline: var(--space-12); } }
 
 /* Saved views sit under the filter fields, across the whole panel. */
 .filter-toolbar-saved { grid-column: 1 / -1; display: grid; gap: var(--space-8); padding-top: var(--space-12); border-top: var(--border-width-thin) solid var(--color-border-subtle); }
