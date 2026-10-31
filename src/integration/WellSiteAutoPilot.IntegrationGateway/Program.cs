@@ -116,7 +116,7 @@ builder.Services.AddSingleton(services =>
             : throw new InvalidOperationException("Providers:CygNet:Domain must be a whole number from 0 to 65535.");
     }
     var quantities = new Dictionary<string, WellSiteAutoPilot.Integration.CygNet.CygNetQuantityMapping>(
-        StringComparer.OrdinalIgnoreCase);
+        WellSiteAutoPilot.Integration.CygNet.CygNetProviderOptions.DefaultQuantities, StringComparer.OrdinalIgnoreCase);
     foreach (var child in section.GetSection("Quantities").GetChildren())
     {
         if (string.IsNullOrWhiteSpace(child["Udc"]) || string.IsNullOrWhiteSpace(child["Unit"]))

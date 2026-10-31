@@ -27,6 +27,13 @@ Expect(CygNetAdapter.ReadConnection(new Dictionary<string, string?> { ["domain"]
 Expect(CygNetAdapter.ReadConnection(new Dictionary<string, string?> { ["domain"] = "1", ["siteService"] = "AB" }, out _) is null, "bad site.service");
 Expect(CygNetAdapter.ReadConnection(new Dictionary<string, string?> { ["domain"] = "1", ["siteService"] = "A.B", ["facilityFilter"] = "W;DROP" }, out _) is null, "bad filter");
 Expect(CygNetAdapter.Matches("well_*", "WELL_001") && CygNetAdapter.Matches("RPOC_00?1", "RPOC_0001") && !CygNetAdapter.Matches("WELL_*", "TANK_01"), "wildcards");
+var mapped = CygNetAdapter.ReadConnection(new Dictionary<string, string?>
+    { ["domain"] = "1", ["siteService"] = "A.B", ["pointMap"] = "motoramps=MTRAMPS|A; PumpFillage=RRLPFILCUR|%" }, out _);
+Expect(mapped?.PointMap is { Count: 2 } map && map["MotorAmps"] == new CygNetPointMapping("MTRAMPS", "A") && map["PumpFillage"].Udc == "RRLPFILCUR",
+    "point mapping is parsed per connection");
+foreach (var bad in new[] { "Bogus=X|A", "MotorAmps=X", "MotorAmps=X Y|A", "MotorAmps=X|A;MotorAmps=Y|A", "MotorAmps=X|" })
+    Expect(CygNetAdapter.ReadConnection(new Dictionary<string, string?> { ["domain"] = "1", ["siteService"] = "A.B", ["pointMap"] = bad }, out var why) is null && why is not null,
+        "bad point mapping is refused: " + bad);
 
 // Connection test
 Expect((await CygNetAdapter.CheckAsync(sim, connection, Account)).Outcome == AdapterTestOutcomes.Healthy, "simulated check is healthy");
@@ -44,7 +51,7 @@ var discovered = await CygNetAdapter.DiscoverAsync(sim, connection, Account);
 Expect(discovered.Complete && discovered.Items.Count == 7, "simulated discovery lists every facility");
 var well = discovered.Items.Single(i => i.DisplayName == "WELL_002");
 Expect(well.ExternalId == "CYG_DEMO.UIS::WELL_002" && well.ProviderType == "cygnet.facility" &&
-       well.Metadata["area"] == "Pad A" && well.Metadata["facilityType"] == "WELL" && well.Metadata["domain"] == "27212",
+       well.Metadata["category"] == "Pad A" && well.Metadata["facilityType"] == "WELL" && well.Metadata["domain"] == "27212",
     "facility mapped with tag, type and grouping facts");
 var filtered = await CygNetAdapter.DiscoverAsync(sim, connection with { FacilityFilter = "WELL_*" }, Account);
 Expect(filtered.Items.Count == 5 && filtered.Items.All(i => i.DisplayName.StartsWith("WELL_", StringComparison.Ordinal)), "filter narrows discovery");
