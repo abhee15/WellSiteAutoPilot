@@ -222,6 +222,8 @@ builder.Services.AddSingleton<AuthoringBuildRunner>();
 builder.Services.AddScoped<AuthoringService>();
 builder.Services.AddScoped<IAuthoringPreviewSource, WellSiteAutoPilot.Persistence.Authoring.AuthoringPreviewSource>();
 builder.Services.AddScoped<AuthoringPreviewService>();
+builder.Services.AddScoped<IScheduleFloorResolver, AdapterScheduleFloorResolver>();
+builder.Services.AddScoped<ScheduleManagementService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
 {
@@ -1026,6 +1028,59 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapGet(
+    "/schedules",
+    async (int? limit, Guid? assetId, Guid? viewId, ScheduleManagementService schedules, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+        (await schedules.ListAsync(access.Subject, new ScheduleListFilter(assetId, viewId), PageLimit(limit ?? 100),
+            cancellationToken)).Select(ToScheduleResponse).ToArray())
+    .WithName("ListSchedules")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
+    .Produces<ScheduleResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapPut(
+    "/configured-logic/{configuredLogicId:guid}/schedule",
+    async (Guid configuredLogicId, UpdateScheduleRequest request, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ScheduleManagementService schedules, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToScheduleResponse(await schedules.UpdateAsync(configuredLogicId,
+            new ScheduleChange(request.CadenceSeconds, request.Enabled, ifMatch ?? ""),
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("UpdateConfiguredLogicSchedule")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ScheduleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/schedule/pause",
+    async (Guid configuredLogicId, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ScheduleManagementService schedules, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToScheduleResponse(await schedules.UpdateAsync(configuredLogicId, new ScheduleChange(null, false, ifMatch ?? ""),
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("PauseConfiguredLogicSchedule")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ScheduleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/schedule/resume",
+    async (Guid configuredLogicId, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ScheduleManagementService schedules, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToScheduleResponse(await schedules.UpdateAsync(configuredLogicId, new ScheduleChange(null, true, ifMatch ?? ""),
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("ResumeConfiguredLogicSchedule")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ScheduleResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
@@ -1933,6 +1988,15 @@ static string SearchText(string? text) => text?.Trim() is { Length: >= 1 and <= 
 static T? ParseFilter<T>(string? raw) where T : struct, Enum => raw is null ? null :
     Enum.TryParse<T>(raw, ignoreCase: true, out var value) && Enum.IsDefined(value) ? value :
         throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested status filter is invalid.");
+
+static ScheduleResponse ToScheduleResponse(ScheduleOverviewItem item) => new(
+    item.ConfiguredLogicId, item.Name, item.ActiveRevisionId, item.RevisionNumber, item.Mode.ToContract(),
+    item.Targets.Select(target => new ScheduleTargetResponse(target.AssetId, target.Name)).ToArray(), item.ViewId,
+    item.Enabled, item.CadenceSeconds, item.EffectiveCadenceSeconds, item.MinimumCadenceSeconds, item.StartAtUtc,
+    item.TimeZoneId, item.NextRunAtUtc, item.Running,
+    item.LastRun is null ? null : new ScheduleLastRunResponse(item.LastRun.ExecutionId, item.LastRun.ScheduledForUtc,
+        item.LastRun.Status.ToContract(), item.LastRun.ResultCode, item.LastRun.FailureCode),
+    item.CanManage, "skip-if-running");
 
 static ConfiguredLogicResponse WithConfigurationActions(ConfiguredLogicDefinition item, ConfiguredLogicActions? capability) =>
     ToConfiguredLogicResponse(item) with { CanManage = capability?.CanManage == true, CanRequestShadow = capability?.CanRequestShadow == true };

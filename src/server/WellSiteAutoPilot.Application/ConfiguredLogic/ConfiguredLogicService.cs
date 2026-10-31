@@ -5,6 +5,7 @@ using WellSiteAutoPilot.Application.Assets.Views;
 using WellSiteAutoPilot.Application.Connections;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
@@ -20,7 +21,8 @@ public sealed class ConfiguredLogicService(
     ILogicModuleCatalogRepository moduleCatalogRepository,
     TimeProvider timeProvider,
     IAssetViewRepository? assetViews = null,
-    IConnectionRepository? connections = null)
+    IConnectionRepository? connections = null,
+    IScheduleFloorResolver? scheduleFloor = null)
 {
     private static readonly JsonSerializerOptions ManifestSerializerOptions = CreateManifestSerializerOptions();
 
@@ -74,6 +76,7 @@ public sealed class ConfiguredLogicService(
             assetBindings,
             command.DataBindings);
         var schedule = ValidateSchedule(manifest, command.Schedule);
+        await EnforceScheduleFloorAsync(schedule, dataBindings, viewBinding, cancellationToken);
 
         var now = timeProvider.GetUtcNow();
         var configuredLogicId = Guid.NewGuid();
@@ -159,6 +162,7 @@ public sealed class ConfiguredLogicService(
             assetBindings,
             command.DataBindings);
         var schedule = ValidateSchedule(manifest, command.Schedule);
+        await EnforceScheduleFloorAsync(schedule, dataBindings, viewBinding, cancellationToken);
 
         var revision = new ConfiguredLogicRevision(
             Guid.NewGuid(),
@@ -674,6 +678,23 @@ public sealed class ConfiguredLogicService(
         }
 
         return normalized;
+    }
+
+    private async Task EnforceScheduleFloorAsync(ConfiguredLogicSchedule? schedule,
+        IReadOnlyCollection<ConfiguredLogicDataBinding> dataBindings, ConfiguredLogicViewBinding? viewBinding,
+        CancellationToken cancellationToken)
+    {
+        if (schedule is null)
+            return;
+        var minimum = scheduleFloor is null
+            ? SchedulePolicy.DefaultMinimumCadenceSeconds
+            : await scheduleFloor.MinimumCadenceSecondsAsync(
+                dataBindings.Select(item => item.ProviderId).ToArray(), viewBinding?.ConnectionId, cancellationToken);
+        if (schedule.CadenceSeconds < minimum)
+            throw new WellSiteAutoPilotException(
+                "CONFIGURED_LOGIC_SCHEDULE_BELOW_MINIMUM",
+                FailureKind.Validation,
+                $"Schedule cadence must be at least {minimum} seconds for the providers this configuration reads.");
     }
 
     private static ConfiguredLogicSchedule? ValidateSchedule(

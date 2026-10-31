@@ -15,7 +15,8 @@ public sealed class ScheduledShadowSchedulerService(
     IExecutionRepository executionRepository,
     ExecutionService executionService,
     TimeProvider timeProvider,
-    IScheduledReadAuthorityProvider? authorityProvider = null)
+    IScheduledReadAuthorityProvider? authorityProvider = null,
+    IScheduleFloorResolver? scheduleFloor = null)
 {
     public async Task<ScheduledShadowSweepResult> DispatchDueAsync(
         int limit,
@@ -96,8 +97,15 @@ public sealed class ScheduledShadowSchedulerService(
                 "SCHEDULER_ACTIVE_REVISION_INVALID");
         }
 
+        // An adapter may raise its minimum after a schedule was saved; dispatch never runs faster than the floor.
+        var minimumSeconds = scheduleFloor is null
+            ? SchedulePolicy.DefaultMinimumCadenceSeconds
+            : await scheduleFloor.MinimumCadenceSecondsAsync(
+                revision.DataBindings.Select(item => item.ProviderId).ToArray(),
+                revision.View?.ConnectionId,
+                cancellationToken);
         var scheduledForUtc = GetLatestDueOccurrence(
-            revision.Schedule,
+            SchedulePolicy.Clamp(revision.Schedule, minimumSeconds),
             nowUtc);
 
         if (scheduledForUtc is null)

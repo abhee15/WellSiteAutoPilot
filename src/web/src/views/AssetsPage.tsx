@@ -12,6 +12,7 @@ import { t } from '../localization';
 import { EmptyRow } from '../components/common';
 import { Status } from '../components/Status';
 import { AssetDetail } from './AssetDetail';
+import { SchedulesPanel } from './SchedulesPanel';
 import { AssetCreationPanel } from './AssetCreationPanel';
 import { AssetTypeDefinitionPanel } from './AssetTypeDefinitionPanel';
 import { AssetTypeDetail } from './AssetTypeDetail';
@@ -308,8 +309,12 @@ export function AssetsPage({
                       <p className="split-note"><a href="#connections">{t('assets.importFromConnection')}</a></p>}
                   </>
                 ) : activeView ? (
-                  <AssetViewBrowser key={activeView.id + ':' + activeView.revision + ':' + localRefresh + ':' + criteria.search} viewId={activeView.id}
-                    selectedId={selectedId} onSelect={select} query={criteria.search} />
+                  <>
+                    {permissions.includes('configured-logic.read') && <SchedulesPanel viewId={activeView.id} hideWhenEmpty
+                      canManage={permissions.includes('configured-logic.manage')} />}
+                    <AssetViewBrowser key={activeView.id + ':' + activeView.revision + ':' + localRefresh + ':' + criteria.search} viewId={activeView.id}
+                      selectedId={selectedId} onSelect={select} query={criteria.search} />
+                  </>
                 ) : lazy ? (
                   criteria.search.trim()
                     ? <AssetSearchResults query={criteria.search.trim()} selectedId={selectedId}
@@ -357,6 +362,7 @@ export function AssetsPage({
                 canReadRuns={permissions.includes('executions.read')}
                 canConfigureLogic={permissions.includes('configured-logic.manage') && permissions.includes('configured-logic.read')}
                 canReadRecommendations={permissions.includes('recommendations.read')}
+                canReadSchedules={permissions.includes('configured-logic.read')}
                 owner={owningConnection}
                 canOpenConnection={canOpenConnection}
                 onSelect={select}
