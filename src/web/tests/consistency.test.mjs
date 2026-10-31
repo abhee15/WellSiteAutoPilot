@@ -303,3 +303,12 @@ test('label and value pairs share one type scale: a <dt> is never caption or tag
   assert.deepEqual(small, []);
   assert.match(source(join(root, 'styles.css')), /:where\(dt\) \{ font-size: var\(--font-size-label\)/);
 });
+
+test('a tree row keeps its count and actions on the row: only the name flexes, and the row itself never wraps', () => {
+  // With flex-wrap on the row and an auto-sized name, a long name pushed the child count onto a new line.
+  const css = source(join(root, 'views/assetTree.css'));
+  const row = css.match(/\.asset-tree-row \{([^}]*)\}/)?.[1] ?? '';
+  assert.doesNotMatch(row, /flex-wrap:\s*wrap/);
+  assert.match(css, /\.asset-tree-name \{ flex: 1 1 0; min-width: 0;/);
+  assert.match(css, /\.asset-tree-row > small[^{]*\{ flex: none; \}/);
+});
