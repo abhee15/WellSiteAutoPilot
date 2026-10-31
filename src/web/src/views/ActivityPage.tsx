@@ -181,16 +181,12 @@ export function ActivityPage() {
               </div>
               {nextCursor && !error && (
                 <div className="activity-more">
-                  <button type="button" className="secondary-button" disabled={busy} onClick={() => void loadOlder()}>
-                    {loadingMore ? t('activity.loading') : t('activity.loadOlder')}
-                  </button>
+                  <ActionButton label={loadingMore ? t('activity.loading') : t('activity.loadOlder')} disabled={busy} onClick={() => void loadOlder()} />
                 </div>
               )}
             </div>
             <section className="split-selected" tabIndex={-1} aria-label={t('activity.detailHeading')}>
-              <button type="button" className="secondary-button split-back" onClick={() => setSelectedId(null)}>
-                {t('activity.backToList')}
-              </button>
+              <ActionButton label={t('activity.backToList')} className="split-back" onClick={() => setSelectedId(null)} />
               {selected && <AuditEventPanel event={selected} />}
             </section>
           </div>

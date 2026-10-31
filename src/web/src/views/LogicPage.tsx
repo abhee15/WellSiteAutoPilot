@@ -1,5 +1,6 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useEffect, useMemo, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetResponse,
@@ -96,9 +97,7 @@ export function LogicPage({
         {canReadCatalog && <a role="tab" href={hashFor('logic', MODULES_TAB)} aria-selected={showModules}>
           {t('logic.tabModules')} <span>{modules.length}</span>
         </a>}
-        {!showModules && canCreate && !creating && !selectedConfiguredId && <button type="button"
-          className="primary-button split-add" data-split-focus-key="create"
-          onClick={() => setCreating(true)}>{t('setup.heading')}</button>}
+        {!showModules && canCreate && !creating && !selectedConfiguredId && <ActionButton label={t('setup.heading')} variant="primary" className="split-add" data-split-focus-key="create" onClick={() => setCreating(true)} />}
       </div>
 
       {showModules ? (
@@ -158,8 +157,7 @@ export function LogicPage({
             </div>
           </section>
           <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabModules')}>
-            <button type="button" className="secondary-button split-back"
-              onClick={() => setAboutModuleId(null)}>{t('logic.back')}</button>
+            <ActionButton label={t('logic.back')} className="split-back" onClick={() => setAboutModuleId(null)} />
             {aboutModule ? <ModulePanel module={aboutModule}
               configurations={canReadConfigurations ? configuredLogic : []}
               canManage={permissions.includes('logic.manage')} onChanged={onRefresh}
@@ -223,8 +221,7 @@ export function LogicPage({
             </div>
           </section>
           <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabConfigured')}>
-            <button type="button" className="secondary-button split-back"
-              onClick={() => { setSelectedConfiguredId(null); setCreating(false); }}>{t('logic.back')}</button>
+            <ActionButton label={t('logic.back')} className="split-back" onClick={() => { setSelectedConfiguredId(null); setCreating(false); }} />
             {hasConfigurationDetail ? (
               <ConfiguredLogicWorkspace
                 key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguration]) : 'new:' + (prefillAssetId ?? '') + assets.map(item => item.id).join(',')}

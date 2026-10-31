@@ -211,3 +211,19 @@ test('every list searches and filters through the shared FilterToolbar; the old 
   walk(root);
   assert.deepEqual(offenders, [], 'use <FilterToolbar> from components/FilterToolbar');
 });
+
+test('action buttons are the shared ActionButton, not <button className="primary-button|secondary-button">', () => {
+  const offenders = [];
+  const walk = folder => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) { walk(path); continue; }
+      if (!entry.name.endsWith('.tsx') || entry.name === 'ActionButton.tsx') continue;
+      const code = readFileSync(path, 'utf8');
+      // Tabs keep their button look; everything else that acts is an ActionButton.
+      for (const match of code.matchAll(/<button\b(?![^>]*role="tab")[^>]*className="(?:primary|secondary)-button/g)) offenders.push(`${relative(root, path)}: ${match[0].slice(0, 70)}`);
+    }
+  };
+  walk(root);
+  assert.deepEqual(offenders, [], 'use <ActionButton label=... variant=... />');
+});

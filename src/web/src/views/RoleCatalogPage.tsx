@@ -127,8 +127,7 @@ export function RoleDefinitionEditor({
     <section className="panel role-editor" role="region" aria-label={t('roles.editor')}>
       <div className="panel-header">
         <h3>{original ? t('roles.editHeading') : t('roles.createHeading')}</h3>
-        <button className="secondary-button" type="button" onClick={onCancel}
-          disabled={busy}>{t('roles.cancel')}</button>
+        <ActionButton label={t('roles.cancel')} onClick={onCancel} disabled={busy} />
       </div>
       <p className="access-note access-intro">{t('roles.inactiveUntilGrants')}</p>
       {original && !original.isSystem &&
@@ -183,10 +182,7 @@ export function RoleDefinitionEditor({
           onChange={event => setAcknowledged(event.target.checked)} />
         {t('roles.confirm')}
       </label>
-      <button type="button" className="primary-button"
-        disabled={!canSave} onClick={() => void submit()}>
-        {busy ? t('roles.saving') : t('roles.save')}
-      </button>
+      <ActionButton label={busy ? t('roles.saving') : t('roles.save')} variant="primary" disabled={!canSave} onClick={() => void submit()} />
     </section>
   );
 }
@@ -255,10 +251,7 @@ export function RoleCatalogPage() {
           <div className="role-actions">
             <ActionButton icon={RefreshCw} iconOnly label={t('roles.refresh')}
               disabled={loading} onClick={() => void reload()} />
-            <button type="button" className="primary-button"
-              disabled={loading || !!error} onClick={() => {
-                setEditor({ kind: 'new', template: null }); setNotice(null);
-              }}>{t('roles.create')}</button>
+            <ActionButton label={t('roles.create')} variant="primary" disabled={loading || !!error} onClick={() => { setEditor({ kind: 'new', template: null }); setNotice(null); }} />
           </div>
         </div>
         <p className="access-note access-intro">{t('roles.intro')}</p>
@@ -305,9 +298,7 @@ export function RoleCatalogPage() {
         )}
       </section>
       <div className="split-selected">
-        <button type="button" className="secondary-button split-back" onClick={() => setEditor(null)}>
-          {t('roles.backToList')}
-        </button>
+        <ActionButton label={t('roles.backToList')} className="split-back" onClick={() => setEditor(null)} />
       {editor && (
         <RoleDefinitionEditor
           key={editor.kind === 'edit' ? editor.original.roleId :

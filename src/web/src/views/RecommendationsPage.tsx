@@ -274,9 +274,7 @@ export function RecommendationsPage({
         )}
       </section>
       <div className="split-selected">
-        <button type="button" className="secondary-button split-back" onClick={() => setSelectedReviewId(null)}>
-          {t('inbox.backToList')}
-        </button>
+        <ActionButton label={t('inbox.backToList')} className="split-back" onClick={() => setSelectedReviewId(null)} />
         {canDecide && selectedRecommendation && reviewOpen && (
             <RecommendationDecisionReviewPanel
               key={JSON.stringify(selectedRecommendation)}

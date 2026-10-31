@@ -15,12 +15,13 @@ export type ActionButtonProps = Omit<ComponentProps<'button'>, 'children'> & {
   controlSize?: 'standard' | 'large';
 };
 
-/** Native activation and a stable accessible name for both icon and text actions. */
+/** Native activation and a stable accessible name for both icon and text actions. A caller may give a longer
+ *  `aria-label` that starts with the visible label ("Assign role" -> "Assign a role to Ada") for rows that repeat. */
 export function ActionButton({ label, icon: Icon, iconOnly = false, busy = false,
   variant = 'secondary', state, controlSize = 'standard', disabled, type = 'button',
-  className = '', title, ...props }: ActionButtonProps) {
+  className = '', title, 'aria-label': ariaLabel, ...props }: ActionButtonProps) {
   const hideText = iconOnly && Boolean(Icon);
-  return <button {...props} type={type} disabled={disabled || busy} aria-label={label}
+  return <button {...props} type={type} disabled={disabled || busy} aria-label={ariaLabel ?? label}
     aria-busy={busy || undefined} title={title ?? (hideText ? label : undefined)}
     className={`ui-action-button ${variant}-button ${className}`}
     data-icon-only={hideText || undefined} data-size={controlSize} data-state={state}>

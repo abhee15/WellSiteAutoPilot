@@ -1,5 +1,6 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetCreationCapabilitiesResponse,
@@ -172,12 +173,10 @@ export function AssetsPage({
         <a role="tab" href={hashFor('assets', TYPES_TAB)} aria-selected={onTypesTab}>
           {t('assets.tabTypes')} <span>{listedTypes.length}</span>
         </a>
-        {!onTypesTab && canAdd && <button type="button" className="primary-button split-add"
-          onClick={() => setAdding(open => !open)} aria-expanded={adding}>
-          {adding ? t('assets.closeAdd') : selectedAuthorized
+        {!onTypesTab && canAdd && <ActionButton variant="primary" className="split-add" onClick={() => setAdding(open => !open)} aria-expanded={adding}
+          label={adding ? t('assets.closeAdd') : selectedAuthorized
             ? t('assets.addUnder', { name: selectedAuthorized.name ?? t('assets.unnamed') })
-            : t('assets.add')}
-        </button>}
+            : t('assets.add')} />}
       </div>
 
       {onTypesTab ? (
@@ -275,10 +274,8 @@ export function AssetsPage({
                 {views.map(view => <option key={view.id} value={view.id}>{view.name} · {owners.find(owner => owner.connectionId === view.connectionId)?.name ?? view.connectionId}</option>)}
               </select>
             </label>
-            {permissions.includes('asset-views.create') && <button type="button" className="secondary-button" onClick={() => { setInitialViewConnection(null); setEditingView('new'); }}>
-              {t('assetViews.create')}</button>}
-            {activeView && (activeView.canEdit || activeView.canDelete) && <button type="button" className="secondary-button" onClick={() => setEditingView(activeView)}>
-              {t('assetViews.edit')}</button>}
+            {permissions.includes('asset-views.create') && <ActionButton label={t('assetViews.create')} onClick={() => { setInitialViewConnection(null); setEditingView('new'); }} />}
+            {activeView && (activeView.canEdit || activeView.canDelete) && <ActionButton label={t('assetViews.edit')} onClick={() => setEditingView(activeView)} />}
             {activeView?.hasUnavailableMembers && <span role="note" className="connection-help">{t('assetViews.unavailableMembers')}</span>}
           </div>}
           <div className="split-panes">
@@ -294,13 +291,12 @@ export function AssetsPage({
               {activeView ? null : focus ? (
                 <p className="split-focus">
                   <span>{t('assets.focusedOn', { name: focus.name })}</span>
-                  <button type="button" className="secondary-button" onClick={() => setFocus(null)}>
-                    {t('assets.showAll')}</button>
+                  <ActionButton label={t('assets.showAll')} onClick={() => setFocus(null)} />
                 </p>
               ) : selectedAuthorized && canFocus && !criteria.search.trim() && !filtering && (
                 <p className="split-focus">
-                  <button type="button" className="secondary-button" onClick={() => setFocus({ id: selectedAuthorized.id ?? '', name: selectedAuthorized.name ?? t('assets.unnamed') })}>
-                    {t('assets.focusOn', { name: selectedAuthorized.name ?? t('assets.unnamed') })}</button>
+                  <ActionButton onClick={() => setFocus({ id: selectedAuthorized.id ?? '', name: selectedAuthorized.name ?? t('assets.unnamed') })}
+                    label={t('assets.focusOn', { name: selectedAuthorized.name ?? t('assets.unnamed') })} />
                 </p>
               )}
               {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
@@ -351,9 +347,7 @@ export function AssetsPage({
                 )}
             </section>
             <section className="split-selected" tabIndex={-1} aria-label={t('assets.selected')}>
-              <button type="button" className="secondary-button split-back" onClick={() => select(null)}>
-                {t('assets.browse')}
-              </button>
+              <ActionButton label={t('assets.browse')} className="split-back" onClick={() => select(null)} />
               {selectedAuthorized ? <AssetDetail
                 key={selectedAuthorized.id}
                 asset={selectedAuthorized}
