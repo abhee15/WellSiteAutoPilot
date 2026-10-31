@@ -828,7 +828,10 @@ button:disabled {
 @media (width >= 48em) {
   .app-shell { height: 100vh; height: 100dvh; overflow: hidden; }
   .content { display: flex; flex-direction: column; min-height: 0; padding-bottom: 0; overflow: hidden; }
-  .page-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
+  /* position: relative makes this the containing block of the absolutely positioned helpers inside it (.visually-hidden
+     labels in long lists). Without it they are placed against the window, escape this clipping, and give the whole
+     document a scrollbar as tall as the longest list. */
+  .page-body { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
     margin-inline: calc(-1 * var(--space-28)); padding: 0 var(--space-28) var(--space-28); }
 }
 

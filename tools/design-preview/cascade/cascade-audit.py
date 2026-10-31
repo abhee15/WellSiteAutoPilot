@@ -67,11 +67,17 @@ SCEN=[('#overview',[]),('#operations',[]),('#assets',[]),('#assets',[('tab','Ass
  ('#logic',[]),('#logic',[('btn','Filters')]),('#logic',[('tab','Modules')]),('#logic',[('btn','Configure Logic')]),('#logic',[('btn','Inspect revisions')]),
  ('#connections',[]),('#connections',[('btn','ForeSite')]),('#recommendations',[]),('#status',[]),('#access',[]),('#access',[('tab','Roles and permissions')]),('#access',[('tab','Activity')]),('#operations',[('btn','Inspect execution')]),('#assets',[('btn','Open Well 7-12H')])]
 agg={}
+DOC_SCROLL={}
+LAZY=[{'id':'00000000-0000-0000-0000-%012d'%i,'assetTypeId':'00000000-0000-0000-0000-0000000000aa','name':'Asset %d'%i,'parentAssetId':None,'attributeValuesJson':'{}','isActive':True,'createdAtUtc':'2026-01-01T00:00:00Z'} for i in range(1,101)]
 with sync_playwright() as p:
     b=p.chromium.launch(**({'executable_path':CHROMIUM} if CHROMIUM else {}))
     for vw in (1440,420):
         ctx=b.new_context(viewport={'width':vw,'height':900}); ctx.add_cookies([{'name':'persona','value':'Admin','url':BASE}])
         pg=ctx.new_page()
+        # 100 assets is the snapshot limit, which switches Assets to the lazy tree with long scrolling lists.
+        pg.route('**/api/v1/assets?*',lambda r:r.fulfill(json=LAZY))
+        pg.route('**/api/v1/assets',lambda r:r.fulfill(json=LAZY) if r.request.url.endswith('/assets') else r.continue_())
+        pg.route('**/api/v1/assets/children*',lambda r:r.fulfill(json=[dict(a,ownerConnectionId=None,childCount=1) for a in LAZY]))
         for hsh,acts in SCEN:
             pg.goto(BASE+'/'); pg.goto(BASE+'/'+hsh); pg.wait_for_timeout(700)
             pg.evaluate("""(segs)=>{document.querySelectorAll('link[rel=stylesheet]').forEach(l=>l.remove());
@@ -81,9 +87,12 @@ with sync_playwright() as p:
                     pg.get_by_role('tab' if kind=='tab' else 'button',name=re.compile(name)).first.click(timeout=1200); pg.wait_for_timeout(400)
                 except Exception: pass
             r=pg.evaluate(JS,SEG)
+            if vw>=1000 and pg.evaluate("document.documentElement.scrollHeight > innerHeight + 1"):
+                DOC_SCROLL[f'{hsh}@{vw}']=pg.evaluate("document.documentElement.scrollHeight")
             for k,v in r.items(): agg.setdefault(k,set()).add(f'{hsh}@{vw}')
         ctx.close()
 bad={k:v for k,v in agg.items() if not any(a in k for a in ALLOW)}
 for k in sorted(bad): print(k,'\n    seen in:',', '.join(sorted(bad[k])))
 print(len(bad),'unreviewed order-dependent conflicts')
-sys.exit(1 if bad else 0)
+for k,v in DOC_SCROLL.items(): print('WINDOW SCROLLS (should be fixed-height shell):',k,'document height',v)
+sys.exit(1 if bad or DOC_SCROLL else 0)
