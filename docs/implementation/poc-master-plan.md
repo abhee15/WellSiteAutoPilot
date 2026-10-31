@@ -114,3 +114,17 @@ Safety rule for all probes: no writes to real providers; read-only against CYG_D
 2. Next wave: E1, E6, F2/F4 (needs F1 probe), G2, G3 designs, D2/D3/D4.
 3. Then: A4/A5, B1/B2, C3/C4, E7 outcomes, F5 outcomes.
 4. Hardening: H2, H4, H5, H6, H8, C5/C6.
+
+### I. Event-driven, real-time behaviour (`probe/poc-realtime-events`)
+Owner direction: the system should behave like one that listens for actions and shows updates and notifications as things happen. Today SignalR only sends area names; every signal makes the client refetch the whole workspace snapshot.
+| # | Pri | Item | Status |
+|---|---|---|---|
+| I1 | P1 | Event model: typed events (entity, id, kind, version/sequence, actor, correlation id) instead of area-only signals; keep area signals as fallback | Probe |
+| I2 | P1 | Delivery: targeted refetch or patch from event payload; per-entity/group subscriptions (asset, configuration, execution) with authorization | Probe |
+| I3 | P1 | Reliability: sequence numbers, missed-event detection and resync after reconnect, heartbeat, connection state indicator | Probe |
+| I4 | P1 | Notification centre and toasts: run failed, recommendation awaiting decision, gate blocked, kill switch, provider unhealthy, schedule lag; per-user preferences, severity, ack/dismiss, deep links | Design/probe |
+| I5 | P1 | Run progress streaming from the Worker (queued, reading, calculating, gate, done) and live status on runs and detail | Probe |
+| I6 | P2 | Producer coverage matrix: every state change in server, scheduler, worker, gateway and authoring raises an event; tests enforce it | Probe |
+| I7 | P2 | Multi-instance: SignalR backplane or NATS fan-out so events reach clients on any server instance | Design |
+| I8 | P2 | Provider health push (connection monitor) and data freshness changes | Not started |
+| I9 | P3 | External notification channels (email, webhook, chat) fed from the same events | Later |
