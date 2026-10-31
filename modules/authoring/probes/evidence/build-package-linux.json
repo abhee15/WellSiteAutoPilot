@@ -1,0 +1,106 @@
+{
+  "probe": "trusted-dotnet-starter-build-package",
+  "checks": [
+    {
+      "name": "SDK available",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 0.13
+    },
+    {
+      "name": "Repository baseline",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 0.0
+    },
+    {
+      "name": "Build existing CLI",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 1.99
+    },
+    {
+      "name": "Compile copied trusted starter",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 3.72
+    },
+    {
+      "name": "Validate manifest",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 0.13
+    },
+    {
+      "name": "Package compiled payload",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 0.16
+    },
+    {
+      "name": "Repeat identical package",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 0.17
+    },
+    {
+      "name": "Verify compiled archive",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 0.16
+    },
+    {
+      "name": "Preflight current host contract",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 0.16
+    },
+    {
+      "name": "Reject mismatched artifact hash",
+      "passed": true,
+      "exitCode": 2,
+      "seconds": 0.17
+    },
+    {
+      "name": "Rebuild with warmed restore cache",
+      "passed": true,
+      "exitCode": 0,
+      "seconds": 0.85
+    },
+    {
+      "name": "Surface deliberate compiler failure",
+      "passed": true,
+      "exitCode": 1,
+      "seconds": 1.3
+    },
+    {
+      "name": "Archive byte round trip and deterministic packing",
+      "passed": true
+    }
+  ],
+  "notEstablished": [
+    "Windows restricted-account/process/network/resource isolation",
+    "Offline restore on a clean customer installation",
+    "Authenticated web download or catalog submission",
+    "Live ForeSite acquisition or provider writes",
+    "Execution of newly built binaries or reviewed entry-point identity"
+  ],
+  "dotnetSdk": "10.0.100",
+  "baseline": "630f1ad4f137488d4f1260781abaf663936e2dd8",
+  "artifact": {
+    "sha256": "94fb0311ee1febf8a71c8bfdea9a39673c35fb919ad84e256d808ab55e2f7a5c",
+    "bytes": 35996,
+    "files": [
+      "manifest.json",
+      "payload/WellInputCheck.deps.json",
+      "payload/WellInputCheck.dll",
+      "payload/WellInputCheck.pdb",
+      "payload/WellSiteAutoPilot.ModuleSdk.dll",
+      "payload/WellSiteAutoPilot.ModuleSdk.pdb"
+    ],
+    "moduleId": "weatherford.foresite-well-input-check.dotnet",
+    "version": "1.0.2"
+  },
+  "temporaryWorkspaceCleaned": true,
+  "status": "passed"
+}

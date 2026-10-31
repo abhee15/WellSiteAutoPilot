@@ -1,0 +1,151 @@
+{
+  "probe": "complex-sample-and-composition",
+  "status": "passed",
+  "checks": [
+    {
+      "name": "Real sample: dependent calibration produces peak 490",
+      "passed": true
+    },
+    {
+      "name": "Real sample: ragged collections and typed scalar survive JSON",
+      "passed": true
+    },
+    {
+      "name": "Real sample: source capture metadata remains attached",
+      "passed": true
+    },
+    {
+      "name": "Upstream parameter edit changes actual sample output",
+      "passed": true
+    },
+    {
+      "name": "Context export/import retains semantic inputs",
+      "passed": true
+    },
+    {
+      "name": "Paired-array mismatch rejects the real sample",
+      "passed": true
+    },
+    {
+      "name": "Named dependency round trip preserves distinct sources with identical external IDs",
+      "passed": true
+    },
+    {
+      "name": "Proposed envelope pins individual connection/model versions",
+      "passed": true
+    },
+    {
+      "name": "Bound coordinator invokes a separately configured stub using pinned model bytes",
+      "passed": true
+    },
+    {
+      "name": "Probe coordinator rejects changed connection revision",
+      "passed": true
+    },
+    {
+      "name": "Probe coordinator rejects changed connection identity",
+      "passed": true
+    },
+    {
+      "name": "Probe coordinator rejects changed logical asset",
+      "passed": true
+    },
+    {
+      "name": "Probe coordinator rejects changed schema",
+      "passed": true
+    },
+    {
+      "name": "Probe coordinator rejects changed model version",
+      "passed": true
+    },
+    {
+      "name": "Denying one data dependency prevents stub dispatch (synthetic policy)",
+      "passed": true
+    },
+    {
+      "name": "Changed model bytes prevent dispatch",
+      "passed": true
+    },
+    {
+      "name": "In-flight stub cancellation",
+      "passed": true
+    },
+    {
+      "name": "Sample emitted no production intents or state changes",
+      "passed": true
+    },
+    {
+      "name": "Proposed actions and state round trip as test-report records",
+      "passed": true
+    },
+    {
+      "name": "Decimal literal text survives authoring transport exactly",
+      "passed": true
+    },
+    {
+      "name": "Authoritative decimal division differs from binary-double preview",
+      "passed": true
+    },
+    {
+      "name": "Decimal division by zero rejects",
+      "passed": true
+    },
+    {
+      "name": "Decimal overflow rejects",
+      "passed": true
+    }
+  ],
+  "observations": {
+    "peak": 490,
+    "predicted": 392.0,
+    "margin": 92.0,
+    "bindings": [
+      {
+        "role": "cards",
+        "adapter": "foresite",
+        "connection": "source-A",
+        "revision": 3,
+        "logicalAsset": "00000000-0000-4000-8000-000000000001",
+        "externalId": "597",
+        "schema": "sample.cards/v1",
+        "modelVersion": "fixture"
+      },
+      {
+        "role": "calibration",
+        "adapter": "foresite",
+        "connection": "source-B",
+        "revision": 8,
+        "logicalAsset": "00000000-0000-4000-8000-000000000001",
+        "externalId": "597",
+        "schema": "sample.calibration/v1",
+        "modelVersion": "fixture"
+      },
+      {
+        "role": "analysis",
+        "adapter": "wami-stub",
+        "connection": "calculation-C",
+        "revision": 2,
+        "logicalAsset": "00000000-0000-4000-8000-000000000001",
+        "externalId": null,
+        "schema": "probe.predicted-load/v1",
+        "modelVersion": "synthetic-model-v1"
+      }
+    ],
+    "modelHash": "6289fe2f085b24fa0c3c1f6e3061c4962d72b8979a13f3696b4ff99b25d7e7ac",
+    "trace": [
+      "cards \u002B calibration -\u003E calibrated curves",
+      "curves -\u003E peak 490",
+      "peak -\u003E WAMI-shaped stub 392",
+      "predicted - threshold 300 -\u003E margin 92"
+    ]
+  },
+  "notEstablished": [
+    "Live ForeSite or WAMI access; all provider labels are synthetic fixtures",
+    "The binding coordinator and policy above are disposable references, not product routing or authority",
+    "Production command denial, external side-effect detection and ambiguous calculation recovery",
+    "Current runtime multi-provider orchestration or per-dependency authorization",
+    "Graph-to-code compilation or lossless arbitrary source-code import into a visual editor",
+    "SDK intermediate-variable instrumentation; trace above is explicitly authored by this probe",
+    "Build/test isolation, hosted preview, authenticated artifact handoff or physical control"
+  ]
+}

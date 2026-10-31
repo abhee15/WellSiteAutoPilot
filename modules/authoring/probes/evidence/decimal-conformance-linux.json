@@ -1,0 +1,26 @@
+{
+  "probe": "authoritative-decimal-document-conformance",
+  "status": "passed",
+  "checks": [
+    "Authoritative decimal ratio is exactly 3",
+    "Authoritative decimal difference is exactly 0.2",
+    "28-digit decimal literal evaluates without browser Number conversion",
+    "Reject zero denominator",
+    "Reject overflow",
+    "Reject numeric JSON instead of decimal text",
+    "Reject unit mismatch",
+    "Reject cycle",
+    "Browser text edit/download preserves all decimal digits",
+    "Browser-exported document evaluated by .NET exactly",
+    "Console export preserves the entire browser document",
+    "Browser renders exact authoritative result as text",
+    "Browser and console share the authoritative rejection code"
+  ],
+  "browserExecuted": true,
+  "notEstablished": [
+    "Existing product CLI or React editor integration",
+    "General graph compilation and SDK-code import",
+    "Hosted isolation or authenticated preview/delivery",
+    "Arbitrary numeric profiles and unit conversion"
+  ]
+}
