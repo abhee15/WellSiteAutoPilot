@@ -35,3 +35,12 @@ python3 ../../tools/design-preview/role-audit.py http://127.0.0.1:5199 /tmp/role
 
 The automated checks live in `src/web/tests/interaction/role-matrix.test.tsx` (every role against every section and the
 main controls) and `src/web/tests/permission-catalog.test.mjs` (every permission the web app checks exists on the server).
+
+## Cascade audit (priority conflicts)
+
+jsdom ignores CSS, so unit tests cannot see a rule that loses to another at equal specificity. This audit runs in a real browser.
+From `src/web`: `npx vite build -c ../../tools/design-preview/cascade/vite.unminified.mjs --outDir /tmp/wsa-cascade`,
+then `node ../../tools/design-preview/cascade/split.mjs "$PWD/src/" /tmp/wsa-cascade/assets/index-*.css /tmp/segments.json`,
+start the mock server, and `python3 ../../tools/design-preview/cascade/cascade-audit.py /tmp/segments.json`.
+It reinstalls each source file as its own stylesheet in bundle order, walks every page, tab and the Filters panel at 1440 and 420 px,
+and lists each element/property where two files tie on specificity and differ in value. Fix by raising the intended rule's specificity (e.g. `.a.b`), not by reordering imports.

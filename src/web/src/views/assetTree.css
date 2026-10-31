@@ -17,9 +17,9 @@ span.asset-tree-toggle { inline-size: var(--space-20); flex: none; }
 /* Names read as text first; the link look appears on hover and for the selected row. */
 /* The name takes what is left and wraps inside itself; the count and actions keep their size and stay on the row's
    right edge instead of dropping to a new line when the name is long or the pane is narrow. */
-.asset-tree-name { flex: 1 1 0; min-width: 0; color: var(--color-text-primary); text-decoration: none; overflow-wrap: anywhere; }
-.asset-tree-name:hover { color: var(--color-text-link); text-decoration: underline; }
-.asset-tree-name[data-selected='true'] { font-weight: var(--font-weight-medium); color: var(--color-text-selected); }
+.asset-select.asset-tree-name { flex: 1 1 0; min-width: 0; color: var(--color-text-primary); text-decoration: none; overflow-wrap: anywhere; }
+.asset-select.asset-tree-name:hover { color: var(--color-text-link); text-decoration: underline; }
+.asset-select.asset-tree-name[data-selected='true'] { font-weight: var(--font-weight-medium); color: var(--color-text-selected); }
 .asset-tree-status { padding: var(--space-4) 0 var(--space-4) var(--space-24); color: var(--color-text-subtle); }
 .asset-owner-row { flex-wrap: wrap; font-weight: var(--font-weight-medium); }
 /* Count and link sit on their own line under the name, aligned with it, so a long Connection name never squeezes them. */

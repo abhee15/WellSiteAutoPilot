@@ -7,7 +7,7 @@
 .split-add { margin-left: auto; }
 .split-intro, .split-note { margin: 0; padding: var(--space-12) var(--space-18); color: var(--color-text-subtle); }
 .split-panes { display: grid; grid-template-columns: minmax(var(--layout-panel-min), 1fr) minmax(0, 3fr); gap: var(--space-12); align-items: start; }
-.split-back { display: none; margin: var(--space-12) var(--space-18) 0; }
+.split-back.ui-action-button { display: none; margin: var(--space-12) var(--space-18) 0; }
 .split-results { list-style: none; margin: 0; padding: var(--space-6) 0; display: grid; }
 .split-results li { display: grid; padding: var(--space-6) var(--space-18); }
 .split-results li[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
@@ -18,7 +18,7 @@
 @media (width <= 56.25em) {
   .split-panes { grid-template-columns: minmax(0, 1fr); }
   .split-layout[data-has-selection='true'] .split-browse { display: none; }
-  .split-layout[data-has-selection='true'] .split-back { display: inline-flex; }
+  .split-layout[data-has-selection='true'] .split-back.ui-action-button { display: inline-flex; }
   .split-layout[data-has-selection='false'] .split-selected { display: none; }
 }
 
@@ -57,7 +57,7 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 .runs-layout .split-selected .execution-detail { border: 0; border-radius: 0; }
 /* Logic details already sit in the bordered card of .split-selected, so the summary inside has no second frame. */
 .logic-layout .split-selected .execution-detail { border: 0; border-radius: 0; padding: 0; }
-@media (width > 56.25em) { .runs-layout .split-back { display: none; } }
+@media (width > 56.25em) { .runs-layout .split-back.ui-action-button { display: none; } }
 
 /* Space is shared by ratio, not capped: beside an open item the list gets two parts and the details three,
    so a wide window fills up instead of leaving the right-hand side empty. */

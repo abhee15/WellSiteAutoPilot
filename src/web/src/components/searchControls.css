@@ -1,5 +1,7 @@
 .ui-action-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-8); min-height: var(--size-control); font: inherit; font-size: var(--font-size-control); font-weight: var(--font-weight-medium); white-space: nowrap; }
 .ui-action-button.primary-button, .ui-action-button.secondary-button { padding: var(--space-6) var(--space-14); }
+/* Legacy .primary-button/.secondary-button in styles.css loads later at equal specificity; the component owns its size. */
+.ui-action-button.primary-button, .ui-action-button.secondary-button, .ui-action-button.quiet-button { font-size: var(--font-size-control); }
 .ui-action-button > svg, .ui-action-button > .loading-spinner { flex: none; width: var(--size-icon); height: var(--size-icon); }
 .ui-action-button[data-icon-only] { width: var(--size-control); min-width: var(--size-control); padding-inline: var(--space-8); }
 .ui-action-button[data-size='large'] { min-height: var(--size-touch-target); }
