@@ -163,3 +163,14 @@ Finding from ForeSite source (`Server/Support/CygNetWrapper/CygNetRelativeFacili
 | J3 | P1 | Import: asset tree from relations, with related device facilities as child assets or as data sources of the well | Design |
 | J4 | P1 | Mapping UI: per well type quantity/UDC to relation, reusing ForeSite mapping definitions where available | Design (see UX doc connections-point-map.md) |
 | J5 | P2 | Commands: relation-aware command targets for future control sink | After J1 |
+
+### K. Adapter experience: connect, understand, author (`probe/poc-adapter-experience`)
+Owner direction: make it easy to connect a software system through an adapter, understand what the adapter exposes, and author logic modules against it. Proposal: an Adapters tab that shows each adapter's interface.
+| # | Pri | Item | Status |
+|---|---|---|---|
+| K1 | P1 | Adapter self-description schema (capabilities, quantities with units/types, discovery, read/write, limits, minimum cadence, auth, health, examples) | Research + design (advanced model) |
+| K2 | P1 | Adapters tab: catalog, interface per adapter, health, connections using it, example modules | Probe prototype |
+| K3 | P1 | Guided connect flow: settings form from schema, test connection, browse and preview data | Design |
+| K4 | P1 | Authoring uses the schema: typed input picker, autocomplete, validation against capabilities, live preview (D3) | Design |
+| K5 | P2 | Adapter authoring SDK for new adapters: contract, scaffold, conformance tests (recommendation 12) | Design |
+| K6 | P2 | Versioning and compatibility between adapters and modules | Design |
