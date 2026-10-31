@@ -2,14 +2,14 @@ import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { SearchInput } from '../components/SearchInput';
 import './activity.css';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
 import { AuditActivityError, appendAuditEvents, loadAuditPage } from './auditActivity';
 import type { AuditErrorKind, AuditEvent, AuditFilters } from './auditActivity';
 import { LoadingIndicator } from '../components/LoadingIndicator';
-import { describeActor, describeAuditEvent, relativeTime } from './auditPresentation';
+import { describeActor, describeAuditEvent, relativeTime, dayKey, dayLabel } from './auditPresentation';
 import { AuditEventPanel } from './AuditEventPanel';
 import { AuditSentence } from './AuditSentence';
 import { Status } from '../components/Status';
@@ -138,12 +138,15 @@ export function ActivityPage() {
                     <th scope="col">{t('activity.event')}</th>
                   </tr></thead>
                   <tbody>
-                    {events.map(event => {
+                    {events.map((event, index) => {
                       const summary = describeAuditEvent(event);
+                      const newDay = index === 0 || dayKey(event.occurredAtUtc) !== dayKey(events[index - 1].occurredAtUtc);
                       const actor = describeActor(event);
                       const isSelected = selected?.id === event.id;
                       return (
-                        <tr key={event.id} data-selected={isSelected}
+                        <Fragment key={event.id}>
+                        {newDay && <tr className="activity-day"><th scope="colgroup" colSpan={3}>{dayLabel(event.occurredAtUtc, now)}</th></tr>}
+                        <tr data-selected={isSelected}
                           onClick={click => {
                             if ((click.target as HTMLElement).closest('button, a')) return;
                             setSelectedId(event.id);
@@ -174,6 +177,7 @@ export function ActivityPage() {
                             )}
                           </td>
                         </tr>
+                        </Fragment>
                       );
                     })}
                   </tbody>

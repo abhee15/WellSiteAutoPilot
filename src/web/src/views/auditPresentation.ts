@@ -176,6 +176,22 @@ export function relativeTime(occurredAtUtc: string, now: number): string {
   return new Date(then).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+/** The local calendar day an event happened on, as a stable key (events are grouped by it). */
+export function dayKey(occurredAtUtc: string): string {
+  const date = new Date(occurredAtUtc);
+  return Number.isNaN(date.getTime()) ? occurredAtUtc : `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+/** "Today", "Yesterday", or the weekday and date, for the heading above a day's events. */
+export function dayLabel(occurredAtUtc: string, now: number): string {
+  const date = new Date(occurredAtUtc);
+  if (Number.isNaN(date.getTime())) return occurredAtUtc;
+  const key = dayKey(occurredAtUtc);
+  if (key === dayKey(new Date(now).toISOString())) return t('activity.today');
+  if (key === dayKey(new Date(now - 86400000).toISOString())) return t('activity.yesterday');
+  return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: date.getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric' });
+}
+
 /** The recorded details as readable label/value pairs ("Adapter key", "foresite"). */
 export function readableDetails(detailsJson: string): { label: string; value: string }[] {
   return auditDetails(detailsJson).map(item => ({ label: humanize(item.name), value: item.value }));

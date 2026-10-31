@@ -61,3 +61,10 @@
   .activity-table.activity-feed td.activity-time small { display: inline; margin-inline-start: var(--space-6); }
   .activity-table.activity-feed td.run-col-secondary small { display: inline; margin-inline-start: var(--space-6); }
 }
+
+/* A heading row above each day's events. */
+.activity-table .activity-day th { padding: var(--space-8) var(--space-18); background: var(--color-surface-table-head); color: var(--color-text-subtle); font-size: var(--font-size-tag); font-weight: var(--font-weight-medium); text-align: left; text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); }
+@media (width <= 40em) {
+  .activity-table.activity-feed tr.activity-day { padding: 0; }
+  .activity-table.activity-feed .activity-day th { display: block; width: 100%; }
+}
