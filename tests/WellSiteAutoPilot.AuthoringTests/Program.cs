@@ -49,6 +49,21 @@ var cyclic = threshold with
 };
 Check(HasCode(AuthoringDraftValidator.Validate(cyclic), "AUTHORING_CYCLE"), "cycles are rejected");
 
+var cardGraph = Starter(AuthoringStarters.CardPeakGraphId);
+AuthoringDocument WithStep(AuthoringStep step) => cardGraph with { Steps = [.. cardGraph.Steps.Where(s => s.Id != step.Id), step] };
+Check(HasCode(AuthoringDraftValidator.Validate(WithStep(new("raw-peak", "x", "collection", "max", [new("input", "cards")]))),
+    "AUTHORING_FIELD_REQUIRED"), "max over a collection needs a path");
+Check(HasCode(AuthoringDraftValidator.Validate(WithStep(new("raw-peak", "x", "collection", "median", [new("input", "cards", "load")]))),
+    "AUTHORING_OPERATION_UNSUPPORTED"), "unknown collection operations are rejected");
+Check(HasCode(AuthoringDraftValidator.Validate(WithStep(new("raw-peak", "x", "collection", "max", [new("input", "cards", "load[0]")]))),
+    "AUTHORING_FIELD_INVALID"), "collection paths are dotted names only");
+Check(HasCode(AuthoringDraftValidator.Validate(WithStep(new("raw-peak", "x", "collection", "max", [new("parameter", "load-scale", "load")]))),
+    "AUTHORING_REFERENCE_MISSING"), "collection steps read inputs");
+Check(HasCode(AuthoringDraftValidator.Validate(cardGraph with
+    { Steps = [.. cardGraph.Steps, new("bad", "Bad", "calculation", "add", [new("input", "cards"), new("literal", null, null, "1")])] }),
+    "AUTHORING_OPERATION_UNSUPPORTED"), "calculations cannot read a structured input directly");
+Check(AuthoringDraftValidator.Validate(cardGraph).StepOrder.Contains("raw-peak"), "collection steps are ordered with calculations");
+
 var unitMismatch = threshold with
 {
     Steps = [new("bad", "Bad", "calculation", "add", [new("input", "pump-fillage"), new("literal", "1")])],
@@ -81,6 +96,19 @@ Check(HasCode(AuthoringDraftValidator.Validate(threshold with
 {
     Outputs = [new("o", "O", "Q", "%", new("input", "missing"))]
 }), "AUTHORING_REFERENCE_MISSING"), "unknown references are rejected");
+Check(!AuthoringDraftValidator.Validate(threshold with { Module = threshold.Module with { RequiredAdapterKey = "cygnet" } })
+    .Issues.Any(i => i.Code.StartsWith("AUTHORING_ADAPTER", StringComparison.Ordinal)), "a supported adapter with a served quantity is accepted");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with { Module = threshold.Module with { RequiredAdapterKey = "petrovisor" } }),
+    "AUTHORING_ADAPTER_UNKNOWN"), "an unknown adapter key is rejected");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with { Module = threshold.Module with { RequiredAdapterKey = "CygNet" } }),
+    "AUTHORING_ADAPTER_UNKNOWN"), "adapter keys are case-exact like the manifest");
+Check(HasCode(AuthoringDraftValidator.Validate(threshold with
+{
+    Module = threshold.Module with { RequiredAdapterKey = "foresite" },
+    Inputs = [threshold.Inputs[0] with { Quantity = "RodLoad" }]
+}), "AUTHORING_ADAPTER_QUANTITY_UNSUPPORTED"), "quantities the adapter cannot read directly are rejected");
+Check(System.Text.Json.JsonDocument.Parse(AuthoringModuleGenerator.Generate(threshold with { Module = threshold.Module with { RequiredAdapterKey = "cygnet" } }).ManifestJson)
+    .RootElement.GetProperty("requiredAdapterKey").GetString() == "cygnet", "the manifest carries the chosen adapter");
 Check(HasCode(AuthoringDraftValidator.Validate(threshold with
 {
     Inputs = [.. threshold.Inputs, .. threshold.Inputs]
@@ -140,9 +168,10 @@ try
     {
         var options = new AuthoringOptions { Enabled = enabled, StorePath = Path.Combine(root, "store"), WorkRoot = Path.Combine(root, "work") };
         var store = new FileAuthoringDraftStore(options);
-        var runner = new AuthoringBuildRunner(store, new LocalDotNetAuthoringBuilder(options), clock);
+        var runner = new AuthoringBuildRunner(store, new LocalDotNetAuthoringBuilder(options, new JobObjectProcessRunner()), clock);
         repository = new FakePackageRepository();
-        return new AuthoringService(options, store, runner, new LogicModulePackageService(repository, clock), clock);
+        return new AuthoringService(options, store, runner, new LogicModulePackageService(repository, clock),
+            new OutOfProcessAuthoringTestExecutor(options, new JobObjectProcessRunner()), clock);
     }
 
     var disabled = Create(false, out _);
@@ -207,12 +236,24 @@ try
         Check(wrong.FailureCode == "MODULE_IDENTITY_MISMATCH", "identity is checked");
     }
 
+    // Test state: fixtures run in the out-of-process host against the built package, with intermediate values.
+    var tested = await service.TestAsync(id, CancellationToken.None);
+    Check(tested.Test == AuthoringTestState.Passed && tested.EffectiveTest!.Cases.Count == 2,
+        "threshold fixtures pass: " + string.Join("; ", tested.EffectiveTest!.Cases.SelectMany(c => c.Mismatches).Concat(tested.EffectiveTest.Diagnostics.Select(d => d.Message))));
+    var lowCase = tested.EffectiveTest!.Cases.Single(c => c.FixtureId == "low-fillage");
+    Check(lowCase.Intermediates.Any(i => i.Id == "shortfall" && i.Value.GetString() == "10") &&
+        lowCase.Intermediates.Any(i => i.Id == "is-low" && i.Value.GetString() == "true"),
+        "instrumentation reports intermediate step and condition values");
+    Check(lowCase.Actions.SequenceEqual(["REVIEW_LOW_FILLAGE"]), "fired actions are reported");
+    Check(tested.EffectiveTest.BuildId == built.EffectiveBuild.BuildId && tested.EffectiveTest.Revision == 1, "the test is pinned to the build and revision");
+
     // Optimistic concurrency and invalidation.
     await Throws<WellSiteAutoPilotException>(() => service.UpdateAsync(id, 99, AuthoringJson.ToElement(threshold), CancellationToken.None), "stale revision rejected");
     var edited = threshold with { Parameters = [new("low-threshold", "Low fillage threshold", "45", "%")] };
     var updated = await service.UpdateAsync(id, 1, AuthoringJson.ToElement(edited), CancellationToken.None);
     Check(updated.Draft.Revision == 2 && updated.Build == AuthoringBuildState.Stale && updated.Validation == AuthoringValidationState.Stale,
         "an edit stales validation and the build");
+    Check(updated.Test == AuthoringTestState.Stale, "an edit stales the test result");
     var conflict = await Throws<WellSiteAutoPilotException>(() => service.DownloadAsync(id, CancellationToken.None), "stale build download");
     Check(conflict.Code == "AUTHORING_BUILD_NOT_CURRENT", "stale builds cannot be downloaded");
     await Throws<WellSiteAutoPilotException>(() => service.AddToCatalogAsync(id, new AccessSubject(Guid.NewGuid()),
@@ -229,6 +270,10 @@ try
     await service.BuildAsync(id, CancellationToken.None);
     var rebuilt = await WaitForBuild(id);
     Check(rebuilt.Build == AuthoringBuildState.Succeeded && rebuilt.Draft.Revision == 4, "rebuild succeeds for the new revision");
+    var regressed = await service.TestAsync(id, CancellationToken.None);
+    Check(regressed.Test == AuthoringTestState.Failed &&
+        regressed.EffectiveTest!.Cases.Any(c => c.Mismatches.Any(m => m.Contains("fillage-shortfall", StringComparison.Ordinal))),
+        "a changed parameter fails the fixture expectations");
 
     var installed = await service.AddToCatalogAsync(id, new AccessSubject(Guid.NewGuid()), new SecurityActorContext(null, "tester", null),
         CancellationToken.None);
@@ -245,6 +290,28 @@ try
     var cardPackage = await service.DownloadAsync(card.Draft.Id, CancellationToken.None);
     var cardInspected = await LogicModulePackageReader.ReadAsync(new MemoryStream(cardPackage.Package));
     Check(cardInspected.Manifest.ModuleId == "authored.card-calibration", "card package carries its identity");
+    var cardTested = await service.TestAsync(card.Draft.Id, CancellationToken.None);
+    Check(cardTested.Test == AuthoringTestState.Passed,
+        "card calibration runs through the V2 host: " + string.Join("; ", cardTested.EffectiveTest!.Cases.SelectMany(c => c.Mismatches)
+            .Concat(cardTested.EffectiveTest.Diagnostics.Select(d => d.Message)).Concat(cardTested.EffectiveTest.Cases.Select(c => c.Message ?? ""))));
+
+    var graph = await service.CreateAsync(AuthoringStarters.CardPeakGraphId, null, "tester", CancellationToken.None);
+    await service.BuildAsync(graph.Draft.Id, CancellationToken.None);
+    var graphBuilt = await WaitForBuild(graph.Draft.Id);
+    Check(graphBuilt.Build == AuthoringBuildState.Succeeded,
+        "graph card build must succeed: " + string.Join("; ", graphBuilt.EffectiveBuild?.Diagnostics.Select(d => d.Message) ?? []));
+    var graphPackage = await service.DownloadAsync(graph.Draft.Id, CancellationToken.None);
+    var graphInspected = await LogicModulePackageReader.ReadAsync(new MemoryStream(graphPackage.Package));
+    Check(graphInspected.Manifest.ManifestVersion == 2, "a graph over structured inputs packages as a V2 module");
+    var graphTested = await service.TestAsync(graph.Draft.Id, CancellationToken.None);
+    var graphCase = graphTested.EffectiveTest!.Cases.SingleOrDefault();
+    Check(graphTested.Test == AuthoringTestState.Passed,
+        "collection graph runs through the V2 host: " + string.Join("; ", graphTested.EffectiveTest.Cases.SelectMany(c => c.Mismatches)
+            .Concat(graphTested.EffectiveTest.Diagnostics.Select(d => d.Message)).Concat(graphTested.EffectiveTest.Cases.Select(c => c.Message ?? ""))));
+    Check(graphCase!.Intermediates.Any(v => v.Id == "raw-peak" && v.Value.ToString().StartsWith("2000", StringComparison.Ordinal)) &&
+          graphCase.Intermediates.Any(v => v.Id == "card-count" && v.Value.ToString() == "1") &&
+          graphCase.Actions.SequenceEqual(["REVIEW_PEAK_LOAD"]),
+        "collection results are reported as intermediates and drive the condition");
 
     var broken = Starter(AuthoringStarters.CardCalibrationId);
     broken = broken with
@@ -266,7 +333,136 @@ finally
     catch (IOException) { }
 }
 
+// Process isolation: Job object cancellation, timeout, memory limit and the optional AppContainer.
+if (OperatingSystem.IsWindows())
+{
+    var isolationRoot = Path.Combine(Path.GetTempPath(), "wsa-isolation-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(isolationRoot);
+    var runner = new JobObjectProcessRunner();
+    var baseEnvironment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SystemRoot"] = Environment.GetEnvironmentVariable("SystemRoot")!, ["PATH"] = Environment.GetEnvironmentVariable("PATH")!,
+        ["TEMP"] = Path.GetTempPath(), ["TMP"] = Path.GetTempPath()
+    };
+    IsolatedProcessSpec Spec(string script, TimeSpan timeout, long memory = 2L * 1024 * 1024 * 1024, bool container = false) =>
+        new("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], isolationRoot, baseEnvironment, memory, timeout, container, [isolationRoot]);
+    static async Task<int> WaitForPidAsync(string pidFile)
+    {
+        for (var i = 0; i < 200; i++)
+        {
+            try { if (File.Exists(pidFile) && int.TryParse((await File.ReadAllTextAsync(pidFile)).Trim(), out var pid)) return pid; }
+            catch (IOException) { /* the writer still holds the file */ }
+            await Task.Delay(100);
+        }
+        throw new InvalidOperationException("Authoring check failed: the grandchild never started.");
+    }
+    static bool Alive(int pid)
+    {
+        try { return !System.Diagnostics.Process.GetProcessById(pid).HasExited; }
+        catch (ArgumentException) { return false; }
+    }
+    static async Task WaitDeadAsync(int pid, string message)
+    {
+        for (var i = 0; i < 100 && Alive(pid); i++) await Task.Delay(100);
+        Check(!Alive(pid), message);
+    }
+    string Grandchild(string pidFile) =>
+        $"$p = Start-Process ping -ArgumentList '-n','300','127.0.0.1' -PassThru -WindowStyle Hidden; $p.Id | Out-File -Encoding ascii '{pidFile}'; Start-Sleep 300";
+
+    var cancelPid = Path.Combine(isolationRoot, "cancel.pid");
+    using (var cancel = new CancellationTokenSource())
+    {
+        var running = runner.RunAsync(Spec(Grandchild(cancelPid), TimeSpan.FromMinutes(5)), cancel.Token);
+        var child = await WaitForPidAsync(cancelPid);
+        Check(Alive(child), "the grandchild is running before cancellation");
+        cancel.Cancel();
+        await Throws<OperationCanceledException>(() => running, "cancellation surfaces to the caller");
+        await WaitDeadAsync(child, "cancellation kills the whole process tree, including the grandchild");
+    }
+
+    var timeoutPid = Path.Combine(isolationRoot, "timeout.pid");
+    var timedOut = await runner.RunAsync(Spec(Grandchild(timeoutPid), TimeSpan.FromSeconds(4)), CancellationToken.None);
+    Check(timedOut.TimedOut && timedOut.Isolated && timedOut.Mode == "job", "a runaway process is reported as timed out under the job");
+    await WaitDeadAsync(await WaitForPidAsync(timeoutPid), "a timeout kills the grandchild too");
+
+    var quick = await runner.RunAsync(Spec("Write-Output 'hello'", TimeSpan.FromSeconds(60)), CancellationToken.None);
+    Check(quick.ExitCode == 0 && quick.Output.Contains("hello", StringComparison.Ordinal) && !quick.TimedOut, "a normal process returns its output");
+
+    var hungry = await runner.RunAsync(Spec("$ErrorActionPreference = 'Stop'; $a = [byte[]]::new(900MB); for ($i = 0; $i -lt $a.Length; $i += 4096) { $a[$i] = 1 }; Write-Output 'allocated'",
+        TimeSpan.FromSeconds(60), memory: 300L * 1024 * 1024), CancellationToken.None);
+    Check(hungry.ExitCode != 0 && hungry.Output.Contains("OutOfMemory", StringComparison.Ordinal) && !hungry.Output.Contains("allocated", StringComparison.Ordinal), "the job memory limit stops a process that exceeds it");
+
+    // Optional hardened mode: only meaningful where an AppContainer profile can be created for this account.
+    var secret = Path.Combine(Path.GetTempPath(), "wsa-outside-" + Guid.NewGuid().ToString("N") + ".txt");
+    await File.WriteAllTextAsync(secret, "outside");
+    try
+    {
+        var granted = Path.Combine(isolationRoot, "granted.txt");
+        await File.WriteAllTextAsync(granted, "inside");
+        try
+        {
+            var inside = await runner.RunAsync(Spec($"Get-Content '{granted}'", TimeSpan.FromSeconds(60), container: true), CancellationToken.None);
+            var outside = await runner.RunAsync(Spec($"Get-Content '{secret}'", TimeSpan.FromSeconds(60), container: true), CancellationToken.None);
+            Check(inside.Mode == "job+appcontainer" && inside.Output.Contains("inside", StringComparison.Ordinal), "an AppContainer child can read its granted folder");
+            Check(!outside.Output.Contains("outside", StringComparison.Ordinal), "an AppContainer child cannot read a file outside its grant");
+        }
+        catch (System.ComponentModel.Win32Exception error)
+        {
+            Console.WriteLine("AppContainer isolation unavailable in this environment, skipped: " + error.Message);
+        }
+    }
+    finally { File.Delete(secret); }
+    try { Directory.Delete(isolationRoot, recursive: true); }
+    catch (IOException) { }
+}
+{
+    var read = new WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead("cygnet", Guid.NewGuid(), 1, "FAC1", "PumpFillage",
+        new Dictionary<string, string?>());
+    var source = new FakePreviewSource(read);
+    var gateway = new FakeGateway();
+    var subject = new AccessSubject(Guid.NewGuid());
+    var asset = Guid.NewGuid();
+    var preview = new AuthoringPreviewService(new AuthoringOptions { Enabled = true }, source, gateway);
+    var value = await preview.PreviewAsync(subject, asset, " PumpFillage ", CancellationToken.None);
+    Check(value.Value == 42.5m && value.Unit == "%" && value.AdapterKey == "cygnet", "preview returns the gateway value with its adapter");
+    Check(source.LastQuantity == "PumpFillage" && source.LastSubject == subject && gateway.Reads == 1, "preview resolves with the caller's subject and trimmed quantity");
+    await Throws<WellSiteAutoPilotException>(() => new AuthoringPreviewService(new AuthoringOptions { Enabled = false }, source, gateway)
+        .PreviewAsync(subject, asset, "PumpFillage", CancellationToken.None), "preview honours the local gate");
+    await Throws<WellSiteAutoPilotException>(() => preview.PreviewAsync(subject, Guid.Empty, "PumpFillage", CancellationToken.None), "preview needs an asset");
+    await Throws<WellSiteAutoPilotException>(() => preview.PreviewAsync(subject, asset, " ", CancellationToken.None), "preview needs a quantity");
+    source.Deny = true;
+    var reads = gateway.Reads;
+    await Throws<WellSiteAutoPilotException>(() => preview.PreviewAsync(subject, asset, "PumpFillage", CancellationToken.None), "denied source blocks the read");
+    Check(gateway.Reads == reads, "a denied preview never reaches the provider gateway");
+}
 Console.WriteLine("Authoring checks passed.");
+
+internal sealed class FakePreviewSource(WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead read) : IAuthoringPreviewSource
+{
+    public bool Deny { get; set; }
+    public string? LastQuantity { get; private set; }
+    public AccessSubject? LastSubject { get; private set; }
+
+    public Task<WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead> ResolveAsync(AccessSubject subject, Guid assetId,
+        string quantity, CancellationToken cancellationToken = default)
+    {
+        LastSubject = subject; LastQuantity = quantity;
+        return Deny ? throw new WellSiteAutoPilotException("DENIED", FailureKind.Authorization, "denied") : Task.FromResult(read);
+    }
+}
+
+internal sealed class FakeGateway : WellSiteAutoPilot.Application.Executions.IExecutionMeasurementGateway
+{
+    public int Reads { get; private set; }
+
+    public Task<WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue> GetCurrentAsync(
+        WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead read, CancellationToken cancellationToken = default)
+    {
+        Reads++;
+        return Task.FromResult(new WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue(read.Quantity, 42.5m, "%",
+            DateTimeOffset.UnixEpoch, "Good", "fake"));
+    }
+}
 
 internal sealed class FakePackageRepository : ILogicModulePackageRepository
 {

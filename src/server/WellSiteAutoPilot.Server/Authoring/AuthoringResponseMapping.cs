@@ -24,8 +24,18 @@ internal static class AuthoringResponseMapping
             draft.CreatedAt, draft.UpdatedAt, draft.CreatedBy, view.Validation.ToContract(),
             draft.Validation?.Revision, [.. (draft.Validation?.Issues ?? []).Select(ToIssue)],
             view.Test.ToContract(), view.Build.ToContract(),
-            view.EffectiveBuild is null ? null : ToBuild(view.EffectiveBuild));
+            view.EffectiveBuild is null ? null : ToBuild(view.EffectiveBuild),
+            view.EffectiveTest is null ? null : ToTest(view.EffectiveTest));
     }
+
+    private static AuthoringTestResponse ToTest(AuthoringTestRecord test) => new(
+        test.TestId, test.Revision, test.BuildId, test.PackageSha256, test.State.ToContract(),
+        [.. test.Cases.Select(c => new AuthoringTestCaseResponse(c.FixtureId, c.Label, c.Passed, c.Outcome,
+            c.FailureCode, c.Message, [.. c.Outputs.Select(ToValue)], [.. c.Intermediates.Select(ToValue)],
+            c.Actions, c.Mismatches))],
+        [.. test.Diagnostics.Select(ToIssue)], test.StartedAt, test.CompletedAt);
+
+    private static AuthoringTestValueResponse ToValue(AuthoringTestValue value) => new(value.Id, value.Value, value.Unit);
 
     private static AuthoringIssueResponse ToIssue(AuthoringIssue issue) =>
         new(issue.Severity.ToContract(), issue.Code, issue.Path, issue.Message);

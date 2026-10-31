@@ -10,7 +10,7 @@ namespace WellSiteAutoPilot.Application.Authoring;
 
 public sealed class AuthoringService(
     AuthoringOptions options, IAuthoringDraftStore store, AuthoringBuildRunner runner,
-    LogicModulePackageService packages, TimeProvider clock)
+    LogicModulePackageService packages, IAuthoringTestExecutor executor, TimeProvider clock)
 {
     public bool Enabled => options.Enabled;
 
@@ -179,6 +179,46 @@ public sealed class AuthoringService(
         return installed;
     }
 
+    /// <summary>Runs the draft's fixtures against the built package in the out-of-process test host.</summary>
+    public async Task<AuthoringDraftView> TestAsync(Guid id, CancellationToken cancellationToken)
+    {
+        RequireEnabled();
+        if (!executor.Available)
+            throw new WellSiteAutoPilotException("AUTHORING_TEST_HOST_UNAVAILABLE", FailureKind.DependencyUnavailable,
+                "The authoring test host was not found. Build the solution or set Authoring:LocalBuild:TestHostPath.");
+        var (draft, build, package) = await LoadCurrentPackageAsync(id, cancellationToken);
+        var fixtures = draft.Document.Fixtures ?? [];
+        if (fixtures.Count == 0)
+            throw new WellSiteAutoPilotException("AUTHORING_FIXTURE_REQUIRED", FailureKind.Validation,
+                "Add at least one sample fixture to the draft before running tests.");
+        var started = clock.GetUtcNow();
+        var request = new AuthoringTestHostRequest(draft.Document.Module.ModuleId, draft.Document.Module.Version,
+            build.PackageSha256!, Guid.Parse("00000000-0000-0000-0000-0000000000a1"),
+            [.. fixtures.Select(f => AuthoringTestPlanner.BuildCase(draft.Document, f))]);
+        var diagnostics = new List<AuthoringIssue>();
+        var cases = new List<AuthoringTestCaseResult>();
+        var state = AuthoringTestState.Passed;
+        var result = await executor.RunAsync(package, request, cancellationToken);
+        if (result.Error is { } error)
+        {
+            state = AuthoringTestState.Failed;
+            diagnostics.Add(new(AuthoringIssueSeverity.Error, "AUTHORING_TEST_HOST_FAILED", "test", error));
+        }
+        foreach (var fixture in fixtures)
+        {
+            var run = result.Cases.FirstOrDefault(c => c.Id == fixture.Id);
+            if (run is null) { state = AuthoringTestState.Failed; continue; }
+            var evaluated = AuthoringTestPlanner.Evaluate(draft.Document, fixture, run);
+            if (!evaluated.Passed) state = AuthoringTestState.Failed;
+            cases.Add(evaluated);
+        }
+        var record = new AuthoringTestRecord(Guid.NewGuid(), draft.Revision, build.BuildId, build.PackageSha256!,
+            state, cases, diagnostics, started, clock.GetUtcNow());
+        var saved = await store.UpdateAsync(id, r => r.Revision == record.Revision && r.Build?.BuildId == build.BuildId
+            ? r with { Test = record } : r, cancellationToken) ?? throw NotFound();
+        return View(saved);
+    }
+
     private async Task<(AuthoringDraftRecord Draft, AuthoringBuildRecord Build, byte[] Package)> LoadCurrentPackageAsync(
         Guid id, CancellationToken cancellationToken)
     {
@@ -225,7 +265,10 @@ public sealed class AuthoringService(
             }
             buildState = build.Revision != draft.Revision ? AuthoringBuildState.Stale : build.State;
         }
-        // Tests need an isolated runner, which this local POC does not provide.
-        return new(draft, validation, AuthoringTestState.NotRun, buildState, build);
+        var test = draft.Test;
+        var testState = test is null ? AuthoringTestState.NotRun
+            : test.Revision != draft.Revision || test.BuildId != draft.Build?.BuildId ? AuthoringTestState.Stale
+            : test.State;
+        return new(draft, validation, testState, buildState, build, test);
     }
 }

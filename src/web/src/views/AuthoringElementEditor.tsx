@@ -3,7 +3,7 @@ import { ActionButton } from '../components/ActionButton';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import {
-  DEFAULT_OPERATION_ARITY, blankOperand, operandKey, replaceById, setOperandAt,
+  COLLECTION_OPERATIONS, DEFAULT_OPERATION_ARITY, blankOperand, operandKey, replaceById, setOperandAt,
 } from './authoring';
 import type { DraftDocument, Operand, Selection } from './authoring';
 
@@ -11,6 +11,14 @@ const OPERATION_LABELS: Record<string, MessageKey> = {
   add: 'authoring.operation.add', subtract: 'authoring.operation.subtract', multiply: 'authoring.operation.multiply',
   divide: 'authoring.operation.divide', min: 'authoring.operation.min', max: 'authoring.operation.max',
   abs: 'authoring.operation.abs',
+};
+const ADAPTER_KEYS = ['foresite', 'cygnet'] as const;
+const ADAPTER_LABELS: Record<string, MessageKey> = {
+  foresite: 'authoring.adapter.foresite', cygnet: 'authoring.adapter.cygnet',
+};
+const COLLECTION_LABELS: Record<string, MessageKey> = {
+  count: 'authoring.collection.count', sum: 'authoring.collection.sum', min: 'authoring.collection.min',
+  max: 'authoring.collection.max', mean: 'authoring.collection.mean',
 };
 const COMPARATOR_LABELS: Record<string, MessageKey> = {
   lt: 'authoring.comparator.lt', le: 'authoring.comparator.le', gt: 'authoring.comparator.gt',
@@ -37,7 +45,7 @@ function OperandEditor({ label, operand, doc, selfStepId, onChange }: {
   label: string; operand: Operand; doc: DraftDocument; selfStepId?: string; onChange: (operand: Operand) => void;
 }) {
   const scalarInputs = doc.inputs.filter(item => !item.valueSchema);
-  const steps = doc.steps.filter(step => step.kind === 'calculation' && step.id !== selfStepId);
+  const steps = doc.steps.filter(step => step.kind !== 'code' && step.id !== selfStepId);
   const current = operandKey(operand);
   const known = current === 'literal' || scalarInputs.some(i => current === `input:${i.id}`)
     || doc.parameters.some(p => current === `parameter:${p.id}`) || steps.some(s => current === `step:${s.id}`);
@@ -78,7 +86,14 @@ export function ElementEditor({ doc, selection, onChange, onRemove, removable }:
       <TextField label={t('authoring.field.displayName')} value={doc.module.displayName} onChange={displayName => set({ displayName })} />
       <TextField label={t('authoring.field.publisher')} value={doc.module.publisher} onChange={publisher => set({ publisher })} />
       <TextField label={t('authoring.field.description')} value={doc.module.description} onChange={description => set({ description })} />
-    </div>;
+      <Field label={t('authoring.field.adapter')}>
+        <select value={doc.module.requiredAdapterKey ?? ''}
+          onChange={event => set({ requiredAdapterKey: event.target.value === '' ? null : event.target.value })}>
+          <option value="">{t('authoring.adapter.none')}</option>
+          {ADAPTER_KEYS.map(key => <option key={key} value={key}>{t(ADAPTER_LABELS[key])}</option>)}
+        </select>
+      </Field>
+      <p className="authoring-note">{t('authoring.adapterNote')}</p>    </div>;
   }
 
   if (selection.kind === 'input') {
@@ -132,6 +147,29 @@ export function ElementEditor({ doc, selection, onChange, onRemove, removable }:
       </div>;
     }
     const operands = step.operands ?? [];
+    if (step.kind === 'collection') {
+      const source = operands[0] ?? { kind: 'input' as const, ref: '' };
+      const structured = doc.inputs.filter(item => item.valueSchema);
+      const setSource = (change: Partial<typeof source>) => set({ operands: [{ ...source, kind: 'input', ...change }] });
+      return <div className="authoring-form">
+        <TextField label={t('authoring.field.id')} value={step.id} readOnly />
+        <TextField label={t('authoring.field.label')} value={step.label} onChange={label => set({ label })} />
+        <Field label={t('authoring.field.operation')}>
+          <select value={step.operation ?? 'count'} onChange={event => set({ operation: event.target.value })}>
+            {COLLECTION_OPERATIONS.map(value => <option key={value} value={value}>{t(COLLECTION_LABELS[value])}</option>)}
+          </select>
+        </Field>
+        <Field label={t('authoring.field.collectionInput')}>
+          <select value={source.ref ?? ''} onChange={event => setSource({ ref: event.target.value })}>
+            {structured.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+        </Field>
+        <TextField label={t('authoring.field.collectionPort')} mono value={source.port}
+          onChange={port => setSource({ port: port === '' ? null : port })} />
+        <p className="authoring-note">{t('authoring.collectionStep')}</p>
+        {remove}
+      </div>;
+    }
     const [minimum, maximum] = DEFAULT_OPERATION_ARITY[step.operation ?? 'add'] ?? [2, 8];
     return <div className="authoring-form">
       <TextField label={t('authoring.field.id')} value={step.id} readOnly />

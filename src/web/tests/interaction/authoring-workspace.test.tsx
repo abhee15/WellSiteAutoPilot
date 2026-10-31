@@ -8,7 +8,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   getAuthoringCapabilities: vi.fn(), listAuthoringDrafts: vi.fn(), createAuthoringDraft: vi.fn(),
   getAuthoringDraft: vi.fn(), updateAuthoringDraft: vi.fn(), validateAuthoringDraft: vi.fn(),
   buildAuthoringDraft: vi.fn(), cancelAuthoringDraftBuild: vi.fn(), downloadAuthoringDraftPackage: vi.fn(),
-  addAuthoringDraftToCatalog: vi.fn(),
+  addAuthoringDraftToCatalog: vi.fn(), testAuthoringDraft: vi.fn(), previewAuthoringLiveValue: vi.fn(), searchAssets: vi.fn(),
 }));
 const api = vi.mocked(sdk);
 const ok = (data: unknown, status = 200) => ({ data, response: new Response(null, { status }) }) as never;
@@ -78,6 +78,53 @@ it('creates a draft from a starter, blocks actions on edits, then builds and add
   await waitFor(() => expect(screen.getByRole('status').textContent).toContain('untrusted and disabled'));
 });
 
+it('runs fixture tests on a built draft and shows intermediates, actions and mismatches', async () => {
+  const user = userEvent.setup();
+  const built = draft({ buildState: 'Succeeded', build: { revision: 1, state: 'Succeeded', packageSha256: 'b'.repeat(64), packageBytes: 5 } });
+  api.createAuthoringDraft.mockResolvedValue(ok(built, 201));
+  render(<AuthoringWorkspace onCatalogChanged={vi.fn()} />);
+  await user.click(await screen.findByRole('button', { name: 'New draft' }));
+  await screen.findByRole('heading', { name: 'Demo' });
+  expect(screen.getByText('No tests have been run for this revision.')).toBeTruthy();
+
+  api.testAuthoringDraft.mockResolvedValue(ok({
+    ...built, testState: 'Failed',
+    test: { state: 'Failed', diagnostics: [], cases: [{
+      fixtureId: 'low', label: 'Low fillage', passed: false, mismatches: ['Output ratio expected 1 but was 0.75'],
+      outputs: [{ id: 'ratio', value: '0.75' }], intermediates: [{ id: 'shortfall', value: '10' }], actions: ['REVIEW_LOW_FILLAGE'],
+    }] },
+  }));
+  await user.click(screen.getByRole('button', { name: 'Run tests' }));
+  expect(await screen.findByText('Output ratio expected 1 but was 0.75')).toBeTruthy();
+  expect(screen.getByText('shortfall')).toBeTruthy();
+  expect(screen.getByText('REVIEW_LOW_FILLAGE')).toBeTruthy();
+});
+
+it('previews a live value for a chosen asset and explains a refused read', async () => {
+  const user = userEvent.setup();
+  api.createAuthoringDraft.mockResolvedValue(ok(draft(), 201));
+  render(<AuthoringWorkspace onCatalogChanged={vi.fn()} />);
+  await user.click(await screen.findByRole('button', { name: 'New draft' }));
+  await screen.findByRole('heading', { name: 'Demo' });
+
+  api.searchAssets.mockResolvedValue(ok([{ id: '22222222-2222-4222-8222-222222222222', name: 'Well 7' }]));
+  await user.type(screen.getByLabelText('Search assets'), 'well');
+  await user.click(screen.getByRole('button', { name: 'Find assets' }));
+  await screen.findByRole('option', { name: 'Well 7' });
+  expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('q');
+
+  api.previewAuthoringLiveValue.mockResolvedValue(ok({ quantity: 'q', value: 42.5, unit: '%', quality: 'Good',
+    timestampUtc: '2026-01-01T00:00:00Z', adapterKey: 'cygnet' }));
+  await user.click(screen.getByRole('button', { name: 'Read current value' }));
+  expect((await screen.findByText(/42\.5 %/)).textContent).toContain('42.5');
+  expect(api.previewAuthoringLiveValue.mock.calls[0][0].body).toEqual({ assetId: '22222222-2222-4222-8222-222222222222', quantity: 'q' });
+
+  api.previewAuthoringLiveValue.mockResolvedValue({ error: { code: 'AUTHORING_PREVIEW_QUANTITY_UNSUPPORTED' },
+    response: new Response(null, { status: 400 }) } as never);
+  await user.click(screen.getByRole('button', { name: 'Read current value' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('cannot serve that quantity');
+});
+
 it('reports a revision conflict without discarding the local edit', async () => {
   const user = userEvent.setup();
   api.listAuthoringDrafts.mockResolvedValue(ok([{ id: draft().id, displayName: 'Demo', moduleId: 'authored.demo', version: '1.0.0' }]));
@@ -90,4 +137,16 @@ it('reports a revision conflict without discarding the local edit', async () => 
   await user.click(screen.getByRole('button', { name: 'Save draft' }));
   expect((await screen.findByRole('alert')).textContent).toContain('changed elsewhere');
   expect((screen.getByLabelText('Label') as HTMLInputElement).value).toBe('Level!');
+});
+
+it('declares the required provider on the module and sends it with the saved document', async () => {
+  const user = userEvent.setup();
+  api.createAuthoringDraft.mockResolvedValue(ok(draft(), 201));
+  render(<AuthoringWorkspace onCatalogChanged={vi.fn()} />);
+  await user.click(await screen.findByRole('button', { name: 'New draft' }));
+  await user.click(await screen.findByRole('button', { name: 'Module' }));
+  await user.selectOptions(screen.getByLabelText('Required provider'), 'cygnet');
+  api.updateAuthoringDraft.mockResolvedValue(ok(draft({ revision: 2 })));
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  expect(api.updateAuthoringDraft.mock.calls[0][0].body.document.module.requiredAdapterKey).toBe('cygnet');
 });

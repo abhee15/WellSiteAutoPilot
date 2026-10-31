@@ -35,7 +35,31 @@ that is not wired in.
 - Web: Logic > Authoring tab (`#logic/authoring`) with outline/dependencies, calculation workspace, properties,
   and validate/build/download/add actions.
 
+- Test: `POST /authoring/drafts/{id}/test` runs the draft's sample fixtures against the built package in a
+  separate process (`tools/WellSiteAutoPilot.AuthoringTestHost`, job-object limited) using the production
+  `DotNetModulePackageHost` (V1) or structured offline host (V2). The generated module exposes `AuthoringTrace`
+  (step and condition values) as the instrumentation contract; results include outputs, intermediates, fired
+  actions and mismatches against expected values. Results are pinned to revision and build and go Stale on edit.
+
+- Live preview: `POST /authoring/preview` (`LogicManage`) reads one current value for an imported asset and quantity
+  through the Gateway measurement client, after the Shadow read-plan rules (active imported asset, enabled
+  connection, one source binding, adapter-supported quantity) and a `configured-logic.read` asset grant for the
+  caller. It creates no execution or plan and cannot write. The Authoring page has a Live data preview panel.
+  Verified with fakes (gate, subject, trimmed quantity, denial never reaches the provider); not exercised against a
+  live provider in this round.
+
+- Collection steps: a `collection` step reduces a structured (schema-declared) input to a number with `count`, `sum`,
+  `min`, `max` or `mean` over a dotted value path (arrays are flattened). A draft with any structured input or code
+  step generates a V2 module (`ILogicModuleV2`, schema-checked structured inputs); graph outputs stay scalar. Starter
+  `card-peak-graph` reproduces the card peak/mean/count analysis with no code and runs through the V2 host in tests.
+
+- Provider choice: the module properties declare an optional required provider (`foresite` or `cygnet`), which the
+  generator writes as `requiredAdapterKey`. Validation rejects unknown keys (case-exact) and scalar inputs whose
+  quantity the provider cannot read directly (`AdapterReadRules`). Binding to a connection happens afterwards in
+  configured logic, as for any module.
+
 ## Known gaps
 
-No isolation; the test state is never run; structured-input calculations are only available as opaque code steps;
-V2 modules package and catalog but the production host does not execute them; one asset role; scalar decimal operations.
+AppContainer mode fails in this environment (CreateProcess error 203); job-object mode is the verified baseline;
+one asset role; collection steps are numeric reductions only (no per-item filtering or structured outputs without
+a code step).

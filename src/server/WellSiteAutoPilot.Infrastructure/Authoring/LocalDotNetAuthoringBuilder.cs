@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using WellSiteAutoPilot.Application.Authoring;
@@ -8,9 +7,9 @@ namespace WellSiteAutoPilot.Infrastructure.Authoring;
 
 /// <summary>
 /// Trusted local mode: compiles generated source with the local .NET SDK in a scratch folder and a scrubbed
-/// environment. This is NOT an isolation boundary; hosted builds need a separate sandboxed worker.
+/// environment, inside a Job object (memory limit, kill-on-close, tree cancellation) and optionally an AppContainer.\n/// Even so this is a local proof-of-concept boundary; hosted builds still need a separate sandboxed worker.
 /// </summary>
-public sealed partial class LocalDotNetAuthoringBuilder(AuthoringOptions options) : IAuthoringBuilder
+public sealed partial class LocalDotNetAuthoringBuilder(AuthoringOptions options, IIsolatedProcessRunner runner) : IAuthoringBuilder
 {
     private const string SdkProjectFile = "WellSiteAutoPilot.ModuleSdk.csproj";
     private const int MaximumOutputCharacters = 64 * 1024;
@@ -55,7 +54,7 @@ public sealed partial class LocalDotNetAuthoringBuilder(AuthoringOptions options
             await File.WriteAllTextAsync(Path.Combine(module, project.AssemblyName + ".csproj"), ModuleProject, cancellationToken);
 
             var output = Path.Combine(work, "out");
-            var (exitCode, text) = await RunAsync(module, output, cancellationToken);
+            var (exitCode, text) = await RunAsync(work, module, output, cancellationToken);
             if (exitCode != 0)
             {
                 var diagnostics = ParseDiagnostics(text, work);
@@ -102,52 +101,34 @@ public sealed partial class LocalDotNetAuthoringBuilder(AuthoringOptions options
         return null;
     }
 
-    private async Task<(int ExitCode, string Output)> RunAsync(string projectDirectory, string output,
+    private async Task<(int ExitCode, string Output)> RunAsync(string work, string projectDirectory, string output,
         CancellationToken cancellationToken)
     {
-        var start = new ProcessStartInfo(string.IsNullOrWhiteSpace(options.DotnetPath) ? "dotnet" : options.DotnetPath)
-        {
-            WorkingDirectory = projectDirectory, RedirectStandardOutput = true, RedirectStandardError = true,
-            UseShellExecute = false, CreateNoWindow = true
-        };
-        foreach (var argument in new[] { "publish", "-c", "Release", "-o", output, "--nologo", "-v:q", "-p:UseAppHost=false" })
-            start.ArgumentList.Add(argument);
-        start.Environment.Clear();
+        var environment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var name in InheritedEnvironment)
-            if (Environment.GetEnvironmentVariable(name) is { } value) start.Environment[name] = value;
-        start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
-        start.Environment["DOTNET_NOLOGO"] = "1";
-        start.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
-        start.Environment["MSBUILDDISABLENODEREUSE"] = "1";
-        start.Environment["DOTNET_CLI_UI_LANGUAGE"] = "en";
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("The build process did not start.");
-        var buffer = new StringBuilder();
-        void Collect(string? line)
+            if (Environment.GetEnvironmentVariable(name) is { } value) environment[name] = value;
+        environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+        environment["DOTNET_NOLOGO"] = "1";
+        environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
+        environment["MSBUILDDISABLENODEREUSE"] = "1";
+        environment["DOTNET_CLI_UI_LANGUAGE"] = "en";
+        var appContainer = options.Isolation == AuthoringIsolationMode.AppContainer && OperatingSystem.IsWindows();
+        if (appContainer)
         {
-            if (line is null) return;
-            lock (buffer) if (buffer.Length < MaximumOutputCharacters) buffer.AppendLine(line);
+            // The container cannot see the user profile, so everything the build writes lives in the work folder.
+            var home = Path.Combine(work, "home");
+            Directory.CreateDirectory(home);
+            foreach (var name in new[] { "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "DOTNET_CLI_HOME" })
+                environment[name] = home;
+            environment["NUGET_PACKAGES"] = Path.Combine(home, "packages");
         }
-        process.OutputDataReceived += (_, e) => Collect(e.Data);
-        process.ErrorDataReceived += (_, e) => Collect(e.Data);
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(options.BuildTimeoutSeconds, 10, 1800)));
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token);
-            process.WaitForExit();
-        }
-        catch (OperationCanceledException)
-        {
-            try { process.Kill(entireProcessTree: true); }
-            catch (InvalidOperationException) { }
-            if (cancellationToken.IsCancellationRequested) throw;
-            return (-1, "error MSB0000: The build exceeded its time limit.");
-        }
-        lock (buffer) return (process.ExitCode, buffer.ToString());
+        var arguments = new[] { "publish", "-c", "Release", "-o", output, "--nologo", "-v:q", "-p:UseAppHost=false", "-p:UseSharedCompilation=false" };
+        var result = await runner.RunAsync(new IsolatedProcessSpec(
+            string.IsNullOrWhiteSpace(options.DotnetPath) ? "dotnet" : options.DotnetPath, arguments, projectDirectory,
+            environment, Math.Clamp(options.BuildMemoryLimitMegabytes, 256, 65536) * 1024L * 1024L,
+            TimeSpan.FromSeconds(Math.Clamp(options.BuildTimeoutSeconds, 10, 1800)), appContainer, [work]), cancellationToken);
+        return result.TimedOut ? (-1, "error MSB0000: The build exceeded its time limit.") : (result.ExitCode, result.Output);
     }
-
     private static List<AuthoringIssue> ParseDiagnostics(string text, string work)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);

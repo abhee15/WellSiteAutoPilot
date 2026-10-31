@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addAuthoringDraftToCatalog, buildAuthoringDraft, cancelAuthoringDraftBuild, createAuthoringDraft,
   downloadAuthoringDraftPackage, getAuthoringCapabilities, getAuthoringDraft, listAuthoringDrafts,
-  updateAuthoringDraft, validateAuthoringDraft,
+  updateAuthoringDraft, validateAuthoringDraft, testAuthoringDraft,
 } from '../api/generated/v1/sdk.gen';
 import type {
   AuthoringBuildState, AuthoringCapabilitiesResponse, AuthoringDraftResponse,
-  AuthoringDraftSummaryResponse, AuthoringIssueResponse, AuthoringTestState, AuthoringValidationState,
+  AuthoringDraftSummaryResponse, AuthoringIssueResponse, AuthoringTestResponse, AuthoringTestState, AuthoringValidationState,
 } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { PanelHeader } from '../components/common';
@@ -14,11 +14,12 @@ import { Status } from '../components/Status';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import {
-  addInput, addOutput, addParameter, addStep, buildOutline, buildTone, documentsEqual, readDocument,
+  addCollectionStep, addInput, addOutput, addParameter, addStep, buildOutline, buildTone, documentsEqual, readDocument,
   removeElement, selectionForIssuePath, testTone, usedBy, usesOf, validationTone,
 } from './authoring';
 import type { DraftDocument, OutlineNode, Selection, SelectionKind } from './authoring';
 import { ElementEditor, KIND_LABELS } from './AuthoringElementEditor';
+import { LivePreview } from './AuthoringLivePreview';
 import './authoring.css';
 
 const POLL_MILLISECONDS = 1500;
@@ -46,6 +47,8 @@ function failureText(status: number | undefined, code: string | null): string {
   if (code === 'AUTHORING_REVISION_CONFLICT') return t('authoring.conflict');
   if (code === 'AUTHORING_DRAFT_INVALID') return t('authoring.invalidDraft');
   if (code === 'AUTHORING_BUILD_NOT_CURRENT') return t('authoring.buildNotCurrent');
+  if (code === 'AUTHORING_TEST_HOST_UNAVAILABLE') return t('authoring.testHostUnavailable');
+  if (code === 'AUTHORING_FIXTURE_REQUIRED') return t('authoring.fixtureRequired');
   if (code === 'AUTHORING_LOCAL_DISABLED') return t('authoring.disabledResponse');
   if (status === 403) return t('authoring.denied');
   return t('authoring.failed');
@@ -177,6 +180,17 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
     });
   }
 
+  async function runTests() {
+    if (!draft?.id) return;
+    const id = draft.id;
+    await run('test', async () => {
+      const result = await testAuthoringDraft({ path: { draftId: id }, credentials: 'same-origin' });
+      if (!result.data) return fail(result.response, result.error);
+      adopt(result.data);
+      return { tone: 'status', text: t('authoring.testRan') };
+    });
+  }
+
   async function cancel() {
     if (!draft?.id) return;
     const id = draft.id;
@@ -217,9 +231,10 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
   }
 
   function change(next: DraftDocument) { setWorking(next); setNotice(null); }
-  function add(maker: (doc: DraftDocument) => { doc: DraftDocument; id: string }, kind: SelectionKind) {
+  function add(maker: (doc: DraftDocument) => { doc: DraftDocument; id: string } | null, kind: SelectionKind) {
     if (!working) return;
     const made = maker(working);
+    if (!made) return;
     change(made.doc); setSelection({ kind, id: made.id });
   }
 
@@ -289,6 +304,7 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
           <ActionButton label={t('authoring.validate')} disabled={!idle || dirty} onClick={() => void validate()} />
           <ActionButton label={t('authoring.build')} disabled={!idle || dirty || building} onClick={() => void build()} />
           {building && <ActionButton label={t('authoring.cancelBuild')} disabled={!idle} onClick={() => void cancel()} />}
+          <ActionButton label={t('authoring.test')} disabled={!idle || dirty || !buildSucceeded} onClick={() => void runTests()} />
           <ActionButton label={t('authoring.download')} disabled={!idle || dirty || !buildSucceeded} onClick={() => void download()} />
           <ActionButton label={t('authoring.addToCatalog')} disabled={!idle || dirty || !buildSucceeded || catalogued}
             onClick={() => void addToCatalog()} />
@@ -312,6 +328,7 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
             </ul>
             {GROUPS.map(kind => <OutlineGroup key={kind} kind={kind} nodes={outline.filter(node => node.kind === kind)}
               selection={selection} onSelect={setSelection}
+              onAddCollection={kind === 'step' && working?.inputs.some(item => item.valueSchema) ? () => add(addCollectionStep, 'step') : undefined}
               onAdd={kind === 'input' ? () => add(addInput, 'input') : kind === 'parameter' ? () => add(addParameter, 'parameter')
                 : kind === 'step' ? () => add(addStep, 'step') : kind === 'output' ? () => add(addOutput, 'output') : undefined} />)}
           </nav>
@@ -324,6 +341,9 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
               onRemove={() => { change(removeElement(working, selection)); setSelection({ kind: 'module', id: 'module' }); }} />
           </div>
         </div>
+
+        <TestResults test={draft.test ?? null} state={draft.testState ?? 'NotRun'} />
+        <LivePreview doc={working} />
 
         <div className="authoring-issues">
           <h3>{issues.length > 0 && draft.buildState === 'Failed' ? t('authoring.diagnostics') : t('authoring.issues')}</h3>
@@ -344,6 +364,35 @@ export function AuthoringWorkspace({ onCatalogChanged }: { onCatalogChanged: () 
   </div>;
 }
 
+function valueText(value: unknown): string {
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+function TestResults({ test, state }: { test: AuthoringTestResponse | null; state: AuthoringTestState }) {
+  const values = (items: { id?: string | null; value?: unknown; unit?: string | null }[]) => items.length === 0
+    ? <p className="authoring-note">{t('authoring.testNoValues')}</p>
+    : <dl className="authoring-values">{items.map(item => <div key={item.id}>
+      <dt>{item.id}</dt><dd>{valueText(item.value)}{item.unit ? ` ${item.unit}` : ''}</dd>
+    </div>)}</dl>;
+  return <div className="authoring-tests" aria-label={t('authoring.tests')}>
+    <h3>{t('authoring.tests')}</h3>
+    {!test ? <p className="authoring-note">{t('authoring.testNone')}</p> : <>
+      {state === 'Stale' && <p className="authoring-note" role="status">{t('authoring.testStale')}</p>}
+      {(test.diagnostics ?? []).map(issue => <p key={issue.code} role="alert">{issue.message}</p>)}
+      {(test.cases ?? []).map(item => <section key={item.fixtureId} className="authoring-case">
+        <h4>{item.label} <Status tone={item.passed ? 'success' : 'error'}
+          label={t(item.passed ? 'authoring.testCasePassed' : 'authoring.testCaseFailed')} /></h4>
+        {(item.mismatches ?? []).map(text => <p key={text} role="alert">{text}</p>)}
+        <h5>{t('authoring.testOutputs')}</h5>{values(item.outputs ?? [])}
+        <h5>{t('authoring.testIntermediates')}</h5>{values(item.intermediates ?? [])}
+        <h5>{t('authoring.testActions')}</h5>
+        {(item.actions ?? []).length === 0 ? <p className="authoring-note">{t('authoring.testNoValues')}</p>
+          : <p>{(item.actions ?? []).join(', ')}</p>}
+      </section>)}
+    </>}
+  </div>;
+}
+
 function DependencyLine({ reads, readBy }: { reads: OutlineNode[]; readBy: OutlineNode[] }) {
   const names = (nodes: OutlineNode[]) => nodes.map(node => node.label).join(', ');
   return <p className="authoring-note">
@@ -353,8 +402,8 @@ function DependencyLine({ reads, readBy }: { reads: OutlineNode[]; readBy: Outli
   </p>;
 }
 
-function OutlineGroup({ kind, nodes, selection, onSelect, onAdd }: {
-  kind: SelectionKind; nodes: OutlineNode[]; selection: Selection; onSelect: (selection: Selection) => void; onAdd?: () => void;
+function OutlineGroup({ kind, nodes, selection, onSelect, onAdd, onAddCollection }: {
+  kind: SelectionKind; nodes: OutlineNode[]; selection: Selection; onSelect: (selection: Selection) => void; onAdd?: () => void; onAddCollection?: () => void;
 }) {
   const titles: Record<SelectionKind, MessageKey> = {
     module: 'authoring.group.module', input: 'authoring.group.input', parameter: 'authoring.group.parameter',
@@ -373,5 +422,6 @@ function OutlineGroup({ kind, nodes, selection, onSelect, onAdd }: {
       </li>)}
     </ul>
     {onAdd && addLabels[kind] && <ActionButton label={t(addLabels[kind])} onClick={onAdd} />}
+    {onAddCollection && <ActionButton label={t('authoring.add.collection')} onClick={onAddCollection} />}
   </div>;
 }

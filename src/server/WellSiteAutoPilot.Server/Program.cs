@@ -215,9 +215,13 @@ builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddSingleton(builder.Configuration.GetSection(AuthoringOptions.SectionName).Get<AuthoringOptions>()
     ?? new AuthoringOptions());
 builder.Services.AddSingleton<IAuthoringDraftStore, FileAuthoringDraftStore>();
+builder.Services.AddSingleton<IIsolatedProcessRunner, JobObjectProcessRunner>();
+builder.Services.AddSingleton<IAuthoringTestExecutor, OutOfProcessAuthoringTestExecutor>();
 builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
 builder.Services.AddSingleton<AuthoringBuildRunner>();
 builder.Services.AddScoped<AuthoringService>();
+builder.Services.AddScoped<IAuthoringPreviewSource, WellSiteAutoPilot.Persistence.Authoring.AuthoringPreviewSource>();
+builder.Services.AddScoped<AuthoringPreviewService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
 {
@@ -1297,6 +1301,16 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 v1.MapPost(
+    "/authoring/drafts/{draftId:guid}/test",
+    async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
+        AuthoringResponseMapping.ToResponse(await authoring.TestAsync(draftId, cancellationToken)))
+    .WithName("TestAuthoringDraft")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringDraftResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
     "/authoring/drafts/{draftId:guid}/build",
     async (Guid draftId, AuthoringService authoring, CancellationToken cancellationToken) =>
         Results.Accepted($"/api/v1/authoring/drafts/{draftId}",
@@ -1347,6 +1361,22 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/authoring/preview",
+    async (AuthoringPreviewRequest request, AuthoringPreviewService preview, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var value = await preview.PreviewAsync(access.Subject, request.AssetId, request.Quantity, cancellationToken);
+        return new AuthoringPreviewResponse(value.AssetId, value.Quantity, value.Value, value.Unit, value.TimestampUtc,
+            value.Quality, value.Source, value.AdapterKey);
+    })
+    .WithName("PreviewAuthoringLiveValue")
+    .RequireAuthorization(WellSitePolicies.LogicManage)
+    .Produces<AuthoringPreviewResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 v1.MapGet(
     "/recommendations",
