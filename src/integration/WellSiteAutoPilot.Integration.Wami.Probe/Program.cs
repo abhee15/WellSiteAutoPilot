@@ -10,6 +10,14 @@ if (args.Length < 2)
 }
 
 var client = new WamiNetTcpClient(new Uri(args[0]), TimeSpan.FromMinutes(2));
+if (Environment.GetEnvironmentVariable("WAMI_PROBE_SAMPLE") is { Length: > 0 } pressure)
+{
+    // Sample module: scripted ForeSite data (pressure in psia) + local model file + live WAMI.
+    var sample = await WellSiteAutoPilot.Integration.Wami.Sample.WellAnalysisScenario.RunAsync(client,
+        new WellSiteAutoPilot.Integration.Wami.Sample.FileModelArtifactSource(args[1]), decimal.Parse(pressure, System.Globalization.CultureInfo.InvariantCulture), "{\"minimumRate\":20000}");
+    WellSiteAutoPilot.Integration.Wami.Sample.WellAnalysisScenario.Print(sample);
+    return sample.Composition.Status == CompositionStatus.Completed ? 0 : 1;
+}
 var content = await File.ReadAllBytesAsync(args[1]);
 var model = new ModelArtifact(Path.GetFileName(args[1]), "probe", "wfl", content);
 Console.WriteLine($"model {model.Ref.ModelId} {content.Length} bytes sha256 {model.Ref.Sha256[..12]}");

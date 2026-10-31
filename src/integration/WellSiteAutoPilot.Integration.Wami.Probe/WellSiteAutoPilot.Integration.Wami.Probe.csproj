@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <PackageReference Include="System.Security.Cryptography.Xml" />
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.Wami.Sample/WellSiteAutoPilot.Integration.Wami.Sample.csproj" />
     <ProjectReference Include="../WellSiteAutoPilot.Integration.Wami.NetTcp/WellSiteAutoPilot.Integration.Wami.NetTcp.csproj" />
     <!-- Copied into this project's gitignored bin only so the probe can run; never commit it. -->
     <Reference Include="Weatherford.WAMI.Interfaces">

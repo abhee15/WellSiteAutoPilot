@@ -30,6 +30,7 @@
     <Project Path="src/integration/WellSiteAutoPilot.Integration.ForeSite/WellSiteAutoPilot.Integration.ForeSite.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.Integration.PetroVisor/WellSiteAutoPilot.Integration.PetroVisor.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.Integration.Wami/WellSiteAutoPilot.Integration.Wami.csproj" />
+    <Project Path="src/integration/WellSiteAutoPilot.Integration.Wami.Sample/WellSiteAutoPilot.Integration.Wami.Sample.csproj" />
     <Project Path="tests/WellSiteAutoPilot.WamiProviderTests/WellSiteAutoPilot.WamiProviderTests.csproj" />
     <Project Path="src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj" />
   </Folder>
