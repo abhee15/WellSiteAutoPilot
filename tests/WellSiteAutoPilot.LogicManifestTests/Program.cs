@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
 
 InputPolicyChecks.Run();
+AdapterScheduleFloorChecks.Run();
 await StructuredManifestChecks.RunAsync();
 
 var validManifest = new LogicModuleManifest(

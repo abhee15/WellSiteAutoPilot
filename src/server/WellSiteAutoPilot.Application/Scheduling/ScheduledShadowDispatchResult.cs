@@ -9,7 +9,8 @@ public enum ScheduledShadowDispatchOutcome
     ModuleUnavailable = 4,
     ModuleDisabled = 5,
     InvalidConfiguration = 6,
-    DispatchFailed = 7
+    DispatchFailed = 7,
+    CadenceBelowMinimum = 8
 }
 
 public sealed record ScheduledShadowDispatchDecision(

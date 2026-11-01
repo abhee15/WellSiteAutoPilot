@@ -216,6 +216,8 @@ builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
 builder.Services.AddScoped<IDelegatedAuthorityAuditWriter, WellSiteAutoPilot.Persistence.Scheduling.DelegatedAuthorityAuditWriter>();
 builder.Services.AddScoped<IScheduledReadAuthorityProvider, ScheduledReadAuthorityProvider>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
+builder.Services.AddSingleton<AdapterScheduleFloorCache>();
+builder.Services.AddSingleton<IAdapterScheduleFloors>(services => services.GetRequiredService<AdapterScheduleFloorCache>());
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
@@ -252,6 +254,7 @@ builder.Services.AddScoped<IExecutionMeasurementGateway>(services =>
     (GatewayAdapterClient)services.GetRequiredService<IGatewayAdapters>());
 builder.Services.AddHostedService<ExecutionMeasurementReadConsumer>();
 builder.Services.AddHostedService<ScheduledShadowSchedulerHostedService>();
+builder.Services.AddHostedService<AdapterScheduleFloorHostedService>();
 builder.Services.AddHostedService<ConnectionMonitorHostedService>();
 builder.Services.AddWellSitePersistence(DatabaseConnectionLoader.Resolve(
     builder.Configuration,

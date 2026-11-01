@@ -16,7 +16,8 @@ public sealed class ScheduledShadowSchedulerService(
     IExecutionRepository executionRepository,
     ExecutionService executionService,
     TimeProvider timeProvider,
-    IScheduledReadAuthorityProvider? authorityProvider = null)
+    IScheduledReadAuthorityProvider? authorityProvider = null,
+    IAdapterScheduleFloors? adapterFloors = null)
 {
     public async Task<ScheduledShadowSweepResult> DispatchDueAsync(
         int limit,
@@ -142,6 +143,18 @@ public sealed class ScheduledShadowSchedulerService(
                 scheduledForUtc,
                 ScheduledShadowDispatchOutcome.ModuleDisabled,
                 "SCHEDULER_MODULE_NOT_ENABLED");
+        }
+
+        // A schedule faster than its adapter allows is not honoured and not silently slowed: the skip is recorded.
+        if (AdapterScheduleFloorPolicy.FloorFor(revision.ModuleManifestJson, adapterFloors) is { } floor &&
+            schedule.CadenceSeconds < floor)
+        {
+            return Decision(
+                configuredLogic,
+                revision,
+                scheduledForUtc,
+                ScheduledShadowDispatchOutcome.CadenceBelowMinimum,
+                "SCHEDULER_CADENCE_BELOW_MINIMUM");
         }
 
         if (await executionRepository.ScheduledOccurrenceExistsAsync(
