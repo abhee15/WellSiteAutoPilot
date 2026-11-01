@@ -48,7 +48,7 @@ var configuredLogicService = new ConfiguredLogicService(configuredLogicRepositor
 var executionService = new ExecutionService(executionRepository, clock);
 var scheduler = new ScheduledShadowSchedulerService(configuredLogicRepository, new ConfiguredLogicScheduleRepository(db), moduleRepository, executionRepository,
     executionService, clock);
-var materializer = new RecommendationMaterializer(executionRepository, recommendationRepository, clock);
+var materializer = new RecommendationMaterializer(executionRepository, recommendationRepository, configuredLogicRepository, clock);
 var controlRepository = new ControlRepository(db);
 var simulator = new SimulatedControlCommandSink();
 var gateOptions = new AutonomousControlOptions { Enabled = true };
@@ -257,6 +257,23 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     }
     catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Validation)
     {
+    }
+
+    // A control intent can only name a command the module declared, spelled exactly as declared; nothing is recorded.
+    foreach (var undeclared in new[] { "SetChoke", "setspeed" })
+    {
+        var before = await db.Recommendations.CountAsync();
+        try
+        {
+            await MaterializeAsync(ExecutionMode.Recommendation, undeclared);
+            throw new InvalidOperationException($"A control intent used the undeclared command '{undeclared}'.");
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Validation &&
+                                                           exception.Code == "RECOMMENDATION_COMMAND_NOT_DECLARED")
+        {
+        }
+
+        Require(await db.Recommendations.CountAsync() == before, "A refused control intent left a recommendation behind.");
     }
 }
 

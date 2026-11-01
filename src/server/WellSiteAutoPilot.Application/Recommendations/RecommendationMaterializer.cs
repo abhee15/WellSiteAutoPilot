@@ -1,4 +1,6 @@
 using System.Text.Json;
+using WellSiteAutoPilot.Application.ConfiguredLogic;
+using WellSiteAutoPilot.Application.Control;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Recommendations;
@@ -10,6 +12,7 @@ namespace WellSiteAutoPilot.Application.Recommendations;
 public sealed class RecommendationMaterializer(
     IExecutionRepository executionRepository,
     IRecommendationRepository recommendationRepository,
+    IConfiguredLogicRepository configuredLogicRepository,
     TimeProvider timeProvider)
 {
     private static readonly JsonSerializerOptions SerializerOptions =
@@ -76,6 +79,20 @@ public sealed class RecommendationMaterializer(
             return 0;
         }
 
+        // A control intent can only name a command the module declared, so no recommendation is created that no policy
+        // could ever permit. The revision the execution ran with is the one that counts, not whatever is live now.
+        IReadOnlyList<DeclaredModuleCommand> declaredCommands = [];
+        if (controlIntents.Count > 0)
+        {
+            var definition = await configuredLogicRepository.GetAsync(execution.LogicInstanceId, cancellationToken);
+            var revision = definition?.Revisions.FirstOrDefault(item => item.Id == execution.ConfigurationRevisionId);
+            declaredCommands = ModuleCommandDeclarations.Read(revision?.ModuleManifestJson) ??
+                throw new WellSiteAutoPilotException(
+                    "RECOMMENDATION_MODULE_UNREADABLE",
+                    FailureKind.Validation,
+                    "The module manifest of the revision that ran could not be read, so its control commands cannot be checked.");
+        }
+
         var assetScope = (await executionRepository.GetAssetScopeAsync(
                 execution.Id,
                 cancellationToken))
@@ -104,6 +121,14 @@ public sealed class RecommendationMaterializer(
                 if (string.Equals(command, RecommendationCommands.Advisory, StringComparison.OrdinalIgnoreCase))
                 {
                     throw ValidationFailure("The advisory command is reserved and cannot be used as a control command.");
+                }
+
+                if (!declaredCommands.Any(item => string.Equals(item.Command, command, StringComparison.Ordinal)))
+                {
+                    throw new WellSiteAutoPilotException(
+                        "RECOMMENDATION_COMMAND_NOT_DECLARED",
+                        FailureKind.Validation,
+                        $"Control intent command '{command}' is not declared by the module's commandRequirements.");
                 }
 
                 var reasonCode = RequireText(

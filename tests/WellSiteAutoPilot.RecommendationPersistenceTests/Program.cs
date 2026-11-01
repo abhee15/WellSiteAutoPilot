@@ -47,6 +47,7 @@ var decisionService = new RecommendationDecisionService(recommendationRepository
 var materializer = new RecommendationMaterializer(
     executionRepository,
     recommendationRepository,
+    configuredLogicRepository,
     clock);
 
 var wellType = await assetService.CreateAssetTypeAsync(
