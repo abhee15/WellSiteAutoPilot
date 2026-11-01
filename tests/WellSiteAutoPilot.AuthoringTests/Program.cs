@@ -2,6 +2,8 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using WellSiteAutoPilot.Application.Authoring;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Security;
@@ -435,6 +437,39 @@ if (OperatingSystem.IsWindows())
     await Throws<WellSiteAutoPilotException>(() => preview.PreviewAsync(subject, asset, "PumpFillage", CancellationToken.None), "denied source blocks the read");
     Check(gateway.Reads == reads, "a denied preview never reaches the provider gateway");
 }
+// Database-backed store: runs when a PostgreSQL connection string is supplied (the database is created and migrated).
+if (Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING") is { Length: > 0 } databaseConnection)
+{
+    var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+    services.AddDbContext<WellSiteAutoPilot.Persistence.WellSiteAutoPilotDbContext>(
+        o => o.UseNpgsql(databaseConnection), Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped);
+    await using var provider = services.BuildServiceProvider();
+    await using (var migrate = provider.CreateAsyncScope())
+        await migrate.ServiceProvider.GetRequiredService<WellSiteAutoPilot.Persistence.WellSiteAutoPilotDbContext>().Database.MigrateAsync();
+
+    var dbStore = new WellSiteAutoPilot.Persistence.Authoring.DatabaseAuthoringDraftStore(
+        provider.GetRequiredService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>());
+    var dbDraftId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    await dbStore.CreateAsync(new AuthoringDraftRecord(dbDraftId, 1, "digest", Starter(AuthoringStarters.CardPeakGraphId), now, now, "tester"), CancellationToken.None);
+    var stored = await dbStore.GetAsync(dbDraftId, CancellationToken.None);
+    Check(stored is not null && stored.Document.Module.ModuleId == "authored.card-peak-graph" && stored.Document.Fixtures?.Count > 0,
+        "the database store round-trips the full draft document");
+    Check((await dbStore.ListAsync(CancellationToken.None)).Any(d => d.Id == dbDraftId), "the database store lists drafts");
+    Check(await dbStore.GetAsync(Guid.NewGuid(), CancellationToken.None) is null, "an unknown draft is not found");
+    Check(await dbStore.UpdateAsync(Guid.NewGuid(), r => r, CancellationToken.None) is null, "updating an unknown draft returns null");
+
+    await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => dbStore.UpdateAsync(dbDraftId, r => r with { Revision = r.Revision + 1 }, CancellationToken.None)));
+    Check((await dbStore.GetAsync(dbDraftId, CancellationToken.None))!.Revision == 13, "concurrent read-modify-write never loses an update");
+
+    var buildId = Guid.NewGuid();
+    Check(await dbStore.ReadPackageAsync(dbDraftId, buildId, CancellationToken.None) is null, "no package before a build");
+    await dbStore.SavePackageAsync(dbDraftId, buildId, [1, 2, 3], CancellationToken.None);
+    await dbStore.SavePackageAsync(dbDraftId, buildId, [4, 5, 6], CancellationToken.None);
+    Check((await dbStore.ReadPackageAsync(dbDraftId, buildId, CancellationToken.None))!.SequenceEqual(new byte[] { 4, 5, 6 }),
+        "packages are stored per draft and build");
+}
+
 Console.WriteLine("Authoring checks passed.");
 
 internal sealed class FakePreviewSource(WellSiteAutoPilot.Application.Executions.AuthorizedExecutionRead read) : IAuthoringPreviewSource

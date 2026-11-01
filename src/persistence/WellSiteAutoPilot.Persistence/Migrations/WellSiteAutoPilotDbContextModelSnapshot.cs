@@ -234,6 +234,53 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.ToTable("audit_events", "audit");
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Authoring.AuthoringDraftEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RecordJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedAtUtc");
+
+                    b.ToTable("drafts", "authoring");
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Authoring.AuthoringPackageEntity", b =>
+                {
+                    b.Property<Guid>("DraftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BuildId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("Package")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("DraftId", "BuildId");
+
+                    b.ToTable("draft_packages", "authoring");
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicAssetBindingEntity", b =>
                 {
                     b.Property<Guid>("RevisionId")
@@ -1513,6 +1560,15 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.HasOne("WellSiteAutoPilot.Persistence.Assets.Views.AssetViewEntity", null)
                         .WithMany()
                         .HasForeignKey("ViewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Authoring.AuthoringPackageEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Authoring.AuthoringDraftEntity", null)
+                        .WithMany()
+                        .HasForeignKey("DraftId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

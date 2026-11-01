@@ -39,6 +39,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
     public DbSet<WellSiteAutoPilot.Persistence.Control.AutonomyPolicyEntity> AutonomyPolicies => Set<WellSiteAutoPilot.Persistence.Control.AutonomyPolicyEntity>();
+    public DbSet<WellSiteAutoPilot.Persistence.Authoring.AuthoringDraftEntity> AuthoringDrafts => Set<WellSiteAutoPilot.Persistence.Authoring.AuthoringDraftEntity>();
+    public DbSet<WellSiteAutoPilot.Persistence.Authoring.AuthoringPackageEntity> AuthoringPackages => Set<WellSiteAutoPilot.Persistence.Authoring.AuthoringPackageEntity>();
     public DbSet<WellSiteAutoPilot.Persistence.Control.ControlActionEntity> ControlActions => Set<WellSiteAutoPilot.Persistence.Control.ControlActionEntity>();
     public DbSet<WellSiteAutoPilot.Persistence.Control.ControlKillSwitchEntity> ControlKillSwitches => Set<WellSiteAutoPilot.Persistence.Control.ControlKillSwitchEntity>();
     public DbSet<RoleDefinitionEntity> RoleDefinitions => Set<RoleDefinitionEntity>();
@@ -335,6 +337,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
 
         var recommendation = modelBuilder.Entity<RecommendationEntity>();
         WellSiteAutoPilot.Persistence.Control.ControlModelConfiguration.Configure(modelBuilder);
+        WellSiteAutoPilot.Persistence.Authoring.AuthoringModelConfiguration.Configure(modelBuilder);
         recommendation.ToTable("recommendations", "operations");
         recommendation.HasKey(x => x.Id);
         recommendation.Property(x => x.IntentIndex).IsRequired();
