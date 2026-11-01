@@ -4,14 +4,13 @@ import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
-import type { ControlActionResponse } from '../api/generated/v1/types.gen';
 import { formatDetailTimestamp } from './executionDetail';
 import { gateMessageKey, outcomeMessageKey } from './controlExecution';
 import {
   ControlActionError, RESOLUTION_NOTE_MAX, controlActionNeedsDecision, fetchControlActions, resolveControlAction,
   verifyChangedAction, verifyControlAction,
 } from './controlActions';
-import type { ControlActionErrorKind } from './controlActions';
+import type { ControlAction, ControlActionErrorKind } from './controlActions';
 
 type Props = {
   userId: string | null | undefined;
@@ -33,7 +32,7 @@ const ERRORS: Record<ControlActionErrorKind, MessageKey> = {
  * as the operator and with a note, whether the command was applied. Shown only while something needs a decision.
  */
 export function ControlActionsPanel({ userId, canManage }: Props) {
-  const [actions, setActions] = useState<ControlActionResponse[] | null>(null);
+  const [actions, setActions] = useState<ControlAction[] | null>(null);
   const [loadError, setLoadError] = useState<ControlActionErrorKind | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [applied, setApplied] = useState<boolean | null>(null);
@@ -104,14 +103,14 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
     }
   };
 
-  const verify = (action: ControlActionResponse) => run(action.id, async signal => {
+  const verify = (action: ControlAction) => run(action.id, async signal => {
     const after = await verifyControlAction(action.id, signal);
     if (signal.aborted) return;
     setVerifyNote({ id: action.id, unchanged: !verifyChangedAction(action, after) });
     await refresh();
   });
 
-  const resolve = (action: ControlActionResponse) => run(action.id, async signal => {
+  const resolve = (action: ControlAction) => run(action.id, async signal => {
     if (applied === null) return;
     await resolveControlAction(action.id, applied, note, signal);
     if (signal.aborted) return;

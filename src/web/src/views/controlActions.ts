@@ -16,12 +16,25 @@ export class ControlActionError extends Error {
   }
 }
 
+/**
+ * A control action as this screen trusts it. The generated type marks every field optional; `validAction` is what
+ * guarantees the ones this screen relies on, so the rest of the code never has to guess.
+ */
+export type ControlAction = ControlActionResponse & {
+  id: string;
+  recommendationId: string;
+  command: string;
+  gateCode: string;
+  status: string;
+  createdAtUtc: string;
+};
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const RESOLUTION_NOTE_MAX = 1024;
 const LIST_LIMIT = 200;
 
 /** Control actions whose result nobody has confirmed: the only ones a person can verify or resolve. */
-export function controlActionNeedsDecision(action: Pick<ControlActionResponse, 'status'>): boolean {
+export function controlActionNeedsDecision(action: Pick<ControlAction, 'status'>): boolean {
   return action.status === 'Dispatched' || action.status === 'Ambiguous';
 }
 
@@ -47,7 +60,7 @@ function failFor(status: number): ControlActionError {
 }
 
 /** An action is trusted only when it names itself, its recommendation and a status this build can describe. */
-function validAction(value: unknown): value is ControlActionResponse {
+function validAction(value: unknown): value is ControlAction {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const action = value as Partial<ControlActionResponse>;
   const optionalText = (item: unknown) => item === undefined || item === null || typeof item === 'string';
@@ -64,7 +77,7 @@ function validAction(value: unknown): value is ControlActionResponse {
     optionalDate(action.completedAtUtc) && optionalDate(action.verifiedAtUtc);
 }
 
-async function readAction(response: Response, actionId: string): Promise<ControlActionResponse> {
+async function readAction(response: Response, actionId: string): Promise<ControlAction> {
   let payload: unknown;
   try {
     payload = await response.json();
@@ -81,7 +94,7 @@ async function readAction(response: Response, actionId: string): Promise<Control
 export async function fetchControlActions(
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
-): Promise<ControlActionResponse[]> {
+): Promise<ControlAction[]> {
   const response = await fetcher(`/api/v1/control/actions?limit=${LIST_LIMIT}`,
     { credentials: 'same-origin', cache: 'no-store', signal });
   if (!response.ok) throw failFor(response.status);
@@ -100,7 +113,7 @@ export async function verifyControlAction(
   actionId: string,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
-): Promise<ControlActionResponse> {
+): Promise<ControlAction> {
   if (!uuidPattern.test(actionId)) throw new ControlActionError('invalid');
   const response = await fetcher(`/api/v1/control/actions/${encodeURIComponent(actionId)}/verify`,
     { method: 'POST', credentials: 'same-origin', cache: 'no-store', signal });
@@ -118,7 +131,7 @@ export async function resolveControlAction(
   note: string,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
-): Promise<ControlActionResponse> {
+): Promise<ControlAction> {
   if (!uuidPattern.test(actionId)) throw new ControlActionError('invalid');
   const normalized = normalizeResolutionNote(note);
   const response = await fetcher(`/api/v1/control/actions/${encodeURIComponent(actionId)}/resolve`, {
@@ -133,6 +146,6 @@ export async function resolveControlAction(
 }
 
 /** Whether a verify changed what is known; false means the target gave no answer and the action still needs a decision. */
-export function verifyChangedAction(before: ControlActionResponse, after: ControlActionResponse): boolean {
+export function verifyChangedAction(before: ControlAction, after: ControlAction): boolean {
   return before.status !== after.status || before.gateCode !== after.gateCode;
 }
