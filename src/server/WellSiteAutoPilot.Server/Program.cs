@@ -1290,7 +1290,7 @@ v1.MapPut(
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
         ToKillSwitchResponse(await control.SetKillSwitchAsync(request.Engaged, access.CreateActor(context).IdentityName, request.Reason, cancellationToken), options))
     .WithName("SetControlKillSwitch")
-    .NotifiesChange(ChangeArea.Recommendations)
+    .NotifiesChange(ChangeArea.Control)
     .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
@@ -1321,7 +1321,7 @@ v1.MapPut(
         return ToAutonomyPolicyResponse(policy);
     })
     .WithName("SetAutonomyPolicy")
-    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .NotifiesChange(ChangeArea.Control)
     .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
@@ -1358,6 +1358,7 @@ v1.MapPost(
     })
     .WithName("ExecuteApprovedRecommendation")
     .NotifiesChange(ChangeArea.Recommendations)
+    .NotifiesChange(ChangeArea.Control)
     .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.ExecuteApprovedRecommendationResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
@@ -1377,6 +1378,7 @@ v1.MapPost(
     })
     .WithName("VerifyControlAction")
     .NotifiesChange(ChangeArea.Recommendations)
+    .NotifiesChange(ChangeArea.Control)
     .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
@@ -1395,6 +1397,7 @@ v1.MapPost(
     })
     .WithName("ResolveControlAction")
     .NotifiesChange(ChangeArea.Recommendations)
+    .NotifiesChange(ChangeArea.Control)
     .RequireAuthorization(WellSitePolicies.ControlManage)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
