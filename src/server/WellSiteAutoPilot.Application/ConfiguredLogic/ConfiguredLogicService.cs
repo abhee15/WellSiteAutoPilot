@@ -133,8 +133,25 @@ public sealed class ConfiguredLogicService(
         return revision;
     }
 
+    public async Task<ConfiguredLogicRevision> UpdateDraftAuthorizedAsync(Guid configuredLogicId, Guid revisionId,
+        CreateConfiguredLogicRevisionCommand command, int expectedDraftVersion, AccessSubject subject,
+        SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        var existing = await ReadForLifecycleAsync(configuredLogicId, subject, cancellationToken);
+        var draft = GetRequiredRevision(existing, revisionId);
+        if (draft.Status != ConfiguredLogicRevisionStatus.Draft || draft.DraftVersion != expectedDraftVersion)
+            throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_REVISION_CONFLICT", FailureKind.Conflict,
+                "The draft changed or is now locked. Reload before editing.");
+        var built = await BuildRevisionAsync(existing, command, cancellationToken, subject, draft);
+        var updated = built with { Id = draft.Id, RevisionNumber = draft.RevisionNumber,
+            CreatedAtUtc = draft.CreatedAtUtc, DraftVersion = checked(draft.DraftVersion + 1) };
+        await repository.UpdateDraftAuthorizedAsync(updated, expectedDraftVersion, subject, actor, cancellationToken);
+        return updated;
+    }
+
     private async Task<ConfiguredLogicRevision> BuildRevisionAsync(ConfiguredLogicDefinition existing,
-        CreateConfiguredLogicRevisionCommand command, CancellationToken cancellationToken, AccessSubject? subject = null)
+        CreateConfiguredLogicRevisionCommand command, CancellationToken cancellationToken, AccessSubject? subject = null,
+        ConfiguredLogicRevision? draft = null)
     {
         ArgumentNullException.ThrowIfNull(command);
         var requestedManifest = DeserializeAndValidateManifest(command.ModuleManifestJson);
@@ -148,7 +165,7 @@ public sealed class ConfiguredLogicService(
         await LogicModuleManifestValidator.ValidateParametersAsync(
             manifest, command.ParametersJson, cancellationToken);
 
-        var (targetBindings, viewBinding) = await ResolveViewAsync(command.View, command.AssetBindings, manifest, subject, cancellationToken);
+        var (targetBindings, viewBinding) = await ResolveViewAsync(command.View, command.AssetBindings, manifest, subject, cancellationToken, draft);
         var assetBindings = await ValidateAssetBindingsAsync(
             manifest,
             targetBindings,
@@ -191,20 +208,22 @@ public sealed class ConfiguredLogicService(
         ValidateRevisionCoreAsync(configuredLogicId, revisionId, actor, null, cancellationToken);
 
     public Task<ConfiguredLogicRevision> ValidateRevisionAuthorizedAsync(Guid configuredLogicId, Guid revisionId,
-        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+        AccessSubject subject, SecurityActorContext actor, int? expectedDraftVersion = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(actor);
-        return ValidateRevisionCoreAsync(configuredLogicId, revisionId, actor, subject, cancellationToken);
+        return ValidateRevisionCoreAsync(configuredLogicId, revisionId, actor, subject, cancellationToken, expectedDraftVersion);
     }
 
     private async Task<ConfiguredLogicRevision> ValidateRevisionCoreAsync(Guid configuredLogicId, Guid revisionId,
-        SecurityActorContext? actor, AccessSubject? subject, CancellationToken cancellationToken)
+        SecurityActorContext? actor, AccessSubject? subject, CancellationToken cancellationToken, int? expectedDraftVersion = null)
     {
         var configuredLogic = await ReadForLifecycleAsync(configuredLogicId, subject, cancellationToken);
         var revision = GetRequiredRevision(configuredLogic, revisionId);
 
-        if (revision.Status != ConfiguredLogicRevisionStatus.Draft)
+        if (revision.Status != ConfiguredLogicRevisionStatus.Draft ||
+            (expectedDraftVersion is not null && revision.DraftVersion != expectedDraftVersion))
         {
             throw new WellSiteAutoPilotException(
                 "CONFIGURED_LOGIC_REVISION_NOT_DRAFT",
@@ -257,7 +276,7 @@ public sealed class ConfiguredLogicService(
         if (subject is not null)
             await repository.SetRevisionValidatedAuthorizedAsync(revision, subject, actor!, cancellationToken);
         else
-            await repository.SetRevisionValidatedAsync(configuredLogicId, revisionId, timeProvider.GetUtcNow(), actor, cancellationToken);
+            await repository.SetRevisionValidatedAsync(configuredLogicId, revisionId, timeProvider.GetUtcNow(), actor, revision.DraftVersion, cancellationToken);
 
         var updated = await ReadForLifecycleAsync(configuredLogicId, subject, cancellationToken);
         return GetRequiredRevision(updated, revisionId);
@@ -424,7 +443,7 @@ public sealed class ConfiguredLogicService(
 
     private async Task<(IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> Bindings, ConfiguredLogicViewBinding? View)> ResolveViewAsync(
         ConfiguredLogicViewBindingCommand? requested, IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> bindings,
-        LogicModuleManifest manifest, AccessSubject? subject, CancellationToken cancellationToken)
+        LogicModuleManifest manifest, AccessSubject? subject, CancellationToken cancellationToken, ConfiguredLogicRevision? draft = null)
     {
         if (bindings is null)
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
@@ -443,6 +462,16 @@ public sealed class ConfiguredLogicService(
         var role = RequireText(requested.Role, "A View target role is required.", 128);
         if (!manifest.AssetRequirements.Any(item => string.Equals(item.Role, role, StringComparison.OrdinalIgnoreCase)))
             throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The module does not declare that target role.");
+        if (draft?.View is { } pinned && pinned.ViewId == requested.ViewId && pinned.Revision == requested.ExpectedRevision &&
+            string.Equals(pinned.Role, role, StringComparison.OrdinalIgnoreCase))
+        {
+            var suppliedIds = bindings.Where(item => string.Equals(item.Role, role, StringComparison.OrdinalIgnoreCase)).Select(item => item.AssetId).ToArray();
+            var pinnedIds = draft.AssetBindings.Where(item => string.Equals(item.Role, role, StringComparison.OrdinalIgnoreCase)).Select(item => item.AssetId).ToArray();
+            if (suppliedIds.Length != pinnedIds.Length || !suppliedIds.ToHashSet().SetEquals(pinnedIds))
+                throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                    "Saved View targets must stay pinned until a refreshed selection is reviewed.");
+            return (bindings, pinned);
+        }
         var view = await assetViews.FindAsync(subject, requested.ViewId, cancellationToken) ??
             throw new WellSiteAutoPilotException("ASSET_VIEW_NOT_FOUND", FailureKind.NotFound, "The View was not found.");
         var selection = await assetViews.SelectionAsync(subject, requested.ViewId, cancellationToken);

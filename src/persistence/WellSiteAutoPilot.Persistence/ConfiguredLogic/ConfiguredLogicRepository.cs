@@ -252,13 +252,14 @@ public sealed partial class ConfiguredLogicRepository(
         Guid revisionId,
         DateTimeOffset validatedAtUtc,
         SecurityActorContext? actor = null,
+        int expectedDraftVersion = 0,
         CancellationToken cancellationToken = default)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await LockDefinitionAsync(configuredLogicId, cancellationToken);
         var changed = await dbContext.ConfiguredLogicRevisions
             .Where(item => item.Id == revisionId && item.ConfiguredLogicId == configuredLogicId &&
-                item.Status == nameof(ConfiguredLogicRevisionStatus.Draft))
+                item.Status == nameof(ConfiguredLogicRevisionStatus.Draft) && item.DraftVersion == expectedDraftVersion)
             .ExecuteUpdateAsync(set => set
                 .SetProperty(item => item.Status, nameof(ConfiguredLogicRevisionStatus.Validated))
                 .SetProperty(item => item.ValidatedAtUtc, validatedAtUtc), cancellationToken);
@@ -316,10 +317,10 @@ public sealed partial class ConfiguredLogicRepository(
 
     private void Audit(ConfiguredLogicRevision revision, string action,
         SecurityActorContext? actor, DateTimeOffset now) =>
-        Audit(revision.ConfiguredLogicId, revision.Id, action, actor, now);
+        Audit(revision.ConfiguredLogicId, revision.Id, action, actor, now, revision.DraftVersion);
 
     private void Audit(Guid id, Guid revisionId, string action,
-        SecurityActorContext? actor, DateTimeOffset now)
+        SecurityActorContext? actor, DateTimeOffset now, int? draftVersion = null)
     {
         // Service callers have an explicit system identity; HTTP supplies real user/correlation.
         dbContext.AuditEvents.Add(new AuditEventEntity
@@ -328,7 +329,7 @@ public sealed partial class ConfiguredLogicRepository(
             ActorIdentity = actor?.IdentityName ?? "system:configured-logic",
             Action = action, TargetType = "ConfiguredLogic", TargetId = id.ToString("D"),
             CorrelationId = actor?.CorrelationId,
-            DetailsJson = JsonSerializer.Serialize(new { revisionId })
+            DetailsJson = JsonSerializer.Serialize(new { revisionId, draftVersion })
         });
     }
 
@@ -336,7 +337,7 @@ public sealed partial class ConfiguredLogicRepository(
     {
         dbContext.ConfiguredLogicRevisions.Add(new ConfiguredLogicRevisionEntity
         {
-            Id = revision.Id,
+            Id = revision.Id, DraftVersion = revision.DraftVersion,
             ViewId = revision.View?.ViewId, ViewRevision = revision.View?.Revision,
             ViewConnectionId = revision.View?.ConnectionId, ViewRole = revision.View?.Role,
             ConfiguredLogicId = revision.ConfiguredLogicId,
@@ -353,6 +354,11 @@ public sealed partial class ConfiguredLogicRepository(
             ActivatedAtUtc = revision.ActivatedAtUtc
         });
 
+        AddBindings(revision);
+    }
+
+    private void AddBindings(ConfiguredLogicRevision revision)
+    {
         foreach (var binding in revision.AssetBindings)
         {
             dbContext.ConfiguredLogicAssetBindings.Add(new ConfiguredLogicAssetBindingEntity
@@ -453,7 +459,7 @@ public sealed partial class ConfiguredLogicRepository(
             assetBindings,
             dataBindings,
             entity.ViewId is { } viewId ? new ConfiguredLogicViewBinding(viewId, entity.ViewRevision!.Value,
-                entity.ViewConnectionId!.Value, entity.ViewRole!) : null);
+                entity.ViewConnectionId!.Value, entity.ViewRole!) : null, entity.DraftVersion);
 
     private static ConfiguredLogicAssetBinding ToDomain(
         ConfiguredLogicAssetBindingEntity entity) => new(

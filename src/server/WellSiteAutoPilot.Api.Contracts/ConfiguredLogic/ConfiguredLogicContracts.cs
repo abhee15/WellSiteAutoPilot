@@ -72,7 +72,8 @@ public sealed record ConfiguredLogicRevisionResponse(
     ConfiguredLogicScheduleResponse? Schedule,
     IReadOnlyCollection<ConfiguredLogicAssetBindingResponse> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingResponse> DataBindings,
-    ConfiguredLogicViewResponse? View = null);
+    ConfiguredLogicViewResponse? View = null,
+    int DraftVersion = 0);
 
 public sealed record ConfiguredLogicResponse(
     Guid Id,

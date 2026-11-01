@@ -1,7 +1,7 @@
 /* Feature-owned forms follow the semantic token contract. */
 .setup-panel { padding: var(--space-16) var(--space-18); min-width: 0; }
 .setup-panel h3 { font-size: var(--font-size-body); }
-.setup-form fieldset { min-width: 0; display: grid; gap: var(--space-14);
+.setup-form fieldset { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-14);
   padding: var(--space-14); border: var(--border-width-thin) solid var(--color-border-subtle);
   border-radius: var(--radius-6); }
 .setup-form label { display: grid; gap: var(--space-6); min-width: 0; }
@@ -43,3 +43,15 @@
 .revision-history { margin-top: var(--space-12); }
 .revision-history > summary { cursor: pointer; color: var(--color-text-subtle); padding: var(--space-4) 0; }
 .revision-history > .setup-revisions { margin-top: var(--space-8); }
+
+/* Group the existing editor controls without adding scroll containers or replacing primitives. */
+.revision-editor-section > summary { font-weight: var(--font-weight-medium); padding-block: var(--space-8); }
+.revision-editor-section > :not(summary) { margin-top: var(--space-12); }
+.revision-editor-section > fieldset { margin-block: var(--space-12); }
+.revision-editor-section .setup-step-hint { margin-top: var(--space-8); }
+
+.setup-form .attribute-fields { border: 0; padding: 0; }
+
+/* Existing logic already supplies the editor frame; avoid repeated inset frames on phones. */
+.revision-editor > fieldset { padding: 0; border: 0; }
+.revision-editor-section > fieldset { padding-inline: 0; border: 0; }

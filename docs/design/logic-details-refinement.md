@@ -1,16 +1,16 @@
 # Logic details refinement
 
-Approved scope: organize an existing configured logic into Overview, Configuration and Activity. Keep the surrounding Logic/Modules/Schedules navigation. Preserve the existing module-driven editor, immutable saved revisions, authorization, request idempotency and activation concurrency checks.
+Approved scope: organize an existing configured logic into Overview, Configuration and Activity. Keep the surrounding Logic/Modules/Schedules navigation. Preserve the existing module-driven editor, revision lifecycle rules, authorization, request idempotency and activation concurrency checks.
 
 ## Final design decisions
 
-- A logic module package and a saved configuration revision are separate concepts. This refinement edits neither module code nor an already saved revision. Copying uses the existing new-revision editor and server flow.
+- A logic module package and a saved configuration revision are separate concepts. This refinement edits neither module code nor a locked revision. Draft editing is described in [editable-logic-drafts.md](editable-logic-drafts.md). Copying uses the existing new-revision editor and server flow.
 - Do not introduce a two-parameter editor, provider-specific wizard, mutable saved drafts, or new limits on parameter/binding counts. Existing structured JSON and provider mappings remain intact. Display all saved parameter and binding metadata with progressive disclosure; do not expose mapping JSON, manifests or credentials.
 - Keep the active revision and pending drafts visible in context. Select one revision's settings at a time. Historical revisions stay collapsed until requested. Existing validation and activation review remain authoritative; richer comparisons and complex/multi-provider authoring need a separate design increment.
 - Keep the editor mounted in Configuration. Disable tab changes while editing rather than silently discard inputs. A live workspace list update must not remount an editor with the same configuration identity. Access loss still removes protected content.
 - Overview shows active targets/providers, module, schedule and two current authorized runs. Activity reuses the execution inspector and keyset history, scoped to configuration before paging. History uses pinned execution scopes, including earlier View memberships.
 - A bounded workspace list is not proof that an older linked configuration is inaccessible. The fresh detail read and scoped activity projection remain authoritative; do not close a configuration solely because it ages out of a full list.
-- Live operational observations are a separate read projection. They never replace the immutable configuration snapshot being reviewed. If the active revision changed elsewhere, ask for a configuration reload before further mutation.
+- Live operational observations are a separate read projection. They never replace the configuration snapshot being reviewed. If the active revision changed elsewhere, ask for a configuration reload before further mutation.
 - Reuse server schedule calculations and existing SignalR invalidation/polling. Keep independent local failure states and clear denied cached data.
 - Unified Readiness stays deferred. Do not ship a placeholder tab, readiness score or inferred green verdict. Module approval, connection reachability, input freshness and runtime eligibility are separate evidence.
 

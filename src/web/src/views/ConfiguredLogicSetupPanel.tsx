@@ -12,22 +12,23 @@ import type { Connection } from './connections';
 import { eligibleAssets, isJsonObject, prefillBindings, readConfiguration, setupManifest,
   setupResponse, SetupApiError, verifiedConfiguration, matchesSetupRevision } from './configuredLogicSetup';
 import type { SetupRequest, VerifiedConfiguration } from './configuredLogicSetup';
-import { attributeFields, attributeValues, buildAttributes } from './assetAttributeForm';
+import { parameterFields, parameterValues, buildParameters } from './moduleParameterForm';
 import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
+import { ParameterOverridesEditor } from './ParameterOverridesEditor';
 import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
 import './configuredLogicSetup.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 
 type Props = {
   modules: LogicModuleResponse[]; assets: AssetResponse[]; assetTypes: AssetTypeResponse[];
-  configuration?: VerifiedConfiguration; revision?: ConfiguredLogicRevisionResponse;
-  onSaved: (configuration: VerifiedConfiguration) => void; onCancel: () => void;
+  configuration?: VerifiedConfiguration; revision?: ConfiguredLogicRevisionResponse; editDraft?: boolean;
+  onSaved: (configuration: VerifiedConfiguration, savedRevisionId?: string) => void; onCancel: () => void;
   onDenied?: (committed: boolean) => void;
   /** Begin from this asset: it is pre-selected for the first role it fits. */
   initialAssetId?: string | null; canReadViews?: boolean;
 };
 export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
-  configuration, revision, onSaved, onCancel, onDenied, initialAssetId, canReadViews = false }: Props) {
+  configuration, revision, editDraft = false, onSaved, onCancel, onDenied, initialAssetId, canReadViews = false }: Props) {
   const [views, setViews] = useState<AssetView[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [viewAssets, setViewAssets] = useState<AssetResponse[]>([]);
@@ -54,11 +55,12 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
   const [parameters, setParameters] = useState(revision?.parametersJson ?? '{}');
   // Modules that describe their settings get typed fields; anything the form cannot show stays JSON.
   const paramFields = useMemo(() => manifest?.parameterSchema && typeof manifest.parameterSchema === 'object'
-    ? attributeFields(JSON.stringify(manifest.parameterSchema)) : null, [manifest]);
+    ? parameterFields(manifest.parameterSchema) : null, [manifest]);
   const [paramValues, setParamValues] = useState<AttributeValues | null>(null);
+  const [overrideValidity, setOverrideValidity] = useState<Record<string, boolean>>({});
   const [paramErrors, setParamErrors] = useState<Record<string, AttributeFieldError>>({});
   const [paramJson, setParamJson] = useState(false);
-  const savedValues = useMemo(() => paramFields && revision ? attributeValues(paramFields, revision.parametersJson ?? '{}') : {},
+  const savedValues = useMemo(() => paramFields && revision ? parameterValues(paramFields, revision.parametersJson ?? '{}') : {},
     [paramFields, revision]);
   const formValues = paramValues ?? savedValues ?? {};
   const settingsForm = paramFields !== null && !paramJson && (paramValues !== null || savedValues !== null);
@@ -109,7 +111,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
       if (members.length !== ids.length || new Set(members.map(member => member.id)).size !== ids.length ||
         members.some(member => !selectedIds.has(member.id ?? '') || member.ownerConnectionId !== chosen.connectionId)) throw new Error('Changed View membership');
       setViewAssets(members); setBindings(current => ({ ...current, [role]: ids }));
-      setViewRef({ viewId: id, expectedRevision: chosen.revision, role }); setData({}); setOverrides({}); setDetailLimit(20);
+      setViewRef({ viewId: id, expectedRevision: chosen.revision, role }); setData({}); setOverrides({}); setOverrideValidity({}); setDetailLimit(20);
     } catch { if (!request.signal.aborted) setViewError(true); }
     finally { if (!request.signal.aborted) setViewLoading(false); }
   }
@@ -117,6 +119,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!manifest || !module?.manifestJson || pending.current || blocked || viewLoading || (viewRef && !canReadViews)) return;
+    if (manifest.assetRequirements.some(r => (bindings[r.role] ?? []).some(id => overrideValidity[JSON.stringify([r.role, id])] === false))) { setError(t('assets.createFieldsInvalid')); return; }
     const assetBindings = manifest.assetRequirements.flatMap(r =>
       (bindings[r.role] ?? []).map(assetId => ({ role: r.role, assetId,
         parameterOverridesJson: overrides[JSON.stringify([r.role, assetId])] ?? '{}' })));
@@ -125,7 +128,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
         ...(data[JSON.stringify([r.id, assetId])] ?? { providerId: '', providerAssetExternalId: '', providerMappingJson: '{}' }) })));
     let parametersJson = parameters;
     if (settingsForm && paramFields) {
-      const built = buildAttributes(paramFields, formValues);
+      const built = buildParameters(paramFields, formValues);
       if (Object.keys(built.errors).length > 0) { setParamErrors(built.errors); setError(t('assets.createFieldsInvalid')); return; }
       parametersJson = built.json;
     }
@@ -151,21 +154,23 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
     let committed = false;
     try {
       const response = await fetch(configuration
-        ? '/api/v1/configured-logic/' + configuration.id + '/revisions' : '/api/v1/configured-logic',
-      { method: 'POST', credentials: 'same-origin', signal: request.signal,
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const value = await setupResponse(response, 201, true);
+        ? '/api/v1/configured-logic/' + configuration.id + '/revisions' + (editDraft ? '/' + revision?.id : '') : '/api/v1/configured-logic',
+      { method: editDraft ? 'PUT' : 'POST', credentials: 'same-origin', signal: request.signal,
+        headers: { 'Content-Type': 'application/json', ...(editDraft ? { 'If-Match': '"' + (revision?.draftVersion ?? 0) + '"' } : {}) }, body: JSON.stringify(body) });
+      const value = await setupResponse(response, editDraft ? 200 : 201, true);
       committed = true;
       const receipt = configuration ? value as ConfiguredLogicRevisionResponse : null;
       const id = configuration?.id ?? (verifiedConfiguration(value) ? value.id : null);
       if (!id) throw new SetupApiError('uncertain');
       const saved = await readConfiguration(id, request.signal);
       const found = configuration ? saved.revisions.find(r => r.id === receipt?.id) : saved.revisions[0];
+      if (editDraft && (receipt?.id !== revision?.id || receipt?.draftVersion !== (revision?.draftVersion ?? 0) + 1 ||
+        found?.draftVersion !== receipt.draftVersion)) throw new SetupApiError('conflict');
       if (!found || found.status !== 'Draft' || found.moduleId !== manifest.moduleId ||
         found.moduleVersion !== manifest.version || saved.name !== name.trim() ||
         !matchesSetupRevision(found, body))
         throw new SetupApiError('uncertain');
-      if (!request.signal.aborted) onSaved(saved);
+      if (!request.signal.aborted) { if (editDraft) onSaved(saved, found.id); else onSaved(saved); }
     } catch (reason) {
       if (request.signal.aborted) return;
       const e = reason instanceof SetupApiError ? reason : new SetupApiError('uncertain');
@@ -178,11 +183,12 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
     }
   }
   return <section className="setup-panel" aria-label={t('setup.heading')}>
-    <h3>{configuration ? t('setup.newRevision') : t('setup.heading')}</h3>
+    <h3>{editDraft ? t('draftEditor.edit', { number: revision?.revisionNumber ?? '—' }) : configuration ? t('setup.newRevision') : t('setup.heading')}</h3>
+    {configuration && <p>{t(editDraft ? 'draftEditor.editHint' : 'draftEditor.copyHint', { number: revision?.revisionNumber ?? '—' })}</p>}
     <p>{t('setup.shadowOnly')}</p>
     {initialAssetId && !configuration && <p role="note">{t('setup.startingFromAsset', { name: allAssets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</p>}
     {approved.length === 0 && <p role="status">{t('setup.noModules')}</p>}
-    <form className="setup-form" onSubmit={e => void submit(e)}>
+    <form className={configuration ? 'setup-form revision-editor' : 'setup-form'} onSubmit={e => void submit(e)}>
       <fieldset disabled={busy || blocked}>
         <h4 className="setup-step">{t('setupStep.logic')}</h4>
         <p className="setup-step-hint">{t('setupStep.logicHint')}</p>
@@ -192,7 +198,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
           viewController.current.abort(); setViewRef(null); setViewAssets([]); setViewLoading(false); setViewError(false);
           setModuleKey(e.target.value);
           setBindings(chosenManifest && !configuration ? prefillBindings(chosenManifest, initialAssetId, assets, assetTypes) : {});
-          setData({}); setOverrides({}); setUseSchedule(false);
+          setData({}); setOverrides({}); setOverrideValidity({}); setUseSchedule(false);
           setParamValues(null); setParamErrors({}); setParamJson(false); setParameters('{}');
         }}><option value="">{t('setup.choose')}</option>{approved.map(m =>
           <option key={m.id} value={JSON.stringify([m.moduleId, m.version])}>
@@ -201,21 +207,26 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
         <p className="setup-step-hint">{t('setupStep.nameHint')}</p>
         <label>{t('setup.name')}<input required maxLength={256} value={name}
           disabled={!!configuration} onChange={e => setName(e.target.value)} /></label>
-        <h4 className="setup-step">{t('setupStep.settings')}</h4>
+        <details className="revision-editor-section" open><summary>{t('draftEditor.settings')}</summary>
+
         {manifest?.description && <p>{t('setup.moduleDescription')}: {manifest.description}</p>}
         <p className="setup-step-hint">{t(settingsForm ? 'setupStep.settingsFormHint' : 'setupStep.settingsHint')}</p>
-        {settingsForm && paramFields ? <AttributeFieldsEditor fields={paramFields} values={formValues}
+        {settingsForm && paramFields ? <AttributeFieldsEditor jsonLabel={t('draftEditor.editJson')} fields={paramFields} values={formValues}
           errors={paramErrors} idPrefix="setup-param-" legend={t('setup.settingsLegend')}
           onChange={(key, value) => {
             setParamValues({ ...formValues, [key]: value });
             setParamErrors(current => Object.fromEntries(Object.entries(current).filter(([k]) => k !== key)));
             setError(null);
           }}
-          onUseJson={() => { setParameters(buildAttributes(paramFields, formValues).json); setParamJson(true); setParamErrors({}); }} />
+          onUseJson={() => { setParameters(buildParameters(paramFields, formValues).json); setParamJson(true); setParamErrors({}); }} />
         : <><label>{t('setup.parameters')}<textarea required rows={4} maxLength={65536}
           value={parameters} onChange={e => setParameters(e.target.value)} /></label>
-        <p>{t(manifest?.parameterSchema ? 'setup.parametersHintSchema' : 'setup.parametersHint')}</p></>}
-        {manifest && <><h4 className="setup-step">{t('setupStep.assets')}</h4>
+        <p>{t(manifest?.parameterSchema ? 'setup.parametersHintSchema' : 'setup.parametersHint')}</p>
+        {paramFields && parameterValues(paramFields, parameters) !== null && <ActionButton label={t('draftEditor.useFields')}
+          onClick={() => { setParamValues(parameterValues(paramFields, parameters)); setParamJson(false); setParamErrors({}); }} />}</>}
+        </details>
+        <details className="revision-editor-section" open><summary>{t('draftEditor.targets')}</summary>
+        {manifest && <>
         <p className="setup-step-hint">{t('setupStep.assetsHint')}</p></>}
         {manifest?.assetRequirements.map(r => <fieldset key={r.role}>
           <legend>{t('setup.assetRole', { role: r.role, min: r.minimumCount, max: r.maximumCount })}</legend>
@@ -247,13 +258,17 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
             {eligibleAssets(r, allAssets, assetTypes).filter(a => !manifest.requiredAdapterKey || !!a.ownerConnectionId)
               .map(a => <option key={a.id} value={a.id}>{a.name} · {a.id}</option>)}
           </select></label>
-          {(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <label key={id}>
-            {t('setup.overrides', { asset: allAssets.find(a => a.id === id)?.name ?? id })}
-            <textarea rows={2} maxLength={65536} value={overrides[JSON.stringify([r.role, id])] ?? '{}'}
-              onChange={e => setOverrides({ ...overrides, [JSON.stringify([r.role, id])]: e.target.value })} />
-          </label>)}
+          {(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <ParameterOverridesEditor
+            key={moduleKey + JSON.stringify([r.role, id])} schema={manifest.parameterSchema}
+            context={allAssets.find(a => a.id === id)?.name ?? id}
+            label={t('setup.overrides', { asset: allAssets.find(a => a.id === id)?.name ?? id })}
+            idPrefix={'override-' + r.role + '-' + id + '-'} value={overrides[JSON.stringify([r.role, id])] ?? '{}'}
+            onValidity={valid => setOverrideValidity(current => ({ ...current, [JSON.stringify([r.role, id])]: valid }))}
+            onChange={value => setOverrides(current => ({ ...current, [JSON.stringify([r.role, id])]: value }))} />)}
         </fieldset>)}
-        {manifest && manifest.dataRequirements.length > 0 && <><h4 className="setup-step">{t('setupStep.data')}</h4>
+        </details>
+        <details className="revision-editor-section" open><summary>{t('draftEditor.bindings')}</summary>
+        {manifest && manifest.dataRequirements.length > 0 && <>
         <p className="setup-step-hint">{t('setupStep.dataHint')}</p></>}
         {manifest?.dataRequirements.flatMap(r => (bindings[r.assetRole] ?? []).slice(0, detailLimit).map(id => {
           const key = JSON.stringify([r.id, id]);
@@ -269,6 +284,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
               </label>)}
           </fieldset>;
         }))}
+        </details>
         {manifest?.executionProfile === 'ScheduledOneShot' && <h4 className="setup-step">{t('setupStep.schedule')}</h4>}
         {manifest?.executionProfile === 'ScheduledOneShot' && <details>
           <summary>{t('setup.schedule')}</summary>
@@ -286,7 +302,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
           </>}
         </details>}
         {Object.values(bindings).some(ids => ids.length > detailLimit) && <ActionButton label={t('setup.moreTargets')} onClick={() => setDetailLimit(limit => limit + 20)} />}
-        <ActionButton type="submit" variant="primary" label={busy ? t('setup.saving') : t('setup.save')} disabled={!manifest || approved.length === 0 || viewLoading || (!!viewRef && !canReadViews)} />
+        <ActionButton type="submit" variant="primary" label={busy ? t('setup.saving') : editDraft ? t('draftEditor.save') : t('setup.save')} disabled={!manifest || approved.length === 0 || viewLoading || (!!viewRef && !canReadViews)} />
       </fieldset>
       {error && <p role="alert">{error}</p>}
       <ActionButton label={t('setup.cancel')} disabled={busy} onClick={onCancel} />

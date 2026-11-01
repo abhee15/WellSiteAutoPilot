@@ -967,39 +967,9 @@ v1.MapPost(
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
     {
-        if (request.AssetBindings is null || request.DataBindings is null ||
-            request.AssetBindings.Any(binding => binding is null) ||
-            request.DataBindings.Any(binding => binding is null))
-            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
-                "Asset and data bindings are required.");
         var revision = await service.CreateRevisionAuthorizedAsync(
             configuredLogicId,
-            new CreateConfiguredLogicRevisionCommand(
-                request.ModuleManifestJson,
-                request.ParametersJson,
-                request.AssetBindings
-                    .Select(binding => new ConfiguredLogicAssetBindingCommand(
-                        binding.Role,
-                        binding.AssetId,
-                        binding.ParameterOverridesJson))
-                    .ToArray(),
-                request.DataBindings
-                    .Select(binding => new ConfiguredLogicDataBindingCommand(
-                        binding.RequirementId,
-                        binding.AssetId,
-                        binding.ProviderId,
-                        binding.ProviderAssetExternalId,
-                        binding.ProviderMappingJson))
-                    .ToArray(),
-                request.Schedule is null
-                    ? null
-                    : new ConfiguredLogicScheduleCommand(
-                        request.Schedule.Enabled,
-                        request.Schedule.CadenceSeconds,
-                        request.Schedule.StartAtUtc,
-                        request.Schedule.TimeZoneId),
-                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role),
-                request.Mode?.ToDomain() ?? WellSiteAutoPilot.Domain.Executions.ExecutionMode.Shadow),
+            ToRevisionCommand(request),
             access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
@@ -1014,12 +984,28 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
+v1.MapPut(
+    "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}",
+    async (Guid configuredLogicId, Guid revisionId, CreateConfiguredLogicRevisionRequest request,
+        [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ConfiguredLogicService service, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToConfiguredLogicRevisionResponse(await service.UpdateDraftAuthorizedAsync(configuredLogicId, revisionId,
+            ToRevisionCommand(request), RequireDraftVersion(ifMatch), access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("UpdateConfiguredLogicDraft")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
 v1.MapPost(
     "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/validate",
     async (Guid configuredLogicId, Guid revisionId, ConfiguredLogicService service,
+        [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
         RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
         ToConfiguredLogicRevisionResponse(await service.ValidateRevisionAuthorizedAsync(configuredLogicId, revisionId,
-            access.Subject, access.CreateActor(context), cancellationToken)))
+            access.Subject, access.CreateActor(context), RequireDraftVersion(ifMatch), cancellationToken)))
     .WithName("ValidateConfiguredLogicRevision")
     .NotifiesChange(ChangeArea.ConfiguredLogic)
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
@@ -1822,6 +1808,48 @@ static ConfiguredLogicResponse ToConfiguredLogicResponse(ConfiguredLogicDefiniti
         .Select(ToConfiguredLogicRevisionResponse)
         .ToArray());
 
+static int RequireDraftVersion(string? ifMatch)
+{
+    if (!int.TryParse(ifMatch?.Trim('"'), System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out var version))
+        throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+            "The reviewed draft version is required in If-Match.");
+    return version;
+}
+
+static CreateConfiguredLogicRevisionCommand ToRevisionCommand(CreateConfiguredLogicRevisionRequest request)
+{
+    if (request.AssetBindings is null || request.DataBindings is null ||
+        request.AssetBindings.Any(binding => binding is null) || request.DataBindings.Any(binding => binding is null))
+        throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "Asset and data bindings are required.");
+    return new CreateConfiguredLogicRevisionCommand(
+        request.ModuleManifestJson,
+        request.ParametersJson,
+        request.AssetBindings
+            .Select(binding => new ConfiguredLogicAssetBindingCommand(
+                binding.Role,
+                binding.AssetId,
+                binding.ParameterOverridesJson))
+            .ToArray(),
+        request.DataBindings
+            .Select(binding => new ConfiguredLogicDataBindingCommand(
+                binding.RequirementId,
+                binding.AssetId,
+                binding.ProviderId,
+                binding.ProviderAssetExternalId,
+                binding.ProviderMappingJson))
+            .ToArray(),
+        request.Schedule is null
+            ? null
+            : new ConfiguredLogicScheduleCommand(
+                request.Schedule.Enabled,
+                request.Schedule.CadenceSeconds,
+                request.Schedule.StartAtUtc,
+                request.Schedule.TimeZoneId),
+        request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role),
+        request.Mode?.ToDomain() ?? WellSiteAutoPilot.Domain.Executions.ExecutionMode.Shadow);
+}
+
 static ConfiguredLogicRevisionResponse ToConfiguredLogicRevisionResponse(ConfiguredLogicRevision revision) => new(
     revision.Id,
     revision.RevisionNumber,
@@ -1856,7 +1884,7 @@ static ConfiguredLogicRevisionResponse ToConfiguredLogicRevisionResponse(Configu
             binding.ProviderMappingJson))
         .ToArray(),
     revision.View is null ? null : new ConfiguredLogicViewResponse(revision.View.ViewId, revision.View.Revision,
-        revision.View.ConnectionId, revision.View.Role));
+        revision.View.ConnectionId, revision.View.Role), revision.DraftVersion);
 
 static LogicModuleResponse ToLogicModuleResponse(
     WellSiteAutoPilot.Domain.Logic.InstalledLogicModule module) => new(

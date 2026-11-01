@@ -10,6 +10,9 @@ type Props = {
   idPrefix: string;
   legend: string;
   disabled?: boolean;
+  /** Partial parameter overrides need an explicit inherited state for booleans. */
+  optionalBooleans?: boolean;
+  jsonLabel?: string;
   onChange: (key: string, value: string | boolean) => void;
   onUseJson: () => void;
 };
@@ -19,7 +22,7 @@ type Props = {
  * only: the server validates the same schema and stays the authority.
  */
 export function AttributeFieldsEditor({
-  fields, values, errors, idPrefix, legend, disabled, onChange, onUseJson,
+  fields, values, errors, idPrefix, legend, disabled, optionalBooleans = false, jsonLabel, onChange, onUseJson,
 }: Props) {
   return (
     <fieldset className="attribute-fields" disabled={disabled}>
@@ -32,7 +35,17 @@ export function AttributeFieldsEditor({
         const common = { id, 'aria-invalid': problem ? true : undefined,
           'aria-describedby': problem ? id + '-error' : undefined } as const;
         return <div className="attribute-field" key={field.key}>
-          {field.kind === 'boolean' ? (
+          {field.kind === 'boolean' && optionalBooleans ? (
+            <>
+              <label htmlFor={id}>{label}</label>
+              <select {...common} value={typeof values[field.key] === 'boolean' ? String(values[field.key]) : ''}
+                onChange={event => set(event.target.value === '' ? '' : event.target.value === 'true')}>
+                <option value="">{t('draftEditor.inherit')}</option>
+                <option value="true">{t('draftEditor.true')}</option>
+                <option value="false">{t('draftEditor.false')}</option>
+              </select>
+            </>
+          ) : field.kind === 'boolean' ? (
             <label htmlFor={id}>
               <input {...common} type="checkbox" checked={values[field.key] === true}
                 onChange={event => set(event.target.checked)} /> {label}
@@ -60,7 +73,7 @@ export function AttributeFieldsEditor({
             {t(('assets.createField.' + problem) as 'assets.createField.required')}</small>}
         </div>;
       })}
-      <ActionButton label={t('assets.createUseJson')} onClick={onUseJson} />
+      <ActionButton label={jsonLabel ?? t('assets.createUseJson')} onClick={onUseJson} />
     </fieldset>
   );
 }

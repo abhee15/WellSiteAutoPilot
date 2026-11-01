@@ -70,6 +70,7 @@ export function verifiedConfiguration(value: unknown): value is VerifiedConfigur
     v.revisions.every(r => isSecurityId(r.id) &&
       Number.isSafeInteger(r.revisionNumber) && (r.revisionNumber ?? 0) > 0 &&
       REVISION_STATUSES.includes(r.status ?? '') &&
+      (r.draftVersion === undefined || Number.isSafeInteger(r.draftVersion) && (r.draftVersion ?? -1) >= 0) &&
       ['Shadow', 'Recommendation', 'Autonomous'].includes(r.mode ?? '') && (!r.view || (isSecurityId(r.view.viewId) && isSecurityId(r.view.connectionId) &&
         Number.isSafeInteger(r.view.revision) && (r.view.revision ?? 0) > 0 && typeof r.view.role === 'string' && r.view.role.length > 0)) &&
       Array.isArray(r.assetBindings) &&

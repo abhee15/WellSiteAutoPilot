@@ -82,7 +82,8 @@ public sealed partial class ConfiguredLogicRepository
             inputs.Where(binding => binding.RevisionId == item.Id).Select(ToDomain).ToArray())).ToArray());
     }
 
-    private async Task RequireViewSnapshotAsync(ConfiguredLogicRevision revision, AccessSubject subject, CancellationToken cancellationToken)
+    private async Task RequireViewSnapshotAsync(ConfiguredLogicRevision revision, AccessSubject subject, CancellationToken cancellationToken,
+        ConfiguredLogicRevision? existing = null)
     {
         if (revision.View is not { } source)
         {
@@ -94,11 +95,14 @@ public sealed partial class ConfiguredLogicRepository
         var views = await dbContext.AssetViews.FromSqlInterpolated($"""
             SELECT v.* FROM assets.asset_views AS v WHERE v."Id" = {source.ViewId} FOR SHARE OF v
             """).AsNoTracking().ToArrayAsync(cancellationToken);
-        if (views.Length != 1 || views[0].ConnectionId != source.ConnectionId || views[0].Revision != source.Revision)
+        var preserve = existing?.View == source;
+        if (views.Length != 1 || views[0].ConnectionId != source.ConnectionId || (!preserve && views[0].Revision != source.Revision))
             throw new WellSiteAutoPilotException("ASSET_VIEW_REVISION_STALE", FailureKind.Conflict,
                 "The View changed before the assignment was saved. Review its selection again.");
-        var expected = await dbContext.AssetViewMembers.Where(member => member.ViewId == source.ViewId)
-            .Select(member => member.AssetId).ToArrayAsync(cancellationToken);
+        var expected = preserve
+            ? existing!.AssetBindings.Where(binding => string.Equals(binding.Role, source.Role, StringComparison.OrdinalIgnoreCase)).Select(binding => binding.AssetId).ToArray()
+            : await dbContext.AssetViewMembers.Where(member => member.ViewId == source.ViewId)
+                .Select(member => member.AssetId).ToArrayAsync(cancellationToken);
         var actual = revision.AssetBindings.Where(binding => string.Equals(binding.Role, source.Role, StringComparison.OrdinalIgnoreCase))
             .Select(binding => binding.AssetId).ToArray();
         if (actual.Length == 0 || !expected.ToHashSet().SetEquals(actual)) throw InvalidDraft();

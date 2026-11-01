@@ -201,6 +201,15 @@ internal static class AssetViewChecks
                 await RejectAsync(() => service.CreateAuthorizedAsync(command with { Name = "Disabled Connection",
                     View = command.View! with { ExpectedRevision = 3 } }, subject, actor), "CONFIGURED_LOGIC_VIEW_INCOMPATIBLE");
                 await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, true));
+                // Editing a draft preserves the reviewed membership even after its source View changes.
+                var editCommand = new CreateConfiguredLogicRevisionCommand(manifest, "{\"reviewed\":true}",
+                    revision.AssetBindings.Select(binding => new ConfiguredLogicAssetBindingCommand(binding.Role, binding.AssetId, binding.ParameterOverridesJson)).ToArray(),
+                    [], null, new ConfiguredLogicViewBindingCommand(viewId, 2, "well"));
+                var editedDraft = await service.UpdateDraftAuthorizedAsync(configured.Id, revision.Id, editCommand, 0, subject, actor);
+                if (editedDraft.View?.Revision != 2 || editedDraft.AssetBindings.Count != 9_999 || editedDraft.DraftVersion != 1)
+                    throw new InvalidOperationException("Draft edit refreshed pinned View targets.");
+                await RejectAsync(() => service.UpdateDraftAuthorizedAsync(configured.Id, revision.Id,
+                    editCommand with { AssetBindings = editCommand.AssetBindings.Skip(1).ToArray() }, 1, subject, actor), FailureCodes.ValidationFailed);
                 // Lifecycle operations retain the reviewed snapshot after the source View has changed.
                 await service.ValidateRevisionAuthorizedAsync(configured.Id, revision.Id, subject, actor);
                 await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, false));

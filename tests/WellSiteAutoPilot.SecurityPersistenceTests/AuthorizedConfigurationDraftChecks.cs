@@ -83,6 +83,7 @@ internal static class AuthorizedConfigurationDraftChecks
             await service.CreateRevisionAuthorizedAsync(applicationDraft.Id,
                 new(manifest, "{}", draftCommand.AssetBindings, [], null), subject, actor);
             await ExpectAsync(() => service.CreateAuthorizedAsync(draftCommand with { ParametersJson = "[]" }, subject, actor), FailureKind.Validation);
+            await EditableDraftChecks.RunAsync(options, subject, actor, manifest, assetA, assetB);
             var lifecycleAuditCount = await AuthorizedConfigurationLifecycleChecks.RunAsync(options, applicationDraft.Id,
                 subject, actor, grant, readGrant, assetB, assetTypeId, name);
             var scheduleAuditCount = await AuthorizedScheduleChecks.RunAsync(options, applicationDraft.Id,
