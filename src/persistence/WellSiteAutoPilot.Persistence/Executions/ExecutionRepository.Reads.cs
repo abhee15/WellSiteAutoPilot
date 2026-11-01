@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
