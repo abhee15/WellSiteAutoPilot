@@ -64,3 +64,34 @@ public sealed record ExecuteApprovedRecommendationResponse(
     bool Executed,
     string? RefusalCode,
     ControlActionResponse? Action);
+
+/// <summary>
+/// One adapter command at one site. Limits are required before <c>Enabled</c> can be true. <c>Target</c> is how the
+/// command is addressed here, by the adapter's target field keys.
+/// </summary>
+public sealed record ConnectionCommandCatalogEntryDto(
+    string Command,
+    bool Enabled,
+    decimal? Minimum,
+    decimal? Maximum,
+    decimal? MaximumStep,
+    IReadOnlyDictionary<string, string> Target,
+    int SettleSeconds,
+    int DeadlineSeconds);
+
+/// <summary>Replaces the whole catalog. <c>ExpectedVersion</c> is the version that was reviewed (0 when none was saved).</summary>
+public sealed record SetConnectionCommandCatalogRequest(
+    int ExpectedVersion,
+    IReadOnlyCollection<ConnectionCommandCatalogEntryDto> Entries,
+    string? Reason);
+
+/// <summary><c>Available</c> is what the connection's adapter can carry out, so the catalog can be read beside it.</summary>
+public sealed record ConnectionCommandCatalogResponse(
+    Guid ConnectionId,
+    string AdapterKey,
+    int Version,
+    string? ChangedBy,
+    DateTimeOffset? ChangedAtUtc,
+    string? Reason,
+    IReadOnlyList<ConnectionCommandCatalogEntryDto> Entries,
+    IReadOnlyList<Connections.AdapterCommandResponse> Available);

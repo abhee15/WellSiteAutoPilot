@@ -197,6 +197,7 @@ builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
 });
 builder.Services.AddSingleton<DiscoverySnapshotStore>();
 builder.Services.AddScoped<ConnectionService>();
+builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.ConnectionCommandCatalogService>();
 builder.Services.AddScoped<ConnectionMonitorService>();
 builder.Services.Configure<ConnectionMonitorOptions>(
     builder.Configuration.GetSection(ConnectionMonitorOptions.SectionName));
@@ -1620,6 +1621,36 @@ v1.MapPut(
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<ConnectionResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapGet(
+    "/connections/{connectionId:guid}/command-catalog",
+    async (Guid connectionId, WellSiteAutoPilot.Application.Control.ConnectionCommandCatalogService catalogs,
+        CancellationToken cancellationToken) =>
+        CommandCatalogMapping.ToResponse(await catalogs.GetAsync(connectionId, cancellationToken)))
+    .WithName("GetConnectionCommandCatalog")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ConnectionCommandCatalogResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+// Saving needs control.manage as well as connections.manage; the repository checks both in the writing transaction.
+v1.MapPut(
+    "/connections/{connectionId:guid}/command-catalog",
+    async (Guid connectionId, WellSiteAutoPilot.Api.Contracts.Control.SetConnectionCommandCatalogRequest request,
+        WellSiteAutoPilot.Application.Control.ConnectionCommandCatalogService catalogs, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        CommandCatalogMapping.ToResponse(await catalogs.ReplaceAsync(connectionId, request.ExpectedVersion,
+            request.Entries?.Select(CommandCatalogMapping.ToEntry).ToArray(), request.Reason,
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("SetConnectionCommandCatalog")
+    .NotifiesChange(ChangeArea.Connections)
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ConnectionCommandCatalogResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");

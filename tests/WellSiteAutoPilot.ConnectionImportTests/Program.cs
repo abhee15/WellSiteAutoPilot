@@ -6,6 +6,7 @@ using WellSiteAutoPilot.Integration.ForeSite;
 HierarchyChecks.Verify();
 SourceChangeChecks.Verify();
 ConnectionMonitorChecks.Verify();
+ConnectionCommandCatalogServiceChecks.Verify();
 
 // The planner is pure, so these checks need no database or network.
 var connection = Guid.Parse("00000000-0000-4000-8000-000000000001");
