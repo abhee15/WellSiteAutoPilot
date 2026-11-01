@@ -38,6 +38,8 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<LogicModulePackageEntity> LogicModulePackages => Set<LogicModulePackageEntity>();
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
+    public DbSet<ConfiguredLogicScheduleStateEntity> ConfiguredLogicScheduleStates => Set<ConfiguredLogicScheduleStateEntity>();
+    public DbSet<ConfiguredLogicScheduleChangeEntity> ConfiguredLogicScheduleChanges => Set<ConfiguredLogicScheduleChangeEntity>();
     public DbSet<WellSiteAutoPilot.Persistence.Control.AutonomyPolicyEntity> AutonomyPolicies => Set<WellSiteAutoPilot.Persistence.Control.AutonomyPolicyEntity>();
     public DbSet<WellSiteAutoPilot.Persistence.Control.ControlActionEntity> ControlActions => Set<WellSiteAutoPilot.Persistence.Control.ControlActionEntity>();
     public DbSet<WellSiteAutoPilot.Persistence.Control.ControlKillSwitchEntity> ControlKillSwitches => Set<WellSiteAutoPilot.Persistence.Control.ControlKillSwitchEntity>();
@@ -334,6 +336,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .OnDelete(DeleteBehavior.Cascade);
 
         var recommendation = modelBuilder.Entity<RecommendationEntity>();
+        ConfiguredLogicScheduleModelConfiguration.Configure(modelBuilder);
         WellSiteAutoPilot.Persistence.Control.ControlModelConfiguration.Configure(modelBuilder);
         recommendation.ToTable("recommendations", "operations");
         recommendation.HasKey(x => x.Id);

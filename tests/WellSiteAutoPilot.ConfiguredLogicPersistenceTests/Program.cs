@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Logic;
@@ -348,6 +349,80 @@ var activationAudits = await dbContext.AuditEvents.AsNoTracking()
     .Where(a => a.TargetId == created.Id.ToString() && a.Action == "CONFIGURED_LOGIC_REVISION_ACTIVATED")
     .CountAsync();
 if (activationAudits != 3) throw new InvalidOperationException("Activation audit must commit once per successful transition only.");
+
+// Live schedule state: changes are versioned against the active revision and serialised with activation.
+var scheduleRepository = new ConfiguredLogicScheduleRepository(dbContext);
+var scheduleRevisionId = (await configuredLogicService.GetRequiredAsync(created.Id)).ActiveRevisionId
+    ?? throw new InvalidOperationException("Expected an active revision for the schedule state checks.");
+var scheduleNow = DateTimeOffset.UtcNow;
+ConfiguredLogicScheduleChangeRequest ScheduleRequest(
+    ConfiguredLogicScheduleChangeKind kind, int expectedVersion, bool enabled, int cadenceSeconds, Guid? revisionId = null) =>
+    new(created.Id, revisionId ?? scheduleRevisionId, expectedVersion, kind,
+        new ConfiguredLogicSchedule(enabled, cadenceSeconds, scheduleNow.AddSeconds(cadenceSeconds), "UTC"),
+        "schedule-test", scheduleNow, "persistence check");
+
+if (await scheduleRepository.GetAsync(created.Id) is not null ||
+    (await scheduleRepository.ListAsync([created.Id])).Count != 0)
+    throw new InvalidOperationException("A logic that follows its revision must have no live schedule state.");
+
+var paused = await scheduleRepository.ApplyAsync(
+    ScheduleRequest(ConfiguredLogicScheduleChangeKind.Paused, 0, false, 60));
+if (paused.Version != 1 || paused.Schedule.Enabled || paused.BasedOnRevisionId != scheduleRevisionId ||
+    (await scheduleRepository.GetAsync(created.Id))?.Version != 1)
+    throw new InvalidOperationException("Pausing did not persist version 1 of the live schedule.");
+
+foreach (var staleRequest in new[]
+{
+    ScheduleRequest(ConfiguredLogicScheduleChangeKind.Resumed, 0, true, 60),
+    ScheduleRequest(ConfiguredLogicScheduleChangeKind.Resumed, 1, true, 60, Guid.NewGuid())
+})
+{
+    try
+    {
+        await scheduleRepository.ApplyAsync(staleRequest);
+        throw new InvalidOperationException("A stale schedule change was accepted.");
+    }
+    catch (WellSiteAutoPilotException e) when (e.Code == "SCHEDULE_CHANGED" && e.Kind == FailureKind.Conflict) { }
+}
+
+foreach (var invalidRequest in new[]
+{
+    ScheduleRequest(ConfiguredLogicScheduleChangeKind.Reset, 1, true, 60),
+    ScheduleRequest(ConfiguredLogicScheduleChangeKind.FrequencyChanged, 1, true, 0)
+})
+{
+    try
+    {
+        await scheduleRepository.ApplyAsync(invalidRequest);
+        throw new InvalidOperationException("An invalid schedule change was accepted.");
+    }
+    catch (WellSiteAutoPilotException e) when (e.Code == "SCHEDULE_CHANGE_INVALID" && e.Kind == FailureKind.Validation) { }
+}
+
+var resumed = await scheduleRepository.ApplyAsync(
+    ScheduleRequest(ConfiguredLogicScheduleChangeKind.Resumed, 1, true, 120));
+var scheduleChanges = await scheduleRepository.ListChangesAsync(created.Id, 10);
+if (resumed.Version != 2 || !resumed.Schedule.Enabled || resumed.Schedule.CadenceSeconds != 120 ||
+    scheduleChanges.Count != 2 ||
+    scheduleChanges[0].Kind != ConfiguredLogicScheduleChangeKind.Resumed ||
+    scheduleChanges[1].Kind != ConfiguredLogicScheduleChangeKind.Paused ||
+    (await scheduleRepository.ListAsync([created.Id])).Count != 1)
+    throw new InvalidOperationException("Resuming did not append to the schedule history in order.");
+
+// Two writers that reviewed the same version: exactly one wins.
+var scheduleRace = await Task.WhenAll(new List<int> { 180, 240 }.Select(async cadence =>
+{
+    await using var raceContext = new WellSiteAutoPilotDbContext(options);
+    try
+    {
+        await new ConfiguredLogicScheduleRepository(raceContext).ApplyAsync(
+            ScheduleRequest(ConfiguredLogicScheduleChangeKind.FrequencyChanged, 2, true, cadence));
+        return true;
+    }
+    catch (WellSiteAutoPilotException e) when (e.Code == "SCHEDULE_CHANGED") { return false; }
+}));
+if (scheduleRace.Count(won => won) != 1 || (await scheduleRepository.GetAsync(created.Id))?.Version != 3)
+    throw new InvalidOperationException("Concurrent schedule changes must produce exactly one new version.");
 
 Console.WriteLine(
     "Configured Logic persistence, module readiness, trust gating, activation, and revision-history checks passed.");
