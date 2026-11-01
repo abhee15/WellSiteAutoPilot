@@ -20,6 +20,7 @@ import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { CONTROL_MANAGE_PERMISSION } from './controlExecution';
 import { ModulePanel } from './ModulePanel';
+import { SchedulesOverview } from './SchedulesOverview';
 import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
 import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, listedStatus } from './configuredLogicViews';
@@ -28,8 +29,9 @@ import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRunti
 import type { LogicCatalogCriteria } from './logicCatalog';
 import './splitLayout.css';
 
-/** `#logic/modules` opens the Modules tab. */
+/** `#logic/modules` opens the Modules tab and `#logic/schedules` the Schedules tab. */
 const MODULES_TAB = 'modules';
+const SCHEDULES_TAB = 'schedules';
 
 export function LogicPage({
   modules,
@@ -62,8 +64,10 @@ export function LogicPage({
   // `#logic/modules` opens the Modules tab. Any other detail is a configuration id.
   const startAssetId = rawDetail?.startsWith('new:') ? rawDetail.slice(4) : null;
   const modulesRequested = rawDetail === MODULES_TAB;
-  const selectedConfiguredId = startAssetId || modulesRequested ? null : rawDetail;
-  const showModules = canReadCatalog && (modulesRequested || !canReadConfigurations);
+  const schedulesRequested = rawDetail === SCHEDULES_TAB;
+  const selectedConfiguredId = startAssetId || modulesRequested || schedulesRequested ? null : rawDetail;
+  const showSchedules = canReadConfigurations && schedulesRequested;
+  const showModules = !showSchedules && canReadCatalog && (modulesRequested || !canReadConfigurations);
   const [creating, setCreating] = useState(Boolean(startAssetId));
   useEffect(() => { if (startAssetId) setCreating(true); }, [startAssetId]);
   const prefillAssetId = startAssetId && assets.some(asset => asset.id === startAssetId && asset.isActive)
@@ -90,18 +94,24 @@ export function LogicPage({
   const hasConfigurationDetail = Boolean(selectedConfiguration) || (creating && canCreate);
 
   return (
-    <div {...splitFocus} className="split-layout runs-layout logic-layout" data-has-selection={showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
+    <div {...splitFocus} className="split-layout runs-layout logic-layout" data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
       <div className="split-tabs" role="tablist" aria-label={t('logic.tabs')}>
-        {canReadConfigurations && <a role="tab" href={hashFor('logic')} aria-selected={!showModules}>
+        {canReadConfigurations && <a role="tab" href={hashFor('logic')} aria-selected={!showModules && !showSchedules}>
           {t('logic.tabConfigured')} <span>{configuredLogic.length}</span>
+        </a>}
+        {canReadConfigurations && <a role="tab" href={hashFor('logic', SCHEDULES_TAB)} aria-selected={showSchedules}>
+          {t('logic.tabSchedules')}
         </a>}
         {canReadCatalog && <a role="tab" href={hashFor('logic', MODULES_TAB)} aria-selected={showModules}>
           {t('logic.tabModules')} <span>{modules.length}</span>
         </a>}
-        {!showModules && canCreate && !creating && !selectedConfiguredId && <ActionButton label={t('setup.heading')} variant="primary" className="split-add" data-split-focus-key="create" onClick={() => setCreating(true)} />}
+        {!showModules && !showSchedules && canCreate && !creating && !selectedConfiguredId && <ActionButton label={t('setup.heading')} variant="primary" className="split-add" data-split-focus-key="create" onClick={() => setCreating(true)} />}
       </div>
 
-      {showModules ? (
+      {showSchedules ? (
+        <SchedulesOverview configuredLogic={configuredLogic} assets={assets}
+          executions={canReadRuns ? executions : undefined} isLoaded={isLoaded} />
+      ) : showModules ? (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
             <PanelHeader title="Logic modules" count={visibleModules.length} />

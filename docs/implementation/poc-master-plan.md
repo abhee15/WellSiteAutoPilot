@@ -86,7 +86,7 @@ Status: Done / In progress / Not started / Probe (a branch exists to answer an u
 ### F. Scheduling (gap 19)
 | # | Pri | Item | Status |
 |---|---|---|---|
-| F1 | P1 | Schedules overview and in-context editor, per configuration | Design/probe: `probe/poc-schedule-ux` |
+| F1 | P1 | Schedules overview and in-context editor, per configuration | Read-only overview built (Logic > Schedules); editor, pause/resume and asset-page summary remain; probe `probe/poc-schedule-ux` |
 | F2 | P1 | Minimum frequency: 15 s default, per-provider override declared by adapter, enforced on save and dispatch | Decided; not started |
 | F3 | P1 | Permission: reuse `configured-logic.manage` | Decided |
 | F4 | P1 | Pause/resume, next/last run, overlap policy (skip/queue if previous run still running), missed-run catch-up | Not started |
