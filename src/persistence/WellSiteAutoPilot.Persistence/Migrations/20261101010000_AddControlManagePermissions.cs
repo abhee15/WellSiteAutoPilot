@@ -11,8 +11,8 @@ namespace WellSiteAutoPilot.Persistence.Migrations;
 /// change, so the model snapshot is unchanged.
 /// </summary>
 [DbContext(typeof(WellSiteAutoPilotDbContext))]
-[Migration("20261101010000_AddControlManagePermission")]
-public partial class AddControlManagePermission : Migration
+[Migration("20261101010000_AddControlManagePermissions")]
+public partial class AddControlManagePermissions : Migration
 {
     private const string Admin = "b50cdb48-61e9-4c9f-a8d1-40dc1e8b7010";
 
