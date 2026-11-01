@@ -223,5 +223,5 @@ Findings from the last probes and the items they add:
 | L4 | P1 | Authoring: AppContainer fails at process creation here (Win32 203), Job-object mode is the baseline; database draft store and migration unverified; live preview untested against live providers |
 | L5 | P1 | Real-time: no worker progress producer, groups not asset-scoped, notifications client-only, no backplane; not tested against the AppHost |
 | L6 | P1 | Adapters: WAMI not registered as an adapter; no adapter declares a minimum schedule; adapter profile endpoint and tab have no tests (`docs/design/adapter-experience.md`) |
-| L7 | P1 | Modes: web resolve-ambiguous action and simulator HTTP sink tests are unfinished or unverified |
+| L7 | P1 | Modes: simulator HTTP sink tests are unfinished or unverified |
 | L8 | P2 | Real sink: ForeSite `SendSetPointsParamsForSingleWell` is the recommended write path; CygNet point-write API unconfirmed; dry-run outcome shows as Dispatched (`docs/design/autonomous-real-sink-readiness.md`) |
