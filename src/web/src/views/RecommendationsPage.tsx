@@ -8,6 +8,7 @@ import { formatDetailTimestamp } from './executionDetail';
 import { RecommendationInboxControls } from './RecommendationInboxControls';
 import { RecommendationDecisionReviewPanel } from './RecommendationDecisionReviewPanel';
 import { ControlExecutionPanel } from './ControlExecutionPanel';
+import { KillSwitchPanel } from './KillSwitchPanel';
 import { CONTROL_MANAGE_PERMISSION, outcomeMessageKey, recommendationIsExecutable } from './controlExecution';
 import {
   DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
@@ -243,6 +244,7 @@ export function RecommendationsPage({
 
   return (
     <>
+      <KillSwitchPanel userId={userId} canManage={canExecute} />
       <section className="summary-grid" aria-label={t('inbox.summary')}>
         {RECOMMENDATION_INBOX_FILTERS.map(kind => (
           <SummaryCard key={kind} label={t(cardLabels[kind].label)} value={String(counts[kind])}
