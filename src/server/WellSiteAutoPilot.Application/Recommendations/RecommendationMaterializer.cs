@@ -33,7 +33,8 @@ public sealed class RecommendationMaterializer(
                 FailureKind.NotFound,
                 "The source execution was not found.");
 
-        if (execution.Mode != ExecutionMode.Recommendation)
+        // Shadow only observes its intents. Recommendation proposes them to an operator; Autonomous hands them to the gate.
+        if (!ExecutionModePolicy.MaterializesControlIntents(execution.Mode))
         {
             return 0;
         }

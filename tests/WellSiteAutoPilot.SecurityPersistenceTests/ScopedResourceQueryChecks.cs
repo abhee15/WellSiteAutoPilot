@@ -3,6 +3,7 @@ using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
+using WellSiteAutoPilot.Persistence.Control;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Recommendations;
 using WellSiteAutoPilot.Persistence.Security;
@@ -155,6 +156,17 @@ internal static class ScopedResourceQueryChecks
         var recommendationC = Recommendation(denied, deniedExecution, assetC, now.AddMinutes(2));
         var recommendationA = Recommendation(allowed, allowedExecution, assetA, now);
         var recommendationB = Recommendation(mixed, mixedExecution, assetB, now.AddMinutes(-1));
+        // Control actions and policies are disclosed through the same scopes as the recommendations and configurations
+        // they belong to; a blocked action is as sensitive as a dispatched one.
+        var actionA = ControlAction(recommendationA, allowed.Id, allowedExecution, assetA, now);
+        var actionB = ControlAction(recommendationB, mixed.Id, mixedExecution, assetB, now.AddMinutes(-1));
+        ControlAction(recommendationC, denied.Id, deniedExecution, assetC, now.AddMinutes(2));
+        foreach (var policyOwner in new[] { allowed.Id, denied.Id })
+            db.AutonomyPolicies.Add(new AutonomyPolicyEntity
+            {
+                ConfiguredLogicId = policyOwner, Enabled = false, SinkKind = "Simulator", LimitsJson = "[]",
+                MaxActionsPerWindow = 1, WindowSeconds = 60, UpdatedBy = "query-test", UpdatedAtUtc = now
+            });
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
@@ -439,12 +451,15 @@ internal static class ScopedResourceQueryChecks
                 throw new InvalidOperationException("Foreign active revision conferred run authority.");
             await db.ConfiguredLogicDefinitions.Where(item => item.Id == allowed.Id)
                 .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, (Guid?)allowed.Revision));
-            // A mode the platform cannot run (Autonomous is refused until the control gate exists) confers no run
-            // authority, even if one is forced into the table; Recommendation is runnable and must match the run API.
-            await db.ConfiguredLogicRevisions.Where(item => item.Id == allowed.Revision)
-                .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, "Autonomous"));
-            if ((await ConfigurationsAsync())[allowed.Id].CanRequestShadow)
-                throw new InvalidOperationException("Unsupported-mode revision conferred run authority.");
+            // Autonomous is scheduler-only and an unrecognized mode is not governed at all: neither confers manual run
+            // authority, even if forced into the table. Recommendation is runnable and must match the run API.
+            foreach (var unrunnable in new[] { "Autonomous", "Unrecognized" })
+            {
+                await db.ConfiguredLogicRevisions.Where(item => item.Id == allowed.Revision)
+                    .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, unrunnable));
+                if ((await ConfigurationsAsync())[allowed.Id].CanRequestShadow)
+                    throw new InvalidOperationException($"A {unrunnable} revision conferred manual run authority.");
+            }
             await db.ConfiguredLogicRevisions.Where(item => item.Id == allowed.Revision)
                 .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, "Recommendation"));
             if (!(await ConfigurationsAsync())[allowed.Id].CanRequestShadow)
@@ -511,6 +526,7 @@ internal static class ScopedResourceQueryChecks
             var configuredRepository = new ConfiguredLogicRepository(db, requestClock);
             var executionRepository = new ExecutionRepository(db, requestClock);
             var recommendationRepository = new RecommendationRepository(db, requestClock);
+            var controlRepository = new ControlRepository(db, requestClock);
             if ((await assetRepository.ListAuthorizedAsync(request, null, null, 1)).Single().Id != assetA ||
                 await assetRepository.GetAuthorizedAsync(request, assetC) is not null ||
                 (await assetRepository.GetAuthorizedAsync(request, assetB))?.Id != assetB)
@@ -550,6 +566,16 @@ internal static class ScopedResourceQueryChecks
                 (await recommendationRepository.ListAuthorizedAsync(request, null, 100, assetId: assetC)).Count != 0 ||
                 (await recommendationRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: denied.Id)).Count != 0)
                 throw new InvalidOperationException("Recommendation filters disclosed or displaced unauthorized recommendations.");
+            if (!(await controlRepository.ListActionsAuthorizedAsync(request, null, 100)).Select(item => item.Id)
+                    .ToHashSet().SetEquals([actionA, actionB]) ||
+                (await controlRepository.ListActionsAuthorizedAsync(request, null, 1)).Single().Id != actionA ||
+                (await controlRepository.ListActionsAuthorizedAsync(request, allowed.Id, 100)).Single().Id != actionA ||
+                (await controlRepository.ListActionsAuthorizedAsync(request, denied.Id, 100)).Count != 0)
+                throw new InvalidOperationException("Control actions disclosed or displaced unauthorized actions.");
+            if (await controlRepository.GetPolicyAuthorizedAsync(request, allowed.Id) is null ||
+                await controlRepository.GetPolicyAuthorizedAsync(request, denied.Id) is not null ||
+                await controlRepository.GetPolicyAuthorizedAsync(request, Guid.NewGuid()) is not null)
+                throw new InvalidOperationException("Autonomy policies disclosed an unreadable configuration or confirmed it exists.");
         }
 
         async Task AssertEmptyAsync(Guid subject, string? permission = null,
@@ -570,7 +596,8 @@ internal static class ScopedResourceQueryChecks
                 if ((await new AssetRepository(db, requestClock).ListAuthorizedAsync(request, null, null, 100)).Count != 0 ||
                     (await new ConfiguredLogicRepository(db, requestClock).ListAuthorizedAsync(request, 100)).Count != 0 ||
                     (await new ExecutionRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0 ||
-                    (await new RecommendationRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0)
+                    (await new RecommendationRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0 ||
+                    (await new ControlRepository(db, requestClock).ListActionsAuthorizedAsync(request, null, 100)).Count != 0)
                     throw new InvalidOperationException("Invalid/inactive subject was disclosed by a resource repository.");
             }
         }
@@ -652,6 +679,18 @@ internal static class ScopedResourceQueryChecks
             });
             db.ExecutionAssetScopes.AddRange(assets.Select(asset =>
                 new ExecutionAssetScopeEntity { ExecutionId = id, LogicInstanceId = configuration, AssetId = asset }));
+            return id;
+        }
+
+        Guid ControlAction(Guid recommendation, Guid configuration, Guid execution, Guid asset, DateTimeOffset created)
+        {
+            var id = Guid.NewGuid();
+            db.ControlActions.Add(new ControlActionEntity
+            {
+                Id = id, RecommendationId = recommendation, ExecutionId = execution, ConfiguredLogicId = configuration,
+                AssetId = asset, Command = "test", Status = "Blocked", GateCode = "GATE_NO_POLICY", Sink = "Simulator",
+                CreatedAtUtc = created
+            });
             return id;
         }
 

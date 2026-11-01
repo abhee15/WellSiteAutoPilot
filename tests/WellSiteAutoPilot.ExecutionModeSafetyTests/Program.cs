@@ -24,8 +24,9 @@ using WellSiteAutoPilot.Persistence.Logic;
 using WellSiteAutoPilot.Persistence.Recommendations;
 
 // Execution modes: a Configured Logic revision carries one immutable mode that is copied onto every Execution it
-// produces. The platform accepts only the modes it can govern (Shadow, Recommendation); Autonomous is refused until the
-// control gate exists, and every layer must agree on that set.
+// produces. The platform accepts the modes it can govern (Shadow, Recommendation, Autonomous) and every layer must agree
+// on that set. Autonomous is scheduler-only: a person never runs it, and only the autonomy gate may turn its
+// intents into ControlActions.
 
 var connectionString = Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -119,23 +120,36 @@ var recommendation = await ActiveConfigurationAsync(ExecutionMode.Recommendation
 var stored = await db.ConfiguredLogicRevisions.AsNoTracking().SingleAsync(item => item.Id == recommendation.Revision.Id);
 Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation mode was not persisted on the revision.");
 
-// 2. Autonomous cannot be created, neither as a new configuration nor as a new revision of an existing one.
+// 2. Autonomous can be configured like any governed mode; undefined values cannot, neither as a new configuration
+// nor as a new revision of an existing one.
 {
+    var autonomous = await ActiveConfigurationAsync(ExecutionMode.Autonomous, null);
+    var storedAutonomous = await db.ConfiguredLogicRevisions.AsNoTracking().SingleAsync(item => item.Id == autonomous.Revision.Id);
+    Require(storedAutonomous.Mode == nameof(ExecutionMode.Autonomous), "The Autonomous mode was not persisted on the revision.");
     var well = await NewWellAsync();
-    await RequireValidationFailureAsync(async () => await configuredLogicService.CreateAsync(
-        new CreateConfiguredLogicCommand($"Mode refused {Guid.NewGuid():N}", manifest, "{}",
-            [new("well", well.Id, "{}")], [new("pump-fillage", well.Id, "simulator", "WELL-1", "{}")], null,
-            Mode: ExecutionMode.Autonomous)),
-        "An Autonomous configuration was accepted before the control gate exists.");
-    await RequireValidationFailureAsync(async () => await configuredLogicService.CreateRevisionAsync(shadow.Logic.Id,
+    var revised = await configuredLogicService.CreateRevisionAsync(shadow.Logic.Id,
         new CreateConfiguredLogicRevisionCommand(manifest, "{}", [new("well", shadow.Well.Id, "{}")],
-            [new("pump-fillage", shadow.Well.Id, "simulator", "WELL-1", "{}")], null, Mode: ExecutionMode.Autonomous)),
-        "An Autonomous revision was accepted before the control gate exists.");
+            [new("pump-fillage", shadow.Well.Id, "simulator", "WELL-1", "{}")], null, Mode: ExecutionMode.Autonomous));
+    Require(revised.Mode == ExecutionMode.Autonomous, "An Autonomous revision was not created with its mode.");
     await RequireValidationFailureAsync(async () => await configuredLogicService.CreateAsync(
         new CreateConfiguredLogicCommand($"Mode undefined {Guid.NewGuid():N}", manifest, "{}",
             [new("well", well.Id, "{}")], [new("pump-fillage", well.Id, "simulator", "WELL-1", "{}")], null,
             Mode: (ExecutionMode)99)),
-        "An undefined mode value was accepted.");
+        "An undefined mode value was accepted on a new configuration.");
+    await RequireValidationFailureAsync(async () => await configuredLogicService.CreateRevisionAsync(shadow.Logic.Id,
+        new CreateConfiguredLogicRevisionCommand(manifest, "{}", [new("well", shadow.Well.Id, "{}")],
+            [new("pump-fillage", shadow.Well.Id, "simulator", "WELL-1", "{}")], null, Mode: (ExecutionMode)99)),
+        "An undefined mode value was accepted on a new revision.");
+
+    // A person never runs Autonomous: only the scheduler does, and its commands pass the gate.
+    try
+    {
+        await configuredLogicService.PrepareManualShadowAsync(autonomous.Logic.Id, autonomous.Revision.Id);
+        throw new InvalidOperationException("An Autonomous revision was prepared for a manual run.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Conflict)
+    {
+    }
 }
 
 // 3. A person may run Shadow and Recommendation revisions, and the prepared command carries the revision's mode.
@@ -146,7 +160,7 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     Require(preparedShadow.Mode == ExecutionMode.Shadow, "A manual run lost the revision's Shadow mode.");
 }
 
-// 4. Requesting an execution copies the mode onto the Execution; an unsupported mode on a command is refused.
+// 4. Requesting an execution copies the mode onto the Execution; an undefined mode on a command is refused.
 {
     var requested = await executionService.RequestConfiguredShadowAsync(
         await configuredLogicService.PrepareManualShadowAsync(recommendation.Logic.Id, recommendation.Revision.Id),
@@ -157,44 +171,57 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
 
     var prepared = await configuredLogicService.PrepareManualShadowAsync(shadow.Logic.Id, shadow.Revision.Id);
     await RequireValidationFailureAsync(async () => await executionService.RequestConfiguredShadowAsync(
-        prepared with { Mode = ExecutionMode.Autonomous }, $"mode-autonomous-{Guid.NewGuid():N}"),
-        "An Autonomous Execution was accepted before the control gate exists.");
+        prepared with { Mode = (ExecutionMode)99 }, $"mode-undefined-{Guid.NewGuid():N}"),
+        "An Execution with an undefined mode was accepted.");
 }
 
-// 5. The scheduler dispatches Shadow and Recommendation revisions with their own mode, and never an Autonomous one,
-// even if one is forced into the table. The forced case also proves the SQL candidate filter and the policy agree.
+// 5. The scheduler dispatches every governed mode with its own mode. A mode the platform does not recognize is never
+// dispatched, even if one is forced into the table: this proves the SQL candidate filter and the policy agree.
 {
     var start = clock.GetUtcNow().AddHours(-1);
     var schedule = new ConfiguredLogicScheduleCommand(true, 60, start, "UTC");
     var scheduledShadow = await ActiveConfigurationAsync(ExecutionMode.Shadow, schedule);
     var scheduledRecommendation = await ActiveConfigurationAsync(ExecutionMode.Recommendation, schedule);
+    var scheduledAutonomous = await ActiveConfigurationAsync(ExecutionMode.Autonomous, schedule);
     var forced = await ActiveConfigurationAsync(ExecutionMode.Shadow, schedule);
     await db.ConfiguredLogicRevisions.Where(item => item.Id == forced.Revision.Id)
-        .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, nameof(ExecutionMode.Autonomous)));
+        .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, "Unrecognized"));
 
     var sweep = await scheduler.DispatchDueAsync(500);
-    var shadowDecision = sweep.Decisions.Single(item => item.ConfiguredLogicId == scheduledShadow.Logic.Id);
-    var recommendationDecision = sweep.Decisions.Single(item => item.ConfiguredLogicId == scheduledRecommendation.Logic.Id);
-    Require(shadowDecision.Outcome == ScheduledShadowDispatchOutcome.Dispatched &&
-            recommendationDecision.Outcome == ScheduledShadowDispatchOutcome.Dispatched,
-        "The scheduler did not dispatch both supported modes.");
-    Require((await executionService.GetRequiredAsync(shadowDecision.ExecutionId!.Value)).Mode == ExecutionMode.Shadow,
-        "A scheduled Shadow run did not stay Shadow.");
-    Require((await executionService.GetRequiredAsync(recommendationDecision.ExecutionId!.Value)).Mode == ExecutionMode.Recommendation,
+    async Task<ExecutionMode> DispatchedModeAsync(Guid configuredLogicId, string label)
+    {
+        var decision = sweep.Decisions.Single(item => item.ConfiguredLogicId == configuredLogicId);
+        Require(decision.Outcome == ScheduledShadowDispatchOutcome.Dispatched, $"The scheduler did not dispatch the {label} revision.");
+        return (await executionService.GetRequiredAsync(decision.ExecutionId!.Value)).Mode;
+    }
+
+    Require(await DispatchedModeAsync(scheduledShadow.Logic.Id, "Shadow") == ExecutionMode.Shadow, "A scheduled Shadow run did not stay Shadow.");
+    Require(await DispatchedModeAsync(scheduledRecommendation.Logic.Id, "Recommendation") == ExecutionMode.Recommendation,
         "A scheduled Recommendation run did not carry its mode.");
+    Require(await DispatchedModeAsync(scheduledAutonomous.Logic.Id, "Autonomous") == ExecutionMode.Autonomous,
+        "A scheduled Autonomous run did not carry its mode.");
     Require(!sweep.Decisions.Any(item => item.ConfiguredLogicId == forced.Logic.Id &&
                                          item.Outcome == ScheduledShadowDispatchOutcome.Dispatched),
-        "The scheduler dispatched an Autonomous revision.");
+        "The scheduler dispatched a revision with an unrecognized mode.");
     Require(!await db.Executions.AnyAsync(item => item.LogicInstanceId == forced.Logic.Id),
-        "An Autonomous revision produced an Execution.");
+        "A revision with an unrecognized mode produced an Execution.");
 }
 
-// 6. Only Recommendation executions become operator recommendations; a Shadow run observes its intents only.
+// 6. Recommendation and Autonomous executions materialize their intents (the latter only to be decided by the gate);
+// a Shadow run observes its intents only.
 {
     async Task<int> MaterializeAsync(ExecutionMode mode)
     {
-        var active = await ActiveConfigurationAsync(mode, null);
-        var command = (await configuredLogicService.PrepareManualShadowAsync(active.Logic.Id, active.Revision.Id));
+        // A person cannot prepare an Autonomous run, so prepare it as Shadow and switch both the revision and the command,
+        // which is exactly the pair of facts the scheduler produces.
+        var active = await ActiveConfigurationAsync(mode == ExecutionMode.Autonomous ? ExecutionMode.Shadow : mode, null);
+        var command = await configuredLogicService.PrepareManualShadowAsync(active.Logic.Id, active.Revision.Id);
+        if (mode == ExecutionMode.Autonomous)
+        {
+            await db.ConfiguredLogicRevisions.Where(item => item.Id == active.Revision.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, nameof(ExecutionMode.Autonomous)));
+            command = command with { Mode = ExecutionMode.Autonomous };
+        }
         var execution = await executionService.RequestConfiguredShadowAsync(command, $"mode-materialize-{Guid.NewGuid():N}");
         var result = new LogicModuleExecutionResult("MODE_TEST_COMPLETED", [], [],
             [new ControlIntentDraft("SET_PUMPING_SPEED", active.Well.Id, "SetSpeed", "PumpingSpeed", 9m, "spm", "OPTIMIZED")],
@@ -207,10 +234,11 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
 
     Require(await MaterializeAsync(ExecutionMode.Shadow) == 0, "A Shadow execution produced a recommendation.");
     Require(await MaterializeAsync(ExecutionMode.Recommendation) == 1, "A Recommendation execution did not produce its recommendation.");
+    Require(await MaterializeAsync(ExecutionMode.Autonomous) == 1, "An Autonomous execution did not produce its intent.");
 }
 
-// 6b. The autonomy gate. The service refuses to create an Autonomous revision until the gate is wired in, so these
-// executions are built by forcing the mode in the database. Nothing here is reachable from the product yet.
+// 6b. The autonomy gate. These executions are built directly: the revision is prepared while a person can still run it,
+// then switched to Autonomous, so the execution row is exactly what the scheduler would have produced.
 {
     var limits = new[] { new AutonomyCommandLimit("SetSpeed", "spm", 5m, 12m) };
 
@@ -247,7 +275,7 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     var first = await AutonomousExecutionAsync(9m, 50m, 10m, 11m);
     Require(await gate.ProcessExecutionAsync(first.ExecutionId) == 4 && simulator.Sent.Count == 0,
         "Autonomous commands were dispatched without a policy.");
-    var blocked = await gate.ListActionsAsync(first.ConfiguredLogicId, 50);
+    var blocked = await controlRepository.ListActionsAsync(first.ConfiguredLogicId, 50);
     Require(blocked.Count == 4 && blocked.All(item => item.Status == ControlActionStatus.Blocked && item.GateCode == GateCodes.NoPolicy),
         "A missing policy must block every intent with GATE_NO_POLICY.");
     Require(!await recommendationRepository.TryDecideAsync(
@@ -270,7 +298,7 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     await gate.SetPolicyAsync(gated.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 2, 3600, "admin");
     await gate.ProcessExecutionAsync(gated.ExecutionId);
     await gate.ProcessExecutionAsync(gated.ExecutionId);
-    var actions = await gate.ListActionsAsync(gated.ConfiguredLogicId, 50);
+    var actions = await controlRepository.ListActionsAsync(gated.ConfiguredLogicId, 50);
     Require(actions.Count == 4, "The gate must record exactly one action per intent, even when processed twice.");
     Require(actions.Count(item => item.Status == ControlActionStatus.Dispatched) == 2 && simulator.Sent.Count == 2,
         "Exactly the two in-bounds intents within the rate limit should dispatch.");
@@ -292,7 +320,7 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
         await gate.SetPolicyAsync(halted.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 10, 3600, "admin");
         await gate.ProcessExecutionAsync(halted.ExecutionId);
         Require(simulator.Sent.Count == sentBefore &&
-                (await gate.ListActionsAsync(halted.ConfiguredLogicId, 10)).Single().GateCode == GateCodes.KillSwitch,
+                (await controlRepository.ListActionsAsync(halted.ConfiguredLogicId, 10)).Single().GateCode == GateCodes.KillSwitch,
             "The kill switch did not halt autonomous dispatch.");
     }
     finally
@@ -305,20 +333,29 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     await gate.SetPolicyAsync(globallyOff.ConfiguredLogicId, true, ControlSinkKinds.Simulator, limits, 10, 3600, "admin");
     await gate.ProcessExecutionAsync(globallyOff.ExecutionId);
     Require(simulator.Sent.Count == sentBefore &&
-            (await gate.ListActionsAsync(globallyOff.ConfiguredLogicId, 10)).Single().GateCode == GateCodes.GlobalDisabled,
+            (await controlRepository.ListActionsAsync(globallyOff.ConfiguredLogicId, 10)).Single().GateCode == GateCodes.GlobalDisabled,
         "The disabled deployment switch did not block dispatch.");
     gateOptions.Enabled = true;
 }
 
-// 7. The policy itself: Autonomous and undefined values are unsupported, by value and by name.
-Require(ExecutionModePolicy.IsSupported(ExecutionMode.Shadow) && ExecutionModePolicy.IsSupported(ExecutionMode.Recommendation),
-    "Shadow and Recommendation must be supported.");
-Require(!ExecutionModePolicy.IsSupported(ExecutionMode.Autonomous) && !ExecutionModePolicy.IsSupported((ExecutionMode)99),
-    "Autonomous and undefined modes must be unsupported.");
+// 7. The policy itself: undefined values are unsupported, by value and by name, and every predicate agrees.
+foreach (var mode in new[] { ExecutionMode.Shadow, ExecutionMode.Recommendation, ExecutionMode.Autonomous })
+    Require(ExecutionModePolicy.IsSupported(mode), $"{mode} must be supported.");
+Require(!ExecutionModePolicy.IsSupported((ExecutionMode)99) && !ExecutionModePolicy.IsSupported("Unrecognized") &&
+        !ExecutionModePolicy.IsSupported((string?)null),
+    "Undefined modes must be unsupported.");
 foreach (var mode in Enum.GetValues<ExecutionMode>())
-    Require(ExecutionModePolicy.IsSupported(mode) == ExecutionModePolicy.IsSupported(mode.ToString()) &&
-            ExecutionModePolicy.AllowsManualRun(mode) == ExecutionModePolicy.IsSupported(mode),
-        $"The mode policy disagrees with itself for {mode}.");
+{
+    Require(ExecutionModePolicy.IsSupported(mode) == ExecutionModePolicy.IsSupported(mode.ToString()),
+        $"The mode policy disagrees with itself by name for {mode}.");
+    // Autonomous is the only supported mode a person may not run, and the only one besides Recommendation that yields intents.
+    Require(ExecutionModePolicy.AllowsManualRun(mode) == (mode is ExecutionMode.Shadow or ExecutionMode.Recommendation),
+        $"The manual-run rule is wrong for {mode}.");
+    Require(ExecutionModePolicy.MaterializesControlIntents(mode) == (mode is ExecutionMode.Recommendation or ExecutionMode.Autonomous),
+        $"The intent-materialization rule is wrong for {mode}.");
+    Require(!ExecutionModePolicy.AllowsManualRun(mode) || ExecutionModePolicy.IsSupported(mode),
+        $"{mode} may be run manually without being supported.");
+}
 
 Console.WriteLine("Execution mode safety tests passed.");
 return 0;

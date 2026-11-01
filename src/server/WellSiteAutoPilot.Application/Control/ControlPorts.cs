@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Control;
 using WellSiteAutoPilot.Domain.Recommendations;
 
@@ -48,7 +49,12 @@ public sealed record ControlClaim(
 
 public interface IControlRepository
 {
+    // System read used by the gate itself. Never expose this to a request: use GetPolicyAuthorizedAsync.
     Task<AutonomyPolicy?> GetPolicyAsync(Guid configuredLogicId, CancellationToken cancellationToken = default);
+
+    // Returns the policy only when the subject may read every Asset the Configured Logic touches.
+    Task<AutonomyPolicy?> GetPolicyAuthorizedAsync(AccessSubject subject, Guid configuredLogicId,
+        CancellationToken cancellationToken = default);
 
     Task UpsertPolicyAsync(AutonomyPolicy policy, CancellationToken cancellationToken = default);
 
@@ -74,8 +80,13 @@ public interface IControlRepository
     Task<bool> RecordBlockedAsync(RecommendationRecord recommendation, string gateCode, string sinkKind,
         DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
 
+    // System read (diagnostics, tests). Never expose this to a request: use ListActionsAuthorizedAsync.
     Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAsync(Guid? configuredLogicId, int limit,
         CancellationToken cancellationToken = default);
+
+    // Scope is applied in SQL before the limit: only actions whose Asset the subject may read as a Recommendation.
+    Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAuthorizedAsync(AccessSubject subject,
+        Guid? configuredLogicId, int limit, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<Guid>> ListExecutionsWithUndecidedAutonomousRecommendationsAsync(int limit,
         CancellationToken cancellationToken = default);

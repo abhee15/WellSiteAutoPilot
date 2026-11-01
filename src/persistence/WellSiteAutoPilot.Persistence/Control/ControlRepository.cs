@@ -2,14 +2,16 @@ using System.Buffers.Binary;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Control;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.Control;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Recommendations;
 using WellSiteAutoPilot.Persistence.Audit;
+using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence.Control;
 
-public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext) : IControlRepository
+public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IControlRepository
 {
     private const string GateActor = "system:autonomy-gate";
     private const int RateLockClass = 7101;
@@ -23,6 +25,32 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext) : IC
             entity.ConfiguredLogicId, entity.Enabled, entity.SinkKind,
             JsonSerializer.Deserialize<AutonomyCommandLimit[]>(entity.LimitsJson, Json) ?? [],
             entity.MaxActionsPerWindow, entity.WindowSeconds, entity.UpdatedBy, entity.UpdatedAtUtc);
+    }
+
+    public async Task<AutonomyPolicy?> GetPolicyAuthorizedAsync(AccessSubject subject, Guid configuredLogicId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        var readable = ScopedAccessQueries.ConfiguredLogic(dbContext, subject.UserId, WellSitePermissions.ConfiguredLogicRead,
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow());
+        // Same answer for "missing" and "not allowed": a caller cannot probe which configurations exist.
+        return await readable.AnyAsync(item => item.Id == configuredLogicId, cancellationToken)
+            ? await GetPolicyAsync(configuredLogicId, cancellationToken)
+            : null;
+    }
+
+    public async Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAuthorizedAsync(AccessSubject subject,
+        Guid? configuredLogicId, int limit, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        if (limit is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(limit));
+        var visible = ScopedAccessQueries.Recommendations(dbContext, subject.UserId, WellSitePermissions.RecommendationsRead,
+            subject.Groups, (clock ?? TimeProvider.System).GetUtcNow());
+        var query = dbContext.ControlActions.AsNoTracking()
+            .Where(item => visible.Any(recommendation => recommendation.Id == item.RecommendationId));
+        if (configuredLogicId is { } id) query = query.Where(item => item.ConfiguredLogicId == id);
+        return (await query.OrderByDescending(item => item.CreatedAtUtc).ThenByDescending(item => item.Id)
+                .Take(limit).ToArrayAsync(cancellationToken)).Select(ToDomain).ToArray();
     }
 
     public async Task UpsertPolicyAsync(AutonomyPolicy policy, CancellationToken cancellationToken = default)

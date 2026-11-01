@@ -172,8 +172,9 @@ public sealed class AutonomousControlService(
         return null;
     }
 
-    public Task<AutonomyPolicy?> GetPolicyAsync(Guid configuredLogicId, CancellationToken cancellationToken = default) =>
-        control.GetPolicyAsync(configuredLogicId, cancellationToken);
+    public Task<AutonomyPolicy?> GetPolicyAsync(AccessSubject subject, Guid configuredLogicId,
+        CancellationToken cancellationToken = default) =>
+        control.GetPolicyAuthorizedAsync(subject, configuredLogicId, cancellationToken);
 
     public async Task<AutonomyPolicy> SetPolicyAsync(Guid configuredLogicId, bool enabled, string sinkKind,
         IReadOnlyCollection<AutonomyCommandLimit> limits, int maxActionsPerWindow, int windowSeconds,
@@ -219,9 +220,9 @@ public sealed class AutonomousControlService(
         return await control.GetKillSwitchAsync(cancellationToken);
     }
 
-    public Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAsync(Guid? configuredLogicId, int limit,
-        CancellationToken cancellationToken = default) =>
-        control.ListActionsAsync(configuredLogicId, Math.Clamp(limit, 1, 200), cancellationToken);
+    public Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAsync(AccessSubject subject,
+        Guid? configuredLogicId, int limit, CancellationToken cancellationToken = default) =>
+        control.ListActionsAuthorizedAsync(subject, configuredLogicId, Math.Clamp(limit, 1, 200), cancellationToken);
 
     private static WellSiteAutoPilotException Validation(string code, string message) =>
         new(code, FailureKind.Validation, message);
