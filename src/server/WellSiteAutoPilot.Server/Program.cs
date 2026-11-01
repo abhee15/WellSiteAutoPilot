@@ -1364,6 +1364,44 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
+// Verify and resolve act on one control action: control.manage is deployment-wide, so the caller must also be able to
+// decide the recommendation behind it. Missing and forbidden are indistinguishable.
+v1.MapPost(
+    "/control/actions/{actionId:guid}/verify",
+    async (Guid actionId, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+    {
+        await RequireDecidableControlActionAsync(control, access, actionId, cancellationToken);
+        return ToControlActionResponse(
+            await control.VerifyAsync(actionId, access.CreateActor(context).IdentityName, cancellationToken));
+    })
+    .WithName("VerifyControlAction")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/control/actions/{actionId:guid}/resolve",
+    async (Guid actionId, WellSiteAutoPilot.Api.Contracts.Control.ResolveControlActionRequest request,
+        WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+    {
+        await RequireDecidableControlActionAsync(control, access, actionId, cancellationToken);
+        return ToControlActionResponse(await control.ResolveAsync(actionId, request.Applied, request.Note,
+            access.CreateActor(context).IdentityName, cancellationToken));
+    })
+    .WithName("ResolveControlAction")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
 v1.MapGet(
     "/connections",
     async (ConnectionService connections, CancellationToken cancellationToken) =>
@@ -1646,11 +1684,20 @@ static WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse ToKillSwitchRe
     WellSiteAutoPilot.Application.Control.AutonomousControlOptions options) =>
     new(item.Engaged, item.ChangedBy, item.ChangedAtUtc, item.Reason, options.Enabled);
 
+static async Task RequireDecidableControlActionAsync(
+    WellSiteAutoPilot.Application.Control.AutonomousControlService control, RequestAccessContext access, Guid actionId,
+    CancellationToken cancellationToken)
+{
+    if (!await control.CanDecideActionAsync(access.Subject, actionId, cancellationToken))
+        throw new WellSiteAutoPilotException("CONTROL_ACTION_NOT_FOUND", FailureKind.NotFound,
+            "The requested control action was not found.");
+}
+
 static WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse ToControlActionResponse(
     WellSiteAutoPilot.Domain.Control.ControlActionRecord item) =>
     new(item.Id, item.RecommendationId, item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command,
         item.Quantity, item.Value, item.Unit, item.Status.ToString(), item.GateCode, item.Sink, item.SinkReference,
-        item.CreatedAtUtc, item.CompletedAtUtc, item.Origin);
+        item.CreatedAtUtc, item.CompletedAtUtc, item.Origin, item.ReadbackValue, item.VerifiedAtUtc, item.ResolutionNote);
 
 static WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse ToAutonomyPolicyResponse(
     WellSiteAutoPilot.Domain.Control.AutonomyPolicy item) =>

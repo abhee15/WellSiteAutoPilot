@@ -31,6 +31,9 @@ public sealed class ControlActionEntity
     public DateTimeOffset CreatedAtUtc { get; init; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
     public string Origin { get; init; } = "Autonomous";
+    public decimal? ReadbackValue { get; set; }
+    public DateTimeOffset? VerifiedAtUtc { get; set; }
+    public string? ResolutionNote { get; set; }
 }
 
 public sealed class ControlKillSwitchEntity

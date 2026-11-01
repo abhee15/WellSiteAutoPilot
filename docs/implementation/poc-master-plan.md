@@ -17,7 +17,8 @@ Status: Done / In progress / Not started / Probe (a branch exists to answer an u
 | #367 | Control foundation: autonomy policies, control actions, kill switch, the gate (inert until wired) | E2 to E4 |
 | #368 | Autonomous becomes a governed mode: scheduled, materialized, gated; scoped `/control/*` API | E2 to E4, gap 5 groundwork |
 | #369 | Dedicated `control.manage` permission for control writes | gap 6 (backend) |
-| Approved execution (this change) | A person-approved recommendation executes through the gate, opt-in per configuration | gap 5 |
+| #370 | A person-approved recommendation executes through the gate, opt-in per configuration | gap 5 |
+| Readback (this change) | Sink readback, `Verified`/`Ambiguous` outcomes, verify and operator-resolve endpoints | gap 7 |
 
 ## Workstreams
 

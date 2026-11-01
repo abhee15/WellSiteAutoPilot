@@ -49,7 +49,13 @@ public sealed record ControlActionResponse(
     string? SinkReference,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? CompletedAtUtc,
-    string Origin);
+    string Origin,
+    decimal? ReadbackValue,
+    DateTimeOffset? VerifiedAtUtc,
+    string? ResolutionNote);
+
+// An operator's attestation for an action nobody can verify: Applied=true records it as done, false as not done.
+public sealed record ResolveControlActionRequest(bool Applied, string Note);
 
 public sealed record ExecuteApprovedRecommendationResponse(
     bool Executed,
