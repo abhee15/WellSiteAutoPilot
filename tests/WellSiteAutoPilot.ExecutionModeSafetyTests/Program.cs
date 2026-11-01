@@ -217,9 +217,10 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     async Task<(Guid ConfiguredLogicId, Guid ExecutionId)> AutonomousExecutionAsync(params decimal[] speeds)
     {
         var active = await ActiveConfigurationAsync(ExecutionMode.Shadow, null);
+        // Prepare the request while the revision is still runnable by a person, then force the mode.
+        var command = await configuredLogicService.PrepareManualShadowAsync(active.Logic.Id, active.Revision.Id);
         await db.ConfiguredLogicRevisions.Where(item => item.Id == active.Revision.Id)
             .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, nameof(ExecutionMode.Autonomous)));
-        var command = await configuredLogicService.PrepareManualShadowAsync(active.Logic.Id, active.Revision.Id);
         var execution = new ExecutionRecord(Guid.NewGuid(), active.Logic.Id, active.Revision.ModuleId, active.Revision.ModuleVersion,
             active.Revision.Id, null, null, null, ExecutionMode.Autonomous, ExecutionStatus.Requested,
             $"gate-{Guid.NewGuid():N}", clock.GetUtcNow(), 2, ExecutionTriggerKind.Manual);
