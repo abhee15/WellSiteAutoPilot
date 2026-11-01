@@ -163,7 +163,7 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     await db.ConfiguredLogicRevisions.Where(item => item.Id == forced.Revision.Id)
         .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, nameof(ExecutionMode.Autonomous)));
 
-    var sweep = await scheduler.DispatchDueAsync(1000);
+    var sweep = await scheduler.DispatchDueAsync(500);
     var shadowDecision = sweep.Decisions.Single(item => item.ConfiguredLogicId == scheduledShadow.Logic.Id);
     var recommendationDecision = sweep.Decisions.Single(item => item.ConfiguredLogicId == scheduledRecommendation.Logic.Id);
     Require(shadowDecision.Outcome == ScheduledShadowDispatchOutcome.Dispatched &&
