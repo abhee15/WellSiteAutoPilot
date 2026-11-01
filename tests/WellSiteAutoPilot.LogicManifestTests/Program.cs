@@ -5,6 +5,7 @@ using WellSiteAutoPilot.Failures;
 
 InputPolicyChecks.Run();
 AdapterScheduleFloorChecks.Run();
+ConnectionCommandCatalogChecks.Run();
 await StructuredManifestChecks.RunAsync();
 
 var validManifest = new LogicModuleManifest(
