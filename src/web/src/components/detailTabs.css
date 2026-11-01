@@ -1,0 +1,3 @@
+.detail-tabs { display: flex; flex-wrap: wrap; gap: var(--space-4); border-bottom: var(--border-width-thin) solid var(--color-border-subtle); }
+.detail-tabs button { border: 0; border-bottom: var(--border-width-thick) solid transparent; border-radius: 0; background: transparent; color: var(--color-text-subtle); padding: var(--space-10) var(--space-12); }
+.detail-tabs button[aria-selected='true'] { color: var(--color-text-link); border-bottom-color: var(--color-text-link); font-weight: var(--font-weight-medium); }

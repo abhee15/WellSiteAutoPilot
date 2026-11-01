@@ -7,7 +7,7 @@ import { DetailReadError } from './detailRead';
 /** Targeted live reads keep content during refresh, cancel stale requests and clear denied data. */
 export function useLiveResource<T>(key: string, load: (signal: AbortSignal) => Promise<T>,
   areas: readonly ChangeArea[], enabled = true) {
-  const [result, setResult] = useState<{ key: string; data?: T; failed: boolean }>({ key, failed: false });
+  const [result, setResult] = useState<{ key: string; data?: T; failed: boolean; denied: boolean }>({ key, failed: false, denied: false });
   const current = useRef<AbortController | null>(null);
   const refresh = useCallback(() => {
     if (!enabled) return;
@@ -15,11 +15,11 @@ export function useLiveResource<T>(key: string, load: (signal: AbortSignal) => P
     const controller = new AbortController();
     current.current = controller;
     load(controller.signal).then(data => {
-      if (!controller.signal.aborted) setResult({ key, data, failed: false });
+      if (!controller.signal.aborted) setResult({ key, data, failed: false, denied: false });
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return;
       const denied = error instanceof DetailReadError && [401, 403, 404].includes(error.status);
-      setResult(previous => ({ key, data: !denied && previous.key === key ? previous.data : undefined, failed: true }));
+      setResult(previous => ({ key, data: !denied && previous.key === key ? previous.data : undefined, failed: true, denied }));
     });
   }, [key, load, enabled]);
   useEffect(() => {
@@ -28,6 +28,6 @@ export function useLiveResource<T>(key: string, load: (signal: AbortSignal) => P
   }, [refresh]);
   useChangeRefresh(areas, refresh);
   usePollingRefresh(refresh, enabled);
-  const visible = enabled && result.key === key ? result : { data: undefined, failed: false };
+  const visible = enabled && result.key === key ? result : { data: undefined, failed: false, denied: false };
   return { ...visible, loading: enabled && visible.data === undefined && !visible.failed, refresh };
 }

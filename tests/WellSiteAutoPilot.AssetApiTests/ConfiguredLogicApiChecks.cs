@@ -104,6 +104,18 @@ internal static class ConfiguredLogicApiChecks
         if (receipts.Length == 0 || receipts.Distinct().Count() != 1)
             throw new InvalidOperationException("Concurrent requests lost the committed receipt or created duplicates.");
         var executionId = receipts[0];
+        var activityPath = detailPath + "/activity";
+        await Expect(await anonymous.GetAsync(activityPath), HttpStatusCode.Unauthorized);
+        await Expect(await unprivileged.GetAsync(activityPath), HttpStatusCode.Forbidden);
+        var activitySummary = await Read(await admin.GetAsync(activityPath), HttpStatusCode.OK);
+        var summaryRuns = activitySummary.GetProperty("recentRuns").EnumerateArray().ToArray();
+        if (activitySummary.GetProperty("activeRevisionId").GetGuid() != second || summaryRuns.Length is < 1 or > 2 ||
+            !summaryRuns.Any(run => run.GetProperty("executionId").GetGuid() == executionId))
+            throw new InvalidOperationException("Configuration activity lost its active revision or authorized run summary.");
+        var configurationHistory = await Read(await admin.GetAsync("/api/v1/executions/history?configuredLogicId=" + id + "&limit=1"), HttpStatusCode.OK);
+        if (configurationHistory.GetProperty("items").EnumerateArray().Any(run => run.GetProperty("logicInstanceId").GetGuid() != id))
+            throw new InvalidOperationException("Configuration-only HTTP history crossed configuration scope.");
+
         var explicitReplay = await Read(await engineer.PostAsJsonAsync(runPath, new { requestId = requestKey }), HttpStatusCode.OK);
         if (explicitReplay.GetProperty("executionId").GetGuid() != executionId)
             throw new InvalidOperationException("Fresh explicit replay did not recover the committed request.");

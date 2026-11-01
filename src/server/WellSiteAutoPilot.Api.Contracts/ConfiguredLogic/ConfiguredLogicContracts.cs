@@ -92,3 +92,7 @@ public sealed record ConfiguredLogicResponse(
 
 public sealed record ConfiguredLogicViewRequest(Guid ViewId, int ExpectedRevision, string Role);
 public sealed record ConfiguredLogicViewResponse(Guid ViewId, int Revision, Guid ConnectionId, string Role);
+
+/// <summary>Live operational observations, separate from the immutable revision being reviewed.</summary>
+public sealed record ConfiguredLogicActivityResponse(Guid? ActiveRevisionId, DateTimeOffset ObservedAtUtc,
+    DateTimeOffset? NextScheduledAtUtc, ExecutionResponse[] RecentRuns);

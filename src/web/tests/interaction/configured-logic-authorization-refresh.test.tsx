@@ -34,7 +34,7 @@ it('clears selected details and an editor when resource access disappears withou
   const { state, http } = fixture();
   const user = userEvent.setup(); render(<App />);
   await user.click(await screen.findByRole('button', { name: 'Inspect revisions of Scoped observer' }));
-  await user.click(await screen.findByRole('button', { name: 'Copy revision 1' }));
+  await user.click(await screen.findByRole('button', { name: 'Create revision', exact: true }));
   await screen.findByRole('textbox', { name: 'Parameters (JSON object)' });
   state.visible = false;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
@@ -53,7 +53,7 @@ it('does not discard a draft or refetch detail for an equivalent authorized refr
   const { http } = fixture();
   const user = userEvent.setup(); render(<App />);
   await user.click(await screen.findByRole('button', { name: 'Inspect revisions of Scoped observer' }));
-  await user.click(await screen.findByRole('button', { name: 'Copy revision 1' }));
+  await user.click(await screen.findByRole('button', { name: 'Create revision', exact: true }));
   const parameters = await screen.findByRole('textbox', { name: 'Parameters (JSON object)' });
   await user.clear(parameters); await user.click(parameters); await user.paste('{"reviewed":true}');
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
@@ -77,15 +77,20 @@ it('a late detail response cannot restore a configuration removed by the next au
   expect(screen.queryByText('Scoped observer')).toBeNull();
 });
 
-it('reopens a fresh reviewed snapshot when selected revision metadata changes', async () => {
+it('retains unsaved inputs when selected revision metadata changes; an explicit reload reviews the new snapshot', async () => {
   const { state, http } = fixture();
   const user = userEvent.setup(); render(<App />);
   await user.click(await screen.findByRole('button', { name: 'Inspect revisions of Scoped observer' }));
-  await user.click(await screen.findByRole('button', { name: 'Copy revision 1' }));
-  await screen.findByRole('textbox', { name: 'Parameters (JSON object)' });
+  await user.click(await screen.findByRole('button', { name: 'Create revision', exact: true }));
+  const parameters = await screen.findByRole('textbox', { name: 'Parameters (JSON object)' });
+  await user.clear(parameters); await user.click(parameters); await user.paste('{"nested":{"value":7}}');
   state.configuration = { ...draft, revisions: [{ ...draft.revisions[0], status: 'Validated' }] };
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
+  expect(screen.getByRole('textbox', { name: 'Parameters (JSON object)' })).toHaveProperty('value', '{"nested":{"value":7}}');
+  expect(http.mock.calls.filter(([url]) => url === '/api/v1/configured-logic/' + configurationId)).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'Cancel editor' }));
+  await user.click(screen.getByRole('button', { name: 'Reload persisted revisions' }));
   await screen.findByRole('button', { name: 'Review activation of revision 1' });
-  expect(screen.queryByRole('textbox', { name: 'Parameters (JSON object)' })).toBeNull();
   expect(http.mock.calls.filter(([url]) => url === '/api/v1/configured-logic/' + configurationId)).toHaveLength(2);
+
 });

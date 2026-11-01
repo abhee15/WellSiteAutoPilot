@@ -81,7 +81,7 @@ test('responsive filter controls provide labels and scoped result counts', () =>
   assert.match(html, /Showing 2 of 3 loaded configurations/);
 });
 
-test('logic overview leads with the name and key facts, and holds no secrets or revision table', () => {
+test('logic overview presents active facts, and holds no secrets or revision table', () => {
   const html = renderToStaticMarkup(createElement(
     history.ConfiguredLogicRevisionOverview, {
       logic: rows[0],
@@ -89,7 +89,7 @@ test('logic overview leads with the name and key facts, and holds no secrets or 
     },
   ));
   assert.match(html, /role="region"/);
-  assert.match(html, /<h3>[^<]+<\/h3>/);
+  assert.match(html, /class="logic-facts"/);
   assert.match(html, /Live revision/);
   assert.match(html, /wfd\.fillage/);
   assert.match(html, /wfd\.fillage v1\.0/);

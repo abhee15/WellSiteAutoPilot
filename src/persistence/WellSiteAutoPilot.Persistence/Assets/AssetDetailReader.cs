@@ -5,8 +5,6 @@ using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
-using WellSiteAutoPilot.Domain.Executions;
-using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Security;
 
 namespace WellSiteAutoPilot.Persistence.Assets;
@@ -42,26 +40,4 @@ public sealed class AssetDetailReader(WellSiteAutoPilotDbContext db,
         return result;
     }
 
-    public async Task<IReadOnlyList<ExecutionRecord>> ListHistoryAuthorizedAsync(AccessSubject subject,
-        Guid assetId, Guid configuredLogicId, Guid? after, int limit, CancellationToken cancellationToken)
-    {
-        if (limit is < 1 or > 501) throw new ArgumentOutOfRangeException(nameof(limit));
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
-        var query = ScopedAccessQueries.Executions(db, subject.UserId, WellSitePermissions.ExecutionsRead, subject.Groups, clock.GetUtcNow())
-            .Where(item => item.LogicInstanceId == configuredLogicId && db.ExecutionAssetScopes.Any(
-                scope => scope.ExecutionId == item.Id && scope.AssetId == assetId));
-        if (after is { } cursor)
-        {
-            var previous = await query.SingleOrDefaultAsync(item => item.Id == cursor, cancellationToken);
-            // An inaccessible cursor never reveals its existence or broadens the requested scope.
-            if (previous is null) return [];
-            query = query.Where(item => item.RequestedAtUtc < previous.RequestedAtUtc ||
-                (item.RequestedAtUtc == previous.RequestedAtUtc && item.Id.CompareTo(previous.Id) > 0));
-        }
-        var entities = await query.OrderByDescending(item => item.RequestedAtUtc).ThenBy(item => item.Id)
-            .Take(limit).ToArrayAsync(cancellationToken);
-        var result = entities.Select(ExecutionRepository.ToDomain).ToArray();
-        await transaction.CommitAsync(cancellationToken);
-        return result;
-    }
 }

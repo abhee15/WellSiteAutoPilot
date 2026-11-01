@@ -1,4 +1,4 @@
-import type { AssetLogicPageResponse, AssetRunHistoryResponse, ExecutionResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
+import type { AssetLogicPageResponse, ExecutionResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { hashFor } from '../routing';
 import { readDetail } from './detailRead';
 
@@ -22,12 +22,6 @@ export async function fetchAssetRecommendations(assetId: string, signal: AbortSi
   const items = await readDetail<RecommendationSummaryResponse[]>(`/api/v1/recommendations?assetId=${encodeURIComponent(assetId)}&limit=10`, signal);
   if (!Array.isArray(items)) throw new Error('ASSET_RECOMMENDATIONS_INVALID');
   return items;
-}
-
-export async function fetchRunHistory(assetId: string, logicId: string, after: string | null, signal: AbortSignal) {
-  const page = await readDetail<AssetRunHistoryResponse>(`/api/v1/executions/history?${new URLSearchParams({ assetId, configuredLogicId: logicId, limit: '25', ...(after ? { after } : {}) })}`, signal);
-  if (!Array.isArray(page?.items)) throw new Error('ASSET_HISTORY_INVALID');
-  return page;
 }
 
 export function runHistoryHash(assetId: string, logicId: string, runId?: string) {

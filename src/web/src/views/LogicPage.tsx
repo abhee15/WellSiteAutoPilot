@@ -78,7 +78,7 @@ export function LogicPage({
   const canCreate = canManage && assets.some(asset => asset.isActive);
   useEffect(() => { if (!canCreate) setCreating(false); }, [canCreate]);
   const selectedConfiguration = configuredLogic.find(item => item.id === selectedConfiguredId);
-  useForgetVanishedSelection(selectedConfiguredId, Boolean(selectedConfiguration), () => setSelectedConfiguredId(null));
+  useForgetVanishedSelection(selectedConfiguredId, Boolean(selectedConfiguration) || configuredLogic.length >= 100, () => setSelectedConfiguredId(null));
   const visibleConfigurations = useMemo(
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
@@ -90,8 +90,8 @@ export function LogicPage({
   const runtimes = useMemo(() => availableLogicRuntimes(modules), [modules]);
 
   const splitFocus = useSplitPaneFocus(showModules ? aboutModule?.id ?? null
-    : selectedConfiguration?.id ?? (creating && canCreate ? 'new' : null));
-  const hasConfigurationDetail = Boolean(selectedConfiguration) || (creating && canCreate);
+    : selectedConfiguredId ?? (creating && canCreate ? 'new' : null));
+  const hasConfigurationDetail = selectedConfiguredId !== null || (creating && canCreate);
 
   return (
     <div {...splitFocus} className="split-layout runs-layout logic-layout" data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
@@ -237,10 +237,10 @@ export function LogicPage({
             <ActionButton label={t('logic.back')} className="split-back" onClick={() => { setSelectedConfiguredId(null); setCreating(false); }} />
             {hasConfigurationDetail ? (
               <ConfiguredLogicWorkspace
-                key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguration]) : 'new:' + (prefillAssetId ?? '') + assets.map(item => item.id).join(',')}
+                key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguredId]) : 'new:' + (prefillAssetId ?? '') + assets.map(item => item.id).join(',')}
                 selectedId={selectedConfiguredId} initialAssetId={prefillAssetId}
-                canManage={creating ? canManage : canManage && selectedConfiguration?.canManage === true}
-                userId={userId} canRequestShadow={permissions.includes('executions.request') && selectedConfiguration?.canRequestShadow === true}
+                canManage={creating ? canManage : canManage && (selectedConfiguration?.canManage ?? true)}
+                userId={userId} canRequestShadow={permissions.includes('executions.request') && (selectedConfiguration?.canRequestShadow ?? true)}
                 canReadViews={permissions.includes('connections.read')}
                 canReadControl={permissions.includes('recommendations.read')}
                 canManageControl={permissions.includes(CONTROL_MANAGE_PERMISSION)}
