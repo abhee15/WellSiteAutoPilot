@@ -69,6 +69,22 @@ Recommendations ("Commands awaiting a decision", longest waiting first) and on t
 
 Never run the same command again to "fix" an ambiguous one until you know whether the first one landed.
 
+## Pausing and changing a schedule
+
+On the logic's **Overview** tab, the **Schedule control** block shows whether the live schedule is running or paused, when it
+next runs, and whether it differs from what the saved revision declares. It needs `configured-logic.manage` on that logic.
+
+- **Pause** stops scheduled runs at once and asks nothing: stopping is always safe. A reason is optional but useful.
+- **Resume** asks you to confirm. The first run is one interval after you resume; runs missed while paused are not made up.
+- **Change frequency** takes whole seconds (15 seconds to 7 days, longer if the logic's adapter needs it). A paused schedule stays
+  paused. Resume is not offered while the frequency is below what the adapter allows.
+- None of these creates a revision. The saved revision keeps what it declares, every change is listed under **Schedule changes**
+  with who made it and why, and activating a new revision resets the schedule to the one it declares.
+- A schedule shown as **Below minimum** is faster than the adapter allows; the scheduler skips its runs and records
+  `SCHEDULER_CADENCE_BELOW_MINIMUM`. Change the frequency, or ask for the revision to be corrected.
+- The controls are disabled while a revision is being edited, and if the live revision changed elsewhere; reload to continue. A
+  change refused as stale means someone else changed the schedule first: review the new state and try again.
+
 ## Writing a policy
 
 A policy belongs to a configuration. Fields: enabled, sink (Simulator), the commands it permits (name, unit, inclusive minimum

@@ -269,6 +269,9 @@ Open points for discussion: whether Resume should offer "run once now" (manual S
 
 ### 5.7 Adapter minimum frequency (delivery step 3)
 
+**Status: delivered** in #398 (descriptor field, cache, scheduler skip) and #399 (control service, contract, screens). The execution
+snapshot does not yet record the schedule version (5.6 step 1 note); it is the one deliberate gap left in 5.6.
+
 Pause, resume and frequency change are delivered (#394, #395, #396). The server-wide bounds (15 seconds to 7 days) are
 the only floor today. A provider can need a slower floor than that, and the logic's own adapter is what knows it.
 
@@ -318,9 +321,9 @@ Steps: (1) descriptor field, cache port, scheduler skip and tests; (2) control s
 | 1 | Status filter, oldest-first with age, capability on the response, Overview item (sections 1 and 2) — done | none |
 | 2 | Policy duplicate check on the server (section 3) — done | none |
 | 3 | Server-provided next run — done; last run still needs the decision on exposing run status (section 6) | decision on exposing run status |
-| 4 | Pause and resume (section 5.6 steps 1 and 2) | review of 5.3 |
+| 4 | Pause and resume (section 5.6 steps 1 and 2) — done (#389 to #396) | none |
 | 5 | Manifest `controlCommands` and the policy editor using it (section 3) | contract owners' review of the shape |
-| 6 | Cadence change with adapter minimums (section 5.6 step 3) | none after step 4 |
+| 6 | Cadence change with adapter minimums (section 5.6 step 3) — done (#397 to #399); no adapter sets a floor yet | provider-stated limits from the owner |
 | 7 | Control history tab (section 4) | none |
 | 8 | Operator runbook (section 6) — done, `docs/implementation/control-operator-runbook.md` | none |
 
