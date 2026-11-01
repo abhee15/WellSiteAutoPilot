@@ -504,6 +504,21 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     {
     }
 
+    foreach (var duplicatePolicyCommand in new[] { "SET_CHOKE", "set_choke ", " SET_CHOKE" })
+    {
+        try
+        {
+            await gate.SetPolicyAsync(logic.Logic.Id, true, ControlSinkKinds.Simulator,
+                [new AutonomyCommandLimit("SET_CHOKE", "spm", 1m, 2m), new AutonomyCommandLimit(duplicatePolicyCommand, "spm", 3m, 4m)],
+                5, 3600, "admin", allowApprovedRecommendations: true);
+            throw new InvalidOperationException("A policy permitted the same command twice.");
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Validation &&
+                                                           exception.Code == "CONTROL_POLICY_LIMITS_INVALID")
+        {
+        }
+    }
+
     var wrongMode = await gate.ExecuteApprovedAsync(supersededId, "operator");
     Require(wrongMode.RefusalCode == GateCodes.NotRecommendationMode,
         "A recommendation whose revision is no longer in Recommendation mode was executed.");
