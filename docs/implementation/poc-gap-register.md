@@ -11,7 +11,7 @@ Owner branch is where the work is happening.
 | 3 | P0 | CygNet | Demo data is from 2020, so modules need a ~10 year maximum age | Report point timestamp age in test/discovery; optional simulated-live backend with current timestamps; document the pattern | `feature/poc-cygnet-adapter` |
 | 4 | P1 | Scheduling | Scheduled reads act as one configured user (`Scheduler:ReadAuthorityUserId`) | Service-principal / delegated authority: who a schedule acts as, grant re-check, revocation, audit | `feature/poc-recommendation-modes` |
 | 5 | P1 | Modes | An approved Recommendation never becomes a control action | Approve -> policy gate -> simulator sink, idempotent, with expiry and audit; real sink still refuses | `feature/poc-recommendation-modes` |
-| 6 | P1 | Modes | Autonomy policy editing is API-only; control uses `security.manage` | Policy editing UI and a dedicated `control.manage` permission | `feature/poc-recommendation-modes` |
+| 6 | P1 | Modes | Autonomy policy editing is API-only. The dedicated `control.manage` permission has landed (policy and kill-switch writes no longer use `security.manage`) | Policy editing UI | `feature/poc-recommendation-modes` |
 | 7 | P1 | Modes | No readback verification or ambiguous-dispatch resolution; simulator sink is in-process | Readback/confirm in the sink; simulator command endpoint so Autonomous exercises HTTP | `feature/poc-recommendation-modes` |
 | 8 | P1 | Tests | `ExecutionDispatchTests` not run (needs NATS) | Run with local NATS and fix | `feature/poc-recommendation-modes` |
 | 9 | P1 | Authoring | Builds run in trusted local mode with no isolation | Windows AppContainer + Job object for the compile step (kill-on-close, memory, timeout, tree cancel); prove cancellation | `feature/poc-authoring-local` |
