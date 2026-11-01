@@ -407,6 +407,18 @@ public sealed class AutonomousControlService(
             throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_NOT_FOUND", FailureKind.NotFound,
                 "The requested Configured Logic was not found.");
 
+        // A policy can only permit what the live revision's module can ask for. With no live revision nothing can run,
+        // so there is nothing to judge against yet; the check happens again when a policy is next saved.
+        if (definition.Revisions.FirstOrDefault(item => item.Id == definition.ActiveRevisionId) is { } active && limits.Count > 0)
+        {
+            var declared = ModuleCommandDeclarations.Read(active.ModuleManifestJson) ??
+                throw Validation("CONTROL_POLICY_MODULE_UNREADABLE",
+                    "The live revision's module manifest could not be read, so its commands cannot be checked.");
+            var problems = ModuleCommandDeclarations.Check(limits.Select(item => item with { Command = item.Command.Trim() }).ToArray(), declared);
+            if (problems.Count > 0)
+                throw Validation("CONTROL_POLICY_COMMAND_NOT_DECLARED", string.Join(" ", problems.Take(5)));
+        }
+
         var policy = new AutonomyPolicy(definition.Id, enabled, sinkKind,
             limits.Select(item => item with { Command = item.Command.Trim() }).ToArray(),
             maxActionsPerWindow, windowSeconds, actor.Trim(), timeProvider.GetUtcNow(), allowApprovedRecommendations);
