@@ -220,7 +220,9 @@ builder.Services.AddScoped<RecommendationDecisionService>();
 builder.Services.AddScoped<RecommendationQueryService>();
 builder.Services.AddSingleton(new WellSiteAutoPilot.Application.Control.AutonomousControlOptions
 {
-    Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled")
+    Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled"),
+    ApprovedRecommendationMaxAge = TimeSpan.FromMinutes(Math.Clamp(
+        builder.Configuration.GetValue("Control:Autonomous:ApprovedRecommendationMaxAgeMinutes", 30), 1, 1440))
 });
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.IControlRepository, WellSiteAutoPilot.Persistence.Control.ControlRepository>();
 builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>();
@@ -1314,7 +1316,8 @@ v1.MapPut(
         var policy = await control.SetPolicyAsync(configuredLogicId, request.Enabled,
             WellSiteAutoPilot.Domain.Control.ControlSinkKinds.Simulator,
             request.Limits.Select(item => new WellSiteAutoPilot.Domain.Control.AutonomyCommandLimit(item.Command, item.Unit, item.MinimumValue, item.MaximumValue)).ToArray(),
-            request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName, cancellationToken);
+            request.MaxActionsPerWindow, request.WindowSeconds, access.CreateActor(context).IdentityName,
+            request.AllowApprovedRecommendations, cancellationToken);
         return ToAutonomyPolicyResponse(policy);
     })
     .WithName("SetAutonomyPolicy")
@@ -1329,14 +1332,37 @@ v1.MapGet(
     async (Guid? configuredLogicId, int? limit, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
         RequestAccessContext access, CancellationToken cancellationToken) =>
         (await control.ListActionsAsync(access.Subject, configuredLogicId, PageLimit(limit ?? 50, 200), cancellationToken))
-            .Select(item => new WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse(item.Id, item.RecommendationId,
-                item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command, item.Quantity, item.Value, item.Unit,
-                item.Status.ToString(), item.GateCode, item.Sink, item.SinkReference, item.CreatedAtUtc, item.CompletedAtUtc))
+            .Select(ToControlActionResponse)
             .ToArray())
     .WithName("ListControlActions")
     .RequireAuthorization(WellSitePolicies.RecommendationsRead)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
+v1.MapPost(
+    "/control/recommendations/{recommendationId:guid}/execute",
+    async (Guid recommendationId, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
+        IResourceActionRepository actions, RequestAccessContext access, HttpContext context,
+        CancellationToken cancellationToken) =>
+    {
+        // control.manage is deployment-wide, so the Asset scope is checked here as well: the caller must be able to
+        // decide this recommendation. Missing and forbidden are indistinguishable.
+        var capability = (await actions.GetRecommendationActionsAsync(access.Subject, [recommendationId], cancellationToken))
+            .SingleOrDefault();
+        if (capability?.CanDecide != true)
+            throw new WellSiteAutoPilotException("RECOMMENDATION_NOT_FOUND", FailureKind.NotFound,
+                "The requested recommendation was not found.");
+        var result = await control.ExecuteApprovedAsync(recommendationId, access.CreateActor(context).IdentityName, cancellationToken);
+        return new WellSiteAutoPilot.Api.Contracts.Control.ExecuteApprovedRecommendationResponse(
+            result.Action is not null, result.RefusalCode, result.Action is null ? null : ToControlActionResponse(result.Action));
+    })
+    .WithName("ExecuteApprovedRecommendation")
+    .NotifiesChange(ChangeArea.Recommendations)
+    .RequireAuthorization(WellSitePolicies.ControlManage)
+    .Produces<WellSiteAutoPilot.Api.Contracts.Control.ExecuteApprovedRecommendationResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
 v1.MapGet(
     "/connections",
@@ -1620,12 +1646,18 @@ static WellSiteAutoPilot.Api.Contracts.Control.KillSwitchResponse ToKillSwitchRe
     WellSiteAutoPilot.Application.Control.AutonomousControlOptions options) =>
     new(item.Engaged, item.ChangedBy, item.ChangedAtUtc, item.Reason, options.Enabled);
 
+static WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse ToControlActionResponse(
+    WellSiteAutoPilot.Domain.Control.ControlActionRecord item) =>
+    new(item.Id, item.RecommendationId, item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command,
+        item.Quantity, item.Value, item.Unit, item.Status.ToString(), item.GateCode, item.Sink, item.SinkReference,
+        item.CreatedAtUtc, item.CompletedAtUtc, item.Origin);
+
 static WellSiteAutoPilot.Api.Contracts.Control.AutonomyPolicyResponse ToAutonomyPolicyResponse(
     WellSiteAutoPilot.Domain.Control.AutonomyPolicy item) =>
     new(item.ConfiguredLogicId, item.Enabled, item.SinkKind,
         item.Limits.Select(limit => new WellSiteAutoPilot.Api.Contracts.Control.AutonomyCommandLimitDto(
             limit.Command, limit.Unit, limit.MinimumValue, limit.MaximumValue)).ToArray(),
-        item.MaxActionsPerWindow, item.WindowSeconds, item.UpdatedBy, item.UpdatedAtUtc);
+        item.MaxActionsPerWindow, item.WindowSeconds, item.UpdatedBy, item.UpdatedAtUtc, item.AllowApprovedRecommendations);
 
 static RecommendationSummaryResponse ToRecommendationSummaryResponse(
     RecommendationRecord recommendation) => new(

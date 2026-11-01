@@ -29,7 +29,16 @@ public static class GateCodes
     public const string SinkUnavailable = "GATE_SINK_UNAVAILABLE";
     public const string SinkRefused = "SINK_REFUSED";
     public const string SinkFailed = "SINK_FAILED";
+    public const string ApprovedNotEnabled = "GATE_APPROVED_EXECUTION_NOT_ENABLED";
+    public const string NotRecommendationMode = "GATE_NOT_RECOMMENDATION_MODE";
+    public const string Stale = "GATE_RECOMMENDATION_STALE";
 }
+
+/// <summary>
+/// Outcome of executing an approved recommendation: the action (new or already existing) or the gate code that
+/// refused it. A refusal leaves the recommendation Approved and writes only an audit event.
+/// </summary>
+public sealed record ControlExecutionResult(ControlActionRecord? Action, string? RefusalCode);
 
 /// <summary>
 /// The single path from an Autonomous-mode ControlIntent to a ControlAction. Every refusal is recorded
@@ -117,6 +126,73 @@ public sealed class AutonomousControlService(
             return;
         }
 
+        await DispatchClaimedAsync(action, sink, cancellationToken);
+    }
+
+    /// <summary>
+    /// Approved Recommendation -> governed action. A person's approval is the authority, but the same gate still
+    /// applies (kill switch, deployment switch, per-configuration opt-in, allowlist, bounds, expiry, rate limit).
+    /// Idempotent: a recommendation can only ever produce one ControlAction.
+    /// </summary>
+    public async Task<ControlExecutionResult> ExecuteApprovedAsync(Guid recommendationId, string actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actor) || actor.Length > 256 || actor.Any(char.IsControl))
+            throw Validation("CONTROL_POLICY_ACTOR_INVALID", "An authenticated actor is required.");
+
+        var recommendation = await recommendations.GetAsync(recommendationId, cancellationToken) ??
+            throw new WellSiteAutoPilotException("RECOMMENDATION_NOT_FOUND", FailureKind.NotFound,
+                "The requested recommendation was not found.");
+        if (await control.GetActionByRecommendationAsync(recommendationId, cancellationToken) is { } existing)
+            return new ControlExecutionResult(existing, null);
+
+        // A person must have approved it: the gate's own Autonomous decisions never qualify.
+        if (recommendation.Status != RecommendationStatus.Approved || string.IsNullOrWhiteSpace(recommendation.DecisionBy) ||
+            recommendation.DecisionBy.StartsWith("system:", StringComparison.Ordinal))
+            throw new WellSiteAutoPilotException("CONTROL_RECOMMENDATION_NOT_APPROVED", FailureKind.Conflict,
+                "Only a recommendation approved by a person can be executed.");
+
+        var now = timeProvider.GetUtcNow();
+        var policy = await control.GetPolicyAsync(recommendation.ConfiguredLogicId, cancellationToken);
+        var killSwitch = await control.GetKillSwitchAsync(cancellationToken);
+        var definition = await configuredLogic.GetAsync(recommendation.ConfiguredLogicId, cancellationToken);
+        var revision = definition?.Revisions.SingleOrDefault(item => item.Id == recommendation.ConfigurationRevisionId);
+
+        var refusal = Evaluate(recommendation, policy, killSwitch, definition, revision, now,
+            ControlOrigins.ApprovedRecommendation);
+        var sink = refusal is null
+            ? sinks.FirstOrDefault(item => string.Equals(item.Kind, policy!.SinkKind, StringComparison.Ordinal))
+            : null;
+        refusal ??= sink is null ? GateCodes.SinkUnavailable : null;
+        if (refusal is not null)
+        {
+            await control.RecordRefusalAsync(recommendation, refusal, actor.Trim(), now, cancellationToken);
+            return new ControlExecutionResult(null, refusal);
+        }
+
+        var (outcome, action) = await control.TryClaimAsync(
+            new ControlClaim(recommendation, policy!.SinkKind, policy.MaxActionsPerWindow, policy.WindowSeconds, now,
+                ControlOrigins.ApprovedRecommendation), cancellationToken);
+        if (outcome == ControlClaimOutcome.RateLimited)
+        {
+            await control.RecordRefusalAsync(recommendation, GateCodes.RateLimited, actor.Trim(), now, cancellationToken);
+            return new ControlExecutionResult(null, GateCodes.RateLimited);
+        }
+
+        if (outcome != ControlClaimOutcome.Claimed || action is null)
+        {
+            // Lost a race with another execution of the same recommendation, or it is no longer eligible.
+            var current = await control.GetActionByRecommendationAsync(recommendationId, cancellationToken);
+            return new ControlExecutionResult(current, current is null ? GateCodes.Expired : null);
+        }
+
+        await DispatchClaimedAsync(action, sink!, cancellationToken);
+        return new ControlExecutionResult(await control.GetActionAsync(action.Id, cancellationToken), null);
+    }
+
+    private async Task DispatchClaimedAsync(ControlActionRecord action, IControlCommandSink sink,
+        CancellationToken cancellationToken)
+    {
         // Re-read the kill switch after the claim: it must be able to stop a command that has not left yet.
         if ((await control.GetKillSwitchAsync(cancellationToken)).Engaged)
         {
@@ -149,17 +225,23 @@ public sealed class AutonomousControlService(
 
     internal string? Evaluate(RecommendationRecord recommendation, AutonomyPolicy? policy,
         ControlKillSwitch killSwitch, ConfiguredLogicDefinition? definition, ConfiguredLogicRevision? revision,
-        DateTimeOffset now)
+        DateTimeOffset now, string origin = ControlOrigins.Autonomous)
     {
+        var approvedOrigin = origin == ControlOrigins.ApprovedRecommendation;
         if (killSwitch.Engaged) return GateCodes.KillSwitch;
         if (!options.Enabled) return GateCodes.GlobalDisabled;
         if (policy is null) return GateCodes.NoPolicy;
         if (!policy.Enabled) return GateCodes.PolicyDisabled;
         if (policy.SinkKind != ControlSinkKinds.Simulator) return GateCodes.RealWritesDisabled;
-        if (revision is null || revision.Mode != ExecutionMode.Autonomous) return GateCodes.NotAutonomous;
+        if (approvedOrigin && !policy.AllowApprovedRecommendations) return GateCodes.ApprovedNotEnabled;
+        if (revision is null) return approvedOrigin ? GateCodes.NotRecommendationMode : GateCodes.NotAutonomous;
+        if (revision.Mode != (approvedOrigin ? ExecutionMode.Recommendation : ExecutionMode.Autonomous))
+            return approvedOrigin ? GateCodes.NotRecommendationMode : GateCodes.NotAutonomous;
         if (definition!.ActiveRevisionId != revision.Id || revision.Status != ConfiguredLogicRevisionStatus.Active)
             return GateCodes.SourceInvalid;
         if (recommendation.ExpiresAtUtc is { } expiry && expiry <= now) return GateCodes.Expired;
+        if (approvedOrigin && now - recommendation.CreatedAtUtc > options.ApprovedRecommendationMaxAge)
+            return GateCodes.Stale;
 
         var limit = policy.Limits.FirstOrDefault(item =>
             string.Equals(item.Command, recommendation.Command, StringComparison.Ordinal));
@@ -179,7 +261,7 @@ public sealed class AutonomousControlService(
 
     public async Task<AutonomyPolicy> SetPolicyAsync(Guid configuredLogicId, bool enabled, string sinkKind,
         IReadOnlyCollection<AutonomyCommandLimit> limits, int maxActionsPerWindow, int windowSeconds,
-        string actor, CancellationToken cancellationToken = default)
+        string actor, bool allowApprovedRecommendations = false, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(actor) || actor.Length > 256 || actor.Any(char.IsControl))
             throw Validation("CONTROL_POLICY_ACTOR_INVALID", "An authenticated actor is required.");
@@ -203,7 +285,7 @@ public sealed class AutonomousControlService(
 
         var policy = new AutonomyPolicy(definition.Id, enabled, sinkKind,
             limits.Select(item => item with { Command = item.Command.Trim() }).ToArray(),
-            maxActionsPerWindow, windowSeconds, actor.Trim(), timeProvider.GetUtcNow());
+            maxActionsPerWindow, windowSeconds, actor.Trim(), timeProvider.GetUtcNow(), allowApprovedRecommendations);
         await control.UpsertPolicyAsync(policy, cancellationToken);
         return policy;
     }

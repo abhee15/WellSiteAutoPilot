@@ -10,6 +10,7 @@ public sealed class AutonomyPolicyEntity
     public int WindowSeconds { get; set; }
     public string UpdatedBy { get; set; } = string.Empty;
     public DateTimeOffset UpdatedAtUtc { get; set; }
+    public bool AllowApprovedRecommendations { get; set; }
 }
 
 public sealed class ControlActionEntity
@@ -29,6 +30,7 @@ public sealed class ControlActionEntity
     public string? SinkReference { get; set; }
     public DateTimeOffset CreatedAtUtc { get; init; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
+    public string Origin { get; init; } = "Autonomous";
 }
 
 public sealed class ControlKillSwitchEntity

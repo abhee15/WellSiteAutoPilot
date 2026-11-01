@@ -9,6 +9,15 @@ public enum ControlActionStatus
     Failed = 3
 }
 
+public static class ControlOrigins
+{
+    // Decided by the autonomy gate itself (Autonomous mode).
+    public const string Autonomous = "Autonomous";
+
+    // A Recommendation-mode recommendation a person approved, then executed through the same gate.
+    public const string ApprovedRecommendation = "ApprovedRecommendation";
+}
+
 public static class ControlSinkKinds
 {
     public const string Simulator = "Simulator";
@@ -30,7 +39,8 @@ public sealed record ControlActionRecord(
     string Sink,
     string? SinkReference,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? CompletedAtUtc = null);
+    DateTimeOffset? CompletedAtUtc = null,
+    string Origin = ControlOrigins.Autonomous);
 
 // An allowlist entry is the explicit permission for one command. Bounds are inclusive.
 public sealed record AutonomyCommandLimit(
@@ -47,7 +57,9 @@ public sealed record AutonomyPolicy(
     int MaxActionsPerWindow,
     int WindowSeconds,
     string UpdatedBy,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    // Opt-in: lets an operator-approved Recommendation-mode recommendation be executed through the same gate.
+    bool AllowApprovedRecommendations = false);
 
 public sealed record ControlKillSwitch(
     bool Engaged,

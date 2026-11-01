@@ -52,6 +52,26 @@ recommendation) and handed to the sink. The only sink that can be configured is 
 refuses with `REAL_PROVIDER_WRITES_DISABLED`. Provider writes are a separate, design-first workstream
 (`docs/design/autonomous-real-sink-readiness.md`).
 
+## Executing an approved recommendation
+
+A Recommendation-mode run only advises. After a person approves one of its recommendations, a person with `control.manage`
+may execute it through the same gate (`POST /control/recommendations/{id}/execute`). Approval is the authority, but nothing
+else is waived:
+
+- the configuration must have opted in (`AllowApprovedRecommendations`, off by default), on top of an enabled policy;
+- the kill switch, deployment switch, command allowlist, unit, bounds, expiry and rate limit apply as for Autonomous;
+- the approval must be a person's (the gate's own decisions never qualify) and must be fresh: older than
+  `Control:Autonomous:ApprovedRecommendationMaxAgeMinutes` (default 30, 1 to 1440) it is refused, because it describes a
+  plant that has since moved on;
+- the revision must still be the active one and still in Recommendation mode;
+- the caller must be able to decide that recommendation on its Assets (`control.manage` alone is deployment-wide), and a
+  recommendation they cannot decide is reported as not found.
+
+A refusal is audited and leaves the recommendation Approved so the cause can be fixed and the execution retried. A
+recommendation can only ever produce one `ControlAction` (unique per recommendation, serialized by the same advisory lock as
+the rate limit), so a repeated or concurrent execute returns the existing action instead of sending twice. The action
+records its `Origin` (`Autonomous` or `ApprovedRecommendation`).
+
 ## API
 
 `POST /configured-logic` and `POST /configured-logic/{id}/revisions` accept an optional `mode` (`Shadow` default,
@@ -62,14 +82,16 @@ refuses with `REAL_PROVIDER_WRITES_DISABLED`. Provider writes are a separate, de
 | `GET /control/kill-switch` | `RecommendationsRead` | global state, includes the deployment switch |
 | `PUT /control/kill-switch` | `ControlManage` | audited |
 | `GET /control/policies/{configuredLogicId}` | `RecommendationsRead` | scoped: needs read access to every Asset the configuration touches; a missing and a forbidden configuration look the same |
-| `PUT /control/policies/{configuredLogicId}` | `ControlManage` | simulator sink only |
+| `PUT /control/policies/{configuredLogicId}` | `ControlManage` | simulator sink only; sets the approved-execution opt-in |
+| `POST /control/recommendations/{recommendationId}/execute` | `ControlManage` | plus decide scope on the recommendation's Assets; see above |
 | `GET /control/actions` | `RecommendationsRead` | scoped in SQL before the limit, by the Asset of the originating recommendation |
 
 ## Known limits
 
 - `control.manage` is deployment-wide and held by the protected Admin role; other roles opt in through the role catalog. It is not
   yet scoped to Assets or configurations.
-- A person cannot yet approve an Autonomous recommendation the gate blocked, and operator-approved dispatch, readback and
-  ambiguous-dispatch resolution are separate slices.
+- A person cannot approve an Autonomous recommendation the gate blocked.
+- Readback and ambiguous-dispatch resolution are a separate slice: today a sink exception is recorded as `Failed`, which is
+  only safe because the simulator is the sole sink. It must become "ambiguous" before any real sink exists.
 - Provider commands (ForeSite setpoints, CygNet controller registry values) are not implemented; see workstream L in
   `docs/implementation/poc-master-plan.md` and gaps 20–22 in `docs/implementation/poc-gap-register.md`.

@@ -10,7 +10,8 @@ public sealed record SetAutonomyPolicyRequest(
     bool Enabled,
     IReadOnlyCollection<AutonomyCommandLimitDto> Limits,
     int MaxActionsPerWindow,
-    int WindowSeconds);
+    int WindowSeconds,
+    bool AllowApprovedRecommendations = false);
 
 public sealed record AutonomyPolicyResponse(
     Guid ConfiguredLogicId,
@@ -20,7 +21,8 @@ public sealed record AutonomyPolicyResponse(
     int MaxActionsPerWindow,
     int WindowSeconds,
     string UpdatedBy,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    bool AllowApprovedRecommendations);
 
 public sealed record SetKillSwitchRequest(bool Engaged, string? Reason);
 
@@ -46,4 +48,10 @@ public sealed record ControlActionResponse(
     string Sink,
     string? SinkReference,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? CompletedAtUtc);
+    DateTimeOffset? CompletedAtUtc,
+    string Origin);
+
+public sealed record ExecuteApprovedRecommendationResponse(
+    bool Executed,
+    string? RefusalCode,
+    ControlActionResponse? Action);
