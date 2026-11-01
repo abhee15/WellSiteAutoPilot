@@ -95,6 +95,8 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("PUT", "/control/policies/{configuredLogicId:guid}"): ("SetAutonomyPolicy", "ControlManage"),
     ("GET", "/control/actions"): ("ListControlActions", "RecommendationsRead"),
     ("POST", "/control/recommendations/{recommendationId:guid}/execute"): ("ExecuteApprovedRecommendation", "ControlManage"),
+    ("POST", "/control/actions/{actionId:guid}/verify"): ("VerifyControlAction", "ControlManage"),
+    ("POST", "/control/actions/{actionId:guid}/resolve"): ("ResolveControlAction", "ControlManage"),
 }
 
 _ROUTE = re.compile(

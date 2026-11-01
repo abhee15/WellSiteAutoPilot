@@ -84,14 +84,32 @@ records its `Origin` (`Autonomous` or `ApprovedRecommendation`).
 | `GET /control/policies/{configuredLogicId}` | `RecommendationsRead` | scoped: needs read access to every Asset the configuration touches; a missing and a forbidden configuration look the same |
 | `PUT /control/policies/{configuredLogicId}` | `ControlManage` | simulator sink only; sets the approved-execution opt-in |
 | `POST /control/recommendations/{recommendationId}/execute` | `ControlManage` | plus decide scope on the recommendation's Assets; see above |
+| `POST /control/actions/{actionId}/verify` | `ControlManage` | plus decide scope on the action's recommendation; asks the sink what the target holds now |
+| `POST /control/actions/{actionId}/resolve` | `ControlManage` | same scope; an operator attests `Applied` true or false with a required note; audited |
 | `GET /control/actions` | `RecommendationsRead` | scoped in SQL before the limit, by the Asset of the originating recommendation |
+
+## What happened after dispatch
+
+A command that left the platform is not assumed to have worked, or to have failed. After the sink accepts it the gate asks
+the sink to read the target back:
+
+| Readback | Action becomes | Recommendation |
+| --- | --- | --- |
+| Applied, value matches the command | `Verified` (`READBACK_CONFIRMED`) | `Executed` |
+| Applied, value differs | `Ambiguous` (`READBACK_MISMATCH`) | back to `Approved` |
+| Not applied while `Dispatched` | `Ambiguous` (`READBACK_NOT_APPLIED`) | back to `Approved` |
+| Unknown or the readback call fails | stays `Dispatched`; verify again later | `Executed` |
+
+A sink exception during dispatch is `Ambiguous` (`SINK_AMBIGUOUS`), never `Failed`, because the command may have reached the
+device. Verifying an ambiguous action ends it `Verified` if the target shows the value, or `Failed` if the target does not
+and the sink never accepted the command; otherwise it stays ambiguous for a person to resolve. A person settles anything
+else through `resolve`, which records their attestation and note (`OPERATOR_RESOLVED_APPLIED` / `_NOT_APPLIED`).
+Ambiguous actions keep counting against the configuration's rate limit.
 
 ## Known limits
 
 - `control.manage` is deployment-wide and held by the protected Admin role; other roles opt in through the role catalog. It is not
   yet scoped to Assets or configurations.
 - A person cannot approve an Autonomous recommendation the gate blocked.
-- Readback and ambiguous-dispatch resolution are a separate slice: today a sink exception is recorded as `Failed`, which is
-  only safe because the simulator is the sole sink. It must become "ambiguous" before any real sink exists.
 - Provider commands (ForeSite setpoints, CygNet controller registry values) are not implemented; see workstream L in
   `docs/implementation/poc-master-plan.md` and gaps 20–22 in `docs/implementation/poc-gap-register.md`.

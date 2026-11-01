@@ -300,8 +300,8 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     await gate.ProcessExecutionAsync(gated.ExecutionId);
     var actions = await controlRepository.ListActionsAsync(gated.ConfiguredLogicId, 50);
     Require(actions.Count == 4, "The gate must record exactly one action per intent, even when processed twice.");
-    Require(actions.Count(item => item.Status == ControlActionStatus.Dispatched) == 2 && simulator.Sent.Count == 2,
-        "Exactly the two in-bounds intents within the rate limit should dispatch.");
+    Require(actions.Count(item => item.Status == ControlActionStatus.Verified) == 2 && simulator.Sent.Count == 2,
+        "Exactly the two in-bounds intents within the rate limit should dispatch and read back as applied.");
     Require(actions.Single(item => item.Value == 50m).GateCode == GateCodes.OutOfBounds, "An out-of-bounds intent was not blocked.");
     Require(actions.Single(item => item.Value == 11m).GateCode == GateCodes.RateLimited, "The rate limit did not block the third command.");
     Require(simulator.Sent.All(item => item.Value is 9m or 10m), "An unexpected command reached the sink.");
@@ -439,8 +439,8 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
 
     // Everything holds: it dispatches once, is attributed to the approval, and a repeat is a no-op.
     var executed = await gate.ExecuteApprovedAsync(approved, "operator");
-    Require(executed.RefusalCode is null && executed.Action is { Status: ControlActionStatus.Dispatched, Origin: ControlOrigins.ApprovedRecommendation },
-        "An approved recommendation inside its policy did not dispatch.");
+    Require(executed.RefusalCode is null && executed.Action is { Status: ControlActionStatus.Verified, GateCode: GateCodes.ReadbackConfirmed, Origin: ControlOrigins.ApprovedRecommendation },
+        "An approved recommendation inside its policy did not dispatch and verify.");
     Require(simulator.Sent.Count == sentBefore + 1 && await StatusAsync(approved) == RecommendationStatus.Executed,
         "Dispatch must send exactly once and mark the recommendation Executed.");
     var repeated = await gate.ExecuteApprovedAsync(approved, "operator");
@@ -463,6 +463,110 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     var wrongMode = await gate.ExecuteApprovedAsync(supersededId, "operator");
     Require(wrongMode.RefusalCode == GateCodes.NotRecommendationMode,
         "A recommendation whose revision is no longer in Recommendation mode was executed.");
+
+    // 6d. What happened after the command left: readback decides, a doubt is never recorded as a failure, and a
+    // person can settle what nobody can verify.
+    var readbackLogic = await ActiveConfigurationAsync(ExecutionMode.Recommendation, null);
+    await gate.SetPolicyAsync(readbackLogic.Logic.Id, true, ControlSinkKinds.Simulator, limits, 20, 3600, "admin",
+        allowApprovedRecommendations: true);
+
+    async Task<ControlActionRecord> ExecuteAsync(
+        (ConfiguredLogicDefinition Logic, ConfiguredLogicRevision Revision, Asset Well) active, decimal speed,
+        SimulatedReadbackBehavior readback = SimulatedReadbackBehavior.Echo,
+        SimulatedDispatchFault fault = SimulatedDispatchFault.None)
+    {
+        var id = await ApprovedRecommendationAsync(active, speed);
+        simulator.Readback = readback;
+        simulator.Fault = fault;
+        try
+        {
+            return (await gate.ExecuteApprovedAsync(id, "operator")).Action ??
+                   throw new InvalidOperationException("The approved recommendation was refused.");
+        }
+        finally
+        {
+            simulator.Readback = SimulatedReadbackBehavior.Echo;
+            simulator.Fault = SimulatedDispatchFault.None;
+        }
+    }
+
+    async Task RequireFailureAsync(Func<Task> action, FailureKind kind, string why)
+    {
+        try
+        {
+            await action();
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Kind == kind)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"{why}: expected a {kind} failure.");
+    }
+
+    // A target that reports a different value than commanded is ambiguous, and the recommendation is not Executed.
+    var mismatch = await ExecuteAsync(readbackLogic, 9m, SimulatedReadbackBehavior.Mismatch);
+    Require(mismatch is { Status: ControlActionStatus.Ambiguous, GateCode: GateCodes.ReadbackMismatch, ReadbackValue: 10m } &&
+            await StatusAsync(mismatch.RecommendationId) == RecommendationStatus.Approved,
+        "A readback that differs from the command must be Ambiguous and must not mark the recommendation Executed.");
+
+    // A person settles it: attested, noted, audited under their name, and only once.
+    await RequireFailureAsync(() => gate.ResolveAsync(mismatch.Id, true, "  ", "operator"), FailureKind.Validation,
+        "A resolution without a note");
+    var resolved = await gate.ResolveAsync(mismatch.Id, true, "Confirmed at the wellhead.", "operator");
+    Require(resolved is { Status: ControlActionStatus.Verified, GateCode: GateCodes.OperatorResolvedApplied,
+                ResolutionNote: "Confirmed at the wellhead." } &&
+            await StatusAsync(mismatch.RecommendationId) == RecommendationStatus.Executed &&
+            await db.AuditEvents.AnyAsync(item => item.TargetId == mismatch.Id.ToString() &&
+                item.Action == "control.action.verified" && item.ActorIdentity == "operator" &&
+                item.DetailsJson.Contains("Confirmed at the wellhead.")),
+        "An operator-resolved action must be Verified with their note, and audited under their name.");
+    await RequireFailureAsync(() => gate.ResolveAsync(mismatch.Id, false, "Changed my mind.", "operator"),
+        FailureKind.Conflict, "Resolving an already settled action");
+    await RequireFailureAsync(() => gate.VerifyAsync(mismatch.Id, "operator"), FailureKind.Conflict,
+        "Verifying an already settled action");
+    await RequireFailureAsync(() => gate.VerifyAsync(Guid.NewGuid(), "operator"), FailureKind.NotFound,
+        "Verifying an unknown action");
+
+    // A target that cannot answer leaves the action Dispatched; asking again later settles it.
+    var unknown = await ExecuteAsync(readbackLogic, 9m, SimulatedReadbackBehavior.Unknown);
+    Require(unknown.Status == ControlActionStatus.Dispatched &&
+            await StatusAsync(unknown.RecommendationId) == RecommendationStatus.Executed,
+        "An unanswerable readback must leave the action Dispatched.");
+    Require((await gate.VerifyAsync(unknown.Id, "system:test")).Status == ControlActionStatus.Verified,
+        "Verifying once the target answers must settle a Dispatched action.");
+
+    // The call failed after the device applied the command: never recorded as failed, readback finds it applied.
+    var afterApplying = await ExecuteAsync(readbackLogic, 10m, fault: SimulatedDispatchFault.FailAfterApplying);
+    Require(afterApplying is { Status: ControlActionStatus.Ambiguous, GateCode: GateCodes.SinkAmbiguous } &&
+            await StatusAsync(afterApplying.RecommendationId) == RecommendationStatus.Approved,
+        "A sink exception must be Ambiguous, not Failed.");
+    var confirmed = await gate.VerifyAsync(afterApplying.Id, "system:test");
+    Require(confirmed is { Status: ControlActionStatus.Verified, GateCode: GateCodes.ReadbackConfirmed, ReadbackValue: 10m } &&
+            confirmed.VerifiedAtUtc is not null &&
+            await StatusAsync(afterApplying.RecommendationId) == RecommendationStatus.Executed,
+        "Readback must confirm a command that was applied before the call failed.");
+
+    // The call failed before the device was reached: readback finds nothing, and only then is it Failed.
+    var beforeApplying = await ExecuteAsync(readbackLogic, 11m, fault: SimulatedDispatchFault.FailBeforeApplying);
+    Require(beforeApplying.Status == ControlActionStatus.Ambiguous, "A sink exception before applying must still start Ambiguous.");
+    var notApplied = await gate.VerifyAsync(beforeApplying.Id, "system:test");
+    Require(notApplied is { Status: ControlActionStatus.Failed, GateCode: GateCodes.ReadbackNotApplied } &&
+            await StatusAsync(beforeApplying.RecommendationId) == RecommendationStatus.Invalidated,
+        "A command the target never received must end Failed and invalidate the recommendation.");
+    Require((await gate.ResolveAsync(
+                (await ExecuteAsync(readbackLogic, 8m, fault: SimulatedDispatchFault.FailBeforeApplying)).Id,
+                false, "Valve was isolated.", "operator")) is { Status: ControlActionStatus.Failed, GateCode: GateCodes.OperatorResolvedNotApplied },
+        "An operator must be able to resolve an ambiguous action as not applied.");
+
+    // An ambiguous command may have moved the device, so it keeps counting against the rate limit.
+    var rateLogic = await ActiveConfigurationAsync(ExecutionMode.Recommendation, null);
+    await gate.SetPolicyAsync(rateLogic.Logic.Id, true, ControlSinkKinds.Simulator, limits, 1, 3600, "admin",
+        allowApprovedRecommendations: true);
+    Require((await ExecuteAsync(rateLogic, 9m, fault: SimulatedDispatchFault.FailAfterApplying)).Status == ControlActionStatus.Ambiguous,
+        "The rate-limit scenario needs an ambiguous action.");
+    var overRate = await gate.ExecuteApprovedAsync(await ApprovedRecommendationAsync(rateLogic, 9m), "operator");
+    Require(overRate.RefusalCode == GateCodes.RateLimited, "An ambiguous action must count against the rate limit.");
 }
 
 // 7. The policy itself: undefined values are unsupported, by value and by name, and every predicate agrees.

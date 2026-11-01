@@ -27,12 +27,20 @@ public sealed record ControlDispatchRequest(
 
 public sealed record ControlDispatchResult(bool Accepted, string Reference, string? Detail = null);
 
+public sealed record ControlReadback(ControlReadbackState State, decimal? ObservedValue = null);
+
 // The only way a ControlAction leaves the platform. Implementations must be idempotent per IdempotencyKey.
 public interface IControlCommandSink
 {
     string Kind { get; }
 
     Task<ControlDispatchResult> DispatchAsync(
+        ControlDispatchRequest request,
+        CancellationToken cancellationToken = default);
+
+    // Asks the target what it actually holds for this dispatch (found by idempotency key). Unknown when it cannot say;
+    // a sink must never guess, because a wrong "Applied" or "NotApplied" is a wrong statement about physical equipment.
+    Task<ControlReadback> ReadbackAsync(
         ControlDispatchRequest request,
         CancellationToken cancellationToken = default);
 }
@@ -100,6 +108,17 @@ public interface IControlRepository
     // System read (diagnostics, tests). Never expose this to a request: use ListActionsAuthorizedAsync.
     Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAsync(Guid? configuredLogicId, int limit,
         CancellationToken cancellationToken = default);
+
+    // True when the subject may decide the recommendation behind this action; false for missing and forbidden alike.
+    Task<bool> CanDecideActionAsync(AccessSubject subject, Guid actionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Compare-and-set transition used by readback and operator resolution. Returns null when the action is not in
+    /// one of the <paramref name="from"/> statuses (including when another caller got there first).
+    /// </summary>
+    Task<ControlActionRecord?> TransitionAsync(Guid actionId, IReadOnlyCollection<ControlActionStatus> from,
+        ControlActionStatus target, string gateCode, decimal? readbackValue, string actor, string? note,
+        DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
 
     // Scope is applied in SQL before the limit: only actions whose Asset the subject may read as a Recommendation.
     Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAuthorizedAsync(AccessSubject subject,
