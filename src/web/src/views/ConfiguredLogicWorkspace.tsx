@@ -6,6 +6,7 @@ import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
 import { t } from '../localization';
 import { ConfiguredShadowPanel } from './ConfiguredShadowPanel';
 import { ConfiguredLogicSetupPanel } from './ConfiguredLogicSetupPanel';
+import { AutonomyPolicyPanel } from './AutonomyPolicyPanel';
 import { describeSettings } from './revisionSettings';
 import { scheduleText } from './logicSummary';
 import { orderedRevisions } from './configuredLogicViews';
@@ -21,11 +22,14 @@ type Props = {
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; executions?: readonly ExecutionResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
   initialAssetId?: string | null; canReadViews?: boolean;
+  /** recommendations.read: may see the autonomy policy. control.manage: may change it. */
+  canReadControl?: boolean; canManageControl?: boolean;
 };
 /** A fresh authorized detail is the mutation boundary. Polling list metadata
  * cannot silently replace the revision a user is reviewing. */
 export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
-  assets, assetTypes, executions, onClose, onChanged, initialAssetId, canReadViews = false }: Props) {
+  assets, assetTypes, executions, onClose, onChanged, initialAssetId, canReadViews = false, canReadControl = false,
+  canManageControl = false }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
   const [source, setSource] = useState<ConfiguredLogicRevisionResponse | undefined>();
@@ -151,6 +155,8 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         </>;
       })()}
     </>}
+    {detail && !editing && canReadControl && <AutonomyPolicyPanel key={detail.id} configuredLogicId={detail.id}
+      canManage={canManageControl} disabled={busy || blocked} />}
     {(detail || selectedId) && !editing && <ActionButton icon={RefreshCw} iconOnly label={t('setup.reload')} disabled={busy} onClick={() => void reload()} />}
     {editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
       modules={modules} assets={assets} assetTypes={assetTypes} canReadViews={canReadViews}

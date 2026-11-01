@@ -260,7 +260,7 @@ test('every localization key is used somewhere (dynamic families are listed), so
   };
   walk(root);
   walk(join(root, '..', 'tests'));
-  const dynamic = ['assets.createField.', 'moduleApproval.', 'setup.', 'nav.'];
+  const dynamic = ['assets.createField.', 'moduleApproval.', 'setup.', 'nav.', 'autonomyPolicy.issue.'];
   const dead = keys.filter(key => !used.includes(`'${key}'`) && !used.includes(`"${key}"`) && !used.includes(`\`${key}\``) && !dynamic.some(prefix => key.startsWith(prefix)));
   assert.deepEqual(dead, [], 'delete the unused key, or add its dynamic prefix to this test');
 });
