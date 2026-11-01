@@ -1,10 +1,10 @@
-using System.Globalization;
 using System.Reflection;
 using CygNet.API.Core;
 using CygNet.API.Points;
 using CygNet.Data.Core;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.CygNet.Adapter;
 
 namespace WellSiteAutoPilot.Integration.CygNet;
 
@@ -69,13 +69,18 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
         {
             // The CygNet API is synchronous and cannot be cancelled. Run it off the request thread and bound the wait
             // so a call that never returns cannot hold the request open.
-            return await Task.Run(() => Read(assetExternalId, quantity, mapping), CancellationToken.None)
-                .WaitAsync(ReadBudget, cancellationToken);
+            var service = $"{options.Domain}/{assetExternalId[..assetExternalId.IndexOf("::", StringComparison.Ordinal)]}";
+            return await CygNetCallGate.Shared.RunAsync(service, () => Read(assetExternalId, quantity, mapping), ReadBudget, cancellationToken);
         }
         catch (TimeoutException)
         {
             throw Failure("CYGNET_READ_TIMEOUT", FailureKind.DependencyTimeout,
                 "CygNet did not return the value in time.");
+        }
+        catch (CygNetBusyException)
+        {
+            throw Failure("CYGNET_BUSY", FailureKind.DependencyUnavailable,
+                "CygNet is not answering and too many earlier calls are still waiting. Try again shortly.");
         }
     }
 
@@ -90,20 +95,16 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
 
             var record = RealtimeClients.GetOrAdd(uis.ToString(), _ => new RealtimeClient(uis)).GetPointValueRecord(pointTag)
                 ?? throw Failure("CYGNET_POINT_NOT_FOUND", FailureKind.DependencyUnavailable,
-                    "CygNet returned no value for the point.");
+                    "CygNet has no such point on the facility. Check the UDC in the connection's point mapping.");
 
-            var raw = Convert.ToString(record.Value, CultureInfo.InvariantCulture);
-            if (!decimal.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
-                throw Failure("CYGNET_VALUE_NOT_NUMERIC", FailureKind.DependencyUnavailable,
-                    "CygNet returned a value that is not a number.");
+            var number = CygNetValues.ParseNumber(Convert.ToString(record.Value, System.Globalization.CultureInfo.InvariantCulture));
             if (record.Timestamp == default)
                 throw Failure("CYGNET_TIMESTAMP_INVALID", FailureKind.DependencyUnavailable,
                     "CygNet returned a value with no timestamp.");
 
             // Never let a flagged value read as Good: Unreliable is Bad; any other status flag is Uncertain, which a
             // module accepts only when it declares that it allows uncertain quality. Timestamp age is checked by the host.
-            var quality = record.Status.HasFlag(BaseStatusFlags.Unreliable) ? "Bad"
-                : IsClear(record.Status) ? "Good" : "Uncertain";
+            var quality = CygNetValues.Quality(record.Status.ToString());
             return new EngineeringValue(
                 quantity, number, mapping.Unit, new DateTimeOffset(record.Timestamp.ToUniversalTime()), quality, "cygnet",
                 DateTimeOffset.UtcNow);
@@ -122,15 +123,6 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
     private static bool IsFacilityTag(string value) =>
         value.Length <= MaximumFacilityTagLength && value.Contains("::", StringComparison.Ordinal) &&
         !value.Any(char.IsControl);
-
-    // Healthy points carry housekeeping flags (Initialized, Updated) and data-type bits; only another flag is a quality concern.
-    // Matched by flag name so this holds whatever type the CygNet library uses for its status flags.
-    private static readonly HashSet<string> NeutralFlags = new(StringComparer.OrdinalIgnoreCase)
-        { "None", "0", "Initialized", "Updated", "StringData", "DigitalData", "OutputData" };
-
-    private static bool IsClear<T>(T status) =>
-        (status?.ToString() ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .All(NeutralFlags.Contains);
 
     private static WellSiteAutoPilotException Failure(string code, FailureKind kind, string detail, Exception? inner = null) =>
         new(code, kind, detail,

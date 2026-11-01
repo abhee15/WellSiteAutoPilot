@@ -27,19 +27,19 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
 
     static CygNetApiClient() => CygNetAssemblyResolver.Register();
 
-    public Task CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
-        Run(() =>
+    public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
+        Run(connection, () =>
         {
             var client = FacilityClient(connection);
             // Proves the facility service answers and the site.service pair has facilities, not just that FAC resolves.
             var tags = client.GetFacilityTagList(FacilityQuery(connection), CancellationToken.None);
             if (tags.Count == 0)
                 throw new CygNetUnavailableException($"{connection.SiteService} has no facilities in domain {connection.Domain}. Check the site and service.");
-            return 0;
+            return (IReadOnlyList<string>)CygNetFreshness.Pick(tags.Select(tag => tag.FacilityId).OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray());
         }, cancellationToken);
 
     public Task<CygNetFacilityList> ListFacilitiesAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
-        Run(() =>
+        Run(connection, () =>
         {
             var client = FacilityClient(connection);
             var wanted = client.GetFacilityTagList(FacilityQuery(connection), CancellationToken.None)
@@ -79,15 +79,21 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
         new((ushort)connection.Domain, connection.Site, connection.Service);
 
     // The CygNet API is synchronous and cannot be cancelled: run it off the caller's thread and bound the wait.
-    private static async Task<T> Run<T>(Func<T> work, CancellationToken cancellationToken)
+    // The gate keeps a call that never returns from piling up blocked threads: it holds its slot until it ends.
+    private static async Task<T> Run<T>(CygNetConnection connection, Func<T> work, CancellationToken cancellationToken)
     {
         try
         {
-            return await Task.Run(work, CancellationToken.None).WaitAsync(Budget, cancellationToken);
+            return await CygNetCallGate.Shared.RunAsync(
+                $"{connection.Domain}/{connection.SiteService}", work, Budget, cancellationToken);
         }
         catch (TimeoutException)
         {
             throw new CygNetUnavailableException("CygNet did not answer in time.");
+        }
+        catch (CygNetBusyException)
+        {
+            throw new CygNetUnavailableException("CygNet is not answering and earlier calls are still waiting. Try again shortly.");
         }
     }
 }
