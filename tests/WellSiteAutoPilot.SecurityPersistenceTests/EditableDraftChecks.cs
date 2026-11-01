@@ -22,7 +22,9 @@ internal static class EditableDraftChecks
         var active = definition.Revisions.Single();
         await service.ValidateRevisionAuthorizedAsync(definition.Id, active.Id, subject, actor);
         await service.ActivateRevisionAuthorizedAsync(definition.Id, active.Id, "none", subject, actor);
-        var draft = await service.CreateRevisionAuthorizedAsync(definition.Id, command, subject, actor);
+        var createdDraft = await service.CreateRevisionAuthorizedAsync(definition.Id, command, subject, actor);
+        // PostgreSQL persists timestamps at microsecond precision; compare the saved identity.
+        var draft = (await new ConfiguredLogicRepository(setup).GetAsync(definition.Id))!.Revisions.Single(item => item.Id == createdDraft.Id);
         var schedule = new ConfiguredLogicScheduleCommand(true, 300, DateTimeOffset.UtcNow, "UTC");
         var edit = command with { ParametersJson = "{\"nested\":{\"values\":[1,2,3]}}", Schedule = schedule,
             AssetBindings = [new("target", asset, "{\"override\":true}")] };

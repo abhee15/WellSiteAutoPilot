@@ -88,6 +88,7 @@ internal static class ConfiguredLogicApiChecks
         engineer.DefaultRequestHeaders.Remove("If-Match");
         engineer.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", "\"0\"");
         await Expect(await engineer.PostAsync(secondPath + "/validate", null), HttpStatusCode.OK);
+        engineer.DefaultRequestHeaders.Remove("If-Match");
         await Expect(await Activate(secondPath + "/activate", "none"), HttpStatusCode.Conflict);
         await Expect(await Activate(secondPath + "/activate", revision.ToString()), HttpStatusCode.OK);
         var persisted = await Read(await engineer.GetAsync(detailPath), HttpStatusCode.OK);
