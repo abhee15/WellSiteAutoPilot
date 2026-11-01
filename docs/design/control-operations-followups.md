@@ -275,7 +275,7 @@ Open points for discussion: whether Resume should offer "run once now" (manual S
 | 5 | Manifest `controlCommands` and the policy editor using it (section 3) | contract owners' review of the shape |
 | 6 | Cadence change with adapter minimums (section 5.6 step 3) | none after step 4 |
 | 7 | Control history tab (section 4) | none |
-| 8 | Operator runbook (section 6) | none |
+| 8 | Operator runbook (section 6) — done, `docs/implementation/control-operator-runbook.md` | none |
 
 Steps 1 and 2 are small enough to merge on their own with CI. Steps 4 to 7 change shared contracts or add screens, so each
 gets its own pull request, and the manifest and schedule-state changes (steps 4 and 5) are reviewed as contracts first.
