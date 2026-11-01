@@ -135,6 +135,13 @@ internal static class ConnectionCommandCatalogChecks
             await ExpectAsync(() => new ConnectionRepository(delete).DeleteAuthorizedAsync(connection, subject, actor),
                 FailureKind.Conflict, "deleting a connection that has a catalog");
 
+        // Later migration preflight checks compare every active user with legacy access, so this fixture steps aside.
+        await using (var cleanup = new WellSiteAutoPilotDbContext(options))
+        {
+            await cleanup.AccessGrants.Where(item => item.UserId == user).ExecuteUpdateAsync(set => set.SetProperty(item => item.IsActive, false));
+            await cleanup.Users.Where(item => item.Id == user).ExecuteUpdateAsync(set => set.SetProperty(item => item.IsActive, false));
+        }
+
         async Task SetGrantAsync(Guid grant, bool active)
         {
             await using var db = new WellSiteAutoPilotDbContext(options);
