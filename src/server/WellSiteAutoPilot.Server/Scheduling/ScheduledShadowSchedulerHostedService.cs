@@ -58,6 +58,7 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
                     ScheduledShadowDispatchOutcome.ModuleUnavailable or
                     ScheduledShadowDispatchOutcome.ModuleDisabled or
                     ScheduledShadowDispatchOutcome.InvalidConfiguration or
+                    ScheduledShadowDispatchOutcome.CadenceBelowMinimum or
                     ScheduledShadowDispatchOutcome.DispatchFailed);
 
             // Retry intents left undecided by an interrupted gate pass.
