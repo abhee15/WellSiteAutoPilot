@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace WellSiteAutoPilot.Persistence.Connections;
 
 /// <summary>The current command catalog of one connection. <see cref="Version"/> is what a change must quote to be accepted.</summary>
@@ -38,7 +40,7 @@ public sealed class ConnectionCommandCatalogChangeEntity
 
 internal static class ConnectionCommandCatalogModelConfiguration
 {
-    public static void Configure(Microsoft.EntityFrameworkCore.ModelBuilder modelBuilder)
+    public static void Configure(ModelBuilder modelBuilder)
     {
         var catalog = modelBuilder.Entity<ConnectionCommandCatalogEntity>();
         catalog.ToTable("connection_command_catalogs", "integration", table =>
@@ -47,7 +49,7 @@ internal static class ConnectionCommandCatalogModelConfiguration
         catalog.Property(x => x.ChangedBy).HasMaxLength(256).IsRequired();
         catalog.Property(x => x.Reason).HasMaxLength(1024);
         catalog.HasOne<ConnectionEntity>().WithMany().HasForeignKey(x => x.ConnectionId)
-            .OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict);
 
         var entry = modelBuilder.Entity<ConnectionCommandCatalogEntryEntity>();
         entry.ToTable("connection_command_catalog_entries", "integration", table =>
@@ -63,7 +65,7 @@ internal static class ConnectionCommandCatalogModelConfiguration
         entry.Property(x => x.Command).HasMaxLength(128).IsRequired();
         entry.Property(x => x.TargetJson).IsRequired();
         entry.HasOne<ConnectionCommandCatalogEntity>().WithMany().HasForeignKey(x => x.ConnectionId)
-            .OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict);
 
         var change = modelBuilder.Entity<ConnectionCommandCatalogChangeEntity>();
         change.ToTable("connection_command_catalog_changes", "integration", table =>
@@ -74,6 +76,6 @@ internal static class ConnectionCommandCatalogModelConfiguration
         change.Property(x => x.Reason).HasMaxLength(1024);
         change.HasIndex(x => new { x.ConnectionId, x.Version }).IsUnique();
         change.HasOne<ConnectionEntity>().WithMany().HasForeignKey(x => x.ConnectionId)
-            .OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
