@@ -70,6 +70,28 @@ def validate_references(root: Path) -> list[str]:
     return errors
 
 
+# Dispatch and every next-run display must agree about a paused or re-timed logic, so occurrences are only ever
+# computed from EffectiveSchedule's result, inside the scheduling folder. Anything else reads a revision's own schedule.
+SCHEDULING_FOLDER = "src/server/WellSiteAutoPilot.Application/Scheduling/"
+OCCURRENCE_CALLS = ("ScheduleOccurrences.NextAfter(", "ScheduleOccurrences.LatestDue(")
+
+
+def validate_schedule_resolution(root: Path) -> list[str]:
+    errors: list[str] = []
+    root = root.resolve()
+    for source in sorted((root / "src").rglob("*.cs")):
+        relative = source.relative_to(root).as_posix()
+        if relative.startswith(SCHEDULING_FOLDER):
+            continue
+        text = source.read_text(encoding="utf-8-sig")
+        for call in OCCURRENCE_CALLS:
+            if call in text:
+                errors.append(
+                    f"{relative}: {call.rstrip('(')} outside Application/Scheduling; "
+                    "use EffectiveSchedule so a paused or re-timed logic is honoured")
+    return errors
+
+
 def validate_changed_paths(changed: list[str]) -> list[str]:
     return [
         f"generated API client edited: {path} (regenerate from OpenAPI instead)"
@@ -95,6 +117,7 @@ def main() -> int:
     root = args.repo.resolve()
     try:
         errors = validate_references(root)
+        errors += validate_schedule_resolution(root)
         # Fail the existing CI conventions job when a protected API changes its
         # reviewed route name or legacy authorization metadata. This remains a
         # static tripwire, not scoped-grant enforcement or cutover approval.

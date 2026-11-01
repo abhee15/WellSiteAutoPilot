@@ -60,6 +60,7 @@ var configuredLogicService = new ConfiguredLogicService(
 var executionService = new ExecutionService(executionRepository, clock);
 var scheduler = new ScheduledShadowSchedulerService(
     configuredLogicRepository,
+    new ConfiguredLogicScheduleRepository(dbContext),
     moduleRepository,
     executionRepository,
     executionService,
@@ -293,6 +294,55 @@ if (resumedDecision.Outcome != ScheduledShadowDispatchOutcome.Dispatched ||
         "Scheduler replayed missed intervals instead of dispatching only the latest due occurrence.");
 }
 
+// Live schedule state overrides what the revision declares; the scheduler and next-run reads share one resolver.
+var liveScheduleRepository = new ConfiguredLogicScheduleRepository(dbContext);
+var liveScheduleNow = clock.GetUtcNow();
+var liveScheduleRevision = (await configuredLogicService.GetRequiredAsync(configuredLogic.Id)).Revisions
+    .Single(item => item.Id == firstRevision.Id);
+if (EffectiveSchedule.Resolve(liveScheduleRevision, null) != liveScheduleRevision.Schedule ||
+    EffectiveSchedule.NextRunAt(liveScheduleRevision, null, liveScheduleNow) is null)
+{
+    throw new InvalidOperationException("Without live state the revision's own schedule must apply.");
+}
+
+var pausedState = await liveScheduleRepository.ApplyAsync(new ConfiguredLogicScheduleChangeRequest(
+    configuredLogic.Id, firstRevision.Id, 0, ConfiguredLogicScheduleChangeKind.Paused,
+    new ConfiguredLogicSchedule(false, 60, scheduleStart, "UTC"), "scheduler-test", liveScheduleNow, null));
+var pausedSweepDecision = (await scheduler.DispatchDueAsync(100)).Decisions
+    .Single(item => item.ConfiguredLogicId == configuredLogic.Id);
+if (pausedSweepDecision.Outcome != ScheduledShadowDispatchOutcome.NotDue ||
+    EffectiveSchedule.NextRunAt(liveScheduleRevision, pausedState, liveScheduleNow) is not null)
+{
+    throw new InvalidOperationException("A paused schedule must not dispatch and must show no next run.");
+}
+
+var futureStartState = await liveScheduleRepository.ApplyAsync(new ConfiguredLogicScheduleChangeRequest(
+    configuredLogic.Id, firstRevision.Id, 1, ConfiguredLogicScheduleChangeKind.Resumed,
+    new ConfiguredLogicSchedule(true, 60, liveScheduleNow.AddMinutes(10), "UTC"), "scheduler-test", liveScheduleNow, null));
+var futureStartDecision = (await scheduler.DispatchDueAsync(100)).Decisions
+    .Single(item => item.ConfiguredLogicId == configuredLogic.Id);
+if (futureStartDecision.Outcome != ScheduledShadowDispatchOutcome.NotDue ||
+    EffectiveSchedule.NextRunAt(liveScheduleRevision, futureStartState, liveScheduleNow) != liveScheduleNow.AddMinutes(10))
+{
+    throw new InvalidOperationException("A resumed schedule must wait for its own first occurrence.");
+}
+
+// State written against another revision must never decide the cadence.
+if (EffectiveSchedule.Resolve(liveScheduleRevision, futureStartState with { BasedOnRevisionId = Guid.NewGuid() })
+    != liveScheduleRevision.Schedule)
+{
+    throw new InvalidOperationException("State from another revision must be ignored.");
+}
+
+await dbContext.ConfiguredLogicScheduleStates
+    .Where(item => item.ConfiguredLogicId == configuredLogic.Id)
+    .ExecuteDeleteAsync();
+if ((await scheduler.DispatchDueAsync(100)).Decisions.Single(item => item.ConfiguredLogicId == configuredLogic.Id).Outcome
+    != ScheduledShadowDispatchOutcome.AlreadyDispatched)
+{
+    throw new InvalidOperationException("Removing live state must return the logic to its revision's schedule.");
+}
+
 var scheduledExecutions = await dbContext.Executions
     .AsNoTracking()
     .Where(item => item.LogicInstanceId == configuredLogic.Id)
@@ -393,6 +443,7 @@ var faultInjectingCatalog = new FaultInjectingModuleCatalogRepository(
     faultedModuleId);
 var isolatedScheduler = new ScheduledShadowSchedulerService(
     configuredLogicRepository,
+    new ConfiguredLogicScheduleRepository(dbContext),
     faultInjectingCatalog,
     executionRepository,
     executionService,
@@ -513,7 +564,7 @@ if (await executionRepository.ScheduledOccurrenceExistsAsync(
     var principalId = Guid.NewGuid();
     var identities = new FakeIdentityRepository(principalId);
     var authorizedScheduler = new ScheduledShadowSchedulerService(
-        configuredLogicRepository, moduleRepository, executionRepository, executionService, clock,
+        configuredLogicRepository, new ConfiguredLogicScheduleRepository(dbContext), moduleRepository, executionRepository, executionService, clock,
         new ScheduledReadAuthorityProvider(new ScheduledReadAuthorityOptions { ServicePrincipalUserId = principalId },
             identities, new WellSiteAutoPilot.Persistence.Scheduling.DelegatedAuthorityAuditWriter(dbContext), clock));
     var withAuthority = (await authorizedScheduler.DispatchDueAsync(100)).Decisions
