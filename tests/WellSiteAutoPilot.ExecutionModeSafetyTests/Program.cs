@@ -519,6 +519,26 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
         }
     }
 
+    // A policy can only permit what the live revision's module declares, spelled and measured as the module does.
+    foreach (var undeclared in new[]
+    {
+        new AutonomyCommandLimit("SET_CHOKE", "spm", 1m, 2m),
+        new AutonomyCommandLimit("setspeed", "spm", 1m, 2m),
+        new AutonomyCommandLimit("SetSpeed", "psi", 1m, 2m)
+    })
+    {
+        try
+        {
+            await gate.SetPolicyAsync(logic.Logic.Id, true, ControlSinkKinds.Simulator, [undeclared], 5, 3600, "admin",
+                allowApprovedRecommendations: true);
+            throw new InvalidOperationException($"A policy permitted '{undeclared.Command}' ({undeclared.Unit}), which the module does not declare.");
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Validation &&
+                                                           exception.Code == "CONTROL_POLICY_COMMAND_NOT_DECLARED")
+        {
+        }
+    }
+
     var wrongMode = await gate.ExecuteApprovedAsync(supersededId, "operator");
     Require(wrongMode.RefusalCode == GateCodes.NotRecommendationMode,
         "A recommendation whose revision is no longer in Recommendation mode was executed.");
