@@ -1991,6 +1991,10 @@ static ConfiguredLogicResponse WithConfigurationActions(
         // The same resolver the scheduler dispatches from: a paused or re-timed logic shows what will actually happen.
         NextRunAtUtc = EffectiveSchedule.NextRunAt(
             item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId), scheduleState, now),
+        EffectiveSchedule = EffectiveSchedule.Resolve(
+            item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId), scheduleState) is { } effective
+            ? new ConfiguredLogicScheduleResponse(effective.Enabled, effective.CadenceSeconds, effective.StartAtUtc, effective.TimeZoneId)
+            : null,
     };
 
 static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>

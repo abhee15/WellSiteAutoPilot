@@ -7,7 +7,12 @@ export type ScheduleRow = {
   revisionNumber: number | null;
   mode: string | null;
   assetLabels: string[];
+  /** Whether runs are being made now: the schedule in effect, which a pause or frequency change can differ from the saved revision. */
   enabled: boolean;
+  /** Paused after activation: the saved revision declares runs but the live schedule is stopped. */
+  paused: boolean;
+  /** The live schedule was changed after activation, so it differs from what the revision declares. */
+  changed: boolean;
   cadenceSeconds: number;
   timeZoneId: string | null;
   /** The next occurrence of the schedule, which is when a run is due, not a promise that it starts then. */
@@ -33,7 +38,9 @@ export function buildScheduleOverview(
   let unscheduledCount = 0;
   for (const configuration of configurations) {
     const active = configuration.revisions?.find(revision => revision.id === configuration.activeRevisionId);
-    const schedule = active?.schedule;
+    const declared = active?.schedule;
+    // The schedule in effect is what runs; the revision's own schedule is only what it declares.
+    const schedule = configuration.effectiveSchedule ?? declared;
     if (!configuration.id || !active || !schedule) {
       unscheduledCount++;
       continue;
@@ -48,6 +55,8 @@ export function buildScheduleOverview(
       mode: active.mode ?? null,
       assetLabels: configurationAssetLabels({ ...configuration, revisions: [active] }, assets),
       enabled: schedule.enabled === true,
+      paused: schedule.enabled !== true && declared?.enabled === true,
+      changed: Boolean(declared) && (declared!.enabled !== schedule.enabled || declared!.cadenceSeconds !== schedule.cadenceSeconds),
       cadenceSeconds: schedule.cadenceSeconds ?? 0,
       timeZoneId: schedule.timeZoneId ?? null,
       nextRunAtUtc: next === null ? null : new Date(next).toISOString(),
