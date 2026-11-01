@@ -86,7 +86,7 @@ public sealed class ScheduledShadowSchedulerService(
 
         if (revision is null ||
             revision.Status != ConfiguredLogicRevisionStatus.Active ||
-            revision.Mode != ExecutionMode.Shadow ||
+            !ExecutionModePolicy.IsSupported(revision.Mode) ||
             revision.Schedule is null)
         {
             return Decision(

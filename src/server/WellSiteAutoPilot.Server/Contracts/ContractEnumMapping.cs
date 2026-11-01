@@ -49,6 +49,8 @@ public static class ContractEnumMapping
     /// <summary>An omitted or undefined request value is a validation failure, never a default.</summary>
     public static DomainGrantScopeKind ToDomain(this ContractGrantScopeKind value) => MapRequest<DomainGrantScopeKind>(value);
 
+    public static DomainExecutionMode ToDomain(this ContractExecutionMode value) => MapRequest<DomainExecutionMode>(value);
+
     public static DomainRecommendationStatus ToDomain(this ContractRecommendationDecision value) => MapRequest<DomainRecommendationStatus>(value);
 
     private static TTo Map<TTo>(Enum value) where TTo : struct, Enum

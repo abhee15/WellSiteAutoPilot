@@ -80,7 +80,7 @@ public sealed class ExecutionService(
             null,
             null,
             null,
-            ExecutionMode.Shadow,
+            normalized.Mode,
             ExecutionStatus.Requested,
             correlationId.Trim(),
             requestedAtUtc,
@@ -322,7 +322,10 @@ public sealed class ExecutionService(
             normalizedAssets,
             normalizedInputs,
             command.Trigger,
-            scheduledForUtc);
+            scheduledForUtc,
+            ExecutionModePolicy.IsSupported(command.Mode)
+                ? command.Mode
+                : throw ValidationFailure("Execution mode is not supported."));
     }
 
     private static DateTimeOffset NormalizeUtcTimestamp(DateTimeOffset value)

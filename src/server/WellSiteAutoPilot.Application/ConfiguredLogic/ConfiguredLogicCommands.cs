@@ -1,3 +1,5 @@
+using WellSiteAutoPilot.Domain.Executions;
+
 namespace WellSiteAutoPilot.Application.ConfiguredLogic;
 
 public sealed record ConfiguredLogicAssetBindingCommand(
@@ -25,7 +27,8 @@ public sealed record CreateConfiguredLogicCommand(
     IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingCommand> DataBindings,
     ConfiguredLogicScheduleCommand? Schedule,
-    ConfiguredLogicViewBindingCommand? View = null);
+    ConfiguredLogicViewBindingCommand? View = null,
+    ExecutionMode Mode = ExecutionMode.Shadow);
 
 public sealed record CreateConfiguredLogicRevisionCommand(
     string ModuleManifestJson,
@@ -33,6 +36,7 @@ public sealed record CreateConfiguredLogicRevisionCommand(
     IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingCommand> DataBindings,
     ConfiguredLogicScheduleCommand? Schedule,
-    ConfiguredLogicViewBindingCommand? View = null);
+    ConfiguredLogicViewBindingCommand? View = null,
+    ExecutionMode Mode = ExecutionMode.Shadow);
 
 public sealed record ConfiguredLogicViewBindingCommand(Guid ViewId, int ExpectedRevision, string Role);

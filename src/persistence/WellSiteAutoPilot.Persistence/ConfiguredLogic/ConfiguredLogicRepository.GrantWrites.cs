@@ -160,7 +160,7 @@ public sealed partial class ConfiguredLogicRepository
     private static void ValidateDraft(ConfiguredLogicRevision revision)
     {
         if (revision.Id == Guid.Empty || revision.ConfiguredLogicId == Guid.Empty || revision.RevisionNumber < 1 ||
-            revision.Mode != ExecutionMode.Shadow || revision.Status != ConfiguredLogicRevisionStatus.Draft ||
+            !ExecutionModePolicy.IsSupported(revision.Mode) || revision.Status != ConfiguredLogicRevisionStatus.Draft ||
             revision.ValidatedAtUtc is not null || revision.ActivatedAtUtc is not null ||
             revision.AssetBindings.Count == 0 || DraftAssets(revision).Contains(Guid.Empty) ||
             (revision.View is { } source && (source.ViewId == Guid.Empty || source.ConnectionId == Guid.Empty ||

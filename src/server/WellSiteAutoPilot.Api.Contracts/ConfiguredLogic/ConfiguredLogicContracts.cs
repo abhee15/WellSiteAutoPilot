@@ -27,7 +27,8 @@ public sealed record CreateConfiguredLogicRequest(
     IReadOnlyCollection<ConfiguredLogicAssetBindingRequest> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingRequest> DataBindings,
     ConfiguredLogicScheduleRequest? Schedule,
-    ConfiguredLogicViewRequest? View = null);
+    ConfiguredLogicViewRequest? View = null,
+    ExecutionMode? Mode = null);
 
 public sealed record CreateConfiguredLogicRevisionRequest(
     string ModuleManifestJson,
@@ -35,7 +36,8 @@ public sealed record CreateConfiguredLogicRevisionRequest(
     IReadOnlyCollection<ConfiguredLogicAssetBindingRequest> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBindingRequest> DataBindings,
     ConfiguredLogicScheduleRequest? Schedule,
-    ConfiguredLogicViewRequest? View = null);
+    ConfiguredLogicViewRequest? View = null,
+    ExecutionMode? Mode = null);
 
 public sealed record ConfiguredLogicAssetBindingResponse(
     string Role,

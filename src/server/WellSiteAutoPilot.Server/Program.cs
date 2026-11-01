@@ -873,7 +873,8 @@ v1.MapPost(
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
                         request.Schedule.TimeZoneId),
-                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role)),
+                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role),
+                request.Mode?.ToDomain() ?? WellSiteAutoPilot.Domain.Executions.ExecutionMode.Shadow),
             access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
@@ -957,7 +958,8 @@ v1.MapPost(
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
                         request.Schedule.TimeZoneId),
-                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role)),
+                request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role),
+                request.Mode?.ToDomain() ?? WellSiteAutoPilot.Domain.Executions.ExecutionMode.Shadow),
             access.Subject, access.CreateActor(httpContext), cancellationToken);
 
         return Results.Created(
