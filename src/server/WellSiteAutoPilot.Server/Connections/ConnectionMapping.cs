@@ -14,7 +14,13 @@ internal static class ConnectionMapping
             field.Key, field.Label, field.HelpText, field.Kind.ToString(), field.Required, field.MaxLength)).ToArray(),
         adapter.Capabilities.Select(capability => capability.Name).ToArray(),
         adapter.CanDiscover,
-        (adapter.GroupingFields ?? []).Select(field => new DiscoveryFieldResponse(field.Key, field.Label)).ToArray());
+        (adapter.GroupingFields ?? []).Select(field => new DiscoveryFieldResponse(field.Key, field.Label)).ToArray(),
+        (adapter.Commands ?? []).Select(command => new AdapterCommandResponse(
+            command.Name, command.DisplayName, command.Description, command.Quantity, command.Unit, command.ValueKind.ToString(),
+            command.TargetFields.Select(field => new AdapterSettingFieldResponse(
+                field.Key, field.Label, field.HelpText, field.Kind.ToString(), field.Required, field.MaxLength)).ToArray(),
+            command.Verification.ToString(), command.ReadbackQuantity, command.DefaultSettleSeconds, command.MaximumSettleSeconds,
+            command.DefaultDeadlineSeconds, command.MaximumDeadlineSeconds)).ToArray());
 
     /// <summary>The summary a person starts from: totals, facets and the first <see cref="ConnectionService.SampleSize"/> objects.</summary>
     public static DiscoveryResponse ToResponse(DiscoverySnapshot snapshot, ImportHierarchyStatus? hierarchy = null) => new(

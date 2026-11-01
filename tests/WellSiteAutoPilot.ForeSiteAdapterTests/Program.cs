@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Integration.ForeSite;
 
 // Recorded-shape checks always run. The live check runs when FORESITE_BASE_URL is set, as the current Windows
 // identity, which is how the installed Gateway reaches ForeSite.
+ShippedAdapterCommandChecks.Run();
 await MeasurementChecks.RunAsync();
 await CardChecks.RunAsync();
 await MeasurementProbeChecks.RunAsync();

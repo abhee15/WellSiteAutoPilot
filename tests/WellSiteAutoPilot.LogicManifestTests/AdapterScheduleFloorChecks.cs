@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Application.Scheduling;
+using WellSiteAutoPilot.Domain.Recommendations;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 internal static class AdapterScheduleFloorChecks
@@ -8,6 +9,10 @@ internal static class AdapterScheduleFloorChecks
 
     public static void Run()
     {
+        // The adapter contracts cannot reference the Domain, so the reserved advisory name is repeated there and held equal here.
+        if (!AdapterCommandDefinitionValidator.ReservedNames.Contains(RecommendationCommands.Advisory))
+            throw new InvalidOperationException("The adapter command validator must reserve the advisory command name.");
+
         const string withAdapter = """{"moduleId":"a.b","requiredAdapterKey":"foresite"}""";
         const string withoutAdapter = """{"moduleId":"a.b"}""";
 
