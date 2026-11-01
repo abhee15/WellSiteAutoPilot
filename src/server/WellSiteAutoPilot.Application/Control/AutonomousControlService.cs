@@ -37,6 +37,7 @@ public static class GateCodes
     public const string ApprovedNotEnabled = "GATE_APPROVED_EXECUTION_NOT_ENABLED";
     public const string NotRecommendationMode = "GATE_NOT_RECOMMENDATION_MODE";
     public const string Stale = "GATE_RECOMMENDATION_STALE";
+    public const string AdvisoryNotExecutable = "GATE_ADVISORY_NOT_EXECUTABLE";
 }
 
 /// <summary>
@@ -343,6 +344,8 @@ public sealed class AutonomousControlService(
         DateTimeOffset now, string origin = ControlOrigins.Autonomous)
     {
         var approvedOrigin = origin == ControlOrigins.ApprovedRecommendation;
+        // Advice has no device action behind it, however a person decided it.
+        if (recommendation.Command == RecommendationCommands.Advisory) return GateCodes.AdvisoryNotExecutable;
         if (killSwitch.Engaged) return GateCodes.KillSwitch;
         if (!options.Enabled) return GateCodes.GlobalDisabled;
         if (policy is null) return GateCodes.NoPolicy;
@@ -391,6 +394,8 @@ public sealed class AutonomousControlService(
                 (enabled && (item.MinimumValue is null || item.MaximumValue is null))))
             throw Validation("CONTROL_POLICY_LIMITS_INVALID",
                 "Each permitted command needs a name and, when enabled, inclusive minimum and maximum bounds.");
+        if (limits.Any(item => string.Equals(item.Command.Trim(), RecommendationCommands.Advisory, StringComparison.OrdinalIgnoreCase)))
+            throw Validation("CONTROL_POLICY_LIMITS_INVALID", "The advisory command is reserved and cannot be permitted.");
         if (enabled && limits.Count == 0)
             throw Validation("CONTROL_POLICY_LIMITS_INVALID", "An enabled policy must explicitly permit at least one command.");
 
