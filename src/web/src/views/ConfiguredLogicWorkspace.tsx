@@ -9,6 +9,7 @@ import { ConfiguredLogicSetupPanel } from './ConfiguredLogicSetupPanel';
 import { AutonomyPolicyPanel } from './AutonomyPolicyPanel';
 import { orderedRevisions } from './configuredLogicViews';
 import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOverview';
+import { ConfiguredLogicSchedulePanel } from './ConfiguredLogicSchedulePanel';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
 import type { VerifiedConfiguration } from './configuredLogicSetup';
 import { LoadingIndicator } from '../components/LoadingIndicator';
@@ -185,6 +186,8 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         <ConfiguredLogicRevisionOverview logic={detail} assets={assets} activity={activity.data}
           loading={activity.loading} failed={activity.failed} canReadRuns={canReadRuns}
           onHistory={() => selectTab('activity')} onRetry={activity.refresh} />
+        <ConfiguredLogicSchedulePanel configuredLogicId={detail.id} activeRevisionId={detail.activeRevisionId}
+          mayManage={mayManage} disabled={mutationBlocked || editing} />
         {active?.mode === 'Shadow' && userId && <div hidden={!showShadow || editing}>
           <h4>{t('logicDetail.runActive', { number: active.revisionNumber ?? '—' })}</h4>
           <ConfiguredShadowPanel key={active.id} userId={userId} configurationId={detail.id} revision={active}
