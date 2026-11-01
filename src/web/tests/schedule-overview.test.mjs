@@ -72,3 +72,12 @@ test('the schedule in effect decides, so a paused or re-timed logic is not shown
   assert.deepEqual([row('u').paused, row('u').changed], [false, false]);
   assert.deepEqual([row('l').paused, row('l').changed, row('l').cadenceSeconds], [false, false, 60]);
 });
+
+test('a schedule below its adapter minimum is flagged from the server answer only', () => {
+  const result = model.buildScheduleOverview([
+    logic('b', 'Too fast', { schedule: schedule() }, { belowMinimum: true, nextRunAtUtc: '2026-10-14T12:01:00Z' }),
+    logic('n', 'Fine', { schedule: schedule() }, { belowMinimum: false, nextRunAtUtc: '2026-10-14T12:02:00Z' }),
+    logic('m', 'Missing', { schedule: schedule() }, { nextRunAtUtc: '2026-10-14T12:03:00Z' }),
+  ], assets, []);
+  assert.deepEqual(result.rows.map(row => row.belowMinimum), [true, false, false]);
+});

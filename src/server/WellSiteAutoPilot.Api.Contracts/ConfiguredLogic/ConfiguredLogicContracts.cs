@@ -93,6 +93,8 @@ public sealed record ConfiguredLogicResponse(
     /// activation. Null without a live revision or a schedule. Lists show this, not the revision's declared schedule.
     /// </summary>
     public ConfiguredLogicScheduleResponse? EffectiveSchedule { get; init; }
+    /// <summary>The schedule in effect is faster than the logic's adapter allows, so its due runs are skipped.</summary>
+    public bool BelowMinimum { get; init; }
 }
 
 public sealed record ConfiguredLogicViewRequest(Guid ViewId, int ExpectedRevision, string Role);
@@ -131,5 +133,6 @@ public sealed record ConfiguredLogicScheduleControlResponse(
     DateTimeOffset? NextRunAtUtc,
     int MinimumCadenceSeconds,
     int MaximumCadenceSeconds,
+    bool BelowMinimum,
     bool CanManage,
     IReadOnlyCollection<ConfiguredLogicScheduleChangeResponse> Changes);

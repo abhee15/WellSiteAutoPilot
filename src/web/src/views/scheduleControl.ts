@@ -39,6 +39,8 @@ export type ScheduleControl = {
   nextRunAtUtc: string | null;
   minimumCadenceSeconds: number;
   maximumCadenceSeconds: number;
+  /** The schedule runs, or would run once resumed, faster than the logic's adapter allows, so its runs are skipped. */
+  belowMinimum: boolean;
   canManage: boolean;
   changes: ScheduleChange[];
 };
@@ -110,7 +112,7 @@ function readChange(value: unknown): ScheduleChange {
 /** Strict: a response that cannot be fully read is never shown as a running or paused schedule. */
 export function readScheduleControl(payload: unknown): ScheduleControl {
   if (!isObject(payload) || !isSecurityId(payload.configuredLogicId) || typeof payload.version !== 'string' || !payload.version ||
-      typeof payload.differsFromRevision !== 'boolean' || typeof payload.canManage !== 'boolean' ||
+      typeof payload.differsFromRevision !== 'boolean' || typeof payload.canManage !== 'boolean' || typeof payload.belowMinimum !== 'boolean' ||
       typeof payload.minimumCadenceSeconds !== 'number' || typeof payload.maximumCadenceSeconds !== 'number' ||
       !(payload.minimumCadenceSeconds > 0) || payload.maximumCadenceSeconds < payload.minimumCadenceSeconds ||
       !Array.isArray(payload.changes)) throw invalid();
@@ -126,6 +128,7 @@ export function readScheduleControl(payload: unknown): ScheduleControl {
     nextRunAtUtc: nullable(payload.nextRunAtUtc, isInstant),
     minimumCadenceSeconds: payload.minimumCadenceSeconds,
     maximumCadenceSeconds: payload.maximumCadenceSeconds,
+    belowMinimum: payload.belowMinimum,
     canManage: payload.canManage,
     changes: payload.changes.map(readChange),
   };

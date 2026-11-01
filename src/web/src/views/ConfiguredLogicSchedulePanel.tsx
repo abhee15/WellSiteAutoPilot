@@ -117,6 +117,7 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
     data-state={state} data-differs={control.differsFromRevision}>
     {heading}
     <p>{summary}{next && <> {next}</>}</p>
+    {control.belowMinimum && <p role="note">{t('scheduleControl.belowMinimum', { interval: interval(control.minimumCadenceSeconds) })}</p>}
     <p className="logic-detail-note">{control.differsFromRevision
       ? t('scheduleControl.differs', { interval: interval(control.declared?.cadenceSeconds ?? null) })
       : t('scheduleControl.matches')} {t('scheduleControl.noRevision')}</p>
@@ -124,7 +125,7 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
       <ActionButton label={t('scheduleControl.changeFrequency')} disabled={busy} onClick={() => { setError(null); setSeconds(String(control.effective?.cadenceSeconds ?? '')); setForm('frequency'); }} />
       {state === 'running'
         ? <ActionButton variant="primary" label={t('scheduleControl.pause')} busy={saving} disabled={busy} onClick={() => void run({ kind: 'pause' })} />
-        : <ActionButton variant="primary" label={t('scheduleControl.resume')} disabled={busy || !canResume(control)} onClick={() => { setError(null); setForm('resume'); }} />}
+        : <ActionButton variant="primary" label={t('scheduleControl.resume')} disabled={busy || !canResume(control) || control.belowMinimum} onClick={() => { setError(null); setForm('resume'); }} />}
     </div>}
     {manage && form !== null && <div className="schedule-control-form">
       {form === 'frequency' && <label>

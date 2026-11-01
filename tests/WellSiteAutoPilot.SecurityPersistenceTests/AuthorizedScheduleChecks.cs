@@ -5,6 +5,7 @@ using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 
@@ -78,9 +79,36 @@ internal static class AuthorizedScheduleChecks
             serviceResumed.Declared.CadenceSeconds != 300)
             throw new InvalidOperationException("Resuming must start one cadence from now and leave the declared schedule untouched.");
         await ExpectAsync(() => ServiceAsync(service => service.ChangeFrequencyAsync(subject, actor, id, serviceResumed.Token, 600, null)), FailureKind.Validation);
+
+        // The module's adapter sets a floor: a frequency or a resume below it is refused, the view reports it, and a valid one is applied.
+        var originalManifest = await setup.ConfiguredLogicRevisions.Where(item => item.Id == activeRevisionId)
+            .Select(item => item.ModuleManifestJson).SingleAsync();
+        var adapterFloors = new AdapterScheduleFloorCache();
+        adapterFloors.Replace([new AdapterDescriptor("floor-test", "Floor test", "Floor test", 1, [], [], null, 900)]);
+        await setup.ConfiguredLogicRevisions.Where(item => item.Id == activeRevisionId).ExecuteUpdateAsync(set => set.SetProperty(
+            item => item.ModuleManifestJson, "{\"requiredAdapterKey\":\"floor-test\"}"));
+        try
+        {
+            var below = await ServiceAsync(service => service.GetAsync(subject, id), adapterFloors);
+            if (below.AdapterMinimumCadenceSeconds != 900 || below.EffectiveMinimumCadenceSeconds != 900 || !below.BelowMinimum)
+                throw new InvalidOperationException("The view must report an adapter floor above the live cadence as below minimum.");
+            var unknown = await ServiceAsync(service => service.GetAsync(subject, id), new AdapterScheduleFloorCache());
+            if (unknown.AdapterMinimumCadenceSeconds != 0 || unknown.BelowMinimum || unknown.EffectiveMinimumCadenceSeconds != 15)
+                throw new InvalidOperationException("An unknown adapter floor must leave only the Server-wide bounds.");
+            await ExpectAsync(() => ServiceAsync(service => service.ChangeFrequencyAsync(subject, actor, id, below.Token, 899, null), adapterFloors),
+                FailureKind.Validation);
+            var raised = await ServiceAsync(service => service.ChangeFrequencyAsync(subject, actor, id, below.Token, 900, null), adapterFloors);
+            if (raised.Effective?.CadenceSeconds != 900 || raised.BelowMinimum)
+                throw new InvalidOperationException("A frequency at the adapter floor must be applied and no longer be below minimum.");
+        }
+        finally
+        {
+            await setup.ConfiguredLogicRevisions.Where(item => item.Id == activeRevisionId).ExecuteUpdateAsync(set => set.SetProperty(
+                item => item.ModuleManifestJson, originalManifest));
+        }
         await setup.ConfiguredLogicRevisions.Where(item => item.Id == activeRevisionId).ExecuteUpdateAsync(set => set.SetProperty(
             item => item.ScheduleJson, (string?)null));
-        if (await AuditCountAsync() != baseline + 5)
+        if (await AuditCountAsync() != baseline + 6)
             throw new InvalidOperationException("Only successful service changes may be audited.");
         Console.WriteLine("Authorized schedule changes require paired grants, record the actor, are judged against the reviewed version and audit once.");
         return 5;
@@ -89,11 +117,12 @@ internal static class AuthorizedScheduleChecks
             item.CorrelationId == actor.CorrelationId && item.Action.StartsWith("CONFIGURED_LOGIC_SCHEDULE_"));
         Task<int> SetGrantAsync(Guid grant, bool active) => setup.AccessGrants.Where(item => item.Id == grant)
             .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsActive, active));
-        async Task<ConfiguredLogicScheduleView> ServiceAsync(Func<ConfiguredLogicScheduleControlService, Task<ConfiguredLogicScheduleView>> operation)
+        async Task<ConfiguredLogicScheduleView> ServiceAsync(
+            Func<ConfiguredLogicScheduleControlService, Task<ConfiguredLogicScheduleView>> operation, IAdapterScheduleFloors? floors = null)
         {
             await using var db = new WellSiteAutoPilotDbContext(options);
             return await operation(new ConfiguredLogicScheduleControlService(
-                new ConfiguredLogicRepository(db), new ConfiguredLogicScheduleRepository(db), TimeProvider.System));
+                new ConfiguredLogicRepository(db), new ConfiguredLogicScheduleRepository(db), TimeProvider.System, floors));
         }
         async Task<ConfiguredLogicScheduleState> WriteAsync(ConfiguredLogicScheduleChangeRequest request, AccessSubject? asSubject = null)
         {

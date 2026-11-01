@@ -907,7 +907,8 @@ v1.MapPost(
 v1.MapGet(
     "/configured-logic",
     async (int? limit, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
-        IResourceActionRepository actions, RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
+        IResourceActionRepository actions, IAdapterScheduleFloors floors, RequestAccessContext access, TimeProvider clock,
+        CancellationToken cancellationToken) =>
     {
         var items = await configurations.ListAuthorizedAsync(access.Subject, PageLimit(limit ?? 100), cancellationToken);
         var scheduleStates = await schedules.ListAsync(items.Select(item => item.Id).ToArray(), cancellationToken);
@@ -915,7 +916,7 @@ v1.MapGet(
             .ToDictionary(item => item.Id);
         var now = clock.GetUtcNow();
         return items.Select(item => WithConfigurationActions(
-            item, capabilities.GetValueOrDefault(item.Id), now, scheduleStates.GetValueOrDefault(item.Id))).ToArray();
+            item, capabilities.GetValueOrDefault(item.Id), now, scheduleStates.GetValueOrDefault(item.Id), floors)).ToArray();
     })
     .WithName("ListConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -943,11 +944,12 @@ v1.MapGet(
 v1.MapGet(
     "/configured-logic/{configuredLogicId:guid}",
     async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
-        IResourceActionRepository actions, RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
+        IResourceActionRepository actions, IAdapterScheduleFloors floors, RequestAccessContext access, TimeProvider clock,
+        CancellationToken cancellationToken) =>
     {
         var item = RequireFound(await configurations.GetAuthorizedAsync(access.Subject, configuredLogicId, cancellationToken), "CONFIGURED_LOGIC_NOT_FOUND");
         var capability = (await actions.GetConfiguredLogicActionsAsync(access.Subject, [item.Id], cancellationToken)).SingleOrDefault();
-        return WithConfigurationActions(item, capability, clock.GetUtcNow(), await schedules.GetAsync(item.Id, cancellationToken));
+        return WithConfigurationActions(item, capability, clock.GetUtcNow(), await schedules.GetAsync(item.Id, cancellationToken), floors);
     })
     .WithName("GetConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -1977,7 +1979,7 @@ static async Task<ConfiguredLogicScheduleControlResponse> ToScheduleControlRespo
     return new ConfiguredLogicScheduleControlResponse(
         view.ConfiguredLogicId, view.ActiveRevisionId, view.Token, Schedule(view.Declared), Schedule(view.Effective),
         view.Live is not null, view.NextRunAtUtc,
-        ConfiguredLogicScheduleControlService.MinimumCadenceSeconds, ConfiguredLogicScheduleControlService.MaximumCadenceSeconds,
+        view.EffectiveMinimumCadenceSeconds, ConfiguredLogicScheduleControlService.MaximumCadenceSeconds, view.BelowMinimum,
         capability?.CanManage == true,
         view.Changes.Select(change => new ConfiguredLogicScheduleChangeResponse(
             change.Id, change.Version, change.Kind.ToContract(), Schedule(change.Schedule)!, change.ChangedBy,
@@ -1986,19 +1988,24 @@ static async Task<ConfiguredLogicScheduleControlResponse> ToScheduleControlRespo
 
 static ConfiguredLogicResponse WithConfigurationActions(
     ConfiguredLogicDefinition item, ConfiguredLogicActions? capability, DateTimeOffset now,
-    ConfiguredLogicScheduleState? scheduleState) =>
-    ToConfiguredLogicResponse(item) with
+    ConfiguredLogicScheduleState? scheduleState, IAdapterScheduleFloors floors)
+{
+    var activeRevision = item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId);
+    var effectiveSchedule = EffectiveSchedule.Resolve(activeRevision, scheduleState);
+    return ToConfiguredLogicResponse(item) with
     {
+        BelowMinimum = effectiveSchedule is not null && activeRevision is not null &&
+            AdapterScheduleFloorPolicy.FloorFor(activeRevision.ModuleManifestJson, floors) is { } floor &&
+            effectiveSchedule.CadenceSeconds < floor,
         CanManage = capability?.CanManage == true,
         CanRequestShadow = capability?.CanRequestShadow == true,
         // The same resolver the scheduler dispatches from: a paused or re-timed logic shows what will actually happen.
-        NextRunAtUtc = EffectiveSchedule.NextRunAt(
-            item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId), scheduleState, now),
-        EffectiveSchedule = EffectiveSchedule.Resolve(
-            item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId), scheduleState) is { } effective
+        NextRunAtUtc = EffectiveSchedule.NextRunAt(activeRevision, scheduleState, now),
+        EffectiveSchedule = effectiveSchedule is { } effective
             ? new ConfiguredLogicScheduleResponse(effective.Enabled, effective.CadenceSeconds, effective.StartAtUtc, effective.TimeZoneId)
             : null,
     };
+}
 
 static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>
     new(grant.Id, grant.SubjectKind.ToContract(), grant.UserId,
