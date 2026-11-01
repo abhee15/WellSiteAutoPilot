@@ -8,10 +8,8 @@ directory service.
 
 - A `cygnet` provider on the Integration Gateway's `GET /api/internal/v1/data/current` route, for trying CygNet reads
   on a development machine.
-- **Not** part of the connection-backed read path. Executions read saved-connection data through authorized read plans
-  (`docs/implementation/authorized-connection-reads.md`), and the worker refuses any non-simulator provider on the
-  `data/current` route. A CygNet connection adapter (settings, test, discovery, read-plan support in the Server) is a
-  separate piece of work.
+- The live backend of the `cygnet` connection adapter (`src\integration\WellSiteAutoPilot.Integration.CygNet.Adapter`):
+  connection test, facility discovery and current reads through authorized read plans. See `docs/implementation/cygnet-adapter.md`.
 - Not in `WellSiteAutoPilot.slnx`, so CI and a normal build never need the CygNet libraries. The Gateway compiles the
   provider in only when `CYGNET_LIBRARY_PATH` is set; without it the Gateway builds exactly as before.
 

@@ -21,7 +21,11 @@ builder.Services.AddSingleton<CygNetConnectionMeasurements>();
 builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.Adapter.ICygNetClient>(services =>
     builder.Configuration["Providers:CygNet:Backend"]?.Trim().ToLowerInvariant() switch
     {
-        "simulated" => new WellSiteAutoPilot.Integration.CygNet.Adapter.SimulatedCygNetClient(services.GetRequiredService<TimeProvider>()),
+        "simulated" => new WellSiteAutoPilot.Integration.CygNet.Adapter.SimulatedCygNetClient(
+            services.GetRequiredService<TimeProvider>(),
+            string.Equals(builder.Configuration["Providers:CygNet:Simulated:Profile"]?.Trim(), "DemoStale", StringComparison.OrdinalIgnoreCase)
+                ? WellSiteAutoPilot.Integration.CygNet.Adapter.SimulatedCygNetProfile.DemoStale
+                : WellSiteAutoPilot.Integration.CygNet.Adapter.SimulatedCygNetProfile.Current),
 #if CYGNET
         "live" => new WellSiteAutoPilot.Integration.CygNet.CygNetApiClient(
             services.GetRequiredService<WellSiteAutoPilot.Integration.CygNet.CygNetProviderOptions>()),

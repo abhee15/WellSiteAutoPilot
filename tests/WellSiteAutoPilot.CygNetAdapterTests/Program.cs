@@ -58,15 +58,15 @@ Expect((await tester.TestAsync(descriptor, settings, CancellationToken.None)).Ou
 
 // Discovery
 var discovered = await CygNetAdapter.DiscoverAsync(sim, connection, Account);
-Expect(discovered.Complete && discovered.Items.Count == 7, "simulated discovery lists every facility");
+Expect(discovered.Complete && discovered.Items.Count == 8, "simulated discovery lists every facility");
 var well = discovered.Items.Single(i => i.DisplayName == "WELL_002");
 Expect(well.ExternalId == "CYG_DEMO.UIS::WELL_002" && well.ProviderType == "cygnet.facility" &&
        well.Metadata["category"] == "Pad A" && well.Metadata["facilityType"] == "WELL" && well.Metadata["domain"] == "27212",
     "facility mapped with tag, type and grouping facts");
 var filtered = await CygNetAdapter.DiscoverAsync(sim, connection with { FacilityFilter = "WELL_*" }, Account);
-Expect(filtered.Items.Count == 5 && filtered.Items.All(i => i.DisplayName.StartsWith("WELL_", StringComparison.Ordinal)), "filter narrows discovery");
+Expect(filtered.Items.Count == 6 && filtered.Items.All(i => i.DisplayName.StartsWith("WELL_", StringComparison.Ordinal)), "filter narrows discovery");
 var viaGateway = await new AdapterDiscoverer(null!, null!, sim).DiscoverAsync(descriptor, settings, CancellationToken.None);
-Expect(viaGateway.Items.Count == 7, "gateway discoverer routes cygnet");
+Expect(viaGateway.Items.Count == 8, "gateway discoverer routes cygnet");
 
 var truncated = CygNetAdapter.MapFacilities(connection, new CygNetFacilityList([new("A1"), new("A2")], Truncated: true), Account);
 Expect(!truncated.Complete && truncated.Items.Count == 2 && truncated.Warnings.Any(w => w.Contains("more facilities", StringComparison.Ordinal)),
@@ -137,8 +137,98 @@ var heavy = await Run(motor, "WELL_004", "{}", motorInputs);
 Expect(heavy.OutcomeCode == "MOTOR_LOAD_HIGH" && heavy.Recommendations.Count == 1, "WELL_004 motor load is high");
 Expect((await Run(motor, "WELL_001", "{}", motorInputs)).OutcomeCode == "MOTOR_LOAD_NORMAL", "WELL_001 load is normal");
 
+// (1) Point values: blank, text and flagged records say why
+Expect(CygNetValues.ParseNumber("           99.67") == 99.67m && CygNetValues.ParseNumber("1E3") == 1000m, "padded and exponent numbers parse");
+Expect(Throws(() => CygNetValues.ParseNumber("")).Code == CygNetValues.NoValueCode && Throws(() => CygNetValues.ParseNumber("   ")).Code == CygNetValues.NoValueCode,
+    "a blank record means the point has no value yet");
+var text = Throws(() => CygNetValues.ParseNumber("Running"));
+Expect(text.Code == CygNetValues.NotNumericCode && text.SafeDetail.Contains("point mapping", StringComparison.Ordinal), "text values name the remedy");
+Expect(CygNetValues.Quality("Initialized, Updated") == "Good" && CygNetValues.Quality("Initialized, Updated, StringData") == "Good" &&
+       CygNetValues.Quality("Initialized, Updated, ConfigurableBit1") == "Uncertain" && CygNetValues.Quality("Updated, Unreliable") == "Bad" &&
+       CygNetValues.Quality(null) == "Good", "status flags map to quality");
+await ExpectCode(CygNetValues.NoValueCode, () => CygNetAdapter.ReadCurrentAsync(sim, connection, "CYG_DEMO.UIS::WELL_006", "PumpFillage"));
+
+// (2) Freshness diagnostics in the test and discovery results
+var fresh = await CygNetAdapter.CheckAsync(sim, connection, Account, clock, CancellationToken.None);
+Expect(fresh.Outcome == AdapterTestOutcomes.Healthy && fresh.Message.Contains("Sampled 3 facility", StringComparison.Ordinal) &&
+       fresh.Message.Contains("PumpFillage 5 s to 10 min old", StringComparison.Ordinal) && !fresh.Message.Contains("maximum data age", StringComparison.Ordinal),
+    "fresh data reports its age and needs no advice: " + fresh.Message);
+var staleSim = new SimulatedCygNetClient(clock, SimulatedCygNetProfile.DemoStale);
+var old = await CygNetAdapter.CheckAsync(staleSim, connection, Account, clock, CancellationToken.None);
+Expect(old.Outcome == AdapterTestOutcomes.Healthy && old.Message.Contains("6.0 years old", StringComparison.Ordinal) &&
+       old.Message.Contains("maximum data age must be at least", StringComparison.Ordinal), "stale data is reported with guidance: " + old.Message);
+var found = await CygNetAdapter.DiscoverAsync(staleSim, connection, Account, clock, CancellationToken.None);
+Expect(found.Complete && found.UnavailableFields is { Count: 0 } && found.Warnings.Any(w => w.StartsWith("Data freshness.", StringComparison.Ordinal)),
+    "discovery stays complete and carries the freshness note without marking facts unavailable");
+Expect(CygNetFreshness.Pick(["A", "B", "C", "D", "E"]).SequenceEqual(["A", "C", "E"]) && CygNetFreshness.Pick(["A", "B"]).Count == 2, "samples are spread over the list");
+var noValue = await CygNetAdapter.CheckAsync(sim, connection with { FacilityFilter = "WELL_006" }, Account, clock, CancellationToken.None);
+Expect(noValue.Outcome == AdapterTestOutcomes.Healthy && noValue.Message.Contains("no value yet", StringComparison.Ordinal), "points without values are reported, not fatal");
+Expect(CygNetValues.FormatAge(TimeSpan.FromSeconds(45)) == "45 s" && CygNetValues.FormatAge(TimeSpan.FromMinutes(16)) == "16 min" &&
+       CygNetValues.FormatAge(TimeSpan.FromDays(3)) == "3 days", "ages are short");
+
+// (3) Identities across site.service, domain and case
+var otherService = connection with { Site = "OTHER", Service = "UIS" };
+var inOther = CygNetAdapter.MapFacilities(otherService, new CygNetFacilityList([new("WELL_001")]), Account);
+var inDemo = CygNetAdapter.MapFacilities(connection, new CygNetFacilityList([new("WELL_001")]), Account);
+Expect(inOther.Items[0].ExternalId == "OTHER.UIS::WELL_001" && inDemo.Items[0].ExternalId == "CYG_DEMO.UIS::WELL_001",
+    "the same facility id in two services has two external ids");
+await ExpectCode("CYGNET_FACILITY_INVALID", () => CygNetAdapter.ReadCurrentAsync(sim, otherService, inDemo.Items[0].ExternalId, "PumpFillage"));
+Expect(CygNetAdapter.MapFacilities(connection, new CygNetFacilityList([new("Well_1"), new("WELL_1")]), Account).Items.Count == 0,
+    "ids that differ only by case are treated as a collision");
+Expect(CygNetAdapter.MapFacilities(connection with { Domain = 1 }, new CygNetFacilityList([new("WELL_001")]), Account).Items[0].Metadata["domain"] == "1",
+    "the domain is a fact, so two domains can be told apart");
+
+// (4) Point mapping validation through the connection test
+var wrongMap = connection with { PointMap = new Dictionary<string, CygNetPointMapping> { ["MotorAmps"] = new("NOSUCH", "A") } };
+var mapCheck = await CygNetAdapter.CheckAsync(new MissingPointClient(sim, "MotorAmps"), wrongMap, Account, clock, CancellationToken.None);
+Expect(mapCheck.Outcome == AdapterTestOutcomes.NeedsAttention && mapCheck.Message.Contains("point mapping names points that were not found", StringComparison.Ordinal) &&
+       mapCheck.Message.Contains("MotorAmps", StringComparison.Ordinal), "a mapped point that exists nowhere needs attention: " + mapCheck.Message);
+var defaultGap = await CygNetAdapter.CheckAsync(new MissingPointClient(sim, "MotorAmps"), connection, Account, clock, CancellationToken.None);
+Expect(defaultGap.Outcome == AdapterTestOutcomes.Healthy && defaultGap.Message.Contains("MotorAmps point not found", StringComparison.Ordinal),
+    "a default point missing on the sample is reported but not an error");
+var unmappedCheck = await CygNetAdapter.CheckAsync(new UnmappedClient(sim, "MotorAmps"), connection, Account, clock, CancellationToken.None);
+Expect(unmappedCheck.Message.Contains("MotorAmps not mapped", StringComparison.Ordinal), "an unmapped quantity is named");
+
+// (5) Bounded calls: a hung CygNet holds a few slots, then calls fail fast
+var gate = new CygNetCallGate(slots: 2);
+using var release = new ManualResetEventSlim();
+Task<int> Hang() => gate.RunAsync("27212/CYG_DEMO.UIS", () => { release.Wait(); return 1; }, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+for (var i = 0; i < 2; i++)
+    await Expect_Throws<TimeoutException>(Hang);
+await Expect_Throws<CygNetBusyException>(Hang);
+Expect(await gate.RunAsync("27212/OTHER.UIS", () => 7, TimeSpan.FromSeconds(5), CancellationToken.None) == 7, "another service is not starved by a hung one");
+release.Set();
+await Task.Delay(100);
+Expect(await gate.RunAsync("27212/CYG_DEMO.UIS", () => 2, TimeSpan.FromSeconds(5), CancellationToken.None) == 2, "slots free up when the hung calls finish");
+
 Console.WriteLine("CygNet adapter checks passed.");
 return 0;
+
+static WellSiteAutoPilotException Throws(Action action)
+{
+    try
+    {
+        action();
+    }
+    catch (WellSiteAutoPilotException error)
+    {
+        return error;
+    }
+    throw new InvalidOperationException("CygNet adapter check failed: expected a failure.");
+}
+
+static async Task Expect_Throws<T>(Func<Task> action) where T : Exception
+{
+    try
+    {
+        await action();
+    }
+    catch (T)
+    {
+        return;
+    }
+    throw new InvalidOperationException("CygNet adapter check failed: expected " + typeof(T).Name + ".");
+}
 
 static void Expect(bool condition, string message)
 {
@@ -166,7 +256,8 @@ sealed class FixedClock(DateTimeOffset now) : TimeProvider
 
 sealed class FailingClient(Exception error) : ICygNetClient
 {
-    public Task CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) => Task.FromException(error);
+    public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<string>>(error);
 
     public Task<CygNetFacilityList> ListFacilitiesAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
         Task.FromException<CygNetFacilityList>(error);
@@ -174,4 +265,30 @@ sealed class FailingClient(Exception error) : ICygNetClient
     public Task<EngineeringValue> ReadCurrentAsync(
         CygNetConnection connection, string facilityId, string quantity, CancellationToken cancellationToken) =>
         Task.FromException<EngineeringValue>(error);
+}
+
+
+// Reports one quantity's point as missing on every facility, as CygNet does for a UDC the facility lacks.
+sealed class MissingPointClient(ICygNetClient inner, string quantity) : ICygNetClient
+{
+    public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) => inner.CheckAsync(connection, cancellationToken);
+
+    public Task<CygNetFacilityList> ListFacilitiesAsync(CygNetConnection connection, CancellationToken cancellationToken) => inner.ListFacilitiesAsync(connection, cancellationToken);
+
+    public Task<EngineeringValue> ReadCurrentAsync(CygNetConnection connection, string facilityId, string q, CancellationToken cancellationToken) =>
+        q == quantity
+            ? Task.FromException<EngineeringValue>(new CygNetReadException("CYGNET_POINT_NOT_FOUND", "No such point."))
+            : inner.ReadCurrentAsync(connection, facilityId, q, cancellationToken);
+}
+
+sealed class UnmappedClient(ICygNetClient inner, string quantity) : ICygNetClient
+{
+    public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) => inner.CheckAsync(connection, cancellationToken);
+
+    public Task<CygNetFacilityList> ListFacilitiesAsync(CygNetConnection connection, CancellationToken cancellationToken) => inner.ListFacilitiesAsync(connection, cancellationToken);
+
+    public Task<EngineeringValue> ReadCurrentAsync(CygNetConnection connection, string facilityId, string q, CancellationToken cancellationToken) =>
+        q == quantity
+            ? Task.FromException<EngineeringValue>(new CygNetReadException("CYGNET_QUANTITY_UNSUPPORTED", "Not mapped."))
+            : inner.ReadCurrentAsync(connection, facilityId, q, cancellationToken);
 }
