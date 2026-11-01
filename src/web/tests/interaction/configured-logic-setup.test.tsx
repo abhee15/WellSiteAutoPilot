@@ -97,7 +97,7 @@ describe('Module settings form', () => {
     expect(screen.getByText('This is above the allowed maximum.')).toBeTruthy();
     await user.clear(screen.getByRole('textbox', { name: 'Target fillage (%)' }));
     await user.type(screen.getByRole('textbox', { name: 'Target fillage (%)' }), '75');
-    await user.selectOptions(screen.getByRole('combobox', { name: /Mode/ }), 'Trim');
+    await user.selectOptions(screen.getByRole('combobox', { name: /^Mode \(optional\)$/ }), 'Trim');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(http).toHaveBeenCalled());
     expect(JSON.parse(http.mock.calls[0][1]?.body as string).parametersJson).toBe('{"targetFillage":75,"mode":"Trim"}');
@@ -108,7 +108,7 @@ describe('Module settings form', () => {
     render(<ConfiguredLogicSetupPanel {...props} modules={[schemaModule]} />);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Approved module version' }), JSON.stringify(['sample', '1.0.0']));
     await user.type(screen.getByRole('textbox', { name: 'Target fillage (%)' }), '60');
-    await user.click(screen.getByRole('button', { name: 'Edit these details as JSON instead' }));
+    await user.click(screen.getAllByRole('button', { name: 'Edit JSON' })[0]);
     expect((screen.getByRole('textbox', { name: 'Parameters (JSON object)' }) as HTMLTextAreaElement).value).toBe('{"targetFillage":60}');
   });
 });

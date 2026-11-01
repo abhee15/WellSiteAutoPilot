@@ -23,6 +23,7 @@ internal static class ConfiguredShadowE2e
         using var client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:5080") };
         client.DefaultRequestHeaders.Add("X-WSA-Test-Identity", @"CI\wsa-admin");
         client.DefaultRequestHeaders.Add("X-Correlation-ID", "ci-configured-shadow-e2e");
+        client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", "\"0\"");
         var type = await Read(await client.PostAsJsonAsync("/api/v1/asset-types", new
         { key = typeKey, displayName = "Configured Shadow E2E", attributeSchemaJson = "{\"type\":\"object\"}" }), HttpStatusCode.Created);
         var asset = await Read(await client.PostAsJsonAsync("/api/v1/assets", new

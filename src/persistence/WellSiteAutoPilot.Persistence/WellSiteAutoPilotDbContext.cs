@@ -229,6 +229,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         configuredLogicRevision.ToTable("configured_logic_revisions", "logic");
         configuredLogicRevision.HasKey(x => x.Id);
         configuredLogicRevision.Property(x => x.RevisionNumber).IsRequired();
+        configuredLogicRevision.Property(x => x.DraftVersion).HasDefaultValue(0);
         configuredLogicRevision.Property(x => x.ModuleId).HasMaxLength(256).IsRequired();
         configuredLogicRevision.Property(x => x.ModuleVersion).HasMaxLength(64).IsRequired();
         configuredLogicRevision.Property(x => x.ModuleManifestJson).IsRequired();

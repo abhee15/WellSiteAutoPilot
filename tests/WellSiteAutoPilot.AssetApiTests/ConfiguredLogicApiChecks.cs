@@ -60,7 +60,18 @@ internal static class ConfiguredLogicApiChecks
         await Expect(await unprivileged.GetAsync(detailPath), HttpStatusCode.Forbidden);
         await Expect(await unprivileged.PostAsync(revisionPath + "/validate", null), HttpStatusCode.Forbidden);
         await Expect(await engineer.PostAsync(revisionPath + "/activate", null), HttpStatusCode.BadRequest);
+        await Expect(await engineer.PutAsJsonAsync(revisionPath, Request(assetId)), HttpStatusCode.BadRequest);
+        engineer.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", "\"0\"");
+        await Expect(await unprivileged.PutAsJsonAsync(revisionPath, Request(assetId)), HttpStatusCode.Forbidden);
+        var edited = await Read(await engineer.PutAsJsonAsync(revisionPath, Request(assetId, "{\"edited\":true}")), HttpStatusCode.OK);
+        if (edited.GetProperty("id").GetGuid() != revision || edited.GetProperty("revisionNumber").GetInt32() != 1 ||
+            edited.GetProperty("draftVersion").GetInt32() != 1) throw new InvalidOperationException("Draft edit changed revision identity.");
+        await Expect(await engineer.PutAsJsonAsync(revisionPath, Request(assetId)), HttpStatusCode.Conflict);
+        await Expect(await engineer.PostAsync(revisionPath + "/validate", null), HttpStatusCode.Conflict);
+        engineer.DefaultRequestHeaders.Remove("If-Match");
+        engineer.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", "\"1\"");
         var validated = await Read(await engineer.PostAsync(revisionPath + "/validate", null), HttpStatusCode.OK);
+        await Expect(await engineer.PutAsJsonAsync(revisionPath, Request(assetId)), HttpStatusCode.Conflict);
         if (validated.GetProperty("status").GetString() != "Validated") throw new InvalidOperationException("Validation failed.");
         await Expect(await engineer.PostAsync(revisionPath + "/validate", null), HttpStatusCode.Conflict);
         async Task<HttpResponseMessage> Activate(string route, string token)
@@ -74,7 +85,10 @@ internal static class ConfiguredLogicApiChecks
         var copied = await Read(await engineer.PostAsJsonAsync(detailPath + "/revisions", Request(assetId)), HttpStatusCode.Created);
         var second = copied.GetProperty("id").GetGuid();
         var secondPath = detailPath + "/revisions/" + second;
+        engineer.DefaultRequestHeaders.Remove("If-Match");
+        engineer.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", "\"0\"");
         await Expect(await engineer.PostAsync(secondPath + "/validate", null), HttpStatusCode.OK);
+        engineer.DefaultRequestHeaders.Remove("If-Match");
         await Expect(await Activate(secondPath + "/activate", "none"), HttpStatusCode.Conflict);
         await Expect(await Activate(secondPath + "/activate", revision.ToString()), HttpStatusCode.OK);
         var persisted = await Read(await engineer.GetAsync(detailPath), HttpStatusCode.OK);
@@ -84,7 +98,7 @@ internal static class ConfiguredLogicApiChecks
                 .GetProperty("status").GetString() != "Superseded")
             throw new InvalidOperationException("Immutable revision history failed roundtrip.");
         var audit = await db.AuditEvents.AsNoTracking().Where(a => a.TargetId == id.ToString()).ToArrayAsync();
-        if (audit.Length != 6 || audit.Any(a => a.ActorUserId == null || a.ActorIdentity != @"LOCAL\ci-asset-engineer" ||
+        if (audit.Length != 7 || audit.Any(a => a.ActorUserId == null || a.ActorIdentity != @"LOCAL\ci-asset-engineer" ||
             a.CorrelationId != "ci-configured-setup" || a.DetailsJson.Contains("provider-simulator", StringComparison.Ordinal)))
             throw new InvalidOperationException("Mutation audit lost actor/correlation or leaked input data.");
         var runPath = detailPath + "/revisions/" + second + "/shadow";

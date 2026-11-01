@@ -43,6 +43,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
   const [showShadow, setShowShadow] = useState(false);
   const [activityOpened, setActivityOpened] = useState(false);
   const prefix = useId();
+  const [editDraft, setEditDraft] = useState(false);
   const [source, setSource] = useState<ConfiguredLogicRevisionResponse | undefined>();
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -98,7 +99,12 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
   }
   function copyRevision(revision: VerifiedRevision) {
     if (mutationBlocked || revision.mode !== 'Shadow') return;
-    setSource(revision); setEditing(true); setTab('configuration'); setConfirmId(null); setShowShadow(false);
+    setEditDraft(false); setSource(revision); setEditing(true); setTab('configuration'); setConfirmId(null); setShowShadow(false);
+  }
+
+  function editRevision(revision: VerifiedRevision) {
+    if (mutationBlocked || revision.status !== 'Draft' || revision.mode !== 'Shadow') return;
+    setEditDraft(true); setSource(revision); setEditing(true); setTab('configuration'); setConfirmId(null); setShowShadow(false);
   }
 
   async function reload() {
@@ -128,7 +134,8 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       const result = await setupResponse(await fetch('/api/v1/configured-logic/' + snapshot.id +
         '/revisions/' + revision.id + '/' + action, { method: 'POST', credentials: 'same-origin',
         signal: c.signal, headers: action === 'activate'
-          ? { 'If-Match': '"' + (snapshot.activeRevisionId ?? 'none') + '"' } : {} }), 200, true);
+          ? { 'If-Match': '"' + (snapshot.activeRevisionId ?? 'none') + '"' }
+          : { 'If-Match': '"' + (revision.draftVersion ?? 0) + '"' } }), 200, true);
       committed = true;
       const receipt = result as ConfiguredLogicRevisionResponse;
       if (receipt.id !== revision.id || receipt.status !== (action === 'activate' ? 'Active' : 'Validated'))
@@ -144,15 +151,15 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     } catch (reason) {
       if (c.signal.aborted) return;
       const e = reason instanceof SetupApiError ? reason : new SetupApiError('uncertain');
-      setBlocked(true); setConfirmId(null);
+      setBlocked(committed || e.kind !== 'invalid'); setConfirmId(null);
       if (e.kind === 'denied') { setDetail(null); setDenied(true); setSource(undefined); setEditing(false); }
       setError(t(committed ? 'setup.committed' : `setup.${e.kind}`) + (e.code ? ` (${e.code})` : ''));
     } finally { pending.current = false; if (!c.signal.aborted) setBusy(false); }
   }
   const editor = (editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
       modules={modules} assets={assets} assetTypes={assetTypes} canReadViews={canReadViews}
-      configuration={detail ?? undefined} revision={source} initialAssetId={initialAssetId}
-      onSaved={value => { setDetail(value); setRevisionId(orderedRevisions(value)[0]?.id ?? null); setTab('configuration');
+      configuration={detail ?? undefined} revision={source} editDraft={editDraft} initialAssetId={initialAssetId}
+      onSaved={(value, savedRevisionId) => { setDetail(value); setRevisionId(savedRevisionId ?? orderedRevisions(value)[0]?.id ?? null); setTab('configuration');
         setEditing(false); setSource(undefined); setNotice(t('setup.saved')); void onChanged(); }}
       onDenied={committed => { setDetail(null); setEditing(false); setSource(undefined);
         setDenied(true); setBlocked(true); setError(t(committed ? 'setup.committed' : 'setup.denied')); }}
@@ -217,6 +224,8 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
               <ActionButton label={t('setup.copyRevision', { number: selected.revisionNumber ?? '—' })}
                 disabled={mutationBlocked || selected.mode !== 'Shadow'} onClick={() => copyRevision(selected)} />
               {selected.mode !== 'Shadow' && <p className="logic-detail-note">{t('logicDetail.authoringMode')}</p>}
+              {selected.status === 'Draft' && selected.mode === 'Shadow' && <ActionButton label={t('draftEditor.edit', { number: selected.revisionNumber ?? '—' })}
+                disabled={mutationBlocked} onClick={() => editRevision(selected)} />}
               {selected.status === 'Draft' && <ActionButton label={t('setup.validate', { number: selected.revisionNumber ?? '—' })}
                 disabled={mutationBlocked} onClick={() => void transition(selected, 'validate')} />}
               {selected.status === 'Validated' && <ActionButton label={t('setup.reviewActivation', { number: selected.revisionNumber ?? '—' })}

@@ -18,6 +18,7 @@ public sealed record ConfiguredLogicRevision(
     ConfiguredLogicSchedule? Schedule,
     IReadOnlyCollection<ConfiguredLogicAssetBinding> AssetBindings,
     IReadOnlyCollection<ConfiguredLogicDataBinding> DataBindings,
-    ConfiguredLogicViewBinding? View = null);
+    ConfiguredLogicViewBinding? View = null,
+    int DraftVersion = 0);
 
 public sealed record ConfiguredLogicViewBinding(Guid ViewId, int Revision, Guid ConnectionId, string Role);

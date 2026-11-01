@@ -22,6 +22,9 @@ public interface IConfiguredLogicRepository
     Task AddAuthorizedAsync(ConfiguredLogicDefinition definition, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default);
 
+    Task UpdateDraftAuthorizedAsync(ConfiguredLogicRevision revision, int expectedDraftVersion,
+        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default);
+
     Task AddRevisionAuthorizedAsync(ConfiguredLogicRevision revision, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default);
 
@@ -68,6 +71,7 @@ public interface IConfiguredLogicRepository
         Guid revisionId,
         DateTimeOffset validatedAtUtc,
         SecurityActorContext? actor = null,
+        int expectedDraftVersion = 0,
         CancellationToken cancellationToken = default);
 
     Task ActivateRevisionAsync(

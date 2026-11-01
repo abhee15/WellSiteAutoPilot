@@ -329,6 +329,11 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("DraftVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Mode")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -442,10 +447,10 @@ namespace WellSiteAutoPilot.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ConfiguredLogicId", "ChangedAtUtc");
+
                     b.HasIndex("ConfiguredLogicId", "BasedOnRevisionId", "Version")
                         .IsUnique();
-
-                    b.HasIndex("ConfiguredLogicId", "ChangedAtUtc");
 
                     b.ToTable("configured_logic_schedule_changes", "logic", t =>
                         {
@@ -575,7 +580,6 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Command")
-                        .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
@@ -1505,10 +1509,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DirectoryId")
-                        .UseCollation("C")
-                        .UsePropertyAccessMode(PropertyAccessMode.Property)
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("character varying(64)")
+                        .UseCollation("C");
 
                     b.Property<string>("GroupDisplayName")
                         .HasMaxLength(256)
@@ -1519,9 +1522,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.Property<string>("GroupId")
-                        .UseCollation("C")
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("character varying(256)")
+                        .UseCollation("C");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");

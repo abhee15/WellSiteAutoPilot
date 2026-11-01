@@ -81,6 +81,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("POST", "/configured-logic/{configuredLogicId:guid}/schedule/resume"): ("ResumeConfiguredLogicSchedule", "ConfiguredLogicManage"),
     ("PUT", "/configured-logic/{configuredLogicId:guid}/schedule"): ("ChangeConfiguredLogicScheduleFrequency", "ConfiguredLogicManage"),
     ("POST", "/configured-logic/{configuredLogicId:guid}/revisions"): ("CreateConfiguredLogicRevision", "ConfiguredLogicManage"),
+    ("PUT", "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}"): ("UpdateConfiguredLogicDraft", "ConfiguredLogicManage"),
     ("POST", "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/validate"): ("ValidateConfiguredLogicRevision", "ConfiguredLogicManage"),
     ("POST", "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/activate"): ("ActivateConfiguredLogicRevision", "ConfiguredLogicManage"),
     ("POST", "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/shadow"): ("RequestConfiguredShadowExecution", "ExecutionsRequest"),
