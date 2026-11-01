@@ -219,9 +219,9 @@ export function AutonomyPolicyPanel({ configuredLogicId, canManage, disabled = f
             {t('autonomyPolicy.approvedLabel')}
           </label>
           {issues.length > 0 && (
-            <ul className="execution-detail-error" role="alert">
-              {issues.map((issue, at) => <li key={at}>{policyIssueMessage(issue)}</li>)}
-            </ul>
+            <div className="execution-detail-error" role="alert">
+              <ul>{issues.map((issue, at) => <li key={at}>{policyIssueMessage(issue)}</li>)}</ul>
+            </div>
           )}
           {saveError && <p className="execution-detail-error" role="alert">{errors[saveError]}</p>}
           {saving && <p role="status">{t('autonomyPolicy.saving')}</p>}
