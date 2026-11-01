@@ -58,6 +58,11 @@ that is not wired in.
   quantity the provider cannot read directly (`AdapterReadRules`). Binding to a connection happens afterwards in
   configured logic, as for any module.
 
+- Database store: `Authoring:LocalBuild:Store = Database` keeps drafts and built packages in the application database
+  (`authoring.drafts`, `authoring.draft_packages`, migration `AddAuthoringDrafts`, optimistic concurrency token with
+  retry). Default stays `File`. The DB store check in `AuthoringTests` runs only when
+  `WSA_DATABASE_CONNECTION_STRING` is set.
+
 ## Known gaps
 
 AppContainer mode fails in this environment (CreateProcess error 203); job-object mode is the verified baseline;

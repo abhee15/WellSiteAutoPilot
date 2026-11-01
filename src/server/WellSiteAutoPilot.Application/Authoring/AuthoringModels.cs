@@ -6,6 +6,8 @@ public sealed class AuthoringOptions
     public const string SectionName = "Authoring:LocalBuild";
     public bool Enabled { get; set; }
     public string? StorePath { get; set; }
+    /// <summary>Where drafts live: local files (default, no migration needed) or the application database.</summary>
+    public AuthoringStoreKind Store { get; set; } = AuthoringStoreKind.File;
     public string? WorkRoot { get; set; }
     public string? SdkProjectPath { get; set; }
     public int BuildTimeoutSeconds { get; set; } = 240;
@@ -19,6 +21,7 @@ public sealed class AuthoringOptions
 }
 
 public enum AuthoringIsolationMode { Job = 1, AppContainer }
+public enum AuthoringStoreKind { File = 1, Database }
 
 public enum AuthoringValidationState { NotRun = 1, Valid, Invalid, Stale }
 public enum AuthoringTestState { NotRun = 1, Passed, Failed, Stale, Cancelled }

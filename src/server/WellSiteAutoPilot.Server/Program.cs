@@ -212,9 +212,13 @@ builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<LogicModulePackageService>();
 builder.Services.AddScoped<LogicModuleApprovalService>();
 // Local proof-of-concept authoring: inert unless Authoring:LocalBuild:Enabled is true.
-builder.Services.AddSingleton(builder.Configuration.GetSection(AuthoringOptions.SectionName).Get<AuthoringOptions>()
-    ?? new AuthoringOptions());
-builder.Services.AddSingleton<IAuthoringDraftStore, FileAuthoringDraftStore>();
+var authoringOptions = builder.Configuration.GetSection(AuthoringOptions.SectionName).Get<AuthoringOptions>()
+    ?? new AuthoringOptions();
+builder.Services.AddSingleton(authoringOptions);
+if (authoringOptions.Store == AuthoringStoreKind.Database)
+    builder.Services.AddSingleton<IAuthoringDraftStore, WellSiteAutoPilot.Persistence.Authoring.DatabaseAuthoringDraftStore>();
+else
+    builder.Services.AddSingleton<IAuthoringDraftStore, FileAuthoringDraftStore>();
 builder.Services.AddSingleton<IIsolatedProcessRunner, JobObjectProcessRunner>();
 builder.Services.AddSingleton<IAuthoringTestExecutor, OutOfProcessAuthoringTestExecutor>();
 builder.Services.AddSingleton<IAuthoringBuilder, LocalDotNetAuthoringBuilder>();
