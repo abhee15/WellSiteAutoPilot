@@ -439,10 +439,16 @@ internal static class ScopedResourceQueryChecks
                 throw new InvalidOperationException("Foreign active revision conferred run authority.");
             await db.ConfiguredLogicDefinitions.Where(item => item.Id == allowed.Id)
                 .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, (Guid?)allowed.Revision));
+            // A mode the platform cannot run (Autonomous is refused until the control gate exists) confers no run
+            // authority, even if one is forced into the table; Recommendation is runnable and must match the run API.
+            await db.ConfiguredLogicRevisions.Where(item => item.Id == allowed.Revision)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, "Autonomous"));
+            if ((await ConfigurationsAsync())[allowed.Id].CanRequestShadow)
+                throw new InvalidOperationException("Unsupported-mode revision conferred run authority.");
             await db.ConfiguredLogicRevisions.Where(item => item.Id == allowed.Revision)
                 .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, "Recommendation"));
-            if ((await ConfigurationsAsync())[allowed.Id].CanRequestShadow)
-                throw new InvalidOperationException("Non-Shadow revision conferred Shadow action authority.");
+            if (!(await ConfigurationsAsync())[allowed.Id].CanRequestShadow)
+                throw new InvalidOperationException("Recommendation revision did not confer run authority that the run API allows.");
             await db.RolePermissions.Where(item => item.RoleId == engineer && item.Permission == WellSitePermissions.RecommendationsDecide)
                 .ExecuteDeleteAsync();
             if ((await actions.GetRecommendationActionsAsync(subject, recommendationIds)).Any(item => item.CanDecide))
