@@ -121,8 +121,11 @@ public interface IControlRepository
         DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
 
     // Scope is applied in SQL before the limit: only actions whose Asset the subject may read as a Recommendation.
+    // statuses (when given) filters in SQL before the limit, so a long history cannot push an open action out of the
+    // page; oldestFirst orders by age so the action waiting longest is returned first.
     Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAuthorizedAsync(AccessSubject subject,
-        Guid? configuredLogicId, int limit, CancellationToken cancellationToken = default);
+        Guid? configuredLogicId, IReadOnlyCollection<ControlActionStatus>? statuses, bool oldestFirst, int limit,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<Guid>> ListExecutionsWithUndecidedAutonomousRecommendationsAsync(int limit,
         CancellationToken cancellationToken = default);

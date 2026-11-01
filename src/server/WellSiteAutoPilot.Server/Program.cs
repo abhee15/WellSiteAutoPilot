@@ -1371,11 +1371,36 @@ v1.MapPut(
 
 v1.MapGet(
     "/control/actions",
-    async (Guid? configuredLogicId, int? limit, WellSiteAutoPilot.Application.Control.AutonomousControlService control,
-        RequestAccessContext access, CancellationToken cancellationToken) =>
-        (await control.ListActionsAsync(access.Subject, configuredLogicId, PageLimit(limit ?? 50, 200), cancellationToken))
-            .Select(ToControlActionResponse)
-            .ToArray())
+    async (Guid? configuredLogicId, int? limit, string[]? status, string? order,
+        WellSiteAutoPilot.Application.Control.AutonomousControlService control, IResourceActionRepository actions,
+        Microsoft.AspNetCore.Authorization.IAuthorizationService authorization, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        // status is repeatable and applied in SQL before the limit, so an old open action is never pushed out of the page
+        // by a long history; order=oldest returns the action waiting longest first.
+        var statuses = (status ?? Array.Empty<string>())
+            .Select(value => Enum.TryParse<WellSiteAutoPilot.Domain.Control.ControlActionStatus>(value, false, out var parsed) &&
+                Enum.IsDefined(parsed) ? parsed : (WellSiteAutoPilot.Domain.Control.ControlActionStatus?)null)
+            .ToArray();
+        if (statuses.Any(item => item is null))
+            throw new WellSiteAutoPilotException("CONTROL_ACTION_STATUS_INVALID", FailureKind.Validation,
+                "status must be a control action status name.");
+        if (order is not null && order is not ("oldest" or "newest"))
+            throw new WellSiteAutoPilotException("CONTROL_ACTION_ORDER_INVALID", FailureKind.Validation,
+                "order must be oldest or newest.");
+        var items = await control.ListActionsAsync(access.Subject, configuredLogicId,
+            statuses.Select(item => item!.Value).Distinct().ToArray(), order == "oldest", PageLimit(limit ?? 50, 200),
+            cancellationToken);
+        // control.manage is deployment-wide; the Asset scope of the recommendation behind each action is checked too.
+        var holdsManage = items.Count > 0 && (await authorization.AuthorizeAsync(context.User, WellSitePolicies.ControlManage)).Succeeded;
+        var decidable = holdsManage
+            ? (await actions.GetRecommendationActionsAsync(access.Subject,
+                items.Select(item => item.RecommendationId).Distinct().ToArray(), cancellationToken))
+                .Where(item => item.CanDecide).Select(item => item.Id).ToHashSet()
+            : new HashSet<Guid>();
+        return items.Select(item => ToControlActionResponse(item) with { CanManage = decidable.Contains(item.RecommendationId) })
+            .ToArray();
+    })
     .WithName("ListControlActions")
     .RequireAuthorization(WellSitePolicies.RecommendationsRead)
     .Produces<WellSiteAutoPilot.Api.Contracts.Control.ControlActionResponse[]>(StatusCodes.Status200OK)

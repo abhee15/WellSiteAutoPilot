@@ -11,7 +11,7 @@ const action = (over: Record<string, unknown> = {}) => ({
   assetId: '66666666-6666-4666-8666-666666666666', command: 'SET_CHOKE', quantity: null, value: 40, unit: '%',
   status: 'Ambiguous', gateCode: 'SINK_AMBIGUOUS', sink: 'Simulator', sinkReference: null,
   createdAtUtc: '2026-10-14T12:00:00Z', completedAtUtc: null, origin: 'Autonomous', readbackValue: null,
-  verifiedAtUtc: null, resolutionNote: null, ...over,
+  verifiedAtUtc: null, resolutionNote: null, canManage: true, ...over,
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -26,7 +26,7 @@ function server(rows: Array<Record<string, unknown>>, answers: { verify?: Record
       state.rows = answer ? state.rows.map(row => (row.id === answer.id ? answer : row)) : state.rows;
       return new Response(JSON.stringify(answer ?? state.rows[0]));
     }
-    expect(url).toBe('/api/v1/control/actions?limit=200');
+    expect(url).toBe('/api/v1/control/actions?status=Dispatched&status=Ambiguous&order=oldest&limit=200');
     return new Response(JSON.stringify(state.rows));
   });
   vi.stubGlobal('fetch', http);
@@ -103,4 +103,21 @@ it('never shows a list it cannot confirm', async () => {
   render(<ControlActionsPanel userId={userId} canManage />);
   expect(await screen.findByRole('alert')).toBeTruthy();
   expect(screen.queryByRole('button')).toBeNull();
+});
+
+it('offers no action on a command the person cannot decide, and says why', async () => {
+  server([action({ canManage: false })]);
+  render(<ControlActionsPanel userId={userId} canManage />);
+  expect(await screen.findByText('SET_CHOKE')).toBeTruthy();
+  expect(screen.getByText(/cannot decide it/)).toBeTruthy();
+  expect(screen.queryByRole('button')).toBeNull();
+});
+
+it('says when the page is full so the count is not read as complete', async () => {
+  const rows = Array.from({ length: 200 }, (_, index) => action({
+    id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+  }));
+  server(rows);
+  render(<ControlActionsPanel userId={userId} canManage />);
+  expect(await screen.findByText('200+ open, showing the longest waiting')).toBeTruthy();
 });

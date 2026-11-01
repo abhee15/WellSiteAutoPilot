@@ -47,3 +47,10 @@ test('counts from a cut-off list say "at least" and owner totals win over the ca
   assert.equal(assetTotalLabel([], 100, 100), '100+');
   assert.equal(assetTotalLabel(null, 12, 100), '12');
 });
+
+test('unconfirmed commands need attention only for people who may read recommendations', () => {
+  const withOpen = { ...base, openControlActions: 2 };
+  assert.ok(attentionItems(withOpen).some(i => i.kind === 'inDoubt' && i.count === 2 && i.href === '#recommendations'));
+  assert.ok(!attentionItems({ ...withOpen, permissions: ['executions.read'] }).some(i => i.kind === 'inDoubt'));
+  assert.ok(!attentionItems({ ...withOpen, openControlActions: 0 }).some(i => i.kind === 'inDoubt'));
+});

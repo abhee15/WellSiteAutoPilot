@@ -52,7 +52,10 @@ public sealed record ControlActionResponse(
     string Origin,
     decimal? ReadbackValue,
     DateTimeOffset? VerifiedAtUtc,
-    string? ResolutionNote);
+    string? ResolutionNote,
+    // True when the caller may verify or resolve this action (control.manage and the right to decide its recommendation).
+    // Only the list endpoint computes it; other responses leave it false.
+    bool CanManage = false);
 
 // An operator's attestation for an action nobody can verify: Applied=true records it as done, false as not done.
 public sealed record ResolveControlActionRequest(bool Applied, string Note);

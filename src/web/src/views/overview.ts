@@ -7,7 +7,7 @@ import type {
 } from '../api/generated/v1/types.gen';
 import { recommendationIsAwaiting } from './recommendationInbox';
 
-export type AttentionKind = 'decide' | 'failedRuns' | 'noAssets' | 'noLogic' | 'idleLogic';
+export type AttentionKind = 'decide' | 'inDoubt' | 'failedRuns' | 'noAssets' | 'noLogic' | 'idleLogic';
 
 export type AttentionItem = {
   kind: AttentionKind;
@@ -29,6 +29,8 @@ export function attentionItems(input: {
   recommendations: readonly RecommendationSummaryResponse[];
   assets: readonly AssetResponse[];
   configuredLogic: readonly ConfiguredLogicResponse[];
+  /** Control actions sent but not confirmed, as the server listed them for this person. */
+  openControlActions?: number;
   nowUtc: number;
 }): AttentionItem[] {
   const can = (permission: string) => input.permissions.includes(permission);
@@ -37,6 +39,9 @@ export function attentionItems(input: {
   if (can('recommendations.read')) {
     const waiting = input.recommendations.filter(item => recommendationIsAwaiting(item, input.nowUtc)).length;
     if (waiting > 0) items.push({ kind: 'decide', count: waiting, href: '#recommendations' });
+  }
+  if (can('recommendations.read') && (input.openControlActions ?? 0) > 0) {
+    items.push({ kind: 'inDoubt', count: input.openControlActions ?? 0, href: '#recommendations' });
   }
   if (can('executions.read')) {
     const problems = input.executions.filter(run => {
