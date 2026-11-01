@@ -4,8 +4,8 @@ import { SchedulesOverview } from '../../src/views/SchedulesOverview';
 
 afterEach(cleanup);
 const now = Date.parse('2026-10-14T12:00:30Z');
-const logic = (id: string, name: string, schedule: object | null) => ({
-  id, name, activeRevisionId: `${id}-r`,
+const logic = (id: string, name: string, schedule: object | null, nextRunAtUtc: string | null = '2026-10-14T12:01:00Z') => ({
+  id, name, activeRevisionId: `${id}-r`, nextRunAtUtc,
   revisions: [{ id: `${id}-r`, revisionNumber: 2, mode: 'Shadow', status: 'Active',
     assetBindings: [{ assetId: 'a1' }], schedule }],
 }) as never;
@@ -25,7 +25,7 @@ it('lists scheduled logic with frequency, next run and a link to the configurati
 });
 
 it('shows a switched-off schedule as off with no next run', () => {
-  render(<SchedulesOverview configuredLogic={[logic('c1', 'Pump watch', schedule({ enabled: false }))]}
+  render(<SchedulesOverview configuredLogic={[logic('c1', 'Pump watch', schedule({ enabled: false }), null)]}
     assets={assets} executions={[]} isLoaded nowMs={now} />);
   const row = screen.getByRole('link', { name: 'Pump watch' }).closest('tr') as HTMLElement;
   expect(within(row).getByText('Off')).toBeTruthy();
@@ -42,4 +42,11 @@ it('says so when nothing is scheduled, and waits while loading', () => {
   expect(screen.queryByText('No logic has a schedule yet.')).toBeNull();
   rerender(<SchedulesOverview configuredLogic={[]} assets={assets} executions={[]} isLoaded nowMs={now} />);
   expect(screen.getByText('No logic has a schedule yet.')).toBeTruthy();
+});
+
+it('shows a next run that has already passed as due now, not as a time in the past', () => {
+  render(<SchedulesOverview configuredLogic={[logic('c1', 'Pump watch', schedule(), '2026-10-14T11:59:00Z')]}
+    assets={assets} executions={[]} isLoaded nowMs={now} />);
+  const row = screen.getByRole('link', { name: 'Pump watch' }).closest('tr') as HTMLElement;
+  expect(within(row).getByText('Due now')).toBeTruthy();
 });

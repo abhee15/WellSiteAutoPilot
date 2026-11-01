@@ -26,7 +26,8 @@ type Props = {
  * revision, so changing one means saving a new revision from the configuration itself, which each row links to.
  */
 export function SchedulesOverview({ configuredLogic, assets, executions, isLoaded, nowMs }: Props) {
-  // The clock moves on even when no data changes, so a run that has just happened is not shown as still coming.
+  // The server gives the next due time; the clock moves on even when no data changes, so one that has passed reads
+  // "due now" instead of a time in the past.
   const [tick, setTick] = useState(() => Date.now());
   useEffect(() => {
     if (nowMs !== undefined) return;
@@ -35,8 +36,8 @@ export function SchedulesOverview({ configuredLogic, assets, executions, isLoade
   }, [nowMs]);
   const clock = nowMs ?? tick;
   const overview = useMemo(
-    () => buildScheduleOverview(configuredLogic, assets, executions ?? [], clock),
-    [configuredLogic, assets, executions, clock],
+    () => buildScheduleOverview(configuredLogic, assets, executions ?? []),
+    [configuredLogic, assets, executions],
   );
   const showRuns = executions !== undefined;
   return (
@@ -63,7 +64,9 @@ export function SchedulesOverview({ configuredLogic, assets, executions, isLoade
                   <td>{row.enabled
                     ? scheduleText({ enabled: true, cadenceSeconds: row.cadenceSeconds, timeZoneId: row.timeZoneId })
                     : <Status value={t('schedules.off')} />}</td>
-                  <td>{row.enabled && row.nextRunAtUtc ? formatTimestamp(row.nextRunAtUtc) : '—'}</td>
+                  <td>{row.enabled && row.nextRunAtUtc
+                    ? (Date.parse(row.nextRunAtUtc) <= clock ? t('schedules.dueNow') : formatTimestamp(row.nextRunAtUtc))
+                    : '—'}</td>
                   <td className="run-col-secondary">{summarizeAssetLabels(row.assetLabels) || '—'}</td>
                   <td className="run-col-secondary">{row.mode ?? '—'}</td>
                   {showRuns && <td className="run-col-secondary">{row.lastRun

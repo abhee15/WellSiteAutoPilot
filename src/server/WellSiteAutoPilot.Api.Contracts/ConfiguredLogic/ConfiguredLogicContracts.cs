@@ -83,6 +83,11 @@ public sealed record ConfiguredLogicResponse(
 {
     public bool CanManage { get; init; }
     public bool CanRequestShadow { get; init; }
+    /// <summary>
+    /// When the live revision is next due, from the server clock: null without a live enabled schedule. It is when a run
+    /// is due, not a promise that one starts then.
+    /// </summary>
+    public DateTimeOffset? NextRunAtUtc { get; init; }
 }
 
 public sealed record ConfiguredLogicViewRequest(Guid ViewId, int ExpectedRevision, string Role);
