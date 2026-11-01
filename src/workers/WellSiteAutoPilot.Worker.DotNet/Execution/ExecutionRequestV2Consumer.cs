@@ -97,15 +97,14 @@ public sealed partial class ExecutionRequestV2Consumer(
 
         try
         {
-            if (!string.Equals(
-                    envelope.Payload.Mode,
-                    "Shadow",
-                    StringComparison.OrdinalIgnoreCase))
+            // The worker only computes; what a mode lets the platform do with the result is decided server-side.
+            if (!Enum.TryParse<WellSiteAutoPilot.Domain.Executions.ExecutionMode>(envelope.Payload.Mode, ignoreCase: true, out var mode) ||
+                !WellSiteAutoPilot.Domain.Executions.ExecutionModePolicy.IsSupported(mode))
             {
                 throw new WellSiteAutoPilotException(
                     "EXECUTION_MODE_NOT_SUPPORTED",
                     FailureKind.Validation,
-                    "The .NET foundation worker currently accepts Shadow executions only.");
+                    "The .NET foundation worker accepts Shadow and Recommendation executions only.");
             }
 
             await PublishResultAsync(Subjects.ExecutionStartedV2, envelope,

@@ -45,7 +45,8 @@ public sealed class ManualShadowRequestService(
     public static ExecutionRecord Match(ExecutionRecord previous, Guid configurationId, Guid revisionId)
     {
         if (previous.LogicInstanceId != configurationId || previous.ConfigurationRevisionId != revisionId ||
-            previous.RequestContractVersion is not (2 or 3) || previous.Trigger != ExecutionTriggerKind.Manual || previous.Mode != ExecutionMode.Shadow)
+            previous.RequestContractVersion is not (2 or 3) || previous.Trigger != ExecutionTriggerKind.Manual ||
+            !ExecutionModePolicy.AllowsManualRun(previous.Mode))
             throw new WellSiteAutoPilotException("EXECUTION_REQUEST_KEY_CONFLICT", FailureKind.Conflict,
                 "The request key is already bound to a different request.");
         return previous;

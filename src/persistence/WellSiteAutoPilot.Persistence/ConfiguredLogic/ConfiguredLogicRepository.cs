@@ -192,7 +192,8 @@ public sealed partial class ConfiguredLogicRepository(
                 on definition.ActiveRevisionId equals (Guid?)revision.Id
             where definition.ActiveRevisionId != null &&
                   revision.Status == nameof(ConfiguredLogicRevisionStatus.Active) &&
-                  revision.Mode == nameof(ExecutionMode.Shadow) &&
+                  // Same set as ExecutionModePolicy; spelled out because the query is translated to SQL.
+                  (revision.Mode == nameof(ExecutionMode.Shadow) || revision.Mode == nameof(ExecutionMode.Recommendation)) &&
                   revision.ScheduleJson != null &&
                   (revision.ViewConnectionId == null || dbContext.Connections.Any(connection =>
                       connection.Id == revision.ViewConnectionId && connection.IsEnabled))

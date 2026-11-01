@@ -84,7 +84,7 @@ public sealed class ConfiguredLogicService(
             manifest.ModuleId,
             manifest.Version,
             NormalizeJson(command.ModuleManifestJson),
-            ExecutionMode.Shadow,
+            RequireSupportedMode(command.Mode),
             NormalizeJson(command.ParametersJson),
             ConfiguredLogicRevisionStatus.Draft,
             now,
@@ -169,7 +169,7 @@ public sealed class ConfiguredLogicService(
             manifest.ModuleId,
             manifest.Version,
             NormalizeJson(command.ModuleManifestJson),
-            ExecutionMode.Shadow,
+            RequireSupportedMode(command.Mode),
             NormalizeJson(command.ParametersJson),
             ConfiguredLogicRevisionStatus.Draft,
             timeProvider.GetUtcNow(),
@@ -342,9 +342,9 @@ public sealed class ConfiguredLogicService(
         var definition = await GetRequiredAsync(configuredLogicId, cancellationToken);
         var revision = GetRequiredRevision(definition, revisionId);
         if (definition.ActiveRevisionId != revisionId ||
-            revision.Status != ConfiguredLogicRevisionStatus.Active || revision.Mode != ExecutionMode.Shadow)
+            revision.Status != ConfiguredLogicRevisionStatus.Active || !ExecutionModePolicy.AllowsManualRun(revision.Mode))
             throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_REVISION_CONFLICT",
-                FailureKind.Conflict, "Review the current active Shadow revision before running.");
+                FailureKind.Conflict, "Review the current active revision before running.");
         var installed = await GetInstalledModuleAsync(revision.ModuleId, revision.ModuleVersion, cancellationToken);
         EnsureModuleEnabled(installed);
         EnsureManifestMatchesInstalled(revision.ModuleManifestJson, installed);
@@ -353,6 +353,12 @@ public sealed class ConfiguredLogicService(
             new ConfiguredLogicAssetBindingCommand(b.Role, b.AssetId, b.ParameterOverridesJson)).ToArray(), cancellationToken);
         return ConfiguredExecutionSnapshot.Create(definition, revision, ExecutionTriggerKind.Manual, null);
     }
+
+    private static ExecutionMode RequireSupportedMode(ExecutionMode mode) =>
+        ExecutionModePolicy.IsSupported(mode)
+            ? mode
+            : throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "Execution mode is not supported. Use Shadow or Recommendation.");
 
     public async Task<ConfiguredLogicDefinition> GetRequiredAsync(
         Guid configuredLogicId,

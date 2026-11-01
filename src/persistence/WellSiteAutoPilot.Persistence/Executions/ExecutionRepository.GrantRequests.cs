@@ -111,11 +111,11 @@ public sealed partial class ExecutionRepository
                 snapshot.Assets.Select(item => new ConfiguredExecutionAssetCommand(item.Role, item.AssetId, item.ParameterOverridesJson)).ToArray(),
                 snapshot.Inputs.Select(item => new ConfiguredExecutionInputCommand(item.RequirementId, item.AssetId, item.ProviderId,
                     item.ProviderAssetExternalId, item.Quantity, item.Access, item.CanonicalUnit, item.MaximumAgeSeconds,
-                    item.AllowUncertainQuality, item.ProviderMappingJson)).ToArray(), ExecutionTriggerKind.Manual, null);
+                    item.AllowUncertainQuality, item.ProviderMappingJson)).ToArray(), ExecutionTriggerKind.Manual, null, execution.Mode);
             _ = ExecutionService.CreateConfiguredRequest(command, execution.CorrelationId, execution.RequestedAtUtc, execution.Id);
             if (snapshot.ExecutionId != execution.Id || snapshot.ConfiguredLogicId != execution.LogicInstanceId || snapshot.ConfigurationRevisionId != execution.ConfigurationRevisionId ||
                 snapshot.ModuleId != execution.ModuleId || snapshot.ModuleVersion != execution.ModuleVersion ||
-                snapshot.Mode != nameof(ExecutionMode.Shadow) ||
+                snapshot.Mode != execution.Mode.ToString() || !ExecutionModePolicy.IsSupported(execution.Mode) ||
                 snapshot.RequestedAtUtc.UtcTicks / TimeSpan.TicksPerMicrosecond != execution.RequestedAtUtc.UtcTicks / TimeSpan.TicksPerMicrosecond ||
                 !snapshot.Assets.Select(item => item.AssetId).Concat(snapshot.Inputs.Select(item => item.AssetId))
                     .Distinct().Order().SequenceEqual(targets)) throw RequestConflict();
