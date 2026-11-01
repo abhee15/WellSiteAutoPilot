@@ -4,7 +4,7 @@
  * signal and never replaces polling: polling stays as the fallback and as a slow safety net.
  */
 
-export const CHANGE_AREAS = ['executions', 'recommendations', 'configured-logic', 'assets', 'modules', 'connections'] as const;
+export const CHANGE_AREAS = ['executions', 'recommendations', 'configured-logic', 'assets', 'modules', 'connections', 'control'] as const;
 export type ChangeArea = (typeof CHANGE_AREAS)[number];
 
 export function isChangeArea(value: unknown): value is ChangeArea {

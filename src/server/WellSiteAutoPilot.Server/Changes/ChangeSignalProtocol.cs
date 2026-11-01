@@ -21,6 +21,8 @@ public static class ChangeSignalProtocol
         ChangeArea.Assets => WellSitePermissions.AssetsRead,
         ChangeArea.Modules => WellSitePermissions.LogicRead,
         ChangeArea.Connections => WellSitePermissions.ConnectionsRead,
+        // Kill switch, policies and control actions are read with the same permission as recommendations.
+        ChangeArea.Control => WellSitePermissions.RecommendationsRead,
         _ => throw new ArgumentOutOfRangeException(nameof(area), area, "Unknown change area.")
     };
 

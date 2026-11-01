@@ -63,7 +63,10 @@ public sealed partial class ScheduledShadowSchedulerHostedService(
             // Retry intents left undecided by an interrupted gate pass.
             var gate = scope.ServiceProvider.GetRequiredService<AutonomousControlService>();
             if (await gate.SweepAsync(batchSize, cancellationToken) > 0)
+            {
                 changes.Notify(ChangeArea.Recommendations);
+                changes.Notify(ChangeArea.Control);
+            }
 
             // The dispatch committed its Execution requests before DispatchDueAsync returned.
             if (dispatched > 0) changes.Notify(ChangeArea.Executions);

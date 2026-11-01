@@ -13,7 +13,8 @@ before pagination, and could reveal an Asset a person may not see.
 ## Decision
 
 1. **One change-notification seam** on the Server, raised after a transaction commits. Producers name an
-   area only: `executions`, `recommendations`, `configured-logic`, `assets`, `modules`. The seam carries
+   area only: `executions`, `recommendations`, `configured-logic`, `assets`, `modules`, `connections`, `control` (kill switch,
+   autonomy policies and control actions; heard by those who hold `recommendations.read`). The seam carries
    no identifiers or values.
 2. **The hub sends only the area name**, and only to connections whose user currently holds that area's
    read permission. The browser then refetches through the existing authorized REST endpoints, so scope

@@ -151,7 +151,10 @@ public sealed partial class ExecutionResultV2Consumer(
                         .GetRequiredService<AutonomousControlService>();
                     if (await gate.ProcessExecutionAsync(
                             envelope.Payload.ExecutionId, cancellationToken) > 0)
+                    {
                         changes.Notify(ChangeArea.Recommendations);
+                        changes.Notify(ChangeArea.Control);
+                    }
                 }
             }
             else if (string.Equals(

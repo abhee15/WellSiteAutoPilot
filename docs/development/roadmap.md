@@ -50,7 +50,7 @@ Store, keyed by SHA-256.**
 **D2. Live updates are a coarse "changed" signal, never data.**
 - The Server raises an in-process change notification after a transaction commits (one seam, used by
   SignalR now and by the activity feed later). The hub sends only an area name (`executions`,
-  `recommendations`, `configured-logic`, `assets`, `modules`) to connections whose user holds that area's
+  `recommendations`, `configured-logic`, `assets`, `modules`, `connections`, `control`) to connections whose user holds that area's
   read permission. The browser then refetches through the existing authorized REST endpoints.
 - This keeps scope filtering in exactly one place, so a push can never reveal an asset a person may not
   see. Polling stays as the fallback and the client shows connection state and freshness.

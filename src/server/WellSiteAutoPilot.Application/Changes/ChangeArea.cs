@@ -11,7 +11,8 @@ public enum ChangeArea
     ConfiguredLogic = 2,
     Assets = 3,
     Modules = 4,
-    Connections = 5
+    Connections = 5,
+    Control = 6
 }
 
 /// <summary>
@@ -48,7 +49,8 @@ public static class ChangeAreaNames
         ChangeArea.ConfiguredLogic,
         ChangeArea.Assets,
         ChangeArea.Modules,
-        ChangeArea.Connections
+        ChangeArea.Connections,
+        ChangeArea.Control
     ];
 
     /// <summary>The stable name sent to browsers (ADR-008).</summary>
@@ -60,6 +62,7 @@ public static class ChangeAreaNames
         ChangeArea.Assets => "assets",
         ChangeArea.Modules => "modules",
         ChangeArea.Connections => "connections",
+        ChangeArea.Control => "control",
         _ => throw new ArgumentOutOfRangeException(nameof(area), area, "Unknown change area.")
     };
 }

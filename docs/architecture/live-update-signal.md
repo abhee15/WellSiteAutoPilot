@@ -32,6 +32,7 @@ reasons are in `docs/adr/ADR-008-live-update-signal.md`.
 | `assets` | `assets.read` |
 | `modules` | `logic.read` |
 | `connections` | `connections.read` |
+| `control` | `recommendations.read` (kill switch, autonomy policies and control actions are read with it) |
 
 The hub sends nothing derived from data, so no asset-scope filtering exists here. A holder of
 `assets.read` over one Asset learns only that "assets changed" and then refetches through REST, where
@@ -45,10 +46,13 @@ scope filtering still runs before pagination.
   - `ConfiguredLogic`: create, create revision, validate, activate
   - `Executions`: request a configured shadow execution
   - `Modules`: register, approve, retire
-  - `Recommendations`: decide
+  - `Recommendations`: decide, execute an approved recommendation, verify or resolve a control action
+  - `Control`: set the kill switch, set an autonomy policy, execute an approved recommendation, verify or resolve a control action
 - `ExecutionResultConsumer` and `ExecutionResultV2Consumer`: `Executions` when a result is applied;
-  the V2 consumer also raises `Recommendations` when materialization created any.
-- `ScheduledShadowSchedulerHostedService`: `Executions` when a sweep dispatched at least one request.
+  the V2 consumer also raises `Recommendations` when materialization created any, and `Recommendations` and
+  `Control` when the autonomy gate processed any intent.
+- `ScheduledShadowSchedulerHostedService`: `Executions` when a sweep dispatched at least one request;
+  `Recommendations` and `Control` when its gate sweep processed any intent.
 
 Any new endpoint that changes one of these areas needs `.NotifiesChange(...)`.
 

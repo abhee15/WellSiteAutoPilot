@@ -26,7 +26,7 @@ internal static class ChangeSignalChecks
 
     private static void CheckAreaContract()
     {
-        string[] expected = ["executions", "recommendations", "configured-logic", "assets", "modules", "connections"];
+        string[] expected = ["executions", "recommendations", "configured-logic", "assets", "modules", "connections", "control"];
         Require(ChangeAreaNames.All.Select(ChangeAreaNames.ToWireName).SequenceEqual(expected),
             "Change area wire names drifted from ADR-008.");
         Require(Enum.GetValues<ChangeArea>().Length == ChangeAreaNames.All.Count,
@@ -39,6 +39,8 @@ internal static class ChangeSignalChecks
         }
         Require(ChangeSignalProtocol.ReadPermission(ChangeArea.Modules) == WellSitePermissions.LogicRead,
             "Modules must follow logic.read.");
+        Require(ChangeSignalProtocol.ReadPermission(ChangeArea.Control) == WellSitePermissions.RecommendationsRead,
+            "Control state must be heard by exactly those who may read it (recommendations.read).");
         Require(ChangeSignalProtocol.ReadPermission(ChangeArea.Connections) == WellSitePermissions.ConnectionsRead,
             "Connections must follow connections.read.");
         Require(ChangeSignalProtocol.Route == "/hubs/changes" && !ChangeSignalProtocol.Route.StartsWith("/api/", StringComparison.Ordinal),
