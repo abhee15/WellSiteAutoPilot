@@ -10,7 +10,7 @@ export const englishMessages = {
   'assetDetail.runAt': '{time} · {status} · Run {id}',
   'assetDetail.latestRuns': 'Latest 2 runs',
   'assetDetail.history': 'View history',
-  'assetDetail.historyFor': 'View run history for {name}',
+  'assetDetail.historyFor': 'View history for {name}',
   'assetDetail.notActive': 'Not active · no scheduled runs',
   'assetDetail.previousBinding': 'Previously assigned to this asset · no scheduled runs here',
   'assetDetail.manual': 'Manual runs only',

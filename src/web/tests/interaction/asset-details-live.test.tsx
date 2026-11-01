@@ -67,7 +67,7 @@ it('groups two scoped runs, survives a recommendation failure and keeps focus du
   expect(within(card).getAllByRole('listitem')).toHaveLength(2);
   expect(await screen.findByText(/Recommendation updates unavailable/)).toBeTruthy();
   expect(screen.getByText(/Next scheduled:/)).toBeTruthy();
-  const history = within(card).getByRole('link', { name: /View run history/ });
+  const history = within(card).getByRole('link', { name: /View history for/ });
   expect(history.getAttribute('href')).toBe(runHistoryHash(assetId, logicId));
   history.focus();
   const scrollCount = scroll.mock.calls.length;

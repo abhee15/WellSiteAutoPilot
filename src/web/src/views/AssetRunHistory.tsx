@@ -30,7 +30,7 @@ export function AssetRunHistory({ assetId, logicId, runId, assets, configuredLog
     {history.data?.items?.length === 0 && <p>{t('assetPage.noRuns')}</p>}
     <ul className="asset-page-list">{history.data?.items?.map(run => <li key={run.executionId}>
       <Status value={run.status} /><button type="button" className="row-link" aria-pressed={selected === run.executionId}
-        aria-label={t('assetDetail.inspect', { id: shortId(run.executionId) })}
+        aria-label={`${formatTimestamp(run.requestedAtUtc)} · ${t('assetDetail.inspect', { id: shortId(run.executionId) })}`}
         onClick={() => setSelected(run.executionId ?? null)}>{formatTimestamp(run.requestedAtUtc)}</button>
       <small>{run.mode} · {shortId(run.executionId)}</small>
     </li>)}</ul>

@@ -24,7 +24,7 @@ Frontend: grouped two-run previews, independent failures, live start/completion/
 
 - Release solution build: zero warnings and errors.
 - Generated API strict TypeScript check, ESLint and production frontend build passed.
-- Node regression suite: 288 passed. Interaction suite: 442 passed, followed by targeted polling and access-loss checks.
+- Node regression suite after updating from develop: 294 passed. Interaction suite: 450 passed, including polling, accessibility and access-loss checks.
 - API contract and Asset-scope security boundary checks passed; Npgsql scoped-query translation and schedule boundary checks passed.
 - Chromium inspected at 1440, 390 and 320 pixels: two-run bounds, scoped-history navigation and no horizontal page overflow.
 - PostgreSQL-backed asset-detail checks are included in the existing security persistence suite; PR CI is required before merge. Sticky hierarchy filters remain deferred.

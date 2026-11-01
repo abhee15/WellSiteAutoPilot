@@ -60,7 +60,7 @@ internal static class AssetDetailReadChecks
             var configuration = i == 6 ? target[1] : target[0];
             db.Executions.Add(new() { Id = id, LogicInstanceId = configuration.Id, ConfigurationRevisionId = configuration.Revision,
                 ModuleId = "asset-details", ModuleVersion = "1.0.0", Mode = "Shadow", Status = "Completed",
-                CorrelationId = name + i, Trigger = "Manual", RequestedAtUtc = now });
+                CorrelationId = name + i, Trigger = "Manual", RequestContractVersion = 3, RequestedAtUtc = now });
             // Same timestamp exercises the UUID tie-breaker. Run 4 belongs to another Asset;
             // run 5 has a pinned multi-Asset scope the subject cannot fully read.
             db.ExecutionAssetScopes.Add(new() { ExecutionId = id, LogicInstanceId = configuration.Id, AssetId = i == 4 ? assetB : assetA });
@@ -79,6 +79,7 @@ internal static class AssetDetailReadChecks
             throw new InvalidOperationException("Asset/configuration filtering did not precede paging or crossed scope.");
         var expected = (await new ExecutionRepository(db).ListAuthorizedAsync(subject, null, 50, target[0].Id, assetA)).Select(item => item.Id).ToArray();
         var page1 = await reader.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, null, 2, default);
+        if (page1.Count != 2) throw new InvalidOperationException("The authorized history preview did not contain two runs.");
         var page2 = await reader.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, page1[^1].Id, 2, default);
         if (expected.Length != 3 || !page1.Concat(page2).Select(item => item.Id).SequenceEqual(expected))
             throw new InvalidOperationException("History cursor ordering or scoped/unpaged query parity failed.");
