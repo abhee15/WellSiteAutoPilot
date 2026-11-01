@@ -207,7 +207,7 @@ request("GET", "/connections", OPERATOR, expected=403)
 request("GET", "/connections", None, expected=401)
 request("POST", "/connections", OPERATOR, {"name": "Denied", "adapterKey": "simulator", "settings": {}}, expected=403)
 adapters = request("GET", "/connections/adapters")
-assert [item["key"] for item in adapters] == ["simulator", "foresite", "petrovisor"], adapters
+assert [item["key"] for item in adapters] == ["simulator", "foresite", "petrovisor", "cygnet"], adapters
 assert all(item["fields"][0]["key"] == "baseUrl" and item["fields"][0]["kind"] == "Url" for item in adapters), adapters
 conn_name = "CI simulator " + uuid.uuid4().hex[:8]
 request("POST", "/connections", body={"name": conn_name, "adapterKey": "simulator", "settings": {"baseUrl": "ftp://x"}}, expected=400)
