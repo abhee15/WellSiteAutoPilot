@@ -34,6 +34,8 @@ if (Keys(AdapterSettingsValidator.Validate(declared, new Dictionary<string, stri
     Keys(AdapterSettingsValidator.Validate(declared, new Dictionary<string, string?> { ["address"] = "http://h", ["port"] = "-1", ["secure"] = "maybe", ["site"] = "toolong", ["extra"] = "1" })) != "extra,port,secure,site")
     throw new InvalidOperationException("Invalid settings were accepted or misreported.");
 
+AdapterCommandChecks.Run();
+
 var cygnet = new ProviderDescriptor(
     "cygnet-primary",
     "CygNet",

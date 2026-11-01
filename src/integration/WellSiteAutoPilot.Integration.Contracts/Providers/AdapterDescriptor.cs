@@ -22,6 +22,8 @@ public sealed record AdapterSettingField(
 /// provider-neutral. Raise <see cref="SettingsVersion"/> when the fields change, so older connections are reviewed.
 /// <paramref name="MinimumScheduleSeconds"/> is the shortest interval at which the provider should be read on a schedule;
 /// 0 means the adapter sets no floor beyond the Server's own. Set it only from the provider's stated limit.
+/// <paramref name="Commands"/> are the commands this adapter can carry out (their shape, never a limit); null or empty
+/// means none, and the Command capability is advertised exactly when there are some.
 /// </summary>
 public sealed record AdapterDescriptor(
     string Key,
@@ -31,7 +33,8 @@ public sealed record AdapterDescriptor(
     IReadOnlyList<AdapterSettingField> Fields,
     IReadOnlyList<ProviderCapability> Capabilities,
     IReadOnlyList<DiscoveryField>? GroupingFields = null,
-    int MinimumScheduleSeconds = 0)
+    int MinimumScheduleSeconds = 0,
+    IReadOnlyList<AdapterCommandDefinition>? Commands = null)
 {
     /// <summary>True when the adapter can list what the provider holds.</summary>
     public bool CanDiscover => Capabilities.Any(item => item.Kind == ProviderCapabilityKind.AssetDiscovery);

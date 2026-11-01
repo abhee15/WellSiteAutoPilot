@@ -3,6 +3,25 @@ namespace WellSiteAutoPilot.Api.Contracts.Connections;
 public sealed record AdapterSettingFieldResponse(
     string Key, string Label, string HelpText, string Kind, bool Required, int MaxLength);
 
+/// <summary>
+/// One command an adapter can carry out: its shape, never a limit (limits are set per connection by an engineer).
+/// <c>ValueKind</c> is Number, WholeNumber or OnOff; <c>Verification</c> is ReadBack or AcknowledgementOnly.
+/// </summary>
+public sealed record AdapterCommandResponse(
+    string Name,
+    string DisplayName,
+    string Description,
+    string Quantity,
+    string? Unit,
+    string ValueKind,
+    IReadOnlyList<AdapterSettingFieldResponse> TargetFields,
+    string Verification,
+    string? ReadbackQuantity,
+    int DefaultSettleSeconds,
+    int MaximumSettleSeconds,
+    int DefaultDeadlineSeconds,
+    int MaximumDeadlineSeconds);
+
 /// <summary>One kind of outside system this installation can connect to, as the adapter itself describes it.</summary>
 public sealed record AdapterResponse(
     string Key,
@@ -12,7 +31,8 @@ public sealed record AdapterResponse(
     IReadOnlyList<AdapterSettingFieldResponse> Fields,
     IReadOnlyList<string> Capabilities,
     bool CanDiscover,
-    IReadOnlyList<DiscoveryFieldResponse> GroupingFields);
+    IReadOnlyList<DiscoveryFieldResponse> GroupingFields,
+    IReadOnlyList<AdapterCommandResponse> Commands);
 
 public sealed record DiscoveryFieldResponse(string Key, string Label);
 
