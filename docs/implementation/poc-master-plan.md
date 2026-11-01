@@ -20,7 +20,8 @@ Status: Done / In progress / Not started / Probe (a branch exists to answer an u
 | #370 | A person-approved recommendation executes through the gate, opt-in per configuration | gap 5 |
 | #371 | Sink readback, `Verified`/`Ambiguous` outcomes, verify and operator-resolve endpoints | gap 7 |
 | #373 | Module advice is recorded in Recommendation mode under a reserved, never-executable command | PoC `5667a27` |
-| Execute UI (this change) | Execute action and confirmation panel for approved recommendations in the inbox; message tables pinned to the server's gate codes and action statuses by tests | gap 5 (web) |
+| #375 | Execute action and confirmation panel for approved recommendations in the inbox; message tables pinned to the server's gate codes and action statuses by tests | gap 5 (web) |
+| Kill switch UI (this change) | Kill switch state always visible on the inbox, engage and release (release needs acknowledgement) for `control.manage`; refreshes on the `control` signal | gaps 5, 6 (web) |
 
 ## Workstreams
 

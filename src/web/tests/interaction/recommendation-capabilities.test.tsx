@@ -11,6 +11,10 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function fixture() {
   const state: { value: object } = { value: item };
   const http = vi.fn(async (url: string) => {
+    // The kill switch panel shares the page; it is exercised in kill-switch.test.tsx.
+    if (url === '/api/v1/control/kill-switch') {
+      return new Response(JSON.stringify({ engaged: false, autonomousControlEnabled: true }));
+    }
     expect(url).toBe('/api/v1/recommendations?limit=50');
     return new Response(JSON.stringify([state.value]));
   });
