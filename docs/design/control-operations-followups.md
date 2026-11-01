@@ -267,6 +267,32 @@ The logic detail now has Overview, Configuration and Activity sections, built on
 Open points for discussion: whether Resume should offer "run once now" (manual Shadow runs already cover it); and whether
 `reason` should be required for pause during a pilot, as it is for resolving an in-doubt command.
 
+### 5.7 Adapter minimum frequency (delivery step 3)
+
+Pause, resume and frequency change are delivered (#394, #395, #396). The server-wide bounds (15 seconds to 7 days) are
+the only floor today. A provider can need a slower floor than that, and the logic's own adapter is what knows it.
+
+- **Where it lives.** `AdapterDescriptor.MinimumScheduleSeconds` (int, default 0 = no adapter-specific floor), owned by the
+  adapter beside its other facts, so the Server stays provider-neutral. Raised only with a stated reason in the adapter.
+- **Which adapter a logic uses.** The module manifest's `RequiredAdapterKey`, already part of the immutable revision
+  snapshot. A module with none has no adapter floor.
+- **Server knowledge.** The Server reads descriptors through `ConnectionService.ListAdaptersAsync` (the gateway). A small
+  cached catalog port (`IAdapterScheduleFloors`) holds the last successful answer, refreshed on a timer and on demand.
+  The scheduler and the control service read the cache; neither calls the gateway on its own path.
+- **Changing frequency.** Below the effective floor (`max(15 s, adapter floor)`) the request is refused with a stated floor.
+  If the adapter's floor is not yet known the request is accepted against the global floor and flagged, because refusing
+  would make a gateway outage block a person from slowing a schedule down.
+- **Dispatch.** A due occurrence on a schedule faster than the floor is not dispatched; the decision is recorded as
+  `SCHEDULER_CADENCE_BELOW_MINIMUM` with the floor, so it shows in the scheduler's decisions like every other skip. Unknown
+  floor dispatches (the global floor already applies) and is logged once per adapter.
+- **Why skip and not clamp.** Silently running at another cadence would hide that the saved schedule cannot be honoured.
+  A revision that declares a faster cadence than its adapter allows keeps its declaration and is shown as **Below
+  minimum**, with the floor, in the Schedules list and the Overview schedule block.
+- **Contract.** `ConfiguredLogicScheduleControlResponse` gains `MinimumCadenceSeconds` per logic (the effective floor) in
+  place of the global constant, and `belowMinimum`; the list response carries `belowMinimum`.
+
+Steps: (1) descriptor field, cache port, scheduler skip and tests; (2) control service floor and contract; (3) web.
+
 ## 6. Smaller corrections
 
 - **"Last run" accuracy.** The Schedules and configuration lists take the last run from the runs already loaded in the
