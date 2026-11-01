@@ -56,3 +56,19 @@ test('an unreadable server next run is shown as none rather than guessed', () =>
     assert.equal(result.rows[0].nextRunAtUtc, null, String(nextRunAtUtc));
   }
 });
+
+test('the schedule in effect decides, so a paused or re-timed logic is not shown as declared', () => {
+  const result = model.buildScheduleOverview([
+    logic('p', 'Paused', { schedule: schedule() }, { effectiveSchedule: schedule({ enabled: false }) }),
+    logic('r', 'Retimed', { schedule: schedule() }, { effectiveSchedule: schedule({ cadenceSeconds: 600 }), nextRunAtUtc: '2026-10-14T12:10:00Z' }),
+    logic('o', 'Declared off', { schedule: schedule({ enabled: false }) }, { effectiveSchedule: schedule({ enabled: false }) }),
+    logic('u', 'Untouched', { schedule: schedule() }, { effectiveSchedule: schedule(), nextRunAtUtc: '2026-10-14T12:01:00Z' }),
+    logic('l', 'Legacy', { schedule: schedule() }, { nextRunAtUtc: '2026-10-14T12:02:00Z' }),
+  ], assets, []);
+  const row = id => result.rows.find(item => item.id === id);
+  assert.deepEqual([row('p').enabled, row('p').paused, row('p').changed], [false, true, true]);
+  assert.deepEqual([row('r').enabled, row('r').paused, row('r').changed, row('r').cadenceSeconds], [true, false, true, 600]);
+  assert.deepEqual([row('o').enabled, row('o').paused, row('o').changed], [false, false, false]);
+  assert.deepEqual([row('u').paused, row('u').changed], [false, false]);
+  assert.deepEqual([row('l').paused, row('l').changed, row('l').cadenceSeconds], [false, false, 60]);
+});

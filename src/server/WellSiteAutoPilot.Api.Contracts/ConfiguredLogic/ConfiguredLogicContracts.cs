@@ -88,6 +88,11 @@ public sealed record ConfiguredLogicResponse(
     /// is due, not a promise that one starts then.
     /// </summary>
     public DateTimeOffset? NextRunAtUtc { get; init; }
+    /// <summary>
+    /// The schedule in effect for the live revision: what it declares unless a pause or frequency change was made after
+    /// activation. Null without a live revision or a schedule. Lists show this, not the revision's declared schedule.
+    /// </summary>
+    public ConfiguredLogicScheduleResponse? EffectiveSchedule { get; init; }
 }
 
 public sealed record ConfiguredLogicViewRequest(Guid ViewId, int ExpectedRevision, string Role);

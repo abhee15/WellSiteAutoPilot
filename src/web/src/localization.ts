@@ -783,6 +783,8 @@ export const englishMessages = {
   'schedules.mode': 'Mode',
   'schedules.lastRun': 'Last run',
   'schedules.off': 'Off',
+  'schedules.paused': 'Paused',
+  'schedules.changed': '(changed after activation)',
   'schedules.none': 'No logic has a schedule yet.',
   'schedules.unscheduled': '{count} without a schedule, not listed here.',
   'controlActions.heading': 'Commands awaiting a decision',
