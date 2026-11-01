@@ -275,7 +275,6 @@ export function App() {
               isLoaded={isLoaded}
               userId={currentUser?.userId}
               capabilities={assetCapabilities}
-              configuredLogic={configuredLogic}
               permissions={currentUser?.permissions ?? []}
               onRefresh={refresh}
             />

@@ -14,6 +14,22 @@ using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.Logic;
 
+// Presentation and dispatch share fixed UTC cadence, including exact boundaries and offsets.
+var presentationStart = new DateTimeOffset(2026, 11, 1, 1, 30, 0, TimeSpan.FromHours(-4));
+var presentationSchedule = new ConfiguredLogicSchedule(true, 60, presentationStart, "America/New_York");
+if (ScheduleOccurrences.NextAfter(presentationSchedule, presentationStart.AddSeconds(-1)) != presentationStart.ToUniversalTime() ||
+    ScheduleOccurrences.NextAfter(presentationSchedule, presentationStart) != presentationStart.AddMinutes(1).ToUniversalTime() ||
+    ScheduleOccurrences.LatestDue(presentationSchedule, presentationStart.AddSeconds(90)) != presentationStart.AddMinutes(1).ToUniversalTime() ||
+    ScheduleOccurrences.NextAfter(presentationSchedule with { Enabled = false }, presentationStart) is not null ||
+    ScheduleOccurrences.NextAfter(presentationSchedule with { CadenceSeconds = 0 }, presentationStart) is not null ||
+    ScheduleOccurrences.NextAfter(presentationSchedule with { StartAtUtc = DateTimeOffset.MaxValue.AddSeconds(-1) }, DateTimeOffset.MaxValue) is not null)
+    throw new InvalidOperationException("Schedule presentation diverged from fixed UTC dispatch cadence.");
+if (args.Contains("--schedule-presentation", StringComparer.Ordinal))
+{
+    Console.WriteLine("Schedule presentation boundary checks passed.");
+    return 0;
+}
+
 var connectionString = Environment.GetEnvironmentVariable("WSA_DATABASE_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(connectionString))
 {

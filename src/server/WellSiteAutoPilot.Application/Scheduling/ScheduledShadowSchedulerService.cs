@@ -259,39 +259,7 @@ public sealed class ScheduledShadowSchedulerService(
     }
 
     internal static DateTimeOffset? GetLatestDueOccurrence(
-        ConfiguredLogicSchedule schedule,
-        DateTimeOffset nowUtc)
-    {
-        if (!schedule.Enabled || schedule.CadenceSeconds <= 0)
-        {
-            return null;
-        }
-
-        var startUtc = NormalizeUtcTimestamp(schedule.StartAtUtc);
-        var normalizedNowUtc = NormalizeUtcTimestamp(nowUtc);
-
-        if (normalizedNowUtc < startUtc)
-        {
-            return null;
-        }
-
-        TimeSpan cadence;
-        try
-        {
-            cadence = TimeSpan.FromSeconds(schedule.CadenceSeconds);
-        }
-        catch (OverflowException)
-        {
-            return null;
-        }
-
-        var occurrenceIndex =
-            (normalizedNowUtc.UtcTicks - startUtc.UtcTicks) /
-            cadence.Ticks;
-
-        return NormalizeUtcTimestamp(
-            startUtc.AddTicks(occurrenceIndex * cadence.Ticks));
-    }
+        ConfiguredLogicSchedule schedule, DateTimeOffset nowUtc) => ScheduleOccurrences.LatestDue(schedule, nowUtc);
 
     private static string BuildCorrelationId(
         Guid configuredLogicId,

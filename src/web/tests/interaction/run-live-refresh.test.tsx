@@ -48,15 +48,20 @@ it('reads an in-flight run again when the Server reports a run change, without r
   await screen.findByText('Completed');
 });
 
-it('does not read a finished run again on a change signal', async () => {
+it('reauthorizes a finished run on change signals and clears it when access is lost', async () => {
   const harness = hubHarness();
-  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(run('Completed'))));
+  let denied = false;
+  const accessLost = vi.fn();
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify(run('Completed')), { status: denied ? 403 : 200 }));
   vi.stubGlobal('fetch', fetchMock);
   render(<LiveUpdatesProvider client={harness.client}>
-    <ExecutionDetailPanel executionId={executionId} onClose={() => undefined} /></LiveUpdatesProvider>);
+    <ExecutionDetailPanel executionId={executionId} onClose={() => undefined} onAccessLost={accessLost} /></LiveUpdatesProvider>);
   await screen.findByText('Completed');
   await act(async () => { harness.client.setEnabled(true); harness.connect(); });
   await act(async () => { harness.emit('executions'); });
-  // A finished run is never read again on a signal, including the catch-up the client makes when it connects.
-  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  denied = true;
+  await act(async () => { harness.emit('executions'); });
+  expect(accessLost).toHaveBeenCalledOnce();
+  expect(screen.queryByText('Completed')).toBeNull();
 });

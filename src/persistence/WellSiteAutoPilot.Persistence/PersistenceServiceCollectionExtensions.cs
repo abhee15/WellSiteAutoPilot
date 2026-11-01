@@ -32,6 +32,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddDbContext<WellSiteAutoPilotDbContext>(
             options => options.UseNpgsql(connectionString));
         services.AddScoped<IAssetRepository, AssetRepository>();
+        services.AddScoped<IAssetDetailReader, AssetDetailReader>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<IAssetViewRepository, AssetViewRepository>();
         services.AddScoped<IConnectionImportRepository, ConnectionImportRepository>();

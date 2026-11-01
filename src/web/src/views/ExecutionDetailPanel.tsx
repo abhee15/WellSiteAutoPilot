@@ -56,18 +56,19 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
 
   const callbacks = useRef({ onObserved, onAccessLost });
   useEffect(() => { callbacks.current = { onObserved, onAccessLost }; }, [onObserved, onAccessLost]);
-  const { state: liveState } = useLiveUpdates();
+  const { state: liveState, pollIntervalMs } = useLiveUpdates();
   const inFlight = detail !== null && IN_FLIGHT_EXECUTION_STATUSES.includes(detail.status ?? '');
-  const inFlightNow = useRef(false);
-  useEffect(() => { inFlightNow.current = inFlight; }, [inFlight]);
-  // The Server names the area that changed and nothing else, so a run that is still going is read again.
-  useChangeRefresh(['executions'], () => { if (inFlightNow.current) setRefreshNumber(n => n + 1); });
+  // Completed selections also need reauthorization after changes; aging out of a bounded
+  // workspace list is not evidence of revoked access.
+  useChangeRefresh(['executions'], () => setRefreshNumber(n => n + 1));
   useEffect(() => {
-    if (!poll || !inFlight) return;
-    const timer = window.setTimeout(() => setRefreshNumber(n => n + 1),
-      liveState === 'connected' ? LIVE_SAFETY_REFRESH_MS : FALLBACK_REFRESH_MS);
+    if (!poll) return;
+    const delay = inFlight
+      ? liveState === 'connected' ? LIVE_SAFETY_REFRESH_MS : FALLBACK_REFRESH_MS
+      : pollIntervalMs;
+    const timer = window.setTimeout(() => setRefreshNumber(n => n + 1), delay);
     return () => window.clearTimeout(timer);
-  }, [detail, poll, inFlight, liveState]);
+  }, [detail, poll, inFlight, liveState, pollIntervalMs]);
 
   useEffect(() => {
     const controller = new AbortController();
