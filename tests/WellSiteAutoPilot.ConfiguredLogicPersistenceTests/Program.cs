@@ -424,6 +424,19 @@ var scheduleRace = await Task.WhenAll(new List<int> { 180, 240 }.Select(async ca
 if (scheduleRace.Count(won => won) != 1 || (await scheduleRepository.GetAsync(created.Id))?.Version != 3)
     throw new InvalidOperationException("Concurrent schedule changes must produce exactly one new version.");
 
+// Activating another revision discards live schedule state and records the reset in the history.
+var resetCandidate = await configuredLogicService.CreateRevisionAsync(created.Id,
+    raceCommand with { Schedule = new ConfiguredLogicScheduleCommand(true, 120, DateTimeOffset.UtcNow, "UTC") });
+await configuredLogicService.ValidateRevisionAsync(created.Id, resetCandidate.Id);
+await configuredLogicService.ActivateRevisionAsync(created.Id, resetCandidate.Id);
+var resetHistory = await scheduleRepository.ListChangesAsync(created.Id, 10);
+if (await scheduleRepository.GetAsync(created.Id) is not null ||
+    resetHistory.Count != 4 ||
+    resetHistory[0].Kind != ConfiguredLogicScheduleChangeKind.Reset ||
+    resetHistory[0].Version != 0 ||
+    resetHistory[0].BasedOnRevisionId != resetCandidate.Id)
+    throw new InvalidOperationException("Activation must discard live schedule state and record a reset.");
+
 Console.WriteLine(
     "Configured Logic persistence, module readiness, trust gating, activation, and revision-history checks passed.");
 return 0;

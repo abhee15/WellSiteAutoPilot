@@ -85,6 +85,8 @@ internal static class AuthorizedConfigurationDraftChecks
             await ExpectAsync(() => service.CreateAuthorizedAsync(draftCommand with { ParametersJson = "[]" }, subject, actor), FailureKind.Validation);
             var lifecycleAuditCount = await AuthorizedConfigurationLifecycleChecks.RunAsync(options, applicationDraft.Id,
                 subject, actor, grant, readGrant, assetB, assetTypeId, name);
+            var scheduleAuditCount = await AuthorizedScheduleChecks.RunAsync(options, applicationDraft.Id,
+                subject, actor, grant, readGrant);
             var requestAuditCount = await AuthorizedManualShadowRequestChecks.RunAsync(options, applicationDraft.Id,
                 subject, actor, role, grant, readGrant, assetB, name);
             var catalogAuditCount = await AuthorizedModuleCatalogChecks.RunAsync(options, subject, actor, role, manifest);
@@ -170,8 +172,11 @@ internal static class AuthorizedConfigurationDraftChecks
                 Draft(config, 4, assetA), subject, actor)), FailureKind.Authorization);
             if (await setup.ConfiguredLogicRevisions.CountAsync(item => item.ConfiguredLogicId == config) != 3 ||
                 await setup.ConfiguredLogicRevisions.CountAsync(item => item.ConfiguredLogicId == foreign.ConfiguredLogicId) != 1 ||
-                await setup.AuditEvents.CountAsync(item => item.CorrelationId == actor.CorrelationId && item.ActorUserId == user) != 5 + lifecycleAuditCount + requestAuditCount + catalogAuditCount)
+                await setup.AuditEvents.CountAsync(item => item.CorrelationId == actor.CorrelationId && item.ActorUserId == user) != 5 + lifecycleAuditCount + scheduleAuditCount + requestAuditCount + catalogAuditCount)
                 throw new InvalidOperationException("A denied draft write changed persisted configuration or audit state.");
+            // Schedule history is retained by a restricting foreign key, so tests remove it before its configuration.
+            await setup.ConfiguredLogicScheduleChanges.Where(item => item.ConfiguredLogicId == applicationDraft.Id).ExecuteDeleteAsync();
+            await setup.ConfiguredLogicScheduleStates.Where(item => item.ConfiguredLogicId == applicationDraft.Id).ExecuteDeleteAsync();
             await setup.ConfiguredLogicDefinitions.Where(item => item.Id == config || item.Id == foreign.ConfiguredLogicId || item.Id == applicationDraft.Id).ExecuteDeleteAsync();
             await setup.LogicModules.Where(item => item.ModuleId == name).ExecuteDeleteAsync();
             await setup.AuditEvents.Where(item => item.ActorUserId == user).ExecuteDeleteAsync();

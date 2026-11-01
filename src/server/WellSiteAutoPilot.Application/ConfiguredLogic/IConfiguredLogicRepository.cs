@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 
@@ -9,6 +10,13 @@ public interface IConfiguredLogicRepository
         SecurityActorContext actor, CancellationToken cancellationToken = default);
 
     Task ActivateRevisionAuthorizedAsync(ConfiguredLogicRevision reviewedRevision, Guid? expectedActiveRevisionId,
+        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies a live schedule change under the same grant, scope and audit rules as revision activation. The actor is
+    /// recorded as the author; the request's own author is ignored.
+    /// </summary>
+    Task<ConfiguredLogicScheduleState> ApplyScheduleChangeAuthorizedAsync(ConfiguredLogicScheduleChangeRequest request,
         AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default);
 
     Task AddAuthorizedAsync(ConfiguredLogicDefinition definition, AccessSubject subject, SecurityActorContext actor,
