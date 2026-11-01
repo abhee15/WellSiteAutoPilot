@@ -61,6 +61,20 @@ class ConventionTests(unittest.TestCase):
             self.assertIn("missing ProjectReference",
                 conventions.validate_references(root)[0])
 
+    def test_occurrences_are_only_computed_inside_the_scheduling_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            allowed = root / "src/server/WellSiteAutoPilot.Application/Scheduling/EffectiveSchedule.cs"
+            offender = root / "src/server/WellSiteAutoPilot.Server/Program.cs"
+            for source, text in [(allowed, "ScheduleOccurrences.NextAfter(schedule, now);"),
+                                 (offender, "var next = ScheduleOccurrences.NextAfter(schedule, now);")]:
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text(text, encoding="utf8")
+            errors = conventions.validate_schedule_resolution(root)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("Program.cs", errors[0])
+            self.assertIn("EffectiveSchedule", errors[0])
+
 
 if __name__ == "__main__":
     unittest.main()
