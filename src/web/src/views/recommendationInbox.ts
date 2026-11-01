@@ -16,7 +16,8 @@ export const DEFAULT_RECOMMENDATION_INBOX_CRITERIA: RecommendationInboxCriteria 
 
 // `satisfies` makes the compiler check each name against the server's RecommendationStatus.
 const pendingStates = new Set<string>(['Created', 'Pending'] satisfies RecommendationStatus[]);
-const decidedStates = new Set<string>(['Approved', 'Rejected'] satisfies RecommendationStatus[]);
+// Executed stays with the decided ones: it is what an approved recommendation becomes once its command has been sent.
+const decidedStates = new Set<string>(['Approved', 'Rejected', 'Executed'] satisfies RecommendationStatus[]);
 
 function isExpired(item: RecommendationSummaryResponse, nowUtc: number): boolean {
   if (!item.expiresAtUtc) return false;
@@ -24,6 +25,9 @@ function isExpired(item: RecommendationSummaryResponse, nowUtc: number): boolean
   // Invalid timing metadata is never considered safely actionable.
   return !Number.isFinite(expiresAt) || expiresAt <= nowUtc;
 }
+
+/** True once the recommendation's expiry has passed, or its expiry cannot be read. */
+export const recommendationExpiryPassed = isExpired;
 
 export function recommendationIsAwaiting(
   item: RecommendationSummaryResponse,

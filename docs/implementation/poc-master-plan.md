@@ -19,7 +19,8 @@ Status: Done / In progress / Not started / Probe (a branch exists to answer an u
 | #369 | Dedicated `control.manage` permission for control writes | gap 6 (backend) |
 | #370 | A person-approved recommendation executes through the gate, opt-in per configuration | gap 5 |
 | #371 | Sink readback, `Verified`/`Ambiguous` outcomes, verify and operator-resolve endpoints | gap 7 |
-| Advisory recommendations (this change) | Module advice is recorded in Recommendation mode under a reserved, never-executable command | PoC `5667a27` |
+| #373 | Module advice is recorded in Recommendation mode under a reserved, never-executable command | PoC `5667a27` |
+| Execute UI (this change) | Execute action and confirmation panel for approved recommendations in the inbox; message tables pinned to the server's gate codes and action statuses by tests | gap 5 (web) |
 
 ## Workstreams
 
