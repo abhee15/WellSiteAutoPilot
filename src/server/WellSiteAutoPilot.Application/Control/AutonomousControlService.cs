@@ -143,7 +143,10 @@ public sealed class AutonomousControlService(
         var recommendation = await recommendations.GetAsync(recommendationId, cancellationToken) ??
             throw new WellSiteAutoPilotException("RECOMMENDATION_NOT_FOUND", FailureKind.NotFound,
                 "The requested recommendation was not found.");
-        if (await control.GetActionByRecommendationAsync(recommendationId, cancellationToken) is { } existing)
+        // A repeat returns the action this approval already produced. An action the autonomy gate produced is not
+        // an execution of an approval, so it falls through to the approval check below and is refused.
+        if (await control.GetActionByRecommendationAsync(recommendationId, cancellationToken) is
+            { Origin: ControlOrigins.ApprovedRecommendation } existing)
             return new ControlExecutionResult(existing, null);
 
         // A person must have approved it: the gate's own Autonomous decisions never qualify.
