@@ -71,6 +71,11 @@ the server accepts duplicates and the editor is free text. A policy entry that d
 refuses every command with "not permitted", and the person has no way to know why. Module manifests declare input and output
 requirements (`outputRequirements`) but **not the commands a module may ask for**, so nothing can suggest them.
 
+**Correction (see `control-command-framework.md`).** Manifests already declare the commands a module needs, in the required
+`commandRequirements` list (`id`, `assetRole`, `command`, `quantity`, `canonicalUnit`). Nothing enforces it yet. The framework
+therefore reuses that list instead of adding `controlCommands`, so the "manifest v2" decision below is superseded: no manifest
+version change is needed, and an optional `suggestedRange` can be added later as an additive field.
+
 **Design options.**
 1. *Free text with guardrails (smallest).* The server rejects duplicate commands case-insensitively; the editor tells people
    commands are case-sensitive and shows the commands seen in this configuration's recent recommendations as suggestions.
