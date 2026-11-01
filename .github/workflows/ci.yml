@@ -96,6 +96,10 @@ jobs:
         run: |
           dotnet run --project tests/WellSiteAutoPilot.LogicManifestTests/WellSiteAutoPilot.LogicManifestTests.csproj --configuration Release --no-build
           dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module validate modules/samples/sample-shadow-read.manifest.json
+          foreach ($manifest in Get-ChildItem modules/samples/cygnet -Recurse -Filter manifest.json) {
+            dotnet run --project tools/WellSiteAutoPilot.Cli/WellSiteAutoPilot.Cli.csproj --configuration Release --no-build -- module validate $manifest.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - name: Verify Logic Module SDK contracts
         run: dotnet run --project tests/WellSiteAutoPilot.ModuleSdkTests/WellSiteAutoPilot.ModuleSdkTests.csproj --configuration Release --no-build
@@ -145,6 +149,9 @@ jobs:
 
       - name: Verify ForeSite adapter
         run: dotnet run --project tests/WellSiteAutoPilot.ForeSiteAdapterTests/WellSiteAutoPilot.ForeSiteAdapterTests.csproj --configuration Release --no-build
+
+      - name: Verify CygNet adapter (simulated backend, no CygNet libraries)
+        run: dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests/WellSiteAutoPilot.CygNetAdapterTests.csproj --configuration Release --no-build
 
       - name: Verify PetroVisor adapter POC
         run: dotnet run --project tests/WellSiteAutoPilot.PetroVisorAdapterTests/WellSiteAutoPilot.PetroVisorAdapterTests.csproj --configuration Release --no-build
@@ -1298,7 +1305,7 @@ jobs:
           expect "$(status http://127.0.0.1:5081/health/ready)" 200 "health"
 
           adapters=$(curl --fail --silent -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" "$base/adapters")
-          echo "$adapters" | python -c "import json,sys; d=json.load(sys.stdin); assert [a['key'] for a in d]==['simulator','foresite','petrovisor'], d; assert all(a['fields'][0]['key']=='baseUrl' for a in d), d"
+          echo "$adapters" | python -c "import json,sys; d=json.load(sys.stdin); assert [a['key'] for a in d]==['simulator','foresite','petrovisor','cygnet'], d; assert all(a['fields'][0]['key']=='baseUrl' for a in d if a['key']!='cygnet'), d; assert [f['key'] for f in next(a for a in d if a['key']=='cygnet')['fields']]==['domain','siteService','facilityFilter'], d"
 
           problems=$(curl --fail --silent -X POST -H 'Content-Type: application/json' -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" \
             -d '{"settings":{"baseUrl":"ftp://x","extra":"1"}}' "$base/adapters/simulator/validate")

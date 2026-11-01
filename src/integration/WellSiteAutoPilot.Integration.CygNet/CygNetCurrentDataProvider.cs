@@ -104,8 +104,14 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
         value.Length <= MaximumFacilityTagLength && value.Contains("::", StringComparison.Ordinal) &&
         !value.Any(char.IsControl);
 
-    // True only when no status flag is set, whatever type the CygNet library uses for its status flags.
-    private static bool IsClear<T>(T status) => EqualityComparer<T>.Default.Equals(status, default);
+    // Healthy points carry housekeeping flags (Initialized, Updated) and data-type bits; only another flag is a quality concern.
+    // Matched by flag name so this holds whatever type the CygNet library uses for its status flags.
+    private static readonly HashSet<string> NeutralFlags = new(StringComparer.OrdinalIgnoreCase)
+        { "None", "0", "Initialized", "Updated", "StringData", "DigitalData", "OutputData" };
+
+    private static bool IsClear<T>(T status) =>
+        (status?.ToString() ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .All(NeutralFlags.Contains);
 
     private static WellSiteAutoPilotException Failure(string code, FailureKind kind, string detail, Exception? inner = null) =>
         new(code, kind, detail,

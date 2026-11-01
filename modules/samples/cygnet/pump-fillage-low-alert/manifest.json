@@ -1,0 +1,46 @@
+{
+  "manifestVersion": 1,
+  "moduleId": "weatherford.cygnet.pump-fillage-low-alert",
+  "version": "1.0.0",
+  "displayName": "CygNet pump fillage low alert",
+  "publisher": "Weatherford",
+  "runtime": "DotNet",
+  "executionProfile": "ScheduledOneShot",
+  "entryPoint": "Weatherford.CygNet.PumpFillageLowAlert.EntryPoint",
+  "minimumSdkVersion": "1.1.0",
+  "requiredAdapterKey": "cygnet",
+  "description": "Recommends a review when a CygNet well's current pump fillage is below a threshold (default 40 %). Recommendation only; sends nothing to CygNet.",
+  "parameterSchema": {
+    "type": "object",
+    "properties": {
+      "lowFillagePercent": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Pump fillage below this percentage raises the alert. Default 40."
+      }
+    },
+    "additionalProperties": false
+  },
+  "assetRequirements": [
+    {
+      "role": "well",
+      "minimumCount": 1,
+      "maximumCount": 1,
+      "requiredAssetTypeKey": null,
+      "requiredTraits": []
+    }
+  ],
+  "dataRequirements": [
+    {
+      "id": "pump-fillage",
+      "assetRole": "well",
+      "quantity": "PumpFillage",
+      "access": "Current",
+      "canonicalUnit": "%",
+      "maximumAgeSeconds": 120,
+      "allowUncertainQuality": false
+    }
+  ],
+  "commandRequirements": []
+}
