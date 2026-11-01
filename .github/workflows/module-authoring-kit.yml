@@ -47,6 +47,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Build template and offline host against product SDK
         run: dotnet build modules/authoring/dotnet/OfflineRunner/OfflineRunner.csproj --configuration Release
       - name: Validate manifests with product CLI
@@ -55,6 +58,27 @@ jobs:
           dotnet run --project tools/WellSiteAutoPilot.Cli --configuration Release --no-build -- module validate modules/authoring/python/manifest.json
       - name: Publish .NET starter for package checks
         run: dotnet publish modules/authoring/dotnet/WellInputCheck --configuration Release --output modules/authoring/artifacts/dotnet-payload
+      - name: Probe trusted .NET build and package round trip
+        run: python modules/authoring/probes/build_package_probe.py --report modules/authoring/artifacts/build-package-probe.json
+      - name: Probe real sample and bound synthetic composition
+        run: |
+          dotnet build modules/authoring/probes/composition --configuration Release --disable-build-servers -m:1
+          dotnet modules/authoring/probes/composition/bin/Release/net10.0/CompositionProbe.dll modules/authoring/artifacts/composition-probe.json
+      - name: Probe authoritative decimal document conformance
+        run: node modules/authoring/probes/decimal_conformance.cjs modules/authoring/artifacts/decimal-conformance-probe.json
+      - name: Measure ordinary-child boundary using synthetic resources
+        run: python modules/authoring/probes/boundary_probe.py --report modules/authoring/artifacts/boundary-probe.json
+      - name: Probe candidate calculation document
+        run: node modules/authoring/probes/document_probe.mjs modules/authoring/artifacts/document-probe.json
+      - name: Probe existing starter with empty NuGet cache and cleared feeds
+        run: python modules/authoring/probes/offline_restore_probe.py --report modules/authoring/artifacts/offline-probe.json
+      - name: Retain authoring build probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authoring-build-probe-${{ matrix.os }}
+          path: modules/authoring/artifacts/*-probe.json
+          if-no-files-found: warn
       - name: Check both runtimes against identical cases
         env:
           WSA_TEST_DOTNET: '1'
