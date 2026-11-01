@@ -1,6 +1,7 @@
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Executions;
 using WellSiteAutoPilot.Domain.Logic;
@@ -13,7 +14,8 @@ public sealed class ScheduledShadowSchedulerService(
     ILogicModuleCatalogRepository moduleCatalogRepository,
     IExecutionRepository executionRepository,
     ExecutionService executionService,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IScheduledReadAuthorityProvider? authorityProvider = null)
 {
     public async Task<ScheduledShadowSweepResult> DispatchDueAsync(
         int limit,
@@ -204,13 +206,34 @@ public sealed class ScheduledShadowSchedulerService(
                 "SCHEDULER_CONFIGURATION_INVALID");
         }
 
+        var authority = authorityProvider is null
+            ? DelegatedReadAuthority.None
+            : await authorityProvider.ResolveAsync(configuredLogic.Id, revision.Id, scheduledForUtc.Value, cancellationToken);
+        if (authority.RefusalCode is { } refusal)
+        {
+            return Decision(configuredLogic, revision, scheduledForUtc,
+                ScheduledShadowDispatchOutcome.InvalidConfiguration, refusal);
+        }
+
         ExecutionRecord execution;
         try
         {
             execution = await executionService.RequestConfiguredShadowAsync(
                 command,
                 BuildCorrelationId(configuredLogic.Id, revision.Id, scheduledForUtc.Value),
+                authority.Subject,
                 cancellationToken);
+            if (authority.PrincipalId is { } principalId && authorityProvider is not null)
+            {
+                await authorityProvider.RecordUseAsync(configuredLogic.Id, revision.Id, scheduledForUtc.Value,
+                    principalId, execution.Id, cancellationToken);
+            }
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Code.StartsWith("EXECUTION_READ_", StringComparison.Ordinal))
+        {
+            // Live reads need an authority; without a configured one the occurrence is blocked with a visible reason.
+            return Decision(configuredLogic, revision, scheduledForUtc,
+                ScheduledShadowDispatchOutcome.InvalidConfiguration, exception.Code);
         }
         catch (WellSiteAutoPilotException exception) when (exception.Code == "MODULE_NOT_ENABLED")
         {
