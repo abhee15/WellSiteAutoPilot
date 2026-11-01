@@ -6,6 +6,7 @@ using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 using WellSiteAutoPilot.Application.Changes;
+using WellSiteAutoPilot.Application.Control;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Messaging.Contracts;
@@ -143,6 +144,14 @@ public sealed partial class ExecutionResultV2Consumer(
                         envelope.Payload.OutputJson,
                         cancellationToken);
                     if (created > 0) changes.Notify(ChangeArea.Recommendations);
+
+                    // Also on a retry that created nothing: the gate is idempotent and this recovers a pass that
+                    // was interrupted after materialization. A no-op for non-Autonomous executions.
+                    var gate = scope.ServiceProvider
+                        .GetRequiredService<AutonomousControlService>();
+                    if (await gate.ProcessExecutionAsync(
+                            envelope.Payload.ExecutionId, cancellationToken) > 0)
+                        changes.Notify(ChangeArea.Recommendations);
                 }
             }
             else if (string.Equals(

@@ -358,7 +358,7 @@ public sealed class ConfiguredLogicService(
         ExecutionModePolicy.IsSupported(mode)
             ? mode
             : throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
-                "Execution mode is not supported. Use Shadow or Recommendation.");
+                "Execution mode is not recognized.");
 
     public async Task<ConfiguredLogicDefinition> GetRequiredAsync(
         Guid configuredLogicId,

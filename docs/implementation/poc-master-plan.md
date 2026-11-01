@@ -13,6 +13,9 @@ Status: Done / In progress / Not started / Probe (a branch exists to answer an u
 | #361, #362, #363 | CygNet adapter in three slices: core and read rules, per-connection point map/paging/cached clients, failure reasons/freshness/bounded calls | A1, A2, A3 |
 | #364 | Scheduled live reads act as a designated service principal (re-checked and audited per occurrence) | E1, gap 4 |
 | #365 | The revision's execution mode reaches every Execution; Shadow and Recommendation supported, Autonomous refused until the control gate exists | Prerequisite for E2 to E5 |
+| #366 | Provider command paths recorded as workstream L and gaps 20 to 22 | L1 to L8 |
+| #367 | Control foundation: autonomy policies, control actions, kill switch, the gate (inert until wired) | E2 to E4 |
+| Control wiring (this change) | Autonomous becomes a governed mode: scheduled, materialized, gated; scoped `/control/*` API | E2 to E4, gap 5 groundwork |
 
 ## Workstreams
 
