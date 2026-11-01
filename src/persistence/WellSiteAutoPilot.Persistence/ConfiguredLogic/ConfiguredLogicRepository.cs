@@ -294,6 +294,10 @@ public sealed partial class ConfiguredLogicRepository(
                 .SetProperty(item => item.ActivatedAtUtc, activatedAtUtc), cancellationToken);
         await dbContext.ConfiguredLogicDefinitions.Where(item => item.Id == configuredLogicId)
             .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, revisionId), cancellationToken);
+        await ConfiguredLogicScheduleWriter.ResetOnActivationAsync(
+            dbContext, configuredLogicId, revisionId,
+            target.ScheduleJson is null ? null : JsonSerializer.Deserialize<ConfiguredLogicSchedule>(target.ScheduleJson),
+            actor?.IdentityName ?? "system:configured-logic", activatedAtUtc, cancellationToken);
         Audit(configuredLogicId, revisionId, "CONFIGURED_LOGIC_REVISION_ACTIVATED", actor, activatedAtUtc);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

@@ -88,6 +88,8 @@ public sealed partial class ConfiguredLogicRepository
                         .SetProperty(item => item.ActivatedAtUtc, now), cancellationToken);
                 await dbContext.ConfiguredLogicDefinitions.Where(item => item.Id == definition.Id)
                     .ExecuteUpdateAsync(set => set.SetProperty(item => item.ActiveRevisionId, current.Id), cancellationToken);
+                await ConfiguredLogicScheduleWriter.ResetOnActivationAsync(
+                    dbContext, definition.Id, current.Id, current.Schedule, actor.IdentityName, now, cancellationToken);
             }
             else
             {
