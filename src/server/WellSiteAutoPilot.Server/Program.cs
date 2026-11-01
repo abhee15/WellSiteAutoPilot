@@ -208,6 +208,7 @@ builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<LogicModulePackageService>();
 builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
+builder.Services.AddScoped<ConfiguredLogicScheduleControlService>();
 builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
 {
     ServicePrincipalUserId = builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthority:ServicePrincipalUserId")
@@ -1033,6 +1034,71 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
     .Produces<ConfiguredLogicRevisionResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapGet(
+    "/configured-logic/{configuredLogicId:guid}/schedule",
+    async (Guid configuredLogicId, ConfiguredLogicScheduleControlService schedules, IResourceActionRepository actions,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var view = await schedules.GetAsync(access.Subject, configuredLogicId, cancellationToken);
+        context.Response.Headers.ETag = $"\"{view.Token}\"";
+        return await ToScheduleControlResponseAsync(view, actions, access, cancellationToken);
+    })
+    .WithName("GetConfiguredLogicSchedule")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
+    .Produces<ConfiguredLogicScheduleControlResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/schedule/pause",
+    async (Guid configuredLogicId, ChangeConfiguredLogicScheduleStateRequest request,
+        [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ConfiguredLogicScheduleControlService schedules, IResourceActionRepository actions,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        await ToScheduleControlResponseAsync(
+            await schedules.PauseAsync(access.Subject, access.CreateActor(context), configuredLogicId, ifMatch ?? "",
+                request.Reason, cancellationToken), actions, access, cancellationToken))
+    .WithName("PauseConfiguredLogicSchedule")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ConfiguredLogicScheduleControlResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/configured-logic/{configuredLogicId:guid}/schedule/resume",
+    async (Guid configuredLogicId, ChangeConfiguredLogicScheduleStateRequest request,
+        [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ConfiguredLogicScheduleControlService schedules, IResourceActionRepository actions,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        await ToScheduleControlResponseAsync(
+            await schedules.ResumeAsync(access.Subject, access.CreateActor(context), configuredLogicId, ifMatch ?? "",
+                request.Reason, cancellationToken), actions, access, cancellationToken))
+    .WithName("ResumeConfiguredLogicSchedule")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ConfiguredLogicScheduleControlResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPut(
+    "/configured-logic/{configuredLogicId:guid}/schedule",
+    async (Guid configuredLogicId, ChangeConfiguredLogicScheduleFrequencyRequest request,
+        [Microsoft.AspNetCore.Mvc.FromHeader(Name = "If-Match")] string? ifMatch,
+        ConfiguredLogicScheduleControlService schedules, IResourceActionRepository actions,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        await ToScheduleControlResponseAsync(
+            await schedules.ChangeFrequencyAsync(access.Subject, access.CreateActor(context), configuredLogicId,
+                ifMatch ?? "", request.CadenceSeconds, request.Reason, cancellationToken), actions, access, cancellationToken))
+    .WithName("ChangeConfiguredLogicScheduleFrequency")
+    .NotifiesChange(ChangeArea.ConfiguredLogic)
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ConfiguredLogicScheduleControlResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
@@ -1896,6 +1962,24 @@ static string SearchText(string? text) => text?.Trim() is { Length: >= 1 and <= 
 static T? ParseFilter<T>(string? raw) where T : struct, Enum => raw is null ? null :
     Enum.TryParse<T>(raw, ignoreCase: true, out var value) && Enum.IsDefined(value) ? value :
         throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested status filter is invalid.");
+
+static async Task<ConfiguredLogicScheduleControlResponse> ToScheduleControlResponseAsync(
+    ConfiguredLogicScheduleView view, IResourceActionRepository actions, RequestAccessContext access,
+    CancellationToken cancellationToken)
+{
+    var capability = (await actions.GetConfiguredLogicActionsAsync(access.Subject, [view.ConfiguredLogicId], cancellationToken))
+        .SingleOrDefault();
+    static ConfiguredLogicScheduleResponse? Schedule(ConfiguredLogicSchedule? value) => value is null
+        ? null : new ConfiguredLogicScheduleResponse(value.Enabled, value.CadenceSeconds, value.StartAtUtc, value.TimeZoneId);
+    return new ConfiguredLogicScheduleControlResponse(
+        view.ConfiguredLogicId, view.ActiveRevisionId, view.Token, Schedule(view.Declared), Schedule(view.Effective),
+        view.Live is not null, view.NextRunAtUtc,
+        ConfiguredLogicScheduleControlService.MinimumCadenceSeconds, ConfiguredLogicScheduleControlService.MaximumCadenceSeconds,
+        capability?.CanManage == true,
+        view.Changes.Select(change => new ConfiguredLogicScheduleChangeResponse(
+            change.Id, change.Version, change.Kind.ToContract(), Schedule(change.Schedule)!, change.ChangedBy,
+            change.ChangedAtUtc, change.Reason)).ToArray());
+}
 
 static ConfiguredLogicResponse WithConfigurationActions(
     ConfiguredLogicDefinition item, ConfiguredLogicActions? capability, DateTimeOffset now,

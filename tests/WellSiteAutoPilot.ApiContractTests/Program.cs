@@ -4,11 +4,13 @@ using WellSiteAutoPilot.Api.Contracts.Recommendations;
 using WellSiteAutoPilot.Api.Contracts.Security;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Server.Contracts;
+using ContractConfiguredLogicScheduleChangeKind = WellSiteAutoPilot.Api.Contracts.ConfiguredLogic.ConfiguredLogicScheduleChangeKind;
 using ContractConfiguredLogicRevisionStatus = WellSiteAutoPilot.Api.Contracts.ConfiguredLogic.ConfiguredLogicRevisionStatus;
 using ContractExecutionProfile = WellSiteAutoPilot.Api.Contracts.Logic.ExecutionProfile;
 using ContractLogicModuleTrustStatus = WellSiteAutoPilot.Api.Contracts.Logic.LogicModuleTrustStatus;
 using ContractLogicRuntimeKind = WellSiteAutoPilot.Api.Contracts.Logic.LogicRuntimeKind;
 using ContractPlatformComponentStatus = WellSiteAutoPilot.Api.Contracts.System.PlatformComponentStatus;
+using DomainConfiguredLogicScheduleChangeKind = WellSiteAutoPilot.Domain.ConfiguredLogic.ConfiguredLogicScheduleChangeKind;
 using DomainConfiguredLogicRevisionStatus = WellSiteAutoPilot.Domain.ConfiguredLogic.ConfiguredLogicRevisionStatus;
 using DomainExecutionMode = WellSiteAutoPilot.Domain.Executions.ExecutionMode;
 using DomainExecutionProfile = WellSiteAutoPilot.Domain.Logic.ExecutionProfile;
@@ -42,6 +44,7 @@ Parity<DomainLogicModuleTrustStatus, ContractLogicModuleTrustStatus>(value => va
 Parity<DomainRecommendationStatus, RecommendationStatus>(value => value.ToContract());
 Parity<DomainConfiguredLogicRevisionStatus, ContractConfiguredLogicRevisionStatus>(value => value.ToContract());
 Parity<DomainPlatformComponentStatus, ContractPlatformComponentStatus>(value => value.ToContract());
+Parity<DomainConfiguredLogicScheduleChangeKind, ContractConfiguredLogicScheduleChangeKind>(value => value.ToContract());
 
 // Pinned literals guard the documented wire values themselves.
 ExpectJson(AccessGrantSubjectKind.Group, "\"Group\"");
@@ -59,7 +62,7 @@ foreach (var type in new[]
     typeof(ExecutionStatus), typeof(ExecutionTriggerKind), typeof(ContractLogicRuntimeKind),
     typeof(ContractExecutionProfile), typeof(ContractLogicModuleTrustStatus), typeof(RecommendationStatus),
     typeof(RecommendationDecision), typeof(ContractConfiguredLogicRevisionStatus),
-    typeof(ContractPlatformComponentStatus)
+    typeof(ContractPlatformComponentStatus), typeof(ContractConfiguredLogicScheduleChangeKind)
 })
 {
     var first = Enum.GetNames(type)[0];
