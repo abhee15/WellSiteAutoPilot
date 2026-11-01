@@ -15,7 +15,22 @@ public sealed record CygNetQuantityMapping(string Udc, string Unit);
 /// Only quantities listed in <see cref="Quantities"/> can be read.</summary>
 public sealed record CygNetProviderOptions(
     ushort? Domain,
-    IReadOnlyDictionary<string, CygNetQuantityMapping> Quantities);
+    IReadOnlyDictionary<string, CygNetQuantityMapping> Quantities)
+{
+    /// <summary>
+    /// Starting map using the rod-lift controller UDCs of the CygNet demo and typical RPOC wells. Configuration entries
+    /// replace or add to it; sites whose points differ must override it. MotorAmps has no common UDC, so it is unmapped
+    /// until configured and reads of it fail with CYGNET_QUANTITY_UNSUPPORTED.
+    /// </summary>
+    public static IReadOnlyDictionary<string, CygNetQuantityMapping> DefaultQuantities { get; } =
+        new Dictionary<string, CygNetQuantityMapping>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PumpFillage"] = new("RRLPFILAVG", "%"),
+            ["CasingPressure"] = new("PRCASXIN", "psi"),
+            ["TubingPressure"] = new("PRTUBXIN", "psi"),
+            ["RodLoad"] = new("RRLMXLDDLY", "lbf")
+        };
+}
 
 /// <summary>
 /// Reads current point values from CygNet through the managed CygNet.API assemblies already installed on the host.
@@ -32,6 +47,10 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
 {
     private const int MaximumFacilityTagLength = 128;
     private static readonly TimeSpan ReadBudget = TimeSpan.FromSeconds(10);
+
+    // One realtime client per service for the life of the Gateway, not one per read.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, RealtimeClient> RealtimeClients =
+        new(StringComparer.OrdinalIgnoreCase);
 
     static CygNetCurrentDataProvider() => CygNetAssemblyResolver.Register();
 
@@ -69,7 +88,7 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
             var uis = new DomainSiteService(domain, facility.SiteService);
             var pointTag = new PointTag(facility, mapping.Udc);
 
-            var record = new RealtimeClient(uis).GetPointValueRecord(pointTag)
+            var record = RealtimeClients.GetOrAdd(uis.ToString(), _ => new RealtimeClient(uis)).GetPointValueRecord(pointTag)
                 ?? throw Failure("CYGNET_POINT_NOT_FOUND", FailureKind.DependencyUnavailable,
                     "CygNet returned no value for the point.");
 
