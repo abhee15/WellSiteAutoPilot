@@ -233,12 +233,33 @@ Change frequency (inline panel, opens under the row)
 
 - Pause, Resume and Change frequency show only for people with `configured-logic.manage` on that configuration. Resume uses
   the same confirmation pattern as the kill switch release.
-- The configuration detail shows the same state, "declared by revision N", and a short history of changes.
+- The logic's **Overview** tab (see `logic-details-refinement.md`) shows the same state, the declared schedule from the saved
+  revision, a "Schedule control" block with Pause or Resume and Change frequency, and a collapsed "Schedule changes" list. No new
+  tab and no new page.
 - The asset page's schedule summary (gap 19, part b) later reuses the same component and the same server fields.
+
+### 5.5.1 Fit with the logic details refinement
+
+The logic detail now has Overview, Configuration and Activity sections, built on principles this design must respect:
+
+- **Saved revisions stay immutable; live observations never replace them.** The live schedule is a separate projection beside
+  the revision snapshot, and the screen shows both ("declared by revision N" next to the live value). Pause and cadence changes
+  never create or edit a revision.
+- **Mutation is blocked when the reviewed revision is not the live one**, and while a revision is being edited (tabs are disabled
+  then). The schedule actions follow the same `mutationBlocked` rule, and the server's version check covers the rest.
+- **Reuse, do not duplicate.** Next run is already read from the server's activity projection on the Overview and from the asset
+  logic summary, plus the new `NextRunAtUtc` on the configuration list. Today each calls `ScheduleOccurrences.NextAfter` itself.
+  Before the live state exists they must share one `EffectiveSchedule` resolver (revision schedule plus live state, used by the
+  scheduler too), otherwise a paused schedule would still show a next run in three places.
+- **Progressive disclosure.** The change list is collapsed on the Overview; Activity keeps meaning run history.
+- **Existing components.** ActionButton, Status, the confirmation pattern of the kill switch release, and DetailTabs; no placeholder
+  readiness or verdict is added.
+- The hint "Schedule times are shown in your local time zone" stays; the Schedules tab text "To change a schedule, save a new
+  revision" is replaced when the actions land, because it would then be wrong.
 
 ### 5.6 Delivery
 
-1. Server: state and change tables, scheduler reads the effective schedule, activation resets it, execution snapshot records
+1. Server: state and change tables, one `EffectiveSchedule` resolver used by the scheduler and by every next-run read, activation resets it, execution snapshot records
    the version, `GET` plus pause and resume; tests for the anchor rule, no catch-up burst, activation reset, and de-dupe.
 2. Web: state column, Pause and Resume on the Schedules tab, history in the configuration detail.
 3. Cadence change, with the adapter-minimum field on `AdapterDescriptor` and the floor message.
