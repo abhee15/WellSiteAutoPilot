@@ -7,7 +7,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { formatTimestamp } from '../format';
-import { useHashDetail } from '../routing';
+import { hashFor, useHashDetail } from '../routing';
+import { AdaptersPanel } from './AdaptersPanel';
 import {
   ConnectionsError, connectionStatus, createConnection, deleteConnection, discoverConnection, isDirty, loadAdapters, loadConnections,
   setConnectionEnabled, testConnection, updateConnection,
@@ -44,8 +45,30 @@ function errorMessage(error: unknown): string {
 }
 
 /** Saved ways to reach outside systems. The server and the adapter decide what is valid; this only collects it. */
-export function ConnectionsPage({ canManage }: { canManage: boolean }) {
-  const [selected, setSelected] = useHashDetail('connections');
+export function ConnectionsPage({ canManage, canAuthor = false }: { canManage: boolean; canAuthor?: boolean }) {
+  const [detail, setDetail] = useHashDetail('connections');
+  // `#connections/adapters` (or `adapters:<key>`) opens the Adapters tab; any other detail is a connection id or 'new'.
+  const showAdapters = detail === ADAPTERS_TAB || Boolean(detail?.startsWith(ADAPTERS_TAB + ':'));
+  const tabs = (
+    <div className="split-tabs" role="tablist" aria-label={t('adapters.tabs')}>
+      <a role="tab" href={hashFor('connections')} aria-selected={!showAdapters}>{t('adapters.tabConnections')}</a>
+      <a role="tab" href={hashFor('connections', ADAPTERS_TAB)} aria-selected={showAdapters}>{t('adapters.tab')}</a>
+    </div>
+  );
+  if (showAdapters) {
+    const key = detail && detail.length > ADAPTERS_TAB.length ? detail.slice(ADAPTERS_TAB.length + 1) : null;
+    return <div className="connections-page">{tabs}
+      <AdaptersPanel selectedKey={key} onSelect={next => setDetail(`${ADAPTERS_TAB}:${next}`)} canAuthor={canAuthor} />
+    </div>;
+  }
+  return <div className="connections-page">{tabs}<ConnectionsTab canManage={canManage} selected={detail} setSelected={setDetail} /></div>;
+}
+
+const ADAPTERS_TAB = 'adapters';
+
+function ConnectionsTab({ canManage, selected, setSelected }: {
+  canManage: boolean; selected: string | null; setSelected: (value: string | null) => void;
+}) {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [adaptersFailed, setAdaptersFailed] = useState(false);

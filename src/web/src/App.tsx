@@ -255,7 +255,8 @@ export function App() {
           )}
           {section === 'connections' && canOpenSection(currentUser, section) && (
             <ConnectionsPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
-              canManage={hasPermission(currentUser, 'connections.manage')} />
+              canManage={hasPermission(currentUser, 'connections.manage')}
+              canAuthor={hasPermission(currentUser, 'logic.manage')} />
           )}
           {section === 'status' && canOpenSection(currentUser, section) && (
             <StatusPage key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}

@@ -16,6 +16,22 @@ internal static class ConnectionMapping
         adapter.CanDiscover,
         (adapter.GroupingFields ?? []).Select(field => new DiscoveryFieldResponse(field.Key, field.Label)).ToArray());
 
+    public static AdapterProfileResponse ToResponse(AdapterProfile profile)
+    {
+        var adapter = ToResponse(profile.Adapter);
+        var summary = profile.Connections;
+        return new(adapter.Key, adapter.DisplayName, adapter.Description, adapter.SettingsVersion, adapter.Fields,
+            profile.Adapter.Capabilities.Select(item => new AdapterCapabilityResponse(item.Kind.ToString(), item.Name, item.ContractVersion)).ToArray(),
+            adapter.CanDiscover, adapter.GroupingFields, profile.CanRead, profile.CanWrite, profile.ResourceKind,
+            profile.Quantities.Select(item => new AdapterQuantityResponse(item.Name, item.Label, item.ValueKind, item.Unit,
+                item.TimestampMeaning, item.SchemaId, item.RequiredCapability, item.NeedsMapping)).ToArray(),
+            profile.MinimumCadenceSeconds,
+            profile.Limits.Select(item => new AdapterLimitResponse(item.Key, item.Label, item.Value)).ToArray(),
+            new AdapterConnectionSummaryResponse(summary.Total, summary.Enabled, summary.Healthy, summary.NeedsAttention,
+                summary.Unreachable, summary.NotChecked),
+            profile.Examples.Select(item => new AdapterExampleResponse(item.StarterId, item.Label, item.Description, item.Quantities)).ToArray());
+    }
+
     /// <summary>The summary a person starts from: totals, facets and the first <see cref="ConnectionService.SampleSize"/> objects.</summary>
     public static DiscoveryResponse ToResponse(DiscoverySnapshot snapshot, ImportHierarchyStatus? hierarchy = null) => new(
         snapshot.Result.Complete,

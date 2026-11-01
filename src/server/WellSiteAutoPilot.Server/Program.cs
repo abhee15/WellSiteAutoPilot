@@ -1481,6 +1481,16 @@ v1.MapGet(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
 
 v1.MapGet(
+    "/connections/adapter-profiles",
+    async (ConnectionService connections, CancellationToken cancellationToken) =>
+        AdapterProfiles.Build(await connections.ListAdaptersAsync(cancellationToken), await connections.ListAsync(cancellationToken),
+            WellSiteAutoPilot.Application.Authoring.AuthoringStarters.All).Select(ConnectionMapping.ToResponse).ToArray())
+    .WithName("ListAdapterProfiles")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<AdapterProfileResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapGet(
     "/connections/{connectionId:guid}",
     async (Guid connectionId, ConnectionService connections, CancellationToken cancellationToken) =>
         ConnectionMapping.ToResponse(await connections.GetAsync(connectionId, cancellationToken)))

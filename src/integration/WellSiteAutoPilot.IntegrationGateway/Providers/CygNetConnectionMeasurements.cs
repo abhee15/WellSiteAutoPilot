@@ -7,7 +7,7 @@ namespace WellSiteAutoPilot.IntegrationGateway.Providers;
 /// <summary>Reads one current value for a saved CygNet connection, after the Server has authorized the read plan.</summary>
 public sealed class CygNetConnectionMeasurements(ICygNetClient client)
 {
-    private static readonly TimeSpan Budget = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan Budget = AdapterQuantities.ReadBudget(AdapterReadRules.CygNetKey)!.Value;
 
     public async Task<EngineeringValue> ReadAsync(ConnectionMeasurementRequest request, CancellationToken cancellationToken)
     {

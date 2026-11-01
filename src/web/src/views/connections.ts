@@ -183,6 +183,51 @@ export async function loadAdapters(signal: AbortSignal, fetcher: typeof fetch = 
   return body;
 }
 
+export type AdapterQuantity = {
+  name: string; label: string; valueKind: 'Number' | 'Structured'; unit: string | null; timestampMeaning: string;
+  schemaId: string | null; requiredCapability: string | null; needsMapping: boolean;
+};
+
+/** What one adapter exposes, as the server builds it from the adapter's own declarations. */
+export type AdapterProfile = {
+  key: string; displayName: string; description: string; settingsVersion: number;
+  settings: AdapterField[];
+  capabilities: { kind: string; name: string; contractVersion: string }[];
+  canDiscover: boolean; groupingFields: { key: string; label: string }[];
+  canRead: boolean; canWrite: boolean; resourceKind: string | null;
+  quantities: AdapterQuantity[];
+  minimumCadenceSeconds: number | null;
+  limits: { key: string; label: string; value: string }[];
+  connections: { total: number; enabled: number; healthy: number; needsAttention: number; unreachable: number; notChecked: number };
+  examples: { starterId: string; label: string; description: string; quantities: string[] }[];
+};
+
+const isText = (value: unknown): value is string => typeof value === 'string';
+const isTextOrNull = (value: unknown) => value === null || typeof value === 'string';
+const isCount = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0;
+
+function isAdapterProfile(value: unknown): value is AdapterProfile {
+  if (!isObject(value)) return false;
+  const summary = value.connections;
+  return isAdapter({ ...value, fields: value.settings, capabilities: Array.isArray(value.capabilities) ? value.capabilities.map(item => isObject(item) ? item.name : null) : null }) &&
+    Array.isArray(value.capabilities) && value.capabilities.every(item => isObject(item) && isText(item.kind) && isText(item.contractVersion)) &&
+    typeof value.canRead === 'boolean' && typeof value.canWrite === 'boolean' && isTextOrNull(value.resourceKind) &&
+    Array.isArray(value.quantities) && value.quantities.every(item => isObject(item) && isText(item.name) && isText(item.label) &&
+      (item.valueKind === 'Number' || item.valueKind === 'Structured') && isTextOrNull(item.unit) && isText(item.timestampMeaning) &&
+      isTextOrNull(item.schemaId) && isTextOrNull(item.requiredCapability) && typeof item.needsMapping === 'boolean') &&
+    (value.minimumCadenceSeconds === null || isCount(value.minimumCadenceSeconds)) &&
+    Array.isArray(value.limits) && value.limits.every(item => isObject(item) && isText(item.key) && isText(item.label) && isText(item.value)) &&
+    isObject(summary) && ['total', 'enabled', 'healthy', 'needsAttention', 'unreachable', 'notChecked'].every(key => isCount(summary[key])) &&
+    Array.isArray(value.examples) && value.examples.every(item => isObject(item) && isText(item.starterId) && isText(item.label) &&
+      isText(item.description) && Array.isArray(item.quantities) && item.quantities.every(isText));
+}
+
+export async function loadAdapterProfiles(signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<AdapterProfile[]> {
+  const body = await send('/connections/adapter-profiles', { signal }, fetcher);
+  if (!Array.isArray(body) || !body.every(isAdapterProfile)) throw new ConnectionsError('invalidResponse');
+  return body;
+}
+
 function asConnection(body: unknown): Connection {
   if (!isConnection(body)) throw new ConnectionsError('invalidResponse');
   return body;

@@ -20,7 +20,7 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
             AdapterSettingsValidator.Validate(ForeSiteAdapter.Descriptor, request.Settings).Count != 0)
             throw Failure("FORESITE_CONNECTION_INVALID");
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(TimeSpan.FromSeconds(6));
+        budget.CancelAfter(AdapterQuantities.ReadBudget(AdapterReadRules.ForeSiteKey)!.Value);
         var entry = Acquire(request);
         try
         {
