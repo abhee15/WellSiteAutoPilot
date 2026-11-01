@@ -740,6 +740,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.Property<Guid>("ConfiguredLogicId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AllowApprovedRecommendations")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean");
 
@@ -801,6 +804,13 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Autonomous");
 
                     b.Property<string>("Quantity")
                         .HasMaxLength(256)

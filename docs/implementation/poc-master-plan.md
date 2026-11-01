@@ -15,7 +15,9 @@ Status: Done / In progress / Not started / Probe (a branch exists to answer an u
 | #365 | The revision's execution mode reaches every Execution; Shadow and Recommendation supported, Autonomous refused until the control gate exists | Prerequisite for E2 to E5 |
 | #366 | Provider command paths recorded as workstream L and gaps 20 to 22 | L1 to L8 |
 | #367 | Control foundation: autonomy policies, control actions, kill switch, the gate (inert until wired) | E2 to E4 |
-| Control wiring (this change) | Autonomous becomes a governed mode: scheduled, materialized, gated; scoped `/control/*` API | E2 to E4, gap 5 groundwork |
+| #368 | Autonomous becomes a governed mode: scheduled, materialized, gated; scoped `/control/*` API | E2 to E4, gap 5 groundwork |
+| #369 | Dedicated `control.manage` permission for control writes | gap 6 (backend) |
+| Approved execution (this change) | A person-approved recommendation executes through the gate, opt-in per configuration | gap 5 |
 
 ## Workstreams
 

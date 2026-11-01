@@ -10,6 +10,10 @@ public sealed class AutonomousControlOptions
 
     // Deployment-level master switch. Off unless an operator turns it on in configuration.
     public bool Enabled { get; set; }
+
+    // An approved recommendation describes the plant as it was when the module ran. Executing it later than this
+    // risks acting on stale data, so the gate refuses older ones; a person re-runs the logic instead.
+    public TimeSpan ApprovedRecommendationMaxAge { get; set; } = TimeSpan.FromMinutes(30);
 }
 
 public sealed record ControlDispatchRequest(
@@ -45,7 +49,8 @@ public sealed record ControlClaim(
     string SinkKind,
     int MaxActionsPerWindow,
     int WindowSeconds,
-    DateTimeOffset NowUtc);
+    DateTimeOffset NowUtc,
+    string Origin = ControlOrigins.Autonomous);
 
 public interface IControlRepository
 {
@@ -79,6 +84,18 @@ public interface IControlRepository
     /// </summary>
     Task<bool> RecordBlockedAsync(RecommendationRecord recommendation, string gateCode, string sinkKind,
         DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
+
+    Task<ControlActionRecord?> GetActionAsync(Guid actionId, CancellationToken cancellationToken = default);
+
+    Task<ControlActionRecord?> GetActionByRecommendationAsync(Guid recommendationId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Audit-only refusal of an approved recommendation. The recommendation stays Approved so a person can fix the
+    /// cause (policy, window, kill switch) and execute it again; nothing is dispatched.
+    /// </summary>
+    Task RecordRefusalAsync(RecommendationRecord recommendation, string gateCode, string actor, DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default);
 
     // System read (diagnostics, tests). Never expose this to a request: use ListActionsAuthorizedAsync.
     Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAsync(Guid? configuredLogicId, int limit,

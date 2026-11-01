@@ -338,6 +338,133 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     gateOptions.Enabled = true;
 }
 
+// 6c. A person's approval of a Recommendation-mode recommendation can be executed through the same gate, but only
+// when the configuration opted in, and every other gate check still applies.
+{
+    var limits = new[] { new AutonomyCommandLimit("SetSpeed", "spm", 5m, 12m) };
+
+    async Task<Guid> ApprovedRecommendationAsync(
+        (ConfiguredLogicDefinition Logic, ConfiguredLogicRevision Revision, Asset Well) active, decimal speed, bool approve = true)
+    {
+        var command = await configuredLogicService.PrepareManualShadowAsync(active.Logic.Id, active.Revision.Id);
+        var execution = await executionService.RequestConfiguredShadowAsync(command, $"approved-{Guid.NewGuid():N}");
+        var result = new LogicModuleExecutionResult("APPROVED_TEST_COMPLETED", [], [],
+            [new ControlIntentDraft("SET_PUMPING_SPEED", active.Well.Id, "SetSpeed", "PumpingSpeed", speed, "spm", "OPTIMIZED")],
+            new Dictionary<string, string>());
+        var output = JsonSerializer.Serialize(result, JsonSerializerOptions.Web);
+        await executionRepository.ApplyCompletedAsync(Guid.NewGuid(), $"approved-result-{Guid.NewGuid():N}", execution.Id,
+            clock.GetUtcNow(), clock.GetUtcNow().AddSeconds(1), result.OutcomeCode, output);
+        Require(await materializer.MaterializeAsync(execution.Id, output) == 1, "The approved-path intent was not materialized.");
+        var id = (await recommendationRepository.ListByExecutionAsync(execution.Id)).Single().Id;
+        if (approve)
+            Require(await recommendationRepository.TryDecideAsync(id, RecommendationStatus.Approved, "operator", "ok", clock.GetUtcNow()),
+                "A person could not approve a Recommendation-mode recommendation.");
+        return id;
+    }
+
+    async Task<RecommendationStatus> StatusAsync(Guid id) => (await recommendationRepository.GetAsync(id))!.Status;
+    async Task<bool> RefusalAuditedAsync(Guid id, string code) => await db.AuditEvents.AnyAsync(item =>
+        item.TargetType == "recommendation" && item.TargetId == id.ToString() && item.Action == "control.action.refused" &&
+        item.DetailsJson.Contains(code));
+
+    // Not yet approved: nothing to execute.
+    var logic = await ActiveConfigurationAsync(ExecutionMode.Recommendation, null);
+    var pending = await ApprovedRecommendationAsync(logic, 9m, approve: false);
+    try
+    {
+        await gate.ExecuteApprovedAsync(pending, "operator");
+        throw new InvalidOperationException("An unapproved recommendation was executed.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Conflict)
+    {
+    }
+
+    // The gate's own decisions are not a person's approval, so a blocked Autonomous recommendation is not executable.
+    var autonomousBlocked = (await db.Recommendations.AsNoTracking()
+        .Where(item => item.DecisionBy == "system:autonomy-gate").Select(item => item.Id).FirstAsync());
+    try
+    {
+        await gate.ExecuteApprovedAsync(autonomousBlocked, "operator");
+        throw new InvalidOperationException("A gate decision was executed as an approval.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Conflict)
+    {
+    }
+
+    // Approved, but every gate check still decides; a refusal changes nothing except the audit trail.
+    var approved = await ApprovedRecommendationAsync(logic, 9m);
+    var sentBefore = simulator.Sent.Count;
+    async Task RequireRefusedAsync(Guid id, string code, string why)
+    {
+        var refused = await gate.ExecuteApprovedAsync(id, "operator");
+        Require(refused.Action is null && refused.RefusalCode == code, $"{why}: expected {code}, got {refused.RefusalCode}.");
+        Require(await StatusAsync(id) == RecommendationStatus.Approved && await RefusalAuditedAsync(id, code) &&
+                await controlRepository.GetActionByRecommendationAsync(id) is null && simulator.Sent.Count == sentBefore,
+            $"{why}: a refusal must leave the recommendation Approved, audit it and send nothing.");
+    }
+
+    await RequireRefusedAsync(approved, GateCodes.NoPolicy, "No policy");
+    await gate.SetPolicyAsync(logic.Logic.Id, true, ControlSinkKinds.Simulator, limits, 1, 3600, "admin");
+    await RequireRefusedAsync(approved, GateCodes.ApprovedNotEnabled, "Autonomy policy without approved-execution opt-in");
+    await gate.SetPolicyAsync(logic.Logic.Id, true, ControlSinkKinds.Simulator, limits, 1, 3600, "admin",
+        allowApprovedRecommendations: true);
+    try
+    {
+        await gate.SetKillSwitchAsync(true, "operator", "test");
+        await RequireRefusedAsync(approved, GateCodes.KillSwitch, "Kill switch");
+    }
+    finally
+    {
+        await gate.SetKillSwitchAsync(false, "operator", "test over");
+    }
+
+    gateOptions.Enabled = false;
+    await RequireRefusedAsync(approved, GateCodes.GlobalDisabled, "Deployment switch");
+    gateOptions.Enabled = true;
+
+    var outOfBounds = await ApprovedRecommendationAsync(logic, 50m);
+    await RequireRefusedAsync(outOfBounds, GateCodes.OutOfBounds, "Out-of-bounds value");
+
+    // An approved recommendation older than the staleness limit describes a plant that has moved on.
+    var staleLimit = gateOptions.ApprovedRecommendationMaxAge;
+    clock.Advance(staleLimit + TimeSpan.FromMinutes(1));
+    try
+    {
+        await RequireRefusedAsync(approved, GateCodes.Stale, "Stale approval");
+    }
+    finally
+    {
+        clock.Advance(-(staleLimit + TimeSpan.FromMinutes(1)));
+    }
+
+    // Everything holds: it dispatches once, is attributed to the approval, and a repeat is a no-op.
+    var executed = await gate.ExecuteApprovedAsync(approved, "operator");
+    Require(executed.RefusalCode is null && executed.Action is { Status: ControlActionStatus.Dispatched, Origin: ControlOrigins.ApprovedRecommendation },
+        "An approved recommendation inside its policy did not dispatch.");
+    Require(simulator.Sent.Count == sentBefore + 1 && await StatusAsync(approved) == RecommendationStatus.Executed,
+        "Dispatch must send exactly once and mark the recommendation Executed.");
+    var repeated = await gate.ExecuteApprovedAsync(approved, "operator");
+    Require(repeated.Action?.Id == executed.Action!.Id && simulator.Sent.Count == sentBefore + 1,
+        "Executing the same recommendation twice must not send twice.");
+
+    // The window allows one action: a second approved recommendation is refused, not queued.
+    var second = await ApprovedRecommendationAsync(logic, 10m);
+    var limited = await gate.ExecuteApprovedAsync(second, "operator");
+    Require(limited.RefusalCode == GateCodes.RateLimited && await StatusAsync(second) == RecommendationStatus.Approved,
+        "The rate limit did not apply to approved execution.");
+
+    // A revision change after approval invalidates it.
+    var superseded = await ActiveConfigurationAsync(ExecutionMode.Recommendation, null);
+    await gate.SetPolicyAsync(superseded.Logic.Id, true, ControlSinkKinds.Simulator, limits, 5, 3600, "admin",
+        allowApprovedRecommendations: true);
+    var supersededId = await ApprovedRecommendationAsync(superseded, 9m);
+    await db.ConfiguredLogicRevisions.Where(item => item.Id == superseded.Revision.Id)
+        .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, nameof(ExecutionMode.Shadow)));
+    var wrongMode = await gate.ExecuteApprovedAsync(supersededId, "operator");
+    Require(wrongMode.RefusalCode == GateCodes.NotRecommendationMode,
+        "A recommendation whose revision is no longer in Recommendation mode was executed.");
+}
+
 // 7. The policy itself: undefined values are unsupported, by value and by name, and every predicate agrees.
 foreach (var mode in new[] { ExecutionMode.Shadow, ExecutionMode.Recommendation, ExecutionMode.Autonomous })
     Require(ExecutionModePolicy.IsSupported(mode), $"{mode} must be supported.");
@@ -362,5 +489,9 @@ return 0;
 
 file sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
 {
-    public override DateTimeOffset GetUtcNow() => utcNow.ToUniversalTime();
+    private DateTimeOffset current = utcNow;
+
+    public override DateTimeOffset GetUtcNow() => current.ToUniversalTime();
+
+    public void Advance(TimeSpan by) => current += by;
 }
