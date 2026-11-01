@@ -9,6 +9,7 @@ using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Recommendations;
 using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.Assets.Views;
 using WellSiteAutoPilot.Persistence.Connections;
@@ -41,6 +42,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IExecutionReadRepository, ExecutionRepository>();
         services.AddScoped<IExecutionHistoryReader, ExecutionHistoryReader>();
         services.AddScoped<IConfiguredLogicRepository, ConfiguredLogicRepository>();
+        services.AddScoped<IConfiguredLogicScheduleRepository, ConfiguredLogicScheduleRepository>();
         services.AddScoped<ILogicModuleCatalogRepository, LogicModuleCatalogRepository>();
         services.AddScoped<IModulePackageStateRepository, LogicModuleCatalogRepository>();
         services.AddScoped<ILogicModulePackageRepository, LogicModuleCatalogRepository>();

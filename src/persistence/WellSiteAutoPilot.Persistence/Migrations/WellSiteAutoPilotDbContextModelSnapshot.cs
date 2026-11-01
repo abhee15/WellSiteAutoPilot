@@ -394,6 +394,114 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicScheduleChangeEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BasedOnRevisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CadenceSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("ConfiguredLogicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateTimeOffset>("StartAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConfiguredLogicId", "BasedOnRevisionId", "Version")
+                        .IsUnique();
+
+                    b.HasIndex("ConfiguredLogicId", "ChangedAtUtc");
+
+                    b.ToTable("configured_logic_schedule_changes", "logic", t =>
+                        {
+                            t.HasCheckConstraint("CK_configured_logic_schedule_changes_cadence", "\"CadenceSeconds\" > 0");
+
+                            t.HasCheckConstraint("CK_configured_logic_schedule_changes_version", "\"Version\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicScheduleStateEntity", b =>
+                {
+                    b.Property<Guid>("ConfiguredLogicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BasedOnRevisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CadenceSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateTimeOffset>("StartAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ConfiguredLogicId");
+
+                    b.ToTable("configured_logic_schedule_states", "logic", t =>
+                        {
+                            t.HasCheckConstraint("CK_configured_logic_schedule_states_cadence", "\"CadenceSeconds\" > 0");
+
+                            t.HasCheckConstraint("CK_configured_logic_schedule_states_version", "\"Version\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1580,6 +1688,24 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ViewId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicScheduleChangeEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConfiguredLogicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicScheduleStateEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConfiguredLogicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ImportHierarchyEntity", b =>
