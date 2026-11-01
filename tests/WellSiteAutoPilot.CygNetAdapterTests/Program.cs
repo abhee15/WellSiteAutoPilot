@@ -19,6 +19,16 @@ Expect(new AdapterCatalog().Find("cygnet") == descriptor, "the Gateway catalog l
 Expect(AdapterSettingsValidator.Validate(descriptor, settings).Count == 0, "valid settings pass");
 Expect(AdapterSettingsValidator.Validate(descriptor, new Dictionary<string, string?>()).Count == 2, "domain and site.service are required");
 Expect(AdapterReadRules.Find("cygnet")?.ResourceKind == "cygnet.facility" && AdapterReadRules.Find("nope") is null, "read rules");
+var cygNetRule = AdapterReadRules.Find("cygnet")!;
+Expect(cygNetRule.AllowsCurrentRead("MotorAmps", null, null) && !cygNetRule.AllowsCurrentRead("MotorAmps", "structured.current", null) &&
+    !cygNetRule.AllowsCurrentRead("SurfaceCards", "structured.current", "foresite.surface-cards/v1") && !cygNetRule.AllowsCurrentRead(null, null, null),
+    "CygNet serves only its scalar quantities, with no capability or schema");
+var foreSiteRule = AdapterReadRules.Find("foresite")!;
+Expect(foreSiteRule.AllowsCurrentRead("PumpFillage", null, null) &&
+    foreSiteRule.AllowsCurrentRead("SurfaceCards", "structured.current", "foresite.surface-cards/v1") &&
+    !foreSiteRule.AllowsCurrentRead("SurfaceCards", null, null) && !foreSiteRule.AllowsCurrentRead("SurfaceCards", "structured.current", "other/v1") &&
+    !foreSiteRule.AllowsCurrentRead("MotorAmps", null, null),
+    "ForeSite keeps its scalar fillage reads and the one structured card read");
 
 // Settings parsing
 var connection = CygNetAdapter.ReadConnection(settings, out var problem)!;

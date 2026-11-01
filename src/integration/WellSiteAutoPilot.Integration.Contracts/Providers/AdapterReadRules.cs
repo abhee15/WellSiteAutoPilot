@@ -2,9 +2,25 @@ namespace WellSiteAutoPilot.Integration.Contracts.Providers;
 
 /// <summary>
 /// What an adapter lets the Server read directly from one imported source object: the resource kind its discovery
-/// reports and the scalar current quantities it can serve. The Server asks here instead of knowing each adapter.
+/// reports, the scalar current quantities it can serve and any structured current reads. The Server asks here instead
+/// of knowing each adapter.
 /// </summary>
-public sealed record AdapterReadRule(string AdapterKey, string ResourceKind, IReadOnlySet<string> CurrentQuantities);
+public sealed record AdapterReadRule(
+    string AdapterKey,
+    string ResourceKind,
+    IReadOnlySet<string> CurrentQuantities,
+    IReadOnlyList<StructuredCurrentRead>? StructuredCurrentReads = null)
+{
+    /// <summary>True when a current read of this quantity, with this capability and schema, is one the adapter serves.</summary>
+    public bool AllowsCurrentRead(string? quantity, string? requiredCapability, string? schemaId) =>
+        quantity is not null && (
+            requiredCapability is null && schemaId is null && CurrentQuantities.Contains(quantity) ||
+            StructuredCurrentReads?.Any(read => read.Quantity == quantity && read.RequiredCapability == requiredCapability &&
+                                                read.SchemaId == schemaId) == true);
+}
+
+/// <summary>A structured (non-scalar) current read an adapter serves: the quantity, the capability it needs and its schema.</summary>
+public sealed record StructuredCurrentRead(string Quantity, string RequiredCapability, string SchemaId);
 
 /// <summary>The adapters that can serve direct current reads for saved connections.</summary>
 public static class AdapterReadRules
@@ -21,7 +37,8 @@ public static class AdapterReadRules
 
     private static readonly AdapterReadRule[] Rules =
     [
-        new(ForeSiteKey, "foresite.well", new HashSet<string>(StringComparer.Ordinal) { "PumpFillage", "AveragePumpFillage" }),
+        new(ForeSiteKey, "foresite.well", new HashSet<string>(StringComparer.Ordinal) { "PumpFillage", "AveragePumpFillage" },
+            [new StructuredCurrentRead("SurfaceCards", "structured.current", "foresite.surface-cards/v1")]),
         new(CygNetKey, CygNetResourceKind, CygNetQuantities)
     ];
 

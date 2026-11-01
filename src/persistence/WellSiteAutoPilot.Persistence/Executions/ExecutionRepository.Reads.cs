@@ -41,10 +41,7 @@ public sealed partial class ExecutionRepository
                 if (bindings.Length != 1 || bindings[0].ConnectionId != connectionId ||
                     bindings[0].ResourceKind != rule.ResourceKind || bindings[0].ExternalId != input.ProviderAssetExternalId)
                     throw ReadFailure("EXECUTION_READ_SOURCE_INVALID");
-                if (input.Access != "Current" ||
-                    !(rule.CurrentQuantities.Contains(input.Quantity) && input.RequiredCapability is null && input.SchemaId is null ||
-                                          rule.AdapterKey == AdapterReadRules.ForeSiteKey && input.Quantity == "SurfaceCards" && input.RequiredCapability == "structured.current" &&
-                      input.SchemaId == "foresite.surface-cards/v1"))
+                if (input.Access != "Current" || !rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, input.SchemaId))
                     throw ReadFailure("EXECUTION_READ_QUANTITY_UNSUPPORTED");
                 using var mapping = JsonDocument.Parse(input.ProviderMappingJson);
                 if (mapping.RootElement.ValueKind != JsonValueKind.Object || mapping.RootElement.EnumerateObject().Any())
