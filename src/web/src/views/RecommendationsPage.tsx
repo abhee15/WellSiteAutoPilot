@@ -7,6 +7,8 @@ import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { RecommendationInboxControls } from './RecommendationInboxControls';
 import { RecommendationDecisionReviewPanel } from './RecommendationDecisionReviewPanel';
+import { ControlExecutionPanel } from './ControlExecutionPanel';
+import { CONTROL_MANAGE_PERMISSION, outcomeMessageKey, recommendationIsExecutable } from './controlExecution';
 import {
   DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
   fetchRecommendationInbox,
@@ -37,6 +39,7 @@ export function RecommendationInboxTable({
   items,
   nowUtc,
   onReview,
+  onExecute,
   selectedId,
   assetNames,
   onClearFilters,
@@ -46,6 +49,8 @@ export function RecommendationInboxTable({
   items: readonly RecommendationSummaryResponse[];
   nowUtc: number;
   onReview?: (recommendationId: string) => void;
+  /** Offered for approved recommendations a person may send through the control gate. */
+  onExecute?: (recommendationId: string) => void;
   /** The recommendation open for review beside the table, marked in its row. */
   selectedId?: string | null;
   /** Asset names by id, when the assets are loaded; the id alone is shown otherwise. */
@@ -63,19 +68,21 @@ export function RecommendationInboxTable({
             <th scope="col" className="run-col-secondary">{t('inbox.reason')}</th>
             <th scope="col" className="run-col-secondary">{t('inbox.timing')}</th>
             <th scope="col" className="run-col-secondary">{t('inbox.review')}</th>
-            {onReview && <th scope="col">{t('decision.action')}</th>}
+            {(onReview || onExecute) && <th scope="col">{t('decision.action')}</th>}
           </tr>
         </thead>
         <tbody>
           {items.map(item => {
             const reviewable = Boolean(onReview && item.id && item.canDecide === true && recommendationIsAwaiting(item, nowUtc));
+            const executable = Boolean(onExecute && item.id && recommendationIsExecutable(item, nowUtc, true));
             return (
             <tr key={item.id} data-selected={Boolean(selectedId) && selectedId === item.id}
-              data-reviewable={reviewable || undefined}
+              data-reviewable={reviewable || executable || undefined}
               onClick={event => {
                 // The row is a convenience; the Review button stays the keyboard and screen-reader route.
-                if (!reviewable || (event.target as HTMLElement).closest('button, a')) return;
-                onReview?.(item.id!);
+                if ((!reviewable && !executable) || (event.target as HTMLElement).closest('button, a')) return;
+                if (reviewable) onReview?.(item.id!);
+                else onExecute?.(item.id!);
               }}>
               <td>
                 {item.status ? <Status value={item.status} tone={recommendationIsAwaiting(item, nowUtc) ? 'warning' : undefined} /> : '—'}
@@ -104,10 +111,12 @@ export function RecommendationInboxTable({
                 <strong>{item.decisionBy ?? '—'}</strong>
                 <small>{formatDetailTimestamp(item.decisionAtUtc)}</small>
               </td>
-              {onReview && (
+              {(onReview || onExecute) && (
                 <td>
                   {reviewable ? (
-                    <ActionButton label={t('decision.open')} onClick={() => onReview(item.id!)} />
+                    <ActionButton label={t('decision.open')} onClick={() => onReview?.(item.id!)} />
+                  ) : executable ? (
+                    <ActionButton label={t('control.execute.open')} onClick={() => onExecute?.(item.id!)} />
                   ) : '—'}
                 </td>
               )}
@@ -115,7 +124,7 @@ export function RecommendationInboxTable({
             );
           })}
           {items.length === 0 && (
-            <EmptyRow columns={onReview ? 8 : 7}
+            <EmptyRow columns={onReview || onExecute ? 8 : 7}
               action={onClearFilters ? <ActionButton label={t('views.clearFilters')} onClick={onClearFilters} /> : undefined}>
               {t('inbox.noMatches')}
             </EmptyRow>
@@ -154,6 +163,7 @@ export function RecommendationsPage({
   const [selectedReviewId, setSelectedReviewId] = useHashDetail('recommendations');
   const [reviewNotice, setReviewNotice] = useState<string | null>(null);
   const canDecide = Boolean(userId && permissions?.includes('recommendations.decide'));
+  const canExecute = Boolean(userId && permissions?.includes(CONTROL_MANAGE_PERMISSION));
   const activeRefresh = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
@@ -207,13 +217,18 @@ export function RecommendationsPage({
   const nowUtc = Date.now();
   const selectedRecommendation = items.find(item => item.id === selectedReviewId && item.canDecide === true);
   useEffect(() => {
-    if (lastUpdated && selectedReviewId && (!canDecide || !selectedRecommendation ||
-      !recommendationIsAwaiting(selectedRecommendation, Date.now()))) {
+    // A recommendation open beside the list closes once it can no longer be reviewed or executed by this person.
+    const stillActionable = Boolean(selectedRecommendation && (
+      (canDecide && recommendationIsAwaiting(selectedRecommendation, Date.now())) ||
+      recommendationIsExecutable(selectedRecommendation, Date.now(), canExecute)));
+    if (lastUpdated && selectedReviewId && !stillActionable) {
       setSelectedReviewId(null);
-      setReviewNotice(t(canDecide ? 'decision.outdated' : 'decision.accessDenied'));
+      setReviewNotice(t(canDecide || canExecute ? 'decision.outdated' : 'decision.accessDenied'));
     }
-  }, [lastUpdated, selectedReviewId, selectedRecommendation, canDecide, setSelectedReviewId]);
-  const reviewOpen = Boolean(canDecide && selectedRecommendation && recommendationIsAwaiting(selectedRecommendation, nowUtc));
+  }, [lastUpdated, selectedReviewId, selectedRecommendation, canDecide, canExecute, setSelectedReviewId]);
+  const reviewing = Boolean(canDecide && selectedRecommendation && recommendationIsAwaiting(selectedRecommendation, nowUtc));
+  const executing = Boolean(selectedRecommendation && recommendationIsExecutable(selectedRecommendation, nowUtc, canExecute));
+  const reviewOpen = reviewing || executing;
   const splitFocus = useSplitPaneFocus(reviewOpen ? selectedRecommendation?.id ?? null : null);
   const counts = inboxCounts(items, nowUtc);
   const visible = useMemo(
@@ -252,7 +267,7 @@ export function RecommendationsPage({
           </div>
         </div>
         <p className="recommendation-readonly-note">
-          {canDecide ? t('decision.governanceNotice') : t('inbox.readOnly')}
+          {canExecute ? t('control.execute.pageNotice') : canDecide ? t('decision.governanceNotice') : t('inbox.readOnly')}
         </p>
         <RecommendationInboxControls
           criteria={criteria}
@@ -274,12 +289,16 @@ export function RecommendationsPage({
             onReview={canDecide ? recommendationId => {
               setSelectedReviewId(recommendationId);
               setReviewNotice(null);
+            } : undefined}
+            onExecute={canExecute ? recommendationId => {
+              setSelectedReviewId(recommendationId);
+              setReviewNotice(null);
             } : undefined} />
         )}
       </section>
       <div className="split-selected">
         <ActionButton label={t('inbox.backToList')} className="split-back" onClick={() => setSelectedReviewId(null)} />
-        {canDecide && selectedRecommendation && reviewOpen && (
+        {reviewing && selectedRecommendation && (
             <RecommendationDecisionReviewPanel
               key={JSON.stringify(selectedRecommendation)}
               item={selectedRecommendation}
@@ -294,6 +313,26 @@ export function RecommendationsPage({
               onConflict={() => {
                 setSelectedReviewId(null);
                 setReviewNotice(t('decision.conflict'));
+                void refresh();
+              }}
+            />
+          )}
+        {executing && selectedRecommendation && (
+            <ControlExecutionPanel
+              key={JSON.stringify(selectedRecommendation)}
+              item={selectedRecommendation}
+              assetName={assetNames.get(selectedRecommendation.assetId ?? '')}
+              configuredLogic={configuredLogic}
+              onCancel={() => setSelectedReviewId(null)}
+              onExecuted={action => {
+                const outcome = outcomeMessageKey(action.status);
+                setSelectedReviewId(null);
+                setReviewNotice(t('control.execute.done', { outcome: outcome ? t(outcome) : action.status ?? '' }));
+                void refresh();
+              }}
+              onConflict={() => {
+                setSelectedReviewId(null);
+                setReviewNotice(t('control.execute.conflict'));
                 void refresh();
               }}
             />
