@@ -6,7 +6,6 @@ import type {
   AssetCreationCapabilitiesResponse,
   AssetResponse,
   AssetTypeResponse,
-  ConfiguredLogicResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { EmptyRow } from '../components/common';
@@ -47,7 +46,6 @@ export function AssetsPage({
   capabilities,
   onRefresh,
   isLoaded = true,
-  configuredLogic = [],
   permissions = [],
 }: {
   assetTypes: AssetTypeResponse[];
@@ -56,7 +54,6 @@ export function AssetsPage({
   capabilities: AssetCreationCapabilitiesResponse | null;
   onRefresh: () => Promise<void>;
   isLoaded?: boolean;
-  configuredLogic?: ConfiguredLogicResponse[];
   permissions?: readonly string[];
 }) {
   const [detail, setDetail] = useHashDetail('assets');
@@ -353,7 +350,7 @@ export function AssetsPage({
                 asset={selectedAuthorized}
                 assets={nearby}
                 typeName={typeNames.get(selectedAuthorized.assetTypeId) ?? selectedAuthorized.assetTypeId ?? t('assets.unknownType')}
-                configuredLogic={configuredLogic}
+                canReadLogic={permissions.includes('configured-logic.read')}
                 canReadRuns={permissions.includes('executions.read')}
                 canConfigureLogic={permissions.includes('configured-logic.manage') && permissions.includes('configured-logic.read')}
                 canReadRecommendations={permissions.includes('recommendations.read')}

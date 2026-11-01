@@ -1,6 +1,6 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useEffect, useMemo, useState } from 'react';
-import { useForgetVanishedSelection, useHashDetail } from '../routing';
+import { useHashDetail } from '../routing';
 import type {
   AssetResponse, ConfiguredLogicResponse, ExecutionResponse,
 } from '../api/generated/v1/types.gen';
@@ -17,8 +17,18 @@ import { DEFAULT_OPERATIONS_VIEW, filterOperations, showsOnly, toggleOnly } from
 import { ActionButton } from '../components/ActionButton';
 import type { OperationsViewCriteria } from './operationsViews';
 import './splitLayout.css';
+import { parseRunHistory } from './assetActivity';
+import { AssetRunHistory } from './AssetRunHistory';
 
-export function OperationsPage({
+export function OperationsPage(props: Parameters<typeof RecentOperationsPage>[0]) {
+  const [detail] = useHashDetail('operations');
+  const scope = parseRunHistory(detail);
+  if (scope) return <AssetRunHistory key={`${scope.assetId}:${scope.logicId}:${scope.runId}`} {...scope}
+    assets={props.assets ?? []} configuredLogic={props.configuredLogic ?? []} />;
+  return <RecentOperationsPage {...props} />;
+}
+
+function RecentOperationsPage({
   executions,
   userId,
   isLoaded = true,
@@ -45,10 +55,10 @@ export function OperationsPage({
   }, [canReadConnections]);
   const [viewCriteria, setViewCriteria] = useState<OperationsViewCriteria>(DEFAULT_OPERATIONS_VIEW);
   const [selectedExecutionId, setSelectedExecutionId] = useHashDetail('operations');
-  const selectedIdStillAuthorized = selectedExecutionId !== null &&
-    executions.some(execution => execution.executionId === selectedExecutionId);
-  useForgetVanishedSelection(selectedExecutionId, selectedIdStillAuthorized, () => setSelectedExecutionId(null));
-  const splitFocus = useSplitPaneFocus(selectedIdStillAuthorized ? selectedExecutionId : null);
+  // The global snapshot is bounded: the detail endpoint remains the authorization authority
+  // when a selected run ages out of that snapshot.
+  const hasSelection = selectedExecutionId !== null;
+  const splitFocus = useSplitPaneFocus(hasSelection ? selectedExecutionId : null);
   const visibleExecutions = useMemo(
     () => filterOperations(executions, viewCriteria, row => {
       const context = describeRunContext(row, configuredLogic, assets);
@@ -90,7 +100,7 @@ export function OperationsPage({
         />
       </section>
 
-      <div {...splitFocus} className="split-layout runs-layout operations-layout" data-has-selection={selectedIdStillAuthorized}>
+      <div {...splitFocus} className="split-layout runs-layout operations-layout" data-has-selection={hasSelection}>
       <div className="split-panes">
       <section className="panel split-browse">
         <PanelHeader title="Recent executions" count={visibleExecutions.length} />
@@ -117,7 +127,7 @@ export function OperationsPage({
               {visibleExecutions.map(execution => {
                 const context = describeRunContext(execution, configuredLogic, assets);
                 return (
-                <tr key={execution.executionId} data-selected={selectedIdStillAuthorized && selectedExecutionId === execution.executionId}
+                <tr key={execution.executionId} data-selected={hasSelection && selectedExecutionId === execution.executionId}
                   onClick={event => {
                     // The row is a convenience; the asset name button stays the keyboard and screen-reader route.
                     if ((event.target as HTMLElement).closest('button, a')) return;
@@ -131,11 +141,11 @@ export function OperationsPage({
                       className="row-link"
                       type="button"
                       disabled={!execution.executionId}
-                      aria-controls={selectedIdStillAuthorized &&
+                      aria-controls={hasSelection &&
                         selectedExecutionId === execution.executionId
                           ? 'execution-details'
                           : undefined}
-                      aria-expanded={selectedIdStillAuthorized &&
+                      aria-expanded={hasSelection &&
                         selectedExecutionId === execution.executionId}
                       aria-label={t('execution.inspectFor', {
                         id: shortId(execution.executionId),

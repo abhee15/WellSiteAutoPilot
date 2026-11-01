@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { ActionButton } from '../components/ActionButton';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CloseButton } from '../components/CloseButton';
 import type {
   AssetResponse,
-  ConfiguredLogicResponse,
-  ExecutionResponse,
-  RecommendationSummaryResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
@@ -12,29 +10,27 @@ import { hashFor } from '../routing';
 import { statusLabel } from '../words';
 import { Status } from '../components/Status';
 import {
-  assetAncestors, assetChildren, fetchAssetRecommendations, fetchAssetRuns, logicOnAsset,
+  assetAncestors, assetChildren,
 } from './assetPage';
 import { fetchAssetSource } from './assetBrowseApi';
 import type { AssetSource } from './assetBrowseApi';
 import './assetPage.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 
-type Activity = {
-  runs: ExecutionResponse[];
-  recommendations: RecommendationSummaryResponse[];
-  state: 'loading' | 'ready' | 'unavailable';
-};
+import { AssetLogicCard, AssetRunPreview } from './AssetLogicCard';
+import { fetchAssetLogic, fetchAssetRecommendations, LOGIC_PAGE_SIZE } from './assetActivity';
+import { useLiveResource } from './useLiveResource';
 
 /** One asset explained in words: where it sits, what is on it, what it has done. */
 export function AssetDetail({
-  asset, assets, typeName, configuredLogic, canReadRuns, canReadRecommendations, canConfigureLogic, onSelect, onClose,
+  asset, assets, typeName, canReadLogic = true, canReadRuns, canReadRecommendations, canConfigureLogic, onSelect, onClose,
   owner = null, canOpenConnection = false,
 }: {
   asset: AssetResponse;
   assets: readonly AssetResponse[];
   typeName: string;
-  configuredLogic: readonly ConfiguredLogicResponse[];
   canConfigureLogic?: boolean;
+  canReadLogic?: boolean;
   canReadRuns: boolean;
   canReadRecommendations: boolean;
   onSelect: (assetId: string) => void;
@@ -48,7 +44,12 @@ export function AssetDetail({
   const children = assetChildren(assets, assetId);
   // The path starts at the owning Connection, so equally named Assets in two Connections stay distinguishable.
   const where = [...(owner && owner.connectionId !== null ? [owner.name] : []), ...ancestors.map(a => a.name ?? '—')];
-  const logic = logicOnAsset(configuredLogic, assetId);
+  const [offset, setOffset] = useState(0);
+  const loadLogic = useCallback((signal: AbortSignal) => fetchAssetLogic(assetId, offset, signal), [assetId, offset]);
+  const logic = useLiveResource(`${assetId}:${offset}`, loadLogic, ['configured-logic', 'assets', 'executions']);
+  const operational = logic.data?.isGroupingNode === false;
+  const loadRecommendations = useCallback((signal: AbortSignal) => fetchAssetRecommendations(assetId, signal), [assetId]);
+  const recommendations = useLiveResource(assetId, loadRecommendations, ['recommendations'], canReadRecommendations && operational);
   const [source, setSource] = useState<AssetSource | null>(null);
   const importedFromConnection = owner !== null && owner.connectionId !== null;
   useEffect(() => {
@@ -59,22 +60,6 @@ export function AssetDetail({
       .catch(() => { /* provenance is extra detail; the page works without it */ });
     return () => controller.abort();
   }, [assetId, importedFromConnection]);
-  const [activity, setActivity] = useState<Activity>({ runs: [], recommendations: [], state: 'loading' });
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setActivity({ runs: [], recommendations: [], state: 'loading' });
-    Promise.all([
-      canReadRuns ? fetchAssetRuns(assetId, controller.signal) : Promise.resolve([]),
-      canReadRecommendations ? fetchAssetRecommendations(assetId, controller.signal) : Promise.resolve([]),
-    ]).then(([runs, recommendations]) => {
-      if (!controller.signal.aborted) setActivity({ runs, recommendations, state: 'ready' });
-    }).catch(() => {
-      if (!controller.signal.aborted) setActivity({ runs: [], recommendations: [], state: 'unavailable' });
-    });
-    return () => controller.abort();
-  }, [assetId, canReadRuns, canReadRecommendations]);
-
   const pageRef = useRef<HTMLDivElement>(null);
   // Selecting a row must visibly open the page; it sits below the grid and may be off screen.
   useEffect(() => {
@@ -83,7 +68,7 @@ export function AssetDetail({
   }, [assetId]);
 
   return (
-    <div className="asset-page" aria-live="polite" ref={pageRef}>
+    <div className="asset-page" ref={pageRef}>
       <header className="asset-page-header">
         <div>
           <p className="eyebrow">{t('assets.selected')}</p>
@@ -96,11 +81,6 @@ export function AssetDetail({
               {t('assetOwner.ownedBy')}{' '}
               {canOpenConnection ? <a href={hashFor('connections', owner.connectionId)}>{owner.name}</a> : owner.name}</>}
           </p>}
-          {source && <p className="asset-page-meta">
-            {t('assetPage.source', { kind: source.resourceKind })} <code>{source.externalId}</code>
-            {source.importedAtUtc && <> · {t('assetPage.importedAt', { time: formatTimestamp(source.importedAtUtc) })}</>}
-          </p>}
-          <p className="asset-page-meta"><code>{assetId}</code></p>
           <p className="asset-page-meta">
             {where.length === 0 ? t('assetPage.topLevel')
               : t('assetPage.locatedUnder', { path: where.join(' › ') })}
@@ -109,7 +89,16 @@ export function AssetDetail({
         <CloseButton label={t('assets.clearSelection')} onClick={onClose} />
       </header>
 
-      <section aria-label={t('assetPage.contains')}>
+      <details className="asset-technical">
+        <summary>{t('assetDetail.technical')}</summary>
+        <p className="asset-page-meta">{t('assetDetail.id')}: <code>{assetId}</code></p>
+        {source && <p className="asset-page-meta">
+          {t('assetPage.source', { kind: source.resourceKind })} <code>{source.externalId}</code>
+          {source.importedAtUtc && <> · {t('assetPage.importedAt', { time: formatTimestamp(source.importedAtUtc) })}</>}
+        </p>}
+      </details>
+
+      {(children.length > 0 || logic.data?.isGroupingNode) && <section aria-label={t('assetPage.contains')}>
         <h4>{t('assetPage.contains')}</h4>
         {children.length === 0 ? <p className="asset-page-empty">{t('assetPage.noChildren')}</p> : (
           <ul className="asset-page-list">
@@ -121,45 +110,34 @@ export function AssetDetail({
             ))}
           </ul>
         )}
-      </section>
-
-      <section aria-label={t('assetPage.logicHere')}>
-        <h4>{t('assetPage.logicHere')}</h4>
-        {logic.length === 0 ? <p className="asset-page-empty">{t('assetPage.noLogic')}</p> : (
-          <ul className="asset-page-list">
-            {logic.map(item => (
-              <li key={item.id}>
-                <a href={hashFor('logic', item.id)}>{item.name}</a>
-              </li>
-            ))}
-          </ul>
-        )}
-        {canConfigureLogic && asset.isActive && <a className="secondary-button" href={hashFor('logic', 'new:' + assetId)}>
-          {t('assetPage.putLogic')}</a>}
-      </section>
-
-      {canReadRuns && <section aria-label={t('assetPage.runs')}>
-        <h4>{t('assetPage.runs')}</h4>
-        {activity.state === 'loading' && <LoadingIndicator label={t('assetPage.loading')} />}
-        {activity.state === 'unavailable' && <p role="alert" className="asset-page-empty">{t('assetPage.activityUnavailable')}</p>}
-        {activity.state === 'ready' && (activity.runs.length === 0
-          ? <p className="asset-page-empty">{t('assetPage.noRuns')}</p>
-          : <ul className="asset-page-list">
-            {activity.runs.map(run => (
-              <li key={run.executionId}>
-                <a href={hashFor('operations', run.executionId)}>{formatTimestamp(run.requestedAtUtc)}</a>
-                <small>{statusLabel(run.status)}</small>
-              </li>
-            ))}
-          </ul>)}
       </section>}
 
-      {canReadRecommendations && <section aria-label={t('assetPage.recommendations')}>
+      {logic.loading && <LoadingIndicator label={t('assetPage.loading')} />}
+      {logic.failed && <p role="status" className="asset-page-empty">{t('assetDetail.logicUnavailable')} <button type="button" className="row-link" onClick={logic.refresh}>{t('assetDetail.retry')}</button></p>}
+      {operational && canReadLogic && <section aria-label={t('assetPage.logicHere')}>
+        <h4>{t('assetDetail.logicAndRuns')}</h4>
+        <p className="asset-page-meta">{t('assetDetail.scheduleHint')}</p>
+        {logic.data?.items?.length === 0 && <p className="asset-page-empty">{t('assetPage.noLogic')}</p>}
+        <div className="asset-logic-list">
+          {logic.data?.items?.map(item => <AssetLogicCard key={item.configuration?.id} item={item} assetId={assetId} canReadRuns={canReadRuns} />)}
+        </div>
+        <div className="asset-detail-actions">
+          {offset > 0 && <ActionButton onClick={() => setOffset(Math.max(0, offset - LOGIC_PAGE_SIZE))} label={t('assetDetail.previousLogic')} />}
+          {logic.data?.hasMore && <ActionButton onClick={() => setOffset(offset + LOGIC_PAGE_SIZE)} label={t('assetDetail.moreLogic')} />}
+          {canConfigureLogic && asset.isActive && <a className="secondary-button" href={hashFor('logic', 'new:' + assetId)}>{t('assetPage.putLogic')}</a>}
+        </div>
+      </section>}
+
+      {operational && canReadRuns && (!canReadLogic || (offset === 0 && logic.data?.items?.length === 0)) && <AssetRunPreview assetId={assetId} />}
+
+      {canReadRecommendations && operational && <section aria-label={t('assetPage.recommendations')}>
         <h4>{t('assetPage.recommendations')}</h4>
-        {activity.state === 'ready' && (activity.recommendations.length === 0
+        {recommendations.loading && <LoadingIndicator label={t('assetPage.loading')} />}
+        {recommendations.failed && <p role="status" className="asset-page-empty">{t('assetDetail.recommendationsUnavailable')} <button type="button" className="row-link" onClick={recommendations.refresh}>{t('assetDetail.retry')}</button></p>}
+        {recommendations.data && (recommendations.data.length === 0
           ? <p className="asset-page-empty">{t('assetPage.noRecommendations')}</p>
           : <ul className="asset-page-list">
-            {activity.recommendations.map(item => (
+            {recommendations.data.map(item => (
               <li key={item.id}>
                 <a href={hashFor('recommendations', item.id)}>{item.command ?? item.code ?? '—'}</a>
                 <small>{statusLabel(item.status)} · {formatTimestamp(item.createdAtUtc)}</small>

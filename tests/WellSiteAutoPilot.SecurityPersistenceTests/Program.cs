@@ -629,6 +629,7 @@ await AuthorizedExecutionReadChecks.RunAsync(options, assetType.Id);
 await AuthorizedExecutionReadChecks.RunAsync(options, assetType.Id, structured: true);
 await GrantBootstrapChecks.RunAsync(connectionString);
 await AuthorizedConfigurationReadChecks.RunAsync(options, assetType.Id);
+await AssetDetailReadChecks.RunAsync(options, assetType.Id);
 await AuthorizedConfigurationDraftChecks.RunAsync(options, assetType.Id);
 await AuthorizedRecommendationChecks.RunAsync(options, assetType.Id);
 

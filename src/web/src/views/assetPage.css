@@ -13,3 +13,16 @@
 
 /* The "Put logic on this asset" link sits below the list, not on top of it. */
 .asset-page section > .secondary-button { display: inline-block; margin-top: var(--space-10); }
+
+.asset-page { min-width: 0; overflow-wrap: anywhere; }
+.asset-page-header > div { min-width: 0; }
+.asset-technical summary { cursor: pointer; color: var(--color-text-subtle); }
+.asset-logic-list { display: grid; gap: var(--space-12); margin-top: var(--space-12); }
+.asset-logic-card { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); padding: var(--space-12); min-width: 0; }
+.asset-logic-card > header, .asset-logic-runs-heading, .asset-detail-actions { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-10); flex-wrap: wrap; }
+.asset-logic-name { font-weight: var(--font-weight-bold); }
+.asset-schedule { margin: var(--space-10) 0; }
+.asset-logic-runs { border-top: var(--border-width-thin) solid var(--color-border-subtle); padding-top: var(--space-10); }
+.asset-logic-runs-heading { margin-bottom: var(--space-10); }
+.asset-logic-runs-heading :is(h4, h5) { margin: 0; font-size: inherit; }
+.asset-detail-actions { justify-content: flex-start; margin-top: var(--space-12); }

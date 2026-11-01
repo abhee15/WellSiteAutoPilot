@@ -16,6 +16,7 @@ function signIn(permissions: string[]) {
     url === '/api/v1/security/me' ? { userId, identityName: 'FIELD\\x', isActive: true, roles: [], permissions, assetScopeIds: [] }
       : url.startsWith('/api/v1/asset-types') ? [{ id: typeId, key: 'well', displayName: 'Well', attributeSchemaJson: '{}', isActive: true }]
         : url.startsWith('/api/v1/assets/capabilities') ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false }
+          : url.startsWith(`/api/v1/assets/${assetId}/logic?`) ? { isGroupingNode: false, items: [], hasMore: false }
           : url.startsWith('/api/v1/assets?') || url === '/api/v1/assets' ? [{ id: assetId, assetTypeId: typeId, name: 'Well 101', isActive: true }]
             : url.startsWith('/api/v1/logic-modules') ? [{ id: 'm', moduleId: 'sample', version: '1.0.0', displayName: 'Sample logic',
               isEnabled: true, manifestJson: JSON.stringify(manifest) }]
@@ -26,7 +27,7 @@ it('offers "Put logic on this asset" only to someone who can configure logic', a
   window.location.hash = '#assets/' + assetId;
   signIn(['assets.read']);
   render(<App />);
-  await screen.findByText('Logic on this asset');
+  await screen.findByText('Selected asset');
   expect(screen.queryByRole('link', { name: 'Put logic on this asset' })).toBeNull();
   cleanup();
   signIn(['assets.read', 'configured-logic.read', 'configured-logic.manage']);

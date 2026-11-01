@@ -604,7 +604,7 @@ public sealed partial class ExecutionRepository(
         OutputJson = execution.OutputJson
     };
 
-    private static ExecutionRecord ToDomain(ExecutionEntity entity) => new(
+    internal static ExecutionRecord ToDomain(ExecutionEntity entity) => new(
         entity.Id,
         entity.LogicInstanceId,
         entity.ModuleId,

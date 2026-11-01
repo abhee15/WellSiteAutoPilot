@@ -1034,6 +1034,48 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
+// Bounded asset-detail projection. Each permission is still paired with its own Asset scope in SQL.
+v1.MapGet(
+    "/assets/{assetId:guid}/logic",
+    async (Guid assetId, int? offset, int? limit, IAssetDetailReader details,
+        RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
+    {
+        var grouping = await details.IsGroupingNodeAuthorizedAsync(access.Subject, assetId, cancellationToken)
+            ?? throw new WellSiteAutoPilotException("ASSET_NOT_FOUND", FailureKind.NotFound, "Asset not found.");
+        var size = PageLimit(limit ?? 5);
+        var skip = PageOffset(offset);
+        if (grouping) return new AssetLogicPageResponse(true, [], false);
+        var items = await details.ListLogicAuthorizedAsync(access.Subject, assetId, skip, size + 1, cancellationToken);
+        var now = clock.GetUtcNow();
+        return new AssetLogicPageResponse(false, items.Take(size).Select(item =>
+        {
+            var active = item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId);
+            var next = active?.Schedule is { } schedule && active.AssetBindings.Any(binding => binding.AssetId == assetId)
+                ? ScheduleOccurrences.NextAfter(schedule, now) : null;
+            return new AssetLogicSummaryResponse(ToConfiguredLogicResponse(item), next);
+        }).ToArray(), items.Count > size);
+    })
+    .WithName("GetAssetLogicSummary")
+    .RequireAuthorization(WellSitePolicies.AssetsRead)
+    .Produces<AssetLogicPageResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet(
+    "/executions/history",
+    async (Guid assetId, Guid configuredLogicId, Guid? after, int? limit, IAssetDetailReader details,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+    {
+        var size = PageLimit(limit ?? 25);
+        var items = await details.ListHistoryAuthorizedAsync(access.Subject, assetId, configuredLogicId, after, size + 1, cancellationToken);
+        var page = items.Take(size).ToArray();
+        return new AssetRunHistoryResponse(page.Select(ToResponse).ToArray(), items.Count > size ? page[^1].Id : null);
+    })
+    .WithName("GetAssetRunHistory")
+    .RequireAuthorization(WellSitePolicies.ExecutionsRead)
+    .Produces<AssetRunHistoryResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+
 v1.MapGet(
     "/executions",
     async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, IExecutionRepository executions,
