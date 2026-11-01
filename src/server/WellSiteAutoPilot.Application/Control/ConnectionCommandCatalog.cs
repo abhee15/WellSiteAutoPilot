@@ -200,3 +200,33 @@ public static class ConnectionCommandCatalogRules
         }
     }
 }
+
+/// <summary>A connection's catalog as stored: <see cref="Version"/> is what the next change must quote.</summary>
+public sealed record ConnectionCommandCatalog(
+    Guid ConnectionId,
+    int Version,
+    string ChangedBy,
+    DateTimeOffset ChangedAtUtc,
+    string? Reason,
+    IReadOnlyList<ConnectionCommandCatalogEntry> Entries);
+
+public static class ConnectionCommandCatalogFailureCodes
+{
+    public const string Invalid = "COMMAND_CATALOG_INVALID";
+    public const string Stale = "COMMAND_CATALOG_STALE";
+}
+
+public interface IConnectionCommandCatalogRepository
+{
+    /// <summary>Null when no catalog was ever saved for the connection, which permits no command at all.</summary>
+    Task<ConnectionCommandCatalog?> FindAsync(Guid connectionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces the whole catalog if <paramref name="expectedVersion"/> is the stored version (0 when none is stored).
+    /// The change, the catalog it produced and an audit event are written together. Needs both control.manage and
+    /// connections.manage. The caller has already checked the entries against the adapter's definitions.
+    /// </summary>
+    Task<ConnectionCommandCatalog> ReplaceAuthorizedAsync(
+        Guid connectionId, int expectedVersion, IReadOnlyCollection<ConnectionCommandCatalogEntry> entries, string? reason,
+        Security.AccessSubject subject, Security.SecurityActorContext actor, CancellationToken cancellationToken = default);
+}

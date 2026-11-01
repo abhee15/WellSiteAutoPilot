@@ -35,6 +35,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IAssetDetailReader, AssetDetailReader>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
+        services.AddScoped<IConnectionCommandCatalogRepository, ConnectionCommandCatalogRepository>();
         services.AddScoped<IAssetViewRepository, AssetViewRepository>();
         services.AddScoped<IConnectionImportRepository, ConnectionImportRepository>();
         services.AddScoped<ISourceChangeRepository, SourceChangeRepository>();

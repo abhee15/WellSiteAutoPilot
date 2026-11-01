@@ -18,6 +18,9 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<AssetTypeEntity> AssetTypes => Set<AssetTypeEntity>();
     public DbSet<ConnectionEntity> Connections => Set<ConnectionEntity>();
+    public DbSet<ConnectionCommandCatalogEntity> ConnectionCommandCatalogs => Set<ConnectionCommandCatalogEntity>();
+    public DbSet<ConnectionCommandCatalogEntryEntity> ConnectionCommandCatalogEntries => Set<ConnectionCommandCatalogEntryEntity>();
+    public DbSet<ConnectionCommandCatalogChangeEntity> ConnectionCommandCatalogChanges => Set<ConnectionCommandCatalogChangeEntity>();
     public DbSet<AssetViewMemberEntity> AssetViewMembers => Set<AssetViewMemberEntity>();
     public DbSet<AssetViewEntity> AssetViews => Set<AssetViewEntity>();
     public DbSet<SourceCheckEntity> SourceChecks => Set<SourceCheckEntity>();
@@ -337,6 +340,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
 
         var recommendation = modelBuilder.Entity<RecommendationEntity>();
         ConfiguredLogicScheduleModelConfiguration.Configure(modelBuilder);
+        ConnectionCommandCatalogModelConfiguration.Configure(modelBuilder);
         WellSiteAutoPilot.Persistence.Control.ControlModelConfiguration.Configure(modelBuilder);
         recommendation.ToTable("recommendations", "operations");
         recommendation.HasKey(x => x.Id);
