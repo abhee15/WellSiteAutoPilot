@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Read-only probe of CygNet relative facility definitions. Not in the solution; needs CYGNET_LIBRARY_PATH. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <CygNetLibraryPath Condition="'$(CygNetLibraryPath)' == ''">$(CYGNET_LIBRARY_PATH)</CygNetLibraryPath>
+    <NoWarn>$(NoWarn);CA1416;NU1701</NoWarn>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Configuration.ConfigurationManager" VersionOverride="10.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="CygNet.API.Core"><HintPath>$(CygNetLibraryPath)\CygNet.API.Core.dll</HintPath></Reference>
+    <Reference Include="CygNet.Core"><HintPath>$(CygNetLibraryPath)\CygNet.Core.dll</HintPath></Reference>
+    <Reference Include="CygNet.COMAPI"><HintPath>$(CygNetLibraryPath)\CygNet.COMAPI.dll</HintPath></Reference>
+    <Reference Include="CygNet.API.Points"><HintPath>$(CygNetLibraryPath)\CygNet.API.Points.dll</HintPath></Reference>
+    <Reference Include="CygNet.API.Facilities"><HintPath>$(CygNetLibraryPath)\CygNet.API.Facilities.dll</HintPath></Reference>
+    <Reference Include="CygNet.Data.Core"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Core.dll</HintPath></Reference>
+    <Reference Include="CygNet.Data.Points"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Points.dll</HintPath></Reference>
+    <Reference Include="CygNet.Data.Facilities"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Facilities.dll</HintPath></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(CygNetLibraryPath)\*64.dll" CopyToOutputDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
