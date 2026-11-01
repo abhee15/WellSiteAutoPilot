@@ -718,6 +718,7 @@ export const englishMessages = {
   'schedules.logic': 'Logic',
   'schedules.frequency': 'Frequency',
   'schedules.nextRun': 'Next run',
+  'schedules.dueNow': 'Due now',
   'schedules.assets': 'Assets',
   'schedules.mode': 'Mode',
   'schedules.lastRun': 'Last run',

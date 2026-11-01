@@ -903,12 +903,13 @@ v1.MapPost(
 v1.MapGet(
     "/configured-logic",
     async (int? limit, IConfiguredLogicRepository configurations, IResourceActionRepository actions,
-        RequestAccessContext access, CancellationToken cancellationToken) =>
+        RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
     {
         var items = await configurations.ListAuthorizedAsync(access.Subject, PageLimit(limit ?? 100), cancellationToken);
         var capabilities = (await actions.GetConfiguredLogicActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
-        return items.Select(item => WithConfigurationActions(item, capabilities.GetValueOrDefault(item.Id))).ToArray();
+        var now = clock.GetUtcNow();
+        return items.Select(item => WithConfigurationActions(item, capabilities.GetValueOrDefault(item.Id), now)).ToArray();
     })
     .WithName("ListConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -918,11 +919,11 @@ v1.MapGet(
 v1.MapGet(
     "/configured-logic/{configuredLogicId:guid}",
     async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IResourceActionRepository actions,
-        RequestAccessContext access, CancellationToken cancellationToken) =>
+        RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
     {
         var item = RequireFound(await configurations.GetAuthorizedAsync(access.Subject, configuredLogicId, cancellationToken), "CONFIGURED_LOGIC_NOT_FOUND");
         var capability = (await actions.GetConfiguredLogicActionsAsync(access.Subject, [item.Id], cancellationToken)).SingleOrDefault();
-        return WithConfigurationActions(item, capability);
+        return WithConfigurationActions(item, capability, clock.GetUtcNow());
     })
     .WithName("GetConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -1875,8 +1876,16 @@ static T? ParseFilter<T>(string? raw) where T : struct, Enum => raw is null ? nu
     Enum.TryParse<T>(raw, ignoreCase: true, out var value) && Enum.IsDefined(value) ? value :
         throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested status filter is invalid.");
 
-static ConfiguredLogicResponse WithConfigurationActions(ConfiguredLogicDefinition item, ConfiguredLogicActions? capability) =>
-    ToConfiguredLogicResponse(item) with { CanManage = capability?.CanManage == true, CanRequestShadow = capability?.CanRequestShadow == true };
+static ConfiguredLogicResponse WithConfigurationActions(
+    ConfiguredLogicDefinition item, ConfiguredLogicActions? capability, DateTimeOffset now) =>
+    ToConfiguredLogicResponse(item) with
+    {
+        CanManage = capability?.CanManage == true,
+        CanRequestShadow = capability?.CanRequestShadow == true,
+        // One implementation of the cadence, shared with dispatch: the browser no longer recomputes it from its own clock.
+        NextRunAtUtc = item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId)?.Schedule is { } schedule
+            ? ScheduleOccurrences.NextAfter(schedule, now) : null,
+    };
 
 static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>
     new(grant.Id, grant.SubjectKind.ToContract(), grant.UserId,

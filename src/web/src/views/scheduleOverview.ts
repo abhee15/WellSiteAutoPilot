@@ -22,30 +22,11 @@ export type ScheduleOverview = {
   unscheduledCount: number;
 };
 
-/**
- * The next time a schedule is due after `nowMs`. This mirrors the server's ScheduleOccurrences.NextAfter (cadence
- * counted from the start time, never earlier than the start), so the overview agrees with the asset page.
- */
-export function nextScheduledAt(
-  schedule: { enabled?: boolean; cadenceSeconds?: number | null; startAtUtc?: string | null },
-  nowMs: number,
-): number | null {
-  const cadence = schedule.cadenceSeconds;
-  const start = Date.parse(schedule.startAtUtc ?? '');
-  if (!schedule.enabled || typeof cadence !== 'number' || !Number.isFinite(cadence) || cadence <= 0 ||
-      !Number.isFinite(start) || !Number.isFinite(nowMs)) return null;
-  if (start > nowMs) return start;
-  const cadenceMs = cadence * 1000;
-  const next = start + (Math.floor((nowMs - start) / cadenceMs) + 1) * cadenceMs;
-  return Number.isFinite(next) ? next : null;
-}
-
-/** Every configuration whose live revision has a schedule, with when it runs next and how its last run went. */
+/** Every configuration whose live revision has a schedule, with when the server says it is due next and how its last run went. */
 export function buildScheduleOverview(
   configurations: readonly ConfiguredLogicResponse[],
   assets: readonly AssetResponse[],
   executions: readonly Pick<ExecutionResponse, 'logicInstanceId' | 'requestedAtUtc' | 'status'>[],
-  nowMs: number,
 ): ScheduleOverview {
   const lastRuns = latestRunByConfiguration(executions);
   const rows: ScheduleRow[] = [];
@@ -57,7 +38,9 @@ export function buildScheduleOverview(
       unscheduledCount++;
       continue;
     }
-    const next = nextScheduledAt(schedule, nowMs);
+    // The server counts the cadence once, with the same code dispatch uses; a value it cannot give is shown as none.
+    const nextText = configuration.nextRunAtUtc;
+    const next = typeof nextText === 'string' && Number.isFinite(Date.parse(nextText)) ? Date.parse(nextText) : null;
     rows.push({
       id: configuration.id,
       name: configuration.name ?? '',

@@ -270,7 +270,7 @@ Open points for discussion: whether Resume should offer "run once now" (manual S
 | --- | --- | --- |
 | 1 | Status filter, oldest-first with age, capability on the response, Overview item (sections 1 and 2) — done | none |
 | 2 | Policy duplicate check on the server (section 3) — done | none |
-| 3 | Server-provided next and last run (section 6) | decision on exposing run status |
+| 3 | Server-provided next run — done; last run still needs the decision on exposing run status (section 6) | decision on exposing run status |
 | 4 | Pause and resume (section 5.6 steps 1 and 2) | review of 5.3 |
 | 5 | Manifest `controlCommands` and the policy editor using it (section 3) | contract owners' review of the shape |
 | 6 | Cadence change with adapter minimums (section 5.6 step 3) | none after step 4 |
