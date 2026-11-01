@@ -40,9 +40,16 @@ public sealed class ExecutionService(
         return execution;
     }
 
+    public Task<ExecutionRecord> RequestConfiguredShadowAsync(
+        ConfiguredShadowExecutionCommand command,
+        string correlationId,
+        CancellationToken cancellationToken = default) =>
+        RequestConfiguredShadowAsync(command, correlationId, null, cancellationToken);
+
     public async Task<ExecutionRecord> RequestConfiguredShadowAsync(
         ConfiguredShadowExecutionCommand command,
         string correlationId,
+        WellSiteAutoPilot.Application.Security.AccessSubject? readSubject,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -55,6 +62,7 @@ public sealed class ExecutionService(
         return await repository.AddConfiguredRequestedAsync(
             execution,
             normalized,
+            readSubject,
             cancellationToken);
     }
 

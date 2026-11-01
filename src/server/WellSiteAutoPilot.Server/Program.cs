@@ -208,6 +208,12 @@ builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<LogicModulePackageService>();
 builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
+builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
+{
+    ServicePrincipalUserId = builder.Configuration.GetValue<Guid?>("Scheduler:ReadAuthority:ServicePrincipalUserId")
+});
+builder.Services.AddScoped<IDelegatedAuthorityAuditWriter, WellSiteAutoPilot.Persistence.Scheduling.DelegatedAuthorityAuditWriter>();
+builder.Services.AddScoped<IScheduledReadAuthorityProvider, ScheduledReadAuthorityProvider>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
 builder.Services.AddScoped<RecommendationMaterializer>();
 builder.Services.AddScoped<RecommendationDecisionService>();

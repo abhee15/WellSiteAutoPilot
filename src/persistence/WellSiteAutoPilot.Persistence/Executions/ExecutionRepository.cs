@@ -83,9 +83,14 @@ public sealed partial class ExecutionRepository(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public Task<ExecutionRecord> AddConfiguredRequestedAsync(ExecutionRecord execution,
+        ConfiguredShadowExecutionCommand command, CancellationToken cancellationToken = default) =>
+        AddConfiguredRequestedAsync(execution, command, null, cancellationToken);
+
     public async Task<ExecutionRecord> AddConfiguredRequestedAsync(
         ExecutionRecord execution,
         ConfiguredShadowExecutionCommand command,
+        AccessSubject? readSubject,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(execution);
@@ -103,7 +108,7 @@ public sealed partial class ExecutionRepository(
             throw new WellSiteAutoPilotException("EXECUTION_ASSET_OVERLAP", FailureKind.Conflict,
                 "A configured execution is already pending or running.");
         await RequireEnabledViewConnectionAsync(command.ConfigurationRevisionId, cancellationToken);
-        execution = await StageConfiguredRequestAsync(execution, command, cancellationToken);
+        execution = await StageConfiguredRequestAsync(execution, command, cancellationToken, readSubject);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return execution;

@@ -39,9 +39,17 @@ Implementation status after #289–#295 and the package-readiness slice:
 - Direct-user read authority expires after five minutes. Windows group proof
   retains its original one-minute lifetime; persistence never refreshes it. A
   delayed request needs a fresh authenticated Shadow request.
-- Scheduled live reads require an explicit service-account authorization design;
-  they fail closed when no trusted subject exists. Existing simulator scheduling
-  remains supported. This is not a fabricated user/group identity.
+- Scheduled live reads act as one designated service principal, an ordinary
+  security user named by `Scheduler:ReadAuthority:ServicePrincipalUserId`. Its
+  scoped paired grants bound what schedules may read; there is no ambient
+  authority and no fabricated user/group identity. With none configured, live
+  reads fail closed (`EXECUTION_READ_AUTHORITY_REQUIRED`) and the occurrence is
+  recorded as an invalid configuration with that reason. Each occurrence
+  re-resolves the principal: a missing or deactivated user refuses it
+  (`SCHEDULER_READ_AUTHORITY_REVOKED`), and the refusal and every use are audited
+  (`scheduler.delegation.refused` / `.used`, actor `service-principal:<id>`).
+  Grants are re-checked when the read plan is pinned and again when it is
+  resolved. Existing simulator scheduling remains supported.
 - V3 input Source metadata is additive. V1/V2 simulator behavior is retained.
   Connection-backed Assets cannot opt into the simulator path. Unpinned packages,
   unsupported providers/quantities/mappings are rejected for live reads.

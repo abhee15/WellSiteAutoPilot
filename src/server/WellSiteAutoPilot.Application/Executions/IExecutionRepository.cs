@@ -26,6 +26,14 @@ public interface IExecutionRepository
     Task<ExecutionRecord> AddConfiguredRequestedAsync(
         ExecutionRecord execution,
         ConfiguredShadowExecutionCommand command,
+        CancellationToken cancellationToken = default) =>
+        AddConfiguredRequestedAsync(execution, command, null, cancellationToken);
+
+    /// <summary>Scheduled dispatch passes the configured read authority; null means no live read may be pinned.</summary>
+    Task<ExecutionRecord> AddConfiguredRequestedAsync(
+        ExecutionRecord execution,
+        ConfiguredShadowExecutionCommand command,
+        WellSiteAutoPilot.Application.Security.AccessSubject? readSubject,
         CancellationToken cancellationToken = default);
 
     Task<ExecutionRecord> AddManualConfiguredRequestedAsync(ExecutionRecord execution,
