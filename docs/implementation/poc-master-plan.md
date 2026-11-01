@@ -75,7 +75,7 @@ Status: Done / In progress / Not started / Probe (a branch exists to answer an u
 | E3 | P1 | `control.manage` permission and policy editing UI | Permission done; UI in progress |
 | E4 | P1 | Readback and ambiguous-dispatch resolution | Done (code), UI controls in progress |
 | E5 | P1 | Simulator command HTTP endpoint and sink | Built, unverified |
-| E6 | P1 | `ExecutionDispatchTests` with NATS | Not started |
+| E6 | P1 | `ExecutionDispatchTests` with NATS | Done: runs in CI ("Execution outbox to JetStream integration"), green on `develop` |
 | E7 | P2 | Real sink readiness: what a real write to CygNet/ForeSite needs (interlocks, setpoint bounds, change windows, operator confirmation, rollback) | Probe `probe/poc-autonomous-real-sink-readiness` |
 | E8 | P2 | Recommendation lifecycle: expiry, supersede, de-duplication, notifications | Not started |
 | E9 | P2 | Mode promotion rules (Shadow to Recommendation to Autonomous) with evidence thresholds | Design |
@@ -221,5 +221,5 @@ Findings from the last probes and the items they add:
 | L4 | P1 | Authoring: AppContainer fails at process creation here (Win32 203), Job-object mode is the baseline; database draft store and migration unverified; live preview untested against live providers |
 | L5 | P1 | Real-time: no worker progress producer, groups not asset-scoped, notifications client-only, no backplane; not tested against the AppHost |
 | L6 | P1 | Adapters: WAMI not registered as an adapter; no adapter declares a minimum schedule; adapter profile endpoint and tab have no tests (`docs/design/adapter-experience.md`) |
-| L7 | P1 | Modes: web policy editor, `ExecutionDispatchTests` with NATS, and simulator HTTP sink tests are unfinished or unverified |
+| L7 | P1 | Modes: web policy editor and simulator HTTP sink tests are unfinished or unverified |
 | L8 | P2 | Real sink: ForeSite `SendSetPointsParamsForSingleWell` is the recommended write path; CygNet point-write API unconfirmed; dry-run outcome shows as Dispatched (`docs/design/autonomous-real-sink-readiness.md`) |
