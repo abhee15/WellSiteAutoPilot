@@ -36,3 +36,11 @@
 .filter-toolbar-saved .data-saved-view-fields { margin-top: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-field-narrow)), 1fr)); }
 .filter-toolbar-saved .data-view-note, .filter-toolbar-saved .data-view-notice { margin: 0; }
 .filter-toolbar-saved > summary { cursor: pointer; color: var(--color-text-subtle); font-size: var(--font-size-body-small); }
+
+/* Asset browsing opts in. Keep compact controls above scrolling rows on an opaque surface.
+   Expanded filters scroll normally so short panes and saved-view forms remain reachable. */
+@media (width > 56.25em) {
+  .filter-toolbar[data-sticky]:not(:has(.filter-toolbar-toggle[aria-expanded='true'])) {
+    position: sticky; top: 0; z-index: 1; background: var(--color-surface-panel);
+  }
+}

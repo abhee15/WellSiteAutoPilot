@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { ActionButton } from './ActionButton';
@@ -27,6 +27,8 @@ type FilterToolbarProps = {
   /** Makes the toolbar a form, so Enter applies the typed filters. */
   onSubmit?: () => void;
   className?: string;
+  /** Pin the collapsed toolbar in its parent scroll pane on desktop; expanded filters stay in normal flow. */
+  sticky?: boolean;
 };
 
 /**
@@ -35,18 +37,29 @@ type FilterToolbarProps = {
  * the search takes the full row and the Filters panel stacks its fields.
  */
 export function FilterToolbar({ label, search, children, chips = [], isFiltered = false, onClear, note, trailing, onSubmit,
-  className = '' }: FilterToolbarProps) {
+  className = '', sticky = false }: FilterToolbarProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const root = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && root.current?.contains(document.activeElement)) setOpen(false);
+      if (event.key === 'Escape' && root.current?.contains(document.activeElement)) {
+        setOpen(false);
+        root.current.querySelector<HTMLButtonElement>('.filter-toolbar-toggle')?.focus({ preventScroll: true });
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!sticky || !open) return;
+    // Only the toolbar's own pane moves. Tall filter and saved-view forms stay reachable in normal flow,
+    // without adding another scroll region or moving the selected Asset details.
+    const pane = root.current?.parentElement;
+    if (pane && pane.scrollHeight > pane.clientHeight) pane.scrollTop = 0;
+  }, [sticky, open]);
 
   const body = <>
     <div className="filter-toolbar-row">
@@ -74,8 +87,8 @@ export function FilterToolbar({ label, search, children, chips = [], isFiltered 
     </div>}
   </>;
   const classes = `filter-toolbar ${className}`.trim();
-  if (!onSubmit) return <section className={classes} role="group" aria-label={label} ref={root as React.RefObject<HTMLElement>}>{body}</section>;
-  return <form className={classes} aria-label={label} ref={root as React.RefObject<HTMLFormElement>}
+  if (!onSubmit) return <section className={classes} data-sticky={sticky || undefined} role="group" aria-label={label} ref={root as React.RefObject<HTMLElement>}>{body}</section>;
+  return <form className={classes} data-sticky={sticky || undefined} aria-label={label} ref={root as React.RefObject<HTMLFormElement>}
     onSubmit={(event: FormEvent) => { event.preventDefault(); onSubmit(); }}>{body}</form>;
 }
 

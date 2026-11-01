@@ -89,7 +89,7 @@ export function AssetInventoryControls({
   ].filter((chip): chip is FilterChip => chip !== false);
   const isFiltered = criteria.search !== D.search || chips.length > 0 || criteria.sort !== D.sort;
   return (
-    <FilterToolbar label={t('assets.controls')}
+    <FilterToolbar sticky label={t('assets.controls')}
       search={{ value: criteria.search, label: t('assets.search'), placeholder: t('assets.searchPlaceholder'),
         onChange: search => modify({ ...criteria, search }) }}
       chips={chips} isFiltered={isFiltered} onClear={() => modify({ ...D })}
