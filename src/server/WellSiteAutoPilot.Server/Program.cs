@@ -1109,10 +1109,15 @@ v1.MapPost(
 v1.MapPost(
     "/configured-logic/{configuredLogicId:guid}/revisions/{revisionId:guid}/shadow",
     async (Guid configuredLogicId, Guid revisionId, RequestConfiguredShadowRequest request,
-        ManualShadowRequestService requests, RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ManualShadowRequestService requests, RequestAccessContext access, HttpContext context,
+        IChangeEventPublisher events, CancellationToken cancellationToken) =>
     {
+        var actor = access.CreateActor(context);
         var receipt = await requests.RequestAuthorizedAsync(configuredLogicId, revisionId, request.RequestId,
-            access.Subject, access.CreateActor(context), cancellationToken);
+            access.Subject, actor, cancellationToken);
+        events.Publish(new ChangeEventDraft(ChangeArea.Executions, ChangeEventNames.Execution, receipt.ExecutionId,
+            ChangeEventNames.Requested, actor.IdentityName, null,
+            new Dictionary<string, string?> { ["status"] = "Requested" }));
         return Results.Ok(new ConfiguredShadowReceiptResponse(receipt.ExecutionId, receipt.ConfiguredLogicId,
             receipt.ConfigurationRevisionId, receipt.ContractVersion, receipt.Mode.ToContract(), receipt.Trigger.ToContract()));
     })
@@ -1490,11 +1495,15 @@ v1.MapGet(
 v1.MapPost(
     "/recommendations/{recommendationId:guid}/decision",
     async (Guid recommendationId, RecommendationDecisionRequest request, IRecommendationRepository recommendations,
-        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        RequestAccessContext access, HttpContext context, IChangeEventPublisher events, CancellationToken cancellationToken) =>
     {
         var decision = request.Decision.ToDomain();
+        var actor = access.CreateActor(context);
         var item = await recommendations.DecideAuthorizedAsync(access.Subject, recommendationId, decision,
-            access.CreateActor(context), request.Reason, cancellationToken);
+            actor, request.Reason, cancellationToken);
+        events.Publish(new ChangeEventDraft(ChangeArea.Recommendations, ChangeEventNames.Recommendation, item.Id,
+            ChangeEventNames.Decided, actor.IdentityName, null,
+            new Dictionary<string, string?> { ["status"] = item.Status.ToString() }));
         return new RecommendationDecisionResponse(item.Id, item.Status.ToContract(), item.DecisionBy, item.DecisionAtUtc, item.DecisionReason);
     })
     .WithName("DecideRecommendation")

@@ -1,0 +1,84 @@
+.notification-center {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.notification-count {
+  position: absolute;
+  top: calc(var(--space-4) * -1);
+  right: calc(var(--space-4) * -1);
+  min-width: var(--space-18);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-control);
+  text-align: center;
+  pointer-events: none;
+}
+
+.notification-list,
+.notification-toast {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  width: min(var(--size-notification-width), 90vw);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-panel);
+  box-shadow: var(--shadow-popover);
+}
+
+.notification-list {
+  top: calc(100% + var(--space-8));
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border-radius: var(--space-8);
+}
+
+.notification-list ul {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.notification-list li[data-severity='critical'] svg { color: var(--color-text-status-error); }
+.notification-list li[data-severity='warning'] svg { color: var(--color-text-status-warning); }
+.notification-list li[data-severity='info'] svg { color: var(--color-text-status-info); }
+
+.notification-empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.notification-toast-region {
+  position: absolute;
+  top: calc(100% + var(--space-8));
+  right: 0;
+}
+
+.notification-toast {
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-10) var(--space-14);
+  border-radius: var(--space-8);
+}
+
+.notification-toast[data-severity='critical'] { border-color: var(--color-border-status-error); background: var(--color-surface-status-error); }
+.notification-toast[data-severity='warning'] { border-color: var(--color-border-status-warning); background: var(--color-surface-status-warning); }

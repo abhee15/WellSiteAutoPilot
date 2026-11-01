@@ -11,6 +11,7 @@ SecurityActorFactoryChecks.Run();
 RequestAccessContextChecks.Run();
 await GrantPermissionChecks.RunAsync();
 await ChangeSignalChecks.RunAsync();
+await ChangeEventChecks.RunAsync();
 await GrantIdentityMiddlewareChecks.RunAsync();
 
 var windows = new ConfiguredPrincipalResolver(

@@ -9,6 +9,7 @@ using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Control;
 using WellSiteAutoPilot.Application.Recommendations;
+using WellSiteAutoPilot.Domain.Recommendations;
 using WellSiteAutoPilot.Messaging.Contracts;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.Messaging.Nats;
@@ -21,6 +22,7 @@ public sealed partial class ExecutionResultV2Consumer(
     INatsConnection connection,
     JetStreamConsumerSettings consumerSettings,
     IChangeNotifier changes,
+    IChangeEventPublisher events,
     ILogger<ExecutionResultV2Consumer> logger) : BackgroundService
 {
     public const string ConsumerName = "wsa-server-execution-results-v2";
@@ -92,6 +94,7 @@ public sealed partial class ExecutionResultV2Consumer(
                 await repository.ApplyStartedAsync(envelope.MessageId, ConsumerName,
                     envelope.Payload.ExecutionId, envelope.Payload.StartedAtUtc, cancellationToken);
                 changes.Notify(ChangeArea.Executions);
+                PublishExecution(envelope.Payload.ExecutionId, ChangeEventNames.Started, envelope.CorrelationId, "Running");
             }
             else if (string.Equals(
                     message.Subject,
@@ -116,7 +119,7 @@ public sealed partial class ExecutionResultV2Consumer(
                     envelope.Payload.OutputJson,
                     cancellationToken);
                 ObserveResult(disposition, envelope.Payload.ExecutionId,
-                    envelope.MessageId, "Completed");
+                    envelope.MessageId, "Completed", envelope.CorrelationId);
 
                 // Only the canonical Completed outcome may emit recommendations.
                 // A retry of the same message must be able to recover a
@@ -146,6 +149,9 @@ public sealed partial class ExecutionResultV2Consumer(
                     if (created > 0)
                     {
                         changes.Notify(ChangeArea.Recommendations);
+                        var recommendations = scope.ServiceProvider.GetRequiredService<IRecommendationRepository>();
+                        await PublishRecommendationsAsync(recommendations, envelope.Payload.ExecutionId,
+                            ChangeEventNames.Created, envelope.CorrelationId, cancellationToken);
                         var gate = scope.ServiceProvider
                             .GetRequiredService<AutonomousControlService>();
                         // No-op for non-Autonomous executions; Autonomous intents go through the gate only.
@@ -153,6 +159,8 @@ public sealed partial class ExecutionResultV2Consumer(
                             envelope.Payload.ExecutionId, cancellationToken);
                         changes.Notify(ChangeArea.Recommendations);
                         changes.Notify(ChangeArea.Control);
+                        await PublishRecommendationsAsync(recommendations, envelope.Payload.ExecutionId,
+                            ChangeEventNames.Decided, envelope.CorrelationId, cancellationToken);
                     }
                 }
             }
@@ -179,7 +187,7 @@ public sealed partial class ExecutionResultV2Consumer(
                     envelope.Payload.InputDiagnostics is null ? null : JsonSerializer.Serialize(envelope.Payload.InputDiagnostics, SerializerOptions),
                     cancellationToken);
                 ObserveResult(disposition, envelope.Payload.ExecutionId,
-                    envelope.MessageId, "Failed");
+                    envelope.MessageId, "Failed", envelope.CorrelationId, envelope.Payload.FailureCode);
             }
             else
             {
@@ -192,16 +200,53 @@ public sealed partial class ExecutionResultV2Consumer(
     }
 
     private void ObserveResult(ExecutionResultDisposition disposition,
-        Guid executionId, Guid messageId, string incomingStatus)
+        Guid executionId, Guid messageId, string incomingStatus, string correlationId, string? code = null)
     {
         ExecutionResultDiagnostics.Record(disposition, "v2", incomingStatus);
         // The repository call that produced this disposition has already committed.
-        if (disposition == ExecutionResultDisposition.Applied) changes.Notify(ChangeArea.Executions);
+        if (disposition == ExecutionResultDisposition.Applied)
+        {
+            changes.Notify(ChangeArea.Executions);
+            PublishExecution(executionId, incomingStatus == "Failed" ? ChangeEventNames.Failed : ChangeEventNames.Completed,
+                correlationId, incomingStatus, code);
+        }
         if (disposition == ExecutionResultDisposition.ConflictingTerminalResult)
         {
             LogTerminalConflict(logger, executionId, messageId, incomingStatus);
         }
     }
+
+    // "created" announces every item of the execution; "decided" only those the control gate already settled.
+    private async Task PublishRecommendationsAsync(IRecommendationRepository recommendations, Guid executionId,
+        string kind, string correlationId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (var item in await recommendations.ListByExecutionAsync(executionId, cancellationToken))
+            {
+                var undecided = item.Status is RecommendationStatus.Created or RecommendationStatus.Pending;
+                if (kind == ChangeEventNames.Decided && undecided) continue;
+                events.Publish(new ChangeEventDraft(ChangeArea.Recommendations, ChangeEventNames.Recommendation,
+                    item.Id, kind, null, correlationId,
+                    new Dictionary<string, string?> { ["status"] = item.Status.ToString() }));
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Events are best effort; the area signal already told clients to read again.
+            LogEventLookupFailed(logger, exception, executionId);
+        }
+    }
+
+    private void PublishExecution(Guid executionId, string kind, string correlationId, string status, string? code = null) =>
+        events.Publish(new ChangeEventDraft(ChangeArea.Executions, ChangeEventNames.Execution, executionId, kind,
+            null, correlationId, new Dictionary<string, string?> { ["status"] = status, ["code"] = code }));
+
+    [LoggerMessage(
+        EventId = 2212,
+        Level = LogLevel.Warning,
+        Message = "Recommendation events for Execution {ExecutionId} could not be published; clients read the area instead.")]
+    private static partial void LogEventLookupFailed(ILogger logger, Exception exception, Guid executionId);
 
     [LoggerMessage(
         EventId = 2211,

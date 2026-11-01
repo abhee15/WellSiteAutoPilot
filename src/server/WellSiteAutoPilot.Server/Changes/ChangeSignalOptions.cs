@@ -13,6 +13,12 @@ public sealed class ChangeSignalOptions
     /// </summary>
     public int RecheckSeconds { get; set; } = DefaultRecheckSeconds;
 
+    /// <summary>
+    /// Sends typed entity events (execution and recommendation changes) in addition to the area
+    /// signals. Off by default; area signals are unchanged either way.
+    /// </summary>
+    public bool TypedEvents { get; set; }
+
     /// <summary>Bursts of changes inside this window are sent as one message per area.</summary>
     public int CoalesceMilliseconds { get; set; } = 250;
 

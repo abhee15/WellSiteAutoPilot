@@ -21,6 +21,48 @@ export type LiveState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | '
 
 export const HUB_PATH = '/hubs/changes';
 export const HUB_METHOD = 'changed';
+export const EVENT_METHOD = 'event';
+/**
+ * The Server sends the typed event first and the coalesced area signal (up to about 250 ms) after it.
+ * A signal this soon after an event of the same area is the same change and is not acted on twice.
+ */
+export const EVENT_COVERS_SIGNAL_MS = 2_000;
+
+/** One entity change (docs/design/realtime-events.md). The payload holds short state labels only. */
+export type ChangeEvent = {
+  epoch: string;
+  area: ChangeArea;
+  /** Counts per area within one epoch; a skipped number means an event was lost. */
+  sequence: number;
+  entity: string;
+  id: string;
+  kind: string;
+  occurredAt: string;
+  actor: string | null;
+  correlationId: string | null;
+  payload: Readonly<Record<string, string | null>>;
+};
+
+export function parseChangeEvent(value: unknown): ChangeEvent | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  if (!isChangeArea(raw.area) || typeof raw.epoch !== 'string' || typeof raw.entity !== 'string' ||
+      typeof raw.id !== 'string' || typeof raw.kind !== 'string' ||
+      typeof raw.sequence !== 'number' || !Number.isSafeInteger(raw.sequence) || raw.sequence < 1) return null;
+  const payload: Record<string, string | null> = {};
+  if (raw.payload && typeof raw.payload === 'object') {
+    for (const [key, item] of Object.entries(raw.payload as Record<string, unknown>)) {
+      if (typeof item === 'string' || item === null) payload[key] = item;
+    }
+  }
+  return {
+    epoch: raw.epoch, area: raw.area, sequence: raw.sequence, entity: raw.entity, id: raw.id, kind: raw.kind,
+    occurredAt: typeof raw.occurredAt === 'string' ? raw.occurredAt : '',
+    actor: typeof raw.actor === 'string' ? raw.actor : null,
+    correlationId: typeof raw.correlationId === 'string' ? raw.correlationId : null,
+    payload,
+  };
+}
 export const POLL_INTERVAL_FALLBACK_MS = 10_000;
 export const POLL_INTERVAL_LIVE_MS = 60_000;
 /** Slow retry schedule for a hub that could not be started (milliseconds). The last value repeats. */
@@ -53,7 +95,12 @@ const browserTimers: Timers = {
   clear: handle => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
-type Subscription = { areas: ReadonlySet<ChangeArea>; handler: () => void };
+export type SubscribeOptions = {
+  /** Skip an area signal that an event of the same area just announced; the handler already applied it. */
+  skipWhenCovered?: boolean;
+};
+
+type Subscription = { areas: ReadonlySet<ChangeArea>; handler: () => void; skipWhenCovered: boolean };
 
 export class ChangeSignalClient {
   private current: LiveState = 'idle';
@@ -64,12 +111,17 @@ export class ChangeSignalClient {
   /** Bumped on every enable or disable so a stale start() result is ignored. */
   private generation = 0;
   private readonly subscriptions = new Set<Subscription>();
+  private readonly eventSubscriptions = new Set<(event: ChangeEvent) => void>();
   private readonly listeners = new Set<() => void>();
+  /** Last event seen per area; forgotten on every (re)connect because the catch-up read replaces it. */
+  private readonly streams = new Map<ChangeArea, { epoch: string; sequence: number }>();
+  private readonly lastEventAt = new Map<ChangeArea, number>();
 
   constructor(
     private readonly factory: ConnectionFactory,
     private readonly timers: Timers = browserTimers,
     private readonly retryDelays: readonly number[] = START_RETRY_DELAYS_MS,
+    private readonly now: () => number = () => Date.now(),
   ) {}
 
   get state(): LiveState {
@@ -86,10 +138,21 @@ export class ChangeSignalClient {
    * Run `handler` when any of `areas` changes, and once after every (re)connect, because
    * signals sent while disconnected are lost. The handler should refetch; it receives no data.
    */
-  subscribe(areas: readonly ChangeArea[], handler: () => void): () => void {
-    const subscription: Subscription = { areas: new Set(areas), handler };
+  subscribe(areas: readonly ChangeArea[], handler: () => void, options: SubscribeOptions = {}): () => void {
+    const subscription: Subscription = {
+      areas: new Set(areas), handler, skipWhenCovered: options.skipWhenCovered === true,
+    };
     this.subscriptions.add(subscription);
     return () => { this.subscriptions.delete(subscription); };
+  }
+
+  /**
+   * Receive typed events in order. A gap, a server restart (new epoch) or a lost event is never
+   * passed on as an event: it becomes an area refetch for the area subscribers instead.
+   */
+  subscribeEvents(handler: (event: ChangeEvent) => void): () => void {
+    this.eventSubscriptions.add(handler);
+    return () => { this.eventSubscriptions.delete(handler); };
   }
 
   setEnabled(enabled: boolean): void {
@@ -121,16 +184,24 @@ export class ChangeSignalClient {
       return;
     }
     this.connection = connection;
+    this.streams.clear();
+    // Registered before 'changed' on purpose; neither depends on the order.
+    connection.on(EVENT_METHOD, (...args: unknown[]) => {
+      if (generation !== this.generation) return;
+      const event = parseChangeEvent(args[0]);
+      if (event) this.receive(event);
+    });
     connection.on(HUB_METHOD, (...args: unknown[]) => {
       if (generation !== this.generation) return;
       const area = args[0];
-      if (isChangeArea(area)) this.deliver(area);
+      if (isChangeArea(area)) this.deliver(area, true);
     });
     connection.onreconnecting(() => {
       if (generation === this.generation) this.setState('reconnecting');
     });
     connection.onreconnected(() => {
       if (generation !== this.generation) return;
+      this.streams.clear();
       this.setState('connected');
       this.deliver(null);
     });
@@ -176,13 +247,40 @@ export class ChangeSignalClient {
   }
 
   /** `area` null means "everything may have changed" (after connect). Each handler runs at most once. */
-  private deliver(area: ChangeArea | null): void {
+  private deliver(area: ChangeArea | null, fromSignal = false): void {
+    const covered = fromSignal && area !== null && this.isCovered(area);
     for (const subscription of [...this.subscriptions]) {
       if (area !== null && !subscription.areas.has(area)) continue;
+      if (covered && subscription.skipWhenCovered) continue;
       try {
         subscription.handler();
       } catch {
         // A failing refetch must not stop other subscribers; polling recovers.
+      }
+    }
+  }
+
+  private isCovered(area: ChangeArea): boolean {
+    const at = this.lastEventAt.get(area);
+    return at !== undefined && this.now() - at <= EVENT_COVERS_SIGNAL_MS;
+  }
+
+  private receive(event: ChangeEvent): void {
+    const previous = this.streams.get(event.area);
+    // Same epoch and an old number: a repeat, already applied.
+    if (previous && previous.epoch === event.epoch && event.sequence <= previous.sequence) return;
+    this.streams.set(event.area, { epoch: event.epoch, sequence: event.sequence });
+    this.lastEventAt.set(event.area, this.now());
+    // The first event after a connect is the baseline: the catch-up read already covers what came before it.
+    if (previous && (previous.epoch !== event.epoch || event.sequence !== previous.sequence + 1)) {
+      this.deliver(event.area);
+      return;
+    }
+    for (const handler of [...this.eventSubscriptions]) {
+      try {
+        handler(event);
+      } catch {
+        // One failing view must not stop the others; the area signal and polling recover it.
       }
     }
   }

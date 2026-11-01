@@ -25,7 +25,11 @@ import { NavigationGroup } from './components/NavigationGroup';
 import { StatusPage } from './views/StatusPage';
 import { ConnectionsPage } from './views/ConnectionsPage';
 import { firstOpenableSection, hasExplicitSection, sectionFromHash } from './routing';
-import { useChangeRefresh, useLiveUpdates, usePollingRefresh } from './live/LiveUpdates';
+import { useChangeEvents, useChangeRefresh, useLiveUpdates, usePollingRefresh } from './live/LiveUpdates';
+import type { ChangeEvent } from './live/changeSignal';
+import { applyExecutionEvent, upsertExecution } from './live/eventApply';
+import { ExecutionDetailError, fetchExecutionDetail } from './views/executionDetail';
+import { NotificationCenter } from './components/NotificationCenter';
 import { keepIfSame } from './keepIfSame';
 
 // Compatibility with existing consumers; new components live in their own files.
@@ -145,10 +149,37 @@ export function App() {
   // A poll never interrupts a load that is still running: the first request to a Negotiate site can outlast the
   // interval (sign-in prompt, Kerberos/NTLM round trips), and aborting it restarts the handshake and re-prompts.
   usePollingRefresh(() => { if (!signInRequired.current && activeRefresh.current === null) void refresh(); });
-  // The workspace snapshot covers these four areas; the Server names the one that changed.
+  // The workspace snapshot covers these four areas; the Server names the one that changed. A run signal that a
+  // typed event just announced is skipped: the event was already applied to the list below.
   useChangeRefresh(['executions', 'assets', 'configured-logic', 'modules'], () => {
     if (!signInRequired.current) void refresh();
-  });
+  }, { skipWhenCovered: true });
+  // Typed run events patch the Runs list in place; only a run the list does not hold is read, one run at a time.
+  const executionsNow = useRef<readonly ExecutionResponse[]>([]);
+  const readingRuns = useRef(new Set<string>());
+  const onChangeEvent = useCallback((event: ChangeEvent) => {
+    if (event.entity !== 'execution') return;
+    const next = applyExecutionEvent(executionsNow.current, event);
+    if (next !== 'unknown') {
+      if (next !== executionsNow.current) {
+        executionsNow.current = next;
+        setExecutions(next as ExecutionResponse[]);
+      }
+      return;
+    }
+    if (readingRuns.current.has(event.id)) return;
+    readingRuns.current.add(event.id);
+    void fetchExecutionDetail(event.id, new AbortController().signal)
+      .then(run => setExecutions(current => upsertExecution(current, run)))
+      .catch(reason => {
+        // A run this person may not see stays out of the list; anything else is recovered by a full read.
+        const hidden = reason instanceof ExecutionDetailError && (reason.kind === 'notFound' || reason.kind === 'accessDenied');
+        if (!hidden && !signInRequired.current) void refresh();
+      })
+      .finally(() => { readingRuns.current.delete(event.id); });
+  }, [refresh]);
+  useChangeEvents(onChangeEvent);
+  useEffect(() => { executionsNow.current = executions; }, [executions]);
   // Connect only with a verified session. A session that cannot be read disconnects, so a missing
   // Windows sign-in is never retried through the hub.
   const { setEnabled: setLiveEnabled } = useLiveUpdates();
@@ -207,6 +238,7 @@ export function App() {
           isRefreshing={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? false : isRefreshing}
           lastUpdated={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? null : lastUpdated}
           onRefresh={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? undefined : () => void refresh()}
+          extraActions={currentUser && <NotificationCenter permissions={currentUser.permissions} />}
         />
 
         <div className="page-body" key={section}>

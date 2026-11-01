@@ -17,6 +17,10 @@ public static class ChangeSignalExtensions
         services.AddSingleton<ChangeSignalService>();
         services.AddSingleton<IChangeNotifier>(provider => provider.GetRequiredService<ChangeSignalService>());
         services.AddHostedService(provider => provider.GetRequiredService<ChangeSignalService>());
+        services.AddSingleton<IChangeEventSender, HubChangeEventSender>();
+        services.AddSingleton<ChangeEventService>();
+        services.AddSingleton<IChangeEventPublisher>(provider => provider.GetRequiredService<ChangeEventService>());
+        services.AddHostedService(provider => provider.GetRequiredService<ChangeEventService>());
         services.AddHostedService<ChangeConnectionMonitor>();
         return services;
     }
