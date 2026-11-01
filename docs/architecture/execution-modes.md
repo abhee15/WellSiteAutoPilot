@@ -60,14 +60,15 @@ refuses with `REAL_PROVIDER_WRITES_DISABLED`. Provider writes are a separate, de
 | Endpoint | Policy | Notes |
 | --- | --- | --- |
 | `GET /control/kill-switch` | `RecommendationsRead` | global state, includes the deployment switch |
-| `PUT /control/kill-switch` | `SecurityManage` | audited |
+| `PUT /control/kill-switch` | `ControlManage` | audited |
 | `GET /control/policies/{configuredLogicId}` | `RecommendationsRead` | scoped: needs read access to every Asset the configuration touches; a missing and a forbidden configuration look the same |
-| `PUT /control/policies/{configuredLogicId}` | `SecurityManage` | simulator sink only |
+| `PUT /control/policies/{configuredLogicId}` | `ControlManage` | simulator sink only |
 | `GET /control/actions` | `RecommendationsRead` | scoped in SQL before the limit, by the Asset of the originating recommendation |
 
 ## Known limits
 
-- Editing policies needs the global `SecurityManage` policy until a dedicated `control.manage` permission is added.
+- `control.manage` is deployment-wide and held by the protected Admin role; other roles opt in through the role catalog. It is not
+  yet scoped to Assets or configurations.
 - A person cannot yet approve an Autonomous recommendation the gate blocked, and operator-approved dispatch, readback and
   ambiguous-dispatch resolution are separate slices.
 - Provider commands (ForeSite setpoints, CygNet controller registry values) are not implemented; see workstream L in

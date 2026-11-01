@@ -31,6 +31,7 @@ const labels: Record<string, MessageKey> = {
   'asset-views.create': 'roles.permissionAssetViewsCreate',
   'asset-views.edit': 'roles.permissionAssetViewsEdit',
   'asset-views.delete': 'roles.permissionAssetViewsDelete',
+  'control.manage': 'roles.permissionControlManage',
 };
 const categories: Record<string, MessageKey> = {
   Assets: 'roles.categoryAssets',
@@ -42,6 +43,7 @@ const categories: Record<string, MessageKey> = {
   AssetTypes: 'roles.categoryAssetTypes',
   Connections: 'roles.categoryConnections',
   AssetViews: 'roles.categoryAssetViews',
+  Control: 'roles.categoryControl',
 };
 function errorLabel(kind: RoleErrorKind): string {
   switch (kind) {

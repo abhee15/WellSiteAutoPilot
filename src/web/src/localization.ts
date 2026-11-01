@@ -836,6 +836,8 @@ export const englishMessages = {
   'roles.categoryAssetTypes': 'Asset types',
   'roles.categoryConnections': 'Connections',
   'roles.categoryAssetViews': 'Asset views',
+  'roles.categoryControl': 'Control',
+  'roles.permissionControlManage': 'Manage control policies and the kill switch',
   'roles.permissionAssetsRead': 'View assets',
   'roles.permissionAssetsManage': 'Manage assets',
   'roles.permissionLogicRead': 'View logic modules',
