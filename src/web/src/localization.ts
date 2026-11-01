@@ -1288,7 +1288,7 @@ export const englishMessages = {
   'connections.findSearch': 'Search what was found',
   'connections.findSearchPlaceholder': 'Name, ID, or value…',
   'connections.findNone': 'Nothing matches that search.',
-  'connections.errHasImports': 'This connection has imported assets, views or source-check history and cannot be deleted. Disable it instead.',
+  'connections.errHasImports': 'This connection has imported assets, views, source-check history or a command catalog and cannot be deleted. Disable it instead.',
   'connections.importHeading': 'Import into assets',
   'connections.importHelp': 'Choose how to group what was found, review exactly what would be created, then import it. Importing needs permission to manage all assets.',
   'connections.importNoLevels': 'No grouping: everything would be added at the top level.',

@@ -502,6 +502,117 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionCommandCatalogChangeEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConnectionId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("connection_command_catalog_changes", "integration", t =>
+                        {
+                            t.HasCheckConstraint("CK_connection_command_catalog_changes_version", "\"Version\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionCommandCatalogEntity", b =>
+                {
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ConnectionId");
+
+                    b.ToTable("connection_command_catalogs", "integration", t =>
+                        {
+                            t.HasCheckConstraint("CK_connection_command_catalogs_version", "\"Version\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionCommandCatalogEntryEntity", b =>
+                {
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Command")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("DeadlineSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("Maximum")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("MaximumStep")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("Minimum")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("SettleSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("ConnectionId", "Command");
+
+                    b.ToTable("connection_command_catalog_entries", "integration", t =>
+                        {
+                            t.HasCheckConstraint("CK_connection_command_catalog_entries_limits", "NOT \"Enabled\" OR (\"Minimum\" IS NOT NULL AND \"Maximum\" IS NOT NULL AND \"Minimum\" <= \"Maximum\")");
+
+                            t.HasCheckConstraint("CK_connection_command_catalog_entries_step", "\"MaximumStep\" IS NULL OR \"MaximumStep\" > 0");
+
+                            t.HasCheckConstraint("CK_connection_command_catalog_entries_timing", "\"SettleSeconds\" >= 0 AND \"DeadlineSeconds\" > \"SettleSeconds\"");
+                        });
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1704,6 +1815,33 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.HasOne("WellSiteAutoPilot.Persistence.ConfiguredLogic.ConfiguredLogicEntity", null)
                         .WithMany()
                         .HasForeignKey("ConfiguredLogicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionCommandCatalogChangeEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionCommandCatalogEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Connections.ConnectionCommandCatalogEntryEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Connections.ConnectionCommandCatalogEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
