@@ -18,6 +18,7 @@ import { moduleStateLabel, moduleStateToken } from './moduleApproval';
 import { configurationAssetLabels, latestRunByConfiguration, summarizeAssetLabels } from './runContext';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
+import { CONTROL_MANAGE_PERMISSION } from './controlExecution';
 import { ModulePanel } from './ModulePanel';
 import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
@@ -231,6 +232,8 @@ export function LogicPage({
                 canManage={creating ? canManage : canManage && selectedConfiguration?.canManage === true}
                 userId={userId} canRequestShadow={permissions.includes('executions.request') && selectedConfiguration?.canRequestShadow === true}
                 canReadViews={permissions.includes('connections.read')}
+                canReadControl={permissions.includes('recommendations.read')}
+                canManageControl={permissions.includes(CONTROL_MANAGE_PERMISSION)}
                 modules={modules} assets={assets} assetTypes={assetTypes}
                 executions={canReadRuns ? executions : undefined}
                 onChanged={onRefresh}
