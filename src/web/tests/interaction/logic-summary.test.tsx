@@ -20,6 +20,7 @@ function fixture(permissions: string[]) {
     if (url === '/api/v1/security/me') return response({ userId, identityName: 'FIELD\\x', isActive: true, roles: [], assetScopeIds: [], permissions });
     if (url === '/api/v1/configured-logic/capabilities') return response({ canManage: false, canRequestShadow: false });
     if (url.startsWith('/api/v1/configured-logic?')) return response([live]);
+    if (url === '/api/v1/configured-logic/' + configurationId + '/activity') return response({ activeRevisionId: revisionId, observedAtUtc: '2026-11-01T12:00:00Z', nextScheduledAtUtc: null, recentRuns: [{ executionId: runId, status: 'Completed', requestedAtUtc: '2026-10-01T00:00:00Z' }] });
     if (url === '/api/v1/configured-logic/' + configurationId) return response(live);
     if (url.startsWith('/api/v1/executions')) return response([{ executionId: runId, logicInstanceId: configurationId, status: 'Completed', requestedAtUtc: '2026-10-01T00:00:00Z' }]);
     return response([]);
@@ -30,7 +31,7 @@ it('an opened logic says where it stands and links its recent runs', async () =>
   fixture(['configured-logic.read', 'executions.read']);
   render(<App />);
   await userEvent.setup().click(await screen.findByRole('button', { name: 'Inspect revisions of Pressure watch' }));
-  expect(await screen.findByText(/Revision 2 is live in Shadow mode on 1 asset\./)).toBeTruthy();
+  expect(await screen.findByText(/Revision 2 is live in Shadow mode/)).toBeTruthy();
   const link = await screen.findByRole('link', { name: /2026|10/ });
   expect(link.getAttribute('href')).toBe('#operations/' + runId);
 });

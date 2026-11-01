@@ -39,9 +39,11 @@ async function fill(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByRole('textbox', { name: 'Provider ID' }), 'provider-simulator');
   await user.type(screen.getByRole('textbox', { name: 'Provider asset external ID' }), 'WELL-101');
 }
-function workspace(canManage = true) {
-  return render(<ConfiguredLogicWorkspace selectedId={configId} canManage={canManage}
+async function workspace(canManage = true) {
+  const view = render(<ConfiguredLogicWorkspace selectedId={configId} canManage={canManage}
     modules={[module]} assets={assets} assetTypes={types} onClose={vi.fn()} onChanged={async () => {}} />);
+  await userEvent.click(await screen.findByRole('tab', { name: 'Configuration', exact: true }));
+  return view;
 }
 const schemaManifest = { ...manifest, description: 'Holds the pump near a target fillage.',
   parameterSchema: { type: 'object', required: ['targetFillage'],
@@ -53,7 +55,7 @@ describe('Revision settings summary', () => {
     const withSettings = { ...draft, revisions: [{ ...draft.revisions[0],
       moduleManifestJson: schemaModule.manifestJson, parametersJson: '{"targetFillage":75,"mode":"Trim"}' }] };
     vi.stubGlobal('fetch', vi.fn(async () => response(withSettings)));
-    workspace();
+    await workspace();
     const list = await screen.findByLabelText('Settings used by this revision');
     expect(list.textContent).toContain('Target fillage');
     expect(list.textContent).toContain('75');
@@ -64,15 +66,15 @@ describe('Revision settings summary', () => {
       viewId: otherRevisionId, connectionId: typeId, revision: 7, role: 'well',
     } }] };
     vi.stubGlobal('fetch', vi.fn(async () => response(withView)));
-    workspace();
+    await workspace();
     const summary = await screen.findByLabelText('Settings used by this revision');
     expect(summary.textContent).toContain('View revision 7 · 1 selected wells');
     expect(summary.textContent).toContain('Later view edits do not change these targets');
   });
   it('shows nothing when a revision has no settings', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => response(draft)));
-    workspace();
-    await screen.findByText(/Exact asset scope/);
+    await workspace();
+    await screen.findByText('Target bindings (1)');
     expect(screen.queryByLabelText('Settings used by this revision')).toBeNull();
   });
 });
@@ -200,7 +202,7 @@ describe('Configured logic setup journey', () => {
       }
       return response(current);
     });
-    vi.stubGlobal('fetch', http); workspace();
+    vi.stubGlobal('fetch', http); await workspace();
     await user.click(await screen.findByRole('button', { name: 'Validate revision 1' }));
     expect(await screen.findByRole('status')).toHaveProperty('textContent', expect.stringContaining('validated and verified'));
     await user.click(screen.getByRole('button', { name: 'Review activation of revision 1' }));
@@ -216,7 +218,7 @@ describe('Configured logic setup journey', () => {
       return response(drift ? { ...validated, activeRevisionId: otherRevisionId,
         revisions: [...validated.revisions, { ...active.revisions[0], id: otherRevisionId, revisionNumber: 2 }] } : validated);
     });
-    vi.stubGlobal('fetch', http); workspace();
+    vi.stubGlobal('fetch', http); await workspace();
     await user.click(await screen.findByRole('button', { name: 'Review activation of revision 1' }));
     await user.click(screen.getByRole('button', { name: 'Activate reviewed revision' }));
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('configuration changed'));
@@ -229,14 +231,13 @@ describe('Configured logic setup journey', () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) =>
       init?.method === 'POST' ? response({}, 403) : response(draft)));
-    workspace(); await user.click(await screen.findByRole('button', { name: 'Validate revision 1' }));
+    await workspace(); await user.click(await screen.findByRole('button', { name: 'Validate revision 1' }));
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('Access is unavailable'));
     expect(screen.queryByText('Observer')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Validate revision 1' })).toBeNull();
   });
   it('lets readers inspect metadata but offers no editing or lifecycle mutations', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => response(draft))); workspace(false);
-    await screen.findByText('Revision 1 · Draft');
+    vi.stubGlobal('fetch', vi.fn(async () => response(draft))); await workspace(false);
     expect(screen.queryByRole('button', { name: 'Copy revision 1' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Validate revision 1' })).toBeNull();
   });
@@ -310,9 +311,11 @@ describe('Configured logic setup journey', () => {
     vi.stubGlobal('fetch', http);
     const user = userEvent.setup(); render(<App />);
     await user.click(await screen.findByRole('button', { name: 'Inspect revisions of Observer' }));
-    await screen.findByText('Revision 1 · Draft');
+    await screen.findByRole('tab', { name: 'Configuration', exact: true });
+    await user.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
     expect(screen.queryByRole('button', { name: 'Copy revision 1' })).toBeNull();
     recover = true; await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    await user.click(screen.getByRole('button', { name: 'Reload persisted revisions' }));
     await screen.findByRole('button', { name: 'Copy revision 1' });
     expect(http.mock.calls.some(([url]) => url === '/api/v1/configured-logic/capabilities')).toBe(false);
     window.location.hash = '';

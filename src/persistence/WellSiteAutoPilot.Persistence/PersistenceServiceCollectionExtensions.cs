@@ -39,6 +39,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<ISourceChangeRepository, SourceChangeRepository>();
         services.AddScoped<IExecutionRepository, ExecutionRepository>();
         services.AddScoped<IExecutionReadRepository, ExecutionRepository>();
+        services.AddScoped<IExecutionHistoryReader, ExecutionHistoryReader>();
         services.AddScoped<IConfiguredLogicRepository, ConfiguredLogicRepository>();
         services.AddScoped<ILogicModuleCatalogRepository, LogicModuleCatalogRepository>();
         services.AddScoped<IModulePackageStateRepository, LogicModuleCatalogRepository>();

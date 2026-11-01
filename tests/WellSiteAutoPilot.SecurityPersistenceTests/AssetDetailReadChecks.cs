@@ -68,6 +68,7 @@ internal static class AssetDetailReadChecks
         }
         await db.SaveChangesAsync();
         var subject = new AccessSubject(user);
+        var history = new ExecutionHistoryReader(db, TimeProvider.System);
         var reader = new AssetDetailReader(db, new ConfiguredLogicRepository(db), TimeProvider.System);
         if (await reader.IsGroupingNodeAuthorizedAsync(subject, groupId, default) != true ||
             await reader.IsGroupingNodeAuthorizedAsync(subject, assetA, default) != false ||
@@ -78,17 +79,29 @@ internal static class AssetDetailReadChecks
         if (first.Count != 5 || second.Count != 2 || first.Concat(second).Any(item => !target.Any(t => t.Id == item.Id)))
             throw new InvalidOperationException("Asset/configuration filtering did not precede paging or crossed scope.");
         var expected = (await new ExecutionRepository(db).ListAuthorizedAsync(subject, null, 50, target[0].Id, assetA)).Select(item => item.Id).ToArray();
-        var page1 = await reader.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, null, 2, default);
+        var page1 = await history.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, null, 2, default);
         if (page1.Count != 2) throw new InvalidOperationException("The authorized history preview did not contain two runs.");
-        var page2 = await reader.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, page1[^1].Id, 2, default);
+        var page2 = await history.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, page1[^1].Id, 2, default);
         if (expected.Length != 3 || !page1.Concat(page2).Select(item => item.Id).SequenceEqual(expected))
             throw new InvalidOperationException("History cursor ordering or scoped/unpaged query parity failed.");
-        if ((await reader.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, runs[3], 2, default)).Count != 0 ||
-            (await reader.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, runs[4], 2, default)).Count != 0)
+        if ((await history.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, runs[3], 2, default)).Count != 0 ||
+            (await history.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, runs[4], 2, default)).Count != 0)
             throw new InvalidOperationException("History accepted an out-of-filter or inaccessible cursor.");
+        var configurationRuns = await history.ListHistoryAuthorizedAsync(subject, null, target[0].Id, null, 25, default);
+        var unpaged = await new ExecutionRepository(db).ListAuthorizedAsync(subject, null, 50, target[0].Id);
+        if (configurationRuns.Count != 4 || !configurationRuns.Select(item => item.Id).SequenceEqual(unpaged.Select(item => item.Id)))
+            throw new InvalidOperationException("Configuration history must include authorized pinned Assets and match the existing query.");
+        var configurationPage1 = await history.ListHistoryAuthorizedAsync(subject, null, target[0].Id, null, 2, default);
+        var configurationPage2 = await history.ListHistoryAuthorizedAsync(subject, null, target[0].Id, configurationPage1[^1].Id, 2, default);
+        if (!configurationPage1.Concat(configurationPage2).Select(item => item.Id).SequenceEqual(unpaged.Select(item => item.Id)))
+            throw new InvalidOperationException("Configuration-wide cursor paging changed pinned scope ordering.");
+        await db.RolePermissions.Where(item => item.RoleId == role && item.Permission == WellSitePermissions.ExecutionsRead).ExecuteDeleteAsync();
+        if ((await history.ListHistoryAuthorizedAsync(subject, null, target[0].Id, null, 25, default)).Count != 0 ||
+            (await reader.ListLogicAuthorizedAsync(subject, assetA, 0, 5, default)).Count != 5)
+            throw new InvalidOperationException("Configuration read must not substitute for execution read authority.");
         await db.AccessGrants.Where(item => item.Id == grant).ExecuteUpdateAsync(set => set.SetProperty(item => item.IsActive, false));
         if ((await reader.ListLogicAuthorizedAsync(subject, assetA, 0, 5, default)).Count != 0 ||
-            (await reader.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, null, 2, default)).Count != 0)
+            (await history.ListHistoryAuthorizedAsync(subject, assetA, target[0].Id, null, 2, default)).Count != 0)
             throw new InvalidOperationException("Asset detail reads retained revoked access.");
         Console.WriteLine("Asset details: explicit grouping, filters before paging, scoped history parity, cursor ties and revoked access verified.");
     }

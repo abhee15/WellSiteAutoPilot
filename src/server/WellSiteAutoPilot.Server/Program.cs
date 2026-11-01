@@ -917,6 +917,24 @@ v1.MapGet(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
 v1.MapGet(
+    "/configured-logic/{configuredLogicId:guid}/activity",
+    async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IExecutionHistoryReader history,
+        RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
+    {
+        var item = RequireFound(await configurations.GetAuthorizedAsync(access.Subject, configuredLogicId, cancellationToken), "CONFIGURED_LOGIC_NOT_FOUND");
+        var active = item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId);
+        var now = clock.GetUtcNow();
+        var next = active?.Schedule is { } schedule ? ScheduleOccurrences.NextAfter(schedule, now) : null;
+        // Execution visibility is separately paired with its pinned Asset scope; configuration read alone never grants it.
+        var runs = await history.ListHistoryAuthorizedAsync(access.Subject, null, configuredLogicId, null, 2, cancellationToken);
+        return new ConfiguredLogicActivityResponse(item.ActiveRevisionId, now, next, runs.Select(ToResponse).ToArray());
+    })
+    .WithName("GetConfiguredLogicActivity")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
+    .Produces<ConfiguredLogicActivityResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
+
+v1.MapGet(
     "/configured-logic/{configuredLogicId:guid}",
     async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IResourceActionRepository actions,
         RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
@@ -1064,17 +1082,17 @@ v1.MapGet(
 
 v1.MapGet(
     "/executions/history",
-    async (Guid assetId, Guid configuredLogicId, Guid? after, int? limit, IAssetDetailReader details,
+    async (Guid? assetId, Guid configuredLogicId, Guid? after, int? limit, IExecutionHistoryReader details,
         RequestAccessContext access, CancellationToken cancellationToken) =>
     {
         var size = PageLimit(limit ?? 25);
         var items = await details.ListHistoryAuthorizedAsync(access.Subject, assetId, configuredLogicId, after, size + 1, cancellationToken);
         var page = items.Take(size).ToArray();
-        return new AssetRunHistoryResponse(page.Select(ToResponse).ToArray(), items.Count > size ? page[^1].Id : null);
+        return new ExecutionHistoryResponse(page.Select(ToResponse).ToArray(), items.Count > size ? page[^1].Id : null);
     })
-    .WithName("GetAssetRunHistory")
+    .WithName("GetExecutionHistory")
     .RequireAuthorization(WellSitePolicies.ExecutionsRead)
-    .Produces<AssetRunHistoryResponse>(StatusCodes.Status200OK)
+    .Produces<ExecutionHistoryResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
 v1.MapGet(

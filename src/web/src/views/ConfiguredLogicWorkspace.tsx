@@ -1,20 +1,25 @@
 import { ActionButton } from '../components/ActionButton';
 import { RefreshCw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse, ExecutionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { ConfiguredShadowPanel } from './ConfiguredShadowPanel';
 import { ConfiguredLogicSetupPanel } from './ConfiguredLogicSetupPanel';
 import { AutonomyPolicyPanel } from './AutonomyPolicyPanel';
-import { describeSettings } from './revisionSettings';
-import { scheduleText } from './logicSummary';
 import { orderedRevisions } from './configuredLogicViews';
-import { formatDetailTimestamp } from './executionDetail';
 import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOverview';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
 import type { VerifiedConfiguration } from './configuredLogicSetup';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { CloseButton } from '../components/CloseButton';
+import { Status } from '../components/Status';
+import { DetailTabs } from '../components/DetailTabs';
+import { ConfiguredRevisionDetails } from './ConfiguredRevisionDetails';
+import { ExecutionHistory } from './ExecutionHistory';
+import { fetchConfigurationActivity } from './configuredLogicActivity';
+import { useLiveResource } from './useLiveResource';
+import './configuredLogicDetail.css';
 
 type VerifiedRevision = VerifiedConfiguration['revisions'][number];
 type Props = {
@@ -32,6 +37,11 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
   canManageControl = false }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
+  const [tab, setTab] = useState<'overview' | 'configuration' | 'activity'>('overview');
+  const [revisionId, setRevisionId] = useState<string | null>(null);
+  const [showShadow, setShowShadow] = useState(false);
+  const [activityOpened, setActivityOpened] = useState(false);
+  const prefix = useId();
   const [source, setSource] = useState<ConfiguredLogicRevisionResponse | undefined>();
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -57,6 +67,39 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
   }, [selectedId]);
   useEffect(() => () => request.current?.abort(), []);
 
+  const loadActivity = useCallback((signal: AbortSignal) => fetchConfigurationActivity(detail?.id ?? '', signal), [detail?.id]);
+  const activity = useLiveResource(`${detail?.id}:${detail?.activeRevisionId}`, loadActivity,
+    ['executions', 'configured-logic'], detail !== null && !denied);
+  const changedElsewhere = Boolean(detail && activity.data && activity.data.activeRevisionId !== detail.activeRevisionId);
+  const mutationBlocked = busy || blocked || changedElsewhere;
+  const ordered = detail ? orderedRevisions(detail) : [];
+  const active = ordered.find(r => r.id === detail?.activeRevisionId);
+  const selected = ordered.find(r => r.id === revisionId) ?? active ?? ordered[0];
+  const waiting = ordered.filter(r => r.id !== detail?.activeRevisionId && (r.status === 'Draft' || r.status === 'Validated'));
+  const earlier = ordered.filter(r => r.id !== detail?.activeRevisionId && !waiting.includes(r));
+  const activeAssetCount = new Set(active?.assetBindings?.map(binding => binding.assetId) ?? []).size;
+  const contextKey = changedElsewhere
+    ? activeAssetCount === 1 ? 'logicDetail.reviewedContextOne' : 'logicDetail.reviewedContext'
+    : activeAssetCount === 1 ? 'logicDetail.activeContextOne' : 'logicDetail.activeContext';
+  const canReadRuns = executions !== undefined;
+  useEffect(() => {
+    if (!activity.denied) return;
+    request.current?.abort(); setDetail(null); setDenied(true); setEditing(false); setSource(undefined);
+    setBlocked(true); setBusy(false); setError(t('setup.denied'));
+  }, [activity.denied]);
+  useEffect(() => {
+    if (detail && editing && !mayManage) { setEditing(false); setSource(undefined); }
+  }, [detail, editing, mayManage]);
+  useEffect(() => { if (!canReadRuns && tab === 'activity') setTab('overview'); }, [canReadRuns, tab]);
+  function selectTab(next: typeof tab) {
+    setTab(next); setConfirmId(null);
+    if (next === 'activity') setActivityOpened(true);
+  }
+  function copyRevision(revision: VerifiedRevision) {
+    if (mutationBlocked || revision.mode !== 'Shadow') return;
+    setSource(revision); setEditing(true); setTab('configuration'); setConfirmId(null); setShowShadow(false);
+  }
+
   async function reload() {
     if (pending.current || !detail && !selectedId) return;
     pending.current = true; setBusy(true);
@@ -75,7 +118,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     } finally { pending.current = false; if (!c.signal.aborted) setBusy(false); }
   }
   async function transition(revision: ConfiguredLogicRevisionResponse, action: 'validate' | 'activate') {
-    if (!detail || !revision.id || !mayManage || busy || blocked || pending.current) return;
+    if (!detail || !revision.id || !mayManage || mutationBlocked || pending.current) return;
     const snapshot = detail;
     pending.current = true; setBusy(true); setError(null); setNotice(null);
     const c = new AbortController(); request.current?.abort(); request.current = c;
@@ -105,79 +148,94 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       setError(t(committed ? 'setup.committed' : `setup.${e.kind}`) + (e.code ? ` (${e.code})` : ''));
     } finally { pending.current = false; if (!c.signal.aborted) setBusy(false); }
   }
-  return <section className="setup-panel" aria-label={t('setup.workspace')}>
+  const editor = (editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
+      modules={modules} assets={assets} assetTypes={assetTypes} canReadViews={canReadViews}
+      configuration={detail ?? undefined} revision={source} initialAssetId={initialAssetId}
+      onSaved={value => { setDetail(value); setRevisionId(orderedRevisions(value)[0]?.id ?? null); setTab('configuration');
+        setEditing(false); setSource(undefined); setNotice(t('setup.saved')); void onChanged(); }}
+      onDenied={committed => { setDetail(null); setEditing(false); setSource(undefined);
+        setDenied(true); setBlocked(true); setError(t(committed ? 'setup.committed' : 'setup.denied')); }}
+      onCancel={() => { setEditing(false); setSource(undefined); if (!detail) onClose(); }} />);
+  return <section className="setup-panel configured-detail" aria-label={t('setup.workspace')}>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert">{error}</p>}
     {!detail && selectedId && !error && <LoadingIndicator label={t('setup.loading')} />}
     {detail && <>
-      <ConfiguredLogicRevisionOverview logic={detail} onClose={onClose} executions={executions} />
-      <p>{t('setup.immutable')}</p>
-      {(() => {
-        const ordered = orderedRevisions(detail);
-        const isLive = (r: VerifiedRevision) => r.id === detail.activeRevisionId;
-        const waiting = (r: VerifiedRevision) => r.status === 'Draft' || r.status === 'Validated';
-        const current = [...ordered.filter(isLive), ...ordered.filter(r => !isLive(r) && waiting(r))];
-        const earlier = ordered.filter(r => !current.includes(r));
-        const card = (r: VerifiedRevision) => <li key={r.id} data-live={isLive(r)}>
-        <strong>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</strong>
-        {r.id === detail.activeRevisionId && <span className="revision-live">{t('configured.liveBadge')}</span>}
-        <p className="revision-meta">{[
-          [r.moduleId, r.moduleVersion && 'v' + r.moduleVersion].filter(Boolean).join(' '),
-          r.mode,
-          scheduleText(r.schedule),
-          (r.assetBindings?.length ?? 0) === 1 ? t('configured.assetCountOne') : t('configured.assetCount', { count: r.assetBindings?.length ?? 0 }),
-          (r.dataBindings?.length ?? 0) === 1 ? t('configured.sourcesOne') : t('configured.sources', { count: r.dataBindings?.length ?? 0 }),
-          formatDetailTimestamp(r.createdAtUtc),
-        ].filter(Boolean).join(' · ')}</p>
-        <p>{t('setup.exactScope', { assets: r.assetBindings?.map(b =>
-          assets.find(a => a.id === b.assetId)?.name ?? b.assetId).join(', ') ?? '' })}</p>
-        <RevisionSettings revision={r} />
-        {mayManage && !editing && <div className="setup-actions">
-          <ActionButton label={t('setup.copyRevision', { number: r.revisionNumber ?? '—' })} disabled={busy || blocked} onClick={() => { setSource(r); setEditing(true); setConfirmId(null); }} />
-          {r.status === 'Draft' && <ActionButton label={t('setup.validate', { number: r.revisionNumber ?? '—' })} disabled={busy || blocked} onClick={() => void transition(r, 'validate')} />}
-          {r.status === 'Validated' && <ActionButton label={t('setup.reviewActivation', { number: r.revisionNumber ?? '—' })} disabled={busy || blocked} onClick={() => setConfirmId(r.id)} />}
-          {confirmId === r.id && <div role="group" aria-label={t('setup.confirmHeading')}>
-            <p>{t('setup.confirmText', { number: r.revisionNumber ?? '—' })}</p>
-            <ActionButton label={t('setup.confirm')} disabled={busy || blocked} onClick={() => void transition(r, 'activate')} />
-            <ActionButton label={t('setup.cancelActivation')} disabled={busy} onClick={() => setConfirmId(null)} />
-          </div>}
+      <header className="logic-detail-header">
+        <div><h3>{detail.name}</h3><p className="logic-status-sentence">{active
+          ? t(contextKey, { number: active.revisionNumber ?? '—', mode: active.mode ?? '—', count: activeAssetCount })
+          : t('configured.noLive')}</p>
+          {waiting.length > 0 && <p className="logic-detail-note">{t(waiting.length === 1 ? 'logicDetail.savedDraftOne' : 'logicDetail.savedDrafts', { count: waiting.length })}</p>}
+        </div><CloseButton onClick={onClose} />
+      </header>
+      {changedElsewhere && <p role="status">{t('logicDetail.changedElsewhere')}</p>}
+      <div className="setup-actions">
+        {mayManage && (active ?? ordered[0])?.mode === 'Shadow' && <ActionButton label={t('logicDetail.createRevision')}
+          disabled={mutationBlocked || editing} onClick={() => copyRevision((active ?? ordered[0])!)} />}
+        {active?.mode === 'Shadow' && userId && canRequestShadow && detail.canRequestShadow && <ActionButton
+          label={t('logicDetail.runActive', { number: active.revisionNumber ?? '—' })} disabled={mutationBlocked || editing}
+          onClick={() => { selectTab('overview'); setShowShadow(true); }} />}
+        {!editing && <ActionButton icon={RefreshCw} iconOnly label={t('setup.reload')} disabled={busy} onClick={() => void reload()} />}
+      </div>
+      <DetailTabs prefix={prefix} label={t('logicDetail.sections')}
+        tabs={[{ id: 'overview', label: t('logicDetail.overview') }, { id: 'configuration', label: t('logicDetail.configuration') },
+          ...(canReadRuns ? [{ id: 'activity' as const, label: t('logicDetail.activity') }] : [])]}
+        selected={tab} disabled={editing || busy} onSelect={selectTab} />
+      <div id={`${prefix}-overview`} role="tabpanel" aria-labelledby={`${prefix}-tab-overview`} hidden={tab !== 'overview'}>
+        <ConfiguredLogicRevisionOverview logic={detail} assets={assets} activity={activity.data}
+          loading={activity.loading} failed={activity.failed} canReadRuns={canReadRuns}
+          onHistory={() => selectTab('activity')} onRetry={activity.refresh} />
+        {active?.mode === 'Shadow' && userId && <div hidden={!showShadow || editing}>
+          <h4>{t('logicDetail.runActive', { number: active.revisionNumber ?? '—' })}</h4>
+          <ConfiguredShadowPanel key={active.id} userId={userId} configurationId={detail.id} revision={active}
+            canRequest={canRequestShadow === true && detail.canRequestShadow === true} disabled={mutationBlocked || editing} />
         </div>}
-        {userId && r.status === 'Active' && r.id === detail.activeRevisionId && !editing && <ConfiguredShadowPanel
-          key={r.id} userId={userId} configurationId={detail.id} revision={r}
-          canRequest={canRequestShadow === true && detail.canRequestShadow === true} disabled={busy || blocked} />}
-      </li>;
-        return <>
-          {current.length > 0 && <ul className="setup-revisions">{current.map(card)}</ul>}
-          {earlier.length > 0 && <details className="revision-history" open={current.length === 0}>
-            <summary>{t('configured.earlier', { count: earlier.length })}</summary>
-            <ul className="setup-revisions">{earlier.map(card)}</ul>
-          </details>}
-        </>;
-      })()}
+      </div>
+      <div id={`${prefix}-configuration`} role="tabpanel" aria-labelledby={`${prefix}-tab-configuration`} hidden={tab !== 'configuration'}>
+        <p className="logic-detail-note">{t('setup.immutable')}</p>
+        {editing && <p role="status">{t('logicDetail.editingNotice')}</p>}
+        {!editing && selected && <>
+          <label className="logic-revision-select">{t('logicDetail.selectRevision')}
+            <select value={selected.id} disabled={busy} onChange={event => { setRevisionId(event.target.value); setConfirmId(null); }}>
+              <optgroup label={t('logicDetail.activeAndDrafts')}>
+                {active && <option value={active.id}>{t('setup.revision', { number: active.revisionNumber ?? '—' })} · {active.status}</option>}
+                {waiting.map(r => <option key={r.id} value={r.id}>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</option>)}
+              </optgroup>
+              {earlier.length > 0 && <optgroup label={t('configured.earlier', { count: earlier.length })}>
+                {earlier.map(r => <option key={r.id} value={r.id}>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</option>)}
+              </optgroup>}
+            </select>
+          </label>
+          <section className="logic-detail-section" aria-label={t('logicDetail.selectedRevision')}>
+            <div className="logic-detail-row"><h4>{t('setup.revision', { number: selected.revisionNumber ?? '—' })} · {selected.status}</h4>
+              <Status value={selected.status} /></div>
+            <ConfiguredRevisionDetails revision={selected} assets={assets} />
+            {mayManage && <div className="setup-actions">
+              <ActionButton label={t('setup.copyRevision', { number: selected.revisionNumber ?? '—' })}
+                disabled={mutationBlocked || selected.mode !== 'Shadow'} onClick={() => copyRevision(selected)} />
+              {selected.mode !== 'Shadow' && <p className="logic-detail-note">{t('logicDetail.authoringMode')}</p>}
+              {selected.status === 'Draft' && <ActionButton label={t('setup.validate', { number: selected.revisionNumber ?? '—' })}
+                disabled={mutationBlocked} onClick={() => void transition(selected, 'validate')} />}
+              {selected.status === 'Validated' && <ActionButton label={t('setup.reviewActivation', { number: selected.revisionNumber ?? '—' })}
+                disabled={mutationBlocked} onClick={() => setConfirmId(selected.id)} />}
+              {confirmId === selected.id && <div role="group" aria-label={t('setup.confirmHeading')}>
+                <p>{t('setup.confirmText', { number: selected.revisionNumber ?? '—' })}</p>
+                <ActionButton label={t('setup.confirm')} disabled={mutationBlocked} onClick={() => void transition(selected, 'activate')} />
+                <ActionButton label={t('setup.cancelActivation')} disabled={busy} onClick={() => setConfirmId(null)} />
+              </div>}
+            </div>}
+          </section>
+          {canReadControl && <AutonomyPolicyPanel key={detail.id} configuredLogicId={detail.id}
+            canManage={canManageControl} disabled={mutationBlocked} />}
+        </>}
+        {editor}
+      </div>
+      {canReadRuns && <div id={`${prefix}-activity`} role="tabpanel" aria-labelledby={`${prefix}-tab-activity`} hidden={tab !== 'activity'}>
+        <h4>{t('logicDetail.historyHeading')}</h4>
+        {activityOpened && <ExecutionHistory logicId={detail.id} assets={assets} configuredLogic={[detail]} enabled={tab === 'activity'} />}
+      </div>}
     </>}
-    {detail && !editing && canReadControl && <AutonomyPolicyPanel key={detail.id} configuredLogicId={detail.id}
-      canManage={canManageControl} disabled={busy || blocked} />}
-    {(detail || selectedId) && !editing && <ActionButton icon={RefreshCw} iconOnly label={t('setup.reload')} disabled={busy} onClick={() => void reload()} />}
-    {editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
-      modules={modules} assets={assets} assetTypes={assetTypes} canReadViews={canReadViews}
-      configuration={detail ?? undefined} revision={source} initialAssetId={initialAssetId}
-      onSaved={value => { setDetail(value); setEditing(false); setSource(undefined);
-        setNotice(t('setup.saved')); void onChanged(); }}
-      onDenied={committed => { setDetail(null); setEditing(false); setSource(undefined);
-        setDenied(true); setBlocked(true); setError(t(committed ? 'setup.committed' : 'setup.denied')); }}
-      onCancel={() => { setEditing(false); setSource(undefined); if (!detail) onClose(); }} />}
+    {!detail && editor}
     {!detail && <ActionButton label={t('configured.close')} disabled={busy} onClick={onClose} />}
   </section>;
-}
-
-function RevisionSettings({ revision }: { revision: ConfiguredLogicRevisionResponse }) {
-  const lines = describeSettings(revision.parametersJson, revision.moduleManifestJson);
-  if (!lines && !revision.view) return null;
-  return <dl className="revision-settings" aria-label={t('setup.revisionSettings')}>
-    {revision.view && <div><dt>{t('setup.targetView')}</dt><dd>{t('setup.viewSnapshot', {
-      revision: revision.view.revision ?? 0,
-      count: revision.assetBindings?.filter(binding => binding.role?.toLowerCase() === revision.view?.role?.toLowerCase()).length ?? 0,
-    })}</dd></div>}
-    {lines?.map(line => <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>)}
-  </dl>;
 }

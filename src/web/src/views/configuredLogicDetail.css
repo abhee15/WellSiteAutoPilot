@@ -1,0 +1,14 @@
+.configured-detail { min-width: 0; overflow-wrap: anywhere; }
+.logic-detail-header, .logic-detail-row { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-10); }
+.logic-detail-header > div { min-width: 0; flex: 1; }
+.logic-detail-header h3, .logic-detail-row h4 { margin: 0; }
+.logic-detail-note { color: var(--color-text-subtle); margin: var(--space-8) 0; }
+.configured-detail > [role='tabpanel'] { padding: var(--space-12) 0; min-width: 0; }
+.logic-detail-section { border-top: var(--border-width-thin) solid var(--color-border-subtle); padding-top: var(--space-12); margin-top: var(--space-16); }
+.logic-revision-select { display: grid; gap: var(--space-6); }
+.logic-revision-select select { width: 100%; min-width: 0; }
+.configured-binding-list { padding-left: var(--space-18); display: grid; gap: var(--space-8); }
+.parameter-value { white-space: pre-wrap; overflow-wrap: anywhere; margin: var(--space-4) 0; }
+.configured-revision-details details { margin: var(--space-12) 0; }
+.configured-revision-details summary { color: var(--color-text-link); }
+.execution-history .execution-detail { margin-top: var(--space-16); }
