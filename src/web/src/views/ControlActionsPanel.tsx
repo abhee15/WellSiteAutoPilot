@@ -7,14 +7,17 @@ import type { MessageKey } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { gateMessageKey, outcomeMessageKey } from './controlExecution';
 import {
-  ControlActionError, RESOLUTION_NOTE_MAX, controlActionNeedsDecision, fetchControlActions, resolveControlAction,
+  CONTROL_ACTION_LIST_LIMIT, ControlActionError, RESOLUTION_NOTE_MAX, controlActionNeedsDecision, fetchControlActions, resolveControlAction, waitingAge,
   verifyChangedAction, verifyControlAction,
 } from './controlActions';
 import type { ControlAction, ControlActionErrorKind } from './controlActions';
 
 type Props = {
   userId: string | null | undefined;
-  /** control.manage: may verify and resolve. Everyone who can read recommendations sees what needs a decision. */
+  /**
+   * control.manage: may verify and resolve. Everyone who can read recommendations sees what needs a decision; each
+   * action also says whether this person may decide it (its asset scope), and only then are the buttons offered.
+   */
   canManage: boolean;
 };
 
@@ -26,6 +29,12 @@ const ERRORS: Record<ControlActionErrorKind, MessageKey> = {
   unavailable: 'controlActions.unavailable',
   invalidResponse: 'controlActions.invalidResponse',
 };
+
+function waitingLabel(createdAtUtc: string, nowMs: number): string {
+  const { unit, value } = waitingAge(createdAtUtc, nowMs);
+  if (unit === 'minutes') return t('controlActions.waitingMinutes', { count: value });
+  return unit === 'hours' ? t('controlActions.waitingHours', { count: value }) : t('controlActions.waitingDays', { count: value });
+}
 
 /**
  * Commands that were sent but whose result nobody has confirmed. Verifying asks the target again; resolving records,
@@ -128,13 +137,18 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
     );
   }
   const open = (actions ?? []).filter(controlActionNeedsDecision);
+  const nowMs = Date.now();
   if (open.length === 0) return null;
 
   return (
     <section className="panel control-actions" aria-label={t('controlActions.heading')}>
       <div className="panel-header">
         <h2>{t('controlActions.heading')}</h2>
-        <Status value={t('controlActions.count', { count: open.length })} tone="warning" />
+        <Status
+          value={open.length >= CONTROL_ACTION_LIST_LIMIT
+            ? t('controlActions.countMany', { count: CONTROL_ACTION_LIST_LIMIT })
+            : t('controlActions.count', { count: open.length })}
+          tone="warning" />
       </div>
       <p>{t('controlActions.intro')}</p>
       <ul className="control-actions-list">
@@ -143,6 +157,7 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
           const gate = gateMessageKey(action.gateCode);
           const resolving = resolvingId === action.id;
           const busy = busyId === action.id;
+          const mayDecide = canManage && action.canManage === true;
           return (
             <li key={action.id} data-status={action.status}>
               <p>
@@ -150,6 +165,7 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
                 {action.value !== null && action.value !== undefined
                   ? ` ${action.value}${action.unit ? ' ' + action.unit : ''}` : ''}
                 {' · '}{t('controlActions.sentAt', { at: formatDetailTimestamp(action.createdAtUtc) })}
+                {' · '}{waitingLabel(action.createdAtUtc, nowMs)}
               </p>
               <p>{outcome ? t(outcome) : action.status}{gate ? ' ' + t(gate) : ''}</p>
               {verifyNote?.id === action.id && (
@@ -158,7 +174,8 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
               {rowError?.id === action.id && (
                 <p className="execution-detail-error" role="alert">{t(ERRORS[rowError.kind])}</p>
               )}
-              {canManage && !resolving && (
+              {canManage && !mayDecide && <p>{t('controlActions.notDecidable')}</p>}
+              {mayDecide && !resolving && (
                 <div className="execution-detail-actions">
                   <ActionButton label={t('controlActions.verify')} aria-label={t('controlActions.verifyFor', { command: action.command })}
                     disabled={busyId !== null} busy={busy} onClick={() => void verify(action)} />
@@ -167,7 +184,7 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
                     onClick={() => { setResolvingId(action.id); setApplied(null); setNote(''); setRowError(null); setVerifyNote(null); }} />
                 </div>
               )}
-              {canManage && resolving && (
+              {mayDecide && resolving && (
                 <div className="control-actions-resolve" role="group" aria-label={t('controlActions.resolveFor', { command: action.command })}>
                   <p>{t('controlActions.resolveWarning')}</p>
                   <label className="recommendation-review-confirm">

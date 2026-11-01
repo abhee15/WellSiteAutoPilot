@@ -48,7 +48,8 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext, Time
     }
 
     public async Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAuthorizedAsync(AccessSubject subject,
-        Guid? configuredLogicId, int limit, CancellationToken cancellationToken = default)
+        Guid? configuredLogicId, IReadOnlyCollection<ControlActionStatus>? statuses, bool oldestFirst, int limit,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
         if (limit is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(limit));
@@ -57,8 +58,16 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext, Time
         var query = dbContext.ControlActions.AsNoTracking()
             .Where(item => visible.Any(recommendation => recommendation.Id == item.RecommendationId));
         if (configuredLogicId is { } id) query = query.Where(item => item.ConfiguredLogicId == id);
-        return (await query.OrderByDescending(item => item.CreatedAtUtc).ThenByDescending(item => item.Id)
-                .Take(limit).ToArrayAsync(cancellationToken)).Select(ToDomain).ToArray();
+        if (statuses is { Count: > 0 })
+        {
+            var names = statuses.Select(status => status.ToString()).ToArray();
+            query = query.Where(item => names.Contains(item.Status));
+        }
+
+        var ordered = oldestFirst
+            ? query.OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Id)
+            : query.OrderByDescending(item => item.CreatedAtUtc).ThenByDescending(item => item.Id);
+        return (await ordered.Take(limit).ToArrayAsync(cancellationToken)).Select(ToDomain).ToArray();
     }
 
     public async Task UpsertPolicyAsync(AutonomyPolicy policy, CancellationToken cancellationToken = default)

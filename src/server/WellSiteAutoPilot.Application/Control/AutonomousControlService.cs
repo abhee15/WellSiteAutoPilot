@@ -424,8 +424,10 @@ public sealed class AutonomousControlService(
     }
 
     public Task<IReadOnlyCollection<ControlActionRecord>> ListActionsAsync(AccessSubject subject,
-        Guid? configuredLogicId, int limit, CancellationToken cancellationToken = default) =>
-        control.ListActionsAuthorizedAsync(subject, configuredLogicId, Math.Clamp(limit, 1, 200), cancellationToken);
+        Guid? configuredLogicId, IReadOnlyCollection<ControlActionStatus>? statuses, bool oldestFirst, int limit,
+        CancellationToken cancellationToken = default) =>
+        control.ListActionsAuthorizedAsync(subject, configuredLogicId, statuses, oldestFirst, Math.Clamp(limit, 1, 200),
+            cancellationToken);
 
     private static WellSiteAutoPilotException Validation(string code, string message) =>
         new(code, FailureKind.Validation, message);

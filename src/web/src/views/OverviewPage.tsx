@@ -13,6 +13,7 @@ import { assetTotalLabel, attentionItems, cappedCount } from './overview';
 import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
 import type { OwnerGroup } from './assetHierarchy';
 import type { AttentionItem } from './overview';
+import { CONTROL_ACTION_LIST_LIMIT, fetchControlActions } from './controlActions';
 import { fetchRecommendationInbox } from './recommendationInbox';
 import './overview.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
@@ -23,6 +24,10 @@ import { shortId } from '../format';
 function attentionText(item: AttentionItem): string {
   switch (item.kind) {
     case 'decide': return item.count === 1 ? t('overview.decideOne') : t('overview.decide', { count: item.count });
+    case 'inDoubt': {
+      const shown = cappedCount(item.count, CONTROL_ACTION_LIST_LIMIT);
+      return item.count === 1 ? t('overview.inDoubtOne') : t('overview.inDoubt', { count: shown });
+    }
     case 'failedRuns': return item.count === 1 ? t('overview.failedRunsOne') : t('overview.failedRuns', { count: item.count });
     case 'idleLogic': return item.count === 1 ? t('overview.idleLogicOne') : t('overview.idleLogic', { count: item.count });
     case 'noAssets': return t('overview.noAssets');
@@ -89,8 +94,30 @@ export function OverviewPage({
   usePollingRefresh(() => reload.current(), canReadRecommendations);
   useChangeRefresh(['recommendations'], () => reload.current());
 
+  // Commands sent but not confirmed. A failed read simply leaves the last known count; the Recommendations page
+  // shows the authoritative list and its own error.
+  const [openControlActions, setOpenControlActions] = useState(0);
+  const reloadControl = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!canReadRecommendations) return;
+    let controller = new AbortController();
+    const load = () => {
+      controller.abort();
+      controller = new AbortController();
+      const current = controller;
+      fetchControlActions(current.signal).then(
+        rows => { if (!current.signal.aborted) setOpenControlActions(rows.length); },
+        () => undefined);
+    };
+    reloadControl.current = load;
+    load();
+    return () => { reloadControl.current = () => undefined; controller.abort(); };
+  }, [canReadRecommendations]);
+  usePollingRefresh(() => reloadControl.current(), canReadRecommendations);
+  useChangeRefresh(['control'], () => reloadControl.current());
+
   const items = attentionItems({
-    permissions, executions, recommendations, assets, configuredLogic, nowUtc: Date.now(),
+    permissions, executions, recommendations, assets, configuredLogic, openControlActions, nowUtc: Date.now(),
   });
   const ready = isLoaded && recommendationsLoaded;
   const assetNames = new Map(assets.flatMap(asset => (asset.id && asset.name ? [[asset.id, asset.name] as const] : [])));

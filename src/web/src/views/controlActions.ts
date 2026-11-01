@@ -31,7 +31,9 @@ export type ControlAction = ControlActionResponse & {
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const RESOLUTION_NOTE_MAX = 1024;
-const LIST_LIMIT = 200;
+/** The server's page size for this list; a full page means more may be waiting. */
+export const CONTROL_ACTION_LIST_LIMIT = 200;
+const OPEN_QUERY = `status=Dispatched&status=Ambiguous&order=oldest&limit=${CONTROL_ACTION_LIST_LIMIT}`;
 
 /** Control actions whose result nobody has confirmed: the only ones a person can verify or resolve. */
 export function controlActionNeedsDecision(action: Pick<ControlAction, 'status'>): boolean {
@@ -90,12 +92,15 @@ async function readAction(response: Response, actionId: string): Promise<Control
   return payload;
 }
 
-/** The most recent control actions this person may read, newest first as the server orders them. */
+/**
+ * The control actions this person may read that still need a decision, longest-waiting first. The server filters by
+ * status before it limits, so a long history of settled actions can never hide an old open one.
+ */
 export async function fetchControlActions(
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<ControlAction[]> {
-  const response = await fetcher(`/api/v1/control/actions?limit=${LIST_LIMIT}`,
+  const response = await fetcher(`/api/v1/control/actions?${OPEN_QUERY}`,
     { credentials: 'same-origin', cache: 'no-store', signal });
   if (!response.ok) throw failFor(response.status);
   let payload: unknown;
@@ -148,4 +153,12 @@ export async function resolveControlAction(
 /** Whether a verify changed what is known; false means the target gave no answer and the action still needs a decision. */
 export function verifyChangedAction(before: ControlAction, after: ControlAction): boolean {
   return before.status !== after.status || before.gateCode !== after.gateCode;
+}
+
+/** How long a command has waited, in the largest sensible unit: "5 min", "3 h", "2 d". */
+export function waitingAge(createdAtUtc: string, nowMs: number): { unit: 'minutes' | 'hours' | 'days'; value: number } {
+  const minutes = Math.max(0, Math.floor((nowMs - Date.parse(createdAtUtc)) / 60_000));
+  if (minutes < 60) return { unit: 'minutes', value: minutes };
+  if (minutes < 60 * 24) return { unit: 'hours', value: Math.floor(minutes / 60) };
+  return { unit: 'days', value: Math.floor(minutes / (60 * 24)) };
 }

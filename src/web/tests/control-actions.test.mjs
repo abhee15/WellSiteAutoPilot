@@ -30,7 +30,7 @@ test('only dispatched and ambiguous actions need a decision', () => {
 
 test('the list is read from the governed endpoint and every row is validated', async () => {
   const rows = await client.fetchControlActions(signal(), async (url, init) => {
-    assert.equal(url, '/api/v1/control/actions?limit=200');
+    assert.equal(url, '/api/v1/control/actions?status=Dispatched&status=Ambiguous&order=oldest&limit=200');
     assert.equal(init.credentials, 'same-origin');
     assert.equal(init.cache, 'no-store');
     return reply([action()]);
@@ -95,4 +95,13 @@ test('a blank, oversized or control-character note never reaches the server', as
   }
   assert.equal(client.normalizeResolutionNote('line one\nline two\ttab'), 'line one\nline two\ttab');
   assert.equal(client.normalizeResolutionNote('x'.repeat(1024)).length, 1024);
+});
+
+test('waiting age uses the largest sensible unit and never goes negative', () => {
+  const at = '2026-10-14T12:00:00Z';
+  const base = Date.parse(at);
+  assert.deepEqual(client.waitingAge(at, base + 5 * 60_000), { unit: 'minutes', value: 5 });
+  assert.deepEqual(client.waitingAge(at, base + 3 * 3_600_000 + 59_000), { unit: 'hours', value: 3 });
+  assert.deepEqual(client.waitingAge(at, base + 50 * 3_600_000), { unit: 'days', value: 2 });
+  assert.deepEqual(client.waitingAge(at, base - 60_000), { unit: 'minutes', value: 0 });
 });

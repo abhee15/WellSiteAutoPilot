@@ -13,7 +13,7 @@ const id = '11111111-1111-4111-8111-111111111111';
 const act = { id, recommendationId: '33333333-3333-4333-8333-333333333333', executionId: id, configuredLogicId: id, assetId: id,
   command: 'SET_CHOKE', quantity: null, value: 40, unit: '%', status: 'Ambiguous', gateCode: 'SINK_AMBIGUOUS', sink: 'Simulator',
   sinkReference: null, createdAtUtc: '2026-10-14T12:00:00Z', completedAtUtc: null, origin: 'Autonomous', readbackValue: null,
-  verifiedAtUtc: null, resolutionNote: null };
+  verifiedAtUtc: null, resolutionNote: null, canManage: true };
 const pol = { configuredLogicId: id, enabled: true, sinkKind: 'Simulator', limits: [{ command: 'SET_CHOKE', unit: '%', minimumValue: 10, maximumValue: 60 }],
   maxActionsPerWindow: 3, windowSeconds: 600, updatedBy: 'a', updatedAtUtc: '2026-10-14T12:00:00Z', allowApprovedRecommendations: false };
 const ks = { engaged: true, changedBy: 'a', changedAtUtc: '2026-10-14T12:00:00Z', reason: 'x', autonomousControlEnabled: true };

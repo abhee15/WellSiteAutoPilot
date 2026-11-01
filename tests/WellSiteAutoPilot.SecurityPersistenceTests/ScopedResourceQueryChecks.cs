@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Domain.Control;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
@@ -159,8 +160,8 @@ internal static class ScopedResourceQueryChecks
         // Control actions and policies are disclosed through the same scopes as the recommendations and configurations
         // they belong to; a blocked action is as sensitive as a dispatched one.
         var actionA = ControlAction(recommendationA, allowed.Id, allowedExecution, assetA, now);
-        var actionB = ControlAction(recommendationB, mixed.Id, mixedExecution, assetB, now.AddMinutes(-1));
-        ControlAction(recommendationC, denied.Id, deniedExecution, assetC, now.AddMinutes(2));
+        var actionB = ControlAction(recommendationB, mixed.Id, mixedExecution, assetB, now.AddMinutes(-1), "Ambiguous");
+        ControlAction(recommendationC, denied.Id, deniedExecution, assetC, now.AddMinutes(2), "Ambiguous");
         foreach (var policyOwner in new[] { allowed.Id, denied.Id })
             db.AutonomyPolicies.Add(new AutonomyPolicyEntity
             {
@@ -566,12 +567,20 @@ internal static class ScopedResourceQueryChecks
                 (await recommendationRepository.ListAuthorizedAsync(request, null, 100, assetId: assetC)).Count != 0 ||
                 (await recommendationRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: denied.Id)).Count != 0)
                 throw new InvalidOperationException("Recommendation filters disclosed or displaced unauthorized recommendations.");
-            if (!(await controlRepository.ListActionsAuthorizedAsync(request, null, 100)).Select(item => item.Id)
+            if (!(await controlRepository.ListActionsAuthorizedAsync(request, null, null, false, 100)).Select(item => item.Id)
                     .ToHashSet().SetEquals([actionA, actionB]) ||
-                (await controlRepository.ListActionsAuthorizedAsync(request, null, 1)).Single().Id != actionA ||
-                (await controlRepository.ListActionsAuthorizedAsync(request, allowed.Id, 100)).Single().Id != actionA ||
-                (await controlRepository.ListActionsAuthorizedAsync(request, denied.Id, 100)).Count != 0)
+                (await controlRepository.ListActionsAuthorizedAsync(request, null, null, false, 1)).Single().Id != actionA ||
+                (await controlRepository.ListActionsAuthorizedAsync(request, allowed.Id, null, false, 100)).Single().Id != actionA ||
+                (await controlRepository.ListActionsAuthorizedAsync(request, denied.Id, null, false, 100)).Count != 0)
                 throw new InvalidOperationException("Control actions disclosed or displaced unauthorized actions.");
+            // The status filter runs in SQL before the limit and inside the same scope: the unreadable Ambiguous action is
+            // never returned, and with limit 1 the open readable action is still found past the newer blocked one.
+            if ((await controlRepository.ListActionsAuthorizedAsync(request, null, [ControlActionStatus.Ambiguous], false, 1))
+                    .Single().Id != actionB ||
+                (await controlRepository.ListActionsAuthorizedAsync(request, null, [ControlActionStatus.Blocked], false, 100))
+                    .Single().Id != actionA ||
+                (await controlRepository.ListActionsAuthorizedAsync(request, null, null, true, 1)).Single().Id != actionB)
+                throw new InvalidOperationException("Control action status filter or ordering is wrong.");
             // Verify/resolve require the right to decide the recommendation behind the action; B is readable but not decidable.
             if (!await controlRepository.CanDecideActionAsync(request, actionA) ||
                 await controlRepository.CanDecideActionAsync(request, actionB) ||
@@ -602,7 +611,7 @@ internal static class ScopedResourceQueryChecks
                     (await new ConfiguredLogicRepository(db, requestClock).ListAuthorizedAsync(request, 100)).Count != 0 ||
                     (await new ExecutionRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0 ||
                     (await new RecommendationRepository(db, requestClock).ListAuthorizedAsync(request, null, 100)).Count != 0 ||
-                    (await new ControlRepository(db, requestClock).ListActionsAuthorizedAsync(request, null, 100)).Count != 0)
+                    (await new ControlRepository(db, requestClock).ListActionsAuthorizedAsync(request, null, null, false, 100)).Count != 0)
                     throw new InvalidOperationException("Invalid/inactive subject was disclosed by a resource repository.");
             }
         }
@@ -687,13 +696,14 @@ internal static class ScopedResourceQueryChecks
             return id;
         }
 
-        Guid ControlAction(Guid recommendation, Guid configuration, Guid execution, Guid asset, DateTimeOffset created)
+        Guid ControlAction(Guid recommendation, Guid configuration, Guid execution, Guid asset, DateTimeOffset created,
+            string status = "Blocked")
         {
             var id = Guid.NewGuid();
             db.ControlActions.Add(new ControlActionEntity
             {
                 Id = id, RecommendationId = recommendation, ExecutionId = execution, ConfiguredLogicId = configuration,
-                AssetId = asset, Command = "test", Status = "Blocked", GateCode = "GATE_NO_POLICY", Sink = "Simulator",
+                AssetId = asset, Command = "test", Status = status, GateCode = "GATE_NO_POLICY", Sink = "Simulator",
                 CreatedAtUtc = created
             });
             return id;
