@@ -28,7 +28,12 @@ public static class GateCodes
     public const string RealWritesDisabled = "REAL_PROVIDER_WRITES_DISABLED";
     public const string SinkUnavailable = "GATE_SINK_UNAVAILABLE";
     public const string SinkRefused = "SINK_REFUSED";
-    public const string SinkFailed = "SINK_FAILED";
+    public const string SinkAmbiguous = "SINK_AMBIGUOUS";
+    public const string ReadbackConfirmed = "READBACK_CONFIRMED";
+    public const string ReadbackMismatch = "READBACK_MISMATCH";
+    public const string ReadbackNotApplied = "READBACK_NOT_APPLIED";
+    public const string OperatorResolvedApplied = "OPERATOR_RESOLVED_APPLIED";
+    public const string OperatorResolvedNotApplied = "OPERATOR_RESOLVED_NOT_APPLIED";
     public const string ApprovedNotEnabled = "GATE_APPROVED_EXECUTION_NOT_ENABLED";
     public const string NotRecommendationMode = "GATE_NOT_RECOMMENDATION_MODE";
     public const string Stale = "GATE_RECOMMENDATION_STALE";
@@ -53,6 +58,8 @@ public sealed class AutonomousControlService(
     AutonomousControlOptions options,
     TimeProvider timeProvider)
 {
+    private const string ReadbackActor = "system:control-readback";
+
     public async Task<int> ProcessExecutionAsync(Guid executionId, CancellationToken cancellationToken = default)
     {
         var execution = await executions.GetAsync(executionId, cancellationToken);
@@ -204,27 +211,132 @@ public sealed class AutonomousControlService(
             return;
         }
 
+        ControlDispatchResult result;
         try
         {
-            var result = await sink.DispatchAsync(
-                new ControlDispatchRequest(action.Id, action.AssetId, action.Command, action.Quantity,
-                    action.Value, action.Unit, $"control-action:{action.Id:N}"),
-                cancellationToken);
-            await control.CompleteAsync(
-                action.Id,
-                result.Accepted ? ControlActionStatus.Dispatched : ControlActionStatus.Failed,
-                result.Accepted ? GateCodes.Allowed : result.Reference is GateCodes.RealWritesDisabled
-                    ? GateCodes.RealWritesDisabled : GateCodes.SinkRefused,
-                result.Reference,
-                timeProvider.GetUtcNow(),
-                CancellationToken.None);
+            result = await sink.DispatchAsync(DispatchRequest(action), cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await control.CompleteAsync(action.Id, ControlActionStatus.Failed, GateCodes.SinkFailed, null,
+            // The command may or may not have reached the device, so never assume it failed: that is for readback
+            // or an operator to settle.
+            await control.CompleteAsync(action.Id, ControlActionStatus.Ambiguous, GateCodes.SinkAmbiguous, null,
                 timeProvider.GetUtcNow(), CancellationToken.None);
+            return;
+        }
+        catch (OperationCanceledException)
+        {
+            await control.CompleteAsync(action.Id, ControlActionStatus.Ambiguous, GateCodes.SinkAmbiguous, null,
+                timeProvider.GetUtcNow(), CancellationToken.None);
+            throw;
+        }
+
+        if (!result.Accepted)
+        {
+            await control.CompleteAsync(action.Id, ControlActionStatus.Failed,
+                result.Reference is GateCodes.RealWritesDisabled ? GateCodes.RealWritesDisabled : GateCodes.SinkRefused,
+                result.Reference, timeProvider.GetUtcNow(), CancellationToken.None);
+            return;
+        }
+
+        await control.CompleteAsync(action.Id, ControlActionStatus.Dispatched, GateCodes.Allowed, result.Reference,
+            timeProvider.GetUtcNow(), CancellationToken.None);
+        if (await control.GetActionAsync(action.Id, CancellationToken.None) is { } dispatched)
+        {
+            try
+            {
+                await VerifyCoreAsync(dispatched, sink, ReadbackActor, CancellationToken.None);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // The target could not be asked: the action stays Dispatched and can be verified again later.
+            }
         }
     }
+
+    /// <summary>
+    /// Asks the sink what the target holds now. A matching value verifies the action; a different value or a
+    /// dispatched command the target does not show is ambiguous; an unanswerable readback changes nothing.
+    /// </summary>
+    public async Task<ControlActionRecord> VerifyAsync(Guid actionId, string actor,
+        CancellationToken cancellationToken = default)
+    {
+        RequireActor(actor);
+        var action = await control.GetActionAsync(actionId, cancellationToken) ?? throw ActionNotFound();
+        if (action.Status is not (ControlActionStatus.Dispatched or ControlActionStatus.Ambiguous))
+            throw new WellSiteAutoPilotException("CONTROL_ACTION_NOT_VERIFIABLE", FailureKind.Conflict,
+                "Only a dispatched or ambiguous action can be verified.");
+        var sink = sinks.FirstOrDefault(item => string.Equals(item.Kind, action.Sink, StringComparison.Ordinal)) ??
+            throw new WellSiteAutoPilotException("CONTROL_SINK_UNAVAILABLE", FailureKind.Conflict,
+                "The sink that carried this action is not available.");
+        return await VerifyCoreAsync(action, sink, actor.Trim(), cancellationToken);
+    }
+
+    /// <summary>
+    /// A person settles an action nobody can verify automatically. The attestation and note are audited, and the
+    /// action says so with an operator gate code rather than pretending a readback happened.
+    /// </summary>
+    public async Task<ControlActionRecord> ResolveAsync(Guid actionId, bool applied, string note, string actor,
+        CancellationToken cancellationToken = default)
+    {
+        RequireActor(actor);
+        if (string.IsNullOrWhiteSpace(note) || note.Trim().Length > 1024 ||
+            note.Any(character => char.IsControl(character) && character is not ('\n' or '\r' or '\t')))
+            throw Validation("CONTROL_RESOLUTION_NOTE_INVALID",
+                "A resolution note of up to 1024 characters is required.");
+        _ = await control.GetActionAsync(actionId, cancellationToken) ?? throw ActionNotFound();
+        return await control.TransitionAsync(actionId,
+                   [ControlActionStatus.Ambiguous, ControlActionStatus.Dispatched],
+                   applied ? ControlActionStatus.Verified : ControlActionStatus.Failed,
+                   applied ? GateCodes.OperatorResolvedApplied : GateCodes.OperatorResolvedNotApplied,
+                   null, actor.Trim(), note.Trim(), timeProvider.GetUtcNow(), cancellationToken) ??
+               throw new WellSiteAutoPilotException("CONTROL_ACTION_NOT_RESOLVABLE", FailureKind.Conflict,
+                   "Only a dispatched or ambiguous action can be resolved, and it may already have been settled.");
+    }
+
+    public Task<bool> CanDecideActionAsync(AccessSubject subject, Guid actionId,
+        CancellationToken cancellationToken = default) =>
+        control.CanDecideActionAsync(subject, actionId, cancellationToken);
+
+    private async Task<ControlActionRecord> VerifyCoreAsync(ControlActionRecord action, IControlCommandSink sink,
+        string actor, CancellationToken cancellationToken)
+    {
+        var readback = await sink.ReadbackAsync(DispatchRequest(action), cancellationToken);
+        var (target, permitted, code) = readback.State switch
+        {
+            // Sinks report the observed value in the commanded unit; equality is exact because a setpoint that
+            // reads back differently has not been applied as asked.
+            ControlReadbackState.Applied when action.Value is null || readback.ObservedValue == action.Value =>
+                (ControlActionStatus.Verified, new[] { ControlActionStatus.Dispatched, ControlActionStatus.Ambiguous },
+                    GateCodes.ReadbackConfirmed),
+            ControlReadbackState.Applied when action.Status == ControlActionStatus.Dispatched =>
+                (ControlActionStatus.Ambiguous, new[] { ControlActionStatus.Dispatched }, GateCodes.ReadbackMismatch),
+            ControlReadbackState.NotApplied when action.Status == ControlActionStatus.Dispatched =>
+                (ControlActionStatus.Ambiguous, new[] { ControlActionStatus.Dispatched }, GateCodes.ReadbackNotApplied),
+            // Never accepted by the sink and not on the target: the command did not happen.
+            ControlReadbackState.NotApplied when action.Status == ControlActionStatus.Ambiguous &&
+                                                 action.SinkReference is null =>
+                (ControlActionStatus.Failed, new[] { ControlActionStatus.Ambiguous }, GateCodes.ReadbackNotApplied),
+            _ => (action.Status, Array.Empty<ControlActionStatus>(), action.GateCode)
+        };
+        if (permitted.Length == 0) return action;
+        return await control.TransitionAsync(action.Id, permitted, target, code, readback.ObservedValue, actor, null,
+                   timeProvider.GetUtcNow(), cancellationToken) ??
+               await control.GetActionAsync(action.Id, cancellationToken) ?? action;
+    }
+
+    private static ControlDispatchRequest DispatchRequest(ControlActionRecord action) =>
+        new(action.Id, action.AssetId, action.Command, action.Quantity, action.Value, action.Unit,
+            $"control-action:{action.Id:N}");
+
+    private static void RequireActor(string actor)
+    {
+        if (string.IsNullOrWhiteSpace(actor) || actor.Length > 256 || actor.Any(char.IsControl))
+            throw Validation("CONTROL_POLICY_ACTOR_INVALID", "An authenticated actor is required.");
+    }
+
+    private static WellSiteAutoPilotException ActionNotFound() =>
+        new("CONTROL_ACTION_NOT_FOUND", FailureKind.NotFound, "The requested control action was not found.");
 
     internal string? Evaluate(RecommendationRecord recommendation, AutonomyPolicy? policy,
         ControlKillSwitch killSwitch, ConfiguredLogicDefinition? definition, ConfiguredLogicRevision? revision,

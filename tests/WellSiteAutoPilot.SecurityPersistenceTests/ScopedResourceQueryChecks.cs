@@ -572,6 +572,11 @@ internal static class ScopedResourceQueryChecks
                 (await controlRepository.ListActionsAuthorizedAsync(request, allowed.Id, 100)).Single().Id != actionA ||
                 (await controlRepository.ListActionsAuthorizedAsync(request, denied.Id, 100)).Count != 0)
                 throw new InvalidOperationException("Control actions disclosed or displaced unauthorized actions.");
+            // Verify/resolve require the right to decide the recommendation behind the action; B is readable but not decidable.
+            if (!await controlRepository.CanDecideActionAsync(request, actionA) ||
+                await controlRepository.CanDecideActionAsync(request, actionB) ||
+                await controlRepository.CanDecideActionAsync(request, Guid.NewGuid()))
+                throw new InvalidOperationException("Control action decide scope confirmed an action the subject cannot decide.");
             if (await controlRepository.GetPolicyAuthorizedAsync(request, allowed.Id) is null ||
                 await controlRepository.GetPolicyAuthorizedAsync(request, denied.Id) is not null ||
                 await controlRepository.GetPolicyAuthorizedAsync(request, Guid.NewGuid()) is not null)
