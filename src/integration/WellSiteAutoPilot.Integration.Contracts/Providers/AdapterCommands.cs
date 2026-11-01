@@ -75,10 +75,12 @@ public static partial class AdapterCommandDefinitionValidator
                 continue;
             }
 
-            var label = string.IsNullOrWhiteSpace(command.Name) ? "(unnamed)" : command.Name;
-            if (!Identifier().IsMatch(command.Name ?? string.Empty)) problems.Add($"{label}: the name must be 1 to 128 letters, digits, '.', '_' or '-'.");
-            else if (ReservedNames.Contains(command.Name, StringComparer.OrdinalIgnoreCase)) problems.Add($"{label}: the name is reserved.");
-            else if (!names.Add(command.Name)) problems.Add($"{label}: the name is defined more than once (names differing only by case are the same command).");
+            // A definition read from JSON can carry a null name even though the type says otherwise.
+            var name = command.Name ?? string.Empty;
+            var label = string.IsNullOrWhiteSpace(name) ? "(unnamed)" : name;
+            if (!Identifier().IsMatch(name)) problems.Add($"{label}: the name must be 1 to 128 letters, digits, '.', '_' or '-'.");
+            else if (ReservedNames.Contains(name, StringComparer.OrdinalIgnoreCase)) problems.Add($"{label}: the name is reserved.");
+            else if (!names.Add(name)) problems.Add($"{label}: the name is defined more than once (names differing only by case are the same command).");
             if (string.IsNullOrWhiteSpace(command.DisplayName) || string.IsNullOrWhiteSpace(command.Description))
                 problems.Add($"{label}: a display name and description are required.");
             if (string.IsNullOrWhiteSpace(command.Quantity)) problems.Add($"{label}: the quantity is required.");
