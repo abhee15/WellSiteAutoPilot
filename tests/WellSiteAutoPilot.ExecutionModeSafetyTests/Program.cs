@@ -210,7 +210,7 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
 // 6. Recommendation and Autonomous executions materialize their intents (the latter only to be decided by the gate);
 // a Shadow run observes its intents only.
 {
-    async Task<int> MaterializeAsync(ExecutionMode mode)
+    async Task<(int Count, Guid ExecutionId)> MaterializeAsync(ExecutionMode mode, string? controlCommand = "SetSpeed")
     {
         // A person cannot prepare an Autonomous run, so prepare it as Shadow and switch both the revision and the command,
         // which is exactly the pair of facts the scheduler produces.
@@ -223,18 +223,41 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
             command = command with { Mode = ExecutionMode.Autonomous };
         }
         var execution = await executionService.RequestConfiguredShadowAsync(command, $"mode-materialize-{Guid.NewGuid():N}");
-        var result = new LogicModuleExecutionResult("MODE_TEST_COMPLETED", [], [],
-            [new ControlIntentDraft("SET_PUMPING_SPEED", active.Well.Id, "SetSpeed", "PumpingSpeed", 9m, "spm", "OPTIMIZED")],
+        var result = new LogicModuleExecutionResult("MODE_TEST_COMPLETED", [],
+            [new RecommendationIntentDraft("REVIEW_SPEED", active.Well.Id, "Review pump speed", "Fillage is trending down.",
+                "PumpingSpeed", 8m, "spm")],
+            controlCommand is null
+                ? []
+                : [new ControlIntentDraft("SET_PUMPING_SPEED", active.Well.Id, controlCommand, "PumpingSpeed", 9m, "spm", "OPTIMIZED")],
             new Dictionary<string, string>());
         var output = JsonSerializer.Serialize(result, JsonSerializerOptions.Web);
         await executionRepository.ApplyCompletedAsync(Guid.NewGuid(), $"mode-result-{Guid.NewGuid():N}", execution.Id,
             clock.GetUtcNow(), clock.GetUtcNow().AddSeconds(1), result.OutcomeCode, output);
-        return await materializer.MaterializeAsync(execution.Id, output);
+        return (await materializer.MaterializeAsync(execution.Id, output), execution.Id);
     }
 
-    Require(await MaterializeAsync(ExecutionMode.Shadow) == 0, "A Shadow execution produced a recommendation.");
-    Require(await MaterializeAsync(ExecutionMode.Recommendation) == 1, "A Recommendation execution did not produce its recommendation.");
-    Require(await MaterializeAsync(ExecutionMode.Autonomous) == 1, "An Autonomous execution did not produce its intent.");
+    Require((await MaterializeAsync(ExecutionMode.Shadow)).Count == 0, "A Shadow execution produced a recommendation.");
+    // Advice is proposed to a person, so only Recommendation mode records it; the control intent is recorded alongside.
+    var proposed = await MaterializeAsync(ExecutionMode.Recommendation);
+    var proposedRecords = await recommendationRepository.ListByExecutionAsync(proposed.ExecutionId);
+    Require(proposed.Count == 2 && proposedRecords.Count == 2 &&
+            proposedRecords.Single(item => item.Command == "SetSpeed").IntentIndex == 0 &&
+            proposedRecords.Single(item => item.Command == RecommendationCommands.Advisory) is
+            { Code: "REVIEW_SPEED", IntentIndex: 1, SuggestedValue: 8m, Unit: "spm", Status: RecommendationStatus.Created },
+        "A Recommendation execution did not produce its control and advisory recommendations.");
+    var autonomous = await MaterializeAsync(ExecutionMode.Autonomous);
+    Require(autonomous.Count == 1 && (await recommendationRepository.ListByExecutionAsync(autonomous.ExecutionId))
+            .All(item => item.Command != RecommendationCommands.Advisory),
+        "An Autonomous execution must materialize its control intent only, never advice.");
+    // The advisory command is reserved: a module cannot pass a control command off as advice.
+    try
+    {
+        await MaterializeAsync(ExecutionMode.Recommendation, RecommendationCommands.Advisory);
+        throw new InvalidOperationException("A control intent used the reserved advisory command.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Validation)
+    {
+    }
 }
 
 // 6b. The autonomy gate. These executions are built directly: the revision is prepared while a person can still run it,
@@ -344,12 +367,14 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     var limits = new[] { new AutonomyCommandLimit("SetSpeed", "spm", 5m, 12m) };
 
     async Task<Guid> ApprovedRecommendationAsync(
-        (ConfiguredLogicDefinition Logic, ConfiguredLogicRevision Revision, Asset Well) active, decimal speed, bool approve = true)
+        (ConfiguredLogicDefinition Logic, ConfiguredLogicRevision Revision, Asset Well) active, decimal speed, bool approve = true,
+        bool advisory = false)
     {
         var command = await configuredLogicService.PrepareManualShadowAsync(active.Logic.Id, active.Revision.Id);
         var execution = await executionService.RequestConfiguredShadowAsync(command, $"approved-{Guid.NewGuid():N}");
-        var result = new LogicModuleExecutionResult("APPROVED_TEST_COMPLETED", [], [],
-            [new ControlIntentDraft("SET_PUMPING_SPEED", active.Well.Id, "SetSpeed", "PumpingSpeed", speed, "spm", "OPTIMIZED")],
+        var result = new LogicModuleExecutionResult("APPROVED_TEST_COMPLETED", [],
+            advisory ? [new RecommendationIntentDraft("REVIEW_SPEED", active.Well.Id, "Review pump speed", "Advice.", "PumpingSpeed", speed, "spm")] : [],
+            advisory ? [] : [new ControlIntentDraft("SET_PUMPING_SPEED", active.Well.Id, "SetSpeed", "PumpingSpeed", speed, "spm", "OPTIMIZED")],
             new Dictionary<string, string>());
         var output = JsonSerializer.Serialize(result, JsonSerializerOptions.Web);
         await executionRepository.ApplyCompletedAsync(Guid.NewGuid(), $"approved-result-{Guid.NewGuid():N}", execution.Id,
@@ -460,6 +485,25 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     var supersededId = await ApprovedRecommendationAsync(superseded, 9m);
     await db.ConfiguredLogicRevisions.Where(item => item.Id == superseded.Revision.Id)
         .ExecuteUpdateAsync(set => set.SetProperty(item => item.Mode, nameof(ExecutionMode.Shadow)));
+    // Advice has no device action: approved by a person inside an opted-in configuration it is still refused, and no
+    // policy can permit its command.
+    var advice = await ApprovedRecommendationAsync(logic, 9m, advisory: true);
+    var adviceSent = simulator.Sent.Count;
+    var adviceResult = await gate.ExecuteApprovedAsync(advice, "operator");
+    Require(adviceResult.Action is null && adviceResult.RefusalCode == GateCodes.AdvisoryNotExecutable &&
+            await StatusAsync(advice) == RecommendationStatus.Approved && simulator.Sent.Count == adviceSent,
+        "An approved advisory recommendation must be refused and send nothing.");
+    try
+    {
+        await gate.SetPolicyAsync(logic.Logic.Id, true, ControlSinkKinds.Simulator,
+            [new AutonomyCommandLimit(RecommendationCommands.Advisory, "spm", 1m, 2m)], 5, 3600, "admin",
+            allowApprovedRecommendations: true);
+        throw new InvalidOperationException("A policy permitted the reserved advisory command.");
+    }
+    catch (WellSiteAutoPilotException exception) when (exception.Kind == FailureKind.Validation)
+    {
+    }
+
     var wrongMode = await gate.ExecuteApprovedAsync(supersededId, "operator");
     Require(wrongMode.RefusalCode == GateCodes.NotRecommendationMode,
         "A recommendation whose revision is no longer in Recommendation mode was executed.");

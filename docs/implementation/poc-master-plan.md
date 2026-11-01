@@ -18,7 +18,8 @@ Status: Done / In progress / Not started / Probe (a branch exists to answer an u
 | #368 | Autonomous becomes a governed mode: scheduled, materialized, gated; scoped `/control/*` API | E2 to E4, gap 5 groundwork |
 | #369 | Dedicated `control.manage` permission for control writes | gap 6 (backend) |
 | #370 | A person-approved recommendation executes through the gate, opt-in per configuration | gap 5 |
-| Readback (this change) | Sink readback, `Verified`/`Ambiguous` outcomes, verify and operator-resolve endpoints | gap 7 |
+| #371 | Sink readback, `Verified`/`Ambiguous` outcomes, verify and operator-resolve endpoints | gap 7 |
+| Advisory recommendations (this change) | Module advice is recorded in Recommendation mode under a reserved, never-executable command | PoC `5667a27` |
 
 ## Workstreams
 

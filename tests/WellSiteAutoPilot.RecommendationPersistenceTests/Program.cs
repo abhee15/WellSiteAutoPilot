@@ -191,13 +191,9 @@ await executionRepository.AddConfiguredRequestedAsync(
 var result = new LogicModuleExecutionResult(
     "RECOMMENDATION_TEST_COMPLETED",
     [],
-    [
-        new RecommendationIntentDraft(
-            "INFORMATIONAL_ONLY",
-            well.Id,
-            "Informational draft",
-            "This draft type is intentionally not materialized as a governed control recommendation.")
-    ],
+    // Advisory drafts are materialized in Recommendation mode (see ExecutionModeSafetyTests); this fixture
+    // isolates the control-intent path so its counts stay exact.
+    [],
     [
         new ControlIntentDraft(
             "SET_PUMPING_SPEED",

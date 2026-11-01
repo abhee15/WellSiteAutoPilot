@@ -65,8 +65,13 @@ public sealed class RecommendationMaterializer(
                 innerException: exception);
         }
 
-        if (result.ControlIntents is null ||
-            result.ControlIntents.Count == 0)
+        var controlIntents = result.ControlIntents ?? [];
+        // Advisory drafts are proposals for a person to read. Only Recommendation mode has a person to read them:
+        // Autonomous acts on control intents alone, so it never turns advice into something the gate could see.
+        var advisoryIntents = execution.Mode == ExecutionMode.Recommendation
+            ? result.Recommendations ?? []
+            : [];
+        if (controlIntents.Count == 0 && advisoryIntents.Count == 0)
         {
             return 0;
         }
@@ -79,7 +84,7 @@ public sealed class RecommendationMaterializer(
         var createdAtUtc = execution.CompletedAtUtc ??
                            timeProvider.GetUtcNow();
 
-        var recommendations = result.ControlIntents
+        var recommendations = controlIntents
             .Select((intent, index) =>
             {
                 if (!assetScope.Contains(intent.AssetId))
@@ -96,6 +101,11 @@ public sealed class RecommendationMaterializer(
                 var command = RequireText(
                     intent.Command,
                     "Control intent command is required.");
+                if (string.Equals(command, RecommendationCommands.Advisory, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw ValidationFailure("The advisory command is reserved and cannot be used as a control command.");
+                }
+
                 var reasonCode = RequireText(
                     intent.ReasonCode,
                     "Control intent reason code is required.");
@@ -123,7 +133,39 @@ public sealed class RecommendationMaterializer(
                     RecommendationStatus.Created,
                     createdAtUtc);
             })
-            .ToArray();
+            .ToList();
+
+        foreach (var advisory in advisoryIntents)
+        {
+            if (!assetScope.Contains(advisory.AssetId))
+            {
+                throw new WellSiteAutoPilotException(
+                    "RECOMMENDATION_ASSET_OUT_OF_SCOPE",
+                    FailureKind.Validation,
+                    $"Recommendation Asset '{advisory.AssetId}' is outside the source execution Asset scope.");
+            }
+
+            var code = RequireText(advisory.Code, "Recommendation code is required.");
+            RequireText(advisory.Title, "Recommendation title is required.");
+            recommendations.Add(new RecommendationRecord(
+                Guid.NewGuid(),
+                execution.Id,
+                recommendations.Count,
+                execution.LogicInstanceId,
+                execution.ConfigurationRevisionId,
+                execution.ModuleId,
+                execution.ModuleVersion,
+                advisory.AssetId,
+                code,
+                RecommendationCommands.Advisory,
+                string.IsNullOrWhiteSpace(advisory.Quantity) ? null : advisory.Quantity.Trim(),
+                advisory.SuggestedValue,
+                string.IsNullOrWhiteSpace(advisory.Unit) ? null : advisory.Unit.Trim(),
+                code,
+                JsonSerializer.Serialize(advisory, SerializerOptions),
+                RecommendationStatus.Created,
+                createdAtUtc));
+        }
 
         return await recommendationRepository.AddMissingAsync(
             recommendations,

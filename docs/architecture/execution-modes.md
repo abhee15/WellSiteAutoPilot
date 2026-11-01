@@ -10,7 +10,12 @@ does with a completed Execution's output; the worker never sends commands.
 | Scheduled execution | yes | yes | yes |
 | Manual run | yes | yes | **never** (scheduler only) |
 | Control intents | recorded in the result only | materialized as a `Recommendation` for an operator | materialized as a `Recommendation`, decided only by the autonomy gate |
+| Advisory recommendations (module-authored advice) | recorded in the result only | materialized as a `Recommendation` with the reserved command `ADVISORY_REVIEW` | never materialized |
 | Command to equipment | never | never | only through the gate, and only to the simulator today |
+
+An advisory recommendation is advice for a person to read. It carries the reserved command `ADVISORY_REVIEW`, which has no
+device action behind it: no autonomy policy may permit it, no module may emit it as a control command, and the gate refuses
+an approved advisory recommendation with `GATE_ADVISORY_NOT_EXECUTABLE` and sends nothing.
 
 ## One policy, enforced at every layer
 
