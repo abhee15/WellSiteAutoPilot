@@ -11,6 +11,8 @@ export type ScheduleRow = {
   enabled: boolean;
   /** Paused after activation: the saved revision declares runs but the live schedule is stopped. */
   paused: boolean;
+  /** The schedule in effect is faster than the logic's adapter allows, so its due runs are skipped. */
+  belowMinimum: boolean;
   /** The live schedule was changed after activation, so it differs from what the revision declares. */
   changed: boolean;
   cadenceSeconds: number;
@@ -55,6 +57,7 @@ export function buildScheduleOverview(
       mode: active.mode ?? null,
       assetLabels: configurationAssetLabels({ ...configuration, revisions: [active] }, assets),
       enabled: schedule.enabled === true,
+      belowMinimum: configuration.belowMinimum === true,
       paused: schedule.enabled !== true && declared?.enabled === true,
       changed: Boolean(declared) && (declared!.enabled !== schedule.enabled || declared!.cadenceSeconds !== schedule.cadenceSeconds),
       cadenceSeconds: schedule.cadenceSeconds ?? 0,

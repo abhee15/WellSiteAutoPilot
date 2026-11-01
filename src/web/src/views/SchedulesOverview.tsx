@@ -64,6 +64,7 @@ export function SchedulesOverview({ configuredLogic, assets, executions, isLoade
                   <td>{row.enabled
                     ? scheduleText({ enabled: true, cadenceSeconds: row.cadenceSeconds, timeZoneId: row.timeZoneId })
                     : <Status value={t(row.paused ? 'schedules.paused' : 'schedules.off')} />}
+                    {row.enabled && row.belowMinimum && <> <Status value={t('schedules.belowMinimum')} tone="warning" /></>}
                     {row.changed && <> <small>{t('schedules.changed')}</small></>}</td>
                   <td>{row.enabled && row.nextRunAtUtc
                     ? (Date.parse(row.nextRunAtUtc) <= clock ? t('schedules.dueNow') : formatTimestamp(row.nextRunAtUtc))

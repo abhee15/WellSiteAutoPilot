@@ -16,6 +16,16 @@ public sealed record ConfiguredLogicScheduleView(
     DateTimeOffset? NextRunAtUtc,
     IReadOnlyList<ConfiguredLogicScheduleChange> Changes)
 {
+    /// <summary>The adapter's shortest allowed interval in seconds, 0 when the module's adapter sets none or it is not known yet.</summary>
+    public int AdapterMinimumCadenceSeconds { get; init; }
+
+    /// <summary>The schedule runs, or would run once resumed, faster than the adapter allows; such runs are skipped.</summary>
+    public bool BelowMinimum => Effective is { } schedule && schedule.CadenceSeconds < AdapterMinimumCadenceSeconds;
+
+    /// <summary>The shortest interval a change may set: the Server-wide bound or the adapter's, whichever is longer.</summary>
+    public int EffectiveMinimumCadenceSeconds =>
+        Math.Max(ConfiguredLogicScheduleControlService.MinimumCadenceSeconds, AdapterMinimumCadenceSeconds);
+
     /// <summary>What the caller reviewed: the active revision plus the number of live changes made against it.</summary>
     public string Token => ConfiguredLogicScheduleControlService.FormatToken(ActiveRevisionId, Version);
 }
@@ -27,7 +37,8 @@ public sealed record ConfiguredLogicScheduleView(
 public sealed class ConfiguredLogicScheduleControlService(
     IConfiguredLogicRepository configurations,
     IConfiguredLogicScheduleRepository schedules,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IAdapterScheduleFloors? adapterFloors = null)
 {
     public const int MinimumCadenceSeconds = 15;
     public const int MaximumCadenceSeconds = 7 * 24 * 60 * 60;
@@ -46,7 +57,7 @@ public sealed class ConfiguredLogicScheduleControlService(
         AccessSubject subject, SecurityActorContext actor, Guid configuredLogicId, string expectedToken, string? reason,
         CancellationToken cancellationToken = default) =>
         ChangeAsync(subject, actor, configuredLogicId, expectedToken, reason,
-            ConfiguredLogicScheduleChangeKind.Paused, (effective, _) =>
+            ConfiguredLogicScheduleChangeKind.Paused, (effective, _, _) =>
             {
                 if (!effective.Enabled) throw Conflict("SCHEDULE_ALREADY_PAUSED", "This schedule is already paused.");
                 return effective with { Enabled = false };
@@ -56,9 +67,11 @@ public sealed class ConfiguredLogicScheduleControlService(
         AccessSubject subject, SecurityActorContext actor, Guid configuredLogicId, string expectedToken, string? reason,
         CancellationToken cancellationToken = default) =>
         ChangeAsync(subject, actor, configuredLogicId, expectedToken, reason,
-            ConfiguredLogicScheduleChangeKind.Resumed, (effective, now) =>
+            ConfiguredLogicScheduleChangeKind.Resumed, (effective, now, floor) =>
             {
                 if (effective.Enabled) throw Conflict("SCHEDULE_NOT_PAUSED", "This schedule is not paused.");
+                // Resuming below the adapter's floor would only produce skipped runs; the person must pick a valid frequency first.
+                RequireAtLeastFloor(effective.CadenceSeconds, floor);
                 // Missed occurrences are not made up: the first run is one cadence from now.
                 return effective with { Enabled = true, StartAtUtc = now.AddSeconds(effective.CadenceSeconds) };
             }, cancellationToken);
@@ -71,8 +84,9 @@ public sealed class ConfiguredLogicScheduleControlService(
             throw new WellSiteAutoPilotException("SCHEDULE_CADENCE_INVALID", FailureKind.Validation,
                 $"The frequency must be between {MinimumCadenceSeconds} seconds and {MaximumCadenceSeconds / 86400} days.");
         return ChangeAsync(subject, actor, configuredLogicId, expectedToken, reason,
-            ConfiguredLogicScheduleChangeKind.FrequencyChanged, (effective, now) =>
+            ConfiguredLogicScheduleChangeKind.FrequencyChanged, (effective, now, floor) =>
             {
+                RequireAtLeastFloor(cadenceSeconds, floor);
                 if (effective.CadenceSeconds == cadenceSeconds)
                     throw new WellSiteAutoPilotException("SCHEDULE_UNCHANGED", FailureKind.Validation,
                         "The schedule already runs at this frequency.");
@@ -88,7 +102,7 @@ public sealed class ConfiguredLogicScheduleControlService(
     private async Task<ConfiguredLogicScheduleView> ChangeAsync(
         AccessSubject subject, SecurityActorContext actor, Guid configuredLogicId, string expectedToken, string? reason,
         ConfiguredLogicScheduleChangeKind kind,
-        Func<ConfiguredLogicSchedule, DateTimeOffset, ConfiguredLogicSchedule> derive,
+        Func<ConfiguredLogicSchedule, DateTimeOffset, int, ConfiguredLogicSchedule> derive,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(subject);
@@ -106,7 +120,7 @@ public sealed class ConfiguredLogicScheduleControlService(
             throw Conflict("SCHEDULE_NOT_CONFIGURED", "The live revision does not run on a schedule.");
 
         var now = Truncate(timeProvider.GetUtcNow());
-        var next = derive(current.Effective, now);
+        var next = derive(current.Effective, now, AdapterFloor(active));
         await configurations.ApplyScheduleChangeAuthorizedAsync(
             new ConfiguredLogicScheduleChangeRequest(
                 configuredLogicId, reviewedRevisionId!.Value, reviewedVersion, kind, next, actor.IdentityName, now,
@@ -124,9 +138,21 @@ public sealed class ConfiguredLogicScheduleControlService(
         var described = Describe(definition, ActiveRevision(definition), state);
         return described with
         {
+            AdapterMinimumCadenceSeconds = AdapterFloor(ActiveRevision(definition)),
             NextRunAtUtc = EffectiveSchedule.NextRunAt(ActiveRevision(definition), state, timeProvider.GetUtcNow()),
             Changes = changes
         };
+    }
+
+    /// <summary>Seconds, 0 when the revision's adapter sets no floor or its floor is not known yet (the Server-wide bounds apply).</summary>
+    private int AdapterFloor(ConfiguredLogicRevision? active) =>
+        active is null ? 0 : AdapterScheduleFloorPolicy.FloorFor(active.ModuleManifestJson, adapterFloors) ?? 0;
+
+    private static void RequireAtLeastFloor(int cadenceSeconds, int floor)
+    {
+        if (cadenceSeconds < floor)
+            throw new WellSiteAutoPilotException("SCHEDULE_CADENCE_BELOW_ADAPTER_MINIMUM", FailureKind.Validation,
+                $"This logic's adapter needs at least {floor} seconds between runs.");
     }
 
     private static ConfiguredLogicScheduleView Describe(

@@ -20,7 +20,7 @@ const shape = (enabled, cadenceSeconds) => ({ enabled, cadenceSeconds, startAtUt
 const control = (overrides = {}) => ({
   configuredLogicId: LOGIC, activeRevisionId: REVISION, version: `${REVISION}.0`, declared: shape(true, 300),
   effective: shape(true, 300), differsFromRevision: false, nextRunAtUtc: '2026-11-01T12:05:00Z',
-  minimumCadenceSeconds: 15, maximumCadenceSeconds: 604800, canManage: true, changes: [], ...overrides,
+  minimumCadenceSeconds: 15, maximumCadenceSeconds: 604800, belowMinimum: false, canManage: true, changes: [], ...overrides,
 });
 const paused = control({ version: `${REVISION}.1`, effective: shape(false, 300), differsFromRevision: true, nextRunAtUtc: null,
   changes: [{ id: CHANGE, version: 1, kind: 'Paused', schedule: shape(false, 300), changedBy: 'A. Rivera',
@@ -45,7 +45,7 @@ test('the live schedule is read from the governed endpoint and validated', async
 test('an unreadable schedule is never shown as running or paused', async () => {
   const bad = [[], {}, control({ configuredLogicId: 'x' }), control({ version: '' }), control({ differsFromRevision: 'no' }),
     control({ effective: { enabled: 'yes' } }), control({ effective: shape(true, 1.5) }), control({ nextRunAtUtc: 'soon' }),
-    control({ minimumCadenceSeconds: 0 }), control({ maximumCadenceSeconds: 5 }), control({ changes: {} }),
+    control({ belowMinimum: undefined }), control({ minimumCadenceSeconds: 0 }), control({ maximumCadenceSeconds: 5 }), control({ changes: {} }),
     control({ changes: [{ ...paused.changes[0], kind: 'Exploded' }] }), control({ changes: [{ ...paused.changes[0], id: 'x' }] })];
   for (const body of bad) {
     await assert.rejects(client.fetchScheduleControl(LOGIC, signal(), async () => reply(body)), { kind: 'invalidResponse' }, JSON.stringify(body));
@@ -111,4 +111,13 @@ test('the panel is absent without a live revision and shows no state before it i
   assert.match(html, /Schedule control/);
   assert.doesNotMatch(html, /Running|Paused/, 'an unconfirmed schedule must not look running or paused');
   assert.doesNotMatch(html, /<button/, 'no action before the state is known');
+});
+
+test('the adapter floor reaches the form bounds and resume is not offered below it', async () => {
+  const fast = control({ effective: shape(false, 60), belowMinimum: true, minimumCadenceSeconds: 120 });
+  const state = await client.fetchScheduleControl(LOGIC, signal(), async () => reply(fast));
+  assert.equal(state.belowMinimum, true);
+  assert.equal(state.minimumCadenceSeconds, 120);
+  await assert.rejects(client.changeSchedule(state, { kind: 'frequency', cadenceSeconds: 90 }, '', signal(),
+    async () => { throw new Error('must not be sent'); }), { kind: 'invalid' });
 });
