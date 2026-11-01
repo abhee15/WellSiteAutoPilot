@@ -111,7 +111,7 @@ internal static class AuthorizedScheduleChecks
         if (await AuditCountAsync() != baseline + 6)
             throw new InvalidOperationException("Only successful service changes may be audited.");
         Console.WriteLine("Authorized schedule changes require paired grants, record the actor, are judged against the reviewed version and audit once.");
-        return 5;
+        return 6;
 
         Task<int> AuditCountAsync() => setup.AuditEvents.CountAsync(item => item.ActorUserId == subject.UserId &&
             item.CorrelationId == actor.CorrelationId && item.Action.StartsWith("CONFIGURED_LOGIC_SCHEDULE_"));
