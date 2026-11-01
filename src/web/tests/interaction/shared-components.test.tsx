@@ -105,6 +105,10 @@ describe('FilterToolbar', () => {
     expect(screen.queryByRole('combobox', { name: 'Type' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
     expect(screen.getByRole('combobox', { name: 'Type' })).toBeTruthy();
+    screen.getByRole('combobox', { name: 'Type' }).focus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('combobox', { name: 'Type' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Filters/ }));
   });
 
   it('shows a removable chip per applied filter and clears everything from one button', async () => {

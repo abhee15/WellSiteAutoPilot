@@ -54,6 +54,8 @@ Every list uses `FilterToolbar`: one search box and a Filters button (with the a
 that opens in place, a chip per applied filter, Clear filters and a result count. Saved views live in a collapsed section of
 the panel. The toolbar adapts to its own width (container query), so a narrow list pane stacks like a phone.
 
+Asset hierarchy controls opt into `FilterToolbar`'s `sticky` behavior above the split-pane breakpoint. The compact search/filter toolbar stays at the top of its own scroll pane. Opening Filters returns the toolbar to normal flow and resets only that pane to the top, keeping tall filter and saved-view forms reachable without nested scroll regions. Escape closes the panel and returns keyboard focus to Filters. On smaller screens controls stay in normal page flow; the existing container-responsive layout remains in use.
+
 ## Breakpoints
 
 In `em`, range syntax: `(width <= 40em)` phone, `(width < 48em)` / `(width >= 48em)` tablet, `(width <= 56.25em)` /
