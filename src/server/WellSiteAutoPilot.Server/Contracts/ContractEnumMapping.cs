@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Failures;
+using ContractConfiguredLogicScheduleChangeKind = WellSiteAutoPilot.Api.Contracts.ConfiguredLogic.ConfiguredLogicScheduleChangeKind;
 using ContractConfiguredLogicRevisionStatus = WellSiteAutoPilot.Api.Contracts.ConfiguredLogic.ConfiguredLogicRevisionStatus;
 using ContractExecutionMode = WellSiteAutoPilot.Api.Contracts.Executions.ExecutionMode;
 using ContractExecutionProfile = WellSiteAutoPilot.Api.Contracts.Logic.ExecutionProfile;
@@ -11,6 +12,7 @@ using ContractLogicRuntimeKind = WellSiteAutoPilot.Api.Contracts.Logic.LogicRunt
 using ContractPlatformComponentStatus = WellSiteAutoPilot.Api.Contracts.System.PlatformComponentStatus;
 using ContractRecommendationDecision = WellSiteAutoPilot.Api.Contracts.Recommendations.RecommendationDecision;
 using ContractRecommendationStatus = WellSiteAutoPilot.Api.Contracts.Recommendations.RecommendationStatus;
+using DomainConfiguredLogicScheduleChangeKind = WellSiteAutoPilot.Domain.ConfiguredLogic.ConfiguredLogicScheduleChangeKind;
 using DomainConfiguredLogicRevisionStatus = WellSiteAutoPilot.Domain.ConfiguredLogic.ConfiguredLogicRevisionStatus;
 using DomainExecutionMode = WellSiteAutoPilot.Domain.Executions.ExecutionMode;
 using DomainExecutionProfile = WellSiteAutoPilot.Domain.Logic.ExecutionProfile;
@@ -44,6 +46,7 @@ public static class ContractEnumMapping
     public static ContractLogicModuleTrustStatus ToContract(this DomainLogicModuleTrustStatus value) => Map<ContractLogicModuleTrustStatus>(value);
     public static ContractRecommendationStatus ToContract(this DomainRecommendationStatus value) => Map<ContractRecommendationStatus>(value);
     public static ContractConfiguredLogicRevisionStatus ToContract(this DomainConfiguredLogicRevisionStatus value) => Map<ContractConfiguredLogicRevisionStatus>(value);
+    public static ContractConfiguredLogicScheduleChangeKind ToContract(this DomainConfiguredLogicScheduleChangeKind value) => Map<ContractConfiguredLogicScheduleChangeKind>(value);
     public static ContractPlatformComponentStatus ToContract(this DomainPlatformComponentStatus value) => Map<ContractPlatformComponentStatus>(value);
 
     /// <summary>An omitted or undefined request value is a validation failure, never a default.</summary>

@@ -96,3 +96,35 @@ public sealed record ConfiguredLogicViewResponse(Guid ViewId, int Revision, Guid
 /// <summary>Live operational observations, separate from the immutable revision being reviewed.</summary>
 public sealed record ConfiguredLogicActivityResponse(Guid? ActiveRevisionId, DateTimeOffset ObservedAtUtc,
     DateTimeOffset? NextScheduledAtUtc, ExecutionResponse[] RecentRuns);
+
+/// <summary>Pause or resume the live schedule. The reviewed version is sent in If-Match.</summary>
+public sealed record ChangeConfiguredLogicScheduleStateRequest(string? Reason);
+
+/// <summary>Change how often the live schedule runs. The reviewed version is sent in If-Match.</summary>
+public sealed record ChangeConfiguredLogicScheduleFrequencyRequest(int CadenceSeconds, string? Reason);
+
+public sealed record ConfiguredLogicScheduleChangeResponse(
+    Guid Id,
+    int Version,
+    ConfiguredLogicScheduleChangeKind Kind,
+    ConfiguredLogicScheduleResponse Schedule,
+    string ChangedBy,
+    DateTimeOffset ChangedAtUtc,
+    string? Reason);
+
+/// <summary>
+/// One logic's schedule: what the live revision declares, what is running now, and the changes made since. Saved
+/// revisions never change, so a pause or frequency change shows here and not in the revision.
+/// </summary>
+public sealed record ConfiguredLogicScheduleControlResponse(
+    Guid ConfiguredLogicId,
+    Guid? ActiveRevisionId,
+    string Version,
+    ConfiguredLogicScheduleResponse? Declared,
+    ConfiguredLogicScheduleResponse? Effective,
+    bool DiffersFromRevision,
+    DateTimeOffset? NextRunAtUtc,
+    int MinimumCadenceSeconds,
+    int MaximumCadenceSeconds,
+    bool CanManage,
+    IReadOnlyCollection<ConfiguredLogicScheduleChangeResponse> Changes);

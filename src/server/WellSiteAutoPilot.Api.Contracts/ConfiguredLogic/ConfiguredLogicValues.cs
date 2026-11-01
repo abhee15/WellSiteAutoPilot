@@ -13,3 +13,12 @@ public enum ConfiguredLogicRevisionStatus
     Active = 3,
     Superseded = 4
 }
+
+[JsonConverter(typeof(ClosedStringEnumConverter<ConfiguredLogicScheduleChangeKind>))]
+public enum ConfiguredLogicScheduleChangeKind
+{
+    Paused = 1,
+    Resumed = 2,
+    FrequencyChanged = 3,
+    Reset = 4
+}

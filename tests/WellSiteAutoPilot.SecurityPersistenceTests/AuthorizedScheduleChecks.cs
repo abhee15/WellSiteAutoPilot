@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Scheduling;
@@ -48,13 +49,52 @@ internal static class AuthorizedScheduleChecks
         if (resumed.Version != 2 || changes.Count != 2 || changes.Any(item => item.ChangedBy != actor.IdentityName) ||
             await AuditCountAsync() != baseline + 2)
             throw new InvalidOperationException("Each successful schedule change must be audited with the actor, once.");
-        Console.WriteLine("Authorized schedule changes require paired grants, record the actor and audit once.");
-        return 2;
+
+        // Restored below so later checks see the revision as the fixture built it.
+        // The service judges every change against the schedule the caller reviewed, then applies it through the write above.
+        await setup.ConfiguredLogicRevisions.Where(item => item.Id == activeRevisionId).ExecuteUpdateAsync(set => set.SetProperty(
+            item => item.ScheduleJson, JsonSerializer.Serialize(new ConfiguredLogicSchedule(true, 300, now.AddHours(-1), "UTC"))));
+        var viewed = await ServiceAsync(service => service.GetAsync(subject, id));
+        if (viewed.Version != 2 || viewed.Declared is null || viewed.Live is null || viewed.Token != $"{activeRevisionId:D}.2")
+            throw new InvalidOperationException("The view must report the declared schedule, the live state and a version token.");
+        foreach (var badToken in new[] { "", "garbage", "none.x", $"{activeRevisionId:D}.-1" })
+            await ExpectAsync(() => ServiceAsync(service => service.PauseAsync(subject, actor, id, badToken, null)), FailureKind.Validation);
+        await ExpectAsync(() => ServiceAsync(service => service.PauseAsync(subject, actor, id, $"{activeRevisionId:D}.1", null)), FailureKind.Conflict);
+        await ExpectAsync(() => ServiceAsync(service => service.ResumeAsync(subject, actor, id, viewed.Token, null)), FailureKind.Conflict);
+
+        var servicePaused = await ServiceAsync(service => service.PauseAsync(subject, actor, id, viewed.Token, "  sensor swap  "));
+        if (servicePaused.Effective?.Enabled != false || servicePaused.NextRunAtUtc is not null || servicePaused.Version != 3 ||
+            servicePaused.Changes[0].Kind != ConfiguredLogicScheduleChangeKind.Paused || servicePaused.Changes[0].Reason != "sensor swap")
+            throw new InvalidOperationException("Pausing must stop the schedule, show no next run and record a trimmed reason.");
+        await ExpectAsync(() => ServiceAsync(service => service.PauseAsync(subject, actor, id, servicePaused.Token, null)), FailureKind.Conflict);
+        await ExpectAsync(() => ServiceAsync(service => service.ChangeFrequencyAsync(subject, actor, id, servicePaused.Token, 5, null)), FailureKind.Validation);
+        var retimed = await ServiceAsync(service => service.ChangeFrequencyAsync(subject, actor, id, servicePaused.Token, 600, null));
+        if (retimed.Effective?.Enabled != false || retimed.Effective!.CadenceSeconds != 600 ||
+            retimed.Effective.StartAtUtc != servicePaused.Effective!.StartAtUtc)
+            throw new InvalidOperationException("Changing the frequency of a paused schedule must keep it paused.");
+        var serviceResumed = await ServiceAsync(service => service.ResumeAsync(subject, actor, id, retimed.Token, null));
+        if (serviceResumed.Effective?.Enabled != true || serviceResumed.NextRunAtUtc != serviceResumed.Effective!.StartAtUtc ||
+            serviceResumed.Effective.StartAtUtc <= DateTimeOffset.UtcNow.AddSeconds(500) || !serviceResumed.Declared!.Enabled ||
+            serviceResumed.Declared.CadenceSeconds != 300)
+            throw new InvalidOperationException("Resuming must start one cadence from now and leave the declared schedule untouched.");
+        await ExpectAsync(() => ServiceAsync(service => service.ChangeFrequencyAsync(subject, actor, id, serviceResumed.Token, 600, null)), FailureKind.Validation);
+        await setup.ConfiguredLogicRevisions.Where(item => item.Id == activeRevisionId).ExecuteUpdateAsync(set => set.SetProperty(
+            item => item.ScheduleJson, (string?)null));
+        if (await AuditCountAsync() != baseline + 5)
+            throw new InvalidOperationException("Only successful service changes may be audited.");
+        Console.WriteLine("Authorized schedule changes require paired grants, record the actor, are judged against the reviewed version and audit once.");
+        return 5;
 
         Task<int> AuditCountAsync() => setup.AuditEvents.CountAsync(item => item.ActorUserId == subject.UserId &&
             item.CorrelationId == actor.CorrelationId && item.Action.StartsWith("CONFIGURED_LOGIC_SCHEDULE_"));
         Task<int> SetGrantAsync(Guid grant, bool active) => setup.AccessGrants.Where(item => item.Id == grant)
             .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsActive, active));
+        async Task<ConfiguredLogicScheduleView> ServiceAsync(Func<ConfiguredLogicScheduleControlService, Task<ConfiguredLogicScheduleView>> operation)
+        {
+            await using var db = new WellSiteAutoPilotDbContext(options);
+            return await operation(new ConfiguredLogicScheduleControlService(
+                new ConfiguredLogicRepository(db), new ConfiguredLogicScheduleRepository(db), TimeProvider.System));
+        }
         async Task<ConfiguredLogicScheduleState> WriteAsync(ConfiguredLogicScheduleChangeRequest request, AccessSubject? asSubject = null)
         {
             await using var db = new WellSiteAutoPilotDbContext(options);
