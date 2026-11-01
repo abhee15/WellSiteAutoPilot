@@ -11,6 +11,7 @@ namespace WellSiteAutoPilot.Application.Scheduling;
 
 public sealed class ScheduledShadowSchedulerService(
     IConfiguredLogicRepository configuredLogicRepository,
+    IConfiguredLogicScheduleRepository scheduleRepository,
     ILogicModuleCatalogRepository moduleCatalogRepository,
     IExecutionRepository executionRepository,
     ExecutionService executionService,
@@ -33,16 +34,21 @@ public sealed class ScheduledShadowSchedulerService(
         var candidates = await configuredLogicRepository.ListActiveScheduledAsync(
             limit,
             cancellationToken);
+        var scheduleStates = await scheduleRepository.ListAsync(
+            candidates.Select(item => item.Id).ToArray(),
+            cancellationToken);
         var decisions = new List<ScheduledShadowDispatchDecision>(candidates.Count);
 
         foreach (var configuredLogic in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            scheduleStates.TryGetValue(configuredLogic.Id, out var scheduleState);
 
             try
             {
                 var decision = await DispatchCandidateAsync(
                     configuredLogic,
+                    scheduleState,
                     nowUtc,
                     cancellationToken);
                 decisions.Add(decision);
@@ -62,7 +68,7 @@ public sealed class ScheduledShadowSchedulerService(
                 decisions.Add(Decision(
                     configuredLogic,
                     activeRevision,
-                    activeRevision?.Schedule is { } schedule
+                    EffectiveSchedule.Resolve(activeRevision, scheduleState) is { } schedule
                         ? GetLatestDueOccurrence(schedule, nowUtc)
                         : null,
                     ScheduledShadowDispatchOutcome.DispatchFailed,
@@ -77,6 +83,7 @@ public sealed class ScheduledShadowSchedulerService(
 
     private async Task<ScheduledShadowDispatchDecision> DispatchCandidateAsync(
         ConfiguredLogicDefinition configuredLogic,
+        ConfiguredLogicScheduleState? scheduleState,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
@@ -84,10 +91,11 @@ public sealed class ScheduledShadowSchedulerService(
             ? configuredLogic.Revisions.SingleOrDefault(item => item.Id == activeRevisionId)
             : null;
 
+        var schedule = EffectiveSchedule.Resolve(revision, scheduleState);
         if (revision is null ||
             revision.Status != ConfiguredLogicRevisionStatus.Active ||
             !ExecutionModePolicy.IsSupported(revision.Mode) ||
-            revision.Schedule is null)
+            schedule is null)
         {
             return Decision(
                 configuredLogic,
@@ -98,7 +106,7 @@ public sealed class ScheduledShadowSchedulerService(
         }
 
         var scheduledForUtc = GetLatestDueOccurrence(
-            revision.Schedule,
+            schedule,
             nowUtc);
 
         if (scheduledForUtc is null)

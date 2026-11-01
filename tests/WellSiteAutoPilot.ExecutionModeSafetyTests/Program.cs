@@ -46,7 +46,7 @@ var assetService = new AssetService(assetRepository, clock);
 var moduleCatalog = new LogicModuleCatalogService(moduleRepository, clock);
 var configuredLogicService = new ConfiguredLogicService(configuredLogicRepository, assetRepository, moduleRepository, clock);
 var executionService = new ExecutionService(executionRepository, clock);
-var scheduler = new ScheduledShadowSchedulerService(configuredLogicRepository, moduleRepository, executionRepository,
+var scheduler = new ScheduledShadowSchedulerService(configuredLogicRepository, new ConfiguredLogicScheduleRepository(db), moduleRepository, executionRepository,
     executionService, clock);
 var materializer = new RecommendationMaterializer(executionRepository, recommendationRepository, clock);
 var controlRepository = new ControlRepository(db);

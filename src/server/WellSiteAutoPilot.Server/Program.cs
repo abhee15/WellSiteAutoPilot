@@ -902,14 +902,16 @@ v1.MapPost(
 
 v1.MapGet(
     "/configured-logic",
-    async (int? limit, IConfiguredLogicRepository configurations, IResourceActionRepository actions,
-        RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
+    async (int? limit, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
+        IResourceActionRepository actions, RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
     {
         var items = await configurations.ListAuthorizedAsync(access.Subject, PageLimit(limit ?? 100), cancellationToken);
+        var scheduleStates = await schedules.ListAsync(items.Select(item => item.Id).ToArray(), cancellationToken);
         var capabilities = (await actions.GetConfiguredLogicActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
         var now = clock.GetUtcNow();
-        return items.Select(item => WithConfigurationActions(item, capabilities.GetValueOrDefault(item.Id), now)).ToArray();
+        return items.Select(item => WithConfigurationActions(
+            item, capabilities.GetValueOrDefault(item.Id), now, scheduleStates.GetValueOrDefault(item.Id))).ToArray();
     })
     .WithName("ListConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -918,13 +920,13 @@ v1.MapGet(
 
 v1.MapGet(
     "/configured-logic/{configuredLogicId:guid}/activity",
-    async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IExecutionHistoryReader history,
-        RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
+    async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
+        IExecutionHistoryReader history, RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
     {
         var item = RequireFound(await configurations.GetAuthorizedAsync(access.Subject, configuredLogicId, cancellationToken), "CONFIGURED_LOGIC_NOT_FOUND");
         var active = item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId);
         var now = clock.GetUtcNow();
-        var next = active?.Schedule is { } schedule ? ScheduleOccurrences.NextAfter(schedule, now) : null;
+        var next = EffectiveSchedule.NextRunAt(active, await schedules.GetAsync(configuredLogicId, cancellationToken), now);
         // Execution visibility is separately paired with its pinned Asset scope; configuration read alone never grants it.
         var runs = await history.ListHistoryAuthorizedAsync(access.Subject, null, configuredLogicId, null, 2, cancellationToken);
         return new ConfiguredLogicActivityResponse(item.ActiveRevisionId, now, next, runs.Select(ToResponse).ToArray());
@@ -936,12 +938,12 @@ v1.MapGet(
 
 v1.MapGet(
     "/configured-logic/{configuredLogicId:guid}",
-    async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IResourceActionRepository actions,
-        RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
+    async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
+        IResourceActionRepository actions, RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
     {
         var item = RequireFound(await configurations.GetAuthorizedAsync(access.Subject, configuredLogicId, cancellationToken), "CONFIGURED_LOGIC_NOT_FOUND");
         var capability = (await actions.GetConfiguredLogicActionsAsync(access.Subject, [item.Id], cancellationToken)).SingleOrDefault();
-        return WithConfigurationActions(item, capability, clock.GetUtcNow());
+        return WithConfigurationActions(item, capability, clock.GetUtcNow(), await schedules.GetAsync(item.Id, cancellationToken));
     })
     .WithName("GetConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -1056,7 +1058,7 @@ v1.MapPost(
 // Bounded asset-detail projection. Each permission is still paired with its own Asset scope in SQL.
 v1.MapGet(
     "/assets/{assetId:guid}/logic",
-    async (Guid assetId, int? offset, int? limit, IAssetDetailReader details,
+    async (Guid assetId, int? offset, int? limit, IAssetDetailReader details, IConfiguredLogicScheduleRepository schedules,
         RequestAccessContext access, TimeProvider clock, CancellationToken cancellationToken) =>
     {
         var grouping = await details.IsGroupingNodeAuthorizedAsync(access.Subject, assetId, cancellationToken)
@@ -1066,11 +1068,12 @@ v1.MapGet(
         if (grouping) return new AssetLogicPageResponse(true, [], false);
         var items = await details.ListLogicAuthorizedAsync(access.Subject, assetId, skip, size + 1, cancellationToken);
         var now = clock.GetUtcNow();
+        var scheduleStates = await schedules.ListAsync(items.Select(item => item.Id).ToArray(), cancellationToken);
         return new AssetLogicPageResponse(false, items.Take(size).Select(item =>
         {
             var active = item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId);
-            var next = active?.Schedule is { } schedule && active.AssetBindings.Any(binding => binding.AssetId == assetId)
-                ? ScheduleOccurrences.NextAfter(schedule, now) : null;
+            var next = active is not null && active.AssetBindings.Any(binding => binding.AssetId == assetId)
+                ? EffectiveSchedule.NextRunAt(active, scheduleStates.GetValueOrDefault(item.Id), now) : null;
             return new AssetLogicSummaryResponse(ToConfiguredLogicResponse(item), next);
         }).ToArray(), items.Count > size);
     })
@@ -1895,14 +1898,15 @@ static T? ParseFilter<T>(string? raw) where T : struct, Enum => raw is null ? nu
         throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation, "The requested status filter is invalid.");
 
 static ConfiguredLogicResponse WithConfigurationActions(
-    ConfiguredLogicDefinition item, ConfiguredLogicActions? capability, DateTimeOffset now) =>
+    ConfiguredLogicDefinition item, ConfiguredLogicActions? capability, DateTimeOffset now,
+    ConfiguredLogicScheduleState? scheduleState) =>
     ToConfiguredLogicResponse(item) with
     {
         CanManage = capability?.CanManage == true,
         CanRequestShadow = capability?.CanRequestShadow == true,
-        // One implementation of the cadence, shared with dispatch: the browser no longer recomputes it from its own clock.
-        NextRunAtUtc = item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId)?.Schedule is { } schedule
-            ? ScheduleOccurrences.NextAfter(schedule, now) : null,
+        // The same resolver the scheduler dispatches from: a paused or re-timed logic shows what will actually happen.
+        NextRunAtUtc = EffectiveSchedule.NextRunAt(
+            item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId), scheduleState, now),
     };
 
 static AccessGrantResponse ToAccessGrantResponse(AccessGrant grant) =>
