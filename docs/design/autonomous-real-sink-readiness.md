@@ -1,6 +1,10 @@
 # Autonomous real-sink readiness (CygNet / ForeSite)
 
-Status: design + read-only discovery. **Nothing here was executed against any CygNet or ForeSite system.** Findings come
+Status: design + read-only discovery. **The shared design for the command seam is now [provider-command-seam.md](provider-command-seam.md);
+it supersedes the outcome model in section 3, the ambiguity item in section 2 (built) and the dry-run description in section 4
+(not on `develop`). This document stays as the source survey and safety checklist.**
+
+Original status: design + read-only discovery. **Nothing here was executed against any CygNet or ForeSite system.** Findings come
 from reading source under `ForeSiteService\Trunk` (paths relative to it). Real provider writes stay disabled; the only
 code change is a sink that never writes (section 4).
 
