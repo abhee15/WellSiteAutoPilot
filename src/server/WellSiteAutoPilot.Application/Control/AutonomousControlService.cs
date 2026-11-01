@@ -396,6 +396,10 @@ public sealed class AutonomousControlService(
                 "Each permitted command needs a name and, when enabled, inclusive minimum and maximum bounds.");
         if (limits.Any(item => string.Equals(item.Command.Trim(), RecommendationCommands.Advisory, StringComparison.OrdinalIgnoreCase)))
             throw Validation("CONTROL_POLICY_LIMITS_INVALID", "The advisory command is reserved and cannot be permitted.");
+        // The gate takes the first matching entry, so a second entry for the same command would never apply and would
+        // read as a rule that does. Names differing only by case are the same command to a person, so reject them too.
+        if (limits.Select(item => item.Command.Trim()).GroupBy(name => name, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
+            throw Validation("CONTROL_POLICY_LIMITS_INVALID", "Each command can be permitted only once.");
         if (enabled && limits.Count == 0)
             throw Validation("CONTROL_POLICY_LIMITS_INVALID", "An enabled policy must explicitly permit at least one command.");
 
