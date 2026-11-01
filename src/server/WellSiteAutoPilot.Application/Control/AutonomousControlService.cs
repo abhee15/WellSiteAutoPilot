@@ -1,6 +1,7 @@
 using WellSiteAutoPilot.Application.ConfiguredLogic;
 using WellSiteAutoPilot.Application.Executions;
 using WellSiteAutoPilot.Application.Recommendations;
+using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Domain.Control;
 using WellSiteAutoPilot.Domain.Executions;
