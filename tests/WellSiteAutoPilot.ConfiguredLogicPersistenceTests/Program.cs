@@ -410,7 +410,7 @@ if (resumed.Version != 2 || !resumed.Schedule.Enabled || resumed.Schedule.Cadenc
     throw new InvalidOperationException("Resuming did not append to the schedule history in order.");
 
 // Two writers that reviewed the same version: exactly one wins.
-var scheduleRace = await Task.WhenAll(new[] { 180, 240 }.Select(async cadence =>
+var scheduleRace = await Task.WhenAll(new List<int> { 180, 240 }.Select(async cadence =>
 {
     await using var raceContext = new WellSiteAutoPilotDbContext(options);
     try
