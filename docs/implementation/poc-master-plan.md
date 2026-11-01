@@ -174,3 +174,22 @@ Owner direction: make it easy to connect a software system through an adapter, u
 | K4 | P1 | Authoring uses the schema: typed input picker, autocomplete, validation against capabilities, live preview (D3) | Design |
 | K5 | P2 | Adapter authoring SDK for new adapters: contract, scaffold, conformance tests (recommendation 12) | Design |
 | K6 | P2 | Versioning and compatibility between adapters and modules | Design |
+
+## Status at integration (all branches merged, not rebuilt or re-tested together)
+
+`feature/poc-integration` now contains every workstream and probe branch. The merged result has NOT been built or tested as a whole; individual branches were verified as noted in their docs. Check these first when you build:
+- Manual conflict resolutions in `Server/Program.cs`, `ScheduledShadowSchedulerService` (authority provider + schedule floor), `AutonomousControlService` gate (DryRun sink + approved recommendations), `WellSiteAutoPilot.slnx`.
+- EF migrations from authoring (`AddAuthoringDrafts`, not applied) and modes (`AddAutonomousControl`) share the model snapshot; regenerate/verify the snapshot.
+- Web generated API types are absent locally; run `npm run generate-api` then typecheck.
+
+Findings from the last probes and the items they add:
+| # | Pri | Item |
+|---|---|---|
+| L1 | P1 | Scheduler silently serves only `Scheduler:BatchSize` configurations (100 default, 500 max); due-based selection with paging, batched checks, jitter, recorded overlap skips (`docs/design/scheduler-load-probe.md`) |
+| L2 | P1 | Schedule edit creates a new revision per change; decide revision-clone vs schedule outside revisions; batch the overview queries; audit cadence raised by the floor; real adapter minimums (`docs/design/schedule-management-probe.md`) |
+| L3 | P1 | Relative facilities: CYG_DEMO has no relation definitions and RPOC wells have no parents; facility attribute 22 (Parent Facility) is one level deep on 197 facilities; relationMap prototype in the adapter not built (`docs/design/cygnet-relative-facilities.md`); needs a site with real definitions |
+| L4 | P1 | Authoring: AppContainer fails at process creation here (Win32 203), Job-object mode is the baseline; database draft store and migration unverified; live preview untested against live providers |
+| L5 | P1 | Real-time: no worker progress producer, groups not asset-scoped, notifications client-only, no backplane; not tested against the AppHost |
+| L6 | P1 | Adapters: WAMI not registered as an adapter; no adapter declares a minimum schedule; adapter profile endpoint and tab have no tests (`docs/design/adapter-experience.md`) |
+| L7 | P1 | Modes: web policy editor, `ExecutionDispatchTests` with NATS, and simulator HTTP sink tests are unfinished or unverified |
+| L8 | P2 | Real sink: ForeSite `SendSetPointsParamsForSingleWell` is the recommended write path; CygNet point-write API unconfirmed; dry-run outcome shows as Dispatched (`docs/design/autonomous-real-sink-readiness.md`) |
