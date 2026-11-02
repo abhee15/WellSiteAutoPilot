@@ -15,6 +15,7 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 builder.Services.AddSingleton<SimulatorState>();
+builder.Services.AddSingleton<SimulatorCommandBoard>();
 
 var app = builder.Build();
 
@@ -33,9 +34,10 @@ app.MapGet("/api/sim/v1/state", (SimulatorState state) =>
     }))
     .WithName("GetSimulatorState");
 
-app.MapPost("/api/sim/v1/scenarios/reset", (ResetScenarioRequest request, SimulatorState state) =>
+app.MapPost("/api/sim/v1/scenarios/reset", (ResetScenarioRequest request, SimulatorState state, SimulatorCommandBoard commands) =>
     {
         state.Reset(request.Scenario);
+        commands.Reset();
         return Results.NoContent();
     })
     .WithName("ResetSimulatorScenario");
@@ -70,6 +72,38 @@ app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
     .WithName("GetSimulatedCurrentValue")
     .Produces<EngineeringValue>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status503ServiceUnavailable);
+
+// The command side of the simulated provider. A command changes the current value the read side serves, so reading it
+// back through the ordinary read path shows whether it took effect. The provider has no idempotency of its own.
+app.MapPut("/api/sim/v1/assets/{assetId}/commands/{command}",
+    (string assetId, string command, SimulatorCommandRequest request, SimulatorCommandBoard commands) =>
+    {
+        if (string.IsNullOrWhiteSpace(request.RequestId)) return Results.BadRequest(new { code = "REQUEST_ID_REQUIRED" });
+        var result = commands.Execute(assetId, command, request.RequestId, request.Value, request.Unit);
+        return result.Outcome switch
+        {
+            SimulatorCommandOutcome.Accepted => Results.Ok(new { status = "Accepted", requestId = request.RequestId, reference = result.Reference }),
+            SimulatorCommandOutcome.Rejected => Results.UnprocessableEntity(new { status = "Rejected", code = result.Code }),
+            SimulatorCommandOutcome.UnknownCommand => Results.NotFound(new { status = "Rejected", code = result.Code }),
+            _ => Results.Json(new { status = "Failed", code = result.Code }, statusCode: StatusCodes.Status503ServiceUnavailable)
+        };
+    })
+    .WithName("SendSimulatedCommand");
+
+app.MapGet("/api/sim/v1/commands", () => SimulatorCommandBoard.Definitions)
+    .WithName("ListSimulatedCommands");
+
+app.MapGet("/api/sim/v1/commands/log", (SimulatorCommandBoard commands) => Results.Ok(commands.Log()))
+    .WithName("GetSimulatedCommandLog");
+
+app.MapPut("/api/sim/v1/commands/fault", (SetCommandFaultRequest request, SimulatorCommandBoard commands) =>
+    {
+        if (!Enum.TryParse<SimulatorCommandFault>(request.Fault, true, out var fault) || !Enum.IsDefined(fault))
+            return Results.BadRequest(new { code = "UNKNOWN_FAULT" });
+        commands.SetFault(fault, request.DelaySeconds);
+        return Results.NoContent();
+    })
+    .WithName("SetSimulatedCommandFault");
 
 // A stand-in for the parts of ForeSite's web services that discovery reads, so CI can exercise the whole path
 // without ForeSite. It lives under its own prefix: the simulator's root address must keep answering 404 to a

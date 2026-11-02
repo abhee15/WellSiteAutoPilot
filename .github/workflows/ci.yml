@@ -1315,6 +1315,112 @@ jobs:
           echo "$problems" | python -c "import json,sys; d=json.load(sys.stdin)['problems']; assert {p['fieldKey'] for p in d}=={'baseUrl','extra'}, d"
           expect "$(status -X POST -H 'Content-Type: application/json' -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" -d '{}' "$base/adapters/unknown/validate")" 404 "unknown adapter"
 
+      - name: Verify simulated provider commands and faults
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, time, urllib.request, urllib.error
+
+          base = "http://127.0.0.1:5091/api/sim/v1"
+
+          def call(method, path, body=None):
+              data = None if body is None else json.dumps(body).encode()
+              request = urllib.request.Request(base + path, data=data, method=method,
+                                               headers={"Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(request, timeout=10) as response:
+                      raw = response.read()
+                      return response.status, (json.loads(raw) if raw else None)
+              except urllib.error.HTTPError as error:
+                  raw = error.read()
+                  return error.code, (json.loads(raw) if raw else None)
+
+          def expect(actual, wanted, what):
+              assert actual == wanted, f"{what}: expected {wanted!r} but got {actual!r}"
+
+          def reset():
+              expect(call("POST", "/scenarios/reset", {"scenario": "rod-pump-normal"})[0], 204, "reset")
+
+          def fault(name, delay=0):
+              expect(call("PUT", "/commands/fault", {"fault": name, "delaySeconds": delay})[0], 204, f"fault {name}")
+
+          def send(request_id, value, command="SET_SPEED", unit=None):
+              body = {"requestId": request_id, "value": value}
+              if unit is not None:
+                  body["unit"] = unit
+              return call("PUT", f"/assets/WELL-101/commands/{command}", body)
+
+          def speed():
+              status, body = call("GET", "/assets/WELL-101/current/CurrentSPM")
+              return status, (None if body is None else body["value"])
+
+          def log():
+              return call("GET", "/commands/log")[1]
+
+          reset()
+          status, definitions = call("GET", "/commands")
+          expect(status, 200, "list commands")
+          expect(sorted(item["name"] for item in definitions), ["PUMP_RUN", "SET_SPEED"], "command names")
+
+          # A command takes effect and is visible on the ordinary read path.
+          expect(speed(), (200, 5.5), "starting speed")
+          status, body = send("r1", 7)
+          expect((status, body["status"]), (200, "Accepted"), "accepted command")
+          expect(speed(), (200, 7), "speed after command")
+          expect((log()["received"], log()["applied"], log()["duplicates"]), (1, 1, 0), "log after one command")
+
+          # The provider's own limits and shapes apply, and a refusal changes nothing.
+          expect(send("r2", 99)[1]["code"], "VALUE_OUT_OF_RANGE", "range")
+          expect(send("r3", 7, unit="psi")[1]["code"], "UNIT_MISMATCH", "unit")
+          expect(send("r4", 1, command="NOPE")[0], 404, "unknown command")
+          expect(send("", 1)[0], 400, "request id required")
+          expect(send("r5", 0.5, command="PUMP_RUN")[1]["code"], "VALUE_OUT_OF_RANGE", "on/off takes 0 or 1")
+          expect(speed(), (200, 7), "speed unchanged by refusals")
+
+          # The provider has no idempotency: a repeat is applied again and counted, so a duplicate send is provable.
+          send("dup", 8)
+          send("dup", 8)
+          current = log()
+          expect((current["duplicates"], current["byRequest"]["dup"]), (1, 2), "duplicate counted")
+
+          reset()
+          expect((log()["received"], log()["duplicates"]), (0, 0), "reset clears the log")
+
+          fault("Reject")
+          status, body = send("f1", 9)
+          expect((status, body["code"]), (422, "REJECTED_BY_PROVIDER"), "reject")
+          expect(speed(), (200, 5.5), "reject changes nothing")
+
+          reset(); fault("FailBeforeApply")
+          expect(send("f2", 9)[0], 503, "fail before apply")
+          expect(speed(), (200, 5.5), "fail before apply changes nothing")
+
+          reset(); fault("FailAfterApply")
+          expect(send("f3", 9)[0], 503, "fail after apply")
+          expect(speed(), (200, 9), "fail after apply still changed the value")
+
+          reset(); fault("SlowApply", 2)
+          expect(send("f4", 9)[0], 200, "slow apply is accepted at once")
+          expect(speed(), (200, 5.5), "slow apply has not taken effect yet")
+          time.sleep(2.5)
+          expect(speed(), (200, 9), "slow apply takes effect after the delay")
+
+          reset(); fault("WrongValue")
+          expect(send("f5", 9)[0], 200, "wrong value is accepted")
+          status, value = speed()
+          assert status == 200 and value != 9, f"wrong value must differ from the command, got {value!r}"
+
+          reset(); fault("ReadbackUnavailable")
+          expect(send("f6", 9)[0], 200, "unreadable command is accepted")
+          expect(speed()[0], 503, "readback is unavailable")
+
+          expect(call("PUT", "/commands/fault", {"fault": "Nonsense"})[0], 400, "unknown fault")
+          reset()
+          expect(send("after-reset", 6)[0], 200, "reset clears the fault")
+          expect(speed(), (200, 6), "speed after reset and command")
+          print("simulated provider commands verified")
+          PY
+
       - name: Show service logs on failure
         if: failure()
         shell: bash
