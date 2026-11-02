@@ -17,8 +17,9 @@ public sealed class AutonomousControlOptions
 
     public const string ProvidersSectionName = "Control:Providers";
 
-    // Adapters whose connections the Provider sink may command (Control:Providers:AllowedAdapters). Empty refuses the
-    // Provider sink altogether, so a new adapter stays unable to write until an owner names it here.
+    // Adapters whose connections the Provider sink may command (Control:Providers:AllowedAdapters). The Server defaults
+    // this to the simulator; empty refuses the Provider sink altogether, so a new adapter stays unable to write until an
+    // owner names it here.
     public IReadOnlyCollection<string> AllowedProviderAdapters { get; set; } = [];
 
     public bool ProviderAdapterAllowed(string adapterKey) =>

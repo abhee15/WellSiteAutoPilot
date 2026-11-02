@@ -124,6 +124,18 @@ app.Run();"""
         self.assertTrue(conventions.validate_command_client(retried))
         self.assertTrue(conventions.validate_command_client("builder.Services.AddHttpClient(\"x\");"))
 
+    def test_the_server_control_sink_client_never_retries(self):
+        registration = """builder.Services.AddHttpClient<WellSiteAutoPilot.Server.Control.GatewayControlCommandSink>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+}){0};
+"""
+        self.assertEqual(conventions.validate_server_command_client(registration.replace("{0}", "")), [])
+        self.assertTrue(conventions.validate_server_command_client(registration.replace("{0}", ".AddStandardResilienceHandler()")))
+        self.assertTrue(conventions.validate_server_command_client("builder.Services.AddHttpClient(\"x\");"))
+        defaults = "builder.Services.ConfigureHttpClientDefaults(b => b.AddStandardResilienceHandler());\n" + registration.replace("{0}", "")
+        self.assertTrue(conventions.validate_server_command_client(defaults))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -68,18 +68,3 @@ public sealed class SimulatedControlCommandSink : IControlCommandSink
         return Task.FromResult(new ControlReadback(ControlReadbackState.Applied, observed));
     }
 }
-
-// Real provider writes are disabled in this build; this sink exists so a refusal is explicit and auditable.
-public sealed class RefusingProviderControlCommandSink : IControlCommandSink
-{
-    public string Kind => ControlSinkKinds.Provider;
-
-    public Task<ControlDispatchResult> DispatchAsync(
-        ControlDispatchRequest request, CancellationToken cancellationToken = default) =>
-        Task.FromResult(new ControlDispatchResult(false, "REAL_PROVIDER_WRITES_DISABLED",
-            "Real provider writes are disabled."));
-
-    public Task<ControlReadback> ReadbackAsync(
-        ControlDispatchRequest request, CancellationToken cancellationToken = default) =>
-        Task.FromResult(new ControlReadback(ControlReadbackState.Unknown));
-}

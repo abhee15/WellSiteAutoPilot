@@ -53,8 +53,8 @@ materialized, and on every scheduler sweep for any intent a crash left undecided
 
 Every refusal is a `Blocked` ControlAction plus an audit event, and a blocked Autonomous recommendation cannot be approved
 by a person afterwards. An accepted intent is claimed atomically (`Created`→`Approved`, one `Requested` ControlAction per
-recommendation) and handed to the sink. The only sink that can be configured is the simulator; the provider sink always
-refuses with `REAL_PROVIDER_WRITES_DISABLED`. Provider writes are a separate, design-first workstream
+recommendation) and handed to the sink. The provider sink is the Gateway sink; it commands only adapters named in `Control:Providers:AllowedAdapters`
+(by default the simulator) and refuses any other with `REAL_PROVIDER_WRITES_DISABLED`. Provider writes are a separate, design-first workstream
 (`docs/design/autonomous-real-sink-readiness.md`).
 
 ## Executing an approved recommendation
