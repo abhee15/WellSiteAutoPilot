@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import test from 'node:test';
+import { URL, fileURLToPath } from 'node:url';
 
 // A class name in a component with no rule anywhere means the element renders unstyled. That is how the kill switch,
 // control actions and autonomy policy panels shipped without a stylesheet. This is a ratchet: the list below holds the
@@ -18,7 +19,7 @@ const BASELINE = [
   'kill-switch', 'kill-switch-form', 'schedule-control', 'schedule-control-form',
 ];
 
-const root = new URL('../src/', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../src/', import.meta.url));
 function walk(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry =>
     entry.isDirectory() ? walk(join(directory, entry.name)) : [join(directory, entry.name)]);
