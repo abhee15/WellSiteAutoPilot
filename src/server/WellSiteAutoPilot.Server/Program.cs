@@ -227,16 +227,26 @@ builder.Services.AddSingleton(new WellSiteAutoPilot.Application.Control.Autonomo
     Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled"),
     ApprovedRecommendationMaxAge = TimeSpan.FromMinutes(Math.Clamp(
         builder.Configuration.GetValue("Control:Autonomous:ApprovedRecommendationMaxAgeMinutes", 30), 1, 1440)),
-    // Closed unless an owner names an adapter. Nothing is allowed by default.
+    // Only the simulator unless an owner names the adapters. An empty JSON array does not create a configuration section,
+    // so "none" is written as one blank entry (Control:Providers:AllowedAdapters:0 = ""), and a real provider is added
+    // by naming it here after its behaviour sheet and site catalog are agreed.
     AllowedProviderAdapters = (builder.Configuration.GetSection(
             WellSiteAutoPilot.Application.Control.AutonomousControlOptions.ProvidersSectionName + ":AllowedAdapters")
-        .Get<string[]>() ?? []).Where(item => !string.IsNullOrWhiteSpace(item)).Select(item => item.Trim()).Distinct(StringComparer.Ordinal).ToArray()
+        .Get<string[]>() ?? ["simulator"]).Where(item => !string.IsNullOrWhiteSpace(item)).Select(item => item.Trim()).Distinct(StringComparer.Ordinal).ToArray()
 });
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.IControlRepository, WellSiteAutoPilot.Persistence.Control.ControlRepository>();
 builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>();
 builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
     sp => sp.GetRequiredService<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>());
-builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.IControlCommandSink, WellSiteAutoPilot.Application.Control.RefusingProviderControlCommandSink>();
+// A command is sent once: this client carries no retry or resilience handler (the convention check enforces it).
+builder.Services.AddHttpClient<WellSiteAutoPilot.Server.Control.GatewayControlCommandSink>(client =>
+{
+    client.BaseAddress = new Uri(
+        (builder.Configuration["Runtime:IntegrationGatewayUrl"] ?? "http://127.0.0.1:5081").TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddTransient<WellSiteAutoPilot.Application.Control.IControlCommandSink>(
+    sp => sp.GetRequiredService<WellSiteAutoPilot.Server.Control.GatewayControlCommandSink>());
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.AutonomousControlService>();
 builder.Services.AddScoped<UserIdentityService>();
 builder.Services.AddScoped<RoleCatalogService>();

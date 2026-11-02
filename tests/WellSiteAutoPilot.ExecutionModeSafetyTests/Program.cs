@@ -53,7 +53,7 @@ var controlRepository = new ControlRepository(db);
 var simulator = new SimulatedControlCommandSink();
 var gateOptions = new AutonomousControlOptions { Enabled = true };
 var gate = new AutonomousControlService(controlRepository, recommendationRepository, executionRepository,
-    configuredLogicRepository, [simulator, new RefusingProviderControlCommandSink()], gateOptions, clock, new StubTargetResolver());
+    configuredLogicRepository, [simulator, new RecordingProviderSink()], gateOptions, clock, new StubTargetResolver());
 
 var suffix = Guid.NewGuid().ToString("N");
 var wellType = await assetService.CreateAssetTypeAsync(new CreateAssetTypeCommand(

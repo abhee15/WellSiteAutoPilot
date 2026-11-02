@@ -25,9 +25,12 @@ A command is sent only if every layer allows it. A refusal names the first layer
    the command must be on the policy's list with a matching unit and a value inside its inclusive bounds, and the rate limit
    (actions per window) must not be used up.
    A policy that sends to a provider (the Provider sink) has two more conditions. The adapter of the asset's connection must
-   be named in `Control:Providers:AllowedAdapters` (empty by default, so none is), and the connection's command catalog must
+   be named in `Control:Providers:AllowedAdapters` (the simulator only, by default; to allow none, set the list to one blank
+   entry, because an empty list is not a setting), and the connection's command catalog must
    switch the command on and allow the value. A policy cannot be saved with limits wider than the catalog, and the catalog is
-   checked again when a command is sent, so narrowing it stops an older policy at once.
+   checked again when a command is sent, so narrowing it stops an older policy at once. A provider command goes to the
+   Integration Gateway exactly once and is never retried. A timeout, a transport error or an unreadable answer is recorded as
+   **ambiguous** (the provider may or may not have acted), and only a person or a later read-back settles it.
 4. **The recommendation.** It must be approved, not expired, and, for a person executing an approved recommendation, the
    policy must allow approved recommendations and the approval must be recent (30 minutes by default).
 

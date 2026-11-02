@@ -27,6 +27,7 @@ using DomainRecommendationStatus = WellSiteAutoPilot.Domain.Recommendations.Reco
 ExecutionProvenanceChecks.Run();
 await RuntimeReadinessChecks.RunAsync();
 await GatewayMeasurementFailureChecks.RunAsync();
+await GatewayControlCommandSinkChecks.RunAsync();
 
 var web = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 

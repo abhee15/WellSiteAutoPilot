@@ -153,6 +153,21 @@ def validate_command_client(program: str) -> list[str]:
     return errors
 
 
+def validate_server_command_client(program: str) -> list[str]:
+    """The Server's Provider sink client sends the same commands, so it must never retry either."""
+    anchor = "AddHttpClient<WellSiteAutoPilot.Server.Control.GatewayControlCommandSink>("
+    start = program.find(anchor)
+    if start < 0:
+        return ["Server Program.cs no longer registers the Gateway control sink as its own typed HTTP client"]
+    body_end = program.find("}", start)
+    statement = program[start:program.find(";\n", body_end) + 1]
+    errors = [f"the Gateway control sink client must not have {handler}: a retry could send a command twice"
+              for handler in RETRY_HANDLERS if handler in statement]
+    if "ConfigureHttpClientDefaults" in program and any(handler in program for handler in RETRY_HANDLERS):
+        errors.append("the Server must not add retry handlers to every HTTP client: the control sink client must never retry")
+    return errors
+
+
 def validate_changed_paths(changed: list[str]) -> list[str]:
     return [
         f"generated API client edited: {path} (regenerate from OpenAPI instead)"
@@ -183,6 +198,7 @@ def main() -> int:
         gateway = (root / GATEWAY_PROGRAM).read_text(encoding="utf-8-sig")
         errors += validate_gateway_routes(gateway)
         errors += validate_command_client(gateway)
+        errors += validate_server_command_client((root / "src/server/WellSiteAutoPilot.Server/Program.cs").read_text(encoding="utf-8-sig"))
         # Fail the existing CI conventions job when a protected API changes its
         # reviewed route name or legacy authorization metadata. This remains a
         # static tripwire, not scoped-grant enforcement or cutover approval.
