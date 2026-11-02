@@ -6,6 +6,9 @@ namespace WellSiteAutoPilot.ProviderSimulator.Simulation;
 public sealed class SimulatorState
 {
     private readonly ConcurrentDictionary<(string AssetId, string Quantity), EngineeringValue> _values = new();
+    private readonly object _pendingLock = new();
+    private readonly List<(DateTimeOffset DueUtc, string AssetId, string Quantity, decimal Value, string Unit)> _pending = [];
+    private volatile HashSet<string> _blockedReadback = [];
 
     public SimulatorState()
     {
@@ -18,10 +21,12 @@ public sealed class SimulatorState
 
     public EngineeringValue GetCurrent(string assetId, string quantity)
     {
-        if (!ProviderAvailable)
+        if (!ProviderAvailable || _blockedReadback.Contains(quantity))
         {
             throw new SimulatorProviderUnavailableException();
         }
+
+        ApplyDue();
 
         if (_values.TryGetValue((assetId, quantity), out var configured))
         {
@@ -56,6 +61,29 @@ public sealed class SimulatorState
             $"simulator:{assetId}");
     }
 
+    /// <summary>Queues a change to a current value that takes effect at <paramref name="dueUtc"/>, as a command does.</summary>
+    public void ScheduleCurrent(string assetId, string quantity, decimal value, string unit, DateTimeOffset dueUtc)
+    {
+        lock (_pendingLock) _pending.Add((dueUtc, assetId, quantity, value, unit));
+        ApplyDue();
+    }
+
+    /// <summary>Quantities whose current value cannot be read, to simulate a provider that cannot confirm a command.</summary>
+    public void SetReadbackBlocked(IEnumerable<string> quantities) => _blockedReadback = quantities.ToHashSet(StringComparer.Ordinal);
+
+    private void ApplyDue()
+    {
+        var now = DateTimeOffset.UtcNow;
+        List<(DateTimeOffset DueUtc, string AssetId, string Quantity, decimal Value, string Unit)> due;
+        lock (_pendingLock)
+        {
+            due = _pending.Where(item => item.DueUtc <= now).OrderBy(item => item.DueUtc).ToList();
+            _pending.RemoveAll(item => item.DueUtc <= now);
+        }
+
+        foreach (var item in due) SetCurrent(item.AssetId, item.Quantity, item.Value, item.Unit);
+    }
+
     public void SetAvailability(bool available)
     {
         ProviderAvailable = available;
@@ -64,6 +92,8 @@ public sealed class SimulatorState
     public void Reset(string scenario)
     {
         _values.Clear();
+        lock (_pendingLock) _pending.Clear();
+        _blockedReadback = [];
         ProviderAvailable = true;
         Scenario = scenario;
 
