@@ -91,6 +91,18 @@ builder.Services.AddSingleton<CircuitBreakingCurrentDataProvider>(services =>
         services.GetRequiredService<TimeProvider>(),
         builder.Configuration.GetValue("Providers:CircuitBreaker:FailureThreshold", 3),
         TimeSpan.FromSeconds(builder.Configuration.GetValue("Providers:CircuitBreaker:RecoverySeconds", 30))));
+// The command client is deliberately a plain client: no resilience or retry handler may ever be added to it, because a
+// repeated send would apply a command twice. A test pins this.
+builder.Services.AddHttpClient(SimulatorCommandProvider.ClientName, client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["Providers:Simulator:BaseUrl"] ??
+        "http://127.0.0.1:5091");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+builder.Services.AddTransient<SimulatorCommandProvider>(services =>
+    new SimulatorCommandProvider(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient(SimulatorCommandProvider.ClientName)));
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddTransient<CurrentDataProviderRouter>(services =>
 {
@@ -230,6 +242,32 @@ v1.MapPost(
     .Produces<DiscoveryResult>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound);
 
+// Control commands. Server caller only: a worker, and therefore any module, can never reach these routes.
+// Only the simulator carries commands; every other adapter answers 404 until its owner supplies a behaviour sheet.
+v1.MapPost(
+    "/adapters/{adapterKey}/command",
+    async (string adapterKey, GatewayCommandRequest request, AdapterCatalog catalog,
+        SimulatorCommandProvider simulator, CancellationToken cancellationToken) =>
+        request is not null && CommandAdapter(catalog, adapterKey, request.Command) is not null
+            ? Results.Ok(await simulator.SendAsync(request, cancellationToken))
+            : Results.NotFound())
+    .WithName("SendAdapterCommand")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<GatewayCommandResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound);
+
+v1.MapPost(
+    "/adapters/{adapterKey}/command-readback",
+    async (string adapterKey, ConnectionMeasurementRequest request, AdapterCatalog catalog,
+        CurrentDataProviderRouter provider, CancellationToken cancellationToken) =>
+        request is not null && ReadbackAdapter(catalog, adapterKey, request.Quantity)
+            ? Results.Ok(await provider.GetCurrentAsync("simulator", request.ExternalId, request.Quantity, cancellationToken))
+            : Results.NotFound())
+    .WithName("ReadAdapterCommandValue")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<EngineeringValue>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound);
+
 v1.MapPost("/adapters/cygnet/current",
     async (ConnectionMeasurementRequest request, CygNetConnectionMeasurements provider, CancellationToken cancellationToken) =>
         Results.Ok(await provider.ReadAsync(request, cancellationToken)))
@@ -269,5 +307,16 @@ v1.MapGet(
         "application/problem+json");
 
 app.Run();
+
+// Only the simulator adapter carries commands so far. A command name the adapter does not define is never sent.
+static AdapterCommandDefinition? CommandAdapter(AdapterCatalog catalog, string adapterKey, string? command) =>
+    string.Equals(adapterKey, "simulator", StringComparison.Ordinal)
+        ? catalog.Find(adapterKey)?.Commands?.FirstOrDefault(item => string.Equals(item.Name, command, StringComparison.Ordinal))
+        : null;
+
+// Only a quantity that one of the adapter's commands names as its read-back can be read through this route.
+static bool ReadbackAdapter(AdapterCatalog catalog, string adapterKey, string? quantity) =>
+    string.Equals(adapterKey, "simulator", StringComparison.Ordinal) &&
+    (catalog.Find(adapterKey)?.Commands?.Any(item => string.Equals(item.ReadbackQuantity, quantity, StringComparison.Ordinal)) ?? false);
 
 public partial class Program;

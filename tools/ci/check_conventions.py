@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -92,6 +93,66 @@ def validate_schedule_resolution(root: Path) -> list[str]:
     return errors
 
 
+# A command reaches equipment only through the control gate, which claims the action, re-reads the kill switch and sends
+# once. A second caller of a command sink would bypass all of that.
+CONTROL_GATE = "src/server/WellSiteAutoPilot.Application/Control/AutonomousControlService.cs"
+
+
+def validate_command_dispatch(root: Path) -> list[str]:
+    errors: list[str] = []
+    root = root.resolve()
+    for source in sorted((root / "src").rglob("*.cs")):
+        relative = source.relative_to(root).as_posix()
+        if relative == CONTROL_GATE:
+            continue
+        text = source.read_text(encoding="utf-8-sig")
+        if "IControlCommandSink" in text and ".DispatchAsync(" in text:
+            errors.append(
+                f"{relative}: calls a control command sink outside the control gate; "
+                "commands must go through AutonomousControlService so they are claimed, checked and sent once")
+    return errors
+
+
+GATEWAY_PROGRAM = "src/integration/WellSiteAutoPilot.IntegrationGateway/Program.cs"
+GATEWAY_ROUTE = re.compile(r"\bv1\.Map(?:Get|Post|Put|Patch|Delete)\(")
+RETRY_HANDLERS = ("AddStandardResilienceHandler", "AddResilienceHandler", "AddStandardHedgingHandler",
+                  "AddPolicyHandler", "AddTransientHttpErrorPolicy", "Polly")
+
+
+def validate_gateway_routes(program: str) -> list[str]:
+    """Every Gateway route needs an authorization policy, and a command route must be server-only."""
+    errors: list[str] = []
+    starts = [match.start() for match in GATEWAY_ROUTE.finditer(program)]
+    end = program.find("app.Run()")
+    boundaries = starts + [end if end > (starts[-1] if starts else -1) else len(program)]
+    for begin, stop in zip(starts, boundaries[1:]):
+        block = program[begin:stop]
+        route = re.search(r'"(/[^"]*)"', block)
+        name = route.group(1) if route else block[:40].strip()
+        if ".RequireAuthorization(" not in block:
+            errors.append(f"Gateway route {name} has no authorization policy")
+        elif "command" in name.lower() and "ServiceCaller.ServerPolicy" not in block:
+            errors.append(f"Gateway command route {name} must require ServiceCaller.ServerPolicy so a worker can never reach it")
+    return errors
+
+
+def validate_command_client(program: str) -> list[str]:
+    """A repeated send applies a command twice, so no retry or resilience handler may sit on the command client."""
+    errors: list[str] = []
+    anchor = "SimulatorCommandProvider.ClientName"
+    start = program.find("AddHttpClient(" + anchor)
+    if start < 0:
+        return ["Gateway Program.cs no longer registers the simulator command client by SimulatorCommandProvider.ClientName"]
+    # The registration is one statement: it ends at the first ";" line break after the lambda's closing brace.
+    body_end = program.find("}", start)
+    statement = program[start:program.find(";\n", body_end) + 1]
+    errors += [f"the command client must not have {handler}: a retry could send a command twice"
+               for handler in RETRY_HANDLERS if handler in statement]
+    if "ConfigureHttpClientDefaults" in program and any(handler in program for handler in RETRY_HANDLERS):
+        errors.append("the Gateway must not add retry handlers to every HTTP client: the command client must never retry")
+    return errors
+
+
 def validate_changed_paths(changed: list[str]) -> list[str]:
     return [
         f"generated API client edited: {path} (regenerate from OpenAPI instead)"
@@ -118,6 +179,10 @@ def main() -> int:
     try:
         errors = validate_references(root)
         errors += validate_schedule_resolution(root)
+        errors += validate_command_dispatch(root)
+        gateway = (root / GATEWAY_PROGRAM).read_text(encoding="utf-8-sig")
+        errors += validate_gateway_routes(gateway)
+        errors += validate_command_client(gateway)
         # Fail the existing CI conventions job when a protected API changes its
         # reviewed route name or legacy authorization metadata. This remains a
         # static tripwire, not scoped-grant enforcement or cutover approval.
