@@ -53,7 +53,7 @@ var controlRepository = new ControlRepository(db);
 var simulator = new SimulatedControlCommandSink();
 var gateOptions = new AutonomousControlOptions { Enabled = true };
 var gate = new AutonomousControlService(controlRepository, recommendationRepository, executionRepository,
-    configuredLogicRepository, [simulator, new RefusingProviderControlCommandSink()], gateOptions, clock);
+    configuredLogicRepository, [simulator, new RefusingProviderControlCommandSink()], gateOptions, clock, new StubTargetResolver());
 
 var suffix = Guid.NewGuid().ToString("N");
 var wellType = await assetService.CreateAssetTypeAsync(new CreateAssetTypeCommand(
@@ -331,6 +331,94 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
     }
     catch (WellSiteAutoPilotException)
     {
+    }
+
+    // The Provider sink is allowed per adapter, and the site's catalog is a ceiling the policy cannot widen.
+    {
+        var stub = new StubTargetResolver();
+        var providerSink = new RecordingProviderSink();
+        var providerGate = new AutonomousControlService(controlRepository, recommendationRepository, executionRepository,
+            configuredLogicRepository, [simulator, providerSink],
+            new AutonomousControlOptions { Enabled = true, AllowedProviderAdapters = ["simulator"] }, clock, stub);
+
+        async Task ExpectPolicyRefusedAsync(Guid logicId, string code, string what)
+        {
+            try { await providerGate.SetPolicyAsync(logicId, true, ControlSinkKinds.Provider, limits, 10, 3600, "admin"); }
+            catch (WellSiteAutoPilotException exception) when (exception.Code == code) { return; }
+            throw new InvalidOperationException($"Expected {code}: {what}.");
+        }
+
+        var configured = await AutonomousExecutionAsync(9m);
+        stub.Behavior = (_, _) => ControlTargetResolution.Refused(GateCodes.TargetNotBound);
+        await ExpectPolicyRefusedAsync(configured.ConfiguredLogicId, "CONTROL_POLICY_TARGET_UNRESOLVED", "a target that does not resolve");
+        stub.Behavior = (_, _) => ControlTargetResolution.Resolved(StubTargetResolver.Target("foresite"));
+        await ExpectPolicyRefusedAsync(configured.ConfiguredLogicId, "CONTROL_REAL_WRITES_DISABLED", "an adapter that is not allowed");
+        stub.Behavior = (_, _) => ControlTargetResolution.Resolved(StubTargetResolver.Target(max: 8));
+        await ExpectPolicyRefusedAsync(configured.ConfiguredLogicId, "CONTROL_POLICY_EXCEEDS_CATALOG", "limits wider than the catalog");
+        stub.Behavior = (_, _) => ControlTargetResolution.Resolved(StubTargetResolver.Target(enabled: false));
+        await ExpectPolicyRefusedAsync(configured.ConfiguredLogicId, "CONTROL_POLICY_EXCEEDS_CATALOG", "a command the site has not switched on");
+        Require(await controlRepository.GetPolicyAsync(configured.ConfiguredLogicId) is null, "A refused provider policy was stored.");
+
+        // The default build allows no adapter at all, whatever the catalog says.
+        stub.Behavior = (_, _) => ControlTargetResolution.Resolved(StubTargetResolver.Target());
+        try
+        {
+            await new AutonomousControlService(controlRepository, recommendationRepository, executionRepository,
+                configuredLogicRepository, [simulator, providerSink], new AutonomousControlOptions { Enabled = true }, clock, stub)
+                .SetPolicyAsync(configured.ConfiguredLogicId, true, ControlSinkKinds.Provider, limits, 10, 3600, "admin");
+            throw new InvalidOperationException("A Provider policy was accepted with no adapter allowed.");
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Code == "CONTROL_REAL_WRITES_DISABLED") { }
+
+        // Inside the catalog: it is sent, with the resolved target, once, and read back.
+        await providerGate.SetPolicyAsync(configured.ConfiguredLogicId, true, ControlSinkKinds.Provider, limits, 10, 3600, "admin");
+        var savedPolicy = await controlRepository.GetPolicyAsync(configured.ConfiguredLogicId);
+        Require(savedPolicy is { SinkKind: ControlSinkKinds.Provider }, "The provider policy was not stored.");
+        await providerGate.ProcessExecutionAsync(configured.ExecutionId);
+        var sentAction = (await controlRepository.ListActionsAsync(configured.ConfiguredLogicId, 10)).Single();
+        Require(sentAction.Status == ControlActionStatus.Verified && sentAction.Sink == ControlSinkKinds.Provider,
+            "An in-catalog command should be sent through the Provider sink and verified.");
+        Require(providerSink.Requests.Count == 1 && providerSink.Requests[0].Target is { AdapterKey: "simulator", ExternalId: "WELL-101" },
+            "The Provider sink must receive the resolved target, once.");
+        Require(simulator.Sent.All(item => item.IdempotencyKey != providerSink.Requests[0].IdempotencyKey),
+            "A Provider command must not also reach the simulated sink.");
+
+        async Task<(Guid Logic, Guid Execution)> ProviderPolicyAsync(params decimal[] speeds)
+        {
+            stub.Behavior = (_, _) => ControlTargetResolution.Resolved(StubTargetResolver.Target());
+            var run = await AutonomousExecutionAsync(speeds);
+            await providerGate.SetPolicyAsync(run.ConfiguredLogicId, true, ControlSinkKinds.Provider, limits, 10, 3600, "admin");
+            return (run.ConfiguredLogicId, run.ExecutionId);
+        }
+
+        // A catalog narrowed after the policy was saved stops the value it no longer allows, and only that one.
+        var narrowed = await ProviderPolicyAsync(9m, 11m);
+        stub.Behavior = (_, _) => ControlTargetResolution.Resolved(StubTargetResolver.Target(max: 10));
+        var before = providerSink.Requests.Count;
+        await providerGate.ProcessExecutionAsync(narrowed.Execution);
+        var narrowedActions = await controlRepository.ListActionsAsync(narrowed.Logic, 10);
+        Require(providerSink.Requests.Count == before + 1 && providerSink.Requests[^1].Value == 9m,
+            "Only the value inside the narrowed catalog may be sent.");
+        Require(narrowedActions.Single(item => item.Value == 11m) is { Status: ControlActionStatus.Blocked, GateCode: GateCodes.CatalogOutOfBounds },
+            "A value above a narrowed catalog must be blocked with the catalog code.");
+
+        // An adapter taken off the list, or a connection that went away, stops the command before anything is sent.
+        foreach (var (name, behavior, expectedCode) in new (string, ControlTargetResolution, string)[]
+        {
+            ("adapter not allowed", ControlTargetResolution.Resolved(StubTargetResolver.Target("foresite")), GateCodes.RealWritesDisabled),
+            ("connection disabled", ControlTargetResolution.Refused(GateCodes.TargetConnectionDisabled), GateCodes.TargetConnectionDisabled),
+            ("command switched off", ControlTargetResolution.Resolved(StubTargetResolver.Target(enabled: false)), GateCodes.CommandNotEnabled),
+            ("command removed", ControlTargetResolution.Refused(GateCodes.CommandNotInCatalog), GateCodes.CommandNotInCatalog)
+        })
+        {
+            var run = await ProviderPolicyAsync(9m);
+            stub.Behavior = (_, _) => behavior;
+            before = providerSink.Requests.Count;
+            await providerGate.ProcessExecutionAsync(run.Execution);
+            var blockedAction = (await controlRepository.ListActionsAsync(run.Logic, 10)).Single();
+            Require(blockedAction.Status == ControlActionStatus.Blocked && blockedAction.GateCode == expectedCode && providerSink.Requests.Count == before,
+                $"{name}: expected a Blocked action with {expectedCode} and nothing sent, got {blockedAction.Status}/{blockedAction.GateCode}.");
+        }
     }
 
     // Bounds, rate limit and idempotency.

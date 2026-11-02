@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Application.Control;
+using WellSiteAutoPilot.Domain.Control;
 
 /// <summary>The pure rules behind target resolution and the catalog's hard limits at dispatch.</summary>
 internal static class ControlTargetRuleChecks
@@ -28,6 +29,19 @@ internal static class ControlTargetRuleChecks
         ExpectCatalog(Entry(), 0, null);
         ExpectCatalog(Entry(), 12, null);
         ExpectCatalog(Entry(), 6.5m, null);
+
+        // A policy may narrow the site's range but never widen it, and needs both of its own bounds.
+        void ExpectPolicy(AutonomyCommandLimit limit, ConnectionCommandCatalogEntry? entry, string? code) =>
+            Require(ControlTargetRules.CheckPolicyLimit(limit, entry) == code,
+                $"policy {limit.MinimumValue}..{limit.MaximumValue} gave {ControlTargetRules.CheckPolicyLimit(limit, entry)}, expected {code}");
+        ExpectPolicy(new("SET_SPEED", "spm", 3, 10), Entry(), null);
+        ExpectPolicy(new("SET_SPEED", "spm", 0, 12), Entry(), null);
+        ExpectPolicy(new("SET_SPEED", "spm", -1, 10), Entry(), GateCodes.CatalogOutOfBounds);
+        ExpectPolicy(new("SET_SPEED", "spm", 3, 12.5m), Entry(), GateCodes.CatalogOutOfBounds);
+        ExpectPolicy(new("SET_SPEED", "spm", null, 10), Entry(), GateCodes.CatalogOutOfBounds);
+        ExpectPolicy(new("SET_SPEED", "spm", 3, null), Entry(), GateCodes.CatalogOutOfBounds);
+        ExpectPolicy(new("SET_SPEED", "spm", 3, 10), Entry(enabled: false), GateCodes.CommandNotEnabled);
+        ExpectPolicy(new("SET_SPEED", "spm", 3, 10), null, GateCodes.CommandNotInCatalog);
 
         var catalog = new ConnectionCommandCatalog(Guid.NewGuid(), 2, "x", DateTimeOffset.UtcNow, null, [Entry()]);
         Require(ControlTargetRules.Find(catalog, "set_speed")?.Command == "SET_SPEED", "a catalog finds a command ignoring case");

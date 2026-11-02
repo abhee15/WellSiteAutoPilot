@@ -1,4 +1,5 @@
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
+using WellSiteAutoPilot.Domain.Control;
 
 namespace WellSiteAutoPilot.Application.Control;
 
@@ -71,6 +72,20 @@ public static class ControlTargetRules
         if (entry is null) return GateCodes.CommandNotInCatalog;
         if (!entry.Enabled) return GateCodes.CommandNotEnabled;
         if (entry.Minimum is not { } minimum || entry.Maximum is not { } maximum || value < minimum || value > maximum)
+            return GateCodes.CatalogOutOfBounds;
+        return null;
+    }
+
+    /// <summary>
+    /// Whether a policy's limit for a command stays inside the site's catalog entry. A policy can narrow what the site
+    /// allows but never widen it. Null means it stays inside.
+    /// </summary>
+    public static string? CheckPolicyLimit(AutonomyCommandLimit limit, ConnectionCommandCatalogEntry? entry)
+    {
+        if (entry is null) return GateCodes.CommandNotInCatalog;
+        if (!entry.Enabled) return GateCodes.CommandNotEnabled;
+        if (entry.Minimum is not { } minimum || entry.Maximum is not { } maximum) return GateCodes.CatalogOutOfBounds;
+        if (limit.MinimumValue is not { } low || limit.MaximumValue is not { } high || low < minimum || high > maximum)
             return GateCodes.CatalogOutOfBounds;
         return null;
     }
