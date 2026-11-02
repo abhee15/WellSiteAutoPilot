@@ -6,6 +6,7 @@ using WellSiteAutoPilot.Failures;
 InputPolicyChecks.Run();
 AdapterScheduleFloorChecks.Run();
 ConnectionCommandCatalogChecks.Run();
+ControlTargetRuleChecks.Run();
 ModuleCommandDeclarationChecks.Run();
 await StructuredManifestChecks.RunAsync();
 

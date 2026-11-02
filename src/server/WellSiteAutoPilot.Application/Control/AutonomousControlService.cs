@@ -38,6 +38,13 @@ public static class GateCodes
     public const string NotRecommendationMode = "GATE_NOT_RECOMMENDATION_MODE";
     public const string Stale = "GATE_RECOMMENDATION_STALE";
     public const string AdvisoryNotExecutable = "GATE_ADVISORY_NOT_EXECUTABLE";
+    public const string TargetNoConnection = "GATE_TARGET_NO_CONNECTION";
+    public const string TargetConnectionDisabled = "GATE_TARGET_CONNECTION_DISABLED";
+    public const string TargetNotBound = "GATE_TARGET_NOT_BOUND";
+    public const string TargetAmbiguous = "GATE_TARGET_AMBIGUOUS";
+    public const string CommandNotInCatalog = "GATE_COMMAND_NOT_IN_CATALOG";
+    public const string CommandNotEnabled = "GATE_COMMAND_NOT_ENABLED";
+    public const string CatalogOutOfBounds = "GATE_CATALOG_OUT_OF_BOUNDS";
 }
 
 /// <summary>

@@ -148,7 +148,9 @@ Small steps, each merged with green CI. None enables a real write.
 | F3 | Connection command catalog: domain, migration, service with the ceiling rules, audited API, permission check; no dispatch | F2 |
 | F4 | Policy bounded by the catalog and by the module's `commandRequirements` (server); materializer rejects undeclared commands; allowed-adapters list with the simulator-only default | F3 |
 | F5 | `ProviderSimulator` command and verify surface with the fault matrix; Gateway command routes (server caller only) and the route-inventory guard | F2 |
-| F6 | `GatewayControlCommandSink`, closed outcomes, no-retry and at-most-once tests, target resolution; `Provider` policy for the simulator adapter only | F4, F5 |
+| F6a | Target resolution: the asset's own connection, the provider-side id (imported source binding, or the engineer's data binding for adapters without import, which must agree when both exist) and the connection's catalog entry; every doubt is a stated gate code | F3, F4 |
+| F6b | The gate uses it: allowed-adapters list (default simulator only), policy bounded by the catalog at save and again at dispatch, target and catalog version stored on the action | F6a |
+| F6c | `GatewayControlCommandSink`, closed outcomes, no-retry and at-most-once tests, `Provider` policy for the simulator adapter only | F5, F6b |
 | F7 | Settle-and-deadline verification service and the stuck-`Requested` sweeper | F6 |
 | F8 | Web: policy editor from declared and catalog commands, catalog screen, Control history tab | F4, F6 |
 | F9 | Dry-run sink and distinct status | F6 |
