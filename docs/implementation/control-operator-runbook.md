@@ -24,6 +24,10 @@ A command is sent only if every layer allows it. A refusal names the first layer
 3. **The configuration's autonomy policy.** It must exist and be enabled, the revision must be live and in the right mode,
    the command must be on the policy's list with a matching unit and a value inside its inclusive bounds, and the rate limit
    (actions per window) must not be used up.
+   A policy that sends to a provider (the Provider sink) has two more conditions. The adapter of the asset's connection must
+   be named in `Control:Providers:AllowedAdapters` (empty by default, so none is), and the connection's command catalog must
+   switch the command on and allow the value. A policy cannot be saved with limits wider than the catalog, and the catalog is
+   checked again when a command is sent, so narrowing it stops an older policy at once.
 4. **The recommendation.** It must be approved, not expired, and, for a person executing an approved recommendation, the
    policy must allow approved recommendations and the approval must be recent (30 minutes by default).
 

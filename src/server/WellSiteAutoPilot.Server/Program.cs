@@ -226,7 +226,11 @@ builder.Services.AddSingleton(new WellSiteAutoPilot.Application.Control.Autonomo
 {
     Enabled = builder.Configuration.GetValue<bool>("Control:Autonomous:Enabled"),
     ApprovedRecommendationMaxAge = TimeSpan.FromMinutes(Math.Clamp(
-        builder.Configuration.GetValue("Control:Autonomous:ApprovedRecommendationMaxAgeMinutes", 30), 1, 1440))
+        builder.Configuration.GetValue("Control:Autonomous:ApprovedRecommendationMaxAgeMinutes", 30), 1, 1440)),
+    // Closed unless an owner names an adapter. Nothing is allowed by default.
+    AllowedProviderAdapters = (builder.Configuration.GetSection(
+            WellSiteAutoPilot.Application.Control.AutonomousControlOptions.ProvidersSectionName + ":AllowedAdapters")
+        .Get<string[]>() ?? []).Where(item => !string.IsNullOrWhiteSpace(item)).Select(item => item.Trim()).Distinct(StringComparer.Ordinal).ToArray()
 });
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.IControlRepository, WellSiteAutoPilot.Persistence.Control.ControlRepository>();
 builder.Services.AddSingleton<WellSiteAutoPilot.Application.Control.SimulatedControlCommandSink>();

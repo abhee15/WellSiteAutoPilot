@@ -14,6 +14,15 @@ public sealed class AutonomousControlOptions
     // An approved recommendation describes the plant as it was when the module ran. Executing it later than this
     // risks acting on stale data, so the gate refuses older ones; a person re-runs the logic instead.
     public TimeSpan ApprovedRecommendationMaxAge { get; set; } = TimeSpan.FromMinutes(30);
+
+    public const string ProvidersSectionName = "Control:Providers";
+
+    // Adapters whose connections the Provider sink may command (Control:Providers:AllowedAdapters). Empty refuses the
+    // Provider sink altogether, so a new adapter stays unable to write until an owner names it here.
+    public IReadOnlyCollection<string> AllowedProviderAdapters { get; set; } = [];
+
+    public bool ProviderAdapterAllowed(string adapterKey) =>
+        AllowedProviderAdapters.Contains(adapterKey, StringComparer.Ordinal);
 }
 
 public sealed record ControlDispatchRequest(
@@ -23,7 +32,8 @@ public sealed record ControlDispatchRequest(
     string? Quantity,
     decimal? Value,
     string? Unit,
-    string IdempotencyKey);
+    string IdempotencyKey,
+    ControlTarget? Target = null);
 
 public sealed record ControlDispatchResult(bool Accepted, string Reference, string? Detail = null);
 

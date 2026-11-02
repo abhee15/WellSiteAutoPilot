@@ -64,7 +64,8 @@ public sealed class AutonomousControlService(
     IConfiguredLogicRepository configuredLogic,
     IEnumerable<IControlCommandSink> sinks,
     AutonomousControlOptions options,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IControlTargetResolver targetResolver)
 {
     private const string ReadbackActor = "system:control-readback";
 
@@ -127,6 +128,13 @@ public sealed class AutonomousControlService(
             return;
         }
 
+        var (target, targetRefusal) = await ResolveTargetAsync(recommendation, policy!, revision!, cancellationToken);
+        if (targetRefusal is not null)
+        {
+            await control.RecordBlockedAsync(recommendation, targetRefusal, sinkKind, now, cancellationToken);
+            return;
+        }
+
         var (outcome, action) = await control.TryClaimAsync(
             new ControlClaim(recommendation, policy!.SinkKind, policy.MaxActionsPerWindow, policy.WindowSeconds, now),
             cancellationToken);
@@ -141,7 +149,7 @@ public sealed class AutonomousControlService(
             return;
         }
 
-        await DispatchClaimedAsync(action, sink, cancellationToken);
+        await DispatchClaimedAsync(action, sink, target, cancellationToken);
     }
 
     /// <summary>
@@ -188,6 +196,13 @@ public sealed class AutonomousControlService(
             return new ControlExecutionResult(null, refusal);
         }
 
+        var (target, targetRefusal) = await ResolveTargetAsync(recommendation, policy!, revision!, cancellationToken);
+        if (targetRefusal is not null)
+        {
+            await control.RecordRefusalAsync(recommendation, targetRefusal, actor.Trim(), now, cancellationToken);
+            return new ControlExecutionResult(null, targetRefusal);
+        }
+
         var (outcome, action) = await control.TryClaimAsync(
             new ControlClaim(recommendation, policy!.SinkKind, policy.MaxActionsPerWindow, policy.WindowSeconds, now,
                 ControlOrigins.ApprovedRecommendation), cancellationToken);
@@ -204,11 +219,53 @@ public sealed class AutonomousControlService(
             return new ControlExecutionResult(current, current is null ? GateCodes.Expired : null);
         }
 
-        await DispatchClaimedAsync(action, sink!, cancellationToken);
+        await DispatchClaimedAsync(action, sink!, target, cancellationToken);
         return new ControlExecutionResult(await control.GetActionAsync(action.Id, cancellationToken), null);
     }
 
-    private async Task DispatchClaimedAsync(ControlActionRecord action, IControlCommandSink sink,
+    /// <summary>
+    /// For the Provider sink: where the command would go, and whether the site's catalog and the allowed adapters let
+    /// it go there. Nothing here applies to the Simulator sink, which never touches a connection. Every doubt is a gate
+    /// code.
+    /// </summary>
+    private async Task<(ControlTarget? Target, string? Refusal)> ResolveTargetAsync(
+        RecommendationRecord recommendation, AutonomyPolicy policy, ConfiguredLogicRevision revision,
+        CancellationToken cancellationToken)
+    {
+        if (policy.SinkKind != ControlSinkKinds.Provider) return (null, null);
+        var resolution = await targetResolver.ResolveAsync(
+            recommendation.AssetId, recommendation.Command, revision.DataBindings, cancellationToken);
+        if (resolution.Target is not { } target) return (null, resolution.RefusalCode ?? GateCodes.TargetNotBound);
+        if (!options.ProviderAdapterAllowed(target.AdapterKey)) return (null, GateCodes.RealWritesDisabled);
+        // Checked again here, not only when the policy was saved, so a catalog narrowed later also stops an older policy.
+        var catalogRefusal = recommendation.SuggestedValue is { } value
+            ? ControlTargetRules.CheckCatalog(target.Entry, value)
+            : GateCodes.ValueRequired;
+        return catalogRefusal is null ? (target, null) : (null, catalogRefusal);
+    }
+
+    /// <summary>
+    /// The target of an action that already exists, resolved from today's connection and catalog. Null when it can no
+    /// longer be found, in which case the target cannot be asked and nothing is guessed.
+    /// </summary>
+    private async Task<ControlTarget?> ResolveForActionAsync(ControlActionRecord action, CancellationToken cancellationToken)
+    {
+        var recommendation = await recommendations.GetAsync(action.RecommendationId, cancellationToken);
+        var definition = recommendation is null ? null : await configuredLogic.GetAsync(recommendation.ConfiguredLogicId, cancellationToken);
+        var revision = definition?.Revisions.SingleOrDefault(item => item.Id == recommendation!.ConfigurationRevisionId);
+        if (revision is null) return null;
+        return (await targetResolver.ResolveAsync(action.AssetId, action.Command, revision.DataBindings, cancellationToken)).Target;
+    }
+
+    private async Task<ControlDispatchRequest?> RequestFor(ControlActionRecord action, ControlTarget? target,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(action.Sink, ControlSinkKinds.Provider, StringComparison.Ordinal)) return DispatchRequest(action, null);
+        target ??= await ResolveForActionAsync(action, cancellationToken);
+        return target is null ? null : DispatchRequest(action, target);
+    }
+
+    private async Task DispatchClaimedAsync(ControlActionRecord action, IControlCommandSink sink, ControlTarget? target,
         CancellationToken cancellationToken)
     {
         // Re-read the kill switch after the claim: it must be able to stop a command that has not left yet.
@@ -219,10 +276,19 @@ public sealed class AutonomousControlService(
             return;
         }
 
+        // Built before anything is sent: a command with nowhere to go is blocked, not reported as ambiguous.
+        var request = await RequestFor(action, target, cancellationToken);
+        if (request is null)
+        {
+            await control.CompleteAsync(action.Id, ControlActionStatus.Blocked, GateCodes.TargetNotBound, null,
+                timeProvider.GetUtcNow(), CancellationToken.None);
+            return;
+        }
+
         ControlDispatchResult result;
         try
         {
-            result = await sink.DispatchAsync(DispatchRequest(action), cancellationToken);
+            result = await sink.DispatchAsync(request, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -309,7 +375,10 @@ public sealed class AutonomousControlService(
     private async Task<ControlActionRecord> VerifyCoreAsync(ControlActionRecord action, IControlCommandSink sink,
         string actor, CancellationToken cancellationToken)
     {
-        var readback = await sink.ReadbackAsync(DispatchRequest(action), cancellationToken);
+        // A provider action is asked about at its target as it is now. Without one nothing can be asked, and the action
+        // stays as it is for a person to resolve.
+        if (await RequestFor(action, null, cancellationToken) is not { } request) return action;
+        var readback = await sink.ReadbackAsync(request, cancellationToken);
         var (target, permitted, code) = readback.State switch
         {
             // Sinks report the observed value in the commanded unit; equality is exact because a setpoint that
@@ -333,9 +402,9 @@ public sealed class AutonomousControlService(
                await control.GetActionAsync(action.Id, cancellationToken) ?? action;
     }
 
-    private static ControlDispatchRequest DispatchRequest(ControlActionRecord action) =>
+    private static ControlDispatchRequest DispatchRequest(ControlActionRecord action, ControlTarget? target) =>
         new(action.Id, action.AssetId, action.Command, action.Quantity, action.Value, action.Unit,
-            $"control-action:{action.Id:N}");
+            $"control-action:{action.Id:N}", target);
 
     private static void RequireActor(string actor)
     {
@@ -357,7 +426,9 @@ public sealed class AutonomousControlService(
         if (!options.Enabled) return GateCodes.GlobalDisabled;
         if (policy is null) return GateCodes.NoPolicy;
         if (!policy.Enabled) return GateCodes.PolicyDisabled;
-        if (policy.SinkKind != ControlSinkKinds.Simulator) return GateCodes.RealWritesDisabled;
+        if (policy.SinkKind != ControlSinkKinds.Simulator &&
+            (policy.SinkKind != ControlSinkKinds.Provider || options.AllowedProviderAdapters.Count == 0))
+            return GateCodes.RealWritesDisabled;
         if (approvedOrigin && !policy.AllowApprovedRecommendations) return GateCodes.ApprovedNotEnabled;
         if (revision is null) return approvedOrigin ? GateCodes.NotRecommendationMode : GateCodes.NotAutonomous;
         if (revision.Mode != (approvedOrigin ? ExecutionMode.Recommendation : ExecutionMode.Autonomous))
@@ -390,7 +461,8 @@ public sealed class AutonomousControlService(
     {
         if (string.IsNullOrWhiteSpace(actor) || actor.Length > 256 || actor.Any(char.IsControl))
             throw Validation("CONTROL_POLICY_ACTOR_INVALID", "An authenticated actor is required.");
-        if (sinkKind != ControlSinkKinds.Simulator)
+        if (sinkKind != ControlSinkKinds.Simulator &&
+            (sinkKind != ControlSinkKinds.Provider || options.AllowedProviderAdapters.Count == 0))
             throw new WellSiteAutoPilotException("CONTROL_REAL_WRITES_DISABLED", FailureKind.Validation,
                 "Real provider writes are disabled; only the Simulator sink can be configured.");
         if (maxActionsPerWindow is < 1 or > 1000 || windowSeconds is < 1 or > 86400)
@@ -426,11 +498,45 @@ public sealed class AutonomousControlService(
                 throw Validation("CONTROL_POLICY_COMMAND_NOT_DECLARED", string.Join(" ", problems.Take(5)));
         }
 
+        if (sinkKind == ControlSinkKinds.Provider && enabled)
+            await RequireProviderTargetsAsync(definition, limits, cancellationToken);
+
         var policy = new AutonomyPolicy(definition.Id, enabled, sinkKind,
             limits.Select(item => item with { Command = item.Command.Trim() }).ToArray(),
             maxActionsPerWindow, windowSeconds, actor.Trim(), timeProvider.GetUtcNow(), allowApprovedRecommendations);
         await control.UpsertPolicyAsync(policy, cancellationToken);
         return policy;
+    }
+
+    /// <summary>
+    /// A Provider policy must name only commands that every asset the logic touches can actually receive: each target
+    /// resolves, sits on an allowed adapter, and the policy's limits stay inside the site's catalog. A policy can
+    /// narrow what the site allows but never widen it. The gate checks the catalog again at dispatch.
+    /// </summary>
+    private async Task RequireProviderTargetsAsync(ConfiguredLogicDefinition definition,
+        IReadOnlyCollection<AutonomyCommandLimit> limits, CancellationToken cancellationToken)
+    {
+        var active = definition.Revisions.FirstOrDefault(item => item.Id == definition.ActiveRevisionId);
+        if (active is null)
+            throw Validation("CONTROL_POLICY_NO_LIVE_REVISION",
+                "A provider policy needs a live revision, so its targets can be checked against the site's command catalog.");
+        foreach (var assetId in active.AssetBindings.Select(item => item.AssetId).Distinct())
+        {
+            foreach (var limit in limits)
+            {
+                var command = limit.Command.Trim();
+                var resolution = await targetResolver.ResolveAsync(assetId, command, active.DataBindings, cancellationToken);
+                if (resolution.Target is not { } target)
+                    throw Validation("CONTROL_POLICY_TARGET_UNRESOLVED",
+                        $"{command} cannot be sent to an asset this logic uses ({resolution.RefusalCode}).");
+                if (!options.ProviderAdapterAllowed(target.AdapterKey))
+                    throw new WellSiteAutoPilotException("CONTROL_REAL_WRITES_DISABLED", FailureKind.Validation,
+                        $"The {target.AdapterKey} adapter is not allowed to receive commands.");
+                if (ControlTargetRules.CheckPolicyLimit(limit, target.Entry) is { } refusal)
+                    throw Validation("CONTROL_POLICY_EXCEEDS_CATALOG",
+                        $"{command} is not allowed on this connection within these limits ({refusal}).");
+            }
+        }
     }
 
     public Task<ControlKillSwitch> GetKillSwitchAsync(CancellationToken cancellationToken = default) =>
