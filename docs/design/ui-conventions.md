@@ -61,6 +61,12 @@ Asset hierarchy controls opt into `FilterToolbar`'s `sticky` behavior above the 
 In `em`, range syntax: `(width <= 40em)` phone, `(width < 48em)` / `(width >= 48em)` tablet, `(width <= 56.25em)` /
 `(width > 56.25em)` split panes, `(width <= 68.75em)` wide forms. A guard test rejects px breakpoints.
 
+## Definition of done for a screen
+
+A screen is reviewed against the list in `control-ui-audit.md` section 5: specified first, shared components only, every
+class has a style rule (`css-coverage.test.mjs`), tokens not values, text through `t()`, works at every size and by
+keyboard, seen rendered, and guarded by a test. New screens do not merge until each point is answered in the pull request.
+
 ## Backlog
 
 - Pin the detail header (title and actions) while the details body scrolls. It needs the detail panels restructured so the header sits outside the scrolling body; a sticky header inside the current wrappers ends early.
