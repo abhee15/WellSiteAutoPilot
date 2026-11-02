@@ -14,6 +14,7 @@ using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Persistence.Assets;
 using WellSiteAutoPilot.Persistence.Assets.Views;
 using WellSiteAutoPilot.Persistence.Connections;
+using WellSiteAutoPilot.Persistence.Control;
 using WellSiteAutoPilot.Persistence.Executions;
 using WellSiteAutoPilot.Persistence.ConfiguredLogic;
 using WellSiteAutoPilot.Persistence.Logic;
@@ -37,6 +38,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IAssetDetailReader, AssetDetailReader>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<IConnectionCommandCatalogRepository, ConnectionCommandCatalogRepository>();
+        services.AddScoped<IControlTargetResolver, ControlTargetResolver>();
         services.AddScoped<IAssetViewRepository, AssetViewRepository>();
         services.AddScoped<IConnectionImportRepository, ConnectionImportRepository>();
         services.AddScoped<ISourceChangeRepository, SourceChangeRepository>();

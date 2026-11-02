@@ -633,6 +633,7 @@ await AssetDetailReadChecks.RunAsync(options, assetType.Id);
 await AuthorizedConfigurationDraftChecks.RunAsync(options, assetType.Id);
 await AuthorizedRecommendationChecks.RunAsync(options, assetType.Id);
 await ConnectionCommandCatalogChecks.RunAsync(options);
+await ControlTargetResolverChecks.RunAsync(options, assetType.Id);
 
 await ScopedAccessInspectionChecks.RunAsync(
     options, operatorUser, administrator, secondAdministrator, otherAsset.Id, clock);
