@@ -22,15 +22,15 @@ internal static class SimulatorCommandProviderChecks
             "only the simulator carries commands until an adapter owner supplies a behaviour sheet");
 
         var sent = await Send(HttpStatusCode.OK, """{"status":"Accepted","reference":"sim-1"}""");
-        Require(sent.Response is { Outcome: ProviderCommandOutcome.Sent, Reference: "sim-1" } && sent.Calls == 1, "200 is Sent, once");
+        Require(sent.Response is { Outcome: GatewayCommandOutcome.Sent, Reference: "sim-1" } && sent.Calls == 1, "200 is Sent, once");
         var unreadable = await Send(HttpStatusCode.OK, "not json");
-        Require(unreadable.Response?.Outcome == ProviderCommandOutcome.Sent, "an unreadable success body is still Sent");
+        Require(unreadable.Response?.Outcome == GatewayCommandOutcome.Sent, "an unreadable success body is still Sent");
 
         var rejected = await Send(HttpStatusCode.UnprocessableEntity, """{"status":"Rejected","code":"VALUE_OUT_OF_RANGE"}""");
-        Require(rejected.Response is { Outcome: ProviderCommandOutcome.Rejected, Code: "VALUE_OUT_OF_RANGE" } && rejected.Calls == 1,
+        Require(rejected.Response is { Outcome: GatewayCommandOutcome.Rejected, Code: "VALUE_OUT_OF_RANGE" } && rejected.Calls == 1,
             "422 is a definite Rejected with the provider's code");
         var notFound = await Send(HttpStatusCode.NotFound, "");
-        Require(notFound.Response is { Outcome: ProviderCommandOutcome.Rejected, Code: "REJECTED_BY_PROVIDER" }, "404 without a code is Rejected");
+        Require(notFound.Response is { Outcome: GatewayCommandOutcome.Rejected, Code: "REJECTED_BY_PROVIDER" }, "404 without a code is Rejected");
 
         foreach (var status in new[] { HttpStatusCode.ServiceUnavailable, HttpStatusCode.InternalServerError, HttpStatusCode.BadGateway, HttpStatusCode.Unauthorized })
         {
@@ -55,7 +55,7 @@ internal static class SimulatorCommandProviderChecks
     {
         using var client = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5091") };
         var provider = new SimulatorCommandProvider(client);
-        var request = new ProviderCommandRequest(Guid.NewGuid(), 1, [], "WELL-101", "SET_SPEED", requestId, 7m, "spm", []);
+        var request = new GatewayCommandRequest(Guid.NewGuid(), 1, [], "WELL-101", "SET_SPEED", requestId, 7m, "spm", []);
         try
         {
             var response = await provider.SendAsync(request, CancellationToken.None);
@@ -79,7 +79,7 @@ internal static class SimulatorCommandProviderChecks
         if (!condition) throw new InvalidOperationException($"Simulator command provider check failed: {message}");
     }
 
-    private sealed record Result(ProviderCommandResponse? Response, WellSiteAutoPilotException? Failure, int Calls);
+    private sealed record Result(GatewayCommandResponse? Response, WellSiteAutoPilotException? Failure, int Calls);
 
     private sealed class CountingHandler(HttpStatusCode status, string body) : HttpMessageHandler
     {

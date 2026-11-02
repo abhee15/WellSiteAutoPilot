@@ -246,14 +246,14 @@ v1.MapPost(
 // Only the simulator carries commands; every other adapter answers 404 until its owner supplies a behaviour sheet.
 v1.MapPost(
     "/adapters/{adapterKey}/command",
-    async (string adapterKey, ProviderCommandRequest request, AdapterCatalog catalog,
+    async (string adapterKey, GatewayCommandRequest request, AdapterCatalog catalog,
         SimulatorCommandProvider simulator, CancellationToken cancellationToken) =>
         request is not null && CommandAdapter(catalog, adapterKey, request.Command) is not null
             ? Results.Ok(await simulator.SendAsync(request, cancellationToken))
             : Results.NotFound())
     .WithName("SendAdapterCommand")
     .RequireAuthorization(ServiceCaller.ServerPolicy)
-    .Produces<ProviderCommandResponse>(StatusCodes.Status200OK)
+    .Produces<GatewayCommandResponse>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound);
 
 v1.MapPost(

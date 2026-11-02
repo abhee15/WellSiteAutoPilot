@@ -13,7 +13,7 @@ public sealed class SimulatorCommandProvider(HttpClient client)
 {
     public const string ClientName = "simulator-command";
 
-    public async Task<ProviderCommandResponse> SendAsync(ProviderCommandRequest request, CancellationToken cancellationToken)
+    public async Task<GatewayCommandResponse> SendAsync(GatewayCommandRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.ExternalId) || string.IsNullOrWhiteSpace(request.Command) ||
@@ -38,10 +38,10 @@ public sealed class SimulatorCommandProvider(HttpClient client)
 
         using (response)
         {
-            if (response.IsSuccessStatusCode) return new(ProviderCommandOutcome.Sent, null, await ReferenceAsync(response, cancellationToken));
+            if (response.IsSuccessStatusCode) return new(GatewayCommandOutcome.Sent, null, await ReferenceAsync(response, cancellationToken));
             // Only a definite refusal is a rejection. A server error says nothing about whether the provider acted.
             if ((int)response.StatusCode is 404 or 422)
-                return new(ProviderCommandOutcome.Rejected, await CodeAsync(response, cancellationToken) ?? "REJECTED_BY_PROVIDER", null);
+                return new(GatewayCommandOutcome.Rejected, await CodeAsync(response, cancellationToken) ?? "REJECTED_BY_PROVIDER", null);
             throw Unknown("SIMULATOR_COMMAND_RESULT_UNKNOWN");
         }
     }

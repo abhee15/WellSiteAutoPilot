@@ -8,12 +8,12 @@ namespace WellSiteAutoPilot.Integration.Contracts.Providers;
 /// never retry it.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum ProviderCommandOutcome
+public enum GatewayCommandOutcome
 {
     /// <summary>The provider took the command. This is not proof that the value changed.</summary>
     Sent = 0,
 
-    /// <summary>The provider definitely did not act, and said why in <see cref="ProviderCommandResponse.Code"/>.</summary>
+    /// <summary>The provider definitely did not act, and said why in <see cref="GatewayCommandResponse.Code"/>.</summary>
     Rejected = 1,
 
     /// <summary>Nothing was sent, by request.</summary>
@@ -21,7 +21,7 @@ public enum ProviderCommandOutcome
 }
 
 /// <summary>Server -> Gateway only; never a worker or module request. The target comes from the site's catalog, never a module.</summary>
-public sealed record ProviderCommandRequest(
+public sealed record GatewayCommandRequest(
     Guid ConnectionId,
     int ConnectionRevision,
     Dictionary<string, string?> Settings,
@@ -32,4 +32,4 @@ public sealed record ProviderCommandRequest(
     string? Unit,
     Dictionary<string, string?> Target);
 
-public sealed record ProviderCommandResponse(ProviderCommandOutcome Outcome, string? Code, string? Reference);
+public sealed record GatewayCommandResponse(GatewayCommandOutcome Outcome, string? Code, string? Reference);
