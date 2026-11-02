@@ -1421,6 +1421,103 @@ jobs:
           print("simulated provider commands verified")
           PY
 
+      - name: Verify Gateway command routes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+
+          gateway = "http://127.0.0.1:5081/api/internal/v1"
+          simulator = "http://127.0.0.1:5091/api/sim/v1"
+          server = f"WSA-Service server:{os.environ['WSA_SERVER_KEY']}"
+          worker = f"WSA-Service worker:{os.environ['WSA_WORKER_KEY']}"
+
+          def call(url, method="GET", body=None, auth=None):
+              headers = {"Content-Type": "application/json"}
+              if auth:
+                  headers["Authorization"] = auth
+              data = None if body is None else json.dumps(body).encode()
+              request = urllib.request.Request(url, data=data, method=method, headers=headers)
+              try:
+                  with urllib.request.urlopen(request, timeout=15) as response:
+                      raw = response.read()
+                      return response.status, (json.loads(raw) if raw else None)
+              except urllib.error.HTTPError as error:
+                  raw = error.read()
+                  try:
+                      return error.code, (json.loads(raw) if raw else None)
+                  except ValueError:
+                      return error.code, None
+
+          def expect(actual, wanted, what):
+              assert actual == wanted, f"{what}: expected {wanted!r} but got {actual!r}"
+
+          def reset():
+              expect(call(f"{simulator}/scenarios/reset", "POST", {"scenario": "rod-pump-normal"})[0], 204, "reset")
+
+          def fault(name):
+              expect(call(f"{simulator}/commands/fault", "PUT", {"fault": name, "delaySeconds": 0})[0], 204, f"fault {name}")
+
+          def log():
+              return call(f"{simulator}/commands/log")[1]
+
+          def command(request_id, value, name="SET_SPEED", adapter="simulator", auth=server, unit="spm"):
+              body = {"connectionId": "00000000-0000-0000-0000-000000000001", "connectionRevision": 1,
+                      "settings": {"baseUrl": "http://127.0.0.1:5091"}, "externalId": "WELL-101", "command": name,
+                      "requestId": request_id, "value": value, "unit": unit, "target": {}}
+              return call(f"{gateway}/adapters/{adapter}/command", "POST", body, auth)
+
+          def readback(quantity="CurrentSPM", adapter="simulator", auth=server):
+              body = {"connectionId": "00000000-0000-0000-0000-000000000001", "connectionRevision": 1,
+                      "settings": {"baseUrl": "http://127.0.0.1:5091"}, "externalId": "WELL-101", "quantity": quantity}
+              return call(f"{gateway}/adapters/{adapter}/command-readback", "POST", body, auth)
+
+          reset()
+
+          # The adapter advertises exactly the commands it carries.
+          status, adapters = call(f"{gateway}/adapters", auth=server)
+          sim = next(item for item in adapters if item["key"] == "simulator")
+          expect(sorted(item["name"] for item in sim["commands"]), ["PUMP_RUN", "SET_SPEED"], "declared commands")
+          expect([item["key"] for item in adapters if item.get("commands")], ["simulator"], "only the simulator carries commands")
+
+          # Only the server caller reaches command routes; a worker, and so any module, never does.
+          expect(command("a1", 7, auth=None)[0], 401, "no credential")
+          expect(command("a2", 7, auth="WSA-Service server:wrong")[0], 401, "wrong key")
+          expect(command("a3", 7, auth=worker)[0], 403, "worker command")
+          expect(readback(auth=worker)[0], 403, "worker readback")
+          expect(readback(auth=None)[0], 401, "readback without a credential")
+          expect(log()["received"], 0, "refused callers sent nothing")
+
+          # A command takes effect, is answered with a closed outcome, and is read back through the Gateway.
+          status, body = command("b1", 7)
+          expect((status, body["outcome"]), (200, "Sent"), "sent")
+          expect(readback()[1]["value"], 7, "readback after command")
+
+          # A definite refusal is a closed Rejected answer carrying the provider's code.
+          status, body = command("b2", 99)
+          expect((status, body["outcome"], body["code"]), (200, "Rejected", "VALUE_OUT_OF_RANGE"), "rejected")
+
+          # Names or adapters that do not carry the command are never sent.
+          expect(command("b3", 1, name="NOPE")[0], 404, "undeclared command")
+          expect(command("b4", 1, adapter="foresite")[0], 404, "adapter without commands")
+          expect(readback("PumpFillage")[0], 404, "a quantity no command reads back")
+          expect(readback(adapter="foresite")[0], 404, "readback on an adapter without commands")
+          expect((log()["received"], log()["duplicates"]), (2, 0), "only the two sent commands arrived")
+
+          # Not knowing is never reported as sent, and the Gateway never retries: the provider sees each request once.
+          reset(); fault("FailBeforeApply")
+          status, _ = command("c1", 9)
+          assert status >= 500, f"an unknown result must be a server error, got {status}"
+          expect((log()["received"], log()["byRequest"]["c1"]), (1, 1), "no retry after a failure")
+
+          reset(); fault("FailAfterApply")
+          status, _ = command("c2", 9)
+          assert status >= 500, f"an unknown result must be a server error, got {status}"
+          expect((log()["received"], log()["applied"], log()["byRequest"]["c2"]), (1, 1, 1), "no retry after an applied failure")
+          fault("None"); reset()
+          print("gateway command routes verified")
+          PY
+
       - name: Show service logs on failure
         if: failure()
         shell: bash

@@ -75,6 +75,55 @@ class ConventionTests(unittest.TestCase):
             self.assertIn("Program.cs", errors[0])
             self.assertIn("EffectiveSchedule", errors[0])
 
+    def test_only_the_control_gate_calls_a_command_sink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            gate = root / conventions.CONTROL_GATE
+            offender = root / "src/server/WellSiteAutoPilot.Server/Rogue.cs"
+            unrelated = root / "src/server/WellSiteAutoPilot.Server/Other.cs"
+            for source, text in [(gate, "IControlCommandSink sink; await sink.DispatchAsync(r, t);"),
+                                 (offender, "IControlCommandSink sink; await sink.DispatchAsync(r, t);"),
+                                 (unrelated, "await queue.DispatchAsync(job);")]:
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text(text, encoding="utf8")
+            errors = conventions.validate_command_dispatch(root)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("Rogue.cs", errors[0])
+
+    def test_every_gateway_route_has_a_policy_and_command_routes_are_server_only(self):
+        good = """
+v1.MapPost("/adapters/{adapterKey}/command", handler)
+    .RequireAuthorization(ServiceCaller.ServerPolicy);
+v1.MapGet("/data/current", handler)
+    .RequireAuthorization(ServiceCaller.DataReadPolicy);
+app.Run();"""
+        self.assertEqual(conventions.validate_gateway_routes(good), [])
+        open_route = good.replace(".RequireAuthorization(ServiceCaller.ServerPolicy)", "")
+        errors = conventions.validate_gateway_routes(open_route)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("/adapters/{adapterKey}/command", errors[0])
+        worker_reachable = good.replace("ServiceCaller.ServerPolicy", "ServiceCaller.DataReadPolicy")
+        errors = conventions.validate_gateway_routes(worker_reachable)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("must require ServiceCaller.ServerPolicy", errors[0])
+        unprotected_last = good.replace(".RequireAuthorization(ServiceCaller.DataReadPolicy)", "")
+        self.assertIn("/data/current", conventions.validate_gateway_routes(unprotected_last)[0])
+
+    def test_the_command_client_never_retries(self):
+        plain = """builder.Services.AddHttpClient(SimulatorCommandProvider.ClientName, client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+"""
+        self.assertEqual(conventions.validate_command_client(plain), [])
+        retried = """builder.Services.AddHttpClient(SimulatorCommandProvider.ClientName, client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(5);
+}).AddStandardResilienceHandler();
+"""
+        self.assertTrue(conventions.validate_command_client(retried))
+        self.assertTrue(conventions.validate_command_client("builder.Services.AddHttpClient(\"x\");"))
+
 
 if __name__ == "__main__":
     unittest.main()
