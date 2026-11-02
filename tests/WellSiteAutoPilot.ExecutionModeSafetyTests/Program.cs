@@ -382,6 +382,15 @@ Require(stored.Mode == nameof(ExecutionMode.Recommendation), "The Recommendation
             "The Provider sink must receive the resolved target, once.");
         Require(simulator.Sent.All(item => item.IdempotencyKey != providerSink.Requests[0].IdempotencyKey),
             "A Provider command must not also reach the simulated sink.");
+        // What was sent is kept on the action itself, without the connection settings, so later checks never depend on
+        // today's connection or catalog.
+        var sentTarget = providerSink.Requests[0].Target!;
+        Require(sentAction.Target == sentTarget.ForRecord() && sentAction.Target is { AdapterKey: "simulator", ExternalId: "WELL-101", CatalogVersion: 3 },
+            "A Provider action did not keep the target it was sent to.");
+        var reloaded = await controlRepository.GetActionAsync(sentAction.Id);
+        Require(reloaded?.Target == sentAction.Target, "The stored target did not survive a reload.");
+        Require((await controlRepository.ListActionsAsync(configured.ConfiguredLogicId, 10)).All(item => item.Sink != ControlSinkKinds.Simulator || item.Target is null),
+            "A simulator action must not carry a provider target.");
 
         async Task<(Guid Logic, Guid Execution)> ProviderPolicyAsync(params decimal[] speeds)
         {

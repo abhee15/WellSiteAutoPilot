@@ -34,6 +34,11 @@ public sealed class ControlActionEntity
     public decimal? ReadbackValue { get; set; }
     public DateTimeOffset? VerifiedAtUtc { get; set; }
     public string? ResolutionNote { get; set; }
+    public Guid? TargetConnectionId { get; init; }
+    public int? TargetConnectionRevision { get; init; }
+    public string? TargetAdapterKey { get; init; }
+    public string? TargetExternalId { get; init; }
+    public int? TargetCatalogVersion { get; init; }
 }
 
 public sealed class ControlKillSwitchEntity

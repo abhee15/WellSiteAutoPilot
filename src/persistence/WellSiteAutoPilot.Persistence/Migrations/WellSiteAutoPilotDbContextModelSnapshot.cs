@@ -1063,6 +1063,23 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<string>("TargetAdapterKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int?>("TargetCatalogVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("TargetConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("TargetConnectionRevision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetExternalId")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<string>("Unit")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");

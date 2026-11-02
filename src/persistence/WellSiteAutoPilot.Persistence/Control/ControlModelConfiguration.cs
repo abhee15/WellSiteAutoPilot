@@ -30,6 +30,8 @@ internal static class ControlModelConfiguration
         action.Property(x => x.Sink).HasMaxLength(32).IsRequired();
         action.Property(x => x.SinkReference).HasMaxLength(256);
         action.Property(x => x.ResolutionNote).HasMaxLength(1024);
+        action.Property(x => x.TargetAdapterKey).HasMaxLength(64);
+        action.Property(x => x.TargetExternalId).HasMaxLength(512);
         action.Property(x => x.Origin).HasMaxLength(32).HasDefaultValue("Autonomous").IsRequired();
         // One ControlAction per recommendation: duplicate delivery can never double-command.
         action.HasIndex(x => x.RecommendationId).IsUnique();
