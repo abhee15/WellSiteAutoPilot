@@ -4,6 +4,7 @@ import type {
   AccessGrantScopeKind, AccessGrantSubjectKind, AssetDirectoryEntryResponse, CreateAccessGrantRequest,
 } from '../api/generated/v1/types.gen';
 import type { RoleRecord, PermissionDefinition } from './roleCatalog';
+import { shortId } from '../format';
 
 export type ScopeKind = AccessGrantScopeKind;
 export type SubjectKind = AccessGrantSubjectKind;
@@ -18,7 +19,21 @@ export function isScopeKind(value: unknown): value is ScopeKind {
 export function isSubjectKind(value: unknown): value is SubjectKind {
   return typeof value === 'string' && Object.hasOwn(SUBJECT_KINDS, value);
 }
-export type AssetChoice = AssetDirectoryEntryResponse & { id: string; name: string; isActive: boolean };
+export type AssetChoice = AssetDirectoryEntryResponse & { id: string; name: string; isActive: boolean;
+  ownerConnectionId?: string | null; connectionName?: string | null };
+
+/** Names from the protected admin directory, not from the separate assets.read snapshot. */
+export function grantAssetLabel(asset: AssetChoice, available: readonly AssetChoice[]): string {
+  const name = asset.connectionName ? `${asset.name} (${asset.connectionName})` : asset.name;
+  const ambiguous = available.some(other => other.id !== asset.id && other.name === asset.name &&
+    other.ownerConnectionId === asset.ownerConnectionId);
+  return ambiguous ? `${name} · ${shortId(asset.id)}` : name;
+}
+
+export function grantAssetIdLabel(id: string, available: readonly AssetChoice[]): string {
+  const asset = available.find(item => item.id.toLowerCase() === id.toLowerCase());
+  return asset ? grantAssetLabel(asset, available) : shortId(id);
+}
 export type GrantDraft = CreateAccessGrantRequest & {
   subjectKind: SubjectKind; userId: string; groupId?: string; directoryId?: string; roleId: string;
   scopeKind: ScopeKind; assetIds: string[]; expectedRoleRevision: number;
@@ -69,7 +84,7 @@ export function previewGrant(draft: GrantDraft, role: RoleRecord | null,
     effective,
     excluded: role.permissions.filter(key => definitions.get(key)?.scopeKind !== applies).sort(),
     assetNames: draft.scopeKind === 'ExactAssets' ?
-      selected.map(id => available.get(id)!.name) : [],
+      selected.map(id => grantAssetLabel(available.get(id)!, assets)) : [],
     privileged: effective.some(key => definitions.get(key)?.isPrivileged),
   };
 }
