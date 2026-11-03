@@ -23,17 +23,17 @@ export function describeRunContext(
   execution: Pick<ExecutionResponse, 'logicInstanceId' | 'configurationRevisionId' | 'assetId'>,
   configurations: readonly ConfiguredLogicResponse[],
   assets: readonly AssetResponse[],
+  owners: readonly OwnerGroup[] = [],
 ): RunContext {
   const configuration = configurations.find(item => item.id === execution.logicInstanceId);
   const revision = configuration?.revisions?.find(item => item.id === execution.configurationRevisionId);
   const assetIds = execution.assetId
     ? [execution.assetId]
     : [...new Set((revision?.assetBindings ?? []).flatMap(binding => (binding.assetId ? [binding.assetId] : [])))];
-  const names = new Map(assets.flatMap(asset => (asset.id ? [[asset.id, asset.name ?? ''] as const] : [])));
   return {
     logicName: configuration?.name ?? null,
     revisionNumber: revision?.revisionNumber ?? null,
-    assetLabels: assetIds.map(id => names.get(id) || shortId(id)),
+    assetLabels: assetIds.map(id => assetIdentityLabel(id, assets, owners)),
     assetIds,
   };
 }
@@ -42,6 +42,16 @@ export function describeRunContext(
 export function summarizeAssetLabels(labels: readonly string[], maximum = 2): string {
   if (labels.length <= maximum) return labels.join(', ');
   return `${labels.slice(0, maximum).join(', ')} +${labels.length - maximum} more`;
+}
+
+/** Consistent asset labeling for both Overview and Operations, including configured multi-asset runs. */
+export function executionAssetLabel(
+  execution: Pick<ExecutionResponse, 'assetExternalId' | 'assetId'>,
+  context: Pick<RunContext, 'assetLabels'>,
+): string {
+  if (execution.assetExternalId) return execution.assetExternalId;
+  if (context.assetLabels.length > 0) return summarizeAssetLabels(context.assetLabels);
+  return execution.assetId ? shortId(execution.assetId) : '—';
 }
 
 /** Names of every asset any saved revision of the configuration is set up for. */
