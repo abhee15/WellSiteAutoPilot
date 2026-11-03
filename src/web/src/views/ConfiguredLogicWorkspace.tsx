@@ -14,6 +14,7 @@ import { readConfiguration, setupResponse, SetupApiError } from './configuredLog
 import type { VerifiedConfiguration } from './configuredLogicSetup';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { CloseButton } from '../components/CloseButton';
+import type { OwnerGroup } from './assetHierarchy';
 import { Status } from '../components/Status';
 import { DetailTabs } from '../components/DetailTabs';
 import { ConfiguredRevisionDetails } from './ConfiguredRevisionDetails';
@@ -25,7 +26,7 @@ import './configuredLogicDetail.css';
 type VerifiedRevision = VerifiedConfiguration['revisions'][number];
 type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
-  assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; executions?: readonly ExecutionResponse[];
+  assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; owners?: readonly OwnerGroup[]; executions?: readonly ExecutionResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
   initialAssetId?: string | null; canReadViews?: boolean;
   /** recommendations.read: may see the autonomy policy. control.manage: may change it. */
@@ -34,7 +35,7 @@ type Props = {
 /** A fresh authorized detail is the mutation boundary. Polling list metadata
  * cannot silently replace the revision a user is reviewing. */
 export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
-  assets, assetTypes, executions, onClose, onChanged, initialAssetId, canReadViews = false, canReadControl = false,
+  assets, assetTypes, owners = [], executions, onClose, onChanged, initialAssetId, canReadViews = false, canReadControl = false,
   canManageControl = false }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
@@ -196,7 +197,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
           ...(canReadRuns ? [{ id: 'activity' as const, label: t('logicDetail.activity') }] : [])]}
         selected={tab} disabled={editing || busy} onSelect={selectTab} />
       <div id={`${prefix}-overview`} role="tabpanel" aria-labelledby={`${prefix}-tab-overview`} hidden={tab !== 'overview'}>
-        <ConfiguredLogicRevisionOverview logic={detail} assets={assets} activity={activity.data}
+        <ConfiguredLogicRevisionOverview logic={detail} assets={assets} owners={owners} activity={activity.data}
           loading={activity.loading} failed={activity.failed} canReadRuns={canReadRuns}
           onHistory={() => selectTab('activity')} onRetry={activity.refresh} />
         <ConfiguredLogicSchedulePanel configuredLogicId={detail.id} activeRevisionId={detail.activeRevisionId}
@@ -225,7 +226,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
           <section className="logic-detail-section" aria-label={t('logicDetail.selectedRevision')}>
             <div className="logic-detail-row"><h4>{t('setup.revision', { number: selected.revisionNumber ?? '—' })} · {selected.status}</h4>
               <Status value={selected.status} /></div>
-            <ConfiguredRevisionDetails revision={selected} assets={assets} />
+            <ConfiguredRevisionDetails revision={selected} assets={assets} owners={owners} />
             {mayManage && <div className="setup-actions">
               <ActionButton label={t('setup.copyRevision', { number: selected.revisionNumber ?? '—' })}
                 disabled={mutationBlocked || selected.mode !== 'Shadow'} onClick={() => copyRevision(selected)} />
