@@ -55,10 +55,11 @@ window.fetch = async (resource: RequestInfo | URL, init?: RequestInit) => {
 };
 
 const listOnly = new URLSearchParams(window.location.search).get('mode') === 'list';
+const expandedNav = new URLSearchParams(window.location.search).get('nav') === 'expanded';
 function App() {
   const main = useRef<HTMLElement>(null);
   useSplitPaneViewport(main);
-  return <div className="app-shell nav-collapsed">
+  return <div className={expandedNav ? 'app-shell' : 'app-shell nav-collapsed'}>
     <aside className="navigation" aria-label="Primary navigation">
       <div className="product-mark"><strong>WS</strong></div>
       <nav aria-label="Sections"><a href="#operations" aria-current="page">Runs</a></nav>
