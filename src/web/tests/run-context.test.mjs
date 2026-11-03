@@ -83,3 +83,28 @@ test('latest run per configuration ignores undated or unlinked runs', () => {
   assert.deepEqual([...map.keys()], ['c1']);
   assert.equal(map.get('c1').status, 'Failed');
 });
+
+test('configured execution target labels include owning connections and preserve legacy source IDs', () => {
+  const asset = { id: 'a1', name: 'RPOC_0002', ownerConnectionId: 'c1' };
+  const owners = [{ connectionId: 'c1', name: 'ForeSite Production' }];
+  const run = { logicInstanceId: 'cfg', configurationRevisionId: 'rev1', assetId: null, assetExternalId: null };
+  const context = ctx.describeRunContext(run, [configuration], [asset], owners);
+  assert.deepEqual(context.assetLabels, ['RPOC_0002 (ForeSite Production)']);
+  assert.equal(ctx.executionAssetLabel(run, context), 'RPOC_0002 (ForeSite Production)');
+  assert.equal(ctx.executionAssetLabel({ ...run, assetExternalId: 'external-123' }, context), 'external-123');
+  assert.equal(ctx.executionAssetLabel({ assetId: null }, { assetLabels: [] }), '—');
+  assert.equal(ctx.executionAssetLabel({ assetId: '123456789abcdef' }, { assetLabels: [] }), '12345678…');
+});
+
+test('configured multi-asset executions keep the full target count with owner-qualified names', () => {
+  const named = [
+    { id: 'a1', name: 'North', ownerConnectionId: 'c1' },
+    { id: 'a2', name: 'North', ownerConnectionId: 'c2' },
+    { id: 'a3', name: 'South', ownerConnectionId: 'c2' },
+  ];
+  const owners = [{ connectionId: 'c1', name: 'CygNet' }, { connectionId: 'c2', name: 'ForeSite' }];
+  const config = { id: 'cfg', revisions: [{ id: 'rev', assetBindings: named.map(asset => ({ assetId: asset.id })) }] };
+  const run = { logicInstanceId: 'cfg', configurationRevisionId: 'rev', assetId: null };
+  const context = ctx.describeRunContext(run, [config], named, owners);
+  assert.equal(ctx.executionAssetLabel(run, context), 'North (CygNet), North (ForeSite) +1 more');
+});
