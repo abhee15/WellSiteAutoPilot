@@ -100,4 +100,6 @@ it('changes the asset-history URL without remounting the history and keeps its s
   expect(within(container.querySelector('.execution-history-browse') as HTMLElement)
     .getAllByRole('button', { name: /Inspect run/ })).toHaveLength(2);
   expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain(formatTimestamp(run(10).requestedAtUtc));
+  // The scoped-history page contains a browse region and nested detail; all landmarks must be unique.
+  expect(await accessibilityViolations(container)).toEqual([]);
 });
