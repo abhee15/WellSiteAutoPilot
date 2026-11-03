@@ -38,13 +38,13 @@ public sealed class ScheduledShadowSchedulerService(
         var nowUtc = NormalizeUtcTimestamp(timeProvider.GetUtcNow());
         var decisions = new List<ScheduledShadowDispatchDecision>();
         var candidateCount = 0;
-        Guid? afterId = null;
+        ConfiguredLogicPageCursor? after = null;
 
         while (true)
         {
             var candidates = await configuredLogicRepository.ListActiveScheduledAsync(
                 limit,
-                afterId,
+                after,
                 cancellationToken);
             if (candidates.Count == 0)
             {
@@ -52,7 +52,8 @@ public sealed class ScheduledShadowSchedulerService(
             }
 
             candidateCount += candidates.Count;
-            afterId = candidates.Max(item => item.Id);
+            var last = candidates.Last();
+            after = new ConfiguredLogicPageCursor(last.Name, last.Id);
             await DispatchPageAsync(candidates, decisions, nowUtc, cancellationToken);
 
             if (candidates.Count < limit)
