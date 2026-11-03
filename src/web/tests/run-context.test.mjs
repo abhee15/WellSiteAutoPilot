@@ -62,6 +62,8 @@ test('configured grid labels use active-revision assets and distinguish matching
   assert.deepEqual(ctx.configurationTargetAssetIds({ ...logic, activeRevisionId: null }), ['new-well']);
   assert.equal(ctx.configuredTargetLabel(['missing-identifier-12345'], [], []), 'missing-…');
   assert.equal(ctx.configuredTargetLabel(['asset-a'], named, []), 'RPOC_0002');
+  const duplicate = [...named, { id: 'asset-a-second', name: 'RPOC_0002', ownerConnectionId: 'c1' }];
+  assert.equal(ctx.configuredTargetLabel(['asset-a'], duplicate, owners), 'RPOC_0002 (ForeSite Production) · asset-a');
   assert.equal(ctx.configuredTargetLabel([], named, owners), '—');
 });
 
