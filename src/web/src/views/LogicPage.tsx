@@ -1,6 +1,7 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useEffect, useMemo, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { PageTabNav } from '../components/PageTabNav';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetResponse,
@@ -106,18 +107,20 @@ export function LogicPage({
 
   return (
     <div {...splitFocus} className="split-layout runs-layout logic-layout" data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
-      <div className="split-tabs" role="tablist" aria-label={t('logic.tabs')}>
-        {canReadConfigurations && <a role="tab" href={hashFor('logic')} aria-selected={!showModules && !showSchedules}>
-          {t('logic.tabConfigured')} <span>{configuredLogic.length}</span>
-        </a>}
-        {canReadConfigurations && <a role="tab" href={hashFor('logic', SCHEDULES_TAB)} aria-selected={showSchedules}>
-          {t('logic.tabSchedules')}
-        </a>}
-        {canReadCatalog && <a role="tab" href={hashFor('logic', MODULES_TAB)} aria-selected={showModules}>
-          {t('logic.tabModules')} <span>{modules.length}</span>
-        </a>}
-        {!showModules && !showSchedules && canCreate && !creating && !selectedConfiguredId && <ActionButton label={t('setup.heading')} variant="primary" className="split-add" data-split-focus-key="create" onClick={() => setCreating(true)} />}
-      </div>
+      <PageTabNav label={t('logic.tabs')}
+        tabs={[
+          ...(canReadConfigurations ? [
+            { id: 'configured', label: t('logic.tabConfigured'), href: hashFor('logic'), count: configuredLogic.length },
+            { id: SCHEDULES_TAB, label: t('logic.tabSchedules'), href: hashFor('logic', SCHEDULES_TAB) },
+          ] : []),
+          ...(canReadCatalog ? [
+            { id: MODULES_TAB, label: t('logic.tabModules'), href: hashFor('logic', MODULES_TAB), count: modules.length },
+          ] : []),
+        ]}
+        activeId={showSchedules ? SCHEDULES_TAB : showModules ? MODULES_TAB : 'configured'}
+        action={!showModules && !showSchedules && canCreate && !creating && !selectedConfiguredId
+          ? <ActionButton label={t('setup.heading')} variant="primary" data-split-focus-key="create" onClick={() => setCreating(true)} />
+          : undefined} />
 
       {showSchedules ? (
         <SchedulesOverview configuredLogic={configuredLogic} assets={assetDirectory.assets} owners={assetDirectory.owners}
