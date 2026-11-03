@@ -587,8 +587,24 @@ if (await executionRepository.ScheduledOccurrenceExistsAsync(
     }
 }
 
+// The batch size is a page size, not a cap: with a page of one every active scheduled configuration is still
+// evaluated exactly once, and the same ones as with a large page.
+{
+    var wholeSweep = await scheduler.DispatchDueAsync(100);
+    var pagedSweep = await scheduler.DispatchDueAsync(1);
+    var wholeIds = wholeSweep.Decisions.Select(item => item.ConfiguredLogicId).Order().ToArray();
+    var pagedIds = pagedSweep.Decisions.Select(item => item.ConfiguredLogicId).Order().ToArray();
+    if (wholeSweep.CandidateCount < 3 ||
+        pagedSweep.CandidateCount != wholeSweep.CandidateCount ||
+        !wholeIds.SequenceEqual(pagedIds) ||
+        pagedIds.Distinct().Count() != pagedIds.Length)
+    {
+        throw new InvalidOperationException("A small scheduler page left active configurations unevaluated or evaluated one twice.");
+    }
+}
+
 Console.WriteLine(
-    "Scheduled Shadow due calculation, durable dispatch, idempotency, overlap blocking, and no-burst replay, candidate failure isolation, recovery, and cancellation checks passed.");
+    "Scheduled Shadow due calculation, durable dispatch, idempotency, overlap blocking, and no-burst replay, candidate failure isolation, recovery, cancellation, and paging checks passed.");
 return 0;
 
 file sealed class FakeIdentityRepository(Guid id) : IUserIdentityRepository

@@ -62,8 +62,13 @@ public interface IConfiguredLogicRepository
         IReadOnlyCollection<Guid> allowedAssetIds,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// One page of the active scheduled configurations in a stable order (by id). Pass the last id of the previous
+    /// page as <paramref name="afterId"/> to continue; an empty page means the end.
+    /// </summary>
     Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListActiveScheduledAsync(
         int limit,
+        Guid? afterId = null,
         CancellationToken cancellationToken = default);
 
     Task SetRevisionValidatedAsync(

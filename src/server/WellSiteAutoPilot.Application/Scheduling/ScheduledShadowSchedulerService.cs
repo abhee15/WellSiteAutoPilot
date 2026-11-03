@@ -19,6 +19,10 @@ public sealed class ScheduledShadowSchedulerService(
     IScheduledReadAuthorityProvider? authorityProvider = null,
     IAdapterScheduleFloors? adapterFloors = null)
 {
+    /// <summary>
+    /// Evaluates every active scheduled configuration. <paramref name="limit"/> is the page size, not a cap: a
+    /// configuration is never left unevaluated because others sort before it.
+    /// </summary>
     public async Task<ScheduledShadowSweepResult> DispatchDueAsync(
         int limit,
         CancellationToken cancellationToken = default)
@@ -32,13 +36,43 @@ public sealed class ScheduledShadowSchedulerService(
         }
 
         var nowUtc = NormalizeUtcTimestamp(timeProvider.GetUtcNow());
-        var candidates = await configuredLogicRepository.ListActiveScheduledAsync(
-            limit,
-            cancellationToken);
+        var decisions = new List<ScheduledShadowDispatchDecision>();
+        var candidateCount = 0;
+        Guid? afterId = null;
+
+        while (true)
+        {
+            var candidates = await configuredLogicRepository.ListActiveScheduledAsync(
+                limit,
+                afterId,
+                cancellationToken);
+            if (candidates.Count == 0)
+            {
+                break;
+            }
+
+            candidateCount += candidates.Count;
+            afterId = candidates.Max(item => item.Id);
+            await DispatchPageAsync(candidates, decisions, nowUtc, cancellationToken);
+
+            if (candidates.Count < limit)
+            {
+                break;
+            }
+        }
+
+        return new ScheduledShadowSweepResult(candidateCount, decisions);
+    }
+
+    private async Task DispatchPageAsync(
+        IReadOnlyCollection<ConfiguredLogicDefinition> candidates,
+        List<ScheduledShadowDispatchDecision> decisions,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
         var scheduleStates = await scheduleRepository.ListAsync(
             candidates.Select(item => item.Id).ToArray(),
             cancellationToken);
-        var decisions = new List<ScheduledShadowDispatchDecision>(candidates.Count);
 
         foreach (var configuredLogic in candidates)
         {
@@ -77,9 +111,6 @@ public sealed class ScheduledShadowSchedulerService(
             }
         }
 
-        return new ScheduledShadowSweepResult(
-            candidates.Count,
-            decisions);
     }
 
     private async Task<ScheduledShadowDispatchDecision> DispatchCandidateAsync(
