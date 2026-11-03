@@ -38,7 +38,10 @@ public static class ForeSiteAdapter
             BaseUrlSetting, "ForeSite address",
             "The address that serves ForeSite's web services, for example http://foresite-server. ForeSite can take about 90 seconds to be ready after it starts.",
             AdapterSettingKind.Url, true)],
-        [new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Wells")],
+        [
+            new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Wells"),
+            new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current well values")
+        ],
         [
             new DiscoveryField("assetName", "ForeSite asset", "Unassigned", AsAttribute: false, IdentityMetadataKey: "assetId"),
             new DiscoveryField("wellType", "Well type", "Unknown type", IdentityMetadataKey: "wellTypeId"),
