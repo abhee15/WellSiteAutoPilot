@@ -1,64 +1,149 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadSecurityUsers } from './accessManagement';
-import type { VerifiedSecurityUser } from './accessManagement';
+import { RefreshCw } from 'lucide-react';
+import {
+  DEFAULT_USER_DIRECTORY_FILTERS, loadSecurityUserPage,
+} from './accessManagement';
+import type { UserDirectoryFilters, VerifiedSecurityUser } from './accessManagement';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
-import './accessManagement.css';
+import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
-import { RefreshCw } from 'lucide-react';
+import './accessManagement.css';
 
 interface AccessManagementPageProps {
   currentUserId: string;
-  /** Opens role assignment for the chosen user. */
+  /** Opens the existing protected grants editor for this user. */
   onAssignRole?: (userId: string) => void;
 }
 
+/** Identity directory: direct assignments are not a claim about effective/group-derived access. */
 export function AccessManagementPage({ currentUserId, onAssignRole }: AccessManagementPageProps) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
+  const [filters, setFilters] = useState<UserDirectoryFilters>(DEFAULT_USER_DIRECTORY_FILTERS);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [awaitingOnly, setAwaitingOnly] = useState(false);
   const request = useRef<AbortController | null>(null);
-  const reload = useCallback(async () => {
+
+  const load = useCallback(async (criteria: UserDirectoryFilters, cursor: string | null) => {
     request.current?.abort();
-    const controller = new AbortController(); request.current = controller;
-    setUsers([]); setLoading(true); setFailed(false);
+    const abort = new AbortController();
+    request.current = abort;
+    if (cursor === null) {
+      setUsers([]); setNextCursor(null); setLoading(true);
+    } else setLoadingMore(true);
+    setFailed(false);
     try {
-      const rows = await loadSecurityUsers(controller.signal, fetch, { awaitingAccessOnly: awaitingOnly });
-      if (!controller.signal.aborted) setUsers(rows);
+      const page = await loadSecurityUserPage(criteria, cursor, abort.signal);
+      if (request.current !== abort || abort.signal.aborted) return;
+      setUsers(current => cursor === null ? page.items : [
+        ...current,
+        ...page.items.filter(item => !current.some(existing => existing.userId === item.userId)),
+      ]);
+      setNextCursor(page.nextCursor);
     } catch {
-      if (!controller.signal.aborted) setFailed(true);
+      if (request.current !== abort || abort.signal.aborted) return;
+      // Do not keep protected user details visible after an uncertain or forbidden directory read.
+      setUsers([]); setNextCursor(null); setFailed(true);
     } finally {
-      if (!controller.signal.aborted) setLoading(false);
+      if (request.current === abort) {
+        request.current = null;
+        setLoading(false); setLoadingMore(false);
+      }
     }
-  }, [awaitingOnly]);
-  useEffect(() => { void reload(); return () => request.current?.abort(); }, [reload, currentUserId]);
+  }, []);
+  useEffect(() => {
+    void load(filters, null);
+    return () => { request.current?.abort(); request.current = null; };
+  }, [filters, currentUserId, load]);
+
+  // Search follows typing after a short pause. All search/filter combinations run on the server.
+  useEffect(() => {
+    const search = searchDraft.trim();
+    if (search === filters.search) return;
+    const timer = window.setTimeout(() => setFilters(current => ({ ...current, search })), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchDraft, filters.search]);
+
+  const updateFilters = (next: Partial<UserDirectoryFilters>) =>
+    setFilters(current => ({ ...current, ...next }));
+  const clearFilters = () => {
+    setSearchDraft('');
+    setFilters(DEFAULT_USER_DIRECTORY_FILTERS);
+  };
+  const isFiltered = Boolean(searchDraft.trim()) || filters.accountStatus !== 'all' ||
+    filters.directAssignments !== 'all';
+  const chips = [
+    ...(filters.search ? [{ id: 'search', label: filters.search,
+      onRemove: () => { setSearchDraft(''); updateFilters({ search: '' }); } }] : []),
+    ...(filters.accountStatus !== 'all' ? [{ id: 'status',
+      label: t(filters.accountStatus === 'active' ? 'access.activeFilter' : 'access.inactiveFilter'),
+      onRemove: () => updateFilters({ accountStatus: 'all' }) }] : []),
+    ...(filters.directAssignments !== 'all' ? [{ id: 'assignments',
+      label: t(filters.directAssignments === 'with' ? 'access.withAssignments' : 'access.withoutAssignments'),
+      onRemove: () => updateFilters({ directAssignments: 'all' }) }] : []),
+  ];
   const canAssign = (user: VerifiedSecurityUser) =>
     Boolean(onAssignRole) && user.isActive && user.userId.toLowerCase() !== currentUserId.toLowerCase();
+
   return <section className="panel">
     <div className="panel-header"><h2>{t('access.users')}</h2>
-      <ActionButton icon={RefreshCw} iconOnly label={t('access.refresh')} disabled={loading} onClick={() => void reload()} /></div>
-    <p className="access-intro">{t('access.groupNote')}</p>
-    <label className="access-filter">
-      <input type="checkbox" checked={awaitingOnly} disabled={loading}
-        onChange={event => setAwaitingOnly(event.target.checked)} />
-      {t('access.awaitingOnly')}
-    </label>
+      <ActionButton icon={RefreshCw} iconOnly label={t('access.refresh')}
+        disabled={loading || loadingMore} onClick={() => void load(filters, null)} /></div>
+    <FilterToolbar label={t('access.filters')}
+      className="access-directory-toolbar"
+      search={{ value: searchDraft, onChange: setSearchDraft, maxLength: 100,
+        label: t('access.search'), placeholder: t('access.search') }}
+      chips={chips} isFiltered={isFiltered} onClear={clearFilters}
+      note={!loading && !failed ? t(nextCursor ? 'access.moreUsersAvailable' : 'access.showingUsers',
+        { count: users.length }) : undefined}>
+      <FilterField label={t('access.statusFilter')}>
+        <select value={filters.accountStatus} onChange={event =>
+          updateFilters({ accountStatus: event.target.value as UserDirectoryFilters['accountStatus'] })}>
+          <option value="all">{t('access.allStatuses')}</option>
+          <option value="active">{t('access.activeFilter')}</option>
+          <option value="inactive">{t('access.inactiveFilter')}</option>
+        </select>
+      </FilterField>
+      <FilterField label={t('access.assignmentFilter')}>
+        <select value={filters.directAssignments} onChange={event =>
+          updateFilters({ directAssignments: event.target.value as UserDirectoryFilters['directAssignments'] })}>
+          <option value="all">{t('access.allAssignments')}</option>
+          <option value="with">{t('access.withAssignments')}</option>
+          <option value="without">{t('access.withoutAssignments')}</option>
+        </select>
+      </FilterField>
+      <p className="access-filter-help">{t('access.groupNote')}</p>
+    </FilterToolbar>
     {loading && <LoadingIndicator label={t('access.loading')} />}
-    {failed && <p role="alert">{t('access.denied')}</p>}
-    {!loading && !failed && awaitingOnly && users.length === 0 &&
-      <p role="status">{t('access.noWaiting')}</p>}
-    {!loading && !failed && users.length > 0 && <div className="table-wrap"><table className="activity-table">
-      <thead><tr><th>{t('access.identity')}</th><th>{t('access.directRoles')}</th><th>{t('session.account')}</th>
-        <th>{t('access.lastSeen')}</th><th>{t('access.actions')}</th></tr></thead>
-      <tbody>{users.map(user => <tr key={user.userId}>
-        <td><strong>{user.displayName || user.identityName}</strong>{user.displayName && <small>{user.identityName}</small>}</td>
-        <td>{user.activeDirectGrantCount > 0 ? user.activeDirectGrantCount : t('access.noDirectRole')}</td>
-        <td><Status value={user.isActive ? 'Active' : 'Inactive'} label={user.isActive ? t('session.active') : t('session.inactive')} /></td>
-        <td>{formatDetailTimestamp(user.lastSeenAtUtc)}</td>
-        <td>{canAssign(user) && <ActionButton label={t('access.assignRole')} aria-label={t('access.assignRoleTo', { name: user.displayName || user.identityName })} onClick={() => onAssignRole?.(user.userId)} />}</td>
-      </tr>)}</tbody></table></div>}
+    {failed && <p role="alert" className="access-intro">{t('access.denied')}</p>}
+    {!loading && !failed && users.length === 0 &&
+      <p role="status" className="access-intro">{t(isFiltered ? 'access.noMatches' : 'access.noUsers')}</p>}
+    {!loading && !failed && users.length > 0 && <div className="table-wrap">
+      <table className="activity-table">
+        <thead><tr><th>{t('access.identity')}</th><th>{t('access.directAssignments')}</th>
+          <th>{t('session.account')}</th><th>{t('access.lastSeen')}</th><th>{t('access.actions')}</th></tr></thead>
+        <tbody>{users.map(user => <tr key={user.userId}>
+          <td><strong>{user.displayName || user.identityName}</strong>
+            {user.displayName && <small>{user.identityName}</small>}</td>
+          <td>{user.activeDirectGrantCount > 0 ? user.activeDirectGrantCount : t('access.noDirectRole')}</td>
+          <td><Status value={user.isActive ? 'Active' : 'Inactive'}
+            label={user.isActive ? t('session.active') : t('session.inactive')} /></td>
+          <td>{formatDetailTimestamp(user.lastSeenAtUtc)}</td>
+          <td>{canAssign(user) && <ActionButton label={t('access.assignRole')}
+            aria-label={t('access.assignRoleTo', { name: user.displayName || user.identityName })}
+            onClick={() => onAssignRole?.(user.userId)} />}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>}
+    {!loading && !failed && nextCursor &&
+      <div className="access-directory-more"><ActionButton label={t('access.loadMore')}
+        disabled={loadingMore} onClick={() => void load(filters, nextCursor)} />
+        {loadingMore && <LoadingIndicator label={t('access.loading')} />}
+      </div>}
   </section>;
 }
