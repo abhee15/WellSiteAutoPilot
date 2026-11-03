@@ -165,17 +165,24 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         setDenied(true); setBlocked(true); setError(t(committed ? 'setup.committed' : 'setup.denied')); }}
       onCancel={() => { setEditing(false); setSource(undefined); if (!detail) onClose(); }} />);
   return <section className="setup-panel configured-detail" aria-label={t('setup.workspace')}>
+    <header className="logic-detail-header">
+      <div>
+        <h3>{detail?.name ?? t(selectedId ? 'setup.workspace' : 'setup.heading')}</h3>
+        {detail && <p className="logic-status-sentence">{active
+          ? t(contextKey, { number: active.revisionNumber ?? '—', mode: active.mode ?? '—', count: activeAssetCount })
+          : t('configured.noLive')}</p>}
+        {detail && waiting.length > 0 && <p className="logic-detail-note">{t(waiting.length === 1 ? 'logicDetail.savedDraftOne' : 'logicDetail.savedDrafts', { count: waiting.length })}</p>}
+      </div>
+      <div className="logic-detail-header-actions">
+        {!editing && selectedId && <ActionButton icon={RefreshCw} iconOnly label={t('setup.reload')} disabled={busy}
+          onClick={() => void reload()} />}
+        <CloseButton onClick={onClose} />
+      </div>
+    </header>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert">{error}</p>}
     {!detail && selectedId && !error && <LoadingIndicator label={t('setup.loading')} />}
     {detail && <>
-      <header className="logic-detail-header">
-        <div><h3>{detail.name}</h3><p className="logic-status-sentence">{active
-          ? t(contextKey, { number: active.revisionNumber ?? '—', mode: active.mode ?? '—', count: activeAssetCount })
-          : t('configured.noLive')}</p>
-          {waiting.length > 0 && <p className="logic-detail-note">{t(waiting.length === 1 ? 'logicDetail.savedDraftOne' : 'logicDetail.savedDrafts', { count: waiting.length })}</p>}
-        </div><CloseButton onClick={onClose} />
-      </header>
       {changedElsewhere && <p role="status">{t('logicDetail.changedElsewhere')}</p>}
       <div className="setup-actions">
         {mayManage && (active ?? ordered[0])?.mode === 'Shadow' && <ActionButton label={t('logicDetail.createRevision')}
@@ -183,7 +190,6 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         {active?.mode === 'Shadow' && userId && canRequestShadow && detail.canRequestShadow && <ActionButton
           label={t('logicDetail.runActive', { number: active.revisionNumber ?? '—' })} disabled={mutationBlocked || editing}
           onClick={() => { selectTab('overview'); setShowShadow(true); }} />}
-        {!editing && <ActionButton icon={RefreshCw} iconOnly label={t('setup.reload')} disabled={busy} onClick={() => void reload()} />}
       </div>
       <DetailTabs prefix={prefix} label={t('logicDetail.sections')}
         tabs={[{ id: 'overview', label: t('logicDetail.overview') }, { id: 'configuration', label: t('logicDetail.configuration') },
@@ -248,6 +254,5 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       </div>}
     </>}
     {!detail && editor}
-    {!detail && <ActionButton label={t('configured.close')} disabled={busy} onClick={onClose} />}
   </section>;
 }
