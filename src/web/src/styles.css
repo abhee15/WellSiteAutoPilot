@@ -1239,8 +1239,6 @@ select:not([multiple], [size]) {
 .primary-button, .secondary-button, .quiet-button, .ui-action-button { font-weight: var(--font-weight-medium); }
 .activity-table td strong { font-weight: var(--font-weight-medium); }
 .activity-table td .activity-sentence strong, .activity-detail h3 strong { font-weight: var(--font-weight-bold); }
-/* Tabs, in Assets/Logic (links) and Access (buttons): one size, regular until selected. */
-.split-tabs [role='tab'] { font-size: var(--font-size-body-small); }
 /* Disclosures ("Filters and saved views") and the side navigation read at the control size, like the content they sit beside. */
 :where(summary) { font-size: var(--font-size-body-small); }
 .navigation nav a { font-size: var(--font-size-body-small); }
