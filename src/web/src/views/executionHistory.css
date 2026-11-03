@@ -1,0 +1,83 @@
+/* Shared run-history presentation: one history projection, one execution inspector. */
+.execution-history-inline .execution-history-inspector:empty { display: none; }
+.execution-history-inline .execution-history-inspector:not(:empty) { margin-top: var(--space-16); }
+
+.execution-history-focus { min-width: 0; container: run-history / inline-size; }
+.execution-history-focus .execution-history-panes { min-width: 0; }
+.execution-history-focus .execution-history-browse { min-width: 0; padding: 0; }
+.execution-history-focus .execution-history-browse-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-panel);
+  padding: var(--space-12) var(--space-18);
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+.execution-history-focus .execution-history-browse-header h4 { margin: 0; }
+.execution-history-focus .execution-history-browse > :not(.execution-history-browse-header) { margin-inline: var(--space-18); }
+.execution-history-focus .execution-history-browse > .execution-history-results { margin-inline: 0; }
+.execution-history-focus .execution-history-results { gap: 0; }
+.execution-history-focus .execution-history-row {
+  padding: var(--space-10) var(--space-18);
+  cursor: pointer;
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+.execution-history-focus .execution-history-row[data-selected='true'],
+.execution-history-inline .asset-page-list li[data-selected='true'] {
+  background: var(--color-surface-navigation-active);
+  box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring);
+}
+.execution-history-focus .execution-history-row button { text-align: left; }
+.execution-history-focus .execution-history-row button:focus-visible { outline-offset: var(--space-4); }
+.execution-history-focus .execution-history-row small { overflow-wrap: anywhere; }
+.execution-history-focus .asset-detail-actions { padding-block: var(--space-12); }
+.execution-history-focus .execution-history-inspector {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.execution-history-focus .execution-history-selected-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-18);
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+.execution-history-focus .execution-history-selected-header h4 { margin: 0; overflow-wrap: anywhere; }
+.execution-history-focus .execution-history-selected-header p {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-subtle);
+}
+.execution-history-focus .execution-history-step-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.execution-history-focus .execution-history-inspector-content { min-width: 0; min-height: 0; flex: 1; }
+.execution-history-focus .execution-history-inspector .execution-detail { border: 0; }
+
+@media (width > 56.25em) {
+  /* The primary browse pane scrolls; the inspector's body is its only scroll region. */
+  .execution-history-focus .execution-history-panes > .execution-history-inspector { overflow: hidden; }
+  .execution-history-focus .execution-history-inspector-content { overflow-y: auto; overscroll-behavior: contain; }
+}
+
+@container run-history (width <= 56.25em) {
+  /* Shell navigation and browser zoom reduce actual content width before the viewport breakpoint. */
+  .execution-history-focus.runs-layout .execution-history-panes {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    max-height: none;
+  }
+  .execution-history-focus.runs-layout[data-has-selection='true'] .execution-history-panes > .split-browse { display: none; }
+  .execution-history-focus.runs-layout[data-has-selection='false'] .execution-history-panes > .split-selected { display: none; }
+  .execution-history-focus.runs-layout .execution-history-panes > .split-browse,
+  .execution-history-focus.runs-layout .execution-history-panes > .split-selected {
+    max-height: none;
+    overflow: visible;
+  }
+  .execution-history-focus .execution-history-inspector-content { overflow: visible; }
+  .execution-history-focus.runs-layout .execution-history-inspector .split-back.ui-action-button {
+    display: inline-flex;
+    align-self: flex-start;
+  }
+}
