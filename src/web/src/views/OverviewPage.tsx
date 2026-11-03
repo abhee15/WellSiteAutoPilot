@@ -19,7 +19,8 @@ import './overview.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { relativeTime } from './auditPresentation';
-import { shortId } from '../format';
+import { describeRunContext, executionAssetLabel } from './runContext';
+import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 
 function attentionText(item: AttentionItem): string {
   switch (item.kind) {
@@ -37,9 +38,10 @@ function attentionText(item: AttentionItem): string {
 
 /** The home page: what needs a person first, then how things stand. */
 export function OverviewPage({
-  permissions, systemHealth, executions, assets, configuredLogic, isLoaded,
+  permissions, systemHealth, executions, assets, configuredLogic, isLoaded, userId,
 }: {
   permissions: readonly string[];
+  userId?: string | null;
   systemHealth: SystemHealthResponse | null;
   executions: ExecutionResponse[];
   assets: AssetResponse[];
@@ -120,9 +122,11 @@ export function OverviewPage({
     permissions, executions, recommendations, assets, configuredLogic, openControlActions, nowUtc: Date.now(),
   });
   const ready = isLoaded && recommendationsLoaded;
-  const assetNames = new Map(assets.flatMap(asset => (asset.id && asset.name ? [[asset.id, asset.name] as const] : [])));
   const latestRuns = [...executions].filter(run => run.executionId)
     .sort((a, b) => Date.parse(b.requestedAtUtc ?? '') - Date.parse(a.requestedAtUtc ?? '')).slice(0, 5);
+  const runAssetIds = [...new Set(latestRuns.flatMap(run =>
+    describeRunContext(run, configuredLogic, assets).assetIds.slice(0, 2)))];
+  const directory = useAssetIdentityDirectory(runAssetIds, assets, canReadAssets, userId);
   const unhealthy = systemHealth?.unhealthyCount ?? 0;
 
   return (
@@ -156,16 +160,17 @@ export function OverviewPage({
             <a className="action-link" href="#operations">{t('overview.allRuns')}</a>
           </div>
           <ul className="overview-runs">
-            {latestRuns.map(run => (
-              <li key={run.executionId}>
+            {latestRuns.map(run => {
+              const context = describeRunContext(run, configuredLogic, directory.assets, directory.owners);
+              return <li key={run.executionId}>
                 <Status value={run.status} />
                 <a href={`#operations/${run.executionId}`}>
-                  <strong>{run.assetExternalId ?? (run.assetId ? assetNames.get(run.assetId) ?? shortId(run.assetId) : '—')}</strong>
+                  <strong>{executionAssetLabel(run, context)}</strong>
                 </a>
                 <span className="overview-run-module">{run.moduleId}</span>
                 {run.requestedAtUtc && <time dateTime={run.requestedAtUtc}>{relativeTime(run.requestedAtUtc, Date.now())}</time>}
-              </li>
-            ))}
+              </li>;
+            })}
           </ul>
         </section>
       )}
