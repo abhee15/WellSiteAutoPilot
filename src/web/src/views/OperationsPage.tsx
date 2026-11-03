@@ -9,7 +9,8 @@ import { EmptyRow, PanelHeader, SummaryCard } from '../components/common';
 import { Status } from '../components/Status';
 import { formatTimestamp, shortId } from '../format';
 import { outcomeLabel } from '../words';
-import { describeRunContext, summarizeAssetLabels } from './runContext';
+import { describeRunContext, executionAssetLabel } from './runContext';
+import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { OperationsViewControls } from './OperationsViewControls';
 import { loadConnections } from './connections';
@@ -35,6 +36,7 @@ function RecentOperationsPage({
   assets = [],
   configuredLogic = [],
   canReadConnections = false,
+  canReadAssets = true,
 }: {
   executions: ExecutionResponse[];
   userId: string | null | undefined;
@@ -43,6 +45,7 @@ function RecentOperationsPage({
   configuredLogic?: ConfiguredLogicResponse[];
   /** Whether this person may list saved connections, so a run can name the connection it read from. */
   canReadConnections?: boolean;
+  canReadAssets?: boolean;
 }) {
   const [connectionNames, setConnectionNames] = useState<ReadonlyMap<string, string>>(new Map());
   useEffect(() => {
@@ -59,12 +62,16 @@ function RecentOperationsPage({
   // when a selected run ages out of that snapshot.
   const hasSelection = selectedExecutionId !== null;
   const splitFocus = useSplitPaneFocus(hasSelection ? selectedExecutionId : null);
+  const runAssetIds = useMemo(() => [...new Set(executions.flatMap(run =>
+    describeRunContext(run, configuredLogic, assets).assetIds.slice(0, 2)))].slice(0, 100),
+  [executions, configuredLogic, assets]);
+  const assetDirectory = useAssetIdentityDirectory(runAssetIds, assets, canReadAssets, userId);
   const visibleExecutions = useMemo(
     () => filterOperations(executions, viewCriteria, row => {
-      const context = describeRunContext(row, configuredLogic, assets);
+      const context = describeRunContext(row, configuredLogic, assetDirectory.assets, assetDirectory.owners);
       return [context.logicName, ...context.assetLabels];
     }),
-    [executions, viewCriteria, configuredLogic, assets],
+    [executions, viewCriteria, configuredLogic, assetDirectory.assets, assetDirectory.owners],
   );
   const activeExecutions = executions.filter(
     execution =>
@@ -125,7 +132,7 @@ function RecentOperationsPage({
             </thead>
             <tbody>
               {visibleExecutions.map(execution => {
-                const context = describeRunContext(execution, configuredLogic, assets);
+                const context = describeRunContext(execution, configuredLogic, assetDirectory.assets, assetDirectory.owners);
                 return (
                 <tr key={execution.executionId} data-selected={hasSelection && selectedExecutionId === execution.executionId}
                   onClick={event => {
@@ -153,7 +160,7 @@ function RecentOperationsPage({
                       onClick={() => setSelectedExecutionId(current =>
                         current === execution.executionId ? null : execution.executionId ?? null)}
                     >
-                      <strong>{assetText(execution, context)}</strong>
+                      <strong>{executionAssetLabel(execution, context)}</strong>
                     </button>
                     {execution.quantity && <small>{execution.quantity}</small>}
                   </td>
@@ -190,7 +197,8 @@ function RecentOperationsPage({
             // A run opened by link may be older than the loaded list; the server decides if it may be seen.
             onAccessLost={() => setSelectedExecutionId(null)}
             configuredLogic={configuredLogic}
-            assets={assets}
+            assets={assetDirectory.assets}
+            assetOwners={assetDirectory.owners}
             connectionNames={connectionNames}
             poll
             onClose={() => setSelectedExecutionId(null)}
@@ -212,8 +220,3 @@ function OutcomeCell({ execution }: { execution: ExecutionResponse }) {
   return <span title={outcome.code ?? undefined}>{outcome.text}</span>;
 }
 
-function assetText(execution: ExecutionResponse, context: { assetLabels: string[] }): string {
-  if (execution.assetExternalId) return execution.assetExternalId;
-  if (context.assetLabels.length > 0) return summarizeAssetLabels(context.assetLabels);
-  return execution.assetId ? shortId(execution.assetId) : '—';
-}
