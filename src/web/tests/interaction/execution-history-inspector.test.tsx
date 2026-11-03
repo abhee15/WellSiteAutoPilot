@@ -41,6 +41,7 @@ it('shows a selected run beside the scoped history, retains selection and provid
   await waitFor(() => expect(container.querySelector('[data-selected="true"]')).toBeTruthy());
   expect(container.querySelector('.execution-history-focus .split-panes')).toBeTruthy();
   expect(container.querySelector('.execution-history-inspector-content')).toBeTruthy();
+  expect(screen.getByRole('region', { name: 'Selected run inspector' })).toBeTruthy();
   expect(await screen.findByRole('heading', { name: 'Run details' })).toBeTruthy();
   expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain(formatTimestamp(run(11).requestedAtUtc));
   expect(http.mock.calls.some(([url]) => {
