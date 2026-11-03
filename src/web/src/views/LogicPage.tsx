@@ -15,7 +15,8 @@ import { Status } from '../components/Status';
 import { formatTimestamp } from '../format';
 import { profileLabel, statusLabel } from '../words';
 import { moduleStateLabel, moduleStateToken } from './moduleApproval';
-import { configurationAssetLabels, latestRunByConfiguration, summarizeAssetLabels } from './runContext';
+import { configurationTargetAssetIds, configuredTargetLabel, latestRunByConfiguration } from './runContext';
+import { useConfiguredAssetDirectory } from './useConfiguredAssetDirectory';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { CONTROL_MANAGE_PERMISSION } from './controlExecution';
@@ -83,6 +84,9 @@ export function LogicPage({
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
   );
+  const visibleTargetIds = useMemo(() => [...new Set(visibleConfigurations.flatMap(item =>
+    configurationTargetAssetIds(item).slice(0, 2)))], [visibleConfigurations]);
+  const assetDirectory = useConfiguredAssetDirectory(visibleTargetIds, assets, permissions.includes('assets.read'), userId);
   const visibleModules = useMemo(
     () => filterLogicCatalog(modules, catalogCriteria),
     [modules, catalogCriteria],
@@ -217,7 +221,7 @@ export function LogicPage({
                           {item.name}
                         </button>
                       </td>
-                      <td className="run-col-secondary">{summarizeAssetLabels(configurationAssetLabels(item, assets)) || '—'}</td>
+                      <td className="run-col-secondary">{configuredTargetLabel(configurationTargetAssetIds(item), assetDirectory.assets, assetDirectory.owners)}</td>
                       <td className="run-col-secondary">{activeRevisionLabel(item)}</td>
                       {canReadRuns && <td className="run-col-secondary">{lastRunText(lastRuns.get(item.id ?? ''))}</td>}
                     </tr>
@@ -244,7 +248,7 @@ export function LogicPage({
                 canReadViews={permissions.includes('connections.read')}
                 canReadControl={permissions.includes('recommendations.read')}
                 canManageControl={permissions.includes(CONTROL_MANAGE_PERMISSION)}
-                modules={modules} assets={assets} assetTypes={assetTypes}
+                modules={modules} assets={assetDirectory.assets} assetTypes={assetTypes}
                 executions={canReadRuns ? executions : undefined}
                 onChanged={onRefresh}
                 onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
