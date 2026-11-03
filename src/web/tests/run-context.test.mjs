@@ -32,7 +32,7 @@ test('long asset lists are summarised', () => {
   assert.equal(ctx.summarizeAssetLabels(['A', 'B', 'C', 'D']), 'A, B +2 more');
 });
 
-import { configurationAssetLabels, latestRunByConfiguration } from '../src/views/runContext.ts';
+// Runtime TS modules must be loaded through Vite in this Node test.
 
 test('configuration asset labels cover every revision, once, by name', () => {
   const config = { revisions: [
@@ -40,8 +40,8 @@ test('configuration asset labels cover every revision, once, by name', () => {
     { assetBindings: [{ assetId: 'a1' }, { assetId: 'a3-long-unknown-identifier' }] },
   ] };
   const assets = [{ id: 'a1', name: 'North' }, { id: 'a2', name: 'South' }];
-  assert.deepEqual(configurationAssetLabels(config, assets), ['North', 'South', 'a3-long-…']);
-  assert.deepEqual(configurationAssetLabels({}, assets), []);
+  assert.deepEqual(ctx.configurationAssetLabels(config, assets), ['North', 'South', 'a3-long-…']);
+  assert.deepEqual(ctx.configurationAssetLabels({}, assets), []);
 });
 
 test('configured grid labels use active-revision assets and distinguish matching names by Connection', () => {
@@ -74,7 +74,7 @@ test('configured grid keeps remaining target counts without reading obsolete rev
 });
 
 test('latest run per configuration ignores undated or unlinked runs', () => {
-  const map = latestRunByConfiguration([
+  const map = ctx.latestRunByConfiguration([
     { logicInstanceId: 'c1', requestedAtUtc: '2026-10-01T00:00:00Z', status: 'Succeeded' },
     { logicInstanceId: 'c1', requestedAtUtc: '2026-10-02T00:00:00Z', status: 'Failed' },
     { logicInstanceId: 'c1', requestedAtUtc: 'not a date', status: 'Succeeded' },
