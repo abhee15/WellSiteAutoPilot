@@ -1,5 +1,6 @@
 import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
-import { configurationAssetLabels, latestRunByConfiguration } from './runContext';
+import { assetIdentityLabel, latestRunByConfiguration } from './runContext';
+import type { OwnerGroup } from './assetHierarchy';
 
 export type ScheduleRow = {
   id: string;
@@ -34,6 +35,7 @@ export function buildScheduleOverview(
   configurations: readonly ConfiguredLogicResponse[],
   assets: readonly AssetResponse[],
   executions: readonly Pick<ExecutionResponse, 'logicInstanceId' | 'requestedAtUtc' | 'status'>[],
+  owners: readonly OwnerGroup[] = [],
 ): ScheduleOverview {
   const lastRuns = latestRunByConfiguration(executions);
   const rows: ScheduleRow[] = [];
@@ -55,7 +57,8 @@ export function buildScheduleOverview(
       name: configuration.name ?? '',
       revisionNumber: active.revisionNumber ?? null,
       mode: active.mode ?? null,
-      assetLabels: configurationAssetLabels({ ...configuration, revisions: [active] }, assets),
+      assetLabels: [...new Set((active.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []))]
+        .map(id => assetIdentityLabel(id, assets, owners)),
       enabled: schedule.enabled === true,
       belowMinimum: configuration.belowMinimum === true,
       paused: schedule.enabled !== true && declared?.enabled === true,
