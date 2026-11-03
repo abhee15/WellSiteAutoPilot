@@ -177,7 +177,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       <div className="logic-detail-header-actions">
         {!editing && selectedId && <ActionButton icon={RefreshCw} iconOnly label={t('setup.reload')} disabled={busy}
           onClick={() => void reload()} />}
-        <CloseButton onClick={onClose} />
+        <CloseButton label={t('configured.close')} onClick={onClose} />
       </div>
     </header>
     {notice && <p role="status">{notice}</p>}
