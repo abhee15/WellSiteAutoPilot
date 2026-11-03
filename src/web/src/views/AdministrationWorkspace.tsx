@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useHashDetail } from '../routing';
+import type { AssetResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { AccessManagementPage } from './AccessManagementPage';
 import { RoleCatalogPage } from './RoleCatalogPage';
@@ -9,7 +10,9 @@ import { ActivityPage } from './ActivityPage';
 type Tab = 'users' | 'roles' | 'grants' | 'activity';
 
 /** Keep Administration in the user menu, not the industrial primary navigation. */
-export function AdministrationWorkspace({ currentUserId }: { currentUserId: string }) {
+export function AdministrationWorkspace({ currentUserId, assets = [], canReadAssets = false }: {
+  currentUserId: string; assets?: readonly AssetResponse[]; canReadAssets?: boolean;
+}) {
   const [detail, setDetail] = useHashDetail('access');
   // `#access/activity/<event id>` also names the selected event, so an address can point at one event.
   const [head = '', eventId = ''] = (detail ?? '').split('/');
@@ -39,7 +42,8 @@ export function AdministrationWorkspace({ currentUserId }: { currentUserId: stri
           ? <AccessManagementPage currentUserId={currentUserId}
             onAssignRole={userId => { setAssignUserId(userId); setTab('grants'); }} />
           : tab === 'roles' ? <RoleCatalogPage />
-            : tab === 'activity' ? <ActivityPage selectedId={eventId || null} onSelect={selectEvent} />
+            : tab === 'activity' ? <ActivityPage selectedId={eventId || null} onSelect={selectEvent} userId={currentUserId}
+              assets={assets} canReadAssets={canReadAssets} />
               : <GrantAdministrationPage currentUserId={currentUserId} initialUserId={assignUserId} />}
       </div>
     </div>
