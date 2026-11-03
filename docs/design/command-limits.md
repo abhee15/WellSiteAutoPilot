@@ -26,103 +26,210 @@ three, never from typing.
 
 ## 2. The name
 
-The object answers one question: *within what bounds may this logic's commands be carried out?* It is not only about
-autonomy: in Recommendation mode it bounds what a person may apply; in Autonomous mode it bounds what the system may do
-alone. Candidates:
+Kept after review: **Command limits**, paired with **Site limit** (the catalog ceiling), as engineering limits pair with
+operator limits in process control. Rejected: "Operator limits" (clashes with the operator role), "Operating envelope"
+(process-safety term, would make tuning sound safety-rated), "Setpoint limits" (excludes run/stop; ForeSite uses the
+phrase for its own limits), "Interlock" (safety vocabulary, never use), "Control permissions" (collides with RBAC).
 
-| Name | For | Against |
+- Title in both modes: **Command limits**. Subtitles: Recommendation - "What a person can send from this logic's approved
+  recommendations."; Autonomous - "What this logic can send on its own, and how often."
+- The connection tab is **Commands**; its column in the logic view is **Site limit**; the logic's own column is **This
+  logic's limit** (the limit belongs to the logic, not to the person).
+- The code, API, tables and localization keys (`commandLimits.*`) are renamed in the same migration as the mode change
+  (P2b). "Autonomy policy" is removed from the gate messages and the runbook.
+
+## 3. One record shape, two lifecycles
+
+Both modes share the rows (command, allowed, range) and the same gate check. They do not share a lifecycle:
+
+| | Recommendation | Autonomous |
 | --- | --- | --- |
-| **Command limits** | Plain, says what it is, true in both modes, pairs with the site's "Site commands" (what is possible here) | "Limits" might suggest only a maximum |
-| Control permissions | Familiar word | Collides with user permissions (RBAC), which also guard control |
-| Operating envelope | Used in the field | Jargon; needs explaining |
-| Autonomy policy (today) | Existing | Wrong for Recommendation mode; "policy" is vague |
+| Accountable for each send | The person who approves | The person who made it live |
+| States | **Off / On** | **Off / Dry run / Live** |
+| Rate limit | No | Yes (per asset and total) |
+| Evidence before start | None (the preview shows what would be written) | A dry-run record |
+| System may switch it off (circuit breaker) | No | Yes (Live to Dry run, actor `system:circuit-breaker`) |
 
-Recommended: **Command limits**, with a mode line under the title: Recommendation - "What a person may apply from this
-logic's recommendations"; Autonomous - "What this logic may do on its own". The site's catalog is shown to engineers as
-**Site commands**. The code and API are renamed from `policy` to `limits` in the same migration as the mode change (P2b),
-while nothing else depends on the old name.
+A dry run in Recommendation mode would let a person approve and see nothing sent, so it does not exist there.
 
-## 3. What a person sees and does (screen S2, replaced)
+**Versions.** A record has at most one *live* version and at most one *pending* version. An edit that gives the logic more
+room (adds a command, widens a range, raises the rate) creates a pending version; an edit that gives it less room may
+replace the live version at once, so tightening never stops live control. The gate decides with the live version and also
+records what the pending version would have decided. **Dry run** means a pending version exists and no live one: decisions
+are evaluated fully, recorded, never sent, and never counted toward the live rate. Versions are immutable and store the
+module id and version and the set of bound assets they were approved against; activating a revision whose module version
+or bound assets differ drops a Live record to Dry run, with an event saying why. Schedule or frequency changes do not.
 
-Shown only for a logic whose live revision is Recommendation or Autonomous (`control-screens.md` 1a). The table is
-**generated**, one row per command the module declares for each asset role. There is no Add button.
+## 4. What a person sees and does (screen S2, replaced)
+
+Shown for the revision being looked at when its mode is Recommendation or Autonomous, drafts included (limits must be
+preparable before activation; `control-screens.md` 1a). The list is **generated** from the module's declarations; there is
+no Add button. Each command is one card (a list of cards, not a wide table, so the phone is the same layout).
 
 ```text
-Command limits                                   Autonomous · revision 3 · version 4 · Off | Dry run | Live
-What this logic may do on its own. It can only ask for the commands it declares.
-+------------------------------------------------------------------------------------------------+
-| Command          Asset role   Available here          Site range     Your limit       Max step   |
-| Set pump speed   Well        Yes - 3 of 3 wells       0 to 12 spm    [ 3 ] to [10]    [ 1 ]      |
-| Run or stop      Well        2 of 3 wells (Well C:    0 or 1         [ off ]          -          |
-|                              not enabled at site)                                               |
-| Set choke        Well        No - the adapter cannot  -              not available               |
-|                              command (read only)                                                 |
-+------------------------------------------------------------------------------------------------+
-| How often   At most [ 3 ] commands every [ 10 ] minutes                    (Autonomous only)     |
-| Why are you changing this? [____________________]                       [Cancel] [Save as Dry run]|
-+------------------------------------------------------------------------------------------------+
+Command limits                                   [ Live ]
+Sends up to 3 commands every 10 minutes to 3 wells without asking anyone.        [Turn off]
++-----------------------------------------------------------------------------------------+
+| Changes not in force yet: dry run since 14:02 - 37 decisions - 3 would have been refused |
+|                                                      [Review] [Go live...] [Discard]    |
++-----------------------------------------------------------------------------------------+
+| [x] Set pump speed (Well)                                      Can be sent: 3 of 3 wells |
+|     Site limit 0 to 12 spm    This logic's limit [ 3 ] to [ 10 ] spm   hint: last 7 d 4-8 |
+| [ ] Run or stop (Well)                                         Can be sent: 2 of 3 wells |
+|     Well C: not enabled at the site - ask a connection manager.                          |
+| [ ] Set choke (Well)                                           Cannot be sent here       |
+|     The adapter cannot command (read only).                                              |
+| How often  At most [ 3 ] per well and [ 6 ] in total every [ 10 ] minutes                |
+|     This logic runs every 5 minutes, so at most 2 per well per 10 minutes is possible.   |
+| Why are you changing this? [____]            [Cancel] [Save as dry run]  [History]       |
++-----------------------------------------------------------------------------------------+
 ```
 
-- **Rows come from the module.** The role and command are read-only. If the module declares nothing, the panel says "This
-  logic does not ask for any commands" and offers nothing.
-- **"Available here" is computed, not typed**, from the bound assets' connections, the adapter's definitions and the site's
-  catalog: Yes (all bound assets), some (names the ones that cannot and why), No (why). A row that is not available for any
-  asset cannot be switched on and explains what would fix it and who can ("Ask a connection manager to enable it").
-- **Your limit** is empty until the person sets it; it is checked inline against the narrowest site range across the bound
-  assets (shown beside it) and the module's declared unit. Nothing is pre-filled silently; a module may later suggest a
-  range, shown as a hint the person confirms.
-- **Max step** defaults to the site's; the person may only narrow it.
-- **State: Off, Dry run, Live.** Saving never goes Live directly for Autonomous: it saves as Dry run (commands are decided and
-  recorded but not sent). Live is a second, deliberate action once the Dry run history has been looked at.
-- **Recommendation mode** shows the same table without "How often", titled "What a person may apply"; an empty limit means
-  Execute is not offered for that command, with the reason on the recommendation.
-- **Read-only adapters** (CygNet and ForeSite today): in Recommendation mode the row reads "The adapter cannot send this;
-  a person applies it by hand" and is still listed, so the recommendation is meaningful; in Autonomous mode the row is not
-  available and the logic cannot go Live (the revision shows why).
-- **Every change** needs a reason, is versioned and audited with before and after; a stale save shows one banner and keeps
-  the edits; read-only users see the table without inputs.
-- **Phone:** each row becomes a card; nothing scrolls sideways.
+- **Rows come from the module.** Command and role are read-only. A module that declares nothing: "This logic does not ask
+  for any commands."
+- **Explicit "Allowed" checkbox**, off by default. An empty range never means "not allowed". Run/stop is a choice ("May
+  start", "May stop"), not a range.
+- **"Can be sent" is computed** by one shared availability resolver (server) used by the screen, the activation check and
+  the gate: all assets, some (names the ones that cannot and why), none (why, and who can fix it). The reason sits on its
+  own line under the row only when it applies.
+- **Hints, never defaults:** the site limit, the module's suggested range (an additive manifest field) and the recently
+  observed range. Nothing is pre-filled. The rate is in minutes or hours and derived from the schedule.
+- **State is a badge with a sentence**, changed by buttons (Turn off, Go live...). The revision number appears only when it
+  differs from the live one; version numbers appear only in History.
+- **Go live** confirmation lists what Live allows, the dry-run summary (decisions, refusals by reason, lowest and highest
+  value), and a required reason. Until the evidence threshold is met it reads "Go live is available after N hours or M
+  decisions" in place of the button.
+- **History:** versions and events (who, why, when) with a diff showing only changed cells ("10 to 11 spm").
+- **Cut from the first version:** Max step (not enforced until P3, so showing it would be untrue); Dry run in
+  Recommendation mode; long "available here" sentences in cells.
+- **Read-only adapters:** Recommendation mode lists the command as "Applied by hand" so recommendations stay meaningful;
+  Autonomous shows it as cannot be sent and the revision cannot go Live. States: read-only (no inputs), stale save (one
+  banner, edits kept), load error (one alert, Retry), nothing available ("This logic can't send anything here" and who
+  can fix it).
 
-## 4. How the rows are built (server)
+## 5. How the rows are built (server)
 
-`GET /control/limits/{logicId}` returns, per (asset role, declared command), the resolution for every bound asset:
-connection, adapter, whether the adapter defines the command, the site entry (enabled, range, step, settle, deadline), the
-effective range (intersection across assets), and a reason code when unavailable. The screen shows what it receives; it
-re-derives nothing. The same resolution is what the gate uses at dispatch, so what the screen says is what will happen.
+Four vocabularies sit under one rule, `policy ⊆ site catalog ⊆ adapter ∩ module`, plus a fifth that was missing:
 
-## 5. Where the adapters come in (discovery)
+1. **Platform command vocabulary** (new, code-owned, versioned): command name, quantity, canonical unit, value kind
+   (number, whole number, on/off, enumeration, action). Module manifests are validated against it, and every adapter maps
+   to it. Today names match by string coincidence (`SET_SPEED` exists only in the simulator), which cannot work for
+   adapter-neutral control. Added now because adding it later migrates every manifest, catalog entry and limit.
+2. **Module requirement** (`commandRequirements`): gains a stable requirement id per (role, command) so a limit row is not
+   keyed by a string that a module upgrade can silently reinterpret.
+3. **Adapter write mechanisms**, **4. Site catalog**, as in the connection framework.
 
-Two kinds of adapter knowledge, both feeding the catalog and never the person typing:
+`GET /control/logic/{id}/command-limits/{mode}` returns the live version, the pending version and, per row and per bound
+asset, the resolution (connection, adapter, definition, site entry, effective range as the intersection, reason code).
+`PUT` (rows, rate, reason, expected version), `POST go-live {version, reason}`, `POST turn-off`, `GET history`. The screen
+shows what it receives and re-derives nothing. Tables: `control.command_limits`, `control.command_limit_versions`
+(immutable), `control.command_limit_events` (state changes including system ones).
 
-- **Static definitions** (done for the simulator): the adapter says what commands exist and their shape.
-- **Discovered targets** (ForeSite, CygNet): for a connection and its assets, the provider lists what can be written (a
-  setpoint, a registry value, a command). Discovery proposes catalog entries; an engineer maps a proposal to a platform
-  command name, sets the site range, and enables it. This mirrors asset discovery and import, and is how the catalog is
-  filled for real providers without typing identifiers.
+Code changes this implies: `ModuleCommandDeclarations.Read` currently ignores the asset role, so saving a Well limit fails
+when the same logic binds a Separator (live bug, fixed in P2b); there is no scope check on policy writes at all today
+(F7); a limit without a unit is never unit-checked (`Evaluate` skips it) and must become required; the rate counter counts
+every origin and must count Autonomous-origin actions only.
 
-The owner is providing the ForeSite and CygNet discovery material. What is needed from it, beyond the behaviour sheet in
-`control-command-framework.md` section 6:
+**Permissions.** Edit: `control.manage` + `configured-logic.manage` scoped to the logic + read on every bound asset.
+Go live: `control.manage` with a recorded reason, optionally a person other than the version's author. Turn off: anyone who
+can edit, immediately, no confirmation. A dedicated `control.approve` permission is named now even if no role holds it.
 
-1. How to list what is writable for a connection, and for one asset (endpoint, paging, permissions needed).
-2. What the provider says about each writable item: its id, display name, unit, data type, valid range, and whether the
-   provider enforces the range itself.
-3. How an item is addressed when written, and how that relates to the asset's id the platform already imports.
-4. How a write is acknowledged, and the read that proves the value changed (with latency).
-5. Which of the platform's command names each item corresponds to (or whether the mapping must always be made by an engineer).
-6. Whether writes need a different credential or role than reads.
+**Where future safety rules live (so this record is not redesigned):** hard range, step, tolerance, settle -> catalog
+entry; interlocks (alarm, shut-in, local override, stale comms, bad quality) -> a per-asset "safety check" step before
+sending, whose results are stored on the action; change windows -> site or deployment layer; drift against a baseline ->
+catalog ceiling that a logic may narrow; dual control -> the go-live action; circuit breaker -> system state change in the
+events table; kill switch -> outside the record (never changes its state). A "first-N human confirmation" rule is not
+added: it duplicates Recommendation mode plus a dry run.
 
-## 6. What this changes elsewhere
+**Audit.** Each action stores the limits version id and the state it was decided in, who made that version live, the catalog
+version and, for discovered targets, the accepted target fingerprint.
 
-- `control-screens.md` S2 is replaced by section 3; S1 (Site commands) gains "Discover commands" for adapters that support it.
-- The policy becomes `command limits`, keyed by (logic, mode), versioned, state Off / Dry run / Live (`control-rework-plan.md`
-  4.2). Rate applies to Autonomous only. A limit exists only for a command the module declares; the server rejects any other.
-- The catalog is keyed by (connection, asset type, command) so different asset types on one connection can differ.
-- The gate checks, at dispatch, the same four layers the screen showed.
+**Migration (only the simulator exists today).** `AllowApprovedRecommendations` -> a Recommendation record (On if enabled).
+An enabled Autonomous revision -> an Autonomous record in **Dry run**, never Live (no evidence exists). Limits without a
+unit take the module's declared unit; commands the module does not declare are dropped; commands declared for several
+roles become one row per role. Every change is an event with actor `system:migration`.
 
-## 7. Decisions for the owner
+## 6. Command discovery for real adapters (ForeSite, CygNet)
 
-1. The name: **Command limits** (recommended), or another from section 2.
-2. Autonomous cannot save straight to Live; it must be Dry run first. Recommended: yes.
-3. A module may suggest a range (an additive manifest field), shown as a hint, never applied silently. Recommended: yes.
-4. Where a read-only adapter is bound, Recommendation mode still lists the command as "applied by hand". Recommended: yes.
-5. Limits are set per (role, command) across all bound assets, using the narrowest site range; per-asset limits only if a real case needs them. Recommended: yes.
+The catalog today refuses any command that is not in the adapter's static definitions, and the Gateway command routes only
+accept those names; ForeSite and CygNet declare none. So discovery needs a model, not just a button:
+
+- A discovered item **never creates a command name**. An engineer binds it to a platform command; the adapter may suggest
+  only from an explicit, adapter-shipped table of known items, labelled "Suggested".
+- **Catalog binding key: (connection, provider template key, platform command)**, where the template key is the provider's
+  stable id (ForeSite `wellTypeId`, CygNet device template), not the platform's renameable asset type. Per-asset presence
+  comes from discovery and feeds "Can be sent: n of m". Never one entry per asset. The 64-entry cap is revisited.
+- **Discovered item** (per-connection snapshot): ids only for identity (connection, template key, item key), address shape,
+  display name, raw and normalised unit, data type (number, whole number, on/off, enumeration with states, action), provider
+  min/max/step each flagged enforced or merely stated, paired readback address, write mechanism, whether this account may
+  write it, first/last seen, and a **shape fingerprint**. Provider limits are a ceiling the site range must sit inside, never
+  a pre-filled range.
+- **Re-discovery fails closed:** a missing or changed item suspends its binding until an engineer re-accepts it; a changed
+  unit, type, address, or a provider range narrowed below the site range suspends; a changed display name does not; an
+  incomplete discovery changes nothing. The gate refuses with `COMMAND_TARGET_CHANGED`. `ControlActionTarget` also records
+  the accepted fingerprint.
+- **Capability:** append `ProviderCapabilityKind.CommandDiscovery = 7` (never renumber); validator: `CommandDiscovery`
+  requires `Command`, and `Command` without static definitions requires `CommandDiscovery`; new `ICommandDiscoveryProvider`
+  returning a result with `Complete`, `Warnings`, `ActingAs`.
+- **Contract gaps fixed now:** `GatewayCommandRequest.Value` is one non-null decimal; value kinds need Enumeration and
+  Action; multi-value commands (CygNet `VSDParms`/`CtrlParms`) are out of v1 and discovery reports them as "not supported"
+  rather than mapping one part. Readback becomes per item address, and the readback route accepts that address.
+- **Safety:** discovery and reads must never write or move equipment. Writes use their own plain client and never go
+  through `ForeSiteSession` (it replays after a 401, which breaks "never retry a command"). Reads are an enforced,
+  tested allowlist per adapter (ForeSite reads already use POST, so the method is no guard). CygNet UIS commands, even "get"
+  ones such as `DG_F_DEV`, poll field devices and are never run by discovery or readback.
+- **Single writer:** an asset reachable through two connections (ForeSite on top of CygNet) may have an enabled binding for
+  a platform command in at most one, enforced at catalog save and again by the gate.
+- **Identity:** one Gateway account today, so the provider's audit shows the service account, not the person. The command
+  contract carries `ActingAs`; whether a separate write identity per connection is needed is an owner decision.
+
+**Commands tab (S1) on a connection**, one tab and one table, no wizard: adapter cannot command (plain sentence, no
+buttons); can discover and nothing found yet (**Find commands**, or "Import wells first. Commands are found per well type."
+with a link); after Find, a header with source, account, time and complete/incomplete, items grouped by template with unit,
+type, provider range and "on 14 of 16 wells", and one action per row, **Use as [select]** listing only compatible platform
+commands; unmapped items collapse under "Found, not used (n)". "In use" rows show range, step, verify-after, deadline and
+On, with the provider's range as helper text and inline refusal outside it; target fields are hidden for discovering
+adapters. **Read now** reads the value back on one chosen well (value, unit, time); there is no write-test button in v1
+(first real write is the logic's Dry run, then Live). **Check for changes** reuses the source-changes pattern: changed
+fingerprints show "Needs review: unit changed from spm to %", are switched off, and a banner counts them. Cut: name-similarity
+auto-mapping, per-asset limits, scheduled discovery, hand-typed targets for discovering adapters, and the connection-level
+`commandsEnabled` switch (a third off switch beside the entry switch and the kill switch). No web code calls the catalog
+endpoints yet, so nothing needs migrating. Find is read-only (`connections.manage`); mapping and enabling need
+`control.manage` and `connections.manage`.
+
+**What to request from the owner** (replaces the earlier six items): 1 versions and topology (does ForeSite sit on CygNet,
+are the same wells in both); 2 the real command list, one row per command operators use today (template, provider UI name,
+id, unit, type, typical range, enforced?, result point, frequency); 3 exact calls to list writable items with redacted
+samples, paging and cost; 4 item metadata (unit, type, range, states); 5 one full write request for one well and how its
+ids relate to what is imported; 6 write outcomes (success, each rejection code, timeouts, duplicate behaviour, async
+confirmation such as the ForeSite DDS token or `CYWAITPT`); 7 which read proves the change, whether it polls the device,
+latency; 8 any read that polls a device or queues something; 9 permission/role names, licence, whether a separate write
+account is possible, what the provider audits; 10 examples of multi-value, no-value and enumerated commands; 11 other writers
+(optimiser, HMI, local override); 12 how templates and setpoints change and how that shows; 13 rate limits; 14 a test
+ForeSite and CygNet with a writable well, or captured traffic.
+
+## 7. What this changes elsewhere
+
+- `control-screens.md` S2 is replaced by section 4; S1 becomes the Commands tab of section 6.
+- `control-rework-plan.md` 4.2 follows sections 3 and 5; `provider-command-seam.md` 4.7 (dry run chosen per policy through
+  `SinkKind`) conflicts and changes: dry run is a limits state, not a sink.
+- The gate checks, at dispatch, the same layers the screen showed, through the shared availability resolver.
+
+## 8. Decisions for the owner
+
+1. Name **Command limits** / **Site limit** (recommended).
+2. Different states per mode (Recommendation Off/On; Autonomous Off/Dry run/Live), no dry run for Recommendation. Yes.
+3. Live plus pending versions: tightening takes effect at once, more room needs a dry run first. Yes.
+4. A module or bound-asset change drops Live to Dry run. Yes.
+5. Dry-run evidence threshold before Go live (suggest 24 h or 20 decisions).
+6. Rate per asset and in total (recommended), or per logic only.
+7. Second person required to go live from day one, or only after the pilot.
+8. Recommendation mode: allow-list within the site limit, or per-logic ranges too.
+9. Dry run keeps recording while the kill switch is on (recommended: yes, with "would have been stopped").
+10. Drop the "first-N human confirmation" rule. Yes.
+11. A module may suggest a range (hint only). Yes.
+12. Platform command vocabulary: code-owned and versioned; who approves a new name.
+13. Catalog bindings keyed by provider template; single writer per asset across connections; suspend on any shape change.
+14. Multi-value commands and a write-test button out of v1.
+15. One Gateway account, or a separate write identity per connection.
+16. Wells must be imported before commands can be found; Find needs `connections.manage` alone.
