@@ -1,6 +1,8 @@
 .configured-detail { min-width: 0; overflow-wrap: anywhere; }
 .logic-detail-header, .logic-detail-row { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-10); }
-.logic-detail-header > div { min-width: 0; flex: 1; }
+.logic-detail-header { margin-bottom: var(--space-12); }
+.logic-detail-header > :first-child { min-width: 0; flex: 1; }
+.logic-detail-header-actions { display: inline-flex; flex: none; align-items: center; gap: var(--space-8); }
 .logic-detail-header h3, .logic-detail-row h4 { margin: 0; }
 .logic-detail-note { color: var(--color-text-subtle); margin: var(--space-8) 0; }
 .configured-detail > [role='tabpanel'] { padding: var(--space-12) 0; min-width: 0; }
