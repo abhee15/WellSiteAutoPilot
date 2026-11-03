@@ -10,6 +10,9 @@ import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
+import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
+import { UserAccessDetailsPanel } from './UserAccessDetailsPanel';
+import './splitLayout.css';
 import './accessManagement.css';
 
 interface AccessManagementPageProps {
@@ -21,6 +24,8 @@ interface AccessManagementPageProps {
 /** Identity directory: direct assignments are not a claim about effective/group-derived access. */
 export function AccessManagementPage({ currentUserId, onAssignRole }: AccessManagementPageProps) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
+  // A selected user stays inspectable when search or pagination changes. A page bound is not authorization.
+  const [selected, setSelected] = useState<VerifiedSecurityUser | null>(null);
   const [filters, setFilters] = useState<UserDirectoryFilters>(DEFAULT_USER_DIRECTORY_FILTERS);
   const [searchDraft, setSearchDraft] = useState('');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -44,11 +49,14 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
         ...current,
         ...page.items.filter(item => !current.some(existing => existing.userId === item.userId)),
       ]);
+      // Refresh metadata when the same selected user is returned; never clear a legitimate
+      // selection merely because the new page/filter no longer includes that person.
+      setSelected(current => page.items.find(item => item.userId === current?.userId) ?? current);
       setNextCursor(page.nextCursor);
     } catch {
       if (request.current !== abort || abort.signal.aborted) return;
       // Do not keep protected user details visible after an uncertain or forbidden directory read.
-      setUsers([]); setNextCursor(null); setFailed(true);
+      setUsers([]); setNextCursor(null); setSelected(null); setFailed(true);
     } finally {
       if (request.current === abort) {
         request.current = null;
@@ -89,8 +97,16 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
   ];
   const canAssign = (user: VerifiedSecurityUser) =>
     Boolean(onAssignRole) && user.isActive && user.userId.toLowerCase() !== currentUserId.toLowerCase();
+  const splitFocus = useSplitPaneFocus(selected?.userId ?? null);
+  const accessLost = useCallback(() => {
+    setSelected(null);
+    void load(filters, null);
+  }, [filters, load]);
 
-  return <section className="panel">
+  return <div {...splitFocus} className="split-layout runs-layout users-directory-layout"
+    data-has-selection={selected !== null}>
+    <div className="split-panes">
+    <section className="panel split-browse">
     <div className="panel-header"><h2>{t('access.users')}</h2>
       <ActionButton icon={RefreshCw} iconOnly label={t('access.refresh')}
         disabled={loading || loadingMore} onClick={() => void load(filters, null)} /></div>
@@ -126,15 +142,28 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
     {!loading && !failed && users.length > 0 && <div className="table-wrap">
       <table className="activity-table">
         <thead><tr><th>{t('access.identity')}</th><th>{t('access.directAssignments')}</th>
-          <th>{t('session.account')}</th><th>{t('access.lastSeen')}</th><th>{t('access.actions')}</th></tr></thead>
-        <tbody>{users.map(user => <tr key={user.userId}>
-          <td><strong>{user.displayName || user.identityName}</strong>
-            {user.displayName && <small>{user.identityName}</small>}</td>
+          <th>{t('session.account')}</th><th className="user-col-secondary">{t('access.lastSeen')}</th>
+          <th className="user-col-actions">{t('access.actions')}</th></tr></thead>
+        <tbody>{users.map(user => <tr key={user.userId} data-selected={selected?.userId === user.userId}
+          onClick={event => {
+            if ((event.target as HTMLElement).closest('button, a')) return;
+            setSelected(user);
+          }}>
+          <td>
+            <button type="button" className="asset-select access-user-open"
+              data-split-focus-key={user.userId}
+              aria-current={selected?.userId === user.userId ? 'true' : undefined}
+              aria-label={t('access.inspectUser', { name: user.displayName || user.identityName })}
+              onClick={() => setSelected(current => current?.userId === user.userId ? null : user)}>
+              <strong>{user.displayName || user.identityName}</strong>
+            </button>
+            {user.displayName && <small>{user.identityName}</small>}
+          </td>
           <td>{user.activeDirectGrantCount > 0 ? user.activeDirectGrantCount : t('access.noDirectRole')}</td>
           <td><Status value={user.isActive ? 'Active' : 'Inactive'}
             label={user.isActive ? t('session.active') : t('session.inactive')} /></td>
-          <td>{formatDetailTimestamp(user.lastSeenAtUtc)}</td>
-          <td>{canAssign(user) && <ActionButton label={t('access.assignRole')}
+          <td className="user-col-secondary">{formatDetailTimestamp(user.lastSeenAtUtc)}</td>
+          <td className="user-col-actions">{canAssign(user) && <ActionButton label={t('access.assignRole')}
             aria-label={t('access.assignRoleTo', { name: user.displayName || user.identityName })}
             onClick={() => onAssignRole?.(user)} />}</td>
         </tr>)}</tbody>
@@ -145,5 +174,14 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
         disabled={loadingMore} onClick={() => void load(filters, nextCursor)} />
         {loadingMore && <LoadingIndicator label={t('access.loading')} />}
       </div>}
-  </section>;
+    </section>
+    <section className="split-selected" tabIndex={-1} aria-label={t('access.detailHeading')}>
+      <ActionButton label={t('access.backToList')} className="split-back"
+        onClick={() => setSelected(null)} />
+      {selected && <UserAccessDetailsPanel key={selected.userId} user={selected}
+        canManage={canAssign(selected)} onManage={user => onAssignRole?.(user)}
+        onClose={() => setSelected(null)} onAccessDenied={accessLost} />}
+    </section>
+    </div>
+  </div>;
 }
