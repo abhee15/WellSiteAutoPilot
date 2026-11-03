@@ -39,7 +39,7 @@ let problems = [];
 try {
   for (const [width, height, mode] of cases) {
     const picture = join(output, `${width}-${mode}.png`);
-    const url = `${base}?mode=${mode}`;
+    const url = `${base}?mode=${mode}${width >= 900 ? '&nav=expanded' : ''}`;
     const flags = [
       '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
       '--disable-extensions', '--disable-dev-shm-usage', '--no-sandbox',
@@ -65,6 +65,8 @@ try {
       continue;
     }
     const issue = (condition, message) => { if (condition) problems.push(`${width}/${mode}: ${message}`); };
+    issue(Math.abs(result.viewport - width) > 8,
+      `browser viewport ${result.viewport}px differs from requested ${width}px`);
     issue(result.documentWidth > result.viewport + 2,
       `horizontal document overflow (${result.documentWidth} > ${result.viewport})`);
     issue(result.container < 170, `content region too narrow (${result.container}px)`);
