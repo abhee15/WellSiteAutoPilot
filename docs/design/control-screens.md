@@ -14,6 +14,25 @@ to it, and nothing here is built until it can be exercised end to end in CI.
 5. **Quiet when nothing is wrong.** Healthy state is a single line. Problems are one banner with one action.
 6. **Same components everywhere.** `ActionButton`, `Status`, the shared table, `FilterToolbar`. No per-page styling.
 7. **Calm, plain words.** Short sentences, no jargon, no exclamation marks. Copy lives in the localization file.
+8. **Show only what applies.** A person must never have to work out why something is on the screen. If a control, panel or
+   column cannot apply to the thing being looked at, it is not shown (section 1a). The screen tells the person what they
+   can infer from it, so no one has to be trained on how the system behaves.
+
+### 1a. What applies, by operating mode
+
+A revision's mode is fixed and decides what the platform does with its output (`execution-modes.md`). The screens follow it:
+
+| Surface | Shadow | Recommendation | Autonomous |
+| --- | --- | --- | --- |
+| Autonomy policy panel (S2) | **Not shown.** Nothing is ever sent, so there is nothing to allow. | Shown only as the optional "Allow approved recommendations to be executed" choice, because a person may execute an approved recommendation through the same gate. | Shown in full: what may be sent on its own, its limits and its rate. |
+| Recommendations and approval | Not applicable; results are read in the run. | Yes, with Approve and (when allowed) Execute. | Not decided by a person; shown as the gate's own decisions. |
+| Control activity and action detail (S3, S5) | None can exist. | Only for approved recommendations that were executed. | Yes. |
+| Kill switch and control status strip (S4) | Not shown for a logic that cannot send; the global strip still says whether sending is possible at all. | As above. | Yes. |
+| Run now | Yes. | Yes. | Never (scheduler only). |
+
+When the whole screen is empty for a mode, one plain line says why ("This logic runs in Shadow mode. It records what it
+would do and never sends commands."), so the absence is explained instead of leaving a gap. A logic with several revisions
+shows the panels for the revision being looked at, and says which revision that is.
 
 ## 2. Screen inventory
 
