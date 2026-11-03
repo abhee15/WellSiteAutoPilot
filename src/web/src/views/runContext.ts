@@ -66,20 +66,21 @@ export function configurationTargetAssetIds(configuration: ConfiguredLogicRespon
     binding.assetId ? [binding.assetId] : []))];
 }
 
-/** Show an asset's visible name and owning Connection, while retaining a stable ID fallback. */
+/** User-facing asset identity; a source name only comes from that asset's owning Connection. */
+export function assetIdentityLabel(id: string | null | undefined,
+  assets: readonly AssetResponse[], owners: readonly OwnerGroup[]): string {
+  if (!id) return '—';
+  const asset = assets.find(item => item.id === id);
+  if (!asset?.name) return shortId(id);
+  const owner = owners.find(item => item.connectionId && item.connectionId === asset.ownerConnectionId);
+  return owner?.name ? `${asset.name} (${owner.name})` : asset.name;
+}
+
+/** Use the same label and truncation in Logic, Schedules and revision details. */
 export function configuredTargetLabel(
   assetIds: readonly string[], assets: readonly AssetResponse[], owners: readonly OwnerGroup[], maximum = 2,
 ): string {
-  const assetById = new Map(assets.flatMap(asset => asset.id ? [[asset.id, asset] as const] : []));
-  const connectionNames = new Map(owners.flatMap(owner =>
-    owner.connectionId && owner.name ? [[owner.connectionId, owner.name] as const] : []));
-  const labels = assetIds.map(id => {
-    const asset = assetById.get(id);
-    if (!asset?.name) return shortId(id);
-    const connectionName = asset.ownerConnectionId ? connectionNames.get(asset.ownerConnectionId) : null;
-    return connectionName ? `${asset.name} (${connectionName})` : asset.name;
-  });
-  return summarizeAssetLabels(labels, maximum) || '—';
+  return summarizeAssetLabels(assetIds.map(id => assetIdentityLabel(id, assets, owners)), maximum) || '—';
 }
 
 /** Newest recorded run per configuration, from whatever runs are already loaded. */
