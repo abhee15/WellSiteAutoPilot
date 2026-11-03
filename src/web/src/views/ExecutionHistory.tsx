@@ -107,7 +107,7 @@ export function ExecutionHistory({ assetId, logicId, runId = null, assets, confi
         </div>
       </section>
       <section className={focused ? 'split-selected execution-history-inspector' : 'execution-history-inspector'}
-        tabIndex={focused ? -1 : undefined} aria-label={t('execution.heading')}>
+        tabIndex={focused ? -1 : undefined} aria-label={t('assetDetail.selectedRunInspector')}>
         {focused && <ActionButton className="split-back" label={t('assetDetail.backToHistory')}
           onClick={() => selectRun(null)} />}
         {showInspector && selected && <>
