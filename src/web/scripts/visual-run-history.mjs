@@ -120,8 +120,12 @@ try {
     const screenshot = await channel.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     writeFileSync(join(output, `${width}-${mode}.png`), Buffer.from(screenshot.data, 'base64'));
     const issue = (condition, message) => { if (condition) problems.push(`${width}/${mode}: ${message}`); };
-    issue(result.documentWidth > result.viewport + 2,
-      `horizontal document overflow (${result.documentWidth} > ${result.viewport})`);
+    issue(result.documentWidth > result.viewportClient + 2,
+      `horizontal document overflow (${result.documentWidth} > usable ${result.viewportClient})`);
+    issue(result.bodyWidth > result.viewportClient + 2,
+      `body overflows the usable viewport (${result.bodyWidth} > ${result.viewportClient})`);
+    issue(result.pageBodyScroll > result.pageBodyClient + 2,
+      `page content has horizontal scrolling (${result.pageBodyScroll} > ${result.pageBodyClient})`);
     issue(result.container < 170, `content region too narrow (${result.container}px)`);
     if (mode === 'selected') {
       issue(!result.inspectorVisible || !result.detailVisible, 'selected run inspector is not visible');
