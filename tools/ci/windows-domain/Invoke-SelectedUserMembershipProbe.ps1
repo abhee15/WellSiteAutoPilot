@@ -51,6 +51,7 @@ $report = [ordered]@{
     ProvesGroupAbsence = $false
     DirectoryCompleteness = 'Unproven'
     FailureStage = $null
+    DirectoryReadMilliseconds = $null
 }
 $stage = 'ValidateSids'
 $rootDse = $null
@@ -74,8 +75,13 @@ try {
     $stage = 'JoinedDomain'
     # The host chooses its joined domain and integrated service identity; callers
     # cannot supply an LDAP endpoint or credentials.
-    [void][DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain()
     Add-Type -AssemblyName System.DirectoryServices
+    $joinedDomain = [DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain()
+    try {
+        if ([string]::IsNullOrWhiteSpace($joinedDomain.Name)) {
+            throw 'Joined domain was not resolved.'
+        }
+    } finally { $joinedDomain.Dispose() }
     $rootDse = [DirectoryServices.DirectoryEntry]::new('LDAP://RootDSE')
     $defaultNamingContext = [string]$rootDse.Properties['defaultNamingContext'].Value
     if ([string]::IsNullOrWhiteSpace($defaultNamingContext)) {
@@ -85,6 +91,7 @@ try {
     $searchRoot = [DirectoryServices.DirectoryEntry]::new('LDAP://' + $defaultNamingContext)
 
     $stage = 'ResolveTargetBySid'
+    $duration = [Diagnostics.Stopwatch]::StartNew()
     $finder = [DirectoryServices.DirectorySearcher]::new($searchRoot)
     $finder.Filter = '(&(objectCategory=person)(objectClass=user)(objectSid=' + $filterSid + '))'
     $finder.SearchScope = [DirectoryServices.SearchScope]::Subtree
@@ -141,11 +148,15 @@ try {
         $report.ExpectedGroupEnabledInProcessToken = $principal.IsInRole($groupSid)
     }
 
+    $report.DirectoryReadMilliseconds = [long]$duration.ElapsedMilliseconds
     $report.State = 'DirectorySnapshotOnly'
 }
 catch {
     # Never print exception text, LDAP path, SID, username, domain, token or credentials.
     $report.State = if ($stage -eq 'ValidateSids') { 'InvalidInput' } else { 'Unavailable' }
+    if ($null -ne (Get-Variable -Name duration -ErrorAction SilentlyContinue)) {
+        $report.DirectoryReadMilliseconds = [long]$duration.ElapsedMilliseconds
+    }
     $report.FailureStage = $stage
     $report.AdGroupSidCount = $null
     $report.ExpectedGroupInAdSnapshot = $null
