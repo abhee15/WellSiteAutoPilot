@@ -705,7 +705,8 @@ v1.MapGet(
     "/security/assets/directory",
     async (int? offset, int? limit, ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
         (await directory.ListAssetsAuthorizedAsync(access.Subject, offset ?? 0, limit ?? 200, cancellationToken))
-            .Select(asset => new AssetDirectoryEntryResponse(asset.Id, asset.Name, asset.IsActive)).ToArray())
+            .Select(asset => new AssetDirectoryEntryResponse(asset.Id, asset.Name, asset.IsActive,
+                asset.OwnerConnectionId, asset.ConnectionName)).ToArray())
     .WithName("ListSecurityAssetDirectory")
     .RequireAuthorization(WellSitePolicies.SecurityManage)
     .Produces<AssetDirectoryEntryResponse[]>(StatusCodes.Status200OK)
