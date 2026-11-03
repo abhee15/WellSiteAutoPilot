@@ -9,7 +9,8 @@ import { Status } from '../components/Status';
 import { shortId } from '../format';
 import { useChangeRefresh, useLiveUpdates } from '../live/LiveUpdates';
 import { CopyButton } from './CopyButton';
-import { describeRunContext } from './runContext';
+import { describeRunContext, assetIdentityLabel } from './runContext';
+import type { OwnerGroup } from './assetHierarchy';
 import { t } from '../localization';
 import {
   ExecutionDetailError,
@@ -39,6 +40,7 @@ type Props = {
   onAccessLost?: () => void;
   configuredLogic?: readonly ConfiguredLogicResponse[];
   assets?: readonly AssetResponse[];
+  assetOwners?: readonly OwnerGroup[];
   /** Saved connection names by id, so a run reads "North field gateway" and not a GUID. Absent when the person may not list connections. */
   connectionNames?: ReadonlyMap<string, string>;
 };
@@ -48,7 +50,7 @@ const FALLBACK_REFRESH_MS = 2000;
 const LIVE_SAFETY_REFRESH_MS = 15000;
 
 export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, onAccessLost,
-  configuredLogic = [], assets = [], connectionNames }: Props) {
+  configuredLogic = [], assets = [], assetOwners = [], connectionNames }: Props) {
   const [detail, setDetail] = useState<ExecutionResponse | null>(null);
   const [error, setError] = useState<ExecutionDetailErrorKind | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -127,7 +129,7 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
       {isLoading && !detail && <LoadingIndicator label={t('execution.loading')} />}
       {error && <p role="alert" className="execution-detail-error">{errorMessages[error]}</p>}
       {detail && <ExecutionDetailContent detail={detail} configuredLogic={configuredLogic} assets={assets}
-        connectionNames={connectionNames} />}
+        assetOwners={assetOwners} connectionNames={connectionNames} />}
     </section>
   );
 }
@@ -141,13 +143,14 @@ function sourceName(connectionId: string | null | undefined, names?: ReadonlyMap
 }
 
 /** Pure view to keep response rendering testable independently of network effects. */
-export function ExecutionDetailContent({ detail, configuredLogic = [], assets = [], connectionNames }: {
+export function ExecutionDetailContent({ detail, configuredLogic = [], assets = [], assetOwners = [], connectionNames }: {
   detail: ExecutionResponse;
   configuredLogic?: readonly ConfiguredLogicResponse[];
   assets?: readonly AssetResponse[];
+  assetOwners?: readonly OwnerGroup[];
   connectionNames?: ReadonlyMap<string, string>;
 }) {
-  const context = describeRunContext(detail, configuredLogic, assets);
+  const context = describeRunContext(detail, configuredLogic, assets, assetOwners);
   const outcome = outcomeLabel(detail.resultCode ?? detail.failureCode);
   const provenance = executionProvenance(detail);
   const duration = runDuration(detail);
@@ -216,7 +219,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
           return <li key={index} className="run-input">
             <div className="run-input-head">
               <strong>{humanizeName(o.requirementId)}</strong>
-              <span>{assets.find(asset => asset.id === o.assetId)?.name ?? shortId(o.assetId)}</span>
+              <span>{assetIdentityLabel(o.assetId, assets, assetOwners)}</span>
             </div>
             <p className="run-input-value">
               {o.value === null ? '—' : new Intl.NumberFormat(undefined, { maximumSignificantDigits: 17 }).format(o.value)}
