@@ -9,6 +9,7 @@ import { t } from '../localization';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { fetchRunHistory } from './executionHistoryApi';
 import { useLiveResource } from './useLiveResource';
+import './splitLayout.css';
 import './assetPage.css';
 import './executionHistory.css';
 
