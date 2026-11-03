@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { ExecutionHistory } from '../../src/views/ExecutionHistory';
 import { OperationsPage } from '../../src/views/OperationsPage';
 import { runHistoryHash } from '../../src/views/assetActivity';
+import { formatTimestamp } from '../../src/format';
 import { accessibilityViolations } from './axe';
 
 const id = (n: number) => `88888888-8888-4888-8888-${String(n).padStart(12, '0')}`;
@@ -41,17 +42,17 @@ it('shows a selected run beside the scoped history, retains selection and provid
   expect(container.querySelector('.execution-history-focus .split-panes')).toBeTruthy();
   expect(container.querySelector('.execution-history-inspector-content')).toBeTruthy();
   expect(await screen.findByRole('heading', { name: 'Run details' })).toBeTruthy();
-  expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain('11:00');
+  expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain(formatTimestamp(run(11).requestedAtUtc));
   expect(http.mock.calls.some(([url]) => {
     const params = new URL(url, 'http://test').searchParams;
     return params.get('assetId') === assetId && params.get('configuredLogicId') === logicId;
   })).toBe(true);
 
   await user.click(buttons[1]!);
-  await waitFor(() => expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain('10:00'));
+  await waitFor(() => expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain(formatTimestamp(run(10).requestedAtUtc)));
   expect(screen.getByRole('button', { name: 'Next run' })).toHaveProperty('disabled', true);
   await user.click(screen.getByRole('button', { name: 'Previous run' }));
-  await waitFor(() => expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain('11:00'));
+  await waitFor(() => expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain(formatTimestamp(run(11).requestedAtUtc)));
   expect(await accessibilityViolations(container)).toEqual([]);
 });
 
@@ -97,5 +98,5 @@ it('changes the asset-history URL without remounting the history and keeps its s
   expect(container.querySelector('.execution-history')).toBe(history);
   expect(within(container.querySelector('.execution-history-browse') as HTMLElement)
     .getAllByRole('button', { name: /Inspect run/ })).toHaveLength(2);
-  expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain('10:00');
+  expect((container.querySelector('[data-selected="true"]') as HTMLElement).textContent).toContain(formatTimestamp(run(10).requestedAtUtc));
 });
