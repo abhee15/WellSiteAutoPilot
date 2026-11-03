@@ -16,10 +16,11 @@ internal static partial class AuthorizedSecurityDirectoryChecks
         await using var setup = new WellSiteAutoPilotDbContext(options);
         var typeId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
+        var connectionName = "Directory owner " + connectionId.ToString("N");
         var now = DateTimeOffset.UtcNow;
         setup.Connections.Add(new ConnectionEntity
         {
-            Id = connectionId, Name = "ForeSite Production", NormalizedName = "foresite production",
+            Id = connectionId, Name = connectionName, NormalizedName = connectionName.ToLowerInvariant(),
             AdapterKey = "foresite", SettingsVersion = 1, SettingsJson = "{}",
             Revision = 1, IsEnabled = true, CreatedAtUtc = now, UpdatedAtUtc = now
         });
@@ -31,9 +32,10 @@ internal static partial class AuthorizedSecurityDirectoryChecks
         var assets = Enumerable.Range(0, 3).Select(index => new AssetEntity
         {
             Id = Guid.NewGuid(), AssetTypeId = typeId, Name = "Directory duplicate name",
-            IsActive = index != 1, CreatedAtUtc = now, AttributeValuesJson = "{\"private\":\"not-directory-data\"}"
+            IsActive = index != 1, CreatedAtUtc = now, OwnerConnectionId = index == 0 ? connectionId : null,
+            AttributeValuesJson = "{\"private\":\"not-directory-data\"}"
         }).OrderBy(asset => asset.Id).ToArray();
-        assets[0].OwnerConnectionId = connectionId;
+        var imported = assets.Single(asset => asset.OwnerConnectionId == connectionId);
         setup.Assets.AddRange(assets);
         await setup.SaveChangesAsync();
         foreach (var subject in new[] { direct, group })
@@ -48,9 +50,9 @@ internal static partial class AuthorizedSecurityDirectoryChecks
                 !paged.Any(asset => !asset.IsActive) || (await directory.ListAssetsAuthorizedAsync(subject, 3, 1)).Count != 0 ||
                 typeof(SecurityAssetDirectoryEntry).GetProperties().Select(property => property.Name)
                     .Except(["Id", "Name", "IsActive", "OwnerConnectionId", "ConnectionName"]).Any() ||
-                paged.Single(asset => asset.Id == assets[0].Id).OwnerConnectionId != connectionId ||
-                paged.Single(asset => asset.Id == assets[0].Id).ConnectionName != "ForeSite Production" ||
-                paged.Where(asset => asset.Id != assets[0].Id).Any(asset =>
+                paged.Single(asset => asset.Id == imported.Id).OwnerConnectionId != connectionId ||
+                paged.Single(asset => asset.Id == imported.Id).ConnectionName != connectionName ||
+                paged.Where(asset => asset.Id != imported.Id).Any(asset =>
                     asset.OwnerConnectionId != null || asset.ConnectionName != null))
                 throw new InvalidOperationException("Protected Asset directory lost stable paging, retired Assets or minimal projection.");
             foreach (var (offset, limit) in new[] { (-1, 1), (1000001, 1), (0, 0), (0, 501) })
