@@ -1,4 +1,6 @@
 import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
+import type { OwnerGroup } from './assetHierarchy';
+import { latestRevision } from './configuredLogicViews';
 
 export type RunContext = {
   /** The customer's name for the logic, when the configuration is in the loaded list. */
@@ -51,6 +53,33 @@ export function configurationAssetLabels(
     (revision.assetBindings ?? []).flatMap(binding => (binding.assetId ? [binding.assetId] : []))))];
   const names = new Map(assets.flatMap(asset => (asset.id ? [[asset.id, asset.name ?? ''] as const] : [])));
   return ids.map(id => names.get(id) || shortId(id));
+}
+
+/**
+ * The assets currently targeted by a configuration. Historical revisions must not be combined
+ * into the Logic grid: they may refer to assets that this configuration no longer uses.
+ */
+export function configurationTargetAssetIds(configuration: ConfiguredLogicResponse): string[] {
+  const revision = configuration.revisions?.find(item => item.id === configuration.activeRevisionId)
+    ?? latestRevision(configuration);
+  return [...new Set((revision?.assetBindings ?? []).flatMap(binding =>
+    binding.assetId ? [binding.assetId] : []))];
+}
+
+/** Show an asset's visible name and owning Connection, while retaining a stable ID fallback. */
+export function configuredTargetLabel(
+  assetIds: readonly string[], assets: readonly AssetResponse[], owners: readonly OwnerGroup[], maximum = 2,
+): string {
+  const assetById = new Map(assets.flatMap(asset => asset.id ? [[asset.id, asset] as const] : []));
+  const connectionNames = new Map(owners.flatMap(owner =>
+    owner.connectionId && owner.name ? [[owner.connectionId, owner.name] as const] : []));
+  const labels = assetIds.map(id => {
+    const asset = assetById.get(id);
+    if (!asset?.name) return shortId(id);
+    const connectionName = asset.ownerConnectionId ? connectionNames.get(asset.ownerConnectionId) : null;
+    return connectionName ? `${asset.name} (${connectionName})` : asset.name;
+  });
+  return summarizeAssetLabels(labels, maximum) || '—';
 }
 
 /** Newest recorded run per configuration, from whatever runs are already loaded. */
