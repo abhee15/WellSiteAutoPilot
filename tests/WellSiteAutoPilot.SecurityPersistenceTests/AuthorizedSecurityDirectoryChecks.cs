@@ -117,6 +117,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
         await setup.SaveChangesAsync();
         await CheckAssetDirectoryAsync(options, direct, groupAdministrator, administratorGrant);
         await CheckAwaitingAccessAsync(options, direct);
+        await CheckFilteredDirectoryAsync(options, direct);
         await CheckAuditEventsAsync(options, direct);
         await setup.UserRoles.Where(item => item.UserId == groupAdministrator.UserId).ExecuteDeleteAsync();
         Console.WriteLine("Protected user/role/grant directory supports direct/group administrators, bypasses legacy role parsing, preserves a hydration snapshot and denies fresh reads after revocation.");
