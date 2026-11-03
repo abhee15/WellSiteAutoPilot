@@ -96,7 +96,7 @@ describe('SectionTabs', () => {
     expect(onSelect).not.toHaveBeenCalled();
     await user.keyboard('{Enter}');
     expect(configuration.getAttribute('aria-selected')).toBe('true');
-    expect(onSelect).toHaveBeenCalledOnce();
+    expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith('configuration');
     await user.keyboard('{End}');
     const activity = screen.getByRole('tab', { name: 'Activity' });
@@ -108,7 +108,7 @@ describe('SectionTabs', () => {
     expect(document.activeElement).toBe(overview);
     expect(activity.getAttribute('aria-selected')).toBe('true');
     expect(overview.getAttribute('aria-controls')).toBe('fixture-overview');
-    expect(screen.getByRole('tabpanel', { name: 'Activity content' }).getAttribute('aria-labelledby')).toBe('fixture-tab-activity');
+    expect(screen.getByRole('tabpanel', { name: 'Activity' }).getAttribute('aria-labelledby')).toBe('fixture-tab-activity');
     expect(await accessibilityViolations(view.container)).toEqual([]);
   });
 
