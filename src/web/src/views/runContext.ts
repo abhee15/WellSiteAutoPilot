@@ -44,6 +44,16 @@ export function summarizeAssetLabels(labels: readonly string[], maximum = 2): st
   return `${labels.slice(0, maximum).join(', ')} +${labels.length - maximum} more`;
 }
 
+/** A consistent asset label for legacy single-asset and configured multi-asset runs. */
+export function executionAssetLabel(
+  execution: Pick<ExecutionResponse, 'assetExternalId' | 'assetId'>,
+  context: Pick<RunContext, 'assetLabels'>,
+): string {
+  if (execution.assetExternalId) return execution.assetExternalId;
+  if (context.assetLabels.length > 0) return summarizeAssetLabels(context.assetLabels);
+  return execution.assetId ? shortId(execution.assetId) : '—';
+}
+
 /** Names of every asset any saved revision of the configuration is set up for. */
 export function configurationAssetLabels(
   configuration: ConfiguredLogicResponse,

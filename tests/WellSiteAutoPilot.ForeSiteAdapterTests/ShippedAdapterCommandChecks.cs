@@ -15,6 +15,12 @@ internal static class ShippedAdapterCommandChecks
                 throw new InvalidOperationException($"Adapter '{adapter.Key}' has invalid command definitions: {string.Join(" ", problems)}");
             if (adapter.MinimumScheduleSeconds < 0)
                 throw new InvalidOperationException($"Adapter '{adapter.Key}' has a negative minimum schedule.");
+
+            // The read path serves an adapter's quantities from its read rule; the descriptor people see must say so.
+            if (AdapterReadRules.Find(adapter.Key) is not null &&
+                !adapter.Capabilities.Any(capability => capability.Kind == ProviderCapabilityKind.CurrentData))
+                throw new InvalidOperationException(
+                    $"Adapter '{adapter.Key}' can be read from but does not advertise the current data capability.");
         }
     }
 }
