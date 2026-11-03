@@ -70,6 +70,7 @@ export const englishMessages = {
   'assetDetail.backToHistory': 'Back to run history',
   'assetDetail.selectedRunAt': 'Selected run · {time}',
   'assetDetail.selectedRunId': 'Selected run · {id}',
+  'assetDetail.selectedRunInspector': 'Selected run inspector',
   'assetDetail.selectedRunOutsidePage': 'This run is outside the current history page.',
   'assetDetail.previousRun': 'Previous run',
   'assetDetail.nextRun': 'Next run',
