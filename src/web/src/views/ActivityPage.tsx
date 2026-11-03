@@ -3,6 +3,9 @@ import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { SearchInput } from '../components/SearchInput';
 import './activity.css';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import type { AssetResponse } from '../api/generated/v1/types.gen';
+import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
+import { assetIdentityLabel } from './runContext';
 import { RefreshCw } from 'lucide-react';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
@@ -30,7 +33,10 @@ function errorLabel(kind: AuditErrorKind): string {
 const FILTER_DEBOUNCE_MS = 350;
 
 /** Who did what, newest first. Administrators only: the server refuses everyone else. */
-export function ActivityPage({ selectedId = null, onSelect }: { selectedId?: string | null; onSelect?: (id: string | null) => void } = {}) {
+export function ActivityPage({ selectedId = null, onSelect, userId, assets = [], canReadAssets = false }: {
+  selectedId?: string | null; onSelect?: (id: string | null) => void; userId?: string | null;
+  assets?: readonly AssetResponse[]; canReadAssets?: boolean;
+} = {}) {
   const [draft, setDraft] = useState<AuditFilters>(noFilters);
   const [applied, setApplied] = useState<AuditFilters>(noFilters);
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -107,6 +113,11 @@ export function ActivityPage({ selectedId = null, onSelect }: { selectedId?: str
   }, [draft, applied]);
   const busy = loading || loadingMore;
   const selected = events.find(event => event.id === chosenId) ?? null;
+  const assetDirectory = useAssetIdentityDirectory(selected?.assetId ? [selected.assetId] : [],
+    assets, canReadAssets, userId);
+  const shownAsset = selected?.assetId && assetDirectory.assets.some(asset =>
+    asset.id === selected.assetId && asset.name)
+    ? assetIdentityLabel(selected.assetId, assetDirectory.assets, assetDirectory.owners) : null;
   const splitFocus = useSplitPaneFocus(selected?.id ?? null);
   const filtersTyped = draft.actionPrefix.trim() !== '' || draft.targetType.trim() !== '';
 
@@ -198,7 +209,7 @@ export function ActivityPage({ selectedId = null, onSelect }: { selectedId?: str
             </div>
             <section className="split-selected" tabIndex={-1} aria-label={t('activity.detailHeading')}>
               <ActionButton label={t('activity.backToList')} className="split-back" onClick={() => setSelectedId(null)} />
-              {selected && <AuditEventPanel event={selected} />}
+              {selected && <AuditEventPanel event={selected} assetLabel={shownAsset} />}
             </section>
           </div>
         </div>

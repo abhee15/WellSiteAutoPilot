@@ -37,7 +37,10 @@ public sealed class SecurityDirectoryRepository(WellSiteAutoPilotDbContext db, T
         return ReadAsync<IReadOnlyCollection<SecurityAssetDirectoryEntry>>(administrator, async () =>
             await db.Assets.AsNoTracking().OrderBy(asset => asset.Name).ThenBy(asset => asset.Id)
                 .Skip(offset).Take(limit)
-                .Select(asset => new SecurityAssetDirectoryEntry(asset.Id, asset.Name, asset.IsActive))
+                .Select(asset => new SecurityAssetDirectoryEntry(asset.Id, asset.Name, asset.IsActive,
+                    asset.OwnerConnectionId,
+                    db.Connections.Where(connection => connection.Id == asset.OwnerConnectionId)
+                        .Select(connection => connection.Name).FirstOrDefault()))
                 .ToArrayAsync(cancellationToken), cancellationToken);
     }
 

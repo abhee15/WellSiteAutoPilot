@@ -7,4 +7,6 @@ namespace WellSiteAutoPilot.Api.Contracts.Assets;
 public sealed record AssetDirectoryEntryResponse(
     Guid Id,
     string Name,
-    bool IsActive);
+    bool IsActive,
+    Guid? OwnerConnectionId = null,
+    string? ConnectionName = null);

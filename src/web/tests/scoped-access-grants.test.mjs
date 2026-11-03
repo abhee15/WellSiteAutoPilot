@@ -93,3 +93,17 @@ test('scope and subject guards list exactly the server contract names', () => {
   assert.throws(() => api.previewGrant(draft('1', []), role, permissions, assets, false), { name: 'Error' });
   assert.throws(() => api.previewGrant(draft(1, []), role, permissions, assets, false), { name: 'Error' });
 });
+
+test('grant display labels distinguish duplicate names by source and preserve exact scope ids', () => {
+  const sameName = [
+    { id: wellA, name: 'RPOC_00002', isActive: true, ownerConnectionId: 'c1', connectionName: 'ForeSite Production' },
+    { id: wellB, name: 'RPOC_00002', isActive: true, ownerConnectionId: 'c2', connectionName: 'CygNet Test' },
+  ];
+  assert.equal(api.grantAssetLabel(sameName[0], sameName), 'RPOC_00002 (ForeSite Production)');
+  assert.equal(api.grantAssetLabel(sameName[1], sameName), 'RPOC_00002 (CygNet Test)');
+  const view = api.previewGrant(draft('ExactAssets', [wellA]), role, permissions, sameName, true);
+  assert.deepEqual(view.assetNames, ['RPOC_00002 (ForeSite Production)']);
+  assert.deepEqual(draft('ExactAssets', [wellA]).assetIds, [wellA]);
+  assert.equal(api.grantAssetIdLabel(wellA, sameName), 'RPOC_00002 (ForeSite Production)');
+  assert.equal(api.grantAssetIdLabel('123456789abcdef', sameName), '12345678…');
+});

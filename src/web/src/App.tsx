@@ -240,6 +240,7 @@ export function App() {
             <OverviewPage
               key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
               permissions={currentUser?.permissions ?? []}
+              userId={currentUser?.userId}
               systemHealth={systemHealth}
               executions={executions}
               assets={assets}
@@ -256,6 +257,7 @@ export function App() {
               isLoaded={isLoaded}
               userId={currentUser?.userId}
               canReadConnections={hasPermission(currentUser, 'connections.read')}
+              canReadAssets={hasPermission(currentUser, 'assets.read')}
             />
           )}
           {section === 'recommendations' && canOpenSection(currentUser, section) && (
@@ -278,7 +280,8 @@ export function App() {
           )}
           {section === 'access' && (
             currentUser?.userId && canOpenSection(currentUser, 'access')
-              ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId} />
+              ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId}
+                assets={assets} canReadAssets={hasPermission(currentUser, 'assets.read')} />
               : <div className="status-error" role="alert">{t('access.denied')}</div>
           )}
           {section === 'assets' && canOpenSection(currentUser, section) && (

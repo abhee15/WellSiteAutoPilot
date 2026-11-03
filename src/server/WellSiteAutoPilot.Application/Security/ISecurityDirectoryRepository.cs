@@ -3,7 +3,8 @@ using WellSiteAutoPilot.Domain.Security;
 
 namespace WellSiteAutoPilot.Application.Security;
 
-public sealed record SecurityAssetDirectoryEntry(Guid Id, string Name, bool IsActive);
+public sealed record SecurityAssetDirectoryEntry(Guid Id, string Name, bool IsActive,
+    Guid? OwnerConnectionId = null, string? ConnectionName = null);
 
 /// <summary>An identity plus how many active role grants name this user directly.</summary>
 public sealed record SecurityUserDirectoryEntry(UserIdentity User, int ActiveDirectGrantCount);

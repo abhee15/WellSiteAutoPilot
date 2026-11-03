@@ -14,6 +14,7 @@ import { createGrant, deactivateGrant, grantSubjectKey, verifyGrantReadback, loa
 import type { PersistedGrant } from './grantAdministration';
 import { previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
+import { grantAssetLabels } from './scopedAccessGrants';
 import { ScopedGrantEditor } from './ScopedGrantEditor';
 import { GrantAssetDirectoryError, loadGrantAssetDirectory } from './grantAssetDirectory';
 import { LoadingIndicator } from '../components/LoadingIndicator';
@@ -41,6 +42,7 @@ export function GrantAdministrationPage(
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [permissions, setPermissions] = useState<PermissionDefinition[]>([]);
   const [assets, setAssets] = useState<AssetChoice[]>([]);
+  const assetLabels = useMemo(() => grantAssetLabels(assets), [assets]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [subjectKind, setSubjectKind] = useState<'User' | 'Group'>('User');
   const [selectedGroup, setSelectedGroup] = useState<DirectoryGroup | null>(null);
@@ -252,7 +254,7 @@ export function GrantAdministrationPage(
                   {role?.name ?? grant.roleId}: {scopeLabel(grant.scopeKind)}
                   {grant.assetIds.length > 0 &&
                     ' (' + grant.assetIds.map(id =>
-                      assets.find(asset => asset.id === id)?.name ?? id).join(', ') + ')'}
+                      assetLabels.get(id.toLowerCase()) ?? id).join(', ') + ')'}
                   {' — '}{grant.isActive ? t('grants.active') : t('grants.inactive')}
                   {grant.isActive && !retiring && (
                     <ActionButton label={t('grants.retireAction')} disabled={saving} onClick={() => { setRetiring(grant); setRetireConfirmed(false); setNotice(null); }} />
@@ -271,7 +273,7 @@ export function GrantAdministrationPage(
             roles.find(role => role.roleId === retiring.roleId)?.name ?? retiring.roleId
           } / {scopeLabel(retiring.scopeKind)}</p>
           {retiring.assetIds.length > 0 && <p>{retiring.assetIds.map(id =>
-            assets.find(asset => asset.id === id)?.name ?? id).join(', ')}</p>}
+            assetLabels.get(id.toLowerCase()) ?? id).join(', ')}</p>}
           <p className="access-warning">{t('grants.retireWarning')}</p>
           <label className="access-confirm grant-confirm">
             <input type="checkbox" checked={retireConfirmed} disabled={saving}

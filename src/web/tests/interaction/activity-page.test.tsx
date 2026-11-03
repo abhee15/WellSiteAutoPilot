@@ -17,7 +17,7 @@ const event = (n: number, extra: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => { vi.resetAllMocks(); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('Activity page', () => {
   it('reads each event as a sentence with the record named, and opens its details beside the list', async () => {
@@ -148,4 +148,35 @@ describe('Activity page', () => {
     render(<ActivityPage selectedId={id(77)} onSelect={() => {}} />);
     expect(await screen.findByText(/not among the loaded events/)).toBeTruthy();
   });
+});
+
+it('shows the authorized asset name and owning connection alongside an immutable audit asset ID', async () => {
+  const assetId = id(41); const ownerId = id(42);
+  vi.mocked(loadAuditPage).mockResolvedValue({
+    items: [event(1, { assetId })], nextCursor: null,
+  });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/assets/owners') return new Response(JSON.stringify([
+      { connectionId: ownerId, connectionName: 'CygNet Houston', assetCount: 1 }]));
+    if (url === '/api/v1/assets/' + assetId) return new Response(JSON.stringify({
+      id: assetId, name: 'RPOC_00002', ownerConnectionId: ownerId }));
+    return new Response('[]');
+  }));
+  render(<ActivityPage userId={id(9)} assets={[]} canReadAssets />);
+  await screen.findByRole('button', { name: /Open event/ });
+  await userEvent.click(screen.getByRole('button', { name: /Open event/ }));
+  const article = within(await screen.findByRole('article'));
+  expect(await article.findByText('RPOC_00002 (CygNet Houston) ·')).toBeTruthy();
+  expect(article.getByText(assetId, { selector: 'code' })).toBeTruthy();
+});
+
+it('keeps exact audit asset IDs without requesting names when assets.read is absent', async () => {
+  const assetId = id(41);
+  vi.mocked(loadAuditPage).mockResolvedValue({ items: [event(1, { assetId })], nextCursor: null });
+  const fetcher = vi.fn();
+  vi.stubGlobal('fetch', fetcher);
+  render(<ActivityPage userId={id(9)} assets={[]} canReadAssets={false} />);
+  await userEvent.click(await screen.findByRole('button', { name: /Open event/ }));
+  expect(within(await screen.findByRole('article')).getByText(assetId, { selector: 'code' })).toBeTruthy();
+  expect(fetcher).not.toHaveBeenCalled();
 });

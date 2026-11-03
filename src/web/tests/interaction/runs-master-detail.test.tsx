@@ -24,3 +24,25 @@ it('opens a run beside the list when its row is clicked, marks the row, and clos
   await user.click(screen.getByRole('button', { name: 'Back to runs' }));
   expect(layout?.getAttribute('data-has-selection')).toBe('false');
 });
+
+it('shows the owning connection in run history and run summary when the asset is outside the snapshot', async () => {
+  const well = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const owner = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const config = [{ id: 'cfg', name: 'Pressure observer', revisions: [{ id: 'rev', revisionNumber: 1,
+    assetBindings: [{ assetId: well }] }] }];
+  const item = { ...run, logicInstanceId: 'cfg', configurationRevisionId: 'rev', assetId: null };
+  const http = vi.fn(async (url: string) => {
+    if (url === '/api/v1/assets/owners') return new Response(JSON.stringify([
+      { connectionId: owner, connectionName: 'CygNet Test', assetCount: 1 }]));
+    if (url === '/api/v1/assets/' + well) return new Response(JSON.stringify({
+      id: well, name: 'RPOC_00002', ownerConnectionId: owner }));
+    return new Response(JSON.stringify(item));
+  });
+  vi.stubGlobal('fetch', http);
+  render(<OperationsPage executions={[item] as never} configuredLogic={config as never}
+    assets={[]} userId="11111111-1111-4111-8111-111111111111" canReadAssets />);
+  expect(await screen.findByText('RPOC_00002 (CygNet Test)')).toBeTruthy();
+  await userEvent.setup().click(screen.getByText('RPOC_00002 (CygNet Test)'));
+  // Both split-pane and detail sections are intentionally labeled Run details; select the link itself.
+  expect(await screen.findByRole('link', { name: 'RPOC_00002 (CygNet Test)' })).toBeTruthy();
+});

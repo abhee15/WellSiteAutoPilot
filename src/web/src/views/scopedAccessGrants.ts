@@ -4,6 +4,7 @@ import type {
   AccessGrantScopeKind, AccessGrantSubjectKind, AssetDirectoryEntryResponse, CreateAccessGrantRequest,
 } from '../api/generated/v1/types.gen';
 import type { RoleRecord, PermissionDefinition } from './roleCatalog';
+import { shortId } from '../format';
 
 export type ScopeKind = AccessGrantScopeKind;
 export type SubjectKind = AccessGrantSubjectKind;
@@ -18,7 +19,29 @@ export function isScopeKind(value: unknown): value is ScopeKind {
 export function isSubjectKind(value: unknown): value is SubjectKind {
   return typeof value === 'string' && Object.hasOwn(SUBJECT_KINDS, value);
 }
-export type AssetChoice = AssetDirectoryEntryResponse & { id: string; name: string; isActive: boolean };
+export type AssetChoice = Omit<AssetDirectoryEntryResponse, 'ownerConnectionId' | 'connectionName'> & {
+  id: string; name: string; isActive: boolean;
+  ownerConnectionId?: string | null; connectionName?: string | null };
+
+/** An O(n) authorized identity index: never search the full 20,000-asset directory for each row. */
+export function grantAssetLabels(available: readonly AssetChoice[]): ReadonlyMap<string, string> {
+  const counts = new Map<string, number>();
+  const key = (asset: AssetChoice) => JSON.stringify([asset.name, asset.connectionName ?? null]);
+  for (const asset of available) counts.set(key(asset), (counts.get(key(asset)) ?? 0) + 1);
+  return new Map(available.map(asset => {
+    const name = asset.connectionName ? `${asset.name} (${asset.connectionName})` : asset.name;
+    return [asset.id.toLowerCase(), counts.get(key(asset))! > 1 ? `${name} · ${shortId(asset.id)}` : name] as const;
+  }));
+}
+
+/** Names from the protected admin directory, not from the separate assets.read snapshot. */
+export function grantAssetLabel(asset: AssetChoice, available: readonly AssetChoice[]): string {
+  return grantAssetLabels(available).get(asset.id.toLowerCase()) ?? asset.name;
+}
+
+export function grantAssetIdLabel(id: string, available: readonly AssetChoice[]): string {
+  return grantAssetLabels(available).get(id.toLowerCase()) ?? shortId(id);
+}
 export type GrantDraft = CreateAccessGrantRequest & {
   subjectKind: SubjectKind; userId: string; groupId?: string; directoryId?: string; roleId: string;
   scopeKind: ScopeKind; assetIds: string[]; expectedRoleRevision: number;
@@ -65,11 +88,12 @@ export function previewGrant(draft: GrantDraft, role: RoleRecord | null,
   const effective = role.permissions
     .filter(key => definitions.get(key)?.scopeKind === applies).sort();
   if (effective.length === 0) throw new GrantValidationError('No applicable permissions');
+  const assetLabels = draft.scopeKind === 'ExactAssets' ? grantAssetLabels(assets) : null;
   return {
     effective,
     excluded: role.permissions.filter(key => definitions.get(key)?.scopeKind !== applies).sort(),
     assetNames: draft.scopeKind === 'ExactAssets' ?
-      selected.map(id => available.get(id)!.name) : [],
+      selected.map(id => assetLabels!.get(id) ?? available.get(id)!.name) : [],
     privileged: effective.some(key => definitions.get(key)?.isPrivileged),
   };
 }

@@ -19,7 +19,7 @@ function Fact({ label, value, copyable = false }: { label: string; value: string
 }
 
 /** Everything recorded about one event, in words first and the exact record last. */
-export function AuditEventPanel({ event }: { event: AuditEvent }) {
+export function AuditEventPanel({ event, assetLabel }: { event: AuditEvent; assetLabel?: string | null }) {
   const summary = describeAuditEvent(event);
   const actor = describeActor(event);
   const details = readableDetails(event.detailsJson);
@@ -42,7 +42,13 @@ export function AuditEventPanel({ event }: { event: AuditEvent }) {
           value={actor.identity ? `${actor.name} (${actor.identity})` : actor.name} />
         <Fact label={t('activity.field.target')} value={target || subject} />
         <Fact label={t('activity.field.targetId')} value={event.targetId} copyable />
-        <Fact label={t('activity.field.asset')} value={event.assetId} copyable />
+        {event.assetId && <div className="activity-fact">
+          <dt>{t('activity.field.asset')}</dt>
+          <dd>{assetLabel && <strong>{assetLabel} · </strong>}
+            <code>{event.assetId}</code>
+            <CopyButton value={event.assetId} label={t('activity.field.asset')} />
+          </dd>
+        </div>}
         <Fact label={t('activity.field.code')} value={event.action} copyable />
         <Fact label={t('activity.field.correlation')} value={event.correlationId} copyable />
         <Fact label={t('activity.field.eventId')} value={event.id} copyable />

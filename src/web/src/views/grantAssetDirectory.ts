@@ -41,14 +41,18 @@ export async function loadGrantAssetDirectory(signal: AbortSignal,
       if (!item || typeof item !== 'object' || Array.isArray(item)) {
         throw new GrantAssetDirectoryError('invalid');
       }
-      const { id, name, isActive } = item as Record<string, unknown>;
+      const { id, name, isActive, ownerConnectionId, connectionName } = item as Record<string, unknown>;
       if (typeof id !== 'string' || !validId(id) ||
         typeof name !== 'string' || !name.trim() ||
-        typeof isActive !== 'boolean' || ids.has(id.toLowerCase())) {
+        typeof isActive !== 'boolean' || ids.has(id.toLowerCase()) ||
+        !(ownerConnectionId === undefined || ownerConnectionId === null || typeof ownerConnectionId === 'string' && validId(ownerConnectionId)) ||
+        !(connectionName === undefined || connectionName === null || typeof connectionName === 'string' && connectionName.length <= 256)) {
         throw new GrantAssetDirectoryError('invalid');
       }
       ids.add(id.toLowerCase());
-      assets.push({ id, name, isActive });
+      assets.push({ id, name, isActive,
+        ...(ownerConnectionId === undefined ? {} : { ownerConnectionId: ownerConnectionId as string | null }),
+        ...(connectionName === undefined ? {} : { connectionName: connectionName as string | null }) });
     }
     if (assets.length > MAX_DIRECTORY_ASSETS) {
       throw new GrantAssetDirectoryError('tooLarge');

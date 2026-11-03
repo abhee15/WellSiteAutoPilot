@@ -178,3 +178,17 @@ it.each(['selfAccess', 'groupProofRequired'] as const)('explains %s refusal with
   expect(deactivateGrant).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('button', { name: 'Deactivate grant' })).toBeNull();
 });
+
+it('identifies equally named wells by owning connection throughout grant review and deactivation', async () => {
+  const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  vi.mocked(loadGrantAssetDirectory).mockResolvedValue([{ id: assetId, name: 'RPOC_00002',
+    ownerConnectionId: owner, connectionName: 'ForeSite Production', isActive: true }]);
+  vi.mocked(loadGrants).mockResolvedValueOnce([row]);
+  const user = userEvent.setup();
+  render(<GrantAdministrationPage currentUserId={adminId} />);
+  await user.selectOptions(await screen.findByRole('combobox', { name: 'User to administer' }), userId);
+  expect(await screen.findByText(/RPOC_00002 \(ForeSite Production\)/)).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Deactivate grant' }));
+  const review = screen.getByRole('region', { name: 'Review grant deactivation' });
+  expect(within(review).getByText('RPOC_00002 (ForeSite Production)')).toBeTruthy();
+});

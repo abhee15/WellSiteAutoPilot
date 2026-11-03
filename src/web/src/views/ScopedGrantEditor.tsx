@@ -6,6 +6,7 @@ import { t } from '../localization';
 import type { PermissionDefinition, RoleRecord } from './roleCatalog';
 import { GrantValidationError, previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft, ScopeKind } from './scopedAccessGrants';
+import { grantAssetLabels } from './scopedAccessGrants';
 
 type Props = {
   user: { userId: string; identityName: string; groupId?: string; directoryId?: string };
@@ -35,8 +36,9 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
       return null;
     }
   }, [draft, role, permissions, assets, allowAllAssets]);
+  const assetLabels = useMemo(() => grantAssetLabels(assets), [assets]);
   const matching = assets.filter(asset => asset.isActive &&
-    asset.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+    (assetLabels.get(asset.id.toLowerCase()) ?? asset.name).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   // Avoid rendering thousands of field Assets in an industrial tablet panel.
   // Selected Asset IDs remain stable when the search view is narrowed.
@@ -90,7 +92,7 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
                       [...new Set([...prev, asset.id])] : prev.filter(id => id !== asset.id));
                     setAcknowledged(false);
                   }} />
-                <span>{asset.name}<small>{asset.id}</small></span>
+                <span>{assetLabels.get(asset.id.toLowerCase()) ?? asset.name}<small>{asset.id}</small></span>
               </label>
             ))}
             {visible.length === 0 && <p>{t('grants.none')}</p>}

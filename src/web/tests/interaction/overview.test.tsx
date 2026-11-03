@@ -76,3 +76,21 @@ it('leaves the panel out when there are no runs to show', async () => {
   await screen.findByText(/no recorded runs yet/);
   expect(screen.queryByRole('region', { name: 'Latest runs' })).toBeNull();
 });
+
+it('resolves missing configured run asset names outside the 100-asset snapshot with owning Connection', async () => {
+  const well = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const owner = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const http = vi.fn(async (url: string) => {
+    if (url === '/api/v1/assets/' + well) return response({ id: well, name: 'RPOC_00002', ownerConnectionId: owner });
+    if (url === '/api/v1/assets/owners') return response([{ connectionId: owner, connectionName: 'ForeSite Production', assetCount: 1500 }]);
+    return response([]);
+  });
+  vi.stubGlobal('fetch', http);
+  render(<OverviewPage {...(props as never)} assets={[]}
+    userId="11111111-1111-4111-8111-111111111111"
+    configuredLogic={[{ id: 'cfg', revisions: [{ id: 'rev', assetBindings: [{ assetId: well }] }] }] as never}
+    executions={[run('e1', { assetId: null, assetExternalId: null,
+      logicInstanceId: 'cfg', configurationRevisionId: 'rev' })] as never} />);
+  expect(await screen.findByText('RPOC_00002 (ForeSite Production)')).toBeTruthy();
+  expect(http.mock.calls.some(([url]) => url === '/api/v1/assets/' + well)).toBe(true);
+});
