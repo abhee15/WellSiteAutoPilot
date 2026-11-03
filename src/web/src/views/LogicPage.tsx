@@ -113,7 +113,7 @@ export function LogicPage({
       </div>
 
       {showSchedules ? (
-        <SchedulesOverview configuredLogic={configuredLogic} assets={assets}
+        <SchedulesOverview configuredLogic={configuredLogic} assets={assetDirectory.assets} owners={assetDirectory.owners}
           executions={canReadRuns ? executions : undefined} isLoaded={isLoaded} />
       ) : showModules ? (
         <div className="split-panes">
@@ -248,7 +248,7 @@ export function LogicPage({
                 canReadViews={permissions.includes('connections.read')}
                 canReadControl={permissions.includes('recommendations.read')}
                 canManageControl={permissions.includes(CONTROL_MANAGE_PERMISSION)}
-                modules={modules} assets={assetDirectory.assets} assetTypes={assetTypes}
+                modules={modules} assets={assetDirectory.assets} owners={assetDirectory.owners} assetTypes={assetTypes}
                 executions={canReadRuns ? executions : undefined}
                 onChanged={onRefresh}
                 onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
