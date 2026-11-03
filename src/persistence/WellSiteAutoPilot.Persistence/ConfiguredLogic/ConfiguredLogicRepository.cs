@@ -184,13 +184,18 @@ public sealed partial class ConfiguredLogicRepository(
 
     public async Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListActiveScheduledAsync(
         int limit,
+        ConfiguredLogicPageCursor? after = null,
         CancellationToken cancellationToken = default)
     {
+        var afterName = after?.Name ?? string.Empty;
+        var afterId = after?.Id ?? Guid.Empty;
         var rows = await (
             from definition in dbContext.ConfiguredLogicDefinitions.AsNoTracking()
             join revision in dbContext.ConfiguredLogicRevisions.AsNoTracking()
                 on definition.ActiveRevisionId equals (Guid?)revision.Id
             where definition.ActiveRevisionId != null &&
+                  (after == null || definition.Name.CompareTo(afterName) > 0 ||
+                   (definition.Name == afterName && definition.Id.CompareTo(afterId) > 0)) &&
                   revision.Status == nameof(ConfiguredLogicRevisionStatus.Active) &&
                   // Same set as ExecutionModePolicy.IsSupported; spelled out because the query is translated to SQL.
                   (revision.Mode == nameof(ExecutionMode.Shadow) || revision.Mode == nameof(ExecutionMode.Recommendation) ||
@@ -198,7 +203,7 @@ public sealed partial class ConfiguredLogicRepository(
                   revision.ScheduleJson != null &&
                   (revision.ViewConnectionId == null || dbContext.Connections.Any(connection =>
                       connection.Id == revision.ViewConnectionId && connection.IsEnabled))
-            orderby definition.Name
+            orderby definition.Name, definition.Id
             select new { Definition = definition, Revision = revision })
             .Take(limit)
             .ToArrayAsync(cancellationToken);
