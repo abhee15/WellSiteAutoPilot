@@ -1,15 +1,17 @@
 import type { AssetResponse, ConfiguredLogicRevisionResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { formatTimestamp, shortId } from '../format';
+import { formatTimestamp } from '../format';
+import type { OwnerGroup } from './assetHierarchy';
+import { assetIdentityLabel } from './runContext';
 import { describeSettings } from './revisionSettings';
 import { scheduleText } from './logicSummary';
 
 /** Read-only, module-driven settings. No assumption about parameter count, shape or provider. */
-export function ConfiguredRevisionDetails({ revision, assets }: {
-  revision: ConfiguredLogicRevisionResponse; assets: readonly AssetResponse[];
+export function ConfiguredRevisionDetails({ revision, assets, owners = [] }: {
+  revision: ConfiguredLogicRevisionResponse; assets: readonly AssetResponse[]; owners?: readonly OwnerGroup[];
 }) {
   const lines = describeSettings(revision.parametersJson, revision.moduleManifestJson) ?? [];
-  const name = (id?: string) => assets.find(asset => asset.id === id)?.name ?? shortId(id);
+  const name = (id?: string) => assetIdentityLabel(id, assets, owners);
   return <div className="configured-revision-details">
     <dl className="logic-facts" aria-label={revision.view ? t('setup.revisionSettings') : undefined}>
       <div><dt>{t('configured.module')}</dt><dd>{revision.moduleId} v{revision.moduleVersion}</dd></div>
