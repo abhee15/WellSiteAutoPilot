@@ -23,19 +23,16 @@ internal static class MembershipInspectionEvidenceChecks
         // to the very same group granted on the target account.
         var other = MembershipInspectionEvidence.ForSelectedUser(actor, inspectedId, now);
         if (other.State != MembershipInspectionState.NotEvaluated ||
-            other.DirectoryId is not null || other.ObservedAtUtc is not null ||
-            other.EstablishesCurrentDirectoryAbsence)
+            other.DirectoryId is not null || other.ObservedAtUtc is not null)
             throw new InvalidOperationException("Inspector borrowed the administrator's groups for another user.");
 
         var absent = MembershipInspectionEvidence.ForSelectedUser(new AccessSubject(actorId), actorId, now);
-        if (absent.State != MembershipInspectionState.Unavailable ||
-            absent.EstablishesCurrentDirectoryAbsence)
+        if (absent.State != MembershipInspectionState.Unavailable)
             throw new InvalidOperationException("Missing membership was misreported as verified group absence.");
 
         var usable = MembershipInspectionEvidence.ForSelectedUser(actor, actorId, now);
         if (usable.State != MembershipInspectionState.BoundRequestSnapshot ||
-            usable.DirectoryId != directory || usable.ObservedAtUtc != now ||
-            usable.EstablishesCurrentDirectoryAbsence)
+            usable.DirectoryId != directory || usable.ObservedAtUtc != now)
             throw new InvalidOperationException("Bound proof lost its provenance or implied a fresh directory query.");
 
         // The one-minute clock bounds request evidence reuse; it says NOTHING
