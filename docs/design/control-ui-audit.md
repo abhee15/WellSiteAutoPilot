@@ -62,6 +62,8 @@ A screen is not ready for review until all of these are true. The pull request d
 6. **Works at every size and by keyboard.** Phone, tablet and split-pane widths; focus order; announced errors; status never by colour alone.
 7. **Seen rendered.** Screenshots of each state, in light and dark if both are supported, are attached and checked against `ui-conventions.md` before the pull request is merged.
 8. **Guarded.** A structural test for the screen, and a new guard when a new rule is introduced.
+9. **Only what applies.** Every control, panel and column is checked against the thing on screen (operating mode, permission, state). Anything that cannot apply to it is not shown, and where that leaves a gap one plain line explains why (`control-screens.md` section 1a).
+10. **The whole page, before and after.** Before building, the page is rendered as it is today and looked at, to see what is missing, what does not belong and how the new part sits among its neighbours. After building, the same page is rendered again and the two are compared. Screenshots of both go in the pull request.
 
 ## 6. Questions for the owner
 
