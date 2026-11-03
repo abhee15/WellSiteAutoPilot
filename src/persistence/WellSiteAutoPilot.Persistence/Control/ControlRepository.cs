@@ -173,7 +173,7 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext, Time
         }
 
         var action = NewAction(rec, ControlActionStatus.Requested, GateCodes.Allowed, claim.SinkKind, claim.NowUtc) with
-        { Origin = claim.Origin };
+        { Origin = claim.Origin, Target = claim.Target };
         dbContext.ControlActions.Add(ToEntity(action));
         dbContext.AuditEvents.Add(Audit(claim.NowUtc, GateActor, "control.action.requested", "control-action",
             action.Id.ToString(), rec.AssetId, new { RecommendationId = rec.Id, rec.Command, Value = rec.SuggestedValue, rec.Unit, claim.SinkKind }));
@@ -363,14 +363,21 @@ public sealed class ControlRepository(WellSiteAutoPilotDbContext dbContext, Time
         Quantity = item.Quantity, Value = item.Value, Unit = item.Unit, Status = item.Status.ToString(),
         GateCode = item.GateCode, Sink = item.Sink, SinkReference = item.SinkReference,
         CreatedAtUtc = item.CreatedAtUtc, CompletedAtUtc = item.CompletedAtUtc, Origin = item.Origin,
-        ReadbackValue = item.ReadbackValue, VerifiedAtUtc = item.VerifiedAtUtc, ResolutionNote = item.ResolutionNote
+        ReadbackValue = item.ReadbackValue, VerifiedAtUtc = item.VerifiedAtUtc, ResolutionNote = item.ResolutionNote,
+        TargetConnectionId = item.Target?.ConnectionId, TargetConnectionRevision = item.Target?.ConnectionRevision,
+        TargetAdapterKey = item.Target?.AdapterKey, TargetExternalId = item.Target?.ExternalId,
+        TargetCatalogVersion = item.Target?.CatalogVersion
     };
 
     private static ControlActionRecord ToDomain(ControlActionEntity item) => new(
         item.Id, item.RecommendationId, item.ExecutionId, item.ConfiguredLogicId, item.AssetId, item.Command,
         item.Quantity, item.Value, item.Unit, Enum.Parse<ControlActionStatus>(item.Status), item.GateCode,
         item.Sink, item.SinkReference, item.CreatedAtUtc, item.CompletedAtUtc, item.Origin,
-        item.ReadbackValue, item.VerifiedAtUtc, item.ResolutionNote);
+        item.ReadbackValue, item.VerifiedAtUtc, item.ResolutionNote,
+        item is { TargetConnectionId: { } connection, TargetConnectionRevision: { } revision, TargetAdapterKey: { } adapter,
+            TargetExternalId: { } externalId, TargetCatalogVersion: { } catalog }
+            ? new ControlActionTarget(connection, revision, adapter, externalId, catalog)
+            : null);
 
     private static AuditEventEntity Audit(DateTimeOffset at, string actor, string action, string targetType,
         string targetId, Guid? assetId, object details) => new()

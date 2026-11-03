@@ -136,7 +136,8 @@ public sealed class AutonomousControlService(
         }
 
         var (outcome, action) = await control.TryClaimAsync(
-            new ControlClaim(recommendation, policy!.SinkKind, policy.MaxActionsPerWindow, policy.WindowSeconds, now),
+            new ControlClaim(recommendation, policy!.SinkKind, policy.MaxActionsPerWindow, policy.WindowSeconds, now,
+                Target: target?.ForRecord()),
             cancellationToken);
         if (outcome == ControlClaimOutcome.RateLimited)
         {
@@ -205,7 +206,7 @@ public sealed class AutonomousControlService(
 
         var (outcome, action) = await control.TryClaimAsync(
             new ControlClaim(recommendation, policy!.SinkKind, policy.MaxActionsPerWindow, policy.WindowSeconds, now,
-                ControlOrigins.ApprovedRecommendation), cancellationToken);
+                ControlOrigins.ApprovedRecommendation, target?.ForRecord()), cancellationToken);
         if (outcome == ControlClaimOutcome.RateLimited)
         {
             await control.RecordRefusalAsync(recommendation, GateCodes.RateLimited, actor.Trim(), now, cancellationToken);

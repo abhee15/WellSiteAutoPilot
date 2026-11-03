@@ -57,7 +57,19 @@ public sealed record ControlActionRecord(
     string Origin = ControlOrigins.Autonomous,
     decimal? ReadbackValue = null,
     DateTimeOffset? VerifiedAtUtc = null,
-    string? ResolutionNote = null);
+    string? ResolutionNote = null,
+    ControlActionTarget? Target = null);
+
+/// <summary>
+/// Where a provider command was sent, as it was when it was sent. Verification and the history read this, never today's
+/// connection or catalog, which may have changed since. It holds no connection settings.
+/// </summary>
+public sealed record ControlActionTarget(
+    Guid ConnectionId,
+    int ConnectionRevision,
+    string AdapterKey,
+    string ExternalId,
+    int CatalogVersion);
 
 // An allowlist entry is the explicit permission for one command. Bounds are inclusive.
 public sealed record AutonomyCommandLimit(

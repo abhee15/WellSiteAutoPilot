@@ -15,7 +15,11 @@ public sealed record ControlTarget(
     string ExternalId,
     IReadOnlyDictionary<string, string?> Settings,
     ConnectionCommandCatalogEntry Entry,
-    int CatalogVersion);
+    int CatalogVersion)
+{
+    /// <summary>What is kept on the action: where it went and which catalog allowed it, without the connection settings.</summary>
+    public ControlActionTarget ForRecord() => new(ConnectionId, ConnectionRevision, AdapterKey, ExternalId, CatalogVersion);
+}
 
 /// <summary>Exactly one of the two is set: the target, or the gate code that says why there is none.</summary>
 public sealed record ControlTargetResolution(ControlTarget? Target, string? RefusalCode)

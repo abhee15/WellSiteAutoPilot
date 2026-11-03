@@ -69,7 +69,8 @@ public sealed record ControlClaim(
     int MaxActionsPerWindow,
     int WindowSeconds,
     DateTimeOffset NowUtc,
-    string Origin = ControlOrigins.Autonomous);
+    string Origin = ControlOrigins.Autonomous,
+    ControlActionTarget? Target = null);
 
 public interface IControlRepository
 {
