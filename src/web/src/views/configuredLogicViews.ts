@@ -74,3 +74,11 @@ export function listedStatus(item: ConfiguredLogicResponse): string {
   const live = (item.revisions ?? []).find(revision => revision.id === item.activeRevisionId);
   return live?.status ?? latestRevision(item)?.status ?? 'Draft';
 }
+
+/**
+ * Whether a revision's mode can lead to a command at all. Shadow only records what it would do, so the autonomy policy
+ * and everything about sending does not apply to it and is not shown (control-screens.md section 1a).
+ */
+export function sendsCommands(mode: string | null | undefined): boolean {
+  return mode === 'Recommendation' || mode === 'Autonomous';
+}

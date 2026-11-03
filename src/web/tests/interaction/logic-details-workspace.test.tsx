@@ -127,3 +127,25 @@ it('can inspect other known execution modes without exposing a Shadow-only edito
   await userEvent.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
   expect(screen.getByRole('button', { name: 'Copy revision 3' })).toHaveProperty('disabled', true);
 });
+
+it('shows no autonomy policy for a Shadow logic and says why, instead of a panel that can never apply', async () => {
+  fixture();
+  const user = userEvent.setup();
+  render(<ConfiguredLogicWorkspace {...props} canReadControl canManageControl />);
+  await screen.findByText('Running');
+  await user.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
+  expect(screen.getByTestId('no-control-note').textContent).toBe(
+    'This logic runs in Shadow mode. It records what it would do and never sends commands, so it has no autonomy policy.');
+  expect(screen.queryByRole('heading', { name: 'Autonomy policy' })).toBeNull();
+});
+
+it('shows the autonomy policy when the live revision can send commands', async () => {
+  const { state } = fixture();
+  state.config = { ...configuration, revisions: configuration.revisions.map(r => r.id === id(3) ? { ...r, mode: 'Autonomous' as const } : r) };
+  const user = userEvent.setup();
+  render(<ConfiguredLogicWorkspace {...props} canReadControl canManageControl />);
+  await screen.findByText('Running');
+  await user.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
+  expect(await screen.findByRole('heading', { name: 'Autonomy policy' })).toBeTruthy();
+  expect(screen.queryByTestId('no-control-note')).toBeNull();
+});

@@ -7,7 +7,7 @@ import { t } from '../localization';
 import { ConfiguredShadowPanel } from './ConfiguredShadowPanel';
 import { ConfiguredLogicSetupPanel } from './ConfiguredLogicSetupPanel';
 import { AutonomyPolicyPanel } from './AutonomyPolicyPanel';
-import { orderedRevisions } from './configuredLogicViews';
+import { orderedRevisions, sendsCommands } from './configuredLogicViews';
 import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOverview';
 import { ConfiguredLogicSchedulePanel } from './ConfiguredLogicSchedulePanel';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
@@ -237,8 +237,12 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
               </div>}
             </div>}
           </section>
-          {canReadControl && <AutonomyPolicyPanel key={detail.id} configuredLogicId={detail.id}
-            canManage={canManageControl} disabled={mutationBlocked} />}
+          {canReadControl && (sendsCommands(active?.mode)
+            ? <AutonomyPolicyPanel key={detail.id} configuredLogicId={detail.id}
+              canManage={canManageControl} disabled={mutationBlocked} />
+            // Nothing can be sent in Shadow, so there is no policy to show; one line says why instead of a gap.
+            : active && <p className="logic-detail-note" data-testid="no-control-note">
+              {t('logicDetail.noControlInShadow', { mode: active.mode ?? '—' })}</p>)}
         </>}
         {editor}
       </div>

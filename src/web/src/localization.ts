@@ -22,6 +22,7 @@ export const englishMessages = {
   'logicDetail.activeAndDrafts': 'Active and pending revisions',
   'logicDetail.selectedRevision': 'Selected revision settings',
   'logicDetail.editingNotice': 'Finish or cancel this new revision before changing tabs. Previously saved revisions remain unchanged.',
+  'logicDetail.noControlInShadow': 'This logic runs in {mode} mode. It records what it would do and never sends commands, so it has no autonomy policy.',
   'logicDetail.authoringMode': 'The existing editor creates Shadow revisions. Authoring for other modes will be refined separately.',
   'logicDetail.changedElsewhere': 'The active revision changed elsewhere. Reload before activating a revision or requesting a run. Existing draft inputs are retained.',
   'logicDetail.activityUnavailable': 'Operational updates could not be refreshed. Any displayed activity or next scheduled time may be out of date.',
