@@ -134,6 +134,6 @@ Continue running the repo's existing `npm run test:ui`, `npm run test:interactio
 
 - [WAI-ARIA APG — Tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) — role/label relationships, keyboard operation, when automatic activation is appropriate.
 - [WAI-ARIA APG — Manual activation example](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/examples/tabs-manual/) — focus navigation independent of content activation.
-- [IBM Carbon — Tabs guidelines](https://carbondesignsystem.com/components/tabs/usage/) — enterprise tab hierarchy, visual states and responsive overflow; apply concepts through our tokens and components, not Carbon CSS or a second component framework.
+- [IBM Carbon — Tabs guidelines](https://www.carbondesignsystem.com/building-blocks/core/components/tabs/guidelines) — enterprise tab hierarchy, visual states and responsive overflow; apply concepts through our tokens and components, not Carbon CSS or a second component framework.
 
 The design choices above are repo-specific decisions for WellSite AutoPilot, not a requirement to adopt Carbon or another library.
