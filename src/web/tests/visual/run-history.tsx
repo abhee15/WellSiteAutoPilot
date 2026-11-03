@@ -107,6 +107,10 @@ function inspectLayout() {
   const data = {
     mode: listOnly ? 'list' : 'selected',
     viewport: window.innerWidth,
+    viewportClient: document.documentElement.clientWidth,
+    bodyWidth: document.body.scrollWidth,
+    pageBodyClient: document.querySelector<HTMLElement>('.page-body')?.clientWidth ?? 0,
+    pageBodyScroll: document.querySelector<HTMLElement>('.page-body')?.scrollWidth ?? 0,
     container: Math.round(layout.getBoundingClientRect().width),
     documentWidth: document.documentElement.scrollWidth,
     browseVisible: visible(browse),
