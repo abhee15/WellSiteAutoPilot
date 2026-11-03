@@ -122,7 +122,7 @@ it('the Asset types tab lists types with how many assets each holds and links ba
   }));
   render(<App />);
   const show = await screen.findByRole('button', { name: 'Show 2 Well assets' });
-  expect(screen.getByRole('tab', { name: /Asset types/ }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByRole('link', { name: /Asset types/ }).getAttribute('aria-current')).toBe('page');
   show.click();
   await screen.findByRole('searchbox', { name: 'Search assets' });
   expect((screen.getByRole('searchbox', { name: 'Search assets' }) as HTMLInputElement).value).toBe('Well');
