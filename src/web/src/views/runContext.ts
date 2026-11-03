@@ -60,8 +60,9 @@ export function configurationAssetLabels(
  * into the Logic grid: they may refer to assets that this configuration no longer uses.
  */
 export function configurationTargetAssetIds(configuration: ConfiguredLogicResponse): string[] {
-  const revision = configuration.revisions?.find(item => item.id === configuration.activeRevisionId)
-    ?? latestRevision(configuration);
+  const revision = configuration.activeRevisionId
+    ? configuration.revisions?.find(item => item.id === configuration.activeRevisionId)
+    : latestRevision(configuration);
   return [...new Set((revision?.assetBindings ?? []).flatMap(binding =>
     binding.assetId ? [binding.assetId] : []))];
 }
