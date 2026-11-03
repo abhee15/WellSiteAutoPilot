@@ -76,7 +76,7 @@ it('names the asset when assets are loaded and keeps the id as its hover text', 
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([
     { id: 'r1', assetId: 'asset-1', status: 'Created', moduleId: 'm', moduleVersion: '1', createdAtUtc: new Date().toISOString(),
       expiresAtUtc: new Date(Date.now() + 3600_000).toISOString(), canDecide: false }]), { status: 200 })));
-  render(<RecommendationsPage userId={userId} permissions={['recommendations.read']}
+  render(<RecommendationsPage userId={userId} permissions={['recommendations.read', 'assets.read']}
     assets={[{ id: 'asset-1', name: 'North Well' }] as never} />);
   expect((await screen.findByText('North Well')).getAttribute('title')).toBe('asset-1');
   expect(screen.queryByText('asset-1')).toBeNull();
@@ -88,7 +88,7 @@ it('the decision screen states the proposal, its context and that nothing is sen
   const revisionId = '66666666-6666-4666-8666-666666666666';
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([{ ...item, quantity: 'PumpSpeed',
     executionId: runId, configuredLogicId: configurationId, configurationRevisionId: revisionId }]))));
-  render(<RecommendationsPage userId={userId} permissions={['recommendations.read', 'recommendations.decide']}
+  render(<RecommendationsPage userId={userId} permissions={['recommendations.read', 'recommendations.decide', 'assets.read']}
     assets={[{ id: item.assetId, name: 'North Well', isActive: true } as never]}
     configuredLogic={[{ id: configurationId, name: 'Pump watch', revisions: [{ id: revisionId, revisionNumber: 4 }] } as never]} />);
   await userEvent.setup().click(await screen.findByRole('button', { name: 'Review' }));
