@@ -74,7 +74,7 @@ export function ExecutionHistory({ assetId, logicId, runId = null, assets, confi
     data-has-selection={showInspector}>
     <div className={focused ? 'split-panes execution-history-panes' : 'execution-history-inline'}>
       <section className={focused ? 'panel split-browse execution-history-browse' : 'execution-history-browse'}
-        aria-label={t('assetDetail.historyTitle')}>
+        aria-label={t('assetDetail.historyEntries')}>
         {focused && <header className="execution-history-browse-header">
           <h4>{t('assetDetail.historyTitle')}</h4>
         </header>}
