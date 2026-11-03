@@ -27,8 +27,6 @@
   background: var(--color-surface-navigation-active);
   box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring);
 }
-.execution-history-focus .execution-history-row button { text-align: left; }
-.execution-history-focus .execution-history-row button:focus-visible { outline-offset: var(--space-4); }
 .execution-history-focus .execution-history-row small { overflow-wrap: anywhere; }
 .execution-history-focus .asset-detail-actions { padding-block: var(--space-12); }
 .execution-history-focus .execution-history-inspector {
