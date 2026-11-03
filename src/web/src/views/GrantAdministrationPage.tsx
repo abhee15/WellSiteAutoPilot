@@ -14,6 +14,7 @@ import { createGrant, deactivateGrant, grantSubjectKey, verifyGrantReadback, loa
 import type { PersistedGrant } from './grantAdministration';
 import { previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
+import { grantAssetIdLabel } from './scopedAccessGrants';
 import { ScopedGrantEditor } from './ScopedGrantEditor';
 import { GrantAssetDirectoryError, loadGrantAssetDirectory } from './grantAssetDirectory';
 import { LoadingIndicator } from '../components/LoadingIndicator';
@@ -244,7 +245,7 @@ export function GrantAdministrationPage(
                   {role?.name ?? grant.roleId}: {scopeLabel(grant.scopeKind)}
                   {grant.assetIds.length > 0 &&
                     ' (' + grant.assetIds.map(id =>
-                      assets.find(asset => asset.id === id)?.name ?? id).join(', ') + ')'}
+                      grantAssetIdLabel(id, assets)).join(', ') + ')'}
                   {' — '}{grant.isActive ? t('grants.active') : t('grants.inactive')}
                   {grant.isActive && !retiring && (
                     <ActionButton label={t('grants.retireAction')} disabled={saving} onClick={() => { setRetiring(grant); setRetireConfirmed(false); setNotice(null); }} />
@@ -263,7 +264,7 @@ export function GrantAdministrationPage(
             roles.find(role => role.roleId === retiring.roleId)?.name ?? retiring.roleId
           } / {scopeLabel(retiring.scopeKind)}</p>
           {retiring.assetIds.length > 0 && <p>{retiring.assetIds.map(id =>
-            assets.find(asset => asset.id === id)?.name ?? id).join(', ')}</p>}
+            grantAssetIdLabel(id, assets)).join(', ')}</p>}
           <p className="access-warning">{t('grants.retireWarning')}</p>
           <label className="access-confirm grant-confirm">
             <input type="checkbox" checked={retireConfirmed} disabled={saving}
