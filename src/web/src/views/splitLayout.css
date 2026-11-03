@@ -1,10 +1,5 @@
-/* Shared tabs and two-pane layout (Assets, Logic): semantic tokens only. */
+/* Shared two-pane layouts; tab navigation is owned by components/TabStrip. */
 .split-layout { display: grid; gap: var(--space-12); }
-.split-tabs { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; border-bottom: var(--border-width-thin) solid var(--color-border-subtle); }
-.split-tabs [role='tab'] { padding: var(--space-10) var(--space-16); color: var(--color-text-subtle); text-decoration: none; border-bottom: var(--border-width-thick) solid transparent; }
-.split-tabs [role='tab'][aria-selected='true'] { color: var(--color-text-primary); font-weight: var(--font-weight-medium); border-bottom-color: var(--color-focus-ring); }
-.split-tabs [role='tab'] span { color: var(--color-text-subtle); font-weight: var(--font-weight-regular); }
-.split-add { margin-left: auto; }
 .split-intro, .split-note { margin: 0; padding: var(--space-12) var(--space-18); color: var(--color-text-subtle); }
 .split-panes { display: grid; grid-template-columns: minmax(var(--layout-panel-min), 1fr) minmax(0, 3fr); gap: var(--space-12); align-items: start; }
 .split-back.ui-action-button { display: none; margin: var(--space-12) var(--space-18) 0; }
