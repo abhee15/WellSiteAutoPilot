@@ -217,7 +217,7 @@ Owner direction: make it easy to connect a software system through an adapter, u
 Findings from the last probes and the items they add:
 | # | Pri | Item |
 |---|---|---|
-| L1 | P1 | Scheduler silently serves only `Scheduler:BatchSize` configurations (100 default, 500 max); due-based selection with paging, batched checks, jitter, recorded overlap skips (`docs/design/scheduler-load-probe.md`) |
+| L1 | P1 | **Starvation fixed:** `Scheduler:BatchSize` is now a page size and every active configuration is evaluated each sweep. Still open: due-based selection with paging, batched checks, jitter, recorded overlap skips (`docs/design/scheduler-load-probe.md`) |
 | L2 | P1 | Schedule edit creates a new revision per change; decide revision-clone vs schedule outside revisions; batch the overview queries; audit cadence raised by the floor; real adapter minimums (`docs/design/schedule-management-probe.md`) |
 | L3 | P1 | Relative facilities: CYG_DEMO has no relation definitions and RPOC wells have no parents; facility attribute 22 (Parent Facility) is one level deep on 197 facilities; relationMap prototype in the adapter not built (`docs/design/cygnet-relative-facilities.md`); needs a site with real definitions |
 | L4 | P1 | Authoring: AppContainer fails at process creation here (Win32 203), Job-object mode is the baseline; database draft store and migration unverified; live preview untested against live providers |

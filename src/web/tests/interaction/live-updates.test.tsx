@@ -146,6 +146,40 @@ it('refetches the workspace when the Server names an area it shows, and ignores 
   expect(delays).toContain(10_000);
 });
 
+it('a change signal reads only the datasets of the area it names', { timeout: 30_000 }, async () => {
+  const counts = { executions: 0, assets: 0, health: 0 };
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/v1/security/me') {
+      return response({ userId, identityName: 'FIELD\\live', isActive: true, permissions: ['executions.read', 'assets.read'] });
+    }
+    if (url.startsWith('/api/v1/executions')) { counts.executions += 1; return response([]); }
+    if (url.startsWith('/api/v1/assets') || url.startsWith('/api/v1/asset-types')) { counts.assets += 1; }
+    if (url.includes('system/health')) { counts.health += 1; return response({}); }
+    if (url.includes('capabilities')) return response({ canCreateRoot: false, canCreateUnderAuthorizedParents: false });
+    return response([]);
+  }));
+  const { client, hub } = liveHarness();
+  window.location.hash = '#operations';
+  render(<LiveUpdatesProvider client={client}><App /></LiveUpdatesProvider>);
+  await waitFor(() => expect(counts.executions).toBe(1));
+  await waitFor(() => expect(hub()).toBeDefined());
+  await act(async () => { hub().settle(); });
+  await waitFor(() => expect(screen.getByRole('status').textContent).toContain(t('live.connected')));
+  await waitFor(() => expect(counts.executions).toBe(2)); // catch-up on connect reads the datasets of every area
+  const before = { ...counts };
+
+  await act(async () => { hub().emit('executions'); });
+  await waitFor(() => expect(counts.executions).toBe(before.executions + 1));
+  expect(counts.assets).toBe(before.assets);
+  expect(counts.health).toBe(before.health);
+
+  const afterExecutions = { ...counts };
+  await act(async () => { hub().emit('assets'); });
+  await waitFor(() => expect(counts.assets).toBeGreaterThan(afterExecutions.assets));
+  expect(counts.executions).toBe(afterExecutions.executions);
+  expect(counts.health).toBe(before.health);
+});
+
 it('without the live-update provider the page polls every 10 seconds and shows no connection state', { timeout: 30_000 }, async () => {
   const counts = { executions: 0 };
   stubApi(counts);

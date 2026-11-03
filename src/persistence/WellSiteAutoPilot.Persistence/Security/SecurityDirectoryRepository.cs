@@ -73,6 +73,55 @@ public sealed class SecurityDirectoryRepository(WellSiteAutoPilotDbContext db, T
         }, cancellationToken);
     }
 
+    public Task<SecurityUserDirectoryPage> SearchUsersAuthorizedAsync(AccessSubject administrator,
+        SecurityUserDirectoryQuery query, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        query.EnsureValid();
+        return ReadAsync(administrator, async () =>
+        {
+            // A role and its direct grant must both be active. Group grants are not direct assignments.
+            var direct = db.AccessGrants.AsNoTracking().Where(grant =>
+                grant.IsActive && grant.SubjectKind == "User" &&
+                db.RoleDefinitions.Any(role => role.Id == grant.RoleId && role.IsActive));
+            var users = db.Users.AsNoTracking().Select(user => new
+            {
+                User = user,
+                DirectCount = direct.Count(grant => grant.UserId == user.Id)
+            });
+            if (query.Search is { } search)
+            {
+                // Escape LIKE metacharacters: user input is always literal, never an SQL pattern.
+                var literal = search.Replace("\\", "\\\\", StringComparison.Ordinal)
+                    .Replace("%", "\\%", StringComparison.Ordinal)
+                    .Replace("_", "\\_", StringComparison.Ordinal);
+                var pattern = "%" + literal + "%";
+                users = users.Where(row => EF.Functions.ILike(row.User.IdentityName, pattern, "\\") ||
+                    (row.User.DisplayName != null && EF.Functions.ILike(row.User.DisplayName, pattern, "\\")));
+            }
+            if (query.AccountStatus == "active") users = users.Where(row => row.User.IsActive);
+            if (query.AccountStatus == "inactive") users = users.Where(row => !row.User.IsActive);
+            if (query.DirectAssignments == "with") users = users.Where(row => row.DirectCount > 0);
+            if (query.DirectAssignments == "without") users = users.Where(row => row.DirectCount == 0);
+            if (query.After is { } after)
+                users = users.Where(row => row.User.CreatedAtUtc < after.CreatedAtUtc ||
+                    (row.User.CreatedAtUtc == after.CreatedAtUtc && row.User.Id.CompareTo(after.Id) < 0));
+            // CreatedAtUtc/Id are immutable; LastSeenAtUtc changes at sign-in and is not a safe paging key.
+            var records = await users.OrderByDescending(row => row.User.CreatedAtUtc)
+                .ThenByDescending(row => row.User.Id)
+                .Take(query.Limit + 1).ToArrayAsync(cancellationToken);
+            var page = records.Take(query.Limit).ToArray();
+            return new SecurityUserDirectoryPage(
+                page.Select(row => new SecurityUserDirectoryEntry(
+                    new UserIdentity(row.User.Id, row.User.IdentityKey, row.User.IdentityName, row.User.DisplayName,
+                        row.User.IsActive, row.User.CreatedAtUtc, row.User.LastSeenAtUtc),
+                    row.DirectCount)).ToArray(),
+                records.Length > query.Limit
+                    ? new SecurityUserDirectoryCursor(page[^1].User.CreatedAtUtc, page[^1].User.Id)
+                    : null);
+        }, cancellationToken);
+    }
+
     public Task<IReadOnlyCollection<RoleDefinition>> ListRolesAuthorizedAsync(AccessSubject administrator, int limit,
         CancellationToken cancellationToken = default)
     {

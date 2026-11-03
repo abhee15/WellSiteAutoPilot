@@ -34,7 +34,9 @@ function mutationError(cause: unknown): string {
 }
 
 export function GrantAdministrationPage(
-  { currentUserId, initialUserId = '' }: { currentUserId: string; initialUserId?: string },
+  { currentUserId, initialUserId = '', initialUser = null }: {
+    currentUserId: string; initialUserId?: string; initialUser?: VerifiedSecurityUser | null;
+  },
 ) {
   const [users, setUsers] = useState<VerifiedSecurityUser[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
@@ -82,7 +84,13 @@ export function GrantAdministrationPage(
         loadGrantAssetDirectory(abort.signal),
       ]);
       if (abort.signal.aborted) return;
-      setUsers(directory); setRoles(catalog.roles);
+      // The Users directory can find a person beyond this legacy 100-user picker snapshot.
+      // Carry only the authorized selected identity for display; every grant read/write is reauthorized by the server.
+      setUsers(initialUser && initialUser.isActive &&
+        initialUser.userId.toLowerCase() !== currentUserId.toLowerCase() &&
+        !directory.some(item => item.userId === initialUser.userId)
+        ? [...directory, initialUser] : directory);
+      setRoles(catalog.roles);
       setPermissions(catalog.permissions);
       setAssets(assetDirectory);
     } catch (cause) {
@@ -95,7 +103,7 @@ export function GrantAdministrationPage(
         requestRef.current = null; setIsLoading(false);
       }
     }
-  }, []);
+  }, [initialUser, currentUserId]);
 
   useEffect(() => {
     void load();

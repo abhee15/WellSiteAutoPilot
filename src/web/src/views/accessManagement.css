@@ -1,6 +1,6 @@
-.access-filter {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  margin: var(--space-12) var(--space-18) var(--space-16);
+.access-directory-toolbar {
+  padding: var(--space-12) var(--space-18);
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
 }
+.access-filter-help { margin: var(--space-8) 0 0; color: var(--color-text-muted); }
+.access-directory-more { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-16) var(--space-18); }

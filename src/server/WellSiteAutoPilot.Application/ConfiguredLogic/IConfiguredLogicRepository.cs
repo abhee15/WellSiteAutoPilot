@@ -62,8 +62,13 @@ public interface IConfiguredLogicRepository
         IReadOnlyCollection<Guid> allowedAssetIds,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// One page of the active scheduled configurations, ordered by name then id. Pass the last item of the previous
+    /// page as <paramref name="after"/> to continue; an empty page means the end.
+    /// </summary>
     Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListActiveScheduledAsync(
         int limit,
+        ConfiguredLogicPageCursor? after = null,
         CancellationToken cancellationToken = default);
 
     Task SetRevisionValidatedAsync(
@@ -82,3 +87,6 @@ public interface IConfiguredLogicRepository
         SecurityActorContext? actor = null,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Position after which the next page of a name-ordered configured logic list continues.</summary>
+public sealed record ConfiguredLogicPageCursor(string Name, Guid Id);

@@ -377,6 +377,27 @@ v1.MapGet(
     .Produces(StatusCodes.Status403Forbidden);
 
 v1.MapGet(
+    "/security/users/page",
+    async (int? limit, string? cursor, string? search, string? accountStatus, string? directAssignments,
+        ISecurityDirectoryRepository directory, RequestAccessContext access, CancellationToken cancellationToken) =>
+    {
+        SecurityUserDirectoryCursor? after = null;
+        if (cursor is not null && !SecurityUserDirectoryCursor.TryDecode(cursor, out after))
+            throw new WellSiteAutoPilotException(FailureCodes.ValidationFailed, FailureKind.Validation,
+                "The user directory cursor is not valid.");
+        var page = await directory.SearchUsersAuthorizedAsync(access.Subject,
+            new SecurityUserDirectoryQuery(limit ?? SecurityUserDirectoryQuery.DefaultLimit,
+                after, search, accountStatus ?? "all", directAssignments ?? "all"), cancellationToken);
+        return new SecurityUserDirectoryPageResponse(
+            page.Items.Select(ToSecurityUserResponse).ToArray(), page.Next?.Encode());
+    })
+    .WithName("SearchSecurityUsers")
+    .RequireAuthorization(WellSitePolicies.SecurityManage)
+    .Produces<SecurityUserDirectoryPageResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status400BadRequest)
+    .Produces(StatusCodes.Status403Forbidden);
+
+v1.MapGet(
     "/security/audit-events",
     async (int? limit, string? cursor, string? actionPrefix, string? targetType, Guid? actorUserId, Guid? assetId,
         DateTimeOffset? fromUtc, DateTimeOffset? toUtc, ISecurityDirectoryRepository directory,

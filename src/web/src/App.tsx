@@ -1,7 +1,7 @@
 import { canOpenSection, hasPermission, isAwaitingAccess, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
 import { AwaitingAccessNotice } from './components/AwaitingAccessNotice';
 import { LoadingIndicator } from './components/LoadingIndicator';
-import { loadWorkspaceSnapshot } from './views/workspaceSnapshot';
+import { loadWorkspaceSnapshot, SNAPSHOT_KEYS_BY_AREA } from './views/workspaceSnapshot';
 import type { SnapshotKey } from './views/workspaceSnapshot';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
@@ -79,8 +79,20 @@ export function App() {
     if (landing && landing !== 'overview') window.location.replace('#' + landing);
   }, [currentUser]);
 
-  const refresh = useCallback(async () => {
-    // Only the latest refresh may update the view.
+  // The datasets the running refresh will read; null means all of them. Only meaningful while one is running.
+  const inFlight = useRef<ReadonlySet<SnapshotKey> | null>(null);
+  const loadedOnce = useRef(false);
+
+  // `only` limits a refresh to the datasets a change signal names. The first load, a poll and a changed session
+  // always read everything.
+  const refresh = useCallback(async (only?: readonly SnapshotKey[]) => {
+    let wanted: Set<SnapshotKey> | null = only && loadedOnce.current ? new Set(only) : null;
+    // Only the latest refresh may update the view, so the one this call aborts must not lose its datasets.
+    if (activeRefresh.current !== null && wanted !== null) {
+      if (inFlight.current === null) wanted = null;
+      else for (const key of inFlight.current) wanted.add(key);
+    }
+    inFlight.current = wanted;
     activeRefresh.current?.abort();
     const controller = new AbortController();
     activeRefresh.current = controller;
@@ -89,23 +101,23 @@ export function App() {
     const clearWorkspace = () => {
       setSystemHealth(null); setExecutions([]); setAssetTypes([]); setAssets([]);
       setAssetCapabilities(null); setLogicModules([]); setConfiguredLogic([]); setLastUpdated(null);
-      setIsLoaded(false);
+      setIsLoaded(false); loadedOnce.current = false;
     };
     try {
       const user = await loadSession(controller.signal);
       if (controller.signal.aborted) return;
       signInRequired.current = false;
       const nextKey = sessionAccessKey(user);
-      if (nextKey !== accessKey.current) clearWorkspace();
+      if (nextKey !== accessKey.current) { clearWorkspace(); wanted = null; }
       accessKey.current = nextKey;
       setCurrentUser(user);
-      const snapshot = await loadWorkspaceSnapshot(user, controller.signal);
+      const snapshot = await loadWorkspaceSnapshot(user, controller.signal, fetch, wanted);
       if (controller.signal.aborted) return;
       const effectiveUser = { ...user, permissions: user.permissions.filter(p => !snapshot.deniedPermissions.includes(p)) };
       accessKey.current = sessionAccessKey(effectiveUser);
       setCurrentUser(effectiveUser);
       // A dataset that could not be read this time keeps its last good copy instead of emptying the page.
-      const fresh = (key: SnapshotKey) => !snapshot.unavailable.includes(key);
+      const fresh = (key: SnapshotKey) => (wanted === null || wanted.has(key)) && !snapshot.unavailable.includes(key);
       if (fresh('system')) setSystemHealth(snapshot.system);
       if (fresh('executions')) setExecutions(snapshot.executions);
       // Unchanged lists keep their identity, so a refresh that found nothing new redraws nothing below.
@@ -114,7 +126,7 @@ export function App() {
       if (fresh('capabilities')) setAssetCapabilities(snapshot.capabilities);
       if (fresh('modules')) setLogicModules(snapshot.modules);
       if (fresh('configurations')) setConfiguredLogic(snapshot.configurations);
-      setIsLoaded(true);
+      setIsLoaded(true); loadedOnce.current = true;
       setError(snapshot.deniedPermissions.length ? t('refresh.accessChanged')
         : snapshot.incomplete ? t('refresh.partial') : null);
       setLastUpdated(new Date());
@@ -127,7 +139,7 @@ export function App() {
       setError(t(signInRequired.current ? 'refresh.signInRequired' : 'refresh.sessionUnavailable'));
     } finally {
       if (activeRefresh.current === controller) {
-        activeRefresh.current = null;
+        activeRefresh.current = null; inFlight.current = null;
         setIsRefreshing(false);
       }
     }
@@ -145,10 +157,12 @@ export function App() {
   // A poll never interrupts a load that is still running: the first request to a Negotiate site can outlast the
   // interval (sign-in prompt, Kerberos/NTLM round trips), and aborting it restarts the handshake and re-prompts.
   usePollingRefresh(() => { if (!signInRequired.current && activeRefresh.current === null) void refresh(); });
-  // The workspace snapshot covers these four areas; the Server names the one that changed.
-  useChangeRefresh(['executions', 'assets', 'configured-logic', 'modules'], () => {
-    if (!signInRequired.current) void refresh();
-  });
+  // The workspace snapshot covers these four areas; the Server names the one that changed, and only its datasets
+  // are read again. (The hook reports no area, so each area subscribes for itself.)
+  useChangeRefresh(['executions'], () => { if (!signInRequired.current) void refresh(SNAPSHOT_KEYS_BY_AREA.executions); });
+  useChangeRefresh(['assets'], () => { if (!signInRequired.current) void refresh(SNAPSHOT_KEYS_BY_AREA.assets); });
+  useChangeRefresh(['configured-logic'], () => { if (!signInRequired.current) void refresh(SNAPSHOT_KEYS_BY_AREA['configured-logic']); });
+  useChangeRefresh(['modules'], () => { if (!signInRequired.current) void refresh(SNAPSHOT_KEYS_BY_AREA.modules); });
   // Connect only with a verified session. A session that cannot be read disconnects, so a missing
   // Windows sign-in is never retried through the hub.
   const { setEnabled: setLiveEnabled } = useLiveUpdates();

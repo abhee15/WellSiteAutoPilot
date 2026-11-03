@@ -23,6 +23,9 @@ public interface ISecurityDirectoryRepository
     /// </summary>
     Task<IReadOnlyCollection<SecurityUserDirectoryEntry>> ListUsersAuthorizedAsync(AccessSubject administrator, int limit,
         bool awaitingAccessOnly = false, CancellationToken cancellationToken = default);
+    /// <summary>Protected server-side search and filters with stable keyset paging; no group access claims.</summary>
+    Task<SecurityUserDirectoryPage> SearchUsersAuthorizedAsync(AccessSubject administrator,
+        SecurityUserDirectoryQuery query, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<RoleDefinition>> ListRolesAuthorizedAsync(AccessSubject administrator, int limit,
         CancellationToken cancellationToken = default);
     Task<RoleDefinition?> GetRoleAuthorizedAsync(AccessSubject administrator, Guid roleId,

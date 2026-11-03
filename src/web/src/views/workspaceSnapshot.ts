@@ -12,15 +12,26 @@ export type WorkspaceSnapshot = {
   unavailable: SnapshotKey[];
 };
 export type SnapshotKey = 'system' | 'executions' | 'assetTypes' | 'assets' | 'capabilities' | 'modules' | 'configurations';
-/** Read only permitted areas; a forbidden area cannot discard unrelated authorized work. */
+/** The datasets one change area covers, so a signal refreshes only what it names. */
+export const SNAPSHOT_KEYS_BY_AREA = {
+  executions: ['executions'],
+  assets: ['assetTypes', 'assets', 'capabilities'],
+  'configured-logic': ['configurations'],
+  modules: ['modules'],
+} as const satisfies Record<string, readonly SnapshotKey[]>;
+/**
+ * Read only permitted areas; a forbidden area cannot discard unrelated authorized work.
+ * With `only`, datasets outside it are not requested and come back empty: the caller keeps its copy of them.
+ */
 export async function loadWorkspaceSnapshot(user: VerifiedSession, signal: AbortSignal,
-  fetcher: typeof fetch = fetch): Promise<WorkspaceSnapshot> {
+  fetcher: typeof fetch = fetch, only: ReadonlySet<SnapshotKey> | null = null): Promise<WorkspaceSnapshot> {
   const denied = new Set<string>();
   let incomplete = false;
   const unavailable = new Set<SnapshotKey>();
   let sessionExpired = false;
   async function read<T>(key: SnapshotKey, permission: string | null, path: string, fallback: T,
     valid: (value: unknown) => boolean): Promise<T> {
+    if (only && !only.has(key)) return fallback;
     if (!user.isActive || permission && !hasPermission(user, permission)) return fallback;
     try {
       const response = await fetcher(path, { signal, credentials: 'same-origin', cache: 'no-store' });

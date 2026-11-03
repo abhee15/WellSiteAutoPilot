@@ -67,3 +67,65 @@ export async function loadSecurityUsers(
   if (new Set(ids).size !== ids.length) throw new AccessError('invalidResponse');
   return body;
 }
+
+export type AccountStatusFilter = 'all' | 'active' | 'inactive';
+export type DirectAssignmentFilter = 'all' | 'with' | 'without';
+export type UserDirectoryFilters = {
+  search: string;
+  accountStatus: AccountStatusFilter;
+  directAssignments: DirectAssignmentFilter;
+};
+export type SecurityUserPage = { items: VerifiedSecurityUser[]; nextCursor: string | null };
+export const USER_DIRECTORY_PAGE_SIZE = 50;
+export const DEFAULT_USER_DIRECTORY_FILTERS: UserDirectoryFilters = {
+  search: '', accountStatus: 'all', directAssignments: 'all',
+};
+const directoryCursorPattern = /^[A-Za-z0-9_-]{1,128}$/;
+
+/** Every filter is sent to the server before the page limit; never search a partial client snapshot. */
+export function userDirectoryQuery(filters: UserDirectoryFilters, cursor: string | null): string {
+  const search = filters.search.trim();
+  if (search.length > 100 || Array.from(search).some(char => char.charCodeAt(0) < 32) ||
+    !['all', 'active', 'inactive'].includes(filters.accountStatus) ||
+    !['all', 'with', 'without'].includes(filters.directAssignments) ||
+    (cursor !== null && !directoryCursorPattern.test(cursor))) {
+    throw new AccessError('invalid');
+  }
+  const params = new URLSearchParams({ limit: String(USER_DIRECTORY_PAGE_SIZE) });
+  if (search) params.set('search', search);
+  if (filters.accountStatus !== 'all') params.set('accountStatus', filters.accountStatus);
+  if (filters.directAssignments !== 'all') params.set('directAssignments', filters.directAssignments);
+  if (cursor) params.set('cursor', cursor);
+  return params.toString();
+}
+
+/** Protected, bounded page. The cursor comes only from the server and is never inferred from a row. */
+export async function loadSecurityUserPage(
+  filters: UserDirectoryFilters, cursor: string | null, signal: AbortSignal, fetcher: typeof fetch = fetch,
+): Promise<SecurityUserPage> {
+  const query = userDirectoryQuery(filters, cursor);
+  let response: Response;
+  try {
+    response = await fetcher('/api/v1/security/users/page?' + query,
+      { method: 'GET', credentials: 'same-origin', cache: 'no-store', signal });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    throw new AccessError('unavailable');
+  }
+  if (!response.ok) throw classifyResponse(response.status);
+  let body: unknown;
+  try { body = await response.json(); }
+  catch { throw new AccessError('invalidResponse'); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AccessError('invalidResponse');
+  const page = body as Partial<SecurityUserPage>;
+  if (!Array.isArray(page.items) || page.items.length > USER_DIRECTORY_PAGE_SIZE ||
+      !page.items.every(isUser) ||
+      !(page.nextCursor === null ||
+        (typeof page.nextCursor === 'string' && directoryCursorPattern.test(page.nextCursor))) ||
+      (page.nextCursor !== null && page.items.length !== USER_DIRECTORY_PAGE_SIZE) ||
+      new Set(page.items.map(item => item.userId.toLowerCase())).size !== page.items.length ||
+      (cursor !== null && cursor === page.nextCursor)) {
+    throw new AccessError('invalidResponse');
+  }
+  return { items: page.items, nextCursor: page.nextCursor };
+}

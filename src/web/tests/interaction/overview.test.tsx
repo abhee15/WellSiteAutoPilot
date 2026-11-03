@@ -47,6 +47,21 @@ it('lists the latest five runs, newest first, naming the asset and linking to th
   expect(list[4].querySelector('a')?.getAttribute('href')).toBe('#operations/e4');
 });
 
+it('shows the bound assets for configured multi-asset runs that have no single asset ID', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => response([])));
+  render(<OverviewPage {...(props as never)}
+    assets={[{ id: 'a1', name: 'North Well' }, { id: 'a2', name: 'South Well' }] as never}
+    configuredLogic={[{ id: 'c1', name: 'Pressure watch', revisions: [
+      { id: 'rev2', revisionNumber: 2, assetBindings: [
+        { role: 'primary', assetId: 'a1' }, { role: 'secondary', assetId: 'a2' },
+      ] },
+    ] }] as never}
+    executions={[run('e1', { assetId: null, assetExternalId: null,
+      logicInstanceId: 'c1', configurationRevisionId: 'rev2' })] as never} />);
+  const panel = await screen.findByRole('region', { name: 'Latest runs' });
+  expect(panel.querySelector('a[href="#operations/e1"]')?.textContent).toBe('North Well, South Well');
+});
+
 it('still lists a run that has no request time, without a time, and never throws', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([])));
   render(<OverviewPage {...(props as never)} executions={[run('e1', { requestedAtUtc: undefined })] as never} />);
