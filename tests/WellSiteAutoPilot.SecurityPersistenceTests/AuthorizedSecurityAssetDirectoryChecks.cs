@@ -5,6 +5,7 @@ using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Persistence;
 using WellSiteAutoPilot.Persistence.Assets;
+using WellSiteAutoPilot.Persistence.Connections;
 using WellSiteAutoPilot.Persistence.Security;
 
 internal static partial class AuthorizedSecurityDirectoryChecks
@@ -14,7 +15,14 @@ internal static partial class AuthorizedSecurityDirectoryChecks
     {
         await using var setup = new WellSiteAutoPilotDbContext(options);
         var typeId = Guid.NewGuid();
+        var connectionId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
+        setup.Connections.Add(new ConnectionEntity
+        {
+            Id = connectionId, Name = "ForeSite Production", NormalizedName = "foresite production",
+            AdapterKey = "foresite", SettingsVersion = 1, SettingsJson = "{}",
+            Revision = 1, IsEnabled = true, CreatedAtUtc = now, UpdatedAtUtc = now
+        });
         setup.AssetTypes.Add(new AssetTypeEntity
         {
             Id = typeId, Key = typeId.ToString("N"), DisplayName = "Directory fixture", SchemaVersion = 1,
@@ -25,6 +33,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
             Id = Guid.NewGuid(), AssetTypeId = typeId, Name = "Directory duplicate name",
             IsActive = index != 1, CreatedAtUtc = now, AttributeValuesJson = "{\"private\":\"not-directory-data\"}"
         }).OrderBy(asset => asset.Id).ToArray();
+        assets[0].OwnerConnectionId = connectionId;
         setup.Assets.AddRange(assets);
         await setup.SaveChangesAsync();
         foreach (var subject in new[] { direct, group })
@@ -39,7 +48,10 @@ internal static partial class AuthorizedSecurityDirectoryChecks
                 !paged.Any(asset => !asset.IsActive) || (await directory.ListAssetsAuthorizedAsync(subject, 3, 1)).Count != 0 ||
                 typeof(SecurityAssetDirectoryEntry).GetProperties().Select(property => property.Name)
                     .Except(["Id", "Name", "IsActive", "OwnerConnectionId", "ConnectionName"]).Any() ||
-                paged.Any(asset => asset.OwnerConnectionId != null || asset.ConnectionName != null))
+                paged.Single(asset => asset.Id == assets[0].Id).OwnerConnectionId != connectionId ||
+                paged.Single(asset => asset.Id == assets[0].Id).ConnectionName != "ForeSite Production" ||
+                paged.Where(asset => asset.Id != assets[0].Id).Any(asset =>
+                    asset.OwnerConnectionId != null || asset.ConnectionName != null))
                 throw new InvalidOperationException("Protected Asset directory lost stable paging, retired Assets or minimal projection.");
             foreach (var (offset, limit) in new[] { (-1, 1), (1000001, 1), (0, 0), (0, 501) })
                 await ExpectAsync(() => directory.ListAssetsAuthorizedAsync(subject, offset, limit), FailureKind.Validation);
@@ -91,6 +103,7 @@ internal static partial class AuthorizedSecurityDirectoryChecks
         }
         await setup.Assets.Where(asset => asset.AssetTypeId == typeId).ExecuteDeleteAsync();
         await setup.AssetTypes.Where(type => type.Id == typeId).ExecuteDeleteAsync();
+        await setup.Connections.Where(connection => connection.Id == connectionId).ExecuteDeleteAsync();
         Console.WriteLine("Protected Asset directory retains stable minimal paging, direct/group authority and snapshot consistency; fresh revocation and hydration proof expiry deny access.");
     }
 
