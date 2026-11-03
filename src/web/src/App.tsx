@@ -264,7 +264,8 @@ export function App() {
           )}
           {section === 'access' && (
             currentUser?.userId && canOpenSection(currentUser, 'access')
-              ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId} />
+              ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId}
+                assets={assets} canReadAssets={hasPermission(currentUser, 'assets.read')} />
               : <div className="status-error" role="alert">{t('access.denied')}</div>
           )}
           {section === 'assets' && canOpenSection(currentUser, section) && (
