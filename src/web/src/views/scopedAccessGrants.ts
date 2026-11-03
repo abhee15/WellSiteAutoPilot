@@ -19,7 +19,8 @@ export function isScopeKind(value: unknown): value is ScopeKind {
 export function isSubjectKind(value: unknown): value is SubjectKind {
   return typeof value === 'string' && Object.hasOwn(SUBJECT_KINDS, value);
 }
-export type AssetChoice = AssetDirectoryEntryResponse & { id: string; name: string; isActive: boolean;
+export type AssetChoice = Omit<AssetDirectoryEntryResponse, 'ownerConnectionId' | 'connectionName'> & {
+  id: string; name: string; isActive: boolean;
   ownerConnectionId?: string | null; connectionName?: string | null };
 
 /** Names from the protected admin directory, not from the separate assets.read snapshot. */
