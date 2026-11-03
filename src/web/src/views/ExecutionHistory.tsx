@@ -53,7 +53,7 @@ export function ExecutionHistory({ assetId, logicId, runId = null, assets, confi
   useEffect(() => {
     if (!focused || initialSelectionResolved.current || !history.data || history.denied) return;
     initialSelectionResolved.current = true;
-    const first = history.data.items[0]?.executionId;
+    const first = history.data.items?.[0]?.executionId;
     if (!selected && first) {
       if (onRunSelect) onRunSelect(first);
       else setLocalSelected(first);
