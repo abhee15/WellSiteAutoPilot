@@ -1,0 +1,87 @@
+/* Shared tab appearance. Page navigation and true tabpanels differ only in semantics. */
+.tab-bar {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-8);
+  min-width: 0;
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+.tab-strip {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: var(--space-4);
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: var(--space-8);
+  scrollbar-width: thin;
+  white-space: nowrap;
+  padding-top: var(--space-4);
+}
+
+.tab-strip-item {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  min-height: var(--size-control);
+  padding: var(--space-10) var(--space-16);
+  border: 0;
+  border-bottom: var(--border-width-thick) solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-body-small);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-control);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab-strip-item:hover:not(:disabled) {
+  background: var(--color-surface-control-hover);
+}
+
+.tab-strip-item[aria-current='page'],
+.tab-strip-item[aria-selected='true'] {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  border-bottom-color: var(--color-focus-ring);
+}
+
+.tab-strip-item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.tab-strip-item:disabled {
+  cursor: not-allowed;
+}
+
+.tab-strip-count {
+  color: var(--color-text-subtle);
+  font-weight: var(--font-weight-regular);
+}
+
+.tab-bar-action {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: 50%;
+  padding-inline-start: var(--space-4);
+}
+
+.tab-bar-action .ui-action-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (pointer: coarse) {
+  .tab-strip-item { min-height: var(--size-touch-target); }
+}
