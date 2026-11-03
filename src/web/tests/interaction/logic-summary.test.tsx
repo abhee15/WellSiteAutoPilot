@@ -63,15 +63,16 @@ it('a module explains what it does, what it needs and what uses it', async () =>
   expect(panel.textContent).toContain('Pressure watch');
 });
 
-it('Your logic and Modules are tabs; the list sits beside the selected item', async () => {
+it('Your logic and Modules are addressable navigation links beside the selection pane', async () => {
   fixture(['configured-logic.read', 'logic.read']);
   render(<App />);
-  const configured = await screen.findByRole('tab', { name: /Your logic/ });
-  expect(configured.getAttribute('aria-selected')).toBe('true');
+  const configured = await screen.findByRole('link', { name: /Your logic/ });
+  expect(configured.getAttribute('aria-current')).toBe('page');
+  expect(configured.getAttribute('href')).toBe('#logic');
   expect(screen.getByText('Choose logic to see where it stands, or configure new logic for your assets.')).toBeTruthy();
   await userEvent.setup().click(await screen.findByRole('button', { name: 'Inspect revisions of Pressure watch' }));
   expect(window.location.hash).toBe('#logic/' + configurationId);
-  await userEvent.setup().click(screen.getByRole('tab', { name: /Modules/ }));
+  await userEvent.setup().click(screen.getByRole('link', { name: /Modules/ }));
   expect(await screen.findByText('Choose a module to see what it does and what it needs.')).toBeTruthy();
   expect(window.location.hash).toBe('#logic/modules');
 });
