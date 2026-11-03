@@ -28,7 +28,7 @@ import { EmptyRow, SummaryCard } from '../components/common';
 import type { MessageKey } from '../localization';
 import { humanize } from './auditPresentation';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
-import { useConfiguredAssetDirectory } from './useConfiguredAssetDirectory';
+import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { assetIdentityLabel } from './runContext';
 import './splitLayout.css';
 
@@ -236,7 +236,7 @@ export function RecommendationsPage({
     [items, criteria, nowUtc],
   );
   const targetIds = useMemo(() => [...new Set(visible.flatMap(item => item.assetId ? [item.assetId] : []))], [visible]);
-  const assetDirectory = useConfiguredAssetDirectory(targetIds, assets,
+  const assetDirectory = useAssetIdentityDirectory(targetIds, assets,
     Boolean(permissions?.includes('assets.read')), userId);
   const assetNames = new Map(assetDirectory.assets.flatMap(asset =>
     asset.id && asset.name
