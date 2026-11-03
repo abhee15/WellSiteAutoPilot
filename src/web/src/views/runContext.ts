@@ -74,7 +74,11 @@ export function assetIdentityLabel(id: string | null | undefined,
   const asset = assets.find(item => item.id === id);
   if (!asset?.name) return shortId(id);
   const owner = owners.find(item => item.connectionId && item.connectionId === asset.ownerConnectionId);
-  return owner?.name ? `${asset.name} (${owner.name})` : asset.name;
+  const label = owner?.name ? `${asset.name} (${owner.name})` : asset.name;
+  // An identical name under the same owner still needs distinguishing without making IDs primary.
+  const ambiguous = assets.some(other => other.id !== id && other.name === asset.name &&
+    other.ownerConnectionId === asset.ownerConnectionId);
+  return ambiguous ? `${label} · ${shortId(id)}` : label;
 }
 
 /** Use the same label and truncation in Logic, Schedules and revision details. */
