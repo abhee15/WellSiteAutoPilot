@@ -21,7 +21,7 @@ export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, 
   const active = revisions.find(revision => revision.id === logic.activeRevisionId);
   const shown = active ?? revisions[0];
   if (!shown) return <p>{t('configured.noRevisions')}</p>;
-  const targets = [...new Set(shown.assetBindings?.map(binding => binding.assetId) ?? [])];
+  const targets = [...new Set((shown.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []))];
   const providers = [...new Set(shown.dataBindings?.map(binding => binding.providerId) ?? [])];
   let purpose: string | null = null;
   try {
