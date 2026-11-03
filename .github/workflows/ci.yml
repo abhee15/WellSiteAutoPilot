@@ -321,6 +321,20 @@ jobs:
         working-directory: src/web
         run: npm run build
 
+      - name: Review run-history responsive browser layout
+        working-directory: src/web
+        run: npm run test:visual:run-history
+
+      - name: Upload run-history responsive screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-history-browser-${{ github.run_id }}
+          path: src/web/artifacts/visual-run-history/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+
       - name: Validate Python worker
         run: python -m compileall -q src/workers/python/src
 
