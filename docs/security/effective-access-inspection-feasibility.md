@@ -67,3 +67,30 @@ Once A and B demonstrate an acceptable provider capability for the intended depl
 - [AD tokenGroupsGlobalAndUniversal is not all domain-local membership](https://learn.microsoft.com/openspecs/windows_protocols/ms-adts/a366b6b6-f36f-46e8-ba2d-af79bf8966bf)
 - [Microsoft Entra group-claim limits and overage](https://learn.microsoft.com/entra/identity/hybrid/connect/how-to-connect-fed-group-claims)
 - [Microsoft Graph transitive memberships and permission differences](https://learn.microsoft.com/graph/api/user-list-transitivememberof)
+
+## Follow-up probe: opt-in selected-user AD snapshot (separate PR)
+
+A dedicated **standalone Windows PowerShell diagnostic** is now available in
+`tools/ci/windows-domain/Invoke-SelectedUserMembershipProbe.ps1`, with execution
+and acceptance guidance in
+[Windows domain membership probe](../testing/windows-domain-membership-probe.md).
+
+It deliberately has **no Web API surface, service registration, database write,
+identity impersonation or runtime grant-evaluator integration**. Operators must opt
+in to a single user-SID and expected-group-SID read under the machine's joined
+domain and current process's existing integrated permissions. The diagnostic
+reports a sanitized **AD transitive SID snapshot**, its bounded duration and
+whether that SID appeared, optionally comparing the current process's own enabled
+token group only when the process user SID matches the selected account.
+
+A new **Windows CI self-test** validates LDAP binary SID escaping and the
+domain-free path. This is not a real-domain test; field validation is still
+required. `tokenGroups` may be expensive, depends on a GC, and is not a
+substitute for token `SE_GROUP_ENABLED`/deny-only semantics. **All negative
+or partial results remain unknown rather than "verified no access."**
+
+**Decision:** a future selected-user administration API must **not** convert
+these computed directory SIDs to `VerifiedGroupMembership` or treat the
+snapshot as permission to run a Logic Module or control an Asset. Complete
+provider-specific semantics and authorization/audit design must be separately
+proved. Current UI copy "Not evaluated" remains correct.
