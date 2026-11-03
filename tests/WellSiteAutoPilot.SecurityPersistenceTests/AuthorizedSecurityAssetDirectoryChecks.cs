@@ -38,7 +38,8 @@ internal static partial class AuthorizedSecurityDirectoryChecks
             if (!paged.SequenceEqual(complete) || !paged.Select(asset => asset.Id).SequenceEqual(assets.Select(asset => asset.Id)) ||
                 !paged.Any(asset => !asset.IsActive) || (await directory.ListAssetsAuthorizedAsync(subject, 3, 1)).Count != 0 ||
                 typeof(SecurityAssetDirectoryEntry).GetProperties().Select(property => property.Name)
-                    .Except(["Id", "Name", "IsActive"]).Any())
+                    .Except(["Id", "Name", "IsActive", "OwnerConnectionId", "ConnectionName"]).Any() ||
+                paged.Any(asset => asset.OwnerConnectionId != null || asset.ConnectionName != null))
                 throw new InvalidOperationException("Protected Asset directory lost stable paging, retired Assets or minimal projection.");
             foreach (var (offset, limit) in new[] { (-1, 1), (1000001, 1), (0, 0), (0, 501) })
                 await ExpectAsync(() => directory.ListAssetsAuthorizedAsync(subject, offset, limit), FailureKind.Validation);
