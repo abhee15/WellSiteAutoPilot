@@ -6,7 +6,6 @@ import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '
 import { hashFor } from '../routing';
 import { modeSentence, outcomeLabel, triggerLabel } from '../words';
 import { Status } from '../components/Status';
-import { shortId } from '../format';
 import { useChangeRefresh, useLiveUpdates } from '../live/LiveUpdates';
 import { CopyButton } from './CopyButton';
 import { describeRunContext, assetIdentityLabel } from './runContext';
