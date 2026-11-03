@@ -50,3 +50,59 @@ test('rejects a user whose direct grant count is missing, negative or fractional
       `count ${String(activeDirectGrantCount)} must be refused`);
   }
 });
+
+test('filters the protected user directory before paging and preserves opaque continuation', async () => {
+  const filters = { search: ' %New_ ', accountStatus: 'inactive', directAssignments: 'without' };
+  const cursor = 'YWJj';
+  const result = await access.loadSecurityUserPage(filters, cursor, new AbortController().signal,
+    async (url, init) => {
+      const parsed = new URL(url, 'http://localhost');
+      assert.equal(parsed.pathname, '/api/v1/security/users/page');
+      assert.equal(parsed.searchParams.get('limit'), '50');
+      assert.equal(parsed.searchParams.get('search'), '%New_');
+      assert.equal(parsed.searchParams.get('accountStatus'), 'inactive');
+      assert.equal(parsed.searchParams.get('directAssignments'), 'without');
+      assert.equal(parsed.searchParams.get('cursor'), cursor);
+      assert.equal(init.cache, 'no-store');
+      assert.equal(init.credentials, 'same-origin');
+      return new Response(JSON.stringify({ items: [{ ...record, isActive: false, activeDirectGrantCount: 0 }], nextCursor: null }));
+    });
+  assert.equal(result.items.length, 1);
+  assert.equal(result.nextCursor, null);
+});
+
+test('default directory filters do not imply waiting or group-access verdicts', async () => {
+  const query = access.userDirectoryQuery(access.DEFAULT_USER_DIRECTORY_FILTERS, null);
+  assert.equal(query, 'limit=50');
+  const result = await access.loadSecurityUserPage(access.DEFAULT_USER_DIRECTORY_FILTERS, null,
+    new AbortController().signal, async url => {
+      assert.equal(url, '/api/v1/security/users/page?limit=50');
+      return new Response(JSON.stringify({ items: [{ ...record, activeDirectGrantCount: 0 }], nextCursor: null }));
+    });
+  assert.equal(result.items[0].activeDirectGrantCount, 0);
+});
+
+test('rejects malformed or duplicative directory pages and invalid filter/cursor input', async () => {
+  const filters = access.DEFAULT_USER_DIRECTORY_FILTERS;
+  for (const value of [
+    { items: [], nextCursor: '!' },
+    { items: [record, record], nextCursor: null },
+    { items: [record], nextCursor: 'YWJj' },
+    { items: [record] },
+    { items: [], nextCursor: 'YWJj' },
+  ]) {
+    await assert.rejects(
+      access.loadSecurityUserPage(filters, null, new AbortController().signal,
+        async () => new Response(JSON.stringify(value))),
+      { kind: 'invalidResponse' });
+  }
+  assert.throws(() => access.userDirectoryQuery({ ...filters, search: 'x'.repeat(101) }, null), { kind: 'invalid' });
+  assert.throws(() => access.userDirectoryQuery(filters, 'bad=cursor'), { kind: 'invalid' });
+});
+
+test('server denial does not fall back to a client-cached directory result', async () => {
+  await assert.rejects(
+    access.loadSecurityUserPage(access.DEFAULT_USER_DIRECTORY_FILTERS, null, new AbortController().signal,
+      async () => new Response('', { status: 403 })),
+    { kind: 'accessDenied' });
+});
