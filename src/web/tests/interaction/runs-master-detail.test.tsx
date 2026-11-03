@@ -42,7 +42,7 @@ it('shows the owning connection in run history and run summary when the asset is
   render(<OperationsPage executions={[item] as never} configuredLogic={config as never}
     assets={[]} userId="11111111-1111-4111-8111-111111111111" canReadAssets />);
   expect(await screen.findByText('RPOC_00002 (CygNet Test)')).toBeTruthy();
-  await userEvent.setup().click(screen.getByRole('button', { name: /Inspect run/ }));
+  await userEvent.setup().click(screen.getByText('RPOC_00002 (CygNet Test)'));
   const panel = await screen.findByRole('region', { name: 'Run details' });
   expect(within(panel).getByRole('link', { name: 'RPOC_00002 (CygNet Test)' })).toBeTruthy();
 });
