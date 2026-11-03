@@ -142,3 +142,18 @@ it('keeps Refresh and Close together in the detail header when a configuration c
   expect(buttons.map(button => button.getAttribute('aria-label'))).toEqual(['Reload persisted revisions', 'Close']);
   expect(region.querySelector('.setup-panel > button')).toBeNull();
 });
+
+it('shows the owning connection beside asset names in revision summary, bindings and editor', async () => {
+  fixture();
+  const sourceId = id(45);
+  render(<ConfiguredLogicWorkspace {...props}
+    assets={[{ ...assets[0], ownerConnectionId: sourceId }] as never}
+    owners={[{ connectionId: sourceId, name: 'ForeSite Production', assetCount: 1, topLevelCount: 1, isEnabled: true }] as never} />);
+  await screen.findByText('Complex observer');
+  expect(screen.getAllByText('Well 101 (ForeSite Production)').length).toBeGreaterThan(0);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
+  expect(screen.getAllByText(/Well 101 \(ForeSite Production\)/).length).toBeGreaterThan(0);
+  await user.click(screen.getByRole('button', { name: 'Create revision', exact: true }));
+  expect(screen.getByRole('option', { name: 'Well 101 (ForeSite Production)' })).toBeTruthy();
+});
