@@ -67,6 +67,12 @@ export const englishMessages = {
   'assetDetail.newest': 'Newest runs',
   'assetDetail.older': 'Older runs',
   'assetDetail.inspect': 'Inspect run {id}',
+  'assetDetail.backToHistory': 'Back to run history',
+  'assetDetail.selectedRunAt': 'Selected run · {time}',
+  'assetDetail.selectedRunId': 'Selected run · {id}',
+  'assetDetail.selectedRunOutsidePage': 'This run is outside the current history page.',
+  'assetDetail.previousRun': 'Previous run',
+  'assetDetail.nextRun': 'Next run',
 
   'directory.placeholder': 'e.g. SoftwareEngineers',
   'directory.searchHelp': 'Search by group name, then choose a matching group below.',
