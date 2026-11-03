@@ -55,6 +55,19 @@ it('still lists a run that has no request time, without a time, and never throws
   expect(item.textContent).toContain('North Well');
 });
 
+it('names the assets a configured run covered when the run itself reports none', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => response([])));
+  const configured = [{ id: 'c1', name: 'Fillage watch', revisions: [{ id: 'v1', revisionNumber: 1,
+    assetBindings: [{ assetId: 'a1' }, { assetId: 'a2' }, { assetId: 'a3' }] }] }];
+  const assets = [{ id: 'a1', name: 'North Well' }, { id: 'a2', name: 'South Well' }, { id: 'a3', name: 'East Well' }];
+  render(<OverviewPage {...(props as never)} assets={assets as never} configuredLogic={configured as never}
+    executions={[run('e1', { assetId: null, logicInstanceId: 'c1', configurationRevisionId: 'v1' })] as never} />);
+  const item = (await screen.findByRole('region', { name: 'Latest runs' })).querySelector('li') as HTMLElement;
+  expect(item.textContent).toContain('North Well, South Well +1 more');
+  expect(item.textContent).toContain('Fillage watch');
+  expect(item.textContent).not.toContain('—');
+});
+
 it('leaves the panel out when there are no runs to show', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([])));
   render(<OverviewPage {...(props as never)} executions={[]} />);
