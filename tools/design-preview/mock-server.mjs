@@ -101,7 +101,7 @@ const responses = {
     { userId: id(903), identityName: 'FIELD\\10299120', displayName: 'Sam Patel', isActive: false, createdAtUtc: iso(6000), lastSeenAtUtc: iso(4000), activeDirectGrantCount: 0 }],
   '/api/v1/connections': [{ id: id(950), name: 'ForeSite', adapterKey: 'foresite', settingsVersion: 1,
     settings: { baseUrl: 'https://foresite.example.com' }, isEnabled: true, revision: 2, createdAtUtc: iso(9000), updatedAtUtc: iso(300),
-    lastTest: { outcome: 'Healthy', message: 'Connected.', actingAs: 'FIELD\\10482267', testedAtUtc: iso(5), testedRevision: 2, source: 'scheduled' }, lastTestIsCurrent: true }],
+    lastTest: { outcome: 'Healthy', message: 'Connected.', actingAs: 'FIELD\\10482267', testedAtUtc: iso(5), testedRevision: 2, source: 'scheduled' }, lastTestIsCurrent: true, hasImports: true }],
   '/api/v1/connections/adapters': [{ key: 'foresite', displayName: 'ForeSite', description: 'Weatherford ForeSite production data.',
     settingsVersion: 1, capabilities: ['Discover', 'Import'], canDiscover: true, groupingFields: [],
     fields: [{ key: 'baseUrl', label: 'Server address', helpText: 'The ForeSite server.', kind: 'Url', required: true, maxLength: 200 }] }],

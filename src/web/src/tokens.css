@@ -52,6 +52,7 @@
   --color-shadow-color: var(--palette-shadow);
   --color-text-secondary: var(--palette-slate-600);
   --color-surface-input: var(--palette-white);
+  --color-surface-input-readonly: var(--palette-slate-100);
   --color-text-control: var(--palette-slate-900);
   --color-surface-secondary-hover: var(--palette-slate-150);
   --color-border-error: var(--palette-red-300);

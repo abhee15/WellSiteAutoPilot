@@ -22,7 +22,8 @@ public static class ConnectionMonitorActor
 
 /// <summary>
 /// A named, saved way to reach one outside system. The settings are opaque to the Server: the adapter declared
-/// what they mean and the Gateway judged them.
+/// what they mean and the Gateway judged them. <c>HasImports</c> is true once any Asset was imported from the
+/// connection; its required settings can then no longer change.
 /// </summary>
 public sealed record ConnectionRecord(
     Guid Id,
@@ -34,7 +35,8 @@ public sealed record ConnectionRecord(
     int Revision,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
-    ConnectionTestRecord? LastTest);
+    ConnectionTestRecord? LastTest,
+    bool HasImports = false);
 
 public sealed record CreateConnectionCommand(
     string Name, string AdapterKey, IReadOnlyDictionary<string, string?>? Settings);

@@ -218,6 +218,7 @@ request("POST", "/connections", body={"name": "   ", "adapterKey": "simulator", 
 created = request("POST", "/connections", body={"name": conn_name, "adapterKey": "simulator",
     "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=201)
 assert created["revision"] == 1 and created["isEnabled"] and created["lastTest"] is None, created
+assert created["hasImports"] is False, created
 request("POST", "/connections", body={"name": conn_name.lower(), "adapterKey": "simulator",
     "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=409)
 tested = request("POST", "/connections/" + created["id"] + "/test")
@@ -254,6 +255,7 @@ request("DELETE", "/connections/" + pv["id"], expected=204)
 # Find: the simulator's ForeSite-shaped stand-in is served under /foresite, and discovery reads it as the Gateway's account.
 stand_in = request("POST", "/connections", body={"name": conn_name + " foresite stand-in", "adapterKey": "foresite",
     "settings": {"baseUrl": "http://127.0.0.1:5091/foresite"}}, expected=201)
+assert stand_in["hasImports"] is False, stand_in
 found = request("POST", "/connections/" + stand_in["id"] + "/discover")
 assert found["complete"] is True and found["warnings"] == [] and found["actingAs"], found
 assert sorted(item["displayName"] for item in found["items"]) == ["Alpha 1", "Alpha 2", "Bravo 1"], found
@@ -397,11 +399,15 @@ assert not wrong_recipe["canImport"] and wrong_recipe["conflicts"], wrong_recipe
 request("POST", import_url, body={"levels": [], "expectedFingerprint": wrong_recipe["fingerprint"]}, expected=409)
 # Once Assets were imported the connection cannot be pointed at another system, but can still be renamed.
 current = request("GET", "/connections/" + stand_in["id"])
+assert current["hasImports"] is True, current
+listed = {item["id"]: item for item in request("GET", "/connections")}
+assert listed[stand_in["id"]]["hasImports"] is True and listed[created["id"]]["hasImports"] is False, listed
 request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": current["revision"], "name": current["name"],
     "settings": {"baseUrl": "http://127.0.0.1:5091/other"}}, expected=409)
 renamed = request("PUT", "/connections/" + stand_in["id"], body={"expectedRevision": current["revision"],
     "name": conn_name + " renamed stand-in", "settings": {"baseUrl": "http://127.0.0.1:5091/foresite"}})
 assert renamed["revision"] == current["revision"] + 1 and renamed["name"].endswith("renamed stand-in"), renamed
+assert renamed["hasImports"] is True, renamed
 request("POST", plan_url, body={"levels": levels, "snapshotId": recipe_discovery["snapshotId"]}, expected=409)
 
 # Ownership: what a connection imported belongs to it alone. A second connection to the same system gets its own

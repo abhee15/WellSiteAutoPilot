@@ -11,7 +11,7 @@ vi.mock('../../src/views/connections', async original => ({ ...await original<ty
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 const snapshotId = '11111111-1111-4111-8111-111111111111';
 const connection: Connection = { id: '22222222-2222-4222-8222-222222222222', name: 'Production ForeSite', adapterKey: 'foresite', settingsVersion: 1,
-  settings: {}, isEnabled: true, revision: 1, createdAtUtc: '2026-10-22T10:00:00Z', updatedAtUtc: '2026-10-22T10:00:00Z', lastTest: null, lastTestIsCurrent: false };
+  settings: {}, isEnabled: true, revision: 1, createdAtUtc: '2026-10-22T10:00:00Z', updatedAtUtc: '2026-10-22T10:00:00Z', lastTest: null, lastTestIsCurrent: false, hasImports: false };
 const adapter: Adapter = { key: 'foresite', displayName: 'ForeSite', description: '', settingsVersion: 1, fields: [], capabilities: [], canDiscover: true,
   groupingFields: [{ key: 'assetName', label: 'ForeSite asset' }, { key: 'wellType', label: 'Well type' }, { key: 'deviceType', label: 'Device type' }] };
 const wells = Array.from({ length: 1200 }, (_, index) => ({ kind: 'foresite.well', externalId: String(index + 1),

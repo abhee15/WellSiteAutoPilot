@@ -81,7 +81,9 @@ public sealed record ConnectionResponse(
     DateTimeOffset UpdatedAtUtc,
     ConnectionTestResponse? LastTest,
     /// <summary>False when the settings changed after the last test, so that result no longer describes them.</summary>
-    bool LastTestIsCurrent);
+    bool LastTestIsCurrent,
+    /// <summary>True once Assets were imported from this connection; its required settings can then no longer change.</summary>
+    bool HasImports);
 
 public sealed record CreateConnectionRequest(string Name, string AdapterKey, Dictionary<string, string?>? Settings);
 
