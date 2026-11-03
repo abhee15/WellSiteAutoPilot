@@ -15,7 +15,7 @@ import './accessManagement.css';
 interface AccessManagementPageProps {
   currentUserId: string;
   /** Opens the existing protected grants editor for this user. */
-  onAssignRole?: (userId: string) => void;
+  onAssignRole?: (user: VerifiedSecurityUser) => void;
 }
 
 /** Identity directory: direct assignments are not a claim about effective/group-derived access. */
@@ -136,7 +136,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
           <td>{formatDetailTimestamp(user.lastSeenAtUtc)}</td>
           <td>{canAssign(user) && <ActionButton label={t('access.assignRole')}
             aria-label={t('access.assignRoleTo', { name: user.displayName || user.identityName })}
-            onClick={() => onAssignRole?.(user.userId)} />}</td>
+            onClick={() => onAssignRole?.(user)} />}</td>
         </tr>)}</tbody>
       </table>
     </div>}
