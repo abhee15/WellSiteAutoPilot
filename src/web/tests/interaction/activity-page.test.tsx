@@ -17,7 +17,7 @@ const event = (n: number, extra: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => { vi.resetAllMocks(); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('Activity page', () => {
   it('reads each event as a sentence with the record named, and opens its details beside the list', async () => {
