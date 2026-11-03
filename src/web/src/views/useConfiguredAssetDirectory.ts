@@ -48,5 +48,5 @@ export function useConfiguredAssetDirectory(
   }, [key]);
 
   const current = directory.key === key && canReadAssets ? directory : null;
-  return { assets: [...known, ...(current?.assets ?? [])], owners: current?.owners ?? [] };
+  return { assets: canReadAssets ? [...known, ...(current?.assets ?? [])] : [], owners: current?.owners ?? [] };
 }
