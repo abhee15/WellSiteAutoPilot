@@ -60,7 +60,7 @@ test('configured grid labels use active-revision assets and distinguish matching
   const owners = [{ connectionId: 'c1', name: 'ForeSite Production' }, { connectionId: 'c2', name: 'CygNet Test' }];
   assert.equal(ctx.configuredTargetLabel(ids, named, owners), 'RPOC_0002 (ForeSite Production), RPOC_0002 (CygNet Test)');
   assert.deepEqual(ctx.configurationTargetAssetIds({ ...logic, activeRevisionId: null }), ['new-well']);
-  assert.equal(ctx.configuredTargetLabel(['missing-identifier-12345'], [], []), 'missing-i…');
+  assert.equal(ctx.configuredTargetLabel(['missing-identifier-12345'], [], []), 'missing-…');
   assert.equal(ctx.configuredTargetLabel(['asset-a'], named, []), 'RPOC_0002');
   assert.equal(ctx.configuredTargetLabel([], named, owners), '—');
 });
