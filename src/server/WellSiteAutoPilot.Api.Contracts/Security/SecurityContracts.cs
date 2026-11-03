@@ -9,3 +9,7 @@ public sealed record CurrentUserResponse(Guid UserId, string IdentityName, strin
 /// </param>
 public sealed record SecurityUserResponse(Guid UserId, string IdentityName, string? DisplayName,
     bool IsActive, DateTimeOffset CreatedAtUtc, DateTimeOffset LastSeenAtUtc, int ActiveDirectGrantCount);
+
+/// <summary>Protected, server-filtered directory page; direct counts exclude group-derived access.</summary>
+public sealed record SecurityUserDirectoryPageResponse(
+    IReadOnlyCollection<SecurityUserResponse> Items, string? NextCursor);
