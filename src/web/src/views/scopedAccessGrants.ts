@@ -26,7 +26,7 @@ export type AssetChoice = Omit<AssetDirectoryEntryResponse, 'ownerConnectionId' 
 /** An O(n) authorized identity index: never search the full 20,000-asset directory for each row. */
 export function grantAssetLabels(available: readonly AssetChoice[]): ReadonlyMap<string, string> {
   const counts = new Map<string, number>();
-  const key = (asset: AssetChoice) => JSON.stringify([asset.name, asset.ownerConnectionId ?? null]);
+  const key = (asset: AssetChoice) => JSON.stringify([asset.name, asset.connectionName ?? null]);
   for (const asset of available) counts.set(key(asset), (counts.get(key(asset)) ?? 0) + 1);
   return new Map(available.map(asset => {
     const name = asset.connectionName ? `${asset.name} (${asset.connectionName})` : asset.name;
