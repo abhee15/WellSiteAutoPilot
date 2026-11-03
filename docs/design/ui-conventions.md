@@ -19,6 +19,16 @@ Material guidance on dense data applications.
 with a tooltip and accessible name. Text for primary and commit actions (Save, Approve, Configure Logic), anything with a
 consequence, and anything whose icon is ambiguous.
 
+## Tab and page-section navigation (migration contract)
+
+See [Tab navigation design-system inventory and contract — Phase 1](tab-navigation-design-system-phase1.md) for the source audit, proposed component APIs, behavioral preservation matrix, responsive decisions, and future CI guard requirements. **This is a target contract; the Phase 1 PR is documentation-only.**
+
+- **Page-level views:** use the future shared `PageTabNav` for URL-addressable sections (Assets, Logic, Administration). It renders labeled native links and `aria-current="page"`, **not** tablist/tab roles. Preserve hashes, counts, permissions and Add/Create actions (the latter remain ordinary `ActionButton` controls outside the navigation strip).
+- **Within a record's detail pane:** use the future shared `SectionTabs` for real content tabs and matching tabpanels. Roving keyboard focus must use Left/Right/Home/End; Enter/Space commits a manual-activation tab, especially when selecting it fetches remote history. Preserve draft-edit locks, controlled selection and access filtering.
+- **Appearance:** both use one private `TabStrip` visual foundation, the existing light semantic tokens, shared selected/focus/hover styles and the 14px control type scale. Do not add page-specific tab CSS or a parallel tab library.
+- **Responsiveness:** maintain the existing 2:3 master/detail layout. Put page navigation above the panes, inspector tabs inside the selected pane; size to available pane width and provide horizontally reachable overflow without wrapping labels. Add/Create actions must remain visible. Check desktop, tablet, phone, zoom, keyboard and touch.
+- **Prevention:** after migration, CI must reject ad-hoc tablist markup or tab-strip CSS outside shared components and remove old exceptions. A CSS class merely having a rule or using design tokens is **not** sufficient evidence of component consistency.
+
 ## Layout
 
 - Master-detail pages (`split-layout`): on screens wider than 900px the panes fill the window under the header and each
