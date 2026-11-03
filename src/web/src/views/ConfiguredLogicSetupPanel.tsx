@@ -18,16 +18,18 @@ import { ParameterOverridesEditor } from './ParameterOverridesEditor';
 import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
 import './configuredLogicSetup.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import type { OwnerGroup } from './assetHierarchy';
+import { assetIdentityLabel } from './runContext';
 
 type Props = {
-  modules: LogicModuleResponse[]; assets: AssetResponse[]; assetTypes: AssetTypeResponse[];
+  modules: LogicModuleResponse[]; assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; owners?: readonly OwnerGroup[];
   configuration?: VerifiedConfiguration; revision?: ConfiguredLogicRevisionResponse; editDraft?: boolean;
   onSaved: (configuration: VerifiedConfiguration, savedRevisionId?: string) => void; onCancel: () => void;
   onDenied?: (committed: boolean) => void;
   /** Begin from this asset: it is pre-selected for the first role it fits. */
   initialAssetId?: string | null; canReadViews?: boolean;
 };
-export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
+export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners = [],
   configuration, revision, editDraft = false, onSaved, onCancel, onDenied, initialAssetId, canReadViews = false }: Props) {
   const [views, setViews] = useState<AssetView[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -39,6 +41,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
   const [detailLimit, setDetailLimit] = useState(20);
   const viewController = useRef(new AbortController());
   const allAssets = useMemo(() => [...new Map([...assets, ...viewAssets].map(asset => [asset.id, asset])).values()], [assets, viewAssets]);
+  const labelAsset = (id?: string | null) => assetIdentityLabel(id, allAssets, owners);
   useEffect(() => {
     const request = new AbortController();
     if (canReadViews) Promise.all([loadViews(request.signal), loadConnections(request.signal)]).then(([items, sources]) => {
@@ -256,12 +259,12 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
             value={bindings[r.role] ?? []} onChange={e => setBindings({ ...bindings,
               [r.role]: Array.from(e.target.selectedOptions, o => o.value) })}>
             {eligibleAssets(r, allAssets, assetTypes).filter(a => !manifest.requiredAdapterKey || !!a.ownerConnectionId)
-              .map(a => <option key={a.id} value={a.id}>{a.name} · {a.id}</option>)}
+              .map(a => <option key={a.id} value={a.id}>{labelAsset(a.id)}</option>)}
           </select></label>
           {(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <ParameterOverridesEditor
             key={moduleKey + JSON.stringify([r.role, id])} schema={manifest.parameterSchema}
-            context={allAssets.find(a => a.id === id)?.name ?? id}
-            label={t('setup.overrides', { asset: allAssets.find(a => a.id === id)?.name ?? id })}
+            context={labelAsset(id)}
+            label={t('setup.overrides', { asset: labelAsset(id) })}
             idPrefix={'override-' + r.role + '-' + id + '-'} value={overrides[JSON.stringify([r.role, id])] ?? '{}'}
             onValidity={valid => setOverrideValidity(current => ({ ...current, [JSON.stringify([r.role, id])]: valid }))}
             onChange={value => setOverrides(current => ({ ...current, [JSON.stringify([r.role, id])]: value }))} />)}
@@ -273,7 +276,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes,
         {manifest?.dataRequirements.flatMap(r => (bindings[r.assetRole] ?? []).slice(0, detailLimit).map(id => {
           const key = JSON.stringify([r.id, id]);
           const binding = data[key] ?? { providerId: '', providerAssetExternalId: '', providerMappingJson: '{}' };
-          return <fieldset key={key}><legend>{r.id} · {r.quantity} · {allAssets.find(a => a.id === id)?.name ?? id}</legend>
+          return <fieldset key={key}><legend>{r.id} · {r.quantity} · {labelAsset(id)}</legend>
             {(['providerId', 'providerAssetExternalId', 'providerMappingJson'] as const).map(field =>
               <label key={field}>{t(`setup.${field}`)}
                 {field === 'providerMappingJson'

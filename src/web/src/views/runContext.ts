@@ -1,4 +1,6 @@
 import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
+import type { OwnerGroup } from './assetHierarchy';
+import { latestRevision } from './configuredLogicViews';
 
 export type RunContext = {
   /** The customer's name for the logic, when the configuration is in the loaded list. */
@@ -61,6 +63,47 @@ export function configurationAssetLabels(
     (revision.assetBindings ?? []).flatMap(binding => (binding.assetId ? [binding.assetId] : []))))];
   const names = new Map(assets.flatMap(asset => (asset.id ? [[asset.id, asset.name ?? ''] as const] : [])));
   return ids.map(id => names.get(id) || shortId(id));
+}
+
+/**
+ * The assets currently targeted by a configuration. Historical revisions must not be combined
+ * into the Logic grid: they may refer to assets that this configuration no longer uses.
+ */
+export function configurationTargetAssetIds(configuration: ConfiguredLogicResponse): string[] {
+  const revision = configuration.activeRevisionId
+    ? configuration.revisions?.find(item => item.id === configuration.activeRevisionId)
+    : latestRevision(configuration);
+  return [...new Set((revision?.assetBindings ?? []).flatMap(binding =>
+    binding.assetId ? [binding.assetId] : []))];
+}
+
+/** User-facing asset identity; a source name only comes from that asset's owning Connection. */
+export function assetIdentityLabel(id: string | null | undefined,
+  assets: readonly AssetResponse[], owners: readonly OwnerGroup[]): string {
+  if (!id) return '—';
+  const asset = assets.find(item => item.id === id);
+  if (!asset?.name) return shortId(id);
+  const connectionName = (item: AssetResponse) => owners.find(owner =>
+    owner.connectionId && owner.connectionId === item.ownerConnectionId)?.name ?? null;
+  const source = connectionName(asset);
+  const label = source ? `${asset.name} (${source})` : asset.name;
+  // If the owning source cannot be named, two otherwise distinct assets may still
+  // have identical labels. Append the short ID only when the displayed labels collide.
+  const ambiguous = assets.some(other => other.id !== id && other.name === asset.name &&
+    connectionName(other) === source);
+  return ambiguous ? `${label} · ${shortId(id)}` : label;
+}
+
+/** Use the same label and truncation in Logic, Schedules and revision details. */
+export function configuredTargetLabel(
+  assetIds: readonly string[], assets: readonly AssetResponse[], owners: readonly OwnerGroup[], maximum = 2,
+): string {
+  // Preserve the full count without resolving thousands of off-screen asset names.
+  if (assetIds.length === 0) return '—';
+  const labels = assetIds.slice(0, maximum).map(id => assetIdentityLabel(id, assets, owners));
+  return assetIds.length > maximum
+    ? `${labels.join(', ')} +${assetIds.length - maximum} more`
+    : labels.join(', ');
 }
 
 /** Newest recorded run per configuration, from whatever runs are already loaded. */

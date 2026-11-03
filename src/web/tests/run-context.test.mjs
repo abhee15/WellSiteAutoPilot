@@ -47,7 +47,7 @@ test('asset labels resolve configured runs with no single asset ID, without losi
   assert.equal(ctx.executionAssetLabel(unlisted, ctx.describeRunContext(unlisted, [], [])), '12345678…');
 });
 
-import { configurationAssetLabels, latestRunByConfiguration } from '../src/views/runContext.ts';
+// Runtime TS modules must be loaded through Vite in this Node test.
 
 test('configuration asset labels cover every revision, once, by name', () => {
   const config = { revisions: [
@@ -55,12 +55,41 @@ test('configuration asset labels cover every revision, once, by name', () => {
     { assetBindings: [{ assetId: 'a1' }, { assetId: 'a3-long-unknown-identifier' }] },
   ] };
   const assets = [{ id: 'a1', name: 'North' }, { id: 'a2', name: 'South' }];
-  assert.deepEqual(configurationAssetLabels(config, assets), ['North', 'South', 'a3-long-…']);
-  assert.deepEqual(configurationAssetLabels({}, assets), []);
+  assert.deepEqual(ctx.configurationAssetLabels(config, assets), ['North', 'South', 'a3-long-…']);
+  assert.deepEqual(ctx.configurationAssetLabels({}, assets), []);
+});
+
+test('configured grid labels use active-revision assets and distinguish matching names by Connection', () => {
+  const logic = { activeRevisionId: 'active', revisions: [
+    { id: 'old', revisionNumber: 1, assetBindings: [{ assetId: 'old-well' }] },
+    { id: 'active', revisionNumber: 2, assetBindings: [
+      { assetId: 'asset-a' }, { assetId: 'asset-b' }, { assetId: 'asset-a' }] },
+    { id: 'pending', revisionNumber: 3, assetBindings: [{ assetId: 'new-well' }] },
+  ] };
+  const ids = ctx.configurationTargetAssetIds(logic);
+  assert.deepEqual(ids, ['asset-a', 'asset-b']);
+  const named = [
+    { id: 'asset-a', name: 'RPOC_0002', ownerConnectionId: 'c1' },
+    { id: 'asset-b', name: 'RPOC_0002', ownerConnectionId: 'c2' },
+  ];
+  const owners = [{ connectionId: 'c1', name: 'ForeSite Production' }, { connectionId: 'c2', name: 'CygNet Test' }];
+  assert.equal(ctx.configuredTargetLabel(ids, named, owners), 'RPOC_0002 (ForeSite Production), RPOC_0002 (CygNet Test)');
+  assert.deepEqual(ctx.configurationTargetAssetIds({ ...logic, activeRevisionId: null }), ['new-well']);
+  assert.equal(ctx.configuredTargetLabel(['missing-identifier-12345'], [], []), 'missing-…');
+  assert.equal(ctx.configuredTargetLabel(['asset-a'], named, []), 'RPOC_0002 · asset-a');
+  const duplicate = [...named, { id: 'asset-a-second', name: 'RPOC_0002', ownerConnectionId: 'c1' }];
+  assert.equal(ctx.configuredTargetLabel(['asset-a'], duplicate, owners), 'RPOC_0002 (ForeSite Production) · asset-a');
+  assert.equal(ctx.configuredTargetLabel([], named, owners), '—');
+});
+
+test('configured grid keeps remaining target counts without reading obsolete revision IDs', () => {
+  const ids = ['a1', 'a2', 'a3', 'a4'];
+  const named = ids.map(id => ({ id, name: id.toUpperCase() }));
+  assert.equal(ctx.configuredTargetLabel(ids, named, []), 'A1, A2 +2 more');
 });
 
 test('latest run per configuration ignores undated or unlinked runs', () => {
-  const map = latestRunByConfiguration([
+  const map = ctx.latestRunByConfiguration([
     { logicInstanceId: 'c1', requestedAtUtc: '2026-10-01T00:00:00Z', status: 'Succeeded' },
     { logicInstanceId: 'c1', requestedAtUtc: '2026-10-02T00:00:00Z', status: 'Failed' },
     { logicInstanceId: 'c1', requestedAtUtc: 'not a date', status: 'Succeeded' },

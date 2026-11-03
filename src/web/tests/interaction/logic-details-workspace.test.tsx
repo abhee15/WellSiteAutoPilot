@@ -127,3 +127,33 @@ it('can inspect other known execution modes without exposing a Shadow-only edito
   await userEvent.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
   expect(screen.getByRole('button', { name: 'Copy revision 3' })).toHaveProperty('disabled', true);
 });
+
+it('keeps Refresh and Close together in the detail header when a configuration cannot load', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+    url === '/api/v1/configured-logic/' + id(2)
+      ? new Response('', { status: 503 }) : response([])));
+  render(<ConfiguredLogicWorkspace {...props} />);
+  await screen.findByRole('alert');
+  const region = screen.getByRole('region', { name: 'Configured logic setup' });
+  const group = region.querySelector('.logic-detail-header-actions') as HTMLElement;
+  expect(group).toBeTruthy();
+  const buttons = within(group).getAllByRole('button');
+  expect(buttons).toHaveLength(2);
+  expect(buttons.map(button => button.getAttribute('aria-label'))).toEqual(['Reload persisted revisions', 'Close']);
+  expect(region.querySelector('.setup-panel > button')).toBeNull();
+});
+
+it('shows the owning connection beside asset names in revision summary, bindings and editor', async () => {
+  fixture();
+  const sourceId = id(45);
+  render(<ConfiguredLogicWorkspace {...props}
+    assets={[{ ...assets[0], ownerConnectionId: sourceId }] as never}
+    owners={[{ connectionId: sourceId, name: 'ForeSite Production', assetCount: 1, topLevelCount: 1, isEnabled: true }] as never} />);
+  await screen.findByText('Complex observer');
+  expect(screen.getAllByText('Well 101 (ForeSite Production)').length).toBeGreaterThan(0);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
+  expect(screen.getAllByText(/Well 101 \(ForeSite Production\)/).length).toBeGreaterThan(0);
+  await user.click(screen.getByRole('button', { name: 'Create revision', exact: true }));
+  expect(screen.getByRole('option', { name: 'Well 101 (ForeSite Production)' })).toBeTruthy();
+});

@@ -15,7 +15,8 @@ import { Status } from '../components/Status';
 import { formatTimestamp } from '../format';
 import { profileLabel, statusLabel } from '../words';
 import { moduleStateLabel, moduleStateToken } from './moduleApproval';
-import { configurationAssetLabels, latestRunByConfiguration, summarizeAssetLabels } from './runContext';
+import { configurationTargetAssetIds, configuredTargetLabel, latestRunByConfiguration } from './runContext';
+import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { CONTROL_MANAGE_PERMISSION } from './controlExecution';
@@ -83,6 +84,16 @@ export function LogicPage({
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
   );
+  // The grid shows two names per row. Resolve more for an open revision, without issuing
+  // unbounded per-asset requests for a selection containing thousands of wells.
+  const visibleTargetIds = useMemo(() => {
+    if (showModules) return [];
+    const selectedTargets = (selectedConfiguration?.revisions ?? []).flatMap(revision =>
+      (revision.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : [])).slice(0, 40);
+    const gridTargets = visibleConfigurations.flatMap(item => configurationTargetAssetIds(item).slice(0, 2));
+    return [...new Set([...selectedTargets, ...gridTargets])].slice(0, 100);
+  }, [showModules, selectedConfiguration, visibleConfigurations]);
+  const assetDirectory = useAssetIdentityDirectory(visibleTargetIds, assets, permissions.includes('assets.read'), userId);
   const visibleModules = useMemo(
     () => filterLogicCatalog(modules, catalogCriteria),
     [modules, catalogCriteria],
@@ -109,7 +120,7 @@ export function LogicPage({
       </div>
 
       {showSchedules ? (
-        <SchedulesOverview configuredLogic={configuredLogic} assets={assets}
+        <SchedulesOverview configuredLogic={configuredLogic} assets={assetDirectory.assets} owners={assetDirectory.owners}
           executions={canReadRuns ? executions : undefined} isLoaded={isLoaded} />
       ) : showModules ? (
         <div className="split-panes">
@@ -217,7 +228,7 @@ export function LogicPage({
                           {item.name}
                         </button>
                       </td>
-                      <td className="run-col-secondary">{summarizeAssetLabels(configurationAssetLabels(item, assets)) || '—'}</td>
+                      <td className="run-col-secondary">{configuredTargetLabel(configurationTargetAssetIds(item), assetDirectory.assets, assetDirectory.owners)}</td>
                       <td className="run-col-secondary">{activeRevisionLabel(item)}</td>
                       {canReadRuns && <td className="run-col-secondary">{lastRunText(lastRuns.get(item.id ?? ''))}</td>}
                     </tr>
@@ -244,7 +255,7 @@ export function LogicPage({
                 canReadViews={permissions.includes('connections.read')}
                 canReadControl={permissions.includes('recommendations.read')}
                 canManageControl={permissions.includes(CONTROL_MANAGE_PERMISSION)}
-                modules={modules} assets={assets} assetTypes={assetTypes}
+                modules={modules} assets={assetDirectory.assets} owners={assetDirectory.owners} assetTypes={assetTypes}
                 executions={canReadRuns ? executions : undefined}
                 onChanged={onRefresh}
                 onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
