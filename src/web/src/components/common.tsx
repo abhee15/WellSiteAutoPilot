@@ -1,23 +1,24 @@
 import type { ReactNode } from 'react';
 import { LoadingIndicator } from './LoadingIndicator';
 
-/**
- * A number with its name. Give it `onSelect` and it becomes a button that filters the list below it
- * (`selected` says that filter is on), so the number is also a way in to the rows behind it.
- */
+type SummaryCardProps = {
+  label: string;
+  value: string;
+  detail: string;
+} & (
+  | { href: string; onSelect?: never; selected?: never }
+  | { href?: never; onSelect?: () => void; selected?: boolean }
+);
+
+/** A metric: a link to another page, a filter button within this page, or a read-only stat. */
 export function SummaryCard({
   label,
   value,
   detail,
+  href,
   onSelect,
   selected = false,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  onSelect?: () => void;
-  selected?: boolean;
-}) {
+}: SummaryCardProps) {
   const body = (
     <>
       <span>{label}</span>
@@ -25,6 +26,7 @@ export function SummaryCard({
       <small>{detail}</small>
     </>
   );
+  if (href) return <a className="summary-card summary-card-link" href={href}>{body}</a>;
   if (!onSelect) return <article className="summary-card">{body}</article>;
   return (
     <button type="button" className="summary-card summary-card-action" aria-pressed={selected} onClick={onSelect}>

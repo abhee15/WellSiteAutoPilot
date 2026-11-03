@@ -349,7 +349,14 @@ button:disabled {
   cursor: pointer;
 }
 
-.summary-card-action:hover { background: var(--color-surface-control-hover); }
+.summary-card-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.summary-card-action:hover,
+.summary-card-link:hover { background: var(--color-surface-control-hover); }
 
 .summary-card-action[aria-pressed='true'] {
   border-color: var(--color-focus-ring);
