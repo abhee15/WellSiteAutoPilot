@@ -112,6 +112,18 @@ describe('user access directory', () => {
     await vi.waitFor(() => expect(loadGrants).toHaveBeenCalledWith(waitingId, expect.anything()));
   });
 
+  it('keeps the grant handoff for users found beyond the legacy 100-row grants picker', async () => {
+    const user = userEvent.setup();
+    // Simulate a searched/paged directory user who is not in the Grants tab's first 100 rows.
+    vi.mocked(loadSecurityUsers).mockResolvedValue(directory.filter(item => item.userId !== waitingId));
+    render(<AdministrationWorkspace currentUserId={adminId} />);
+    await user.click(await screen.findByRole('button', { name: 'Assign a role to FIELD\\newhire' }));
+    const picker = await screen.findByRole('combobox', { name: 'User to administer' });
+    await vi.waitFor(() => expect((picker as HTMLSelectElement).value).toBe(waitingId));
+    expect(Array.from((picker as HTMLSelectElement).options).some(option => option.value === waitingId)).toBe(true);
+    await vi.waitFor(() => expect(loadGrants).toHaveBeenCalledWith(waitingId, expect.anything()));
+  });
+
   it('does not preselect a user when the Grants tab is opened directly', async () => {
     const user = userEvent.setup();
     render(<AdministrationWorkspace currentUserId={adminId} />);
