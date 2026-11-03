@@ -62,6 +62,26 @@ test('workspace does not request APIs outside the current permissions', async ()
   assert.equal(snapshot.incomplete, false);
 });
 
+test('a refresh limited to some datasets requests only those', async () => {
+  const user = { ...session, permissions: ['assets.read', 'executions.read'] };
+  const urls = [];
+  const snapshot = await workspace.loadWorkspaceSnapshot(user, signal(), async url => {
+    urls.push(url);
+    return response(url.includes('capabilities') ? { canCreateRoot: true, canCreateUnderAuthorizedParents: true } : [{ id: 'one' }]);
+  }, new Set(workspace.SNAPSHOT_KEYS_BY_AREA.executions));
+  assert.deepEqual(urls, ['/api/v1/executions?limit=50']);
+  assert.equal(snapshot.executions.length, 1);
+  assert.deepEqual(snapshot.assets, []);
+  assert.equal(snapshot.incomplete, false);
+  assert.deepEqual(snapshot.deniedPermissions, []);
+});
+
+test('each change area names the datasets it covers', () => {
+  assert.deepEqual(workspace.SNAPSHOT_KEYS_BY_AREA.assets, ['assetTypes', 'assets', 'capabilities']);
+  assert.deepEqual(workspace.SNAPSHOT_KEYS_BY_AREA.modules, ['modules']);
+  assert.deepEqual(workspace.SNAPSHOT_KEYS_BY_AREA['configured-logic'], ['configurations']);
+});
+
 test('one denied API family clears its own data while retaining permitted work', async () => {
   const user = { ...session, permissions: ['assets.read', 'executions.read'] };
   const snapshot = await workspace.loadWorkspaceSnapshot(user, signal(), async url => {
