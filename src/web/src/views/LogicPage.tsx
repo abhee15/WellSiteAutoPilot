@@ -84,8 +84,15 @@ export function LogicPage({
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
   );
-  const visibleTargetIds = useMemo(() => [...new Set(visibleConfigurations.flatMap(item =>
-    configurationTargetAssetIds(item).slice(0, 2)))], [visibleConfigurations]);
+  // The grid shows two names per row. Resolve more for an open revision, without issuing
+  // unbounded per-asset requests for a selection containing thousands of wells.
+  const visibleTargetIds = useMemo(() => {
+    if (showModules) return [];
+    const selectedTargets = (selectedConfiguration?.revisions ?? []).flatMap(revision =>
+      (revision.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : [])).slice(0, 40);
+    const gridTargets = visibleConfigurations.flatMap(item => configurationTargetAssetIds(item).slice(0, 2));
+    return [...new Set([...selectedTargets, ...gridTargets])].slice(0, 100);
+  }, [showModules, selectedConfiguration, visibleConfigurations]);
   const assetDirectory = useConfiguredAssetDirectory(visibleTargetIds, assets, permissions.includes('assets.read'), userId);
   const visibleModules = useMemo(
     () => filterLogicCatalog(modules, catalogCriteria),
