@@ -226,6 +226,7 @@ export function App() {
             <OverviewPage
               key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
               permissions={currentUser?.permissions ?? []}
+              userId={currentUser?.userId}
               systemHealth={systemHealth}
               executions={executions}
               assets={assets}
@@ -242,6 +243,7 @@ export function App() {
               isLoaded={isLoaded}
               userId={currentUser?.userId}
               canReadConnections={hasPermission(currentUser, 'connections.read')}
+              canReadAssets={hasPermission(currentUser, 'assets.read')}
             />
           )}
           {section === 'recommendations' && canOpenSection(currentUser, section) && (
