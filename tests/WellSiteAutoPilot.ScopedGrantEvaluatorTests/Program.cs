@@ -3,6 +3,7 @@ using WellSiteAutoPilot.Domain.Security;
 
 SecurityActorGroupGuardChecks.Run();
 DirectoryNamespaceChecks.Run();
+MembershipInspectionEvidenceChecks.Run();
 await GroupDirectorySearchChecks.RunAsync();
 var clock = TimeProvider.System;
 
