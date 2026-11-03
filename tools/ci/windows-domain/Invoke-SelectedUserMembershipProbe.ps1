@@ -61,6 +61,9 @@ $matches = $null
 $userEntry = $null
 $baseReader = $null
 try {
+    if (-not $EnableLiveDirectoryRead) {
+        throw 'Explicit directory-read opt-in is required.'
+    }
     # Invalid/unbounded external IDs are rejected before the first LDAP operation.
     if ($TargetUserSid.Length -gt 184 -or $ExpectedGroupSid.Length -gt 184) {
         throw 'Invalid SID input.'
