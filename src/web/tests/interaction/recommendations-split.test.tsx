@@ -119,3 +119,20 @@ it('shows the asset by name and the reason in words, keeping the raw values for 
   const reason = screen.getByText('Pump efficiency low', { selector: 'dd' });
   expect(reason.getAttribute('title')).toBe('pump_efficiency_low');
 });
+
+it('identifies a recommendation asset by its owning connection when the asset is not in the initial snapshot', async () => {
+  const assetId = '88888888-8888-4888-8888-888888888888';
+  const connectionId = '99999999-9999-4999-8999-999999999999';
+  const http = vi.fn(async (url: string) => {
+    if (url === '/api/v1/recommendations?limit=50') return new Response(JSON.stringify([row('identity', { assetId })]));
+    if (url === '/api/v1/assets/owners') return new Response(JSON.stringify([
+      { connectionId, connectionName: 'ForeSite Houston', assetCount: 1 }]));
+    if (url === '/api/v1/assets/' + assetId) return new Response(JSON.stringify({ id: assetId, name: 'RPOC_00002', ownerConnectionId: connectionId }));
+    return new Response('[]');
+  });
+  vi.stubGlobal('fetch', http);
+  render(<RecommendationsPage userId={userId} assets={[]} permissions={['recommendations.read', 'recommendations.decide', 'assets.read']} />);
+  const label = await screen.findByText('RPOC_00002 (ForeSite Houston)');
+  expect(label.closest('td')?.textContent).toContain('RPOC_00002');
+  expect(http.mock.calls.some(([url]) => url === '/api/v1/assets/' + assetId)).toBe(true);
+});
