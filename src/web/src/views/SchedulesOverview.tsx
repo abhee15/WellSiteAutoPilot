@@ -9,12 +9,14 @@ import { statusLabel } from '../words';
 import { scheduleText } from './logicSummary';
 import { summarizeAssetLabels } from './runContext';
 import { buildScheduleOverview } from './scheduleOverview';
+import type { OwnerGroup } from './assetHierarchy';
 
 const CLOCK_REFRESH_MS = 15_000;
 
 type Props = {
   configuredLogic: readonly ConfiguredLogicResponse[];
   assets: readonly AssetResponse[];
+  owners?: readonly OwnerGroup[];
   /** Present only for people who may read runs; without it the last-run column is not shown. */
   executions?: readonly ExecutionResponse[];
   isLoaded: boolean;
@@ -25,7 +27,7 @@ type Props = {
  * What is scheduled to run, how often, and when it runs next. Read-only: a schedule belongs to a configuration
  * revision, so changing one means saving a new revision from the configuration itself, which each row links to.
  */
-export function SchedulesOverview({ configuredLogic, assets, executions, isLoaded, nowMs }: Props) {
+export function SchedulesOverview({ configuredLogic, assets, owners = [], executions, isLoaded, nowMs }: Props) {
   // The server gives the next due time; the clock moves on even when no data changes, so one that has passed reads
   // "due now" instead of a time in the past.
   const [tick, setTick] = useState(() => Date.now());
@@ -36,8 +38,8 @@ export function SchedulesOverview({ configuredLogic, assets, executions, isLoade
   }, [nowMs]);
   const clock = nowMs ?? tick;
   const overview = useMemo(
-    () => buildScheduleOverview(configuredLogic, assets, executions ?? []),
-    [configuredLogic, assets, executions],
+    () => buildScheduleOverview(configuredLogic, assets, executions ?? [], owners),
+    [configuredLogic, assets, executions, owners],
   );
   const showRuns = executions !== undefined;
   return (
