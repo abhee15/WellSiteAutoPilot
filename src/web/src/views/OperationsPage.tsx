@@ -9,7 +9,7 @@ import { EmptyRow, PanelHeader, SummaryCard } from '../components/common';
 import { Status } from '../components/Status';
 import { formatTimestamp, shortId } from '../format';
 import { outcomeLabel } from '../words';
-import { describeRunContext, summarizeAssetLabels } from './runContext';
+import { describeRunContext, executionAssetLabel } from './runContext';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { OperationsViewControls } from './OperationsViewControls';
 import { loadConnections } from './connections';
@@ -153,7 +153,7 @@ function RecentOperationsPage({
                       onClick={() => setSelectedExecutionId(current =>
                         current === execution.executionId ? null : execution.executionId ?? null)}
                     >
-                      <strong>{assetText(execution, context)}</strong>
+                      <strong>{executionAssetLabel(execution, context)}</strong>
                     </button>
                     {execution.quantity && <small>{execution.quantity}</small>}
                   </td>
@@ -212,8 +212,3 @@ function OutcomeCell({ execution }: { execution: ExecutionResponse }) {
   return <span title={outcome.code ?? undefined}>{outcome.text}</span>;
 }
 
-function assetText(execution: ExecutionResponse, context: { assetLabels: string[] }): string {
-  if (execution.assetExternalId) return execution.assetExternalId;
-  if (context.assetLabels.length > 0) return summarizeAssetLabels(context.assetLabels);
-  return execution.assetId ? shortId(execution.assetId) : '—';
-}

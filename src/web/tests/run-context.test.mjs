@@ -32,6 +32,21 @@ test('long asset lists are summarised', () => {
   assert.equal(ctx.summarizeAssetLabels(['A', 'B', 'C', 'D']), 'A, B +2 more');
 });
 
+test('asset labels resolve configured runs with no single asset ID, without losing legacy fallbacks', () => {
+  const configured = { logicInstanceId: 'cfg', configurationRevisionId: 'rev2',
+    assetId: null, assetExternalId: null };
+  const context = ctx.describeRunContext(configured, [configuration], assets);
+  assert.equal(ctx.executionAssetLabel(configured, context), 'North Well, South Well');
+
+  const legacy = { ...configured, assetId: 'a1', assetExternalId: 'source-well-01' };
+  assert.equal(ctx.executionAssetLabel(legacy, ctx.describeRunContext(legacy, [configuration], assets)), 'source-well-01');
+
+  const missing = { ...configured, logicInstanceId: 'unknown', configurationRevisionId: 'unknown' };
+  assert.equal(ctx.executionAssetLabel(missing, ctx.describeRunContext(missing, [], assets)), '—');
+  const unlisted = { ...missing, assetId: '123456789abcdef' };
+  assert.equal(ctx.executionAssetLabel(unlisted, ctx.describeRunContext(unlisted, [], [])), '12345678…');
+});
+
 import { configurationAssetLabels, latestRunByConfiguration } from '../src/views/runContext.ts';
 
 test('configuration asset labels cover every revision, once, by name', () => {
