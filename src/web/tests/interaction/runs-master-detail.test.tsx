@@ -43,6 +43,6 @@ it('shows the owning connection in run history and run summary when the asset is
     assets={[]} userId="11111111-1111-4111-8111-111111111111" canReadAssets />);
   expect(await screen.findByText('RPOC_00002 (CygNet Test)')).toBeTruthy();
   await userEvent.setup().click(screen.getByText('RPOC_00002 (CygNet Test)'));
-  const panel = await screen.findByRole('region', { name: 'Run details' });
-  expect(within(panel).getByRole('link', { name: 'RPOC_00002 (CygNet Test)' })).toBeTruthy();
+  // Both split-pane and detail sections are intentionally labeled Run details; select the link itself.
+  expect(await screen.findByRole('link', { name: 'RPOC_00002 (CygNet Test)' })).toBeTruthy();
 });
