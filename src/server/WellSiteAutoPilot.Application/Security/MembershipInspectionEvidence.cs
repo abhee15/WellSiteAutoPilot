@@ -26,13 +26,6 @@ public sealed record MembershipInspectionEvidence(
     DateTimeOffset? ObservedAtUtc = null)
 {
     /// <summary>
-    /// No existing request-bound adapter can prove another user's live directory
-    /// membership or demonstrate that an authenticated token has been renewed.
-    /// A negative runtime group check is therefore not a verified directory absence.
-    /// </summary>
-    public bool EstablishesCurrentDirectoryAbsence => false;
-
-    /// <summary>
     /// Evaluate only server-owned request evidence. This does not fetch arbitrary
     /// user groups or permit a caller to borrow an administrator's groups for
     /// the person under inspection.
