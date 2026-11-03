@@ -62,6 +62,7 @@ export const englishMessages = {
   'assetDetail.previousLogic': 'Previous logic',
   'assetDetail.moreLogic': 'More logic',
   'assetDetail.historyTitle': 'Run history',
+  'assetDetail.historyEntries': 'Run history entries',
   'assetDetail.historyScope': 'Runs for this asset and configuration, including their saved execution scope.',
   'assetDetail.backToAsset': 'Back to asset',
   'assetDetail.newest': 'Newest runs',
