@@ -67,3 +67,17 @@ test('Directory cannot silently truncate after verification cap', async () => {
   }), { kind: 'tooLarge' });
   assert.equal(reads, 101);
 });
+
+test('admin asset directory keeps the owning connection identity and rejects invalid ownership data', async () => {
+  const connectionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const input = [{ ...asset(1), ownerConnectionId: connectionId, connectionName: 'ForeSite Production' }];
+  const result = await api.loadGrantAssetDirectory(signal(), async () => new Response(JSON.stringify(input)));
+  assert.deepEqual(result, input);
+  for (const bad of [
+    { ...asset(1), ownerConnectionId: 'invalid', connectionName: 'ForeSite' },
+    { ...asset(1), ownerConnectionId: connectionId, connectionName: 10 },
+  ]) {
+    await assert.rejects(api.loadGrantAssetDirectory(signal(), async () =>
+      new Response(JSON.stringify([bad]))), { kind: 'invalid' });
+  }
+});
