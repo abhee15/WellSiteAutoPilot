@@ -33,6 +33,7 @@ export function PageTabNav<T extends string>({ label, tabs, activeId, action }: 
   return <TabBar action={action} rootRef={rootRef}>
     <TabStrip label={label} mode="navigation">
       {tabs.map(tab => <a key={tab.id} className="tab-strip-item" href={tab.href}
+        aria-label={tab.count === undefined ? tab.label : tab.label + ' ' + tab.count}
         aria-current={tab.id === activeId ? 'page' : undefined}>
         <span>{tab.label}</span>
         {tab.count !== undefined && <span className="tab-strip-count">{tab.count}</span>}
