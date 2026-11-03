@@ -16,7 +16,7 @@ import { formatTimestamp } from '../format';
 import { profileLabel, statusLabel } from '../words';
 import { moduleStateLabel, moduleStateToken } from './moduleApproval';
 import { configurationTargetAssetIds, configuredTargetLabel, latestRunByConfiguration } from './runContext';
-import { useConfiguredAssetDirectory } from './useConfiguredAssetDirectory';
+import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
 import { CONTROL_MANAGE_PERMISSION } from './controlExecution';
@@ -93,7 +93,7 @@ export function LogicPage({
     const gridTargets = visibleConfigurations.flatMap(item => configurationTargetAssetIds(item).slice(0, 2));
     return [...new Set([...selectedTargets, ...gridTargets])].slice(0, 100);
   }, [showModules, selectedConfiguration, visibleConfigurations]);
-  const assetDirectory = useConfiguredAssetDirectory(visibleTargetIds, assets, permissions.includes('assets.read'), userId);
+  const assetDirectory = useAssetIdentityDirectory(visibleTargetIds, assets, permissions.includes('assets.read'), userId);
   const visibleModules = useMemo(
     () => filterLogicCatalog(modules, catalogCriteria),
     [modules, catalogCriteria],
