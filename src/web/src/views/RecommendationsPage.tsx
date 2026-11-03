@@ -28,6 +28,8 @@ import { EmptyRow, SummaryCard } from '../components/common';
 import type { MessageKey } from '../localization';
 import { humanize } from './auditPresentation';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
+import { useConfiguredAssetDirectory } from './useConfiguredAssetDirectory';
+import { assetIdentityLabel } from './runContext';
 import './splitLayout.css';
 
 type InboxError = 'accessDenied' | 'invalidResponse' | 'unavailable';
@@ -151,10 +153,6 @@ export function RecommendationsPage({
   assets?: readonly AssetResponse[];
   configuredLogic?: readonly ConfiguredLogicResponse[];
 }) {
-  const assetNames = useMemo(
-    () => new Map(assets.flatMap(asset => (asset.id && asset.name ? [[asset.id, asset.name] as const] : []))),
-    [assets],
-  );
   const [items, setItems] = useState<RecommendationSummaryResponse[]>([]);
   const [criteria, setCriteria] = useState<RecommendationInboxCriteria>(
     DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
@@ -237,6 +235,12 @@ export function RecommendationsPage({
     () => filterRecommendationInbox(items, criteria, nowUtc),
     [items, criteria, nowUtc],
   );
+  const targetIds = useMemo(() => [...new Set(visible.flatMap(item => item.assetId ? [item.assetId] : []))], [visible]);
+  const assetDirectory = useConfiguredAssetDirectory(targetIds, assets,
+    Boolean(permissions?.includes('assets.read')), userId);
+  const assetNames = new Map(assetDirectory.assets.flatMap(asset =>
+    asset.id && asset.name
+      ? [[asset.id, assetIdentityLabel(asset.id, assetDirectory.assets, assetDirectory.owners)] as const] : []));
   const errorMessages: Record<InboxError, string> = {
     accessDenied: t('inbox.accessDenied'),
     invalidResponse: t('inbox.invalidResponse'),
