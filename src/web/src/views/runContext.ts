@@ -98,7 +98,12 @@ export function assetIdentityLabel(id: string | null | undefined,
 export function configuredTargetLabel(
   assetIds: readonly string[], assets: readonly AssetResponse[], owners: readonly OwnerGroup[], maximum = 2,
 ): string {
-  return summarizeAssetLabels(assetIds.map(id => assetIdentityLabel(id, assets, owners)), maximum) || '—';
+  // Preserve the full count without resolving thousands of off-screen asset names.
+  if (assetIds.length === 0) return '—';
+  const labels = assetIds.slice(0, maximum).map(id => assetIdentityLabel(id, assets, owners));
+  return assetIds.length > maximum
+    ? `${labels.join(', ')} +${assetIds.length - maximum} more`
+    : labels.join(', ');
 }
 
 /** Newest recorded run per configuration, from whatever runs are already loaded. */
