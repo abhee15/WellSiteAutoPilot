@@ -14,7 +14,7 @@ const connection: Connection = {
   id: '00000000-0000-4000-8000-000000000001', name: 'Field simulator', adapterKey: 'simulator', settingsVersion: 1,
   settings: {}, isEnabled: true, revision: 1, createdAtUtc: '2026-10-20T10:00:00Z', updatedAtUtc: '2026-10-20T10:00:00Z',
   lastTest: { outcome: 'Unreachable', message: 'No answer', actingAs: null, testedAtUtc: '2026-10-20T10:05:00Z', testedRevision: 1 },
-  lastTestIsCurrent: true,
+  lastTestIsCurrent: true, hasImports: false,
 };
 const info = { product: 'WellSiteAutoPilot', components: [
   { name: 'Server', version: '1.2.3', status: 'Healthy' }, { name: 'Gateway', version: '1.2.3', status: 'Unavailable' }] };

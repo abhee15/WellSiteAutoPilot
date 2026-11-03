@@ -15,14 +15,20 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
     private const string NameIndex = "IX_connections_NormalizedName";
     private TimeProvider Time => clock ?? TimeProvider.System;
 
-    public async Task<IReadOnlyList<ConnectionRecord>> ListAsync(CancellationToken cancellationToken = default) =>
-        (await dbContext.Connections.AsNoTracking().OrderBy(item => item.NormalizedName).ToArrayAsync(cancellationToken))
-        .Select(ToRecord).ToArray();
+    public async Task<IReadOnlyList<ConnectionRecord>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var entities = await dbContext.Connections.AsNoTracking().OrderBy(item => item.NormalizedName).ToArrayAsync(cancellationToken);
+        // The same test the update and delete guards use: any source binding means Assets were imported.
+        var withImports = (await dbContext.Connections.AsNoTracking()
+            .Where(item => dbContext.SourceBindings.Any(binding => binding.ConnectionId == item.Id))
+            .Select(item => item.Id).ToArrayAsync(cancellationToken)).ToHashSet();
+        return entities.Select(entity => ToRecord(entity, withImports.Contains(entity.Id))).ToArray();
+    }
 
     public async Task<ConnectionRecord?> FindAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.Connections.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        return entity is null ? null : ToRecord(entity);
+        return entity is null ? null : ToRecord(entity, await HasImportsAsync(id, cancellationToken));
     }
 
     public Task CreateAuthorizedAsync(ConnectionRecord connection, AccessSubject subject, SecurityActorContext actor,
@@ -67,7 +73,7 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
             Touch(entity);
             Audit("connection.updated", id, subject, actor, new { entity.AdapterKey, SettingNames = settings.Keys.Order(StringComparer.Ordinal) });
         }, cancellationToken);
-        return ToRecord(await Reload(id, cancellationToken));
+        return await ReloadRecord(id, cancellationToken);
     }
 
     public async Task<ConnectionRecord> SetEnabledAuthorizedAsync(Guid id, int expectedRevision, bool enabled,
@@ -81,7 +87,7 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
             Touch(entity);
             Audit(enabled ? "connection.enabled" : "connection.disabled", id, subject, actor, new { entity.AdapterKey });
         }, cancellationToken);
-        return ToRecord(await Reload(id, cancellationToken));
+        return await ReloadRecord(id, cancellationToken);
     }
 
     public async Task<ConnectionRecord> RecordTestAuthorizedAsync(Guid id, ConnectionTestRecord result,
@@ -104,7 +110,7 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
             entity.NextCheckAtUtc = null;
             Audit("connection.tested", id, subject, actor, new { entity.AdapterKey, result.Outcome });
         }, cancellationToken);
-        return ToRecord(await Reload(id, cancellationToken));
+        return await ReloadRecord(id, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Guid>> ClaimDueChecksAsync(DateTimeOffset now, TimeSpan lease, int limit,
@@ -196,6 +202,12 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
         return await dbContext.Connections.AsNoTracking().SingleAsync(item => item.Id == id, cancellationToken);
     }
 
+    private async Task<ConnectionRecord> ReloadRecord(Guid id, CancellationToken cancellationToken) =>
+        ToRecord(await Reload(id, cancellationToken), await HasImportsAsync(id, cancellationToken));
+
+    private Task<bool> HasImportsAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.SourceBindings.AsNoTracking().AnyAsync(binding => binding.ConnectionId == id, cancellationToken);
+
     private async Task<ConnectionEntity> LockAsync(Guid id, int? expectedRevision, CancellationToken cancellationToken)
     {
         var entity = (await dbContext.Connections.FromSqlInterpolated($"""
@@ -258,12 +270,13 @@ public sealed class ConnectionRepository(WellSiteAutoPilotDbContext dbContext, T
 
     private static string Normalize(string name) => name.Trim().ToUpperInvariant();
 
-    private static ConnectionRecord ToRecord(ConnectionEntity entity) => new(entity.Id, entity.Name, entity.AdapterKey,
+    private static ConnectionRecord ToRecord(ConnectionEntity entity, bool hasImports) => new(entity.Id, entity.Name, entity.AdapterKey,
         entity.SettingsVersion, JsonSerializer.Deserialize<Dictionary<string, string>>(entity.SettingsJson) ?? [],
         entity.IsEnabled, entity.Revision, entity.CreatedAtUtc, entity.UpdatedAtUtc,
         entity.LastTestOutcome is null || entity.LastTestAtUtc is null || entity.LastTestRevision is null
             ? null
             : new ConnectionTestRecord(entity.LastTestOutcome, entity.LastTestMessage ?? string.Empty,
                 entity.LastTestActingAs, entity.LastTestAtUtc.Value, entity.LastTestRevision.Value,
-                entity.LastTestSource ?? ConnectionTestSources.Manual));
+                entity.LastTestSource ?? ConnectionTestSources.Manual),
+        hasImports);
 }

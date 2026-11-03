@@ -64,5 +64,6 @@ internal static class ConnectionMapping
         connection.LastTest is null ? null : new ConnectionTestResponse(connection.LastTest.Outcome,
             connection.LastTest.Message, connection.LastTest.ActingAs, connection.LastTest.TestedAtUtc,
             connection.LastTest.TestedRevision, connection.LastTest.Source),
-        connection.LastTest?.TestedRevision == connection.Revision);
+        connection.LastTest?.TestedRevision == connection.Revision,
+        connection.HasImports);
 }

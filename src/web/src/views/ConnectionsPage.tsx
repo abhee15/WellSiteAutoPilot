@@ -158,6 +158,8 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
   const adapter = adapters.find(item => item.key === adapterKey) ?? null;
   const disabled = !canManage || busy !== null || importBusy;
   const dirty = connection && adapter ? isDirty(connection, adapter, draft) : true;
+  // The Server's rule: once assets were imported, the required settings (which say which system this is) cannot change.
+  const sourceLocked = connection !== null && connection.hasImports && (adapter?.fields.some(field => field.required) ?? false);
 
   const run = async (kind: NonNullable<typeof busy>, action: () => Promise<void>) => {
     setBusy(kind); setError(null);
@@ -196,6 +198,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
         <div>
           <strong>{t('connections.system')}</strong>: {adapter?.displayName ?? connection.adapterKey}
           <p className="connection-help">{t('connections.systemFixed')}</p>
+          {sourceLocked && <p className="connection-help" id="connection-source-locked">{t('connections.sourceLocked')}</p>}
         </div>
       )}
       {adapter && <p className="connection-help">{adapter.description}</p>}
@@ -203,11 +206,13 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
         const label = field.required ? t('connections.requiredLabel', { label: field.label }) : field.label;
         const value = draft.settings[field.key] ?? '';
         const id = `connection-setting-${field.key}`;
+        const locked = sourceLocked && field.required;
+        const describedBy = locked ? `${id}-help connection-source-locked` : `${id}-help`;
         return (
           <div key={field.key} className="connection-field">
             <label htmlFor={id}>{label}</label>
             {field.kind === 'YesNo' ? (
-              <select id={id} value={value} disabled={disabled} aria-describedby={`${id}-help`}
+              <select id={id} value={value} disabled={disabled || locked} aria-describedby={describedBy}
                 onChange={event => setValue(field.key, event.target.value)}>
                 <option value="">{t('connections.notSet')}</option>
                 <option value="yes">{t('connections.yes')}</option>
@@ -215,7 +220,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
               </select>
             ) : (
               <input id={id} type="text" inputMode={field.kind === 'WholeNumber' ? 'numeric' : field.kind === 'Url' ? 'url' : 'text'}
-                value={value} maxLength={field.maxLength} disabled={disabled} aria-describedby={`${id}-help`}
+                value={value} maxLength={field.maxLength} disabled={disabled} readOnly={locked} aria-describedby={describedBy}
                 onChange={event => setValue(field.key, event.target.value)} />
             )}
             <span className="connection-help" id={`${id}-help`}>{field.helpText}</span>

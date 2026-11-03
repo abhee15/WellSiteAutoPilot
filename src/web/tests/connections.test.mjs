@@ -13,7 +13,7 @@ const adapter = { key: 'simulator', displayName: 'Sim', description: '', setting
   fields: [{ key: 'baseUrl', label: 'Address', helpText: '', kind: 'Url', required: true, maxLength: 256 }] };
 const connection = { id: '00000000-0000-4000-8000-000000000001', name: 'A', adapterKey: 'simulator', settingsVersion: 1,
   settings: { baseUrl: 'http://x' }, isEnabled: true, revision: 3, createdAtUtc: 'a', updatedAtUtc: 'b', lastTest: null,
-  lastTestIsCurrent: false };
+  lastTestIsCurrent: false, hasImports: false };
 const problem = (status, code, detail) => new Response(JSON.stringify({ code, detail }), { status });
 
 test('only settings with a value are sent, trimmed, and only the adapter declared fields', () => {
@@ -53,6 +53,15 @@ test('malformed lists are refused rather than shown', async () => {
   await assert.rejects(api.loadConnections(signal, async () => new Response('[{"id":"x"}]')), { kind: 'invalidResponse' });
   await assert.rejects(api.loadAdapters(signal, async () => new Response('[{"key":"a"}]')), { kind: 'invalidResponse' });
   assert.equal((await api.loadConnections(signal, async () => new Response('[]'))).length, 0);
+});
+
+test('a connection must say whether assets were imported from it', async () => {
+  const signal = new AbortController().signal;
+  const withoutFlag = { ...connection };
+  delete withoutFlag.hasImports;
+  const list = value => async () => new Response(JSON.stringify([value]));
+  await assert.rejects(api.loadConnections(signal, list(withoutFlag)), { kind: 'invalidResponse' });
+  assert.equal((await api.loadConnections(signal, list({ ...connection, hasImports: true })))[0].hasImports, true);
 });
 
 test('status reflects enablement, testing and whether the test still applies', () => {

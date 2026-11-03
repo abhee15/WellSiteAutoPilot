@@ -13,7 +13,7 @@ const second = { ...first, id: secondId, name: 'Well beyond workspace snapshot' 
 const view = { id: viewId, connectionId, name: 'ESP group', revision: 2, memberCount: 2, hasUnavailableMembers: false,
   createdAtUtc: '2026-10-21T10:00:00Z', updatedAtUtc: '2026-10-21T10:00:00Z', canEdit: false, canDelete: false };
 const connection = { id: connectionId, name: 'ForeSite Production', adapterKey: 'foresite', settingsVersion: 1, settings: {},
-  isEnabled: true, revision: 1, createdAtUtc: view.createdAtUtc, updatedAtUtc: view.updatedAtUtc, lastTest: null, lastTestIsCurrent: false };
+  isEnabled: true, revision: 1, createdAtUtc: view.createdAtUtc, updatedAtUtc: view.updatedAtUtc, lastTest: null, lastTestIsCurrent: false, hasImports: false };
 const response = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 type Request = { url: string; init?: RequestInit };

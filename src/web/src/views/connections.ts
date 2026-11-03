@@ -44,6 +44,8 @@ export type Connection = {
   id: string; name: string; adapterKey: string; settingsVersion: number; settings: Record<string, string>;
   isEnabled: boolean; revision: number; createdAtUtc: string; updatedAtUtc: string;
   lastTest: ConnectionTest | null; lastTestIsCurrent: boolean;
+  /** True once assets were imported from this connection; its required settings can then no longer change. */
+  hasImports: boolean;
 };
 
 export type ConnectionErrorKind = 'accessDenied' | 'notFound' | 'nameTaken' | 'stale' | 'disabled' |
@@ -111,7 +113,7 @@ function isConnection(value: unknown): value is Connection {
     isObject(value.settings) && Object.values(value.settings).every(x => typeof x === 'string') &&
     typeof value.isEnabled === 'boolean' && Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
     typeof value.createdAtUtc === 'string' && typeof value.updatedAtUtc === 'string' &&
-    typeof value.lastTestIsCurrent === 'boolean' &&
+    typeof value.lastTestIsCurrent === 'boolean' && typeof value.hasImports === 'boolean' &&
     (test === null || isObject(test) && typeof test.outcome === 'string' && outcomes.includes(test.outcome) &&
       typeof test.message === 'string' && (test.actingAs === null || typeof test.actingAs === 'string') &&
       typeof test.testedAtUtc === 'string' && Number.isSafeInteger(test.testedRevision) &&

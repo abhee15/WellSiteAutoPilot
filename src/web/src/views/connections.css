@@ -10,6 +10,7 @@
 .connection-form { display: grid; gap: var(--space-14); padding: var(--space-12) var(--space-18) var(--space-18); }
 .connection-form label, .connection-field { display: grid; gap: var(--space-6); }
 .connection-form input, .connection-form select { width: 100%; color: var(--color-text-control); background: var(--color-surface-input); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); padding: var(--space-8); font: inherit; }
+.connection-form input[readonly] { color: var(--color-text-secondary); background: var(--color-surface-input-readonly); }
 .connection-help { color: var(--color-text-subtle); font-size: var(--font-size-label); line-height: 1.4; }
 .connection-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; }
 .connection-test { border: var(--border-width-thin) solid var(--color-border-status-neutral); border-radius: var(--radius-6); padding: var(--space-10) var(--space-12); display: grid; gap: var(--space-4); }

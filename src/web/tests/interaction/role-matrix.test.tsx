@@ -69,7 +69,7 @@ const asset = { id: '00000000-0000-4000-8000-000000000011', assetTypeId: '000000
 const type = { id: asset.assetTypeId, key: 'well', displayName: 'Well', schemaVersion: 1, attributeSchemaJson: '{}', isActive: true,
   createdAtUtc: new Date().toISOString() };
 const connection = { id: '00000000-0000-4000-8000-000000000950', name: 'ForeSite', adapterKey: 'foresite', settingsVersion: 1, settings: {},
-  isEnabled: true, revision: 1, createdAtUtc: new Date().toISOString(), updatedAtUtc: new Date().toISOString(), lastTest: null, lastTestIsCurrent: false };
+  isEnabled: true, revision: 1, createdAtUtc: new Date().toISOString(), updatedAtUtc: new Date().toISOString(), lastTest: null, lastTestIsCurrent: false, hasImports: false };
 
 /** Answers like the server for one role: refuses what the role cannot read, and reports what it may create. */
 function signInWithData(permissions: string[]) {

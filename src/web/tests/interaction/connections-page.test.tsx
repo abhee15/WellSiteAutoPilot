@@ -21,7 +21,7 @@ const adapter: Adapter = {
 const saved = (extra: Partial<Connection> = {}): Connection => ({
   id: '00000000-0000-4000-8000-000000000001', name: 'Field simulator', adapterKey: 'simulator', settingsVersion: 1,
   settings: { baseUrl: 'http://127.0.0.1:5091' }, isEnabled: true, revision: 1,
-  createdAtUtc: '2026-10-20T10:00:00Z', updatedAtUtc: '2026-10-20T10:00:00Z', lastTest: null, lastTestIsCurrent: false, ...extra,
+  createdAtUtc: '2026-10-20T10:00:00Z', updatedAtUtc: '2026-10-20T10:00:00Z', lastTest: null, lastTestIsCurrent: false, hasImports: false, ...extra,
 });
 
 beforeEach(() => {
@@ -143,6 +143,55 @@ describe('Connections page', () => {
     expect(screen.queryByText('Save')).toBeNull();
     expect(screen.queryByText('Delete')).toBeNull();
     expect(screen.getByText('You can view connections but not change them.')).toBeTruthy();
+  });
+
+  describe('required settings', () => {
+    const withOptional: Adapter = {
+      ...adapter,
+      fields: [...adapter.fields,
+        { key: 'filter', label: 'Facility filter', helpText: 'Optional.', kind: 'Text', required: false, maxLength: 64 }],
+    };
+
+    it('are locked, with the reason, once assets were imported', async () => {
+      vi.mocked(api.loadAdapters).mockResolvedValue([withOptional]);
+      vi.mocked(api.loadConnections).mockResolvedValue([saved({ hasImports: true })]);
+      render(<ConnectionsPage canManage />);
+      await userEvent.click(await screen.findByText('Field simulator'));
+      const address = await screen.findByLabelText('Simulator address (required)') as HTMLInputElement;
+      expect(address.readOnly).toBe(true);
+      expect(address.value).toBe('http://127.0.0.1:5091');
+      const reason = screen.getByText('Settings marked required are locked because assets were imported from this connection.');
+      expect(address.getAttribute('aria-describedby')).toContain(reason.id);
+      await userEvent.type(address, 'x');
+      expect(address.value).toBe('http://127.0.0.1:5091');
+      expect((screen.getByText('Save').closest('button') as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('stay editable, with no lock message, before anything is imported', async () => {
+      vi.mocked(api.loadAdapters).mockResolvedValue([withOptional]);
+      vi.mocked(api.loadConnections).mockResolvedValue([saved({ hasImports: false })]);
+      render(<ConnectionsPage canManage />);
+      await userEvent.click(await screen.findByText('Field simulator'));
+      const address = await screen.findByLabelText('Simulator address (required)') as HTMLInputElement;
+      expect(address.readOnly).toBe(false);
+      expect(screen.queryByText(/locked because assets were imported/)).toBeNull();
+      await userEvent.type(address, '/x');
+      expect(address.value).toBe('http://127.0.0.1:5091/x');
+    });
+
+    it('lock only the required settings: the name and optional settings can still be changed', async () => {
+      vi.mocked(api.loadAdapters).mockResolvedValue([withOptional]);
+      vi.mocked(api.loadConnections).mockResolvedValue([saved({ hasImports: true })]);
+      render(<ConnectionsPage canManage />);
+      await userEvent.click(await screen.findByText('Field simulator'));
+      const filter = await screen.findByLabelText('Facility filter') as HTMLInputElement;
+      const name = screen.getByLabelText('Name') as HTMLInputElement;
+      expect(filter.readOnly).toBe(false);
+      expect(name.readOnly).toBe(false);
+      await userEvent.type(filter, 'RPOC*');
+      expect(filter.value).toBe('RPOC*');
+      expect((screen.getByText('Save').closest('button') as HTMLButtonElement).disabled).toBe(false);
+    });
   });
 
   it('keeps existing connections visible when the adapter list cannot be loaded', async () => {
