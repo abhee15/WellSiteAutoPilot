@@ -7,6 +7,7 @@ import '@fontsource/roboto/latin-500.css';
 import '@fontsource/roboto/latin-700.css';
 import './tokens.css';
 import './styles.css';
+import './components/selectedRecord.css';
 
 const root = document.getElementById('root');
 
