@@ -8,7 +8,7 @@ import type {
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
-import { SummaryCard } from '../components/common';
+import { PanelHeader, SummaryCard } from '../components/common';
 import { hashFor } from '../routing';
 import { assetTotalLabel, attentionItems, cappedCount } from './overview';
 import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
@@ -158,10 +158,8 @@ export function OverviewPage({
       </section>
       {permissions.includes('executions.read') && ready && latestRuns.length > 0 && (
         <section className="panel overview-latest" aria-label={t('overview.latestRuns')}>
-          <div className="panel-header">
-            <h2>{t('overview.latestRuns')}</h2>
-            <a className="action-link" href="#operations">{t('overview.allRuns')}</a>
-          </div>
+          <PanelHeader title={t('overview.latestRuns')}
+            actions={<a className="action-link" href="#operations">{t('overview.allRuns')}</a>} />
           <ul className="overview-runs">
             {latestRuns.map(run => {
               const context = describeRunContext(run, configuredLogic, directory.assets, directory.owners);

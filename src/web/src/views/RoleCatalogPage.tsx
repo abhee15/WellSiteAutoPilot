@@ -1,5 +1,5 @@
 import { ActionButton } from '../components/ActionButton';
-import { EmptyRow } from '../components/common';
+import { EmptyRow, PanelHeader } from '../components/common';
 import { RefreshCw } from 'lucide-react';
 import { FilterToolbar } from '../components/FilterToolbar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -128,10 +128,8 @@ export function RoleDefinitionEditor({
 
   return (
     <section className="panel role-editor" role="region" aria-label={t('roles.editor')}>
-      <div className="panel-header">
-        <h3>{original ? t('roles.editHeading') : t('roles.createHeading')}</h3>
-        <ActionButton label={t('roles.cancel')} onClick={onCancel} disabled={busy} />
-      </div>
+      <PanelHeader level={3} title={original ? t('roles.editHeading') : t('roles.createHeading')}
+        actions={<ActionButton label={t('roles.cancel')} onClick={onCancel} disabled={busy} />} />
       <p className="access-note access-intro">{t('roles.inactiveUntilGrants')}</p>
       {original && !original.isSystem &&
         <p className="access-note access-intro">{t('roles.assignedRoleWarning')}</p>}
@@ -249,14 +247,12 @@ export function RoleCatalogPage() {
     <div {...splitFocus} className="split-layout runs-layout roles-layout" data-has-selection={editor !== null}>
     <div className="split-panes">
       <section className="panel split-browse">
-        <div className="panel-header">
-          <h2>{t('roles.heading')}</h2>
-          <div className="role-actions">
-            <ActionButton icon={RefreshCw} iconOnly label={t('roles.refresh')}
-              disabled={loading} onClick={() => void reload()} />
-            <ActionButton label={t('roles.create')} variant="primary" disabled={loading || !!error} onClick={() => { setEditor({ kind: 'new', template: null }); setNotice(null); }} />
-          </div>
-        </div>
+        <PanelHeader title={t('roles.heading')} actions={<>
+          <ActionButton icon={RefreshCw} iconOnly label={t('roles.refresh')}
+            disabled={loading} onClick={() => void reload()} />
+          <ActionButton label={t('roles.create')} variant="primary" disabled={loading || !!error}
+            onClick={() => { setEditor({ kind: 'new', template: null }); setNotice(null); }} />
+        </>} />
         <p className="access-note access-intro">{t('roles.intro')}</p>
         {error && <p role="alert" className="execution-detail-error access-intro">
           {errorLabel(error)}</p>}

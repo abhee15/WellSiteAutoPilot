@@ -1,6 +1,7 @@
 import './connections.css';
 import { ConnectionInventory } from './ConnectionInventory';
 import { ActionButton } from '../components/ActionButton';
+import { PanelHeader } from '../components/common';
 import { ConnectionImport } from './ConnectionImport';
 import { ConnectionSourceChanges } from './ConnectionSourceChanges';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -96,10 +97,9 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
   return (
     <div className="connections-layout">
       <section className="panel" aria-label={t('connections.listLabel')}>
-        <div className="panel-header">
-          <h2>{t('connections.listLabel')}</h2>
-          {canManage && <ActionButton label={t('connections.new')} variant="primary" disabled={adapters.length === 0} onClick={() => setSelected('new')} />}
-        </div>
+        <PanelHeader title={t('connections.listLabel')}
+          actions={canManage ? <ActionButton label={t('connections.new')} variant="primary"
+            disabled={adapters.length === 0} onClick={() => setSelected('new')} /> : undefined} />
         {loading && <LoadingIndicator label={t('connections.loading')} />}
         {loadError && <p role="alert" className="status-error">{loadError}</p>}
         {adaptersFailed && !loadError && <p role="status" className="connection-help">{t('connections.adaptersUnavailable')}</p>}

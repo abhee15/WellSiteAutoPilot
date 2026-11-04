@@ -6,8 +6,34 @@ import { Status, StatusIndicator } from '../../src/components/Status';
 import { ActionButton } from '../../src/components/ActionButton';
 import { RefreshCw } from 'lucide-react';
 import { FilterToolbar, FilterField } from '../../src/components/FilterToolbar';
+import { PanelHeader } from '../../src/components/common';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
+
+describe('PanelHeader', () => {
+  it('keeps a count, title and optional action in one shared header layout', async () => {
+    const refresh = vi.fn();
+    const { container } = render(<PanelHeader title="Recent executions" count={3}
+      actions={<ActionButton label="Refresh runs" onClick={refresh} />} />);
+    const header = container.querySelector('.panel-header');
+    expect(header).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Recent executions', level: 2 })).toBeTruthy();
+    expect(header?.querySelector('.record-count')?.textContent).toBe('3 shown');
+    const actions = header?.querySelector('.panel-header-actions');
+    expect(actions).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Refresh runs' });
+    expect(actions?.contains(button)).toBe(true);
+    await userEvent.click(button);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves nested editor heading level and omits an empty action container', () => {
+    const { container } = render(<PanelHeader title="Edit role" level={3} />);
+    expect(screen.getByRole('heading', { name: 'Edit role', level: 3 })).toBeTruthy();
+    expect(container.querySelector('.panel-header-actions')).toBeNull();
+    expect(container.querySelector('.record-count')).toBeNull();
+  });
+});
 
 describe('Status', () => {
   it('shows the word with its own shape, and the same tone always has the same shape', () => {

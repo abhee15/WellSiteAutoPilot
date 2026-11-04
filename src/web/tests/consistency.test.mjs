@@ -90,12 +90,35 @@ test('every search box says what to type, so none is left empty', () => {
 
 test('buttons are not restyled by where they sit: use ActionButton, not a container-specific button rule', () => {
   // Known, deliberate exceptions: Runs saved-view controls and role action buttons.
-  const allowed = new Set(['.data-view-controls button', '.role-actions button']);
+  const allowed = new Set(['.data-view-controls button']);
   const styles = source(join(root, 'styles.css'));
   const found = [...styles.matchAll(/^\s*(\.[\w-]+ button)(?::[\w-]+(?:\([^)]*\))*)*\s*[{,]/gm)].map(match => match[1]);
   const offenders = [...new Set(found)].filter(selector => !allowed.has(selector));
   assert.deepEqual(offenders, [],
     'A rule like ".some-container button { ... }" gives one screen its own button look; use <ActionButton> (or the shared button classes)');
+});
+
+test('panels reuse the shared header action slot instead of screen-specific wrappers', () => {
+  const examples = [
+    'views/ConnectionsPage.tsx',
+    'views/RoleCatalogPage.tsx',
+    'views/GrantAdministrationPage.tsx',
+    'views/OverviewPage.tsx',
+  ];
+  for (const path of examples) {
+    const component = source(join(root, path));
+    assert.match(component, /<PanelHeader\b/, path + ' should use the shared panel header');
+  }
+  for (const path of ['views/ConnectionsPage.tsx', 'views/RoleCatalogPage.tsx', 'views/OverviewPage.tsx']) {
+    assert.doesNotMatch(source(join(root, path)), /className="panel-header"/,
+      path + ' should not recreate the standard panel header');
+  }
+  const css = source(join(root, 'styles.css'));
+  const actions = css.match(/\.panel-header-actions \{[^}]*\}/)?.[0] ?? '';
+  assert.match(actions, /display: flex/);
+  assert.match(actions, /flex-wrap: wrap/);
+  assert.match(actions, /gap: var\(--space-10\)/);
+  assert.doesNotMatch(css, /\.role-actions\b/, 'role header actions must not be styled separately');
 });
 
 test('Logic and Assets use the shared page navigation instead of local tab markup and CSS', () => {
