@@ -35,17 +35,25 @@ export function SummaryCard({
   );
 }
 
+/** A panel title and its available actions share one responsive layout.
+ *  Use level=3 only when a nested detail/editor already has a parent heading. */
 export function PanelHeader({
   title,
   count,
+  actions,
+  level = 2,
 }: {
   title: string;
   count?: number;
+  actions?: ReactNode;
+  level?: 2 | 3;
 }) {
+  const Heading = level === 3 ? 'h3' : 'h2';
   return (
     <div className="panel-header">
-      <h2>{title}</h2>
+      <Heading>{title}</Heading>
       {count !== undefined && <span className="record-count">{count} shown</span>}
+      {actions && <div className="panel-header-actions">{actions}</div>}
     </div>
   );
 }
