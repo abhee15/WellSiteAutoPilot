@@ -33,8 +33,9 @@ with sync_playwright() as p:
         for width, height in WIDTHS:
             context = browser.new_context(viewport={"width": width, "height": height},
                                           device_scale_factor=1, reduced_motion="reduce")
-            page = context.new_page()
             for state, fragment in STATES.items():
+                # A fresh page makes hash routes full navigations with HTTP responses.
+                page = context.new_page()
                 target = f"{base}/{fragment}"
                 try:
                     response = page.goto(target, wait_until="networkidle", timeout=30000)
@@ -76,6 +77,8 @@ with sync_playwright() as p:
                                    "state": state, "screenshot": str(filename.name), **audit})
                 except Exception as exc:
                     failures.append(f"{revision} {width} {state}: {type(exc).__name__}: {exc}")
+                finally:
+                    page.close()
             context.close()
     browser.close()
 
