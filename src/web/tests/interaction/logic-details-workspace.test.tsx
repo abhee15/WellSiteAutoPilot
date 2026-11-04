@@ -63,7 +63,7 @@ it('organizes read-only settings without limiting nested parameters or providers
   expect(document.activeElement).toBe(configurationTab);
   expect(overview.getAttribute('aria-selected')).toBe('true');
   expect(configurationTab.getAttribute('aria-selected')).toBe('false');
-  expect(screen.queryByText('{"limits":[30,40],"strategy":{"enabled":true}}')).toBeNull();
+  expect(screen.queryByRole('tabpanel', { name: 'Configuration' })).toBeNull();
   await user.keyboard('{Enter}');
   expect(configurationTab.getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText('{"limits":[30,40],"strategy":{"enabled":true}}')).toBeTruthy();
