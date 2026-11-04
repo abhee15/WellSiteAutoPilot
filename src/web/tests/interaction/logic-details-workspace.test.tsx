@@ -59,7 +59,11 @@ it('organizes read-only settings without limiting nested parameters or providers
   const user = userEvent.setup();
   const overview = screen.getByRole('tab', { name: 'Overview', exact: true });
   overview.focus(); await user.keyboard('{ArrowRight}');
-  expect(screen.getByRole('tab', { name: 'Configuration', exact: true }).getAttribute('aria-selected')).toBe('true');
+  const configurationTab = screen.getByRole('tab', { name: 'Configuration', exact: true });
+  expect(document.activeElement).toBe(configurationTab);
+  expect(configurationTab.getAttribute('aria-selected')).toBe('false');
+  await user.keyboard('{Enter}');
+  expect(configurationTab.getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText('{"limits":[30,40],"strategy":{"enabled":true}}')).toBeTruthy();
   expect(screen.getByText('[[1,2],[3,4]]')).toBeTruthy();
   expect(view.container.textContent).not.toContain('MAPPING_NOT_FOR_DISPLAY');
