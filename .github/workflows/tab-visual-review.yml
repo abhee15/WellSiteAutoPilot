@@ -79,11 +79,11 @@ jobs:
           mkdir -p artifacts/openapi/v1
           ASPNETCORE_ENVIRONMENT=Development Swagger__Enabled=true \
             dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj \
-            --configuration Release --urls http://127.0.0.1:5080 > "$RUNNER_TEMP/openapi-after.log" 2>&1 &
+            --configuration Release --urls http://127.0.0.1:5081 > "$RUNNER_TEMP/openapi-after.log" 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
           if ! curl --fail --silent --show-error --retry 60 --retry-delay 2 --retry-connrefused \
-            http://127.0.0.1:5080/swagger/v1/swagger.json -o artifacts/openapi/v1/server.json; then
+            http://127.0.0.1:5081/swagger/v1/swagger.json -o artifacts/openapi/v1/server.json; then
             cat "$RUNNER_TEMP/openapi-after.log"
             exit 1
           fi
