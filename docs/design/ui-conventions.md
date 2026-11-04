@@ -9,6 +9,7 @@ Material guidance on dense data applications.
 | Need | Use |
 |---|---|
 | Any button | `ActionButton` (`primary` once per area, `secondary`, `quiet`; `iconOnly` for symbols) |
+| Panel heading, optional count and controls | `PanelHeader` (`title`, optional `count`, `actions`, and `level=3` only for nested editors); actions share one wrapping token-based layout |
 | Close a details pane | `CloseButton` (✕ icon, tooltip, accessible name) |
 | Search | `SearchInput` (always with a placeholder) |
 | Filters | `FilterBar` / `FilterField` (`trailing` slot for the refresh icon) |
@@ -28,6 +29,8 @@ See [Tab navigation design-system inventory and contract — Phase 1](tab-naviga
 - **Appearance:** both use one private `TabStrip` visual foundation, the existing light semantic tokens, shared selected/focus/hover styles and the 14px control type scale. Do not add page-specific tab CSS or a parallel tab library.
 - **Responsiveness:** maintain the existing 2:3 master/detail layout. Put page navigation above the panes, inspector tabs inside the selected pane; size to available pane width and provide horizontally reachable overflow without wrapping labels. Add/Create actions must remain visible. Check desktop, tablet, phone, zoom, keyboard and touch.
 - **Prevention:** after migration, CI must reject ad-hoc tablist markup or tab-strip CSS outside shared components and remove old exceptions. A CSS class merely having a rule or using design tokens is **not** sufficient evidence of component consistency.
+
+See [Phase 4 component consistency audit](design-system-consistency-phase4.md) for the cross-screen inventory, ownership, first header migration and remaining form/notice/selection work. Form fields and notices follow the existing [Control UI audit](control-ui-audit.md) D1 ownership; do not build a competing kit.
 
 ## Layout
 
