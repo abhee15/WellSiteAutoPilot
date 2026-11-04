@@ -29,6 +29,9 @@ type Props = {
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; owners?: readonly OwnerGroup[]; executions?: readonly ExecutionResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
   initialAssetId?: string | null; canReadViews?: boolean;
+  activitySelected?: boolean; activityRunId?: string | null;
+  onActivityTabChange?: (selected: boolean) => void;
+  onActivityRunSelect?: (runId: string | null) => void;
   /** recommendations.read: may see the autonomy policy. control.manage: may change it. */
   canReadControl?: boolean; canManageControl?: boolean;
 };
@@ -36,10 +39,11 @@ type Props = {
  * cannot silently replace the revision a user is reviewing. */
 export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
   assets, assetTypes, owners = [], executions, onClose, onChanged, initialAssetId, canReadViews = false, canReadControl = false,
-  canManageControl = false }: Props) {
+  canManageControl = false, activitySelected = false, activityRunId = null,
+  onActivityTabChange, onActivityRunSelect }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
-  const [tab, setTab] = useState<'overview' | 'configuration' | 'activity'>('overview');
+  const [tab, setTab] = useState<'overview' | 'configuration' | 'activity'>(activitySelected ? 'activity' : 'overview');
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [showShadow, setShowShadow] = useState(false);
   const [activityOpened, setActivityOpened] = useState(false);
@@ -94,18 +98,23 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     if (detail && editing && !mayManage) { setEditing(false); setSource(undefined); }
   }, [detail, editing, mayManage]);
   useEffect(() => { if (!canReadRuns && tab === 'activity') setTab('overview'); }, [canReadRuns, tab]);
+  // Browser Back/Forward updates Activity focus without remounting the revision editor.
+  useEffect(() => { setTab(current => activitySelected ? 'activity' : current === 'activity' ? 'overview' : current); }, [activitySelected]);
   function selectTab(next: typeof tab) {
     setTab(next); setConfirmId(null);
     if (next === 'activity') setActivityOpened(true);
+    if ((next === 'activity') !== activitySelected) onActivityTabChange?.(next === 'activity');
   }
   function copyRevision(revision: VerifiedRevision) {
     if (mutationBlocked || revision.mode !== 'Shadow') return;
     setEditDraft(false); setSource(revision); setEditing(true); setTab('configuration'); setConfirmId(null); setShowShadow(false);
+    if (activitySelected) onActivityTabChange?.(false);
   }
 
   function editRevision(revision: VerifiedRevision) {
     if (mutationBlocked || revision.status !== 'Draft' || revision.mode !== 'Shadow') return;
     setEditDraft(true); setSource(revision); setEditing(true); setTab('configuration'); setConfirmId(null); setShowShadow(false);
+    if (activitySelected) onActivityTabChange?.(false);
   }
 
   async function reload() {
@@ -165,7 +174,8 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       onDenied={committed => { setDetail(null); setEditing(false); setSource(undefined);
         setDenied(true); setBlocked(true); setError(t(committed ? 'setup.committed' : 'setup.denied')); }}
       onCancel={() => { setEditing(false); setSource(undefined); if (!detail) onClose(); }} />);
-  return <section className="setup-panel configured-detail" aria-label={t('setup.workspace')}>
+  return <section className={activitySelected ? 'setup-panel configured-detail logic-focused-activity' : 'setup-panel configured-detail'}
+    aria-label={t('setup.workspace')}>
     <header className="logic-detail-header">
       <div>
         <h3>{detail?.name ?? t(selectedId ? 'setup.workspace' : 'setup.heading')}</h3>
@@ -249,9 +259,12 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         </>}
         {editor}
       </div>
-      {canReadRuns && <div id={`${prefix}-activity`} role="tabpanel" aria-labelledby={`${prefix}-tab-activity`} hidden={tab !== 'activity'}>
-        <h4>{t('logicDetail.historyHeading')}</h4>
-        {activityOpened && <ExecutionHistory logicId={detail.id} assets={assets} configuredLogic={[detail]} enabled={tab === 'activity'} />}
+      {canReadRuns && <div id={`${prefix}-activity`} role="tabpanel" aria-labelledby={`${prefix}-tab-activity`}
+        className={activitySelected ? 'logic-focused-activity-panel' : undefined} hidden={tab !== 'activity'}>
+        {!activitySelected && <h4>{t('logicDetail.historyHeading')}</h4>}
+        {(activityOpened || activitySelected) && <ExecutionHistory logicId={detail.id} assets={assets}
+          configuredLogic={[detail]} enabled={tab === 'activity'} focused={activitySelected}
+          runId={activityRunId} onRunSelect={activitySelected ? onActivityRunSelect : undefined} />}
       </div>}
     </>}
     {!detail && editor}
