@@ -357,11 +357,12 @@ button:disabled {
 }
 
 .summary-card-action:hover,
-.summary-card-link:hover { background: var(--color-surface-control-hover); }
+.summary-card-link:hover { background: var(--color-surface-status-info); }
 
 .summary-card-action[aria-pressed='true'] {
-  border-color: var(--color-focus-ring);
-  box-shadow: inset 0 calc(-1 * var(--border-width-thick)) 0 var(--color-focus-ring);
+  background: var(--color-surface-status-info);
+  border-color: var(--color-border-selected);
+  box-shadow: inset 0 calc(-1 * var(--border-width-thick)) 0 var(--color-border-selected);
 }
 
 .summary-card span,
