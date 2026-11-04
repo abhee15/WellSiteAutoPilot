@@ -1,0 +1,56 @@
+/* Focused Logic Activity lives in the existing selected configuration; avoid a third
+   permanently narrow pane or scrolling the configured-logic list before run details. */
+.logic-layout[data-activity-focus='true'] > .split-panes {
+  grid-template-columns: minmax(0, 1fr);
+}
+.logic-layout[data-activity-focus='true'] > .split-panes > .split-browse {
+  display: none;
+}
+.logic-layout[data-activity-focus='true'] > .split-panes > .split-selected {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.logic-focused-activity .logic-focused-activity-panel {
+  min-width: 0;
+}
+.logic-focused-activity .execution-history-focus {
+  min-width: 0;
+}
+@media (width > 56.25em) {
+  /* The outer selected pane owns the workspace; only the history and inspector
+     inside it scroll. No nested pane scrollbars. */
+  .logic-layout[data-activity-focus='true'] > .split-panes > .split-selected {
+    overflow: hidden;
+    min-height: 0;
+  }
+  .logic-layout[data-activity-focus='true'] .logic-focused-activity {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .logic-layout[data-activity-focus='true'] .logic-focused-activity-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .logic-layout[data-activity-focus='true'] .logic-focused-activity-panel > .execution-history-focus {
+    flex: 1;
+    min-height: 0;
+  }
+  .logic-layout[data-activity-focus='true'] .execution-history-panes {
+    height: 100%;
+    min-height: 0;
+  }
+}
+@media (width <= 56.25em) {
+  /* Outer Logic selection may hide its browse pane, but must not also hide
+     the focused run-history browse pane when Back returns to the list. */
+  .logic-layout[data-activity-focus='true'] .execution-history-focus[data-has-selection='false'] > .execution-history-panes > .split-browse {
+    display: block;
+  }
+}
