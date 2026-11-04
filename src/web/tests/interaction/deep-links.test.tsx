@@ -52,9 +52,9 @@ it('the administration tab is part of the address', async () => {
   window.location.hash = '#access/roles';
   signIn(['security.manage']);
   const user = userEvent.setup(); render(<App />);
-  const roles = await screen.findByRole('tab', { name: 'Roles and permissions' });
-  expect(roles.getAttribute('aria-selected')).toBe('true');
-  await user.click(screen.getByRole('tab', { name: 'User assignments' }));
+  const roles = await screen.findByRole('link', { name: 'Roles and permissions' });
+  expect(roles.getAttribute('aria-current')).toBe('page');
+  await user.click(screen.getByRole('link', { name: 'User assignments' }));
   expect(window.location.hash).toBe('#access');
 });
 
