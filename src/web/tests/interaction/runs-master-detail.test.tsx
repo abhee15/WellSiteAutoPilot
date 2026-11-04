@@ -20,8 +20,11 @@ it('opens a run beside the list when its row is clicked, marks the row, and clos
   expect(await screen.findByRole('heading', { name: 'Run details' })).toBeTruthy();
   expect(layout?.getAttribute('data-has-selection')).toBe('true');
   expect(container.querySelector('tbody tr')?.getAttribute('data-selected')).toBe('true');
+  const inspect = within(container.querySelector('tbody')!).getByRole('button', { name: /Inspect run/ });
+  expect(inspect.getAttribute('aria-current')).toBe('true');
 
   await user.click(screen.getByRole('button', { name: 'Back to runs' }));
+  expect(inspect.hasAttribute('aria-current')).toBe(false);
   expect(layout?.getAttribute('data-has-selection')).toBe('false');
 });
 
