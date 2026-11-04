@@ -52,10 +52,15 @@ it('the administration tab is part of the address', async () => {
   window.location.hash = '#access/roles';
   signIn(['security.manage']);
   const user = userEvent.setup(); render(<App />);
-  const roles = await screen.findByRole('tab', { name: 'Roles and permissions' });
-  expect(roles.getAttribute('aria-selected')).toBe('true');
-  await user.click(screen.getByRole('tab', { name: 'User assignments' }));
+  const navigation = await screen.findByRole('navigation', { name: 'Access administration' });
+  const roles = await screen.findByRole('link', { name: 'Roles and permissions' });
+  expect(navigation.contains(roles)).toBe(true);
+  expect(roles.getAttribute('aria-current')).toBe('page');
+  expect(roles.getAttribute('href')).toBe('#access/roles');
+  expect(screen.queryByRole('tablist', { name: 'Access administration' })).toBeNull();
+  await user.click(screen.getByRole('link', { name: 'User assignments' }));
   expect(window.location.hash).toBe('#access');
+  expect(screen.getByRole('link', { name: 'User assignments' }).getAttribute('aria-current')).toBe('page');
 });
 
 it('a run address opens its details even when the run is older than the loaded list', async () => {

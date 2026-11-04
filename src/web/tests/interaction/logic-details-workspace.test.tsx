@@ -59,12 +59,49 @@ it('organizes read-only settings without limiting nested parameters or providers
   const user = userEvent.setup();
   const overview = screen.getByRole('tab', { name: 'Overview', exact: true });
   overview.focus(); await user.keyboard('{ArrowRight}');
-  expect(screen.getByRole('tab', { name: 'Configuration', exact: true }).getAttribute('aria-selected')).toBe('true');
+  const configurationTab = screen.getByRole('tab', { name: 'Configuration', exact: true });
+  expect(document.activeElement).toBe(configurationTab);
+  expect(overview.getAttribute('aria-selected')).toBe('true');
+  expect(configurationTab.getAttribute('aria-selected')).toBe('false');
+  expect(screen.queryByRole('tabpanel', { name: 'Configuration' })).toBeNull();
+  await user.keyboard('{Enter}');
+  expect(configurationTab.getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText('{"limits":[30,40],"strategy":{"enabled":true}}')).toBeTruthy();
   expect(screen.getByText('[[1,2],[3,4]]')).toBeTruthy();
   expect(view.container.textContent).not.toContain('MAPPING_NOT_FOR_DISPLAY');
   expect(view.container.textContent).toContain('calc');
   expect(await accessibilityViolations(view.container)).toEqual([]);
+});
+
+it('does not fetch Activity history from arrow-key focus alone, but loads it after deliberate activation', async () => {
+  const { state } = fixture();
+  render(<ConfiguredLogicWorkspace {...props} />);
+  await screen.findByText('Running');
+  const user = userEvent.setup();
+  const overview = screen.getByRole('tab', { name: 'Overview', exact: true });
+  const activityTab = screen.getByRole('tab', { name: 'Activity', exact: true });
+  overview.focus();
+  await user.keyboard('{End}');
+  expect(document.activeElement).toBe(activityTab);
+  expect(overview.getAttribute('aria-selected')).toBe('true');
+  expect(activityTab.getAttribute('aria-selected')).toBe('false');
+  expect(state.historyRequests).toHaveLength(0);
+  await user.keyboard('{Enter}');
+  expect(activityTab.getAttribute('aria-selected')).toBe('true');
+  await screen.findAllByRole('button', { name: /Inspect run/ });
+  expect(state.historyRequests).toHaveLength(1);
+});
+
+it('does not expose Activity when run permissions are absent', async () => {
+  fixture();
+  render(<ConfiguredLogicWorkspace {...props} executions={undefined} />);
+  await screen.findByText('Complex observer');
+  expect(screen.queryByRole('tab', { name: 'Activity', exact: true })).toBeNull();
+  const overview = screen.getByRole('tab', { name: 'Overview', exact: true });
+  overview.focus();
+  await userEvent.setup().keyboard('{End}');
+  expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Configuration', exact: true }));
+  expect(overview.getAttribute('aria-selected')).toBe('true');
 });
 
 it('copies the chosen immutable revision into the existing editor and protects it from tab navigation', async () => {

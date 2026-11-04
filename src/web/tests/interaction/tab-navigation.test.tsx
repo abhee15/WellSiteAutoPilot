@@ -127,6 +127,22 @@ describe('SectionTabs', () => {
     expect(screen.getByRole('tab', { name: 'Overview' }).hasAttribute('disabled')).toBe(false);
   });
 
+  it('scrolls only the tab strip to reveal a keyboard-focused tab, without activating it', async () => {
+    const user = userEvent.setup();
+    const view = render(<SectionTabs prefix="overflow" label="Sections" tabs={sectionTabs}
+      selected="overview" onSelect={vi.fn()} />);
+    const strip = view.container.querySelector<HTMLElement>('.tab-strip')!;
+    const activity = screen.getByRole('tab', { name: 'Activity' });
+    vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 100 } as DOMRect);
+    vi.spyOn(activity, 'getBoundingClientRect').mockReturnValue({ left: 145, right: 215 } as DOMRect);
+    screen.getByRole('tab', { name: 'Overview' }).focus();
+    await user.keyboard('{End}');
+    expect(document.activeElement).toBe(activity);
+    expect(strip.scrollLeft).toBe(115);
+    expect(activity.getAttribute('aria-selected')).toBe('false');
+    expect(screen.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected')).toBe('true');
+  });
+
   it('skips individually disabled tabs during manual keyboard navigation', async () => {
     const user = userEvent.setup();
     const tabs = [

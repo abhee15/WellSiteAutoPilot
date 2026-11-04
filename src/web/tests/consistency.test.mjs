@@ -89,8 +89,8 @@ test('every search box says what to type, so none is left empty', () => {
 });
 
 test('buttons are not restyled by where they sit: use ActionButton, not a container-specific button rule', () => {
-  // Known, deliberate exceptions: the Runs saved-view controls (their own form row) and the tab strip.
-  const allowed = new Set(['.data-view-controls button', '.administration-tabs button', '.role-actions button']);
+  // Known deliberate exceptions: Runs saved-view and role-action controls; tabs are shared components.
+  const allowed = new Set(['.data-view-controls button', '.role-actions button']);
   const styles = source(join(root, 'styles.css'));
   const found = [...styles.matchAll(/^\s*(\.[\w-]+ button)(?::[\w-]+(?:\([^)]*\))*)*\s*[{,]/gm)].map(match => match[1]);
   const offenders = [...new Set(found)].filter(selector => !allowed.has(selector));
@@ -109,6 +109,40 @@ test('Logic and Assets use the shared page navigation instead of local tab marku
   assert.match(shared, /role="tablist"/);
   assert.doesNotMatch(source(join(root, 'views/splitLayout.css')), /\.split-tabs\b/);
   assert.doesNotMatch(source(join(root, 'styles.css')), /\.split-tabs\b/);
+});
+
+// Keep the two public tab behaviors in shared components; tests include negative fixtures
+// so that these checks cannot silently become permissive as new views are added.
+function sharedTabViolations(entries) {
+  const semanticOwners = new Set(['components/TabStrip.tsx', 'components/SectionTabs.tsx']);
+  return entries.flatMap(({ path, content }) => {
+    const violations = [];
+    if (path.endsWith('.tsx') && !semanticOwners.has(path) &&
+        /\brole\s*=\s*(["'])tab(?:list)?\1/.test(content))
+      violations.push(path + ': use PageTabNav or SectionTabs instead of ad-hoc ARIA tab roles');
+    if (path.endsWith('.tsx') && /\bDetailTabs\b/.test(content))
+      violations.push(path + ': legacy DetailTabs removed; use SectionTabs');
+    if (path.endsWith('.css') && /\.(?:split-tabs|administration-tabs|detail-tabs|detail-tab)\b/.test(content))
+      violations.push(path + ': tab appearance belongs in components/tabStrip.css');
+    return violations;
+  });
+}
+
+test('all four tab surfaces share semantics and styles, with no local tab implementation', () => {
+  for (const name of ['LogicPage.tsx', 'AssetsPage.tsx', 'AdministrationWorkspace.tsx']) {
+    assert.match(source(join(root, 'views', name)), /<PageTabNav\b/, name);
+  }
+  assert.match(source(join(root, 'views/ConfiguredLogicWorkspace.tsx')), /<SectionTabs\b/);
+  assert.deepEqual(sharedTabViolations(files.map(path => ({ path: rel(path), content: source(path) }))), []);
+  assert.deepEqual(sharedTabViolations([
+    { path: 'views/Bad.tsx', content: '<div role="tablist"><button role="tab" /></div>' },
+    { path: 'views/Bad.css', content: '.administration-tabs button { color: red; }' },
+    { path: 'views/Tree.tsx', content: '<div role="treeitem" aria-selected="true" />' },
+    { path: 'views/Panel.tsx', content: '<div role="tabpanel" />' },
+  ]), [
+    'views/Bad.tsx: use PageTabNav or SectionTabs instead of ad-hoc ARIA tab roles',
+    'views/Bad.css: tab appearance belongs in components/tabStrip.css',
+  ], 'the guard rejects custom tabs without flagging legitimate tree or tabpanel selection');
 });
 
 test('table text starts on the same gutter as the panel headings and filters above it', () => {

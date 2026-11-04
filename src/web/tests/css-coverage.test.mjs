@@ -11,7 +11,7 @@ const BASELINE = [
   // Built from a prefix plus a variable, so the literal text is not a class.
   '-button', 'connection-test-',
   // Hooks or markers with no rule of their own yet.
-  'asset-create-panel', 'detail-tab', 'loading-label', 'logic-detail-overview',
+  'asset-create-panel', 'loading-label', 'logic-detail-overview',
   // The control panels and the schedule panel were built without styles. Each goes when its screen is rebuilt on the
   // shared field and notice components (docs/design/control-ui-audit.md, steps D2 to D5).
   'autonomy-policy', 'autonomy-policy-form', 'autonomy-policy-limits', 'autonomy-policy-row',

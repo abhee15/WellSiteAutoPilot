@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { TabBar, TabStrip } from './TabStrip';
+import { TabBar, TabStrip, keepTabVisible } from './TabStrip';
 
 export type SectionTab<T extends string> = { id: T; label: string; disabled?: boolean };
 
@@ -29,7 +29,8 @@ export function SectionTabs<T extends string>({ prefix, label, tabs, selected, d
     const next = available[nextIndex]!;
     const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
     const target = Array.from(buttons ?? []).find(button => button.id === prefix + '-tab-' + next.id);
-    target?.focus();
+    target?.focus({ preventScroll: true });
+    if (target && target.parentElement) keepTabVisible(target.parentElement, target);
     setFocusedId(next.id);
   }
 
