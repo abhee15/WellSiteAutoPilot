@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useHashDetail } from '../routing';
+import { hashFor, useHashDetail } from '../routing';
+import { PageTabNav } from '../components/PageTabNav';
 import type { AssetResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { AccessManagementPage } from './AccessManagementPage';
@@ -23,22 +24,17 @@ export function AdministrationWorkspace({ currentUserId, assets = [], canReadAss
   // The user chosen by "Assign role" on the Users tab; only the next Grants view consumes it.
   const [assignUser, setAssignUser] = useState<VerifiedSecurityUser | null>(null);
   return (
-    <div>
-      <div className="administration-tabs" role="tablist" aria-label={t('access.pageTitle')}>
-        <button type="button" role="tab" className="secondary-button"
-          aria-selected={tab === 'users'} id="admin-users-tab" aria-controls="admin-users"
-          onClick={() => setTab('users')}>{t('roles.usersTab')}</button>
-        <button type="button" role="tab" className="secondary-button"
-          aria-selected={tab === 'roles'} id="admin-roles-tab" aria-controls="admin-roles"
-          onClick={() => setTab('roles')}>{t('roles.tab')}</button>
-        <button type="button" role="tab" className="secondary-button"
-          aria-selected={tab === 'grants'} id="admin-grants-tab" aria-controls="admin-grants"
-          onClick={() => { setAssignUser(null); setTab('grants'); }}>{t('grants.tab')}</button>
-        <button type="button" role="tab" className="secondary-button"
-          aria-selected={tab === 'activity'} id="admin-activity-tab" aria-controls="admin-activity"
-          onClick={() => setTab('activity')}>{t('activity.tab')}</button>
-      </div>
-      <div role="tabpanel" id={`admin-${tab}`} aria-labelledby={`admin-${tab}-tab`}>
+    <div className="administration-workspace">
+      <PageTabNav label={t('access.pageTitle')}
+        activeId={tab}
+        tabs={[
+          { id: 'users' as const, label: t('roles.usersTab'), href: hashFor('access') },
+          { id: 'roles' as const, label: t('roles.tab'), href: hashFor('access', 'roles') },
+          { id: 'grants' as const, label: t('grants.tab'), href: hashFor('access', 'grants') },
+          { id: 'activity' as const, label: t('activity.tab'), href: hashFor('access', 'activity') },
+        ]}
+        onNavigate={next => { if (next === 'grants') setAssignUser(null); }} />
+      <div>
         {tab === 'users'
           ? <AccessManagementPage currentUserId={currentUserId}
             onAssignRole={user => { setAssignUser(user); setTab('grants'); }} />
