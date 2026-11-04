@@ -3,6 +3,7 @@ import { hashFor } from '../routing';
 import { t } from '../localization';
 import { shortId } from '../format';
 import { ExecutionHistory } from './ExecutionHistory';
+import { runHistoryHash } from './assetActivity';
 import './assetPage.css';
 
 export function AssetRunHistory({ assetId, logicId, runId, assets, configuredLogic }: {
@@ -15,6 +16,8 @@ export function AssetRunHistory({ assetId, logicId, runId, assets, configuredLog
     <header className="asset-page-header"><div><h3>{t('assetDetail.historyTitle')}</h3>
       <p>{assetName} · {logicName}</p><p className="asset-page-meta">{t('assetDetail.historyScope')}</p></div>
       <a href={hashFor('assets', assetId)}>{t('assetDetail.backToAsset')}</a></header>
-    <ExecutionHistory assetId={assetId} logicId={logicId} runId={runId} assets={assets} configuredLogic={configuredLogic} />
+    <ExecutionHistory assetId={assetId} logicId={logicId} runId={runId}
+      assets={assets} configuredLogic={configuredLogic} focused
+      onRunSelect={next => { window.location.hash = runHistoryHash(assetId, logicId, next ?? undefined); }} />
   </section>;
 }

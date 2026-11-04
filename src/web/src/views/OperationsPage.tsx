@@ -24,7 +24,7 @@ import { AssetRunHistory } from './AssetRunHistory';
 export function OperationsPage(props: Parameters<typeof RecentOperationsPage>[0]) {
   const [detail] = useHashDetail('operations');
   const scope = parseRunHistory(detail);
-  if (scope) return <AssetRunHistory key={`${scope.assetId}:${scope.logicId}:${scope.runId}`} {...scope}
+  if (scope) return <AssetRunHistory key={`${scope.assetId}:${scope.logicId}`} {...scope}
     assets={props.assets ?? []} configuredLogic={props.configuredLogic ?? []} />;
   return <RecentOperationsPage {...props} />;
 }

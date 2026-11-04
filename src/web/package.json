@@ -14,6 +14,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,json}\"",
     "test:ui": "node --test tests/*.test.mjs",
     "test:interaction": "vitest run --config vitest.config.ts",
+    "test:visual:run-history": "node scripts/visual-run-history.mjs",
     "check:local": "node scripts/local-checks.mjs"
   },
   "dependencies": {

@@ -11,7 +11,8 @@
 
 body {
   margin: 0;
-  min-width: var(--layout-page-min);
+  /* A vertical scrollbar consumes inline space even at a 320px viewport. */
+  min-width: min(100%, var(--layout-page-min));
   line-height: var(--line-height-body);
   background: var(--color-surface-canvas);
 }
