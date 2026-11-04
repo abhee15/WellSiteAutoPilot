@@ -1,6 +1,6 @@
 # Phase 4 — Cross-screen design-system consistency audit
 
-Status: **Phase 4 inventory and P4-A implementation.** Audited against `develop` on 2026-11-04.
+Status: **Phase 4 inventory, P4-A merged, P4-B selection consistency implemented on a separate branch.** Baseline `develop` on 2026-11-04.
 Related: [UI conventions](ui-conventions.md), [Phase 1 tab contract](tab-navigation-design-system-phase1.md),
 [Control UI audit](control-ui-audit.md), [Asset identity presentation audit](asset-identity-presentation-audit.md).
 Tracking: [#444](https://github.com/abhee15/WellSiteAutoPilot/issues/444).
@@ -20,7 +20,7 @@ These are different interaction contracts; do **not** blindly replace one with a
 | Area | Evidence in source | Decision / status |
 | --- | --- | --- |
 | **P4-A, panel headers** | `PanelHeader` in `src/web/src/components/common.tsx` accepted only a title/count. `ConnectionsPage`, `RoleCatalogPage`, `GrantAdministrationPage` and `OverviewPage` recreated `panel-header` markup for right-hand actions; Roles also used bespoke `role-actions` CSS. | **Implemented in first Phase 4 slice.** Optional shared actions slot and H2/H3 semantic heading level. Shared wrapping/gap styles and regression tests. Replace duplicated markup in four areas, including Role editor and list. |
-| **P4-B, selection treatment** | `OperationsPage`, `LogicPage`, `RecommendationsPage`, `ActivityPage`, and `RoleCatalogPage` mark selected table rows with `data-selected`; `splitLayout.css` owns the common highlight for these runs-layout tables. `ConnectionsPage` correctly marks its selectable Connection buttons with `aria-current`. Asset tree uses `aria-selected`. | First verify equivalent selected styling, focus order and contrast through a browser/a11y review. If a gap exists, refactor the *shared* table/list style; retain semantic distinctions and permission-driven row affordances. Avoid reworking the active Logic Activity inspector PR #442. |
+| **P4-B, selection treatment** | `OperationsPage`, `LogicPage`, `RecommendationsPage`, `ActivityPage`, and `RoleCatalogPage` mark selected table rows with `data-selected`. Equivalent token rules were repeated in `splitLayout.css`, `assetPage.css`, `assetTree.css`, and `accessManagement.css`; Connections used the hover-colored surface for the current record. Some record-opening buttons lacked a programmatically announced current state. | **P4-B implementation:** `components/selectedRecord.css` is the common visual owner for these records, including Connection rows. Selection is visibly distinct from hover, while native `:focus-visible` remains separate. The Operations record-opening button now exposes `aria-current="true"` only for its selected record. The existing Asset tree retains `aria-selected` on `treeitem`; tabs retain `aria-selected`, page links retain `aria-current="page"`. Interaction and consistency tests guard these decisions. Do not modify the active Logic Activity PR #442. |
 | **P4-C, form controls** | `ConnectionsPage`, `RoleCatalogPage`, `GrantAdministrationPage`, `ConfiguredLogicSetupPanel`, and control screens render their own labeled inputs/selects/checks. `styles.css` contains page-specific form-label selectors. | **Owned by existing [Control UI audit](control-ui-audit.md) / #418, D1.** Establish shared accessible `TextField`, `TextArea`, numeric, checkbox, select, group and action components **once**, then migrate pages incrementally. Do not introduce a second competing form kit in Phase 4. |
 | **P4-C, notices/confirmations** | `RecommendationsPage`, `ConnectionsPage`, `RoleCatalogPage`, `GrantAdministrationPage`, `ActivityPage`, and `App` use several combinations of `role="alert"`, `role="status"`, `status-error`, `execution-detail-error`, `access-intro` and one-off note styles. | **Owned by D1/D4 of [Control UI audit](control-ui-audit.md).** Build one role-safe notice/confirmation primitive, then migrate. Preserve persistent warnings, screen-reader urgency, and retry semantics; don't sweep them into a generic toast. |
 | **P4-D, other headers** | `PageHeader` centrally controls section h1, live status and refresh; it is already the correct owner. `RecommendationsPage` still needs an action group with timestamp; `GrantAdministrationPage` has nested review headings. | Continue deliberate migration after control UI decisions. Do not duplicate `PageHeader` or move responsibility for refresh/live status to each page. Leave existing control screen markup untouched until its planned redesign. |
@@ -41,6 +41,27 @@ These are different interaction contracts; do **not** blindly replace one with a
 - Responsive: shared header and action groups wrap at narrow widths using existing tokens,
   without adding nested scrollbars. The long-page/scroll-region rules remain unchanged.
 
+## P4-B selection contract and preservation
+
+- **Visual owner:** `src/web/src/components/selectedRecord.css`, imported once from `main.tsx`.
+  Selected table rows, selected filtered Asset items, selected Asset tree rows, and current Connection buttons
+  all reuse `--color-surface-navigation-active` plus one leading accent using existing tokens.
+  Ordinary hover is not the same as selected; the keyboard focus ring is independent.
+- **Semantic owner:** `data-selected` is a styling hook on native tables/lists, **not** an ARIA role.
+  Native record-opening buttons may use `aria-current="true"` for the item currently shown in a detail pane;
+  never put `aria-current` on a native table `row`. The Asset hierarchy is an actual tree:
+  its `treeitem` keeps `aria-selected`. Page links use `aria-current="page"`.
+  Tab controls use `aria-selected`, never `aria-current`.
+- **Scope:** existing row click behavior, button toggle behavior, routing, identity, permission checks,
+  keyboard focus and virtualization stay unchanged. `LogicPage.tsx` stays untouched while PR #442
+  owns the focused Activity inspector.
+- **Reference:** W3C [WAI-ARIA 1.2](https://www.w3.org/TR/wai-aria/#aria-current)
+  and [WAI Technique ARIA26](https://www.w3.org/WAI/WCAG21/Techniques/aria/ARIA26) distinguish
+  current navigation items from selected tabs/tree items.
+- **Evidence boundary:** structural/interaction tests verify attribute behavior and one CSS owner.
+  A rendered contrast, hover, focus and 320/420/900/1440px audit still requires working visual tooling;
+  the advisory screenshot runner is tracked in #438.
+
 ## Validation checklist
 
 - [x] Use a feature branch off the merged Phase 3 `develop` head and keep the scope narrow.
@@ -52,7 +73,8 @@ These are different interaction contracts; do **not** blindly replace one with a
 - [ ] GitHub CI: frontend TypeScript, lint, unit/interaction tests, production build, integration and installer.
 - [ ] Advisory before/after browser inspection of affected panels at 420px, 900px, 1440px when the
   runner is available (track separately in #438; a broken runner is not a regression).
-- [ ] Additional Phase 4 slices: P4-B selection review and P4-C/D after component ownership is settled.
+- [x] P4-B selection implementation and regression guards in a separate Phase 4 PR; CI confirmation remains required.
+- [ ] Remaining Phase 4 slices: P4-C/D after the form/notice component ownership is settled.
 
 ## Coordination and non-goals
 
