@@ -1,6 +1,9 @@
 import { useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ExecutionHistory } from '../../src/views/ExecutionHistory';
+import { LogicPage } from '../../src/views/LogicPage';
+import { hashFor } from '../../src/routing';
+import { logicActivityDetail } from '../../src/views/logicActivityRoute';
 import { useSplitPaneViewport } from '../../src/components/useSplitPaneViewport';
 import '@fontsource/roboto/latin-400.css';
 import '@fontsource/roboto/latin-500.css';
@@ -37,12 +40,22 @@ const configuredLogic = [{ id: logicId, name: 'Pressure observer', activeRevisio
   id: id(3), revisionNumber: 1, status: 'Active', mode: 'Shadow',
   assetBindings: [{ assetId }],
 }] }];
+const logicConfiguration = { ...configuredLogic[0], canManage: false, canRequestShadow: false, revisions: [{
+  ...configuredLogic[0].revisions[0], moduleId: 'pump.observer', moduleVersion: '1.0.0',
+  parametersJson: '{}', assetBindings: [{ role: 'well', assetId, parameterOverridesJson: '{}' }],
+  dataBindings: [],
+}] };
 const response = (value: unknown) => new Response(JSON.stringify(value), {
   status: 200, headers: { 'content-type': 'application/json' },
 });
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (resource: RequestInfo | URL, init?: RequestInit) => {
   const path = String(resource);
+  if (path === '/api/v1/configured-logic/' + logicId + '/activity') {
+    return response({ activeRevisionId: id(3), observedAtUtc: '2026-11-01T12:30:00Z',
+      nextScheduledAtUtc: null, recentRuns: runs.slice(0, 2) });
+  }
+  if (path === '/api/v1/configured-logic/' + logicId) return response(logicConfiguration);
   if (path.startsWith('/api/v1/executions/history?')) {
     return response({ items: runs, nextCursor: null });
   }
@@ -55,6 +68,8 @@ window.fetch = async (resource: RequestInfo | URL, init?: RequestInit) => {
 };
 
 const listOnly = new URLSearchParams(window.location.search).get('mode') === 'list';
+const logicMode = new URLSearchParams(window.location.search).get('layout') === 'logic';
+if (logicMode) window.location.hash = hashFor('logic', logicActivityDetail(logicId, runs[0].executionId));
 const expandedNav = new URLSearchParams(window.location.search).get('nav') === 'expanded';
 function App() {
   const main = useRef<HTMLElement>(null);
@@ -82,7 +97,26 @@ function App() {
     </main>
   </div>;
 }
-createRoot(document.getElementById('root')!).render(<App />);
+function LogicApp() {
+  const main = useRef<HTMLElement>(null);
+  useSplitPaneViewport(main);
+  return <div className={expandedNav ? 'app-shell' : 'app-shell nav-collapsed'}>
+    <aside className="navigation" aria-label="Primary navigation">
+      <div className="product-mark"><strong>WS</strong></div>
+      <nav aria-label="Sections"><a href="#logic" aria-current="page">Logic</a></nav>
+    </aside>
+    <main className="content" ref={main}>
+      <header className="page-header"><h1>Logic workspace</h1></header>
+      <div className="page-body">
+        <LogicPage modules={[]} configuredLogic={[logicConfiguration] as never}
+          assets={assets as never} assetTypes={[{ id: id(90), key: 'well', isActive: true }] as never}
+          permissions={['configured-logic.read', 'executions.read']}
+          userId={id(98)} executions={runs as never} onRefresh={async () => {}} />
+      </div>
+    </main>
+  </div>;
+}
+createRoot(document.getElementById('root')!).render(logicMode ? <LogicApp /> : <App />);
 
 function inspectLayout() {
   const layout = document.querySelector<HTMLElement>('.execution-history-focus');
@@ -106,6 +140,13 @@ function inspectLayout() {
   };
   const data = {
     mode: listOnly ? 'list' : 'selected',
+    logicMode,
+    activityFocused: document.querySelector('.logic-layout')?.getAttribute('data-activity-focus') ?? null,
+    outerBrowseVisible: visible(document.querySelector<HTMLElement>('.logic-layout > .split-panes > .split-browse')),
+    outerBrowseOverflow: document.querySelector<HTMLElement>('.logic-layout > .split-panes > .split-browse')
+      ? getComputedStyle(document.querySelector<HTMLElement>('.logic-layout > .split-panes > .split-browse')!).overflowY : '',
+    outerSelectedOverflow: document.querySelector<HTMLElement>('.logic-layout > .split-panes > .split-selected')
+      ? getComputedStyle(document.querySelector<HTMLElement>('.logic-layout > .split-panes > .split-selected')!).overflowY : '',
     viewport: window.innerWidth,
     viewportClient: document.documentElement.clientWidth,
     bodyWidth: document.body.scrollWidth,
