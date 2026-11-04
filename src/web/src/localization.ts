@@ -1205,7 +1205,7 @@ export const englishMessages = {
   'nav.overview': 'Overview',
   'nav.operations': 'Runs',
   'nav.groupOperate': 'Operate',
-  'nav.groupUnderstand': 'Understand',
+  'nav.groupConfigure': 'Configure',
   'nav.groupAdminister': 'Administer',
   'nav.collapse': 'Collapse side panel',
   'nav.expand': 'Expand side panel',
