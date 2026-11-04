@@ -202,7 +202,7 @@ export function App() {
               canOpenSection(currentUser, 'operations') && <NavigationLink key="operations" section="operations" current={section}>{t('nav.operations')}</NavigationLink>,
               canOpenSection(currentUser, 'recommendations') && <NavigationLink key="recommendations" section="recommendations" current={section}>{t('nav.recommendations')}</NavigationLink>]}
           </NavigationGroup>
-          <NavigationGroup id="nav-group-understand" label={t('nav.groupUnderstand')}>
+          <NavigationGroup id="nav-group-configure" label={t('nav.groupConfigure')}>
             {[canOpenSection(currentUser, 'assets') && <NavigationLink key="assets" section="assets" current={section}>{t('nav.assets')}</NavigationLink>,
               canOpenSection(currentUser, 'logic') && <NavigationLink key="logic" section="logic" current={section}>{t('nav.logic')}</NavigationLink>]}
           </NavigationGroup>
