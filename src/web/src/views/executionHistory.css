@@ -79,3 +79,10 @@
     align-self: flex-start;
   }
 }
+
+/* Narrow phones: reserve actual reading width for run metadata and diagnostics.
+   Scope the reduced page gutters to this focused inspector, not every page. */
+@media (width <= 40em) {
+  .content:has(.execution-history-focus) { padding-inline: var(--space-10); }
+  .asset-page:has(> .execution-history-focus) { padding-inline: var(--space-8); }
+}
