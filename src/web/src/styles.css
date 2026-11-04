@@ -941,33 +941,8 @@ button:disabled {
   }
 }
 
-/* Role authoring reuses the same accessible Administration layout. */
-/* Same underline tabs as Assets and Logic. */
-.administration-tabs {
-  display: flex;
-  gap: var(--space-4);
-  margin-bottom: var(--space-16);
-  flex-wrap: wrap;
-  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
-}
-.administration-tabs button {
-  padding: var(--space-10) var(--space-16);
-  font-size: var(--font-size-body-small);
-  font-weight: var(--font-weight-regular);
-  border: 0;
-  border-bottom: var(--border-width-thick) solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-subtle);
-}
-.administration-tabs button:hover:not(:disabled) {
-  background: var(--color-surface-control-hover);
-}
-.administration-tabs button[aria-selected="true"] {
-  border-bottom-color: var(--color-focus-ring);
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-medium);
-}
+/* Administration uses the same shared tab strip with the content gap kept in layout. */
+.administration-workspace > .tab-bar { margin-bottom: var(--space-16); }
 .role-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1029,7 +1004,6 @@ button:disabled {
 .role-editor > .access-confirm { margin-inline: var(--space-18); }
 .role-editor > .primary-button { margin: 0 var(--space-18) var(--space-20); }
 @media (width <= 40em) {
-  .administration-tabs button,
   .role-actions button { flex: 1; }
 }
 
