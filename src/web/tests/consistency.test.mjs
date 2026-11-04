@@ -126,7 +126,7 @@ test('all page tabs and in-panel tabs have one semantic owner and one visual fou
     return hasLocalTabs && !allowed.has(relativePath) ? [relativePath] : [];
   });
   assert.deepEqual(offenders, [], 'role=tab and role=tablist belong to shared TabStrip/SectionTabs only');
-  const cssOffenders = css.flatMap(path => {
+  const cssOffenders = files.filter(path => path.endsWith('.css')).flatMap(path => {
     const value = source(path);
     return /\.(?:administration-tabs|split-tabs|detail-tabs|detail-tab)\b/.test(value) ? [rel(path)] : [];
   });
