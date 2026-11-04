@@ -256,7 +256,7 @@ describe('user access directory', () => {
     const user = userEvent.setup();
     render(<AdministrationWorkspace currentUserId={adminId} />);
     await screen.findByRole('button', { name: 'Assign a role to FIELD\\newhire' });
-    await user.click(screen.getByRole('tab', { name: 'Scoped grants' }));
+    await user.click(screen.getByRole('link', { name: 'Scoped grants' }));
     const picker = await screen.findByRole('combobox', { name: 'User to administer' });
     expect((picker as HTMLSelectElement).value).toBe('');
     expect(loadGrants).not.toHaveBeenCalled();
