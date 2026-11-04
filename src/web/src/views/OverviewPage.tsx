@@ -18,7 +18,7 @@ import { CONTROL_ACTION_LIST_LIMIT, fetchControlActions } from './controlActions
 import { fetchRecommendationInbox } from './recommendationInbox';
 import './overview.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
-import { Status } from '../components/Status';
+import { Status, StatusIndicator } from '../components/Status';
 import { relativeTime } from './auditPresentation';
 import { describeRunContext, executionAssetLabel } from './runContext';
 import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
@@ -140,7 +140,9 @@ export function OverviewPage({
           : items.length === 0 ? <p>{t('overview.allClear')}</p>
             : <ul className="overview-list">
               {items.map(item => <li key={item.kind}>
-                <span>{attentionText(item)}</span>
+                {item.kind === 'decide' || item.kind === 'inDoubt' || item.kind === 'failedRuns' ? (
+                  <StatusIndicator tone="warning" label={attentionText(item)} />
+                ) : <span>{attentionText(item)}</span>}
                 <a className="action-link" href={item.href}>{t('overview.open')}</a>
               </li>)}
             </ul>}
