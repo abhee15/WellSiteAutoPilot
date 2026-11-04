@@ -148,6 +148,7 @@ function RecentOperationsPage({
                       className="row-link"
                       type="button"
                       disabled={!execution.executionId}
+                      aria-current={hasSelection && selectedExecutionId === execution.executionId ? 'true' : undefined}
                       aria-controls={hasSelection &&
                         selectedExecutionId === execution.executionId
                           ? 'execution-details'
