@@ -87,6 +87,9 @@ const cases = [
   [1440, 900, 'selected'], [1024, 800, 'selected'], [900, 800, 'selected'],
   [768, 800, 'selected'], [390, 760, 'selected'], [320, 760, 'selected'],
   [390, 760, 'list'], [320, 760, 'list'],
+  [1440, 900, 'selected', 'logic'], [1024, 800, 'selected', 'logic'],
+  [900, 800, 'selected', 'logic'], [768, 800, 'selected', 'logic'],
+  [390, 760, 'selected', 'logic'], [320, 760, 'selected', 'logic'],
 ];
 const problems = [];
 
@@ -96,8 +99,8 @@ try {
   await channel.send('Page.enable');
   await channel.send('Runtime.enable');
 
-  for (const [width, height, mode] of cases) {
-    const url = `${base}?mode=${mode}${width >= 900 ? '&nav=expanded' : ''}`;
+  for (const [width, height, mode, layout = 'history'] of cases) {
+    const url = `${base}?mode=${mode}${width >= 900 ? '&nav=expanded' : ''}${layout === 'logic' ? '&layout=logic' : ''}`;
     await channel.send('Emulation.setDeviceMetricsOverride', {
       width, height, deviceScaleFactor: 1, mobile: false,
     });
@@ -112,14 +115,21 @@ try {
       const value = evaluated.result?.value;
       if (!value?.startsWith('VISUAL_REPORT:') || !value.endsWith(':END')) continue;
       try { result = JSON.parse(value.slice('VISUAL_REPORT:'.length, -':END'.length)); } catch { /* wait for complete report */ }
-      if (result?.viewport === width && result.mode === mode) break;
+      if (result?.viewport === width && result.mode === mode && result.logicMode === (layout === 'logic')) break;
       result = null;
     }
-    if (!result) { problems.push(`${width}/${mode}: no complete layout report from the browser`); continue; }
+    if (!result) { problems.push(`${layout}/${width}/${mode}: no complete layout report from the browser`); continue; }
 
     const screenshot = await channel.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-    writeFileSync(join(output, `${width}-${mode}.png`), Buffer.from(screenshot.data, 'base64'));
-    const issue = (condition, message) => { if (condition) problems.push(`${width}/${mode}: ${message}`); };
+    writeFileSync(join(output, `${layout === 'logic' ? 'logic-' : ''}${width}-${mode}.png`), Buffer.from(screenshot.data, 'base64'));
+    const issue = (condition, message) => { if (condition) problems.push(`${layout}/${width}/${mode}: ${message}`); };
+    if (layout === 'logic') {
+      issue(result.activityFocused !== 'true', 'Logic Activity did not enter focused workspace');
+      issue(result.outerBrowseVisible, 'configured logic browse list remained visible in focused Activity');
+      if (result.viewport > 900) {
+        issue(result.outerSelectedOverflow !== 'hidden', 'focused outer selected pane must not be a nested scroll region');
+      }
+    }
     issue(result.documentWidth > result.viewportClient + 2,
       `horizontal document overflow (${result.documentWidth} > usable ${result.viewportClient})`);
     issue(result.bodyWidth > result.viewportClient + 2,
@@ -144,7 +154,7 @@ try {
       issue(!result.browseVisible, 'history pane must be visible after Back');
       issue(result.inspectorVisible, 'inspector must yield to history after Back');
     }
-    console.log(`${width} × ${height} ${mode}:`, JSON.stringify(result));
+    console.log(`${width} × ${height} ${layout} ${mode}:`, JSON.stringify(result));
   }
 } finally {
   socket?.close();
