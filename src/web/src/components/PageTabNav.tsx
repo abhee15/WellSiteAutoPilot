@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { TabBar, TabStrip } from './TabStrip';
+import { TabBar, TabStrip, keepTabVisible } from './TabStrip';
 
 export type PageTab<T extends string> = {
   id: T;
@@ -26,10 +26,7 @@ export function PageTabNav<T extends string>({ label, tabs, activeId, action, on
     const strip = rootRef.current?.querySelector<HTMLElement>('.tab-strip');
     const active = strip?.querySelector<HTMLElement>('[aria-current="page"]');
     if (!strip || !active) return;
-    const viewport = strip.getBoundingClientRect();
-    const bounds = active.getBoundingClientRect();
-    if (bounds.left < viewport.left) strip.scrollLeft -= viewport.left - bounds.left;
-    else if (bounds.right > viewport.right) strip.scrollLeft += bounds.right - viewport.right;
+    keepTabVisible(strip, active);
   }, [activeId]);
 
   return <TabBar action={action} rootRef={rootRef}>
