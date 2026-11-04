@@ -9,6 +9,7 @@ import type {
 import { t } from '../localization';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { SummaryCard } from '../components/common';
+import { hashFor } from '../routing';
 import { assetTotalLabel, attentionItems, cappedCount } from './overview';
 import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
 import type { OwnerGroup } from './assetHierarchy';
@@ -53,6 +54,8 @@ export function OverviewPage({
   const [recommendationsLoaded, setRecommendationsLoaded] = useState(!canReadRecommendations);
   const reload = useRef<() => void>(() => undefined);
   const canReadAssets = permissions.includes('assets.read');
+  // Status is available to connection readers and security managers, not automatically to execution readers.
+  const canReadServices = permissions.includes('connections.read') || permissions.includes('security.manage');
   // The workspace list stops at SNAPSHOT_ASSET_LIMIT, so the real total comes from the owners' own counts.
   const [owners, setOwners] = useState<OwnerGroup[] | null>(null);
   const reloadOwners = useRef<() => void>(() => undefined);
@@ -144,14 +147,14 @@ export function OverviewPage({
       </section>
 
       <section className="summary-grid" aria-label={t('overview.glance')}>
-        {permissions.includes('assets.read') &&
-          <SummaryCard label={t('overview.assets')} value={assetTotalLabel(owners, assets.length, SNAPSHOT_ASSET_LIMIT)} detail="" />}
+        {canReadAssets &&
+          <SummaryCard label={t('overview.assets')} value={assetTotalLabel(owners, assets.length, SNAPSHOT_ASSET_LIMIT)} detail="" href={hashFor('assets')} />}
         {permissions.includes('configured-logic.read') &&
-          <SummaryCard label={t('overview.logic')} value={cappedCount(configuredLogic.length, 100)} detail="" />}
+          <SummaryCard label={t('overview.logic')} value={cappedCount(configuredLogic.length, 100)} detail="" href={hashFor('logic')} />}
         {permissions.includes('executions.read') &&
-          <SummaryCard label={t('overview.recentRuns')} value={String(executions.length)} detail={t('overview.recentRunsDetail')} />}
-        {permissions.includes('executions.read') &&
-          <SummaryCard label={t('overview.services')} value={String(unhealthy)} detail="" />}
+          <SummaryCard label={t('overview.recentRuns')} value={String(executions.length)} detail={t('overview.recentRunsDetail')} href={hashFor('operations')} />}
+        {canReadServices &&
+          <SummaryCard label={t('overview.services')} value={String(unhealthy)} detail="" href={hashFor('status')} />}
       </section>
       {permissions.includes('executions.read') && ready && latestRuns.length > 0 && (
         <section className="panel overview-latest" aria-label={t('overview.latestRuns')}>

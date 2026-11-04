@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { OverviewPage } from '../../src/views/OverviewPage';
+import { SummaryCard } from '../../src/components/common';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const response = (value: unknown) => new Response(JSON.stringify(value), { status: 200 });
@@ -29,6 +30,48 @@ it('guides a brand-new installation to the first asset', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([])));
   render(<OverviewPage {...(props as never)} assets={[]} configuredLogic={[]} executions={[]} />);
   expect(await screen.findByText(/No assets yet/)).toBeTruthy();
+});
+
+it('links each Overview KPI to its authorized page, including when the count is zero', () => {
+  vi.stubGlobal('fetch', vi.fn(async () => response([])));
+  render(<OverviewPage {...(props as never)} permissions={[...permissions, 'connections.read']}
+    systemHealth={{ unhealthyCount: 0 } as never} />);
+  const glance = within(screen.getByRole('region', { name: 'At a glance' }));
+  const destinations = [
+    ['Assets', '#assets'],
+    ['Logic configurations', '#logic'],
+    ['Recent runs', '#operations'],
+    ['Services needing attention', '#status'],
+  ] as const;
+  for (const [label, href] of destinations) {
+    const link = glance.getByRole('link', { name: new RegExp(label, 'i') });
+    expect(link.getAttribute('href')).toBe(href);
+    expect(link.classList.contains('summary-card-link')).toBe(true);
+    expect(link.hasAttribute('aria-pressed')).toBe(false);
+  }
+  expect(glance.getByRole('link', { name: /Services needing attention/ }).textContent).toContain('0');
+});
+
+it('never links to an inaccessible Status page, but permits status-only readers', () => {
+  vi.stubGlobal('fetch', vi.fn(async () => response([])));
+  const view = render(<OverviewPage {...(props as never)} permissions={['executions.read']} />);
+  expect(within(screen.getByRole('region', { name: 'At a glance' }))
+    .queryByRole('link', { name: /Services needing attention/ })).toBeNull();
+  view.unmount();
+  render(<OverviewPage {...(props as never)} permissions={['connections.read']} />);
+  const glance = within(screen.getByRole('region', { name: 'At a glance' }));
+  expect(glance.getByRole('link', { name: /Services needing attention/ }).getAttribute('href')).toBe('#status');
+  expect(glance.queryByRole('link', { name: /Recent runs/ })).toBeNull();
+});
+
+it('preserves SummaryCard filter buttons when a card does not navigate', () => {
+  const onSelect = vi.fn();
+  render(<SummaryCard label="Active executions" value="3" detail="Running" onSelect={onSelect} selected />);
+  const button = screen.getByRole('button', { name: /Active executions/ });
+  expect(button.getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(button);
+  expect(onSelect).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('link')).toBeNull();
 });
 
 const run = (executionId: string, extra: Record<string, unknown> = {}) => ({
