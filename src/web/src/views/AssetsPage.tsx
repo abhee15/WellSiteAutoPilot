@@ -1,6 +1,7 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { PageTabNav } from '../components/PageTabNav';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
   AssetCreationCapabilitiesResponse,
@@ -163,18 +164,18 @@ export function AssetsPage({
 
   return (
     <div {...splitFocus} className="split-layout" data-has-selection={Boolean(selectedAuthorized)}>
-      <div className="split-tabs" role="tablist" aria-label={t('assets.tabs')}>
-        <a role="tab" href={hashFor('assets')} aria-selected={!onTypesTab}>
-          {t('assets.tabAssets')} <span>{lazy ? `${assets.length}+` : assets.length}</span>
-        </a>
-        <a role="tab" href={hashFor('assets', TYPES_TAB)} aria-selected={onTypesTab}>
-          {t('assets.tabTypes')} <span>{listedTypes.length}</span>
-        </a>
-        {!onTypesTab && canAdd && <ActionButton variant="primary" className="split-add" onClick={() => setAdding(open => !open)} aria-expanded={adding}
-          label={adding ? t('assets.closeAdd') : selectedAuthorized
-            ? t('assets.addUnder', { name: selectedAuthorized.name ?? t('assets.unnamed') })
-            : t('assets.add')} />}
-      </div>
+      <PageTabNav label={t('assets.tabs')}
+        tabs={[
+          { id: 'assets', label: t('assets.tabAssets'), href: hashFor('assets'), count: lazy ? `${assets.length}+` : assets.length },
+          { id: TYPES_TAB, label: t('assets.tabTypes'), href: hashFor('assets', TYPES_TAB), count: listedTypes.length },
+        ]}
+        activeId={onTypesTab ? TYPES_TAB : 'assets'}
+        action={!onTypesTab && canAdd
+          ? <ActionButton variant="primary" onClick={() => setAdding(open => !open)} aria-expanded={adding}
+            label={adding ? t('assets.closeAdd') : selectedAuthorized
+              ? t('assets.addUnder', { name: selectedAuthorized.name ?? t('assets.unnamed') })
+              : t('assets.add')} />
+          : undefined} />
 
       {onTypesTab ? (
         <section className="panel" aria-label={t('assets.tabTypes')}>

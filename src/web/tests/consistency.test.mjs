@@ -98,6 +98,19 @@ test('buttons are not restyled by where they sit: use ActionButton, not a contai
     'A rule like ".some-container button { ... }" gives one screen its own button look; use <ActionButton> (or the shared button classes)');
 });
 
+test('Logic and Assets use the shared page navigation instead of local tab markup and CSS', () => {
+  for (const name of ['LogicPage.tsx', 'AssetsPage.tsx']) {
+    const code = source(join(root, 'views', name));
+    assert.match(code, /<PageTabNav\b/, name + ' must use PageTabNav');
+    assert.doesNotMatch(code, /role=["']tab(list)?["']|className=["']split-tabs["']/, name + ' must not implement its own tablist');
+  }
+  const shared = source(join(root, 'components/TabStrip.tsx'));
+  assert.match(shared, /mode === 'navigation'/);
+  assert.match(shared, /role="tablist"/);
+  assert.doesNotMatch(source(join(root, 'views/splitLayout.css')), /\.split-tabs\b/);
+  assert.doesNotMatch(source(join(root, 'styles.css')), /\.split-tabs\b/);
+});
+
 test('table text starts on the same gutter as the panel headings and filters above it', () => {
   const styles = source(join(root, 'styles.css'));
   assert.match(styles, /\.activity-table td:first-child \{ padding-inline-start: var\(--space-18\); \}/);

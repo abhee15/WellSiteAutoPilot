@@ -1,0 +1,90 @@
+name: Tab visual review
+
+# Changes to tab UI should carry real-browser before/after evidence. This job
+# compares the PR head with its exact target base, using disposable mock API data.
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'src/web/src/components/**'
+      - 'src/web/src/views/**'
+      - 'src/web/src/styles.css'
+      - 'src/web/src/tokens.css'
+      - 'tools/design-preview/**'
+      - '.github/workflows/tab-visual-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tab-visual-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture-tab-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout before (PR base)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || 'develop' }}
+          path: before
+      - name: Checkout after (PR head)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: after
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: after/src/web/package-lock.json
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install browser
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Build base preview
+        working-directory: before/src/web
+        run: |
+          npm ci
+          npx vite build --outDir "$GITHUB_WORKSPACE/preview-before" --emptyOutDir
+      - name: Build PR preview
+        working-directory: after/src/web
+        run: |
+          npm ci
+          npx vite build --outDir "$GITHUB_WORKSPACE/preview-after" --emptyOutDir
+      - name: Capture responsive before and after
+        run: |
+          node before/tools/design-preview/mock-server.mjs "$GITHUB_WORKSPACE/preview-before" 5198 > /tmp/wsa-before.log 2>&1 &
+          node after/tools/design-preview/mock-server.mjs "$GITHUB_WORKSPACE/preview-after" 5199 > /tmp/wsa-after.log 2>&1 &
+          python - <<'PY'
+          import time, urllib.request
+          for port in (5198, 5199):
+              for attempt in range(50):
+                  try:
+                      urllib.request.urlopen(f'http://127.0.0.1:{port}/', timeout=2).close()
+                      break
+                  except Exception:
+                      time.sleep(.2)
+              else:
+                  raise RuntimeError(f'Preview server on {port} did not start')
+          PY
+          python after/tools/design-preview/capture-tab-layout.py "$GITHUB_WORKSPACE/screenshots" http://127.0.0.1:5198 http://127.0.0.1:5199
+      - name: Upload before/after screenshots and layout audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tab-visual-review-${{ github.run_id }}
+          path: |
+            screenshots/
+            /tmp/wsa-before.log
+            /tmp/wsa-after.log
+          if-no-files-found: warn
+          retention-days: 14
