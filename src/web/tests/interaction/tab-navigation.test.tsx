@@ -34,6 +34,18 @@ describe('PageTabNav', () => {
     expect(await accessibilityViolations(view.container)).toEqual([]);
   });
 
+  it('runs route-specific cleanup without intercepting the native link', async () => {
+    const onNavigate = vi.fn();
+    const user = userEvent.setup();
+    render(<PageTabNav label="Administration" tabs={[
+      { id: 'users', label: 'User assignments', href: '#access' },
+      { id: 'grants', label: 'Scoped grants', href: '#access/grants' },
+    ]} activeId="users" onNavigate={onNavigate} />);
+    await user.click(screen.getByRole('link', { name: 'Scoped grants' }));
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('grants');
+    expect(window.location.hash).toBe('#access/grants');
+  });
+
   it('does not swallow ordinary hash-link navigation or keyboard Tab focus', async () => {
     const user = userEvent.setup();
     render(<PageTabNav label="Logic sections" tabs={pageTabs} activeId="configured" />);

@@ -16,7 +16,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { CloseButton } from '../components/CloseButton';
 import type { OwnerGroup } from './assetHierarchy';
 import { Status } from '../components/Status';
-import { DetailTabs } from '../components/DetailTabs';
+import { SectionTabs } from '../components/SectionTabs';
 import { ConfiguredRevisionDetails } from './ConfiguredRevisionDetails';
 import { ExecutionHistory } from './ExecutionHistory';
 import { fetchConfigurationActivity } from './configuredLogicActivity';
@@ -192,7 +192,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
           label={t('logicDetail.runActive', { number: active.revisionNumber ?? '—' })} disabled={mutationBlocked || editing}
           onClick={() => { selectTab('overview'); setShowShadow(true); }} />}
       </div>
-      <DetailTabs prefix={prefix} label={t('logicDetail.sections')}
+      <SectionTabs prefix={prefix} label={t('logicDetail.sections')}
         tabs={[{ id: 'overview', label: t('logicDetail.overview') }, { id: 'configuration', label: t('logicDetail.configuration') },
           ...(canReadRuns ? [{ id: 'activity' as const, label: t('logicDetail.activity') }] : [])]}
         selected={tab} disabled={editing || busy} onSelect={selectTab} />

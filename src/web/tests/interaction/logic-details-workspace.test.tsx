@@ -59,12 +59,36 @@ it('organizes read-only settings without limiting nested parameters or providers
   const user = userEvent.setup();
   const overview = screen.getByRole('tab', { name: 'Overview', exact: true });
   overview.focus(); await user.keyboard('{ArrowRight}');
-  expect(screen.getByRole('tab', { name: 'Configuration', exact: true }).getAttribute('aria-selected')).toBe('true');
+  const configurationTab = screen.getByRole('tab', { name: 'Configuration', exact: true });
+  expect(document.activeElement).toBe(configurationTab);
+  expect(configurationTab.getAttribute('aria-selected')).toBe('false');
+  await user.keyboard('{Enter}');
+  expect(configurationTab.getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText('{"limits":[30,40],"strategy":{"enabled":true}}')).toBeTruthy();
   expect(screen.getByText('[[1,2],[3,4]]')).toBeTruthy();
   expect(view.container.textContent).not.toContain('MAPPING_NOT_FOR_DISPLAY');
   expect(view.container.textContent).toContain('calc');
   expect(await accessibilityViolations(view.container)).toEqual([]);
+});
+
+it('moves focus across detail tabs without fetching Activity until keyboard activation', async () => {
+  const { state } = fixture();
+  render(<ConfiguredLogicWorkspace {...props} />);
+  await screen.findByText('Running');
+  const user = userEvent.setup();
+  screen.getByRole('tab', { name: 'Overview', exact: true }).focus();
+  await user.keyboard('{ArrowRight}{ArrowRight}');
+  const activity = screen.getByRole('tab', { name: 'Activity', exact: true });
+  expect(document.activeElement).toBe(activity);
+  expect(activity.getAttribute('aria-selected')).toBe('false');
+  expect(state.historyRequests).toHaveLength(0);
+  await user.keyboard('{Enter}');
+  await screen.findAllByRole('button', { name: /Inspect run/ });
+  expect(activity.getAttribute('aria-selected')).toBe('true');
+  expect(state.historyRequests).toHaveLength(1);
+  await user.keyboard('{Home}');
+  expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Overview', exact: true }));
+  expect(activity.getAttribute('aria-selected')).toBe('true');
 });
 
 it('copies the chosen immutable revision into the existing editor and protects it from tab navigation', async () => {

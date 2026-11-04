@@ -89,8 +89,8 @@ test('every search box says what to type, so none is left empty', () => {
 });
 
 test('buttons are not restyled by where they sit: use ActionButton, not a container-specific button rule', () => {
-  // Known, deliberate exceptions: the Runs saved-view controls (their own form row) and the tab strip.
-  const allowed = new Set(['.data-view-controls button', '.administration-tabs button', '.role-actions button']);
+  // Known, deliberate exceptions: Runs saved-view controls and role action buttons.
+  const allowed = new Set(['.data-view-controls button', '.role-actions button']);
   const styles = source(join(root, 'styles.css'));
   const found = [...styles.matchAll(/^\s*(\.[\w-]+ button)(?::[\w-]+(?:\([^)]*\))*)*\s*[{,]/gm)].map(match => match[1]);
   const offenders = [...new Set(found)].filter(selector => !allowed.has(selector));
@@ -109,6 +109,30 @@ test('Logic and Assets use the shared page navigation instead of local tab marku
   assert.match(shared, /role="tablist"/);
   assert.doesNotMatch(source(join(root, 'views/splitLayout.css')), /\.split-tabs\b/);
   assert.doesNotMatch(source(join(root, 'styles.css')), /\.split-tabs\b/);
+});
+
+test('all page tabs and in-panel tabs have one semantic owner and one visual foundation', () => {
+  for (const name of ['LogicPage.tsx', 'AssetsPage.tsx', 'AdministrationWorkspace.tsx']) {
+    const page = source(join(root, 'views', name));
+    assert.match(page, /<PageTabNav\b/, name + ' must use native-link page navigation');
+  }
+  const detail = source(join(root, 'views/ConfiguredLogicWorkspace.tsx'));
+  assert.match(detail, /<SectionTabs\b/, 'Configured Logic must reuse controlled in-panel tabs');
+  const allowed = new Set(['components/TabStrip.tsx', 'components/SectionTabs.tsx']);
+  const offenders = code.flatMap(path => {
+    const relativePath = rel(path).replace(/\\/g, '/');
+    const value = source(path);
+    const hasLocalTabs = /role\s*=\s*["']tab(?:list)?["']/.test(value);
+    return hasLocalTabs && !allowed.has(relativePath) ? [relativePath] : [];
+  });
+  assert.deepEqual(offenders, [], 'role=tab and role=tablist belong to shared TabStrip/SectionTabs only');
+  const cssOffenders = files.filter(path => path.endsWith('.css')).flatMap(path => {
+    const value = source(path);
+    return /\.(?:administration-tabs|split-tabs|detail-tabs|detail-tab)\b/.test(value) ? [rel(path)] : [];
+  });
+  assert.deepEqual(cssOffenders, [], 'legacy or page-local tab appearance must not reappear');
+  assert.doesNotMatch(detail, /\bDetailTabs\b/);
+  assert.doesNotMatch(source(join(root, 'views/AdministrationWorkspace.tsx')), /\badministration-tabs\b/);
 });
 
 test('table text starts on the same gutter as the panel headings and filters above it', () => {

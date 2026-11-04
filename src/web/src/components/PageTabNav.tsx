@@ -10,11 +10,13 @@ export type PageTab<T extends string> = {
 };
 
 /** Addressable page sections are links, not ARIA tabpanels. */
-export function PageTabNav<T extends string>({ label, tabs, activeId, action }: {
+export function PageTabNav<T extends string>({ label, tabs, activeId, action, onNavigate }: {
   label: string;
   tabs: readonly PageTab<T>[];
   activeId: T;
   action?: ReactNode;
+  /** Optional side effect; native links still own browser/history navigation. */
+  onNavigate?: (id: T) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +36,8 @@ export function PageTabNav<T extends string>({ label, tabs, activeId, action }: 
     <TabStrip label={label} mode="navigation">
       {tabs.map(tab => <a key={tab.id} className="tab-strip-item" href={tab.href}
         aria-label={tab.count === undefined ? tab.label : tab.label + ' ' + tab.count}
-        aria-current={tab.id === activeId ? 'page' : undefined}>
+        aria-current={tab.id === activeId ? 'page' : undefined}
+        onClick={() => onNavigate?.(tab.id)}>
         <span>{tab.label}</span>
         {tab.count !== undefined && <span className="tab-strip-count">{tab.count}</span>}
       </a>)}
