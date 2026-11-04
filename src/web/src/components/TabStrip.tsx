@@ -12,6 +12,14 @@ export function TabStrip({ label, mode, children }: {
     : <div className="tab-strip" role="tablist" aria-label={label}>{children}</div>;
 }
 
+/** Reveal a horizontally focused/selected tab without scrolling the outer page or detail pane. */
+export function keepTabVisible(strip: HTMLElement, item: HTMLElement) {
+  const viewport = strip.getBoundingClientRect();
+  const bounds = item.getBoundingClientRect();
+  if (bounds.left < viewport.left) strip.scrollLeft -= viewport.left - bounds.left;
+  else if (bounds.right > viewport.right) strip.scrollLeft += bounds.right - viewport.right;
+}
+
 export function TabBar({ children, action, rootRef }: {
   children: ReactNode;
   action?: ReactNode;
