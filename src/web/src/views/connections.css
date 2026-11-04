@@ -5,7 +5,6 @@
 .connection-list li + li { border-top: var(--border-width-thin) solid var(--color-border-row); }
 .connection-row { display: grid; gap: var(--space-4); width: 100%; text-align: left; padding: var(--space-12) var(--space-18); background: transparent; border: 0; border-left: var(--border-width-thick) solid transparent; color: var(--color-text-primary); font: inherit; cursor: pointer; }
 .connection-row:hover { background: var(--color-surface-row-hover); }
-.connection-row[aria-current='true'] { border-left-color: var(--color-border-selected); background: var(--color-surface-row-hover); }
 .connection-row small { color: var(--color-text-subtle); }
 .connection-form { display: grid; gap: var(--space-14); padding: var(--space-12) var(--space-18) var(--space-18); }
 .connection-form label, .connection-field { display: grid; gap: var(--space-6); }
