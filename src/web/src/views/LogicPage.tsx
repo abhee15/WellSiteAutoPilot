@@ -31,6 +31,7 @@ import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
 import './splitLayout.css';
+import './logicActivityFocus.css';
 
 /** `#logic/modules` opens the Modules tab and `#logic/schedules` the Schedules tab. */
 const MODULES_TAB = 'modules';
