@@ -5,7 +5,6 @@
 .split-back.ui-action-button { display: none; margin: var(--space-12) var(--space-18) 0; }
 .split-results { list-style: none; margin: 0; padding: var(--space-6) 0; display: grid; }
 .split-results li { display: grid; padding: var(--space-6) var(--space-18); }
-.split-results li[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
 .split-results small { color: var(--color-text-subtle); }
 
 .split-browse { min-width: 0; }
@@ -46,7 +45,6 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 .runs-layout .activity-table tbody tr { cursor: pointer; }
 /* A recommendation row opens only when it can be reviewed; the others have no details to open. */
 .recs-layout .activity-table tbody tr:not([data-reviewable]) { cursor: default; }
-.runs-layout .activity-table tbody tr[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
 /* Beside the list the details are one full-height card (Activity shares the list's own panel instead). */
 .runs-layout:not(.activity-layout) .split-selected { background: var(--color-surface-panel); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
 .runs-layout .split-selected .execution-detail { border: 0; border-radius: 0; }
