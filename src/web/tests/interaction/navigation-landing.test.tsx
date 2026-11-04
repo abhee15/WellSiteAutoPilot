@@ -19,7 +19,7 @@ it('groups navigation by intent and shows only groups the user can use', async (
   render(<App />);
   const nav = await screen.findByRole('navigation', { name: 'Primary' });
   await within(nav).findByRole('link', { name: 'Assets' });
-  expect(within(nav).getByRole('group', { name: 'Understand' })).not.toBeNull();
+  expect(within(nav).getByRole('group', { name: 'Configure' })).not.toBeNull();
   expect(within(nav).getByRole('group', { name: 'Operate' })).not.toBeNull();
   expect(within(nav).queryByRole('group', { name: 'Administer' })).toBeNull();
 });
