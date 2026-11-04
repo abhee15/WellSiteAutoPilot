@@ -1,6 +1,6 @@
 /* Focused Logic Activity lives in the existing selected configuration; avoid a third
    permanently narrow pane or scrolling the configured-logic list before run details. */
-.logic-layout[data-activity-focus='true'] > .split-panes {
+.logic-layout.runs-layout[data-activity-focus='true'] > .split-panes {
   grid-template-columns: minmax(0, 1fr);
 }
 .logic-layout[data-activity-focus='true'] > .split-panes > .split-browse {
@@ -53,4 +53,10 @@
   .logic-layout[data-activity-focus='true'] .execution-history-focus[data-has-selection='false'] > .execution-history-panes > .split-browse {
     display: block;
   }
+}
+
+/* The existing Logic details selector removes detail padding. Focused run detail
+   is its own inspector card and retains the shared readable content gutters. */
+.logic-layout[data-activity-focus='true'] .execution-history-inspector .execution-detail {
+  padding: var(--space-18);
 }
