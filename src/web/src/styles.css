@@ -1009,9 +1009,6 @@ button:disabled {
 .role-editor > .access-review,
 .role-editor > .access-confirm { margin-inline: var(--space-18); }
 .role-editor > .primary-button { margin: 0 var(--space-18) var(--space-20); }
-@media (width <= 40em) {
-  .role-actions button { flex: 1; }
-}
 
 .skip-link {
   position: absolute;
