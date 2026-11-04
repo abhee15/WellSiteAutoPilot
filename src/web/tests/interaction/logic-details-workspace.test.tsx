@@ -71,6 +71,26 @@ it('organizes read-only settings without limiting nested parameters or providers
   expect(await accessibilityViolations(view.container)).toEqual([]);
 });
 
+it('moves focus across detail tabs without fetching Activity until keyboard activation', async () => {
+  const { state } = fixture();
+  render(<ConfiguredLogicWorkspace {...props} />);
+  await screen.findByText('Running');
+  const user = userEvent.setup();
+  screen.getByRole('tab', { name: 'Overview', exact: true }).focus();
+  await user.keyboard('{ArrowRight}{ArrowRight}');
+  const activity = screen.getByRole('tab', { name: 'Activity', exact: true });
+  expect(document.activeElement).toBe(activity);
+  expect(activity.getAttribute('aria-selected')).toBe('false');
+  expect(state.historyRequests).toHaveLength(0);
+  await user.keyboard('{Enter}');
+  await screen.findAllByRole('button', { name: /Inspect run/ });
+  expect(activity.getAttribute('aria-selected')).toBe('true');
+  expect(state.historyRequests).toHaveLength(1);
+  await user.keyboard('{Home}');
+  expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Overview', exact: true }));
+  expect(activity.getAttribute('aria-selected')).toBe('true');
+});
+
 it('copies the chosen immutable revision into the existing editor and protects it from tab navigation', async () => {
   fixture(); render(<ConfiguredLogicWorkspace {...props} />); const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Create revision', exact: true }));
