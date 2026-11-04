@@ -20,6 +20,7 @@ import { configurationTargetAssetIds, configuredTargetLabel, latestRunByConfigur
 import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
+import { logicActivityDetail, parseLogicActivityDetail } from './logicActivityRoute';
 import { CONTROL_MANAGE_PERMISSION } from './controlExecution';
 import { ModulePanel } from './ModulePanel';
 import { SchedulesOverview } from './SchedulesOverview';
@@ -30,6 +31,7 @@ import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
 import './splitLayout.css';
+import './logicActivityFocus.css';
 
 /** `#logic/modules` opens the Modules tab and `#logic/schedules` the Schedules tab. */
 const MODULES_TAB = 'modules';
@@ -67,7 +69,9 @@ export function LogicPage({
   const startAssetId = rawDetail?.startsWith('new:') ? rawDetail.slice(4) : null;
   const modulesRequested = rawDetail === MODULES_TAB;
   const schedulesRequested = rawDetail === SCHEDULES_TAB;
-  const selectedConfiguredId = startAssetId || modulesRequested || schedulesRequested ? null : rawDetail;
+  const activityRoute = parseLogicActivityDetail(rawDetail);
+  const selectedConfiguredId = startAssetId || modulesRequested || schedulesRequested ? null : activityRoute.configurationId;
+  const focusedActivity = Boolean(selectedConfiguredId && activityRoute.activity && canReadRuns);
   const showSchedules = canReadConfigurations && schedulesRequested;
   const showModules = !showSchedules && canReadCatalog && (modulesRequested || !canReadConfigurations);
   const [creating, setCreating] = useState(Boolean(startAssetId));
@@ -106,7 +110,8 @@ export function LogicPage({
   const hasConfigurationDetail = selectedConfiguredId !== null || (creating && canCreate);
 
   return (
-    <div {...splitFocus} className="split-layout runs-layout logic-layout" data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
+    <div {...splitFocus} className="split-layout runs-layout logic-layout" data-activity-focus={focusedActivity}
+      data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
       <PageTabNav label={t('logic.tabs')}
         tabs={[
           ...(canReadConfigurations ? [
@@ -253,6 +258,11 @@ export function LogicPage({
               <ConfiguredLogicWorkspace
                 key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguredId]) : 'new:' + (prefillAssetId ?? '') + assets.map(item => item.id).join(',')}
                 selectedId={selectedConfiguredId} initialAssetId={prefillAssetId}
+                activitySelected={focusedActivity} activityRunId={focusedActivity ? activityRoute.runId : null}
+                onActivityTabChange={next => { if (selectedConfiguredId) setSelectedConfiguredId(next
+                  ? logicActivityDetail(selectedConfiguredId) : selectedConfiguredId); }}
+                onActivityRunSelect={runId => { if (selectedConfiguredId)
+                  setSelectedConfiguredId(logicActivityDetail(selectedConfiguredId, runId)); }}
                 canManage={creating ? canManage : canManage && (selectedConfiguration?.canManage ?? true)}
                 userId={userId} canRequestShadow={permissions.includes('executions.request') && (selectedConfiguration?.canRequestShadow ?? true)}
                 canReadViews={permissions.includes('connections.read')}
