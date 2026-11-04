@@ -118,11 +118,11 @@ function sharedTabViolations(entries) {
   return entries.flatMap(({ path, content }) => {
     const violations = [];
     if (path.endsWith('.tsx') && !semanticOwners.has(path) &&
-        /\\brole\\s*=\\s*(["'])tab(?:list)?\\1/.test(content))
+        /\brole\s*=\s*(["'])tab(?:list)?\1/.test(content))
       violations.push(path + ': use PageTabNav or SectionTabs instead of ad-hoc ARIA tab roles');
-    if (path.endsWith('.tsx') && /\\bDetailTabs\\b/.test(content))
+    if (path.endsWith('.tsx') && /\bDetailTabs\b/.test(content))
       violations.push(path + ': legacy DetailTabs removed; use SectionTabs');
-    if (path.endsWith('.css') && /\\.(?:split-tabs|administration-tabs|detail-tabs|detail-tab)\\b/.test(content))
+    if (path.endsWith('.css') && /\.(?:split-tabs|administration-tabs|detail-tabs|detail-tab)\b/.test(content))
       violations.push(path + ': tab appearance belongs in components/tabStrip.css');
     return violations;
   });
@@ -130,9 +130,9 @@ function sharedTabViolations(entries) {
 
 test('all four tab surfaces share semantics and styles, with no local tab implementation', () => {
   for (const name of ['LogicPage.tsx', 'AssetsPage.tsx', 'AdministrationWorkspace.tsx']) {
-    assert.match(source(join(root, 'views', name)), /<PageTabNav\\b/, name);
+    assert.match(source(join(root, 'views', name)), /<PageTabNav\b/, name);
   }
-  assert.match(source(join(root, 'views/ConfiguredLogicWorkspace.tsx')), /<SectionTabs\\b/);
+  assert.match(source(join(root, 'views/ConfiguredLogicWorkspace.tsx')), /<SectionTabs\b/);
   assert.deepEqual(sharedTabViolations(files.map(path => ({ path: rel(path), content: source(path) }))), []);
   assert.deepEqual(sharedTabViolations([
     { path: 'views/Bad.tsx', content: '<div role="tablist"><button role="tab" /></div>' },
