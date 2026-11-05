@@ -77,6 +77,8 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/configured-logic"): ("ListConfiguredLogic", "ConfiguredLogicRead"),
     ("GET", "/configured-logic/{configuredLogicId:guid}/activity"): ("GetConfiguredLogicActivity", "ConfiguredLogicRead"),
     ("GET", "/configured-logic/{configuredLogicId:guid}"): ("GetConfiguredLogic", "ConfiguredLogicRead"),
+    ("POST", "/configured-logic/schedule-preview"): ("PreviewConfiguredLogicSchedule", "ConfiguredLogicManage"),
+    ("POST", "/configured-logic/resolve-inputs"): ("ResolveConfiguredLogicInputs", "ConfiguredLogicManage"),
     ("GET", "/configured-logic/{configuredLogicId:guid}/schedule"): ("GetConfiguredLogicSchedule", "ConfiguredLogicRead"),
     ("POST", "/configured-logic/{configuredLogicId:guid}/schedule/pause"): ("PauseConfiguredLogicSchedule", "ConfiguredLogicManage"),
     ("POST", "/configured-logic/{configuredLogicId:guid}/schedule/resume"): ("ResumeConfiguredLogicSchedule", "ConfiguredLogicManage"),

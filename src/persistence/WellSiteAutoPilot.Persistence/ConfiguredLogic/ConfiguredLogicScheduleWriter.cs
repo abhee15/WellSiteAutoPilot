@@ -45,6 +45,7 @@ internal static class ConfiguredLogicScheduleWriter
         current.CadenceSeconds = request.Schedule.CadenceSeconds;
         current.StartAtUtc = request.Schedule.StartAtUtc;
         current.TimeZoneId = request.Schedule.TimeZoneId;
+        current.ScheduleJson = JsonSerializer.Serialize(request.Schedule);
         current.ChangedBy = request.ChangedBy;
         current.ChangedAtUtc = request.ChangedAtUtc;
         current.Reason = request.Reason;
@@ -108,6 +109,7 @@ internal static class ConfiguredLogicScheduleWriter
         CadenceSeconds = schedule.CadenceSeconds,
         StartAtUtc = schedule.StartAtUtc,
         TimeZoneId = schedule.TimeZoneId,
+        ScheduleJson = JsonSerializer.Serialize(schedule),
         ChangedBy = changedBy,
         ChangedAtUtc = changedAtUtc,
         Reason = reason
@@ -133,6 +135,7 @@ internal static class ConfiguredLogicScheduleWriter
         if (request.ChangedBy.Length > 256) throw Invalid("The actor name is too long.");
         if (request.ExpectedVersion < 0) throw Invalid("The expected version cannot be negative.");
         if (request.Reason is { Length: > MaxReasonLength }) throw Invalid("The reason is too long.");
+        ScheduleOccurrences.Validate(request.Schedule);
     }
 
     public static WellSiteAutoPilotException Invalid(string message) =>

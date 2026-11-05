@@ -64,20 +64,21 @@ export function LogicPage({
   const [rawDetail, setSelectedConfiguredId] = useHashDetail('logic');
   // `#logic/new:<assetId>` starts setup from an asset (the "Put logic on this asset" link);
   // `#logic/modules` opens the Modules tab. Any other detail is a configuration id.
+  const startViewId = rawDetail?.startsWith('new-view:') ? rawDetail.slice(9) : null;
   const startAssetId = rawDetail?.startsWith('new:') ? rawDetail.slice(4) : null;
   const modulesRequested = rawDetail === MODULES_TAB;
   const schedulesRequested = rawDetail === SCHEDULES_TAB;
-  const selectedConfiguredId = startAssetId || modulesRequested || schedulesRequested ? null : rawDetail;
+  const selectedConfiguredId = startAssetId || startViewId || modulesRequested || schedulesRequested ? null : rawDetail;
   const showSchedules = canReadConfigurations && schedulesRequested;
   const showModules = !showSchedules && canReadCatalog && (modulesRequested || !canReadConfigurations);
-  const [creating, setCreating] = useState(Boolean(startAssetId));
-  useEffect(() => { if (startAssetId) setCreating(true); }, [startAssetId]);
+  const [creating, setCreating] = useState(Boolean(startAssetId || startViewId));
+  useEffect(() => { if (startAssetId || startViewId) setCreating(true); }, [startAssetId, startViewId]);
   const prefillAssetId = startAssetId && assets.some(asset => asset.id === startAssetId && asset.isActive)
     ? startAssetId : null;
   const [aboutModuleId, setAboutModuleId] = useState<string | null>(null);
   const aboutModule = modules.find(module => module.id === aboutModuleId);
   const canManage = mayManage && canReadConfigurations;
-  const canCreate = canManage && assets.some(asset => asset.isActive);
+  const canCreate = canManage && (Boolean(startViewId) || assets.some(asset => asset.isActive));
   useEffect(() => { if (!canCreate) setCreating(false); }, [canCreate]);
   const selectedConfiguration = configuredLogic.find(item => item.id === selectedConfiguredId);
   useForgetVanishedSelection(selectedConfiguredId, Boolean(selectedConfiguration) || configuredLogic.length >= 100, () => setSelectedConfiguredId(null));
@@ -251,8 +252,8 @@ export function LogicPage({
             <ActionButton label={t('logic.back')} className="split-back" onClick={() => { setSelectedConfiguredId(null); setCreating(false); }} />
             {hasConfigurationDetail ? (
               <ConfiguredLogicWorkspace
-                key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguredId]) : 'new:' + (prefillAssetId ?? '') + assets.map(item => item.id).join(',')}
-                selectedId={selectedConfiguredId} initialAssetId={prefillAssetId}
+                key={selectedConfiguredId ? JSON.stringify([userId, selectedConfiguredId]) : 'new:' + (startViewId ?? prefillAssetId ?? '') + assets.map(item => item.id).join(',')}
+                selectedId={selectedConfiguredId} initialAssetId={prefillAssetId} initialViewId={startViewId}
                 canManage={creating ? canManage : canManage && (selectedConfiguration?.canManage ?? true)}
                 userId={userId} canRequestShadow={permissions.includes('executions.request') && (selectedConfiguration?.canRequestShadow ?? true)}
                 canReadViews={permissions.includes('connections.read')}

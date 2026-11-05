@@ -14,6 +14,7 @@ export type ScheduleShape = {
   cadenceSeconds: number | null;
   startAtUtc: string | null;
   timeZoneId: string | null;
+  every?: number | null; unit?: string | null; endAtUtc?: string | null;
 };
 
 export type ScheduleChangeKind = 'Paused' | 'Resumed' | 'FrequencyChanged' | 'Reset';
@@ -96,6 +97,9 @@ function readShape(value: unknown): ScheduleShape {
     cadenceSeconds: cadence,
     startAtUtc: nullable(value.startAtUtc, isInstant),
     timeZoneId: nullable(value.timeZoneId, isText),
+    ...(typeof value.every === 'number' && typeof value.unit === 'string'
+      ? { every: value.every, unit: value.unit } : {}),
+    ...(typeof value.endAtUtc === 'string' ? { endAtUtc: value.endAtUtc } : {}),
   };
 }
 
@@ -182,9 +186,10 @@ export async function changeSchedule(current: ScheduleControl, change: Change, r
 }
 
 /** Running, paused, or no schedule at all, from the schedule that is in effect and not only the one declared. */
-export type ScheduleRunState = 'running' | 'paused' | 'none';
+export type ScheduleRunState = 'running' | 'paused' | 'none' | 'ended';
 export function scheduleRunState(control: Pick<ScheduleControl, 'activeRevisionId' | 'effective'>): ScheduleRunState {
   if (!control.activeRevisionId || !control.effective) return 'none';
+  if (control.effective.endAtUtc && Date.parse(control.effective.endAtUtc) < Date.now()) return 'ended';
   return control.effective.enabled ? 'running' : 'paused';
 }
 

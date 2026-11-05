@@ -24,6 +24,47 @@ public sealed class ConfiguredLogicService(
 {
     private static readonly JsonSerializerOptions ManifestSerializerOptions = CreateManifestSerializerOptions();
 
+    public async Task<IReadOnlyCollection<ConfiguredLogicDataBinding>> ResolveInputsAuthorizedAsync(
+        string manifestJson, IReadOnlyCollection<ConfiguredLogicAssetBindingCommand> targets,
+        AccessSubject subject, CancellationToken cancellationToken = default)
+    {
+        var requested = DeserializeAndValidateManifest(manifestJson);
+        var installed = await GetInstalledModuleAsync(requested.ModuleId, requested.Version, cancellationToken);
+        EnsureManifestMatchesInstalled(manifestJson, installed);
+        var manifest = DeserializeAndValidateManifest(installed.ManifestJson);
+        foreach (var assetId in targets.Select(target => target.AssetId).Distinct())
+            if (await assetRepository.GetAuthorizedAsync(subject, assetId, cancellationToken) is null)
+                throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_ASSET_NOT_FOUND", FailureKind.NotFound,
+                    "The selected asset was not found or is unavailable.");
+        var bindings = await ValidateAssetBindingsAsync(manifest, targets, cancellationToken);
+        var resolved = new List<ConfiguredLogicDataBinding>();
+        foreach (var assetId in bindings.Select(binding => binding.AssetId).Distinct())
+        {
+            var asset = await assetRepository.GetAuthorizedAsync(subject, assetId, cancellationToken);
+            var source = await assetRepository.GetSourceAuthorizedAsync(subject, assetId, cancellationToken);
+            var connection = source is not null && connections is not null
+                ? await connections.FindAsync(source.ConnectionId, cancellationToken) : null;
+            if (asset is null || source is null || connection is null || !connection.IsEnabled ||
+                asset.OwnerConnectionId != source.ConnectionId ||
+                !string.IsNullOrWhiteSpace(manifest.RequiredAdapterKey) &&
+                !string.Equals(manifest.RequiredAdapterKey, connection.AdapterKey, StringComparison.OrdinalIgnoreCase))
+                throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_SOURCE_UNAVAILABLE", FailureKind.Validation,
+                    $"Source information for asset '{assetId}' is unavailable or incompatible. Review its connection.");
+            var roles = bindings.Where(binding => binding.AssetId == assetId).Select(binding => binding.Role).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var input in manifest.DataRequirements.Where(input => roles.Contains(input.AssetRole)))
+            {
+                var rule = AdapterReadRules.Find(connection.AdapterKey);
+                if (rule is null || rule.ResourceKind != source.ResourceKind ||
+                    input.Access.ToString() != "Current" ||
+                    !rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, input.ValueSchema?.SchemaId))
+                    throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_INPUT_UNSUPPORTED", FailureKind.Validation,
+                        $"Input '{input.Id}' for asset '{assetId}' is not supported by adapter '{connection.AdapterKey}'.");
+                resolved.Add(new(input.Id, assetId, connection.AdapterKey, source.ExternalId, "{}"));
+            }
+        }
+        return resolved;
+    }
+
     public async Task<ConfiguredLogicDefinition> CreateAsync(
         CreateConfiguredLogicCommand command,
         SecurityActorContext? actor = null,
@@ -271,7 +312,9 @@ public sealed class ConfiguredLogicService(
                     revision.Schedule.Enabled,
                     revision.Schedule.CadenceSeconds,
                     revision.Schedule.StartAtUtc,
-                    revision.Schedule.TimeZoneId));
+                    revision.Schedule.TimeZoneId)
+                    { Every = revision.Schedule.Recurrence?.Every, Unit = revision.Schedule.Recurrence?.Unit,
+                      SkipMissingMonthDay = revision.Schedule.Recurrence?.SkipMissingMonthDay ?? false, EndAtUtc = revision.Schedule.EndAtUtc });
 
         if (subject is not null)
             await repository.SetRevisionValidatedAuthorizedAsync(revision, subject, actor!, cancellationToken);
@@ -754,11 +797,13 @@ public sealed class ConfiguredLogicService(
                 innerException: exception);
         }
 
-        return new ConfiguredLogicSchedule(
-            command.Enabled,
-            command.CadenceSeconds,
-            command.StartAtUtc.ToUniversalTime(),
-            timeZoneId);
+        var recurrence = command.Unit is null && command.Every is null ? null
+            : new ConfiguredLogicRecurrence(command.Every ?? 0, command.Unit ?? "", command.SkipMissingMonthDay);
+        var schedule = new ConfiguredLogicSchedule(command.Enabled, command.CadenceSeconds,
+            command.StartAtUtc.ToUniversalTime(), timeZoneId)
+            { Recurrence = recurrence, EndAtUtc = command.EndAtUtc?.ToUniversalTime() };
+        WellSiteAutoPilot.Application.Scheduling.ScheduleOccurrences.Validate(schedule);
+        return schedule;
     }
 
 

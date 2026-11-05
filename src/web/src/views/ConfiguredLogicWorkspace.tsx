@@ -28,14 +28,14 @@ type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; owners?: readonly OwnerGroup[]; executions?: readonly ExecutionResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
-  initialAssetId?: string | null; canReadViews?: boolean;
+  initialAssetId?: string | null; initialViewId?: string | null; canReadViews?: boolean;
   /** recommendations.read: may see the autonomy policy. control.manage: may change it. */
   canReadControl?: boolean; canManageControl?: boolean;
 };
 /** A fresh authorized detail is the mutation boundary. Polling list metadata
  * cannot silently replace the revision a user is reviewing. */
 export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
-  assets, assetTypes, owners = [], executions, onClose, onChanged, initialAssetId, canReadViews = false, canReadControl = false,
+  assets, assetTypes, owners = [], executions, onClose, onChanged, initialAssetId, initialViewId, canReadViews = false, canReadControl = false,
   canManageControl = false }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
@@ -159,7 +159,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
   }
   const editor = (editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
       modules={modules} assets={assets} owners={owners} assetTypes={assetTypes} canReadViews={canReadViews}
-      configuration={detail ?? undefined} revision={source} editDraft={editDraft} initialAssetId={initialAssetId}
+      configuration={detail ?? undefined} revision={source} editDraft={editDraft} initialAssetId={initialAssetId} initialViewId={initialViewId}
       onSaved={(value, savedRevisionId) => { setDetail(value); setRevisionId(savedRevisionId ?? orderedRevisions(value)[0]?.id ?? null); setTab('configuration');
         setEditing(false); setSource(undefined); setNotice(t('setup.saved')); void onChanged(); }}
       onDenied={committed => { setDetail(null); setEditing(false); setSource(undefined);

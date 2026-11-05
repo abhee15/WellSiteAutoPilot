@@ -4,6 +4,9 @@ import { ActionButton } from '../components/ActionButton';
 import type { FormEvent } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
+import { AssignmentScheduleEditor } from './AssignmentScheduleEditor';
+import { initialScheduleDraft, buildAssignmentSchedule, scheduleErrorKeys } from './assignmentSchedule';
+import { resolveAssignmentBindings } from './assignmentBindings';
 import { t } from '../localization';
 import { loadViews, loadViewSelection, loadViewMembers, VIEW_PAGE_SIZE } from './assetViewsApi';
 import type { AssetView } from './assetViewsApi';
@@ -27,10 +30,10 @@ type Props = {
   onSaved: (configuration: VerifiedConfiguration, savedRevisionId?: string) => void; onCancel: () => void;
   onDenied?: (committed: boolean) => void;
   /** Begin from this asset: it is pre-selected for the first role it fits. */
-  initialAssetId?: string | null; canReadViews?: boolean;
+  initialAssetId?: string | null; initialViewId?: string | null; canReadViews?: boolean;
 };
 export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners = [],
-  configuration, revision, editDraft = false, onSaved, onCancel, onDenied, initialAssetId, canReadViews = false }: Props) {
+  configuration, revision, editDraft = false, onSaved, onCancel, onDenied, initialAssetId, initialViewId, canReadViews = false }: Props) {
   const [views, setViews] = useState<AssetView[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [viewAssets, setViewAssets] = useState<AssetResponse[]>([]);
@@ -81,11 +84,39 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
   }>>(() => Object.fromEntries((revision?.dataBindings ?? []).map(b =>
     [JSON.stringify([b.requirementId, b.assetId]), { providerId: b.providerId ?? '',
       providerAssetExternalId: b.providerAssetExternalId ?? '', providerMappingJson: b.providerMappingJson ?? '{}' }])));
-  const [useSchedule, setUseSchedule] = useState(!!revision?.schedule);
-  const [scheduleEnabled, setScheduleEnabled] = useState(revision?.schedule?.enabled ?? false);
-  const [cadence, setCadence] = useState(String(revision?.schedule?.cadenceSeconds ?? 60));
-  const [start, setStart] = useState(revision?.schedule?.startAtUtc ?? '');
-  const [zone, setZone] = useState(revision?.schedule?.timeZoneId ?? 'UTC');
+  const bindingKey = JSON.stringify([moduleKey, bindings]);
+  const [bindingResolution, setBindingResolution] = useState<{ key: string; error: string | null } | null>(null);
+  const originalBindingKey = useRef(bindingKey);
+  const hasPreservedBindings = Boolean(revision && bindingKey === originalBindingKey.current);
+  const initialViewApplied = useRef(false);
+  useEffect(() => {
+    if (!initialViewId || !manifest || !views.length || initialViewApplied.current) return;
+    initialViewApplied.current = true;
+    const role = manifest.assetRequirements.find(item => item.maximumCount > 0)?.role;
+    if (role) void chooseView(initialViewId, role);
+  });
+  useEffect(() => {
+    if (!manifest || !manifest.dataRequirements.length || hasPreservedBindings) return;
+    const request = new AbortController();
+    const capturedKey = bindingKey;
+    const capturedTargets = JSON.parse(capturedKey)[1] as Record<string, string[]>;
+    void resolveAssignmentBindings(module?.manifestJson ?? '', capturedTargets, request.signal).then(rows => {
+      if (request.signal.aborted) return;
+      setData(Object.fromEntries(rows.map(row => [JSON.stringify([row.requirementId, row.assetId]), row])));
+      setBindingResolution({ key: capturedKey, error: null });
+    }).catch(() => {
+      if (!request.signal.aborted) setBindingResolution({ key: capturedKey,
+        error: t('assignment.mappingError') });
+    });
+    return () => request.abort();
+    // The key contains the module version and all selected asset-role bindings.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bindingKey, hasPreservedBindings]);
+  const mappingPending = Boolean(manifest?.dataRequirements.length && !hasPreservedBindings &&
+    bindingResolution?.key !== bindingKey);
+  const mappingError = !hasPreservedBindings && bindingResolution?.key === bindingKey ? bindingResolution.error : null;
+  const [scheduleDraft, setScheduleDraft] = useState(() => initialScheduleDraft(revision?.schedule));
+  const scheduleResult = buildAssignmentSchedule(scheduleDraft);
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,14 +152,20 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (mappingPending || mappingError) { setError(mappingError ?? t('assignment.resolving')); return; }
     if (!manifest || !module?.manifestJson || pending.current || blocked || viewLoading || (viewRef && !canReadViews)) return;
     if (manifest.assetRequirements.some(r => (bindings[r.role] ?? []).some(id => overrideValidity[JSON.stringify([r.role, id])] === false))) { setError(t('assets.createFieldsInvalid')); return; }
     const assetBindings = manifest.assetRequirements.flatMap(r =>
       (bindings[r.role] ?? []).map(assetId => ({ role: r.role, assetId,
         parameterOverridesJson: overrides[JSON.stringify([r.role, assetId])] ?? '{}' })));
+    const resolvedData = hasPreservedBindings ? Object.fromEntries((revision?.dataBindings ?? []).map(binding =>
+      [JSON.stringify([binding.requirementId, binding.assetId]), {
+        providerId: binding.providerId ?? '', providerAssetExternalId: binding.providerAssetExternalId ?? '',
+        providerMappingJson: binding.providerMappingJson ?? '{}',
+      }])) : data;
     const dataBindings = manifest.dataRequirements.flatMap(r =>
       (bindings[r.assetRole] ?? []).map(assetId => ({ requirementId: r.id, assetId,
-        ...(data[JSON.stringify([r.id, assetId])] ?? { providerId: '', providerAssetExternalId: '', providerMappingJson: '{}' }) })));
+        ...(resolvedData[JSON.stringify([r.id, assetId])] ?? { providerId: '', providerAssetExternalId: '', providerMappingJson: '{}' }) })));
     let parametersJson = parameters;
     if (settingsForm && paramFields) {
       const built = buildParameters(paramFields, formValues);
@@ -143,14 +180,11 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           (viewRef?.role === r.role || ids.every(id => eligibleIds.has(id)));
       }) && assetBindings.length > 0 && assetBindings.every(b => isJsonObject(b.parameterOverridesJson)) &&
       dataBindings.every(b => b.providerId.trim() && b.providerAssetExternalId.trim() && isJsonObject(b.providerMappingJson)) &&
-      (!useSchedule || manifest.executionProfile === 'ScheduledOneShot' &&
-        Number.isSafeInteger(Number(cadence)) && Number(cadence) > 0 &&
-        /Z$|[+-]00:00$/.test(start) && Number.isFinite(Date.parse(start)) && zone.trim());
-    if (!valid) { setError(t('setup.formInvalid')); return; }
+      !scheduleResult.error;
+    if (!valid) { setError(scheduleResult.error ? t(scheduleErrorKeys[scheduleResult.error]) : t('assignment.reviewFields')); return; }
     const body: SetupRequest = { name: name.trim(), moduleManifestJson: module.manifestJson,
       parametersJson, assetBindings, dataBindings,
-      schedule: useSchedule ? { enabled: scheduleEnabled, cadenceSeconds: Number(cadence),
-        startAtUtc: new Date(start).toISOString(), timeZoneId: zone.trim() } : undefined,
+      schedule: scheduleResult.schedule ?? undefined,
       view: viewRef ?? undefined };
     pending.current = true; setBusy(true); setError(null);
     const request = new AbortController(); controller.current = request;
@@ -189,6 +223,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
     <h3>{editDraft ? t('draftEditor.edit', { number: revision?.revisionNumber ?? '—' }) : configuration ? t('setup.newRevision') : t('setup.heading')}</h3>
     {configuration && <p>{t(editDraft ? 'draftEditor.editHint' : 'draftEditor.copyHint', { number: revision?.revisionNumber ?? '—' })}</p>}
     <p>{t('setup.shadowOnly')}</p>
+    {initialViewId && !configuration && <p role="note">{t('assignment.selectedView', { name: views.find(view => view.id === initialViewId)?.name ?? initialViewId })}</p>}
     {initialAssetId && !configuration && <p role="note">{t('setup.startingFromAsset', { name: allAssets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</p>}
     {approved.length === 0 && <p role="status">{t('setup.noModules')}</p>}
     <form className={configuration ? 'setup-form revision-editor' : 'setup-form'} onSubmit={e => void submit(e)}>
@@ -199,18 +234,26 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           const chosen = approved.find(m => JSON.stringify([m.moduleId, m.version]) === e.target.value);
           const chosenManifest = chosen ? setupManifest(chosen) : null;
           viewController.current.abort(); setViewRef(null); setViewAssets([]); setViewLoading(false); setViewError(false);
+          initialViewApplied.current = false;
           setModuleKey(e.target.value);
+          if (!configuration && !name.trim()) setName(chosen?.displayName ?? chosen?.moduleId ?? '');
           setBindings(chosenManifest && !configuration ? prefillBindings(chosenManifest, initialAssetId, assets, assetTypes) : {});
-          setData({}); setOverrides({}); setOverrideValidity({}); setUseSchedule(false);
+          setData({}); setOverrides({}); setOverrideValidity({}); setScheduleDraft(initialScheduleDraft());
           setParamValues(null); setParamErrors({}); setParamJson(false); setParameters('{}');
-        }}><option value="">{t('setup.choose')}</option>{approved.map(m =>
-          <option key={m.id} value={JSON.stringify([m.moduleId, m.version])}>
-            {m.displayName} · {m.version}</option>)}</select></label>
+        }}><option value="">{t('setup.choose')}</option>{approved.map(m => {
+          const candidate = setupManifest(m);
+          const selectedView = views.find(view => view.id === (viewRef?.viewId ?? initialViewId));
+          const source = connections.find(connection => connection.id === selectedView?.connectionId);
+          const mismatch = Boolean(candidate?.requiredAdapterKey && source &&
+            candidate.requiredAdapterKey.toLowerCase() !== source.adapterKey.toLowerCase());
+          return <option key={m.id} value={JSON.stringify([m.moduleId, m.version])} disabled={mismatch}>
+            {m.displayName} · {m.version}{mismatch ? ' · ' + t('assignment.requiresAdapter', { adapter: candidate?.requiredAdapterKey ?? '' }) : ''}</option>;
+        })}</select></label>
         <h4 className="setup-step">{t('setupStep.name')}</h4>
         <p className="setup-step-hint">{t('setupStep.nameHint')}</p>
         <label>{t('setup.name')}<input required maxLength={256} value={name}
           disabled={!!configuration} onChange={e => setName(e.target.value)} /></label>
-        <details className="revision-editor-section" open><summary>{t('draftEditor.settings')}</summary>
+        <details className="revision-editor-section" open={Boolean(manifest?.parameterSchema || (revision?.parametersJson && revision.parametersJson !== '{}'))}><summary>{t('draftEditor.settings')}</summary>
 
         {manifest?.description && <p>{t('setup.moduleDescription')}: {manifest.description}</p>}
         <p className="setup-step-hint">{t(settingsForm ? 'setupStep.settingsFormHint' : 'setupStep.settingsHint')}</p>
@@ -229,7 +272,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           onClick={() => { setParamValues(parameterValues(paramFields, parameters)); setParamJson(false); setParamErrors({}); }} />}</>}
         </details>
         <details className="revision-editor-section" open><summary>{t('draftEditor.targets')}</summary>
-        {manifest && <>
+        {manifest && !viewRef && <>
         <p className="setup-step-hint">{t('setupStep.assetsHint')}</p></>}
         {manifest?.assetRequirements.map(r => <fieldset key={r.role}>
           <legend>{t('setup.assetRole', { role: r.role, min: r.minimumCount, max: r.maximumCount })}</legend>
@@ -240,27 +283,37 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
               const source = connections.find(connection => connection.id === view.connectionId);
               const incompatible = view.hasUnavailableMembers || view.memberCount < r.minimumCount || view.memberCount > r.maximumCount ||
                 !source?.isEnabled || (!!manifest.requiredAdapterKey && manifest.requiredAdapterKey.toLowerCase() !== source.adapterKey.toLowerCase());
-              return <option key={view.id} value={view.id} disabled={incompatible}>{view.name} · {view.memberCount} · {source?.name ?? view.connectionId}</option>;
+              const reason = view.hasUnavailableMembers ? t('assignment.unavailableMembers')
+                : !source?.isEnabled ? t('assignment.connectionDisabled')
+                  : manifest.requiredAdapterKey && manifest.requiredAdapterKey.toLowerCase() !== source.adapterKey.toLowerCase()
+                    ? t('assignment.requiresAdapter', { adapter: manifest.requiredAdapterKey })
+                    : view.memberCount < r.minimumCount || view.memberCount > r.maximumCount
+                      ? t('assignment.countRange', { min: r.minimumCount, max: r.maximumCount }) : '';
+              return <option key={view.id} value={view.id} disabled={incompatible}>{view.name} · {view.memberCount} · {source?.name ?? view.connectionId}{reason ? ' · ' + reason : ''}</option>;
             })}
           </select></label>}
-          {canReadViews && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
+          {canReadViews && !viewRef && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
           {viewRef?.role === r.role && <p className="connection-help">{t('setup.viewSnapshot', { revision: viewRef.expectedRevision, count: bindings[r.role]?.length ?? 0 })}
             {canReadViews && <ActionButton icon={RefreshCw} iconOnly label={t('setup.refreshView')} disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)} />}</p>}
           {viewLoading && <LoadingIndicator label={t('views.loading')} />}
           {viewError && <p role="alert">{t('setup.viewUnavailable')}</p>}
-          <p>{t(viewRef?.role === r.role ? 'setup.viewTargets' : 'setup.loadedAssets')}</p>
+          {viewRef?.role !== r.role && <p>{t('setup.loadedAssets')}</p>}
           {manifest.requiredAdapterKey === 'foresite' && !viewRef && <p className="connection-help">{t('setup.directWellHint')}</p>}
           {!viewRef && (bindings[r.role] ?? []).map(id => {
             const owner = allAssets.find(asset => asset.id === id)?.ownerConnectionId;
             return owner ? <p key={id} className="connection-help">{t('setup.selectedConnection', {
               connection: connections.find(connection => connection.id === owner)?.name ?? owner })}</p> : null;
           })}
-          <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewRef?.role === r.role || viewLoading}
+          {viewRef?.role === r.role ? <details><summary>{t('setup.assetsFor', { role: r.role })} ({bindings[r.role]?.length ?? 0})</summary>
+            <ul>{(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <li key={id}>{labelAsset(id)}</li>)}</ul>
+            <p className="connection-help">{t('setup.viewTargets')}</p>
+          </details> : <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewLoading}
             value={bindings[r.role] ?? []} onChange={e => setBindings({ ...bindings,
               [r.role]: Array.from(e.target.selectedOptions, o => o.value) })}>
             {eligibleAssets(r, allAssets, assetTypes).filter(a => !manifest.requiredAdapterKey || !!a.ownerConnectionId)
               .map(a => <option key={a.id} value={a.id}>{labelAsset(a.id)}</option>)}
-          </select></label>
+          </select></label>}
+          {(bindings[r.role]?.length ?? 0) > 0 && <details><summary>{t('assignment.overrides')}</summary>
           {(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <ParameterOverridesEditor
             key={moduleKey + JSON.stringify([r.role, id])} schema={manifest.parameterSchema}
             context={labelAsset(id)}
@@ -268,44 +321,28 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
             idPrefix={'override-' + r.role + '-' + id + '-'} value={overrides[JSON.stringify([r.role, id])] ?? '{}'}
             onValidity={valid => setOverrideValidity(current => ({ ...current, [JSON.stringify([r.role, id])]: valid }))}
             onChange={value => setOverrides(current => ({ ...current, [JSON.stringify([r.role, id])]: value }))} />)}
+          </details>}
         </fieldset>)}
         </details>
-        <details className="revision-editor-section" open><summary>{t('draftEditor.bindings')}</summary>
-        {manifest && manifest.dataRequirements.length > 0 && <>
-        <p className="setup-step-hint">{t('setupStep.dataHint')}</p></>}
-        {manifest?.dataRequirements.flatMap(r => (bindings[r.assetRole] ?? []).slice(0, detailLimit).map(id => {
-          const key = JSON.stringify([r.id, id]);
-          const binding = data[key] ?? { providerId: '', providerAssetExternalId: '', providerMappingJson: '{}' };
-          return <fieldset key={key}><legend>{r.id} · {r.quantity} · {labelAsset(id)}</legend>
-            {(['providerId', 'providerAssetExternalId', 'providerMappingJson'] as const).map(field =>
-              <label key={field}>{t(`setup.${field}`)}
-                {field === 'providerMappingJson'
-                  ? <textarea required rows={2} maxLength={65536} value={binding[field]}
-                    onChange={e => setData({ ...data, [key]: { ...binding, [field]: e.target.value } })} />
-                  : <input required maxLength={field === 'providerAssetExternalId' ? 512 : 256} value={binding[field]}
-                    onChange={e => setData({ ...data, [key]: { ...binding, [field]: e.target.value } })} />}
-              </label>)}
-          </fieldset>;
-        }))}
+        {mappingPending && <LoadingIndicator label={t('assignment.resolving')} />}
+        {mappingError && <p role="alert">{mappingError}</p>}
+        <details className="revision-editor-section"><summary>{t('assignment.dataSources')}</summary>
+          <p>{t('assignment.derived')}</p>
+          {manifest?.dataRequirements.map(input => <p key={input.id}>
+            {input.quantity} · {(bindings[input.assetRole] ?? []).length} {t('assignment.wells')}
+          </p>)}
         </details>
-        {manifest?.executionProfile === 'ScheduledOneShot' && <h4 className="setup-step">{t('setupStep.schedule')}</h4>}
-        {manifest?.executionProfile === 'ScheduledOneShot' && <details>
-          <summary>{t('setup.schedule')}</summary>
-          <label><input type="checkbox" checked={useSchedule}
-            onChange={e => setUseSchedule(e.target.checked)} />{t('setup.useSchedule')}</label>
-          {useSchedule && <>
-            <label><input type="checkbox" checked={scheduleEnabled}
-              onChange={e => setScheduleEnabled(e.target.checked)} />{t('setup.scheduleEnabled')}</label>
-            <p>{t('setup.scheduleWarning')}</p>
-            <label>{t('setup.cadence')}<input required type="number" min={1} step={1}
-              value={cadence} onChange={e => setCadence(e.target.value)} /></label>
-            <label>{t('setup.start')}<input required value={start}
-              placeholder="2026-10-16T12:00:00Z" onChange={e => setStart(e.target.value)} /></label>
-            <label>{t('setup.zone')}<input required value={zone} onChange={e => setZone(e.target.value)} /></label>
-          </>}
-        </details>}
+        {manifest?.executionProfile === 'ScheduledOneShot' && <AssignmentScheduleEditor value={scheduleDraft} onChange={setScheduleDraft} />}
         {Object.values(bindings).some(ids => ids.length > detailLimit) && <ActionButton label={t('setup.moreTargets')} onClick={() => setDetailLimit(limit => limit + 20)} />}
-        <ActionButton type="submit" variant="primary" label={busy ? t('setup.saving') : editDraft ? t('draftEditor.save') : t('setup.save')} disabled={!manifest || approved.length === 0 || viewLoading || (!!viewRef && !canReadViews)} />
+        {manifest && !mappingPending && !mappingError && <section className="assignment-review" aria-label={t('assignment.review')}>
+          <h4>{t('assignment.review')}</h4>
+          <p>{module?.displayName} · {module?.version}</p>
+          <p>{t('assignment.reviewCount', { count: new Set(Object.values(bindings).flat()).size })}</p>
+          <p>{t('logicDetail.shadowMode')}</p>
+          <p>{t(scheduleDraft.scheduled ? 'assignment.scheduled' : 'assignment.onDemand')}</p>
+          {scheduleDraft.scheduled && <p>{scheduleDraft.every} {scheduleDraft.unit} · {scheduleDraft.date} {scheduleDraft.time} · {scheduleDraft.timeZone}</p>}
+        </section>}
+        <ActionButton type="submit" variant="primary" label={busy ? t('setup.saving') : editDraft ? t('draftEditor.save') : t('setup.save')} disabled={!manifest || approved.length === 0 || Boolean(scheduleResult.error) || mappingPending || Boolean(mappingError) || viewLoading || (!!viewRef && !canReadViews)} />
       </fieldset>
       {error && <p role="alert">{error}</p>}
       <ActionButton label={t('setup.cancel')} disabled={busy} onClick={onCancel} />
