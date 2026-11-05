@@ -25,7 +25,7 @@
 .setup-actions { display: flex; flex-wrap: wrap; gap: var(--space-10); }
 @media (width >= 48em) {
   .setup-form > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .setup-form > fieldset > :is(fieldset,details,p,h4) { grid-column: 1 / -1; }
+  .setup-form > fieldset > :is(fieldset,details,p,h4,section) { grid-column: 1 / -1; }
 }
 
 /* Numbered steps inside the setup form. */
@@ -58,7 +58,7 @@
 
 .assignment-schedule-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-12); }
 .assignment-frequency { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-8); }
-.assignment-checkbox { display: flex; align-items: center; gap: var(--space-8); }
+.setup-form .assignment-checkbox { display: flex; align-items: center; gap: var(--space-8); margin-block: var(--space-12); }
 .assignment-schedule small { color: var(--color-text-muted); }
 @media (width <= 40em) { .assignment-schedule-fields { grid-template-columns: 1fr; } }
 
