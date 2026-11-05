@@ -32,12 +32,14 @@ const props = { modules: [module], assets, assetTypes: types, onSaved: vi.fn(), 
 beforeEach(() => { vi.clearAllMocks(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 async function fill(user: ReturnType<typeof userEvent.setup>) {
+  const original = globalThis.fetch;
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => url === '/api/v1/configured-logic/resolve-inputs'
+    ? Promise.resolve(response(draft.revisions[0].dataBindings)) : original(url, init));
   await user.type(screen.getByRole('textbox', { name: 'Configuration name' }), 'Observer');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Approved module version' }),
     JSON.stringify(['sample', '1.0.0']));
   await user.selectOptions(screen.getByRole('listbox', { name: 'Assets for well' }), assetId);
-  await user.type(screen.getByRole('textbox', { name: 'Provider ID' }), 'provider-simulator');
-  await user.type(screen.getByRole('textbox', { name: 'Provider asset external ID' }), 'WELL-101');
+  await waitFor(() => expect(screen.queryByText('Checking data sources…')).toBeNull());
 }
 async function workspace(canManage = true) {
   const view = render(<ConfiguredLogicWorkspace selectedId={configId} canManage={canManage}
@@ -151,16 +153,18 @@ describe('Configured logic setup journey', () => {
   it('rejects invalid parameter objects and missing role bindings locally', async () => {
     const user = userEvent.setup(); const http = vi.fn(); vi.stubGlobal('fetch', http);
     render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
+    await user.click(screen.getByText('Settings', { exact: true }));
     await user.clear(screen.getByRole('textbox', { name: 'Parameters (JSON object)' }));
     await user.click(screen.getByRole('textbox', { name: 'Parameters (JSON object)' }));
     await user.paste('[1]');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
-    expect(screen.getByRole('alert').textContent).toContain('Check JSON'); expect(http).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('Check the configuration name'); expect(http).not.toHaveBeenCalled();
   });
   it('preserves duplicate properties so authoritative validation can reject them', async () => {
     const user = userEvent.setup();
     const http = vi.fn(async () => response({ code: 'VALIDATION_FAILED', detail: 'secret' }, 400));
     vi.stubGlobal('fetch', http); render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
+    await user.click(screen.getByText('Settings', { exact: true }));
     const field = screen.getByRole('textbox', { name: 'Parameters (JSON object)' });
     await user.clear(field); await user.click(field); await user.paste('{"x":1,"x":2}');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
@@ -263,15 +267,17 @@ describe('Configured logic setup journey', () => {
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('server accepted'));
     expect(props.onSaved).not.toHaveBeenCalled();
   });
-  it('requires explicit UTC scheduling and keeps automatic Shadow runs opt-in', async () => {
-    const user = userEvent.setup(); const http = vi.fn(); vi.stubGlobal('fetch', http);
-    render(<ConfiguredLogicSetupPanel {...props} />); await fill(user);
-    await user.click(screen.getByText('Schedule (optional)'));
-    await user.click(screen.getByRole('checkbox', { name: 'Include a cadence schedule' }));
-    expect(screen.getByRole('checkbox', { name: 'Enable scheduled shadow runs after activation' })).toHaveProperty('checked', false);
-    await user.type(screen.getByRole('textbox', { name: 'Start timestamp (UTC, ending in Z)' }), '2026-10-16T12:00:00');
-    await user.click(screen.getByRole('button', { name: 'Save draft' }));
-    expect(screen.getByRole('alert').textContent).toContain('explicit UTC'); expect(http).not.toHaveBeenCalled();
+  it('offers schedule date and time pickers without requiring UTC text', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+    render(<ConfiguredLogicSetupPanel {...props} />);
+    await fill(user);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Run this logic' }), 'scheduled');
+    expect(screen.getByLabelText('Start date')).toHaveProperty('type', 'date');
+    expect(screen.getByLabelText('Start time')).toHaveProperty('type', 'time');
+    expect(screen.queryByRole('textbox', { name: /timestamp.*UTC/i })).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: 'Set an end date (optional)' }));
+    expect(screen.getByLabelText('End date')).toHaveProperty('type', 'date');
   });
   it('clears the draft and selected configuration when the same user loses scope in the real App', async () => {
     window.location.hash = '#logic'; let revoked = false;

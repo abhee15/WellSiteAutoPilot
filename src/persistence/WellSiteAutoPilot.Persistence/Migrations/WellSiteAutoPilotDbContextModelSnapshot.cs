@@ -434,6 +434,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<string>("ScheduleJson")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("StartAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -485,6 +488,9 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.Property<string>("Reason")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("ScheduleJson")
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("StartAtUtc")
                         .HasColumnType("timestamp with time zone");

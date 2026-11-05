@@ -15,8 +15,7 @@ const BASELINE = [
   // The control panels and the schedule panel were built without styles. Each goes when its screen is rebuilt on the
   // shared field and notice components (docs/design/control-ui-audit.md, steps D2 to D5).
   'autonomy-policy', 'autonomy-policy-form', 'autonomy-policy-limits', 'autonomy-policy-row',
-  'control-actions', 'control-actions-list', 'control-actions-resolve',
-  'kill-switch', 'kill-switch-form', 'schedule-control', 'schedule-control-form',
+  'schedule-control', 'schedule-control-form',
 ];
 
 const root = fileURLToPath(new URL('../src/', import.meta.url));

@@ -1,7 +1,9 @@
+import './controlActions.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
+import { hashFor } from '../routing';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
@@ -19,6 +21,7 @@ type Props = {
    * action also says whether this person may decide it (its asset scope), and only then are the buttons offered.
    */
   canManage: boolean;
+  selectedActionId?: string | null;
 };
 
 const ERRORS: Record<ControlActionErrorKind, MessageKey> = {
@@ -40,7 +43,7 @@ function waitingLabel(createdAtUtc: string, nowMs: number): string {
  * Commands that were sent but whose result nobody has confirmed. Verifying asks the target again; resolving records,
  * as the operator and with a note, whether the command was applied. Shown only while something needs a decision.
  */
-export function ControlActionsPanel({ userId, canManage }: Props) {
+export function ControlActionsPanel({ userId, canManage, selectedActionId }: Props) {
   const [actions, setActions] = useState<ControlAction[] | null>(null);
   const [loadError, setLoadError] = useState<ControlActionErrorKind | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -49,6 +52,7 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; kind: ControlActionErrorKind } | null>(null);
   const [verifyNote, setVerifyNote] = useState<{ id: string; unchanged: boolean } | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const refreshRef = useRef<AbortController | null>(null);
   const actRef = useRef<AbortController | null>(null);
 
@@ -82,6 +86,13 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
   }, [userId, refresh]);
   usePollingRefresh(() => void refresh(), Boolean(userId));
   useChangeRefresh(['control'], () => { if (userId) void refresh(); });
+
+  useEffect(() => {
+    if (selectedActionId && actions) {
+      panelRef.current?.focus();
+      panelRef.current?.scrollIntoView?.({ block: 'start' });
+    }
+  }, [selectedActionId, actions]);
 
   const closeResolve = () => {
     setResolvingId(null);
@@ -130,18 +141,19 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
   if (!userId) return null;
   if (loadError) {
     return (
-      <section className="panel control-actions" aria-label={t('controlActions.heading')}>
+      <section ref={panelRef} tabIndex={selectedActionId ? -1 : undefined} className="panel control-actions" aria-label={t('controlActions.heading')}>
         <div className="panel-header"><h2>{t('controlActions.heading')}</h2></div>
         <p role="alert" className="execution-detail-error">{t(ERRORS[loadError])}</p>
       </section>
     );
   }
   const open = (actions ?? []).filter(controlActionNeedsDecision);
+  const shown = selectedActionId ? open.filter(action => action.id === selectedActionId) : open;
   const nowMs = Date.now();
-  if (open.length === 0) return null;
+  if (open.length === 0 && !selectedActionId) return null;
 
   return (
-    <section className="panel control-actions" aria-label={t('controlActions.heading')}>
+    <section ref={panelRef} tabIndex={selectedActionId ? -1 : undefined} className="panel control-actions" aria-label={t('controlActions.heading')}>
       <div className="panel-header">
         <h2>{t('controlActions.heading')}</h2>
         <Status
@@ -151,8 +163,10 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
           tone="warning" />
       </div>
       <p>{t('controlActions.intro')}</p>
+      {selectedActionId && <a className="action-link" href={hashFor('recommendations', 'actions')}>{t('controlActions.all')}</a>}
+      {selectedActionId && actions !== null && !shown.length && <p role="status">{t('controlActions.selectedUnavailable')}</p>}
       <ul className="control-actions-list">
-        {open.map(action => {
+        {shown.map(action => {
           const outcome = outcomeMessageKey(action.status);
           const gate = gateMessageKey(action.gateCode);
           const resolving = resolvingId === action.id;
@@ -167,7 +181,7 @@ export function ControlActionsPanel({ userId, canManage }: Props) {
                 {' · '}{t('controlActions.sentAt', { at: formatDetailTimestamp(action.createdAtUtc) })}
                 {' · '}{waitingLabel(action.createdAtUtc, nowMs)}
               </p>
-              <p>{outcome ? t(outcome) : action.status}{gate ? ' ' + t(gate) : ''}</p>
+              <p>{gate ? t(gate) : outcome ? t(outcome) : action.status}</p>
               {verifyNote?.id === action.id && (
                 <p role="status">{t(verifyNote.unchanged ? 'controlActions.verifyUnchanged' : 'controlActions.verifyChanged')}</p>
               )}

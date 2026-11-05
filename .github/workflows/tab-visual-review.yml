@@ -23,7 +23,8 @@ concurrency:
 
 jobs:
   capture-tab-layout:
-    runs-on: ubuntu-latest
+    # Playwright 1.56 cannot install Chromium on Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout before (PR base)
@@ -42,6 +43,10 @@ jobs:
           node-version: 24.x
           cache: npm
           cache-dependency-path: after/src/web/package-lock.json
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -51,14 +56,40 @@ jobs:
           python -m pip install playwright==1.56.0
           python -m playwright install --with-deps chromium
       - name: Build base preview
-        working-directory: before/src/web
+        working-directory: before
         run: |
+          mkdir -p artifacts/openapi/v1
+          ASPNETCORE_ENVIRONMENT=Development Swagger__Enabled=true \
+            dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj \
+            --configuration Release --urls http://127.0.0.1:5080 > "$RUNNER_TEMP/openapi-before.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+          if ! curl --fail --silent --show-error --retry 60 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:5080/swagger/v1/swagger.json -o artifacts/openapi/v1/server.json; then
+            cat "$RUNNER_TEMP/openapi-before.log"
+            exit 1
+          fi
+          cd src/web
           npm ci
+          npm run generate-api
           npx vite build --outDir "$GITHUB_WORKSPACE/preview-before" --emptyOutDir
       - name: Build PR preview
-        working-directory: after/src/web
+        working-directory: after
         run: |
+          mkdir -p artifacts/openapi/v1
+          ASPNETCORE_ENVIRONMENT=Development Swagger__Enabled=true \
+            dotnet run --project src/server/WellSiteAutoPilot.Server/WellSiteAutoPilot.Server.csproj \
+            --configuration Release --urls http://127.0.0.1:5081 > "$RUNNER_TEMP/openapi-after.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+          if ! curl --fail --silent --show-error --retry 60 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:5081/swagger/v1/swagger.json -o artifacts/openapi/v1/server.json; then
+            cat "$RUNNER_TEMP/openapi-after.log"
+            exit 1
+          fi
+          cd src/web
           npm ci
+          npm run generate-api
           npx vite build --outDir "$GITHUB_WORKSPACE/preview-after" --emptyOutDir
       - name: Capture responsive before and after
         run: |

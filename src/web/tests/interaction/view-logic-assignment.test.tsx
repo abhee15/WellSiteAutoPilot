@@ -26,12 +26,19 @@ function host(requests: Request[], selectionRevision = 2, receiptRevision = 2) {
     if (url === '/api/v1/connections') return response([connection, { ...connection, id: id(22), adapterKey: 'petrovisor' }]);
     if (url.endsWith('/selection')) return response({ revision: selectionRevision, assetIds: [wellId, secondId] });
     if (url.includes('/members?')) return response([first, second]);
+    if (url === '/api/v1/configured-logic/resolve-inputs') {
+      const body = JSON.parse(String(init?.body));
+      return response(body.assetBindings.map((binding: { assetId: string }) => ({
+        requirementId: 'fillage', assetId: binding.assetId, providerId: 'foresite',
+        providerAssetExternalId: binding.assetId === wellId ? '101' : '102', providerMappingJson: '{}',
+      })));
+    }
     if (url === '/api/v1/configured-logic' && init?.method === 'POST') {
       const body = JSON.parse(String(init.body));
       saved = { id: configId, name: body.name, activeRevisionId: null, revisions: [{ id: revisionId, revisionNumber: 1,
         moduleId: module.moduleId, moduleVersion: module.version, moduleManifestJson: body.moduleManifestJson,
         parametersJson: body.parametersJson, mode: 'Shadow', status: 'Draft', assetBindings: body.assetBindings,
-        dataBindings: [], view: body.view ? { viewId, revision: receiptRevision, connectionId, role: 'well' } : undefined }] };
+        dataBindings: body.dataBindings, view: body.view ? { viewId, revision: receiptRevision, connectionId, role: 'well' } : undefined }] };
       return response(saved, 201);
     }
     if (url === '/api/v1/configured-logic/' + configId) return response(saved);
@@ -98,4 +105,26 @@ it('saves a direct imported well through the same editor without View browsing p
   const body = JSON.parse(String(requests.find(request => request.init?.method === 'POST')!.init?.body));
   expect(body.view).toBeUndefined();
   expect(body.assetBindings.map((binding: { assetId: string }) => binding.assetId)).toEqual([wellId]);
+});
+
+it('starts from a view and resolves every input as one batch without editable binding fields', async () => {
+  const requests: Request[] = [];
+  host(requests);
+  const inputsManifest = { ...manifest, dataRequirements: [{ id: 'fillage', assetRole: 'well', quantity: 'PumpFillage' }] };
+  const inputsModule = { ...module, manifestJson: JSON.stringify(inputsManifest) };
+  const onSaved = vi.fn();
+  render(<ConfiguredLogicSetupPanel modules={[inputsModule]} assets={[first]} assetTypes={[{ id: typeId, key: 'well', isActive: true }]}
+    onSaved={onSaved} onCancel={vi.fn()} canReadViews initialViewId={viewId} />);
+  const user = await chooseModule();
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Target view' })).toHaveProperty('value', viewId));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save draft' }).matches(':disabled')).toBe(false));
+  expect(screen.queryByRole('textbox', { name: 'Provider ID' })).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Provider asset external ID' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  const write = requests.find(item => item.url === '/api/v1/configured-logic' && item.init?.method === 'POST');
+  const body = JSON.parse(String(write?.init?.body));
+  expect(body.assetBindings.map((binding: { assetId: string }) => binding.assetId)).toEqual([wellId, secondId]);
+  expect(body.dataBindings).toHaveLength(2);
+  expect(body.dataBindings.map((binding: { providerAssetExternalId: string }) => binding.providerAssetExternalId)).toEqual(['101', '102']);
 });

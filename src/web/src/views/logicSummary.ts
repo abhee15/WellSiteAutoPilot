@@ -44,8 +44,10 @@ export function logicStatusSentence(
 }
 
 /** "Every 1 min · America/Chicago", or "Off" when the revision has no enabled schedule. */
-export function scheduleText(schedule: { enabled?: boolean; cadenceSeconds?: number | null; timeZoneId?: string | null } | null | undefined): string {
+export function scheduleText(schedule: { enabled?: boolean; cadenceSeconds?: number | null; timeZoneId?: string | null; every?: number | null; unit?: string | null; endAtUtc?: string | null } | null | undefined): string {
   if (!schedule?.enabled) return t('configured.scheduleOff');
+  if (schedule.unit && schedule.every) return t('configured.scheduleEvery', {
+    interval: schedule.every + ' ' + schedule.unit.toLowerCase() }) + ' · ' + schedule.timeZoneId;
   const every = typeof schedule.cadenceSeconds === 'number'
     ? t('configured.scheduleEvery', { interval: formatDuration(schedule.cadenceSeconds * 1000) }) : null;
   return [every, schedule.timeZoneId].filter(Boolean).join(' · ') || t('configured.scheduleOff');

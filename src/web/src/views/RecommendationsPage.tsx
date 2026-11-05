@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { useHashDetail } from '../routing';
+import { hashFor, useHashDetail } from '../routing';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import type { AssetResponse, ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
@@ -14,6 +14,7 @@ import { CONTROL_MANAGE_PERMISSION, outcomeMessageKey, recommendationIsExecutabl
 import {
   DEFAULT_RECOMMENDATION_INBOX_CRITERIA,
   fetchRecommendationInbox,
+  fetchRecommendationById,
   filterRecommendationInbox,
   inboxCounts,
   recommendationIsAwaiting,
@@ -30,6 +31,9 @@ import { humanize } from './auditPresentation';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { assetIdentityLabel } from './runContext';
+import { groupRecommendationRuns } from './recommendationRuns';
+import { shortId } from '../format';
+import './recommendationRuns.css';
 import './splitLayout.css';
 
 type InboxError = 'accessDenied' | 'invalidResponse' | 'unavailable';
@@ -62,7 +66,7 @@ export function RecommendationInboxTable({
 }) {
   return (
     <div className="table-wrap">
-      <table className="activity-table">
+      <table className="activity-table recommendation-proposals">
         <thead>
           <tr>
             <th scope="col">{t('inbox.status')}</th>
@@ -160,7 +164,11 @@ export function RecommendationsPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<InboxError | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [selectedReviewId, setSelectedReviewId] = useHashDetail('recommendations');
+  const [detail, setSelectedReviewId] = useHashDetail('recommendations');
+  const controlSelected = detail === 'actions' || detail?.startsWith('actions/');
+  const selectedActionId = detail?.startsWith('actions/') ? detail.slice('actions/'.length) : null;
+  const selectedReviewId = controlSelected ? null : detail;
+  const [chosenRun, setChosenRun] = useState<string | null>(null);
   const [reviewNotice, setReviewNotice] = useState<string | null>(null);
   const canDecide = Boolean(userId && permissions?.includes('recommendations.decide'));
   const canExecute = Boolean(userId && permissions?.includes(CONTROL_MANAGE_PERMISSION));
@@ -215,17 +223,34 @@ export function RecommendationsPage({
   useChangeRefresh(['recommendations'], () => { if (userId) void refresh(); });
 
   const nowUtc = Date.now();
-  const selectedRecommendation = items.find(item => item.id === selectedReviewId && item.canDecide === true);
+  const inboxSelection = items.find(item => item.id === selectedReviewId);
+  const [linkedSelection, setLinkedSelection] = useState<{
+    id: string; item: RecommendationSummaryResponse | null;
+  } | null>(null);
+  const fetchLinked = Boolean(userId && selectedReviewId && !inboxSelection);
+  useEffect(() => {
+    if (!fetchLinked || !selectedReviewId) return;
+    const controller = new AbortController();
+    const id = selectedReviewId;
+    void fetchRecommendationById(id, controller.signal).then(
+      item => { if (!controller.signal.aborted) setLinkedSelection({ id, item }); },
+      () => { if (!controller.signal.aborted) setLinkedSelection({ id, item: null }); },
+    );
+    return () => controller.abort();
+  }, [fetchLinked, selectedReviewId, lastUpdated]);
+  const candidate = inboxSelection ?? (linkedSelection?.id === selectedReviewId ? linkedSelection?.item : null);
+  const selectedRecommendation = candidate?.canDecide === true ? candidate : undefined;
+  const selectionLoading = fetchLinked && linkedSelection?.id !== selectedReviewId;
   useEffect(() => {
     // A recommendation open beside the list closes once it can no longer be reviewed or executed by this person.
     const stillActionable = Boolean(selectedRecommendation && (
       (canDecide && recommendationIsAwaiting(selectedRecommendation, Date.now())) ||
       recommendationIsExecutable(selectedRecommendation, Date.now(), canExecute)));
-    if (lastUpdated && selectedReviewId && !stillActionable) {
+    if (lastUpdated && selectedReviewId && !selectionLoading && !stillActionable) {
       setSelectedReviewId(null);
       setReviewNotice(t(canDecide || canExecute ? 'decision.outdated' : 'decision.accessDenied'));
     }
-  }, [lastUpdated, selectedReviewId, selectedRecommendation, canDecide, canExecute, setSelectedReviewId]);
+  }, [lastUpdated, selectedReviewId, selectedRecommendation, selectionLoading, canDecide, canExecute, setSelectedReviewId]);
   const reviewing = Boolean(canDecide && selectedRecommendation && recommendationIsAwaiting(selectedRecommendation, nowUtc));
   const executing = Boolean(selectedRecommendation && recommendationIsExecutable(selectedRecommendation, nowUtc, canExecute));
   const reviewOpen = reviewing || executing;
@@ -235,7 +260,33 @@ export function RecommendationsPage({
     () => filterRecommendationInbox(items, criteria, nowUtc),
     [items, criteria, nowUtc],
   );
-  const targetIds = useMemo(() => [...new Set(visible.flatMap(item => item.assetId ? [item.assetId] : []))], [visible]);
+  const runs = useMemo(() => groupRecommendationRuns(visible).slice(0, 3), [visible]);
+  // A direct recommendation link takes priority over the preview and its filters.
+  const linkedRun = selectedRecommendation?.executionId;
+  const selectedRun = linkedRun ?? (runs.some(run => run.key === chosenRun) ? chosenRun : runs[0]?.key) ?? null;
+  const selectedGroup = runs.find(run => run.key === selectedRun);
+  const runExecutionId = selectedRun && selectedRun !== 'unlinked' ? selectedRun : null;
+  const runRequestKey = `${userId}:${runExecutionId}:${lastUpdated?.getTime()}`;
+  const [runResult, setRunResult] = useState<{
+    key: string; items: RecommendationSummaryResponse[]; failed: boolean;
+  } | null>(null);
+  useEffect(() => {
+    if (!userId || !runExecutionId || error) return;
+    const controller = new AbortController();
+    void fetchRecommendationInbox(controller.signal, fetch, runExecutionId).then(
+      next => { if (!controller.signal.aborted) setRunResult({ key: runRequestKey, items: next, failed: false }); },
+      () => { if (!controller.signal.aborted) setRunResult({ key: runRequestKey, items: [], failed: true }); },
+    );
+    return () => controller.abort();
+  }, [userId, runExecutionId, runRequestKey, error]);
+  const runLoading = Boolean(runExecutionId && runResult?.key !== runRequestKey);
+  const runFailed = Boolean(runExecutionId && runResult?.key === runRequestKey && runResult.failed);
+  const runItems = runExecutionId
+    ? runResult?.key === runRequestKey ? runResult.items : []
+    : selectedGroup?.items ?? [];
+  const proposals = linkedRun ? runItems : filterRecommendationInbox(runItems, criteria, nowUtc);
+  const targetIds = useMemo(() => [...new Set([...visible, ...proposals, ...(selectedRecommendation ? [selectedRecommendation] : [])]
+    .flatMap(item => item.assetId ? [item.assetId] : []))], [visible, proposals, selectedRecommendation]);
   const assetDirectory = useAssetIdentityDirectory(targetIds, assets,
     Boolean(permissions?.includes('assets.read')), userId);
   const assetNames = new Map(assetDirectory.assets.flatMap(asset =>
@@ -250,7 +301,7 @@ export function RecommendationsPage({
   return (
     <>
       <KillSwitchPanel userId={userId} canManage={canExecute} />
-      <ControlActionsPanel userId={userId} canManage={canExecute} />
+      <ControlActionsPanel userId={userId} canManage={canExecute} selectedActionId={selectedActionId} />
       <section className="summary-grid" aria-label={t('inbox.summary')}>
         {RECOMMENDATION_INBOX_FILTERS.map(kind => (
           <SummaryCard key={kind} label={t(cardLabels[kind].label)} value={String(counts[kind])}
@@ -264,7 +315,7 @@ export function RecommendationsPage({
       <div className="split-panes">
       <section className="panel split-browse">
         <div className="panel-header">
-          <h2>{t('inbox.heading')}</h2>
+          <h2>{t('inbox.recentRuns')}</h2>
           <div className="execution-detail-actions">
             {lastUpdated && (
               <span className="last-updated">{t('inbox.updated')} {formatDetailTimestamp(
@@ -290,8 +341,26 @@ export function RecommendationsPage({
         {error && <p role="alert" className="execution-detail-error inbox-error">
           {errorMessages[error]}
         </p>}
-        {(!isLoading || lastUpdated) && !error && (
-          <RecommendationInboxTable items={visible} nowUtc={nowUtc} assetNames={assetNames}
+        <div className="recommendation-run-heading">
+          <p>{t('inbox.runPreview')}</p>
+          {permissions?.includes('executions.read') && <a className="action-link" href={hashFor('operations')}>{t('inbox.viewAllRuns')}</a>}
+        </div>
+        {(!isLoading || lastUpdated) && !error && <>
+          <div className="recommendation-run-list" role="group" aria-label={t('inbox.runSelection')}>
+            {runs.map(run => <button type="button" key={run.key}
+              className="recommendation-run" aria-pressed={selectedRun === run.key}
+              onClick={() => { setChosenRun(run.key); setSelectedReviewId(null); setReviewNotice(null); }}>
+              <strong>{[...new Set(run.items.map(item => configuredLogic.find(logic => logic.id === item.configuredLogicId)?.name ?? item.moduleId).filter(Boolean))].join(', ') || t('inbox.runUnavailable')}</strong>
+              <span>{run.executionId ? t('overview.runReference', { id: shortId(run.executionId) }) : t('inbox.runUnavailable')}</span>
+              <small>{t('inbox.runProposals', { count: run.items.length })}</small>
+              {run.latestAtUtc && <time dateTime={run.latestAtUtc}>{formatDetailTimestamp(run.latestAtUtc)}</time>}
+            </button>)}
+          </div>
+          {!runs.length && !linkedRun && <p>{t('inbox.noRuns')}</p>}
+          {linkedRun && !selectedGroup && <h3>{t('overview.runReference', { id: shortId(linkedRun) })}</h3>}
+          {runLoading && <LoadingIndicator label={t('inbox.loading')} />}
+          {runFailed && <p role="alert">{t('operations.recommendationsUnavailable')}</p>}
+          {!runLoading && !runFailed && <RecommendationInboxTable items={proposals} nowUtc={nowUtc} assetNames={assetNames}
             onClearFilters={items.length > 0 ? () => setCriteria(DEFAULT_RECOMMENDATION_INBOX_CRITERIA) : undefined}
             selectedId={reviewOpen ? selectedRecommendation?.id : null}
             onReview={canDecide ? recommendationId => {
@@ -301,8 +370,9 @@ export function RecommendationsPage({
             onExecute={canExecute ? recommendationId => {
               setSelectedReviewId(recommendationId);
               setReviewNotice(null);
-            } : undefined} />
-        )}
+            } : undefined} />}
+          {runItems.length === 100 && <p>{t('operations.recommendationsLimited')}</p>}
+        </>}
       </section>
       <div className="split-selected">
         <ActionButton label={t('inbox.backToList')} className="split-back" onClick={() => setSelectedReviewId(null)} />

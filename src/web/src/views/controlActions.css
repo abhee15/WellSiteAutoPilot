@@ -1,0 +1,6 @@
+.control-actions > p, .control-actions > .action-link { margin: var(--space-12) var(--space-18); }
+.control-actions-list { list-style: none; margin: 0; padding: 0; }
+.control-actions-list > li { padding: var(--space-12) var(--space-18); border-top: var(--border-width-thin) solid var(--color-border-subtle); overflow-wrap: anywhere; }
+.control-actions-list > li > p { margin: 0 0 var(--space-8); }
+.control-actions-list > li > p:last-child { margin-bottom: 0; }
+.control-actions-resolve { display: grid; gap: var(--space-12); margin-top: var(--space-12); }

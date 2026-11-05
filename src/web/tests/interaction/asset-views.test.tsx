@@ -158,3 +158,16 @@ it('allows an authorized editor to remove an unavailable well before saving', as
   await user.click(within(form).getByRole('button', { name: 'Remove South Well from selection' }));
   expect((within(form).getByRole('button', { name: 'Save view' }) as HTMLButtonElement).disabled).toBe(false);
 });
+
+it('shows Assign logic only after selecting a saved view and preserves its identity in the link', async () => {
+  const requests: Request[] = [];
+  host(requests, [saved], [...allPermissions, 'configured-logic.manage', 'configured-logic.read', 'logic.read']);
+  window.location.hash = '#assets';
+  render(<App />);
+  const selector = await screen.findByRole('combobox', { name: /View/ });
+  expect(screen.queryByRole('link', { name: 'Assign logic' })).toBeNull();
+  await userEvent.setup().selectOptions(selector, viewId);
+  expect((await screen.findByRole('link', { name: 'Assign logic' })).getAttribute('href')).toBe('#logic/new-view:' + viewId);
+  await userEvent.setup().selectOptions(selector, '');
+  expect(screen.queryByRole('link', { name: 'Assign logic' })).toBeNull();
+});

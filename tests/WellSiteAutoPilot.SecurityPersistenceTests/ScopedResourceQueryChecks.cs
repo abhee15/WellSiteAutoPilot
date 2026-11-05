@@ -567,6 +567,9 @@ internal static class ScopedResourceQueryChecks
                 (await recommendationRepository.ListAuthorizedAsync(request, null, 100, assetId: assetC)).Count != 0 ||
                 (await recommendationRepository.ListAuthorizedAsync(request, null, 100, configuredLogicId: denied.Id)).Count != 0)
                 throw new InvalidOperationException("Recommendation filters disclosed or displaced unauthorized recommendations.");
+            if ((await recommendationRepository.ListAuthorizedAsync(request, null, 1, executionId: mixedExecution)).Single().Id != recommendationB ||
+                (await recommendationRepository.ListAuthorizedAsync(request, null, 100, executionId: deniedExecution)).Count != 0)
+                throw new InvalidOperationException("Execution-scoped recommendations lost authorization or limit semantics.");
             if (!(await controlRepository.ListActionsAuthorizedAsync(request, null, null, false, 100)).Select(item => item.Id)
                     .ToHashSet().SetEquals([actionA, actionB]) ||
                 (await controlRepository.ListActionsAuthorizedAsync(request, null, null, false, 1)).Single().Id != actionA ||
