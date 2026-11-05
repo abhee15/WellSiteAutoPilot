@@ -5,8 +5,8 @@ import type {
   AssetResponse, ConfiguredLogicResponse, ExecutionResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
-import { EmptyRow, PanelHeader, SummaryCard } from '../components/common';
-import { Status } from '../components/Status';
+import { EmptyRow, PanelHeader } from '../components/common';
+import { Status, StatusIndicator } from '../components/Status';
 import { formatTimestamp, shortId } from '../format';
 import { outcomeLabel } from '../words';
 import { describeRunContext, executionAssetLabel } from './runContext';
@@ -14,11 +14,13 @@ import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { OperationsViewControls } from './OperationsViewControls';
 import { loadConnections } from './connections';
-import { DEFAULT_OPERATIONS_VIEW, filterOperations, showsOnly, toggleOnly } from './operationsViews';
+import { DEFAULT_OPERATIONS_VIEW, filterOperations } from './operationsViews';
 import { ActionButton } from '../components/ActionButton';
 import type { OperationsViewCriteria } from './operationsViews';
 import './splitLayout.css';
 import { parseRunHistory } from './assetActivity';
+import { recommendationIsAwaiting } from './recommendationInbox';
+import { RunRecommendations, useRunRecommendations } from './RunRecommendations';
 import { AssetRunHistory } from './AssetRunHistory';
 
 export function OperationsPage(props: Parameters<typeof RecentOperationsPage>[0]) {
@@ -37,6 +39,7 @@ function RecentOperationsPage({
   configuredLogic = [],
   canReadConnections = false,
   canReadAssets = true,
+  canReadRecommendations = false,
 }: {
   executions: ExecutionResponse[];
   userId: string | null | undefined;
@@ -46,6 +49,7 @@ function RecentOperationsPage({
   /** Whether this person may list saved connections, so a run can name the connection it read from. */
   canReadConnections?: boolean;
   canReadAssets?: boolean;
+  canReadRecommendations?: boolean;
 }) {
   const [connectionNames, setConnectionNames] = useState<ReadonlyMap<string, string>>(new Map());
   useEffect(() => {
@@ -73,40 +77,12 @@ function RecentOperationsPage({
     }),
     [executions, viewCriteria, configuredLogic, assetDirectory.assets, assetDirectory.owners],
   );
-  const activeExecutions = executions.filter(
-    execution =>
-      execution.status === 'Requested' ||
-      execution.status === 'Queued' ||
-      execution.status === 'Starting' ||
-      execution.status === 'Running' ||
-      execution.status === 'Waiting',
-  ).length;
-  const attentionExecutions = executions.filter(
-    execution =>
-      execution.status === 'Failed' ||
-      execution.status === 'Suspended' ||
-      execution.status === 'TimedOut',
-  ).length;
+  const recommendations = useRunRecommendations(canReadRecommendations);
+  const pendingRuns = new Set(recommendations.items.filter(item => recommendationIsAwaiting(item, Date.now()))
+    .map(item => item.executionId));
 
   return (
     <>
-      <section className="summary-grid" aria-label="Operations summary">
-        <SummaryCard
-          label="Active executions"
-          value={String(activeExecutions)}
-          detail="Requested through waiting"
-          selected={showsOnly(viewCriteria, 'active')}
-          onSelect={() => setViewCriteria(current => toggleOnly(current, 'active'))}
-        />
-        <SummaryCard
-          label="Requires attention"
-          value={String(attentionExecutions)}
-          detail="Failed, suspended, or timed out"
-          selected={showsOnly(viewCriteria, 'attention')}
-          onSelect={() => setViewCriteria(current => toggleOnly(current, 'attention'))}
-        />
-      </section>
-
       <div {...splitFocus} className="split-layout runs-layout operations-layout" data-has-selection={hasSelection}>
       <div className="split-panes">
       <section className="panel split-browse">
@@ -142,6 +118,9 @@ function RecentOperationsPage({
                   }}>
                   <td>
                     <Status value={execution.status} />
+                    {pendingRuns.has(execution.executionId) && <span className="run-pending-compact">
+                      <StatusIndicator tone="warning" label={t('operations.awaitingDecision')} />
+                    </span>}
                   </td>
                   <td>
                     <button
@@ -173,7 +152,9 @@ function RecentOperationsPage({
                   <td className="run-col-secondary">{execution.mode}</td>
                   <td className="activity-time run-col-secondary">{formatTimestamp(execution.requestedAtUtc)}</td>
                   <td className="run-col-secondary">
-                    <OutcomeCell execution={execution} />
+                    {pendingRuns.has(execution.executionId) ?
+                      <StatusIndicator tone="warning" label={t('operations.awaitingDecision')} /> :
+                      <OutcomeCell execution={execution} />}
                   </td>
                 </tr>
                 );
@@ -200,6 +181,9 @@ function RecentOperationsPage({
             assets={assetDirectory.assets}
             assetOwners={assetDirectory.owners}
             connectionNames={connectionNames}
+            context={canReadRecommendations && <RunRecommendations key={selectedExecutionId}
+              executionId={selectedExecutionId} assets={assetDirectory.assets} userId={userId}
+              canReadAssets={canReadAssets} />}
             poll
             onClose={() => setSelectedExecutionId(null)}
           />
