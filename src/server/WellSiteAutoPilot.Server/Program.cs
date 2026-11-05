@@ -888,7 +888,7 @@ v1.MapGet(
 
 v1.MapPost(
     "/configured-logic/schedule-preview",
-    (ConfiguredLogicScheduleRequest request) =>
+    (ConfiguredLogicScheduleRequest request, TimeProvider clock) =>
     {
         var schedule = new ConfiguredLogicSchedule(true, request.CadenceSeconds, request.StartAtUtc, request.TimeZoneId)
         {
@@ -896,7 +896,7 @@ v1.MapPost(
                 : new ConfiguredLogicRecurrence(request.Every ?? 0, request.Unit ?? "", request.SkipMissingMonthDay),
             EndAtUtc = request.EndAtUtc
         };
-        return ScheduleOccurrences.Preview(schedule);
+        return ScheduleOccurrences.Preview(schedule, clock.GetUtcNow());
     })
     .WithName("PreviewConfiguredLogicSchedule")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
