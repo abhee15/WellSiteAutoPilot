@@ -257,6 +257,7 @@ export function App() {
               isLoaded={isLoaded}
               userId={currentUser?.userId}
               canReadConnections={hasPermission(currentUser, 'connections.read')}
+              canReadRecommendations={hasPermission(currentUser, 'recommendations.read')}
               canReadAssets={hasPermission(currentUser, 'assets.read')}
             />
           )}
