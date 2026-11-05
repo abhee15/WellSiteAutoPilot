@@ -134,10 +134,9 @@ export function OperationsViewControls({
         onChange: search => changeCriteria({ ...criteria, search }) }}
       trailing={<div className="run-quick-filters" role="group" aria-label={t('views.status')}>
         {(['active', 'attention'] as const).map(status => (
-          <button type="button" className="ui-action-button run-quick-filter" aria-pressed={showsOnly(criteria, status)} key={status}
-            onClick={() => changeCriteria(toggleOnly(criteria, status))}>
-            {t(status === 'active' ? 'views.active' : 'operations.runIssues')}
-          </button>
+          <ActionButton className="run-quick-filter" aria-pressed={showsOnly(criteria, status)} key={status}
+            onClick={() => changeCriteria(toggleOnly(criteria, status))}
+            label={t(status === 'active' ? 'views.active' : 'operations.runIssues')} />
         ))}
       </div>}
       chips={chips} isFiltered={!sameCriteria(criteria, DEFAULT_OPERATIONS_VIEW)}
