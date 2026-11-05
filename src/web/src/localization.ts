@@ -715,7 +715,7 @@ export const englishMessages = {
   'configured.oldest': 'Oldest created',
   'configured.count': 'Showing {shown} of {total} loaded configurations (up to 100 per refresh).',
   'configured.none': 'No logic has been configured.',
-  'configured.noneHint': 'Open a module in the catalog above to see what it needs, then set up logic for your assets.',
+  'configured.noneHint': 'Approved modules appear in the Modules tab. Select a view in Assets and choose Assign logic to set one up.',
   'configured.noMatches': 'No loaded configured logic matches these filters.',
   'setupStep.logic': 'Choose the logic',
   'setupStep.logicHint': 'The logic decides what is calculated. Only logic that has been checked for setup is listed.',
