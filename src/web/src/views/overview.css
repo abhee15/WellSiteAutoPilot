@@ -1,7 +1,6 @@
 /* Overview home: semantic tokens only. */
 .overview-attention { padding: var(--space-16) var(--space-18); }
 .overview-attention h2 { margin: 0 0 var(--space-10); font-size: var(--font-size-body); }
-.overview-note { color: var(--color-text-subtle); }
 
 .overview-latest { margin-top: var(--space-16); }
 .overview-runs { list-style: none; margin: 0; padding: 0; }
