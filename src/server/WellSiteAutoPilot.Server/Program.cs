@@ -896,16 +896,7 @@ v1.MapPost(
                 : new ConfiguredLogicRecurrence(request.Every ?? 0, request.Unit ?? "", request.SkipMissingMonthDay),
             EndAtUtc = request.EndAtUtc
         };
-        ScheduleOccurrences.Validate(schedule);
-        var occurrences = new List<DateTimeOffset>();
-        var after = request.StartAtUtc == DateTimeOffset.MinValue ? request.StartAtUtc : request.StartAtUtc.AddTicks(-10);
-        for (var index = 0; index < 3; index++)
-        {
-            if (ScheduleOccurrences.NextAfter(schedule, after) is not { } next) break;
-            occurrences.Add(next);
-            after = next;
-        }
-        return occurrences;
+        return ScheduleOccurrences.Preview(schedule);
     })
     .WithName("PreviewConfiguredLogicSchedule")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
