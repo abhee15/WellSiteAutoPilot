@@ -14,6 +14,7 @@ export type ScheduleShape = {
   cadenceSeconds: number | null;
   startAtUtc: string | null;
   timeZoneId: string | null;
+  every?: number | null; unit?: string | null; endAtUtc?: string | null;
 };
 
 export type ScheduleChangeKind = 'Paused' | 'Resumed' | 'FrequencyChanged' | 'Reset';
@@ -96,6 +97,9 @@ function readShape(value: unknown): ScheduleShape {
     cadenceSeconds: cadence,
     startAtUtc: nullable(value.startAtUtc, isInstant),
     timeZoneId: nullable(value.timeZoneId, isText),
+    ...(typeof value.every === 'number' && typeof value.unit === 'string'
+      ? { every: value.every, unit: value.unit } : {}),
+    ...(typeof value.endAtUtc === 'string' ? { endAtUtc: value.endAtUtc } : {}),
   };
 }
 
