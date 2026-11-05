@@ -15,12 +15,16 @@ import { SNAPSHOT_ASSET_LIMIT, fetchOwners } from './assetBrowseApi';
 import type { OwnerGroup } from './assetHierarchy';
 import type { AttentionItem } from './overview';
 import { CONTROL_ACTION_LIST_LIMIT, fetchControlActions } from './controlActions';
-import { fetchRecommendationInbox } from './recommendationInbox';
+import type { ControlAction } from './controlActions';
+import { fetchRecommendationInbox, recommendationIsAwaiting, recommendationProposal } from './recommendationInbox';
 import './overview.css';
+import './operatorItems.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Status, StatusIndicator } from '../components/Status';
+import { shortId } from '../format';
+import { formatDetailTimestamp } from './executionDetail';
 import { relativeTime } from './auditPresentation';
-import { describeRunContext, executionAssetLabel } from './runContext';
+import { assetIdentityLabel, describeRunContext, executionAssetLabel } from './runContext';
 import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 
 function attentionText(item: AttentionItem): string {
@@ -52,6 +56,7 @@ export function OverviewPage({
   const canReadRecommendations = permissions.includes('recommendations.read');
   const [recommendations, setRecommendations] = useState<RecommendationSummaryResponse[]>([]);
   const [recommendationsLoaded, setRecommendationsLoaded] = useState(!canReadRecommendations);
+  const [recommendationsUnavailable, setRecommendationsUnavailable] = useState(false);
   const reload = useRef<() => void>(() => undefined);
   const canReadAssets = permissions.includes('assets.read');
   // Status is available to connection readers and security managers, not automatically to execution readers.
@@ -86,10 +91,14 @@ export function OverviewPage({
       fetchRecommendationInbox(current.signal).then(items => {
         if (current.signal.aborted) return;
         setRecommendations(items);
+        setRecommendationsUnavailable(false);
         setRecommendationsLoaded(true);
       }).catch(() => {
-        // Keep the last good list; the awaiting-count simply stops updating until the next try.
-        if (!current.signal.aborted) setRecommendationsLoaded(true);
+        if (!current.signal.aborted) {
+          setRecommendations([]);
+          setRecommendationsUnavailable(true);
+          setRecommendationsLoaded(true);
+        }
       });
     };
     reload.current = load;
@@ -99,9 +108,8 @@ export function OverviewPage({
   usePollingRefresh(() => reload.current(), canReadRecommendations);
   useChangeRefresh(['recommendations'], () => reload.current());
 
-  // Commands sent but not confirmed. A failed read simply leaves the last known count; the Recommendations page
-  // shows the authoritative list and its own error.
-  const [openControlActions, setOpenControlActions] = useState(0);
+  const [controlActions, setControlActions] = useState<ControlAction[] | null>(null);
+  const [controlUnavailable, setControlUnavailable] = useState(false);
   const reloadControl = useRef<() => void>(() => undefined);
   useEffect(() => {
     if (!canReadRecommendations) return;
@@ -111,7 +119,7 @@ export function OverviewPage({
       controller = new AbortController();
       const current = controller;
       fetchControlActions(current.signal).then(
-        rows => { if (!current.signal.aborted) setOpenControlActions(rows.length); },
+        rows => { if (!current.signal.aborted) setControlActions(rows); },
         () => undefined);
     };
     reloadControl.current = load;
@@ -122,42 +130,77 @@ export function OverviewPage({
   useChangeRefresh(['control'], () => reloadControl.current());
 
   const items = attentionItems({
-    permissions, executions, recommendations, assets, configuredLogic, openControlActions, nowUtc: Date.now(),
+    permissions, executions, recommendations, assets, configuredLogic, openControlActions: controlActions?.length, nowUtc: Date.now(),
   });
   const ready = isLoaded && recommendationsLoaded;
+  const attentionReady = ready && (!canReadRecommendations || controlActions !== null);
   const latestRuns = [...executions].filter(run => run.executionId)
     .sort((a, b) => Date.parse(b.requestedAtUtc ?? '') - Date.parse(a.requestedAtUtc ?? '')).slice(0, 5);
-  const runAssetIds = [...new Set(latestRuns.flatMap(run =>
-    describeRunContext(run, configuredLogic, assets).assetIds.slice(0, 2)))];
+  const now = Date.now();
+  const pending = recommendations.filter(item => recommendationIsAwaiting(item, now))
+    .sort((a, b) => Date.parse(a.expiresAtUtc ?? '') - Date.parse(b.expiresAtUtc ?? ''));
+  const failed = permissions.includes('executions.read') ? executions.filter(run => {
+    const requested = Date.parse(run.requestedAtUtc ?? '');
+    return run.executionId && ['Failed', 'TimedOut', 'Suspended'].includes(run.status ?? '') &&
+      requested <= now && now - requested <= 86_400_000;
+  }).sort((a, b) => Date.parse(b.requestedAtUtc ?? '') - Date.parse(a.requestedAtUtc ?? '')) : [];
+  const action = controlActions?.[0];
+  const pendingShown = pending.slice(0, action ? 2 : 3);
+  const failedShown = failed.slice(0, 3 - pendingShown.length - (action ? 1 : 0));
+  const setup = items.filter(item => ['noAssets', 'noLogic', 'idleLogic'].includes(item.kind));
+  const runAssetIds = [...new Set([...latestRuns, ...failedShown].flatMap(run =>
+    describeRunContext(run, configuredLogic, assets).assetIds.slice(0, 2))
+    .concat(pendingShown.flatMap(item => item.assetId ? [item.assetId] : []), action?.assetId ? [action.assetId] : []))];
   const directory = useAssetIdentityDirectory(runAssetIds, assets, canReadAssets, userId);
-  const unhealthy = systemHealth?.unhealthyCount ?? 0;
+  const unhealthy = systemHealth?.unhealthyCount;
+  const attentionUnavailable = recommendationsUnavailable || controlUnavailable;
 
   return (
     <>
       <section className="panel overview-attention" aria-label={t('overview.attention')}>
         <h2>{t('overview.attention')}</h2>
-        {!ready ? <LoadingIndicator label={t('overview.loading')} />
-          : items.length === 0 ? <p>{t('overview.allClear')}</p>
-            : <ul className="overview-list">
-              {items.map(item => <li key={item.kind}>
-                {item.kind === 'decide' || item.kind === 'inDoubt' || item.kind === 'failedRuns' ? (
-                  <StatusIndicator tone="warning" label={attentionText(item)} />
-                ) : <span>{attentionText(item)}</span>}
-                <a className="action-link" href={item.href}>{t('overview.open')}</a>
-              </li>)}
-            </ul>}
+        {!attentionReady ? <LoadingIndicator label={t('overview.loading')} /> : <>
+          {attentionUnavailable && <p role="status">{t('overview.attentionUnavailable')}</p>}
+          {!action && !pendingShown.length && !failedShown.length && !attentionUnavailable && <p>{t('overview.allClear')}</p>}
+          <ul className="operator-items">
+            {action && <li>
+              <div className="operator-item-context">
+                <strong>{assetIdentityLabel(action.assetId, directory.assets, directory.owners)}</strong>
+                <StatusIndicator tone="warning" label={t('overview.actionUnconfirmed')} />
+                <span>{recommendationProposal({ ...action, suggestedValue: action.value })}</span>
+                <small>{t('overview.runReference', { id: shortId(action.executionId) })} · {formatDetailTimestamp(action.createdAtUtc)}</small>
+              </div>
+              <a className="action-link" href="#recommendations">{t('overview.inspectActions')}</a>
+            </li>}
+            {pendingShown.map(item => <li key={item.id}>
+              <div className="operator-item-context">
+                <strong>{assetIdentityLabel(item.assetId, directory.assets, directory.owners)}</strong>
+                <StatusIndicator tone="warning" label={t('operations.awaitingDecision')} />
+                <span>{recommendationProposal(item)}</span>
+                <small>{item.moduleId} · {t('overview.runReference', { id: shortId(item.executionId) })} · {t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>
+              </div>
+              {item.canDecide && <a className="action-link" href={`#recommendations/${item.id}`}>{t('operations.reviewChange')}</a>}
+            </li>)}
+            {failedShown.map(run => {
+              const context = describeRunContext(run, configuredLogic, directory.assets, directory.owners);
+              return <li key={run.executionId}>
+                <div className="operator-item-context">
+                  <strong>{executionAssetLabel(run, context)}</strong>
+                  <Status value={run.status} />
+                  <small>{context.logicName ?? run.moduleId} · {t('overview.runReference', { id: shortId(run.executionId) })} · {formatDetailTimestamp(run.requestedAtUtc)}</small>
+                </div>
+                <a className="action-link" href={`#operations/${run.executionId}`}>{t('overview.inspectRun')}</a>
+              </li>;
+            })}
+          </ul>
+          <div className="overview-attention-links">
+            {(controlActions?.length ?? 0) > 1 && <a href="#recommendations">{t('overview.inspectActions')}</a>}
+            {pending.length > pendingShown.length && <a href="#recommendations">{t('overview.allRecommendations')}</a>}
+            {failed.length > failedShown.length && <a href="#operations">{t('overview.allRuns')}</a>}
+          </div>
+        </>}
       </section>
 
-      <section className="summary-grid" aria-label={t('overview.glance')}>
-        {canReadAssets &&
-          <SummaryCard label={t('overview.assets')} value={assetTotalLabel(owners, assets.length, SNAPSHOT_ASSET_LIMIT)} detail="" href={hashFor('assets')} />}
-        {permissions.includes('configured-logic.read') &&
-          <SummaryCard label={t('overview.logic')} value={cappedCount(configuredLogic.length, 100)} detail="" href={hashFor('logic')} />}
-        {permissions.includes('executions.read') &&
-          <SummaryCard label={t('overview.recentRuns')} value={String(executions.length)} detail={t('overview.recentRunsDetail')} href={hashFor('operations')} />}
-        {canReadServices &&
-          <SummaryCard label={t('overview.services')} value={String(unhealthy)} detail="" href={hashFor('status')} />}
-      </section>
       {permissions.includes('executions.read') && ready && latestRuns.length > 0 && (
         <section className="panel overview-latest" aria-label={t('overview.latestRuns')}>
           <PanelHeader title={t('overview.latestRuns')}
@@ -177,6 +220,19 @@ export function OverviewPage({
           </ul>
         </section>
       )}
+      <section className="summary-grid overview-metrics" aria-label={t('overview.glance')}>
+        {canReadAssets &&
+          <SummaryCard label={t('overview.assets')} value={assetTotalLabel(owners, assets.length, SNAPSHOT_ASSET_LIMIT)} detail="" href={hashFor('assets')} />}
+        {permissions.includes('configured-logic.read') &&
+          <SummaryCard label={t('overview.logic')} value={cappedCount(configuredLogic.length, 100)} detail="" href={hashFor('logic')} />}
+        {permissions.includes('executions.read') &&
+          <SummaryCard label={t('overview.recentRuns')} value={String(executions.length)} detail={t('overview.recentRunsDetail')} href={hashFor('operations')} />}
+        {canReadServices &&
+          <SummaryCard label={t('overview.services')} value={unhealthy == null ? t('overview.unknown') : String(unhealthy)} detail="" href={hashFor('status')} />}
+      </section>
+      {ready && setup.length > 0 && <ul className="overview-setup">
+        {setup.map(item => <li key={item.kind}><a href={item.href}>{attentionText(item)}</a></li>)}
+      </ul>}
       <p className="overview-note">{t('overview.shadowNote')}</p>
     </>
   );
