@@ -1,3 +1,4 @@
+import './operatorItems.css';
 import { ActionButton } from '../components/ActionButton';
 import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { useEffect, useState } from 'react';
@@ -12,6 +13,8 @@ import {
   loadSavedOperationsViews,
   persistSavedOperationsViews,
   sameCriteria,
+  showsOnly,
+  toggleOnly,
 } from './operationsViews';
 
 const statusLabels: Record<(typeof OPERATIONS_STATUS_FILTERS)[number], MessageKey> = {
@@ -54,7 +57,7 @@ export function OperationsViewControls({
   const [name, setName] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
-  // The list can also be changed from outside (a summary card, "Clear filters"); then the chosen saved view no longer
+  // The list can also be changed from outside (for example, "Clear filters"); then the chosen saved view no longer
   // describes what is shown, so it must not stay selected.
   useEffect(() => {
     if (!selectedId) return;
@@ -129,6 +132,14 @@ export function OperationsViewControls({
     <FilterToolbar label={t('views.controls')}
       search={{ value: criteria.search, label: t('views.search'), placeholder: t('views.searchPlaceholder'),
         onChange: search => changeCriteria({ ...criteria, search }) }}
+      trailing={<div className="run-quick-filters" role="group" aria-label={t('views.status')}>
+        {(['active', 'attention'] as const).map(status => (
+          <button type="button" className="ui-action-button run-quick-filter" aria-pressed={showsOnly(criteria, status)} key={status}
+            onClick={() => changeCriteria(toggleOnly(criteria, status))}>
+            {t(status === 'active' ? 'views.active' : 'operations.runIssues')}
+          </button>
+        ))}
+      </div>}
       chips={chips} isFiltered={!sameCriteria(criteria, DEFAULT_OPERATIONS_VIEW)}
       onClear={() => changeCriteria({ ...DEFAULT_OPERATIONS_VIEW })}
       note={<>{t('views.count', { shown: matchingCount, total: recentCount })}</>}>
