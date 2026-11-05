@@ -81,8 +81,12 @@ export function filterRecommendationInbox(
 export async function fetchRecommendationInbox(
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
+  executionId?: string,
 ): Promise<RecommendationSummaryResponse[]> {
-  const response = await fetcher('/api/v1/recommendations?limit=50', {
+  const limit = executionId ? 100 : 50;
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (executionId) query.set('executionId', executionId);
+  const response = await fetcher('/api/v1/recommendations?' + query, {
     method: 'GET',
     credentials: 'same-origin',
     cache: 'no-store',
@@ -99,12 +103,31 @@ export async function fetchRecommendationInbox(
   } catch {
     throw new Error('RECOMMENDATION_INBOX_INVALID_RESPONSE');
   }
-  if (!Array.isArray(payload) || payload.length > 50 ||
+  if (!Array.isArray(payload) || payload.length > limit ||
       payload.some(item => item === null || typeof item !== 'object' ||
         typeof item.id !== 'string' ||
         typeof item.assetId !== 'string' ||
-        typeof item.status !== 'string')) {
+        typeof item.status !== 'string' || (executionId && item.executionId !== executionId))) {
     throw new Error('RECOMMENDATION_INBOX_INVALID_RESPONSE');
   }
   return payload as RecommendationSummaryResponse[];
+}
+
+export async function fetchRecommendationById(id: string, signal: AbortSignal): Promise<RecommendationSummaryResponse> {
+  const response = await fetch('/api/v1/recommendations/' + encodeURIComponent(id), {
+    credentials: 'same-origin', cache: 'no-store', signal,
+  });
+  if (!response.ok) throw new Error('RECOMMENDATION_UNAVAILABLE');
+  const item: RecommendationSummaryResponse | null = await response.json();
+  if (item?.id !== id || typeof item.assetId !== 'string' || typeof item.status !== 'string') {
+    throw new Error('RECOMMENDATION_INVALID_RESPONSE');
+  }
+  return item;
+}
+
+export function recommendationProposal(item: Pick<RecommendationSummaryResponse, 'command' | 'code' | 'quantity' | 'suggestedValue' | 'unit'>): string {
+  const value = item.suggestedValue;
+  const command = item.command ?? item.code ?? '';
+  const target = typeof value === 'number' && Number.isFinite(value) ? [String(value), item.unit].filter(Boolean).join(' ') : null;
+  return [command, [item.quantity, target].filter(Boolean).join(' · ')].filter(Boolean).join(': ');
 }
