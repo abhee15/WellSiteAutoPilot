@@ -45,6 +45,7 @@ internal static class ConfiguredLogicScheduleWriter
         current.CadenceSeconds = request.Schedule.CadenceSeconds;
         current.StartAtUtc = request.Schedule.StartAtUtc;
         current.TimeZoneId = request.Schedule.TimeZoneId;
+        current.ScheduleJson = JsonSerializer.Serialize(request.Schedule);
         current.ChangedBy = request.ChangedBy;
         current.ChangedAtUtc = request.ChangedAtUtc;
         current.Reason = request.Reason;
@@ -108,6 +109,7 @@ internal static class ConfiguredLogicScheduleWriter
         CadenceSeconds = schedule.CadenceSeconds,
         StartAtUtc = schedule.StartAtUtc,
         TimeZoneId = schedule.TimeZoneId,
+        ScheduleJson = JsonSerializer.Serialize(schedule),
         ChangedBy = changedBy,
         ChangedAtUtc = changedAtUtc,
         Reason = reason
@@ -124,6 +126,7 @@ internal static class ConfiguredLogicScheduleWriter
     private static void Validate(ConfiguredLogicScheduleChangeRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ScheduleOccurrences.Validate(request.Schedule);
         if (request.Kind == ConfiguredLogicScheduleChangeKind.Reset)
             throw Invalid("Reset is recorded by revision activation, not requested directly.");
         if (request.Schedule.CadenceSeconds <= 0) throw Invalid("The cadence must be positive.");
