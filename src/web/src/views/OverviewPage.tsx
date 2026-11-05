@@ -119,8 +119,16 @@ export function OverviewPage({
       controller = new AbortController();
       const current = controller;
       fetchControlActions(current.signal).then(
-        rows => { if (!current.signal.aborted) setControlActions(rows); },
-        () => undefined);
+        rows => {
+          if (current.signal.aborted) return;
+          setControlActions(rows);
+          setControlUnavailable(false);
+        },
+        () => {
+          if (current.signal.aborted) return;
+          setControlActions([]);
+          setControlUnavailable(true);
+        });
     };
     reloadControl.current = load;
     load();
