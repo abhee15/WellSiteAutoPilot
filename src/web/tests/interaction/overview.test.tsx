@@ -138,3 +138,20 @@ it('resolves missing configured run asset names outside the 100-asset snapshot w
   expect(await screen.findByText('RPOC_00002 (ForeSite Production)')).toBeTruthy();
   expect(http.mock.calls.some(([url]) => url === '/api/v1/assets/' + well)).toBe(true);
 });
+
+it('keeps KPIs above Latest runs and offers one Inspect action for multiple unconfirmed commands', async () => {
+  const actionId = '22222222-2222-4222-8222-222222222222';
+  const actions = [actionId, '33333333-3333-4333-8333-333333333333'].map(id => ({
+    id, recommendationId: '44444444-4444-4444-8444-444444444444',
+    executionId: 'e1', assetId: 'a1', command: 'Set speed', value: 48, unit: 'Hz',
+    gateCode: 'SINK_AMBIGUOUS', status: 'Ambiguous', createdAtUtc: new Date().toISOString(),
+  }));
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url.startsWith('/api/v1/control/actions?') ? actions : [])));
+  render(<OverviewPage {...(props as never)} executions={[run('e1')] as never} />);
+  const link = await screen.findByRole('link', { name: 'Inspect actions' });
+  expect(screen.getAllByRole('link', { name: 'Inspect actions' })).toHaveLength(1);
+  expect(link.getAttribute('href')).toBe('#recommendations/actions%2F' + actionId);
+  const metrics = screen.getByRole('region', { name: 'At a glance' });
+  const latest = screen.getByRole('region', { name: 'Latest runs' });
+  expect(metrics.compareDocumentPosition(latest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
