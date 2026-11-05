@@ -51,6 +51,20 @@ Logic 3 is logic 1 with SPM instead of Hz. Intent, sanity checks and decision tr
 
 **Legacy defects spotted in logic 3:** an average of 0 is treated as missing; the "Need to update Min Fillage Setpoint" message prints the wrong limit; `val_cycles_yest` and `val_rt_yest` can be `None` in comparisons; early `return` without a result.
 
+## Additional gaps from logic 4: Idle Time Adjustment (fixed-speed controller)
+
+| # | Gap | Legacy ACL need | Notes | Size |
+|---|-----|-----------------|-------|------|
+| G22 | Daily-snapshot quantities | Inferred production, cycles, run time and strokes for yesterday and the day before | `*Yesterday` fields are controller rollovers that change at gauge-off time, so history is read at the gauge-off time of each day. The adapter needs a way to ask for the value for a given day (or the last two days). `GetTrends` returns daily averages and may serve this (G5) | M |
+| G23 | Inferred production and strokes quantities | `InferredProdYesterday`, `StrokesYesterday` | Extends G1. Check which exist in ForeSite's well status or daily records | S |
+| G24 | Value with unit as a string | `IdleTime` arrives as a string in seconds; written in seconds | Setpoint reads need typed values with units (extends G4 and G2) | S |
+| G25 | Site clock / gauge-off time | Reads at a configured gauge-off hour and minute in local time | Time zone: the host should supply the well's or site's time zone. Legacy uses the server's local time | S |
+| G26 | Fixed-speed controller family | RPOC idle-time setpoint (`IdleTime`) | Another controller family for G19's per-device-type setpoint map | S |
+
+**Intent:** tune a pump-off controller's idle time from yesterday's outcome. If inferred production held at or above a target percentage of the day before, then if cycles exceeded the desired count lengthen idle time by a step, otherwise leave it. If production fell, shorten idle time by a step. Always clamp to the min and max idle time. If any of the two days' values are missing, do nothing.
+
+**Legacy defects spotted:** a value of 0 is treated as "missing" (a real zero, such as no strokes, blocks the logic); bare `except` hides read failures; a log line says "90 percent" regardless of the parameter; the no-data path ends without a result; local-time `astimezone` arithmetic can shift across daylight-saving changes; two reads per quantity where one range read would do.
+
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
 2. G3 (catalog endpoint, also feeds the starter kit download)
@@ -66,6 +80,7 @@ Logic 3 is logic 1 with SPM instead of Hz. Intent, sanity checks and decision tr
 ## Intent of each reference logic (platform-neutral)
 - **Target Fillage Phase 1 (VSD):** keep average fillage near a target by trimming the VFD speed range. If fillage is low and speed is low, lower the minimum speed. If fillage is low and speed is at or above target, lower the maximum speed. At the floor, raise a minimum-fillage condition. Guarded by sanity limits on step size, cycles, run time and min/max span.
 - **Target Fillage Phase 1 (Unico SPM):** the same as Phase 1 (VSD), expressed in SPM on a Unico controller, including paired up/down setpoints.
+- **Idle Time Adjustment (fixed speed):** tune idle time from yesterday's outcome against the day before: lengthen when production holds and cycles are high, shorten when production falls, always within min and max.
 - **Rotaflex Target Fillage Phase 2:** when fillage is at or above target and the operating point is stable, raise the maximum speed in small steps, within the pumping unit's limits. Back out if the well shows alarms, and require Speed Trim Adjustment beyond the cornering speed.
 
 ## Test plan
