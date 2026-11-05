@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using WellSiteAutoPilot.Application.Scheduling;
 using WellSiteAutoPilot.Domain.ConfiguredLogic;
 using WellSiteAutoPilot.Failures;
@@ -73,12 +74,14 @@ public sealed class ConfiguredLogicScheduleRepository(WellSiteAutoPilotDbContext
 
     internal static ConfiguredLogicScheduleState ToState(ConfiguredLogicScheduleStateEntity entity) => new(
         entity.ConfiguredLogicId, entity.BasedOnRevisionId, entity.Version,
-        ToSchedule(entity.Enabled, entity.CadenceSeconds, entity.StartAtUtc, entity.TimeZoneId),
+        entity.ScheduleJson is null ? ToSchedule(entity.Enabled, entity.CadenceSeconds, entity.StartAtUtc, entity.TimeZoneId)
+            : JsonSerializer.Deserialize<ConfiguredLogicSchedule>(entity.ScheduleJson)!,
         entity.ChangedBy, entity.ChangedAtUtc, entity.Reason);
 
     private static ConfiguredLogicScheduleChange ToChange(ConfiguredLogicScheduleChangeEntity entity) => new(
         entity.Id, entity.ConfiguredLogicId, entity.BasedOnRevisionId, entity.Version,
         Enum.Parse<ConfiguredLogicScheduleChangeKind>(entity.Kind),
-        ToSchedule(entity.Enabled, entity.CadenceSeconds, entity.StartAtUtc, entity.TimeZoneId),
+        entity.ScheduleJson is null ? ToSchedule(entity.Enabled, entity.CadenceSeconds, entity.StartAtUtc, entity.TimeZoneId)
+            : JsonSerializer.Deserialize<ConfiguredLogicSchedule>(entity.ScheduleJson)!,
         entity.ChangedBy, entity.ChangedAtUtc, entity.Reason);
 }
