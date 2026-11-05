@@ -133,5 +133,9 @@ export function matchesSetupRevision(revision: ConfiguredLogicRevisionResponse, 
       revision.schedule.enabled === request.schedule.enabled &&
       revision.schedule.cadenceSeconds === request.schedule.cadenceSeconds &&
       Date.parse(revision.schedule.startAtUtc ?? '') === Date.parse(request.schedule.startAtUtc ?? '') &&
-      revision.schedule.timeZoneId === request.schedule.timeZoneId);
+      revision.schedule.timeZoneId === request.schedule.timeZoneId &&
+      (revision.schedule.every ?? null) === (request.schedule.every ?? null) &&
+      (revision.schedule.unit ?? null) === (request.schedule.unit ?? null) &&
+      (revision.schedule.skipMissingMonthDay ?? false) === (request.schedule.skipMissingMonthDay ?? false) &&
+      (revision.schedule.endAtUtc ?? null) === (request.schedule.endAtUtc ?? null));
 }
