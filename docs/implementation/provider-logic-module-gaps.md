@@ -138,6 +138,19 @@ Finding wells to test with: `POST Wells/WellFilter` (body `[null]`) returns the 
 
 Wells seen with live data (last scan 2026-11-05): 776 `RPOC_00016+9077` (WellPilotRPOC; fillage 99.6, SPM about 10, setpoints present), 457, 488, 732, 715 (WellPilotRPOC); 833, 995, 1520 (LufkinSam); 1609 AEPOC2 (AEBEAM). Well 1596 `AR-RRL1` (AEBEAM) has no fillage and no saved setpoints.
 
+Survey by SCADA type CygNet and device type (wells with the device type; sample of up to 60 read for status):
+
+| Device type | Wells | Well types seen | Status fields populated |
+|---|---|---|---|
+| AEBEAM | 6 | RRL | Inferred production only (420). No fillage, strokes or cycles in most. `RPOC_ASU` (1680) has fillage 0 |
+| LufkinSam | 302 | RRL, NF, PCP | Mostly empty. RRL `new well RRL test` (968) shows zeros |
+| WellPilotRPOC | 344 | RRL, NF, GLift | Rod-lift wells such as 487 and 776 have fillage about 99.6 and inferred production. Others empty |
+| WFordKS | 147 | GInj, ESP | Status empty |
+| WFTA1K | 8 | PCP | Status empty |
+| SAMIWC | 5 | WInj, WGInj | Status empty |
+
+The device type is not the same as the well type: one device type (LufkinSam, WellPilotRPOC) spans several well types. A catalog must key applicability on both, plus `AvailableQuantities` for the specific well. Only a few rod-lift wells have usable fillage, which sets the limit for live tests: use 487, 776 and 457 (WellPilotRPOC), and 1680 (AEBEAM) for the zero and empty cases.
+
 Observed gaps in the data, which a catalog has to tolerate:
 - `StrokesYesterday` reads 65535 on WellPilotRPOC wells, which looks like an unset sentinel, and is empty on AEBEAM wells.
 - Fillage fields are null for AEBEAM.
