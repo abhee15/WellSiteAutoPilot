@@ -272,7 +272,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           onClick={() => { setParamValues(parameterValues(paramFields, parameters)); setParamJson(false); setParamErrors({}); }} />}</>}
         </details>
         <details className="revision-editor-section" open><summary>{t('draftEditor.targets')}</summary>
-        {manifest && <>
+        {manifest && !viewRef && <>
         <p className="setup-step-hint">{t('setupStep.assetsHint')}</p></>}
         {manifest?.assetRequirements.map(r => <fieldset key={r.role}>
           <legend>{t('setup.assetRole', { role: r.role, min: r.minimumCount, max: r.maximumCount })}</legend>
@@ -292,24 +292,27 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
               return <option key={view.id} value={view.id} disabled={incompatible}>{view.name} · {view.memberCount} · {source?.name ?? view.connectionId}{reason ? ' · ' + reason : ''}</option>;
             })}
           </select></label>}
-          {canReadViews && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
+          {canReadViews && !viewRef && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
           {viewRef?.role === r.role && <p className="connection-help">{t('setup.viewSnapshot', { revision: viewRef.expectedRevision, count: bindings[r.role]?.length ?? 0 })}
             {canReadViews && <ActionButton icon={RefreshCw} iconOnly label={t('setup.refreshView')} disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)} />}</p>}
           {viewLoading && <LoadingIndicator label={t('views.loading')} />}
           {viewError && <p role="alert">{t('setup.viewUnavailable')}</p>}
-          <p>{t(viewRef?.role === r.role ? 'setup.viewTargets' : 'setup.loadedAssets')}</p>
+          {viewRef?.role !== r.role && <p>{t('setup.loadedAssets')}</p>}
           {manifest.requiredAdapterKey === 'foresite' && !viewRef && <p className="connection-help">{t('setup.directWellHint')}</p>}
           {!viewRef && (bindings[r.role] ?? []).map(id => {
             const owner = allAssets.find(asset => asset.id === id)?.ownerConnectionId;
             return owner ? <p key={id} className="connection-help">{t('setup.selectedConnection', {
               connection: connections.find(connection => connection.id === owner)?.name ?? owner })}</p> : null;
           })}
-          <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewRef?.role === r.role || viewLoading}
+          {viewRef?.role === r.role ? <details><summary>{t('setup.assetsFor', { role: r.role })} ({bindings[r.role]?.length ?? 0})</summary>
+            <ul>{(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <li key={id}>{labelAsset(id)}</li>)}</ul>
+            <p className="connection-help">{t('setup.viewTargets')}</p>
+          </details> : <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewLoading}
             value={bindings[r.role] ?? []} onChange={e => setBindings({ ...bindings,
               [r.role]: Array.from(e.target.selectedOptions, o => o.value) })}>
             {eligibleAssets(r, allAssets, assetTypes).filter(a => !manifest.requiredAdapterKey || !!a.ownerConnectionId)
               .map(a => <option key={a.id} value={a.id}>{labelAsset(a.id)}</option>)}
-          </select></label>
+          </select></label>}
           {(bindings[r.role]?.length ?? 0) > 0 && <details><summary>{t('assignment.overrides')}</summary>
           {(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <ParameterOverridesEditor
             key={moduleKey + JSON.stringify([r.role, id])} schema={manifest.parameterSchema}
