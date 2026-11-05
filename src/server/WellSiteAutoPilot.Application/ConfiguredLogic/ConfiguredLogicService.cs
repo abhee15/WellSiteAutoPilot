@@ -32,6 +32,10 @@ public sealed class ConfiguredLogicService(
         var installed = await GetInstalledModuleAsync(requested.ModuleId, requested.Version, cancellationToken);
         EnsureManifestMatchesInstalled(manifestJson, installed);
         var manifest = DeserializeAndValidateManifest(installed.ManifestJson);
+        foreach (var assetId in targets.Select(target => target.AssetId).Distinct())
+            if (await assetRepository.GetAuthorizedAsync(subject, assetId, cancellationToken) is null)
+                throw new WellSiteAutoPilotException("CONFIGURED_LOGIC_ASSET_NOT_FOUND", FailureKind.NotFound,
+                    "The selected asset was not found or is unavailable.");
         var bindings = await ValidateAssetBindingsAsync(manifest, targets, cancellationToken);
         var resolved = new List<ConfiguredLogicDataBinding>();
         foreach (var assetId in bindings.Select(binding => binding.AssetId).Distinct())
