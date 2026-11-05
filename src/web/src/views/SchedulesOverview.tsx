@@ -64,7 +64,7 @@ export function SchedulesOverview({ configuredLogic, assets, owners = [], execut
                 <tr key={row.id}>
                   <td><a href={hashFor('logic', row.id)}>{row.name}</a></td>
                   <td>{row.enabled
-                    ? scheduleText({ enabled: true, cadenceSeconds: row.cadenceSeconds, timeZoneId: row.timeZoneId })
+                    ? scheduleText({ enabled: true, cadenceSeconds: row.cadenceSeconds, timeZoneId: row.timeZoneId, every: row.every, unit: row.unit, endAtUtc: row.endAtUtc })
                     : <Status value={t(row.paused ? 'schedules.paused' : 'schedules.off')} />}
                     {row.enabled && row.belowMinimum && <> <Status value={t('schedules.belowMinimum')} tone="warning" /></>}
                     {row.changed && <> <small>{t('schedules.changed')}</small></>}</td>
