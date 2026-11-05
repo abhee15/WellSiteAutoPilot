@@ -17,7 +17,7 @@ public interface IRecommendationRepository
     /// Logic and Asset filters and before the limit.
     /// </summary>
     Task<IReadOnlyCollection<RecommendationRecord>> ListAuthorizedAsync(AccessSubject subject, RecommendationStatus? status, int limit,
-        Guid? configuredLogicId = null, Guid? assetId = null, CancellationToken cancellationToken = default);
+        Guid? configuredLogicId = null, Guid? assetId = null, Guid? executionId = null, CancellationToken cancellationToken = default);
 
     Task<int> AddMissingAsync(
         IReadOnlyCollection<RecommendationRecord> recommendations,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { CloseButton } from '../components/CloseButton';
 import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '../components/ActionButton';
@@ -35,6 +36,7 @@ type Props = {
   executionId: string;
   onClose: () => void;
   poll?: boolean;
+  context?: ReactNode;
   onObserved?: (detail: ExecutionResponse) => void;
   onAccessLost?: () => void;
   configuredLogic?: readonly ConfiguredLogicResponse[];
@@ -49,7 +51,7 @@ const FALLBACK_REFRESH_MS = 2000;
 const LIVE_SAFETY_REFRESH_MS = 15000;
 
 export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, onAccessLost,
-  configuredLogic = [], assets = [], assetOwners = [], connectionNames }: Props) {
+  configuredLogic = [], assets = [], assetOwners = [], connectionNames, context }: Props) {
   const [detail, setDetail] = useState<ExecutionResponse | null>(null);
   const [error, setError] = useState<ExecutionDetailErrorKind | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -127,6 +129,7 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
       </div>
       {isLoading && !detail && <LoadingIndicator label={t('execution.loading')} />}
       {error && <p role="alert" className="execution-detail-error">{errorMessages[error]}</p>}
+      {detail && context}
       {detail && <ExecutionDetailContent detail={detail} configuredLogic={configuredLogic} assets={assets}
         assetOwners={assetOwners} connectionNames={connectionNames} />}
     </section>

@@ -64,7 +64,7 @@ describe('accessibility (names, roles, labels and structure; contrast is checked
       assetExternalId: 'Well 1', requestedAtUtc: '2026-10-28T03:00:00Z' }];
     const { container } = render(<OperationsPage executions={runs as never} userId="u1" />);
     expect(await accessibilityViolations(container)).toEqual([]);
-    await userEvent.setup().click(screen.getByRole('button', { name: /^Requires attention/ }));
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Run issues$/ }));
     await screen.findAllByRole('button', { name: 'Clear filters' });
     expect(await accessibilityViolations(container)).toEqual([]);
   });
