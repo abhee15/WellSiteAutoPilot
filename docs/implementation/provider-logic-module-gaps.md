@@ -76,6 +76,40 @@ Logic 3 is logic 1 with SPM instead of Hz. Intent, sanity checks and decision tr
 
 **Legacy defects spotted:** a value of 0 is treated as "missing" (a real zero, such as no strokes, blocks the logic); bare `except` hides read failures; a log line says "90 percent" regardless of the parameter; the no-data path ends without a result; local-time `astimezone` arithmetic can shift across daylight-saving changes; two reads per quantity where one range read would do.
 
+## How each gap is addressed per provider
+
+How the two adapters differ today:
+
+| | ForeSite | CygNet |
+|---|---|---|
+| Data model | Well-centred REST documents (`Surveillance/well/{id}`, setpoint groups, alarms) | Point-centred: facility tag plus UDC, configured per connection (`CygNetQuantityMapping(Udc, Unit)`) |
+| Quantity catalog | Fixed in code: 2 quantities, units forced | Default UDC map (`RRLPFILAVG`, `PRCASXIN`, `PRTUBXIN`, `RRLMXLDDLY`), overridable per site. Unmapped quantities fail with `CYGNET_QUANTITY_UNSUPPORTED` |
+| Capabilities | `AssetDiscovery`, `CurrentData` | Current reads, via `ICygNetClient.ReadCurrentAsync` only |
+| Simulator | None (G10) | `SimulatedCygNetClient` exists |
+| Natural strengths | Calculated well status (cycles, runtime, ACL settings, intelligent alarms) | Point history, point writes, alarms on points |
+
+Approach, gap by gap. "Neutral" is the contract change made once; the other columns are the per-adapter work.
+
+| Gap | Neutral contract change | ForeSite implementation | CygNet implementation |
+|---|---|---|---|
+| G1 / G23 extra current quantities | Add quantities to the shared catalog: `SPM`, `CyclesYesterday`, `RunTimeYesterday`, `StrokesYesterday`, `InferredProdYesterday`. Catalog says which providers support each | Read from the well status document (`RRLWellStatusValueDTO`). Inferred production and strokes need confirming | Add default UDC mappings or require site mapping. Unmapped means a clear unsupported error, as today |
+| G2 / G3 units, ranges, catalog | Catalog entry carries unit, range and description. Adapters report the unit they actually serve | Stop forcing `%` and 0-100 for everything | The mapping already has a unit. Add a range, and convert if the point unit differs |
+| G9 one read per quantity | None (internal) | Cache the well document for one execution | Batch the point reads for one facility |
+| G10 test double | Provider-neutral fixture set (values, history, setpoints) | Build a ForeSite simulator | Extend `SimulatedCygNetClient` to the same fixture set |
+| G4 / G11 / G19 / G24 setpoint reads | New read capability: logical setpoint name to typed value with unit. Controller family (G13, G26) chooses the map | `GetWellAutonomousControlGroupData`, a per-device-type map | Setpoints are points: a UDC map per controller family, in the site mapping |
+| G5 / G22 history and daily snapshots | `IHistoricalDataProvider` already defined. Need a daily-snapshot read with a time zone (G25) | `GetTrends`, daily averages only. Hourly is not available | Native point history, so hourly and sub-daily are possible |
+| G12 `AverageSPM` | A catalog quantity | From well status or trends | An averaged point, or computed from history |
+| G6 parameter pre-fill | Optional provider hook for suggested parameter defaults | `GetACLLogicSettings` | No native equivalent. Likely site configuration |
+| G7 / G14 alarms | `IAlarmProvider` already defined. Neutral alarm shape: id, severity, active, since | `CurrentAlarms`, `ActiveIntelligentAlarms` | Point alarm status. No intelligent alarms |
+| G8 recommendations and writes | `ICommandProvider` plus a recommendation shape, behind the design review (shadow versus live, approvals, verification) | `ApplyRecommendationForEachSetpoint`, `RunAutonomousControlTask`, `Well/Command` | Point write, then read back to verify |
+| G13 / G26 device type and controller family | Asset attribute `controllerFamily`, visible to modules | From `WellControllerCapabilities` and device types | From facility attributes, or the UDC set present |
+| G15 reference data (pump speed table) | A neutral reference-data read, or a module-bundled table | ForeSite configuration | Probably module-bundled |
+| G25 time zone | Asset attribute `timeZone` | From the well or site | From the CygNet site or facility |
+
+Gaps G16-G18 stay outside the adapters by design (persistence, closed loop).
+
+Where the two adapters differ, the neutral contract takes the smaller common surface. A provider-specific extra is reported by a capability flag, not assumed. A module that needs a capability the connected provider lacks fails validation, not the run.
+
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
 2. G3 (catalog endpoint, also feeds the starter kit download)
