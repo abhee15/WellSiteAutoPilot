@@ -824,7 +824,7 @@ export const englishMessages = {
   'controlActions.resolve': 'Resolve',
   'controlActions.resolveFor': 'Resolve {command}',
   'controlActions.verifyChanged': 'The target answered and the command was updated.',
-  'controlActions.verifyUnchanged': 'The target gave no answer, so the command still needs a decision.',
+  'controlActions.verifyUnchanged': 'The target gave no answer, so the command remains unconfirmed.',
   'controlActions.resolveWarning': 'Only record what you have checked on the target yourself. Your name and note are kept with the command.',
   'controlActions.wasApplied': 'The command was applied',
   'controlActions.wasNotApplied': 'The command was not applied',

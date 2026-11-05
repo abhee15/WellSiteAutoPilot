@@ -1,3 +1,4 @@
+import './controlActions.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { ActionButton } from '../components/ActionButton';
@@ -180,7 +181,7 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
                 {' · '}{t('controlActions.sentAt', { at: formatDetailTimestamp(action.createdAtUtc) })}
                 {' · '}{waitingLabel(action.createdAtUtc, nowMs)}
               </p>
-              <p>{outcome ? t(outcome) : action.status}{gate ? ' ' + t(gate) : ''}</p>
+              <p>{gate ? t(gate) : outcome ? t(outcome) : action.status}</p>
               {verifyNote?.id === action.id && (
                 <p role="status">{t(verifyNote.unchanged ? 'controlActions.verifyUnchanged' : 'controlActions.verifyChanged')}</p>
               )}

@@ -6,3 +6,12 @@
 .recommendation-run small, .recommendation-run time { font-size: var(--font-size-body-small); color: var(--color-text-muted); }
 @container (width <= 40em) { .recommendation-run-list { grid-template-columns: 1fr; } }
 @media (width <= 40em) { .recommendation-run-list { grid-template-columns: 1fr; } }
+/* Proposal cards keep Review reachable at phone and narrow inspector widths. */
+@container (width <= 40em) {
+  .recommendation-proposals, .recommendation-proposals tbody { display: block; width: 100%; }
+  .recommendation-proposals thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+  .recommendation-proposals tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-12) var(--space-16); gap: var(--space-8); border-bottom: var(--border-width-thin) solid var(--color-border-subtle); }
+  .recommendation-proposals tbody td { grid-column: 1; display: block; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .recommendation-proposals .run-col-secondary { display: none; }
+  .recommendation-proposals tbody td:last-child:not(:nth-child(7)) { grid-column: 2; grid-row: 1 / span 3; align-self: start; }
+}

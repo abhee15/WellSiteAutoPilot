@@ -64,7 +64,7 @@ it('verify with no answer keeps the command and says so', async () => {
   const user = userEvent.setup();
   render(<ControlActionsPanel userId={userId} canManage />);
   await user.click(await screen.findByRole('button', { name: 'Verify SET_CHOKE' }));
-  expect(await screen.findByText('The target gave no answer, so the command still needs a decision.')).toBeTruthy();
+  expect(await screen.findByText('The target gave no answer, so the command remains unconfirmed.')).toBeTruthy();
   expect(screen.getByText('SET_CHOKE')).toBeTruthy();
 });
 

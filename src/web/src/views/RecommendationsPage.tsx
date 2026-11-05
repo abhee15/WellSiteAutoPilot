@@ -66,7 +66,7 @@ export function RecommendationInboxTable({
 }) {
   return (
     <div className="table-wrap">
-      <table className="activity-table">
+      <table className="activity-table recommendation-proposals">
         <thead>
           <tr>
             <th scope="col">{t('inbox.status')}</th>
