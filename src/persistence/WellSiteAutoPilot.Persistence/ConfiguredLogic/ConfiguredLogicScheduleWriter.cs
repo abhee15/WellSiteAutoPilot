@@ -129,13 +129,13 @@ internal static class ConfiguredLogicScheduleWriter
         if (request.Kind == ConfiguredLogicScheduleChangeKind.Reset)
             throw Invalid("Reset is recorded by revision activation, not requested directly.");
         if (request.Schedule.CadenceSeconds <= 0) throw Invalid("The cadence must be positive.");
-        ScheduleOccurrences.Validate(request.Schedule);
         if (string.IsNullOrWhiteSpace(request.Schedule.TimeZoneId)) throw Invalid("A time zone is required.");
         if (request.Schedule.TimeZoneId.Length > 64) throw Invalid("The time zone is too long.");
         if (string.IsNullOrWhiteSpace(request.ChangedBy)) throw Invalid("Who made the change is required.");
         if (request.ChangedBy.Length > 256) throw Invalid("The actor name is too long.");
         if (request.ExpectedVersion < 0) throw Invalid("The expected version cannot be negative.");
         if (request.Reason is { Length: > MaxReasonLength }) throw Invalid("The reason is too long.");
+        ScheduleOccurrences.Validate(request.Schedule);
     }
 
     public static WellSiteAutoPilotException Invalid(string message) =>
