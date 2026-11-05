@@ -12,18 +12,19 @@ const props = { permissions, systemInfo: null, isLoaded: true,
 
 it('puts what needs a person first, with a link to act on it', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([
-    { id: 'r1', assetId: 'a1', status: 'Pending', expiresAtUtc: new Date(Date.now() + 3600_000).toISOString() }])));
+    { id: 'r1', assetId: 'a1', executionId: 'e1', command: 'Set frequency', suggestedValue: 48, unit: 'Hz', canDecide: true, status: 'Pending', expiresAtUtc: new Date(Date.now() + 3600_000).toISOString() }])));
   render(<OverviewPage {...(props as never)} />);
-  expect(await screen.findByText('1 recommendation is waiting for a decision.')).toBeTruthy();
-  expect(screen.getAllByRole('link', { name: 'Open' })[0].getAttribute('href')).toBe('#recommendations');
+  expect(await screen.findByText('Awaiting decision')).toBeTruthy();
+  expect(screen.getByText('Set frequency: 48 Hz')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Review change' }).getAttribute('href')).toBe('#recommendations/r1');
 });
 
-it('says so when nothing needs attention, and states that nothing is sent to equipment', async () => {
+it('says so when nothing needs attention without the generic Shadow footer', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([])));
   render(<OverviewPage {...(props as never)} executions={[
     { logicInstanceId: 'c1', status: 'Completed', requestedAtUtc: new Date().toISOString() }] as never} />);
   expect(await screen.findByText('Nothing needs your attention right now.')).toBeTruthy();
-  expect(screen.getByText(/nothing is sent to equipment/)).toBeTruthy();
+  expect(screen.queryByText(/nothing is sent to equipment/)).toBeNull();
 });
 
 it('guides a brand-new installation to the first asset', async () => {
@@ -136,4 +137,21 @@ it('resolves missing configured run asset names outside the 100-asset snapshot w
       logicInstanceId: 'cfg', configurationRevisionId: 'rev' })] as never} />);
   expect(await screen.findByText('RPOC_00002 (ForeSite Production)')).toBeTruthy();
   expect(http.mock.calls.some(([url]) => url === '/api/v1/assets/' + well)).toBe(true);
+});
+
+it('keeps KPIs above Latest runs and offers one Inspect action for multiple unconfirmed commands', async () => {
+  const actionId = '22222222-2222-4222-8222-222222222222';
+  const actions = [actionId, '33333333-3333-4333-8333-333333333333'].map(id => ({
+    id, recommendationId: '44444444-4444-4444-8444-444444444444',
+    executionId: 'e1', assetId: 'a1', command: 'Set speed', value: 48, unit: 'Hz',
+    gateCode: 'SINK_AMBIGUOUS', status: 'Ambiguous', createdAtUtc: new Date().toISOString(),
+  }));
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url.startsWith('/api/v1/control/actions?') ? actions : [])));
+  render(<OverviewPage {...(props as never)} executions={[run('e1')] as never} />);
+  const link = await screen.findByRole('link', { name: 'Inspect actions' });
+  expect(screen.getAllByRole('link', { name: 'Inspect actions' })).toHaveLength(1);
+  expect(link.getAttribute('href')).toBe('#recommendations/actions%2F' + actionId);
+  const metrics = screen.getByRole('region', { name: 'At a glance' });
+  const latest = screen.getByRole('region', { name: 'Latest runs' });
+  expect(metrics.compareDocumentPosition(latest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

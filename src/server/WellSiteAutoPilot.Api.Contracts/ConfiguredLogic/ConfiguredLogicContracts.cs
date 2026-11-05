@@ -14,11 +14,21 @@ public sealed record ConfiguredLogicDataBindingRequest(
     string ProviderAssetExternalId,
     string ProviderMappingJson);
 
+public sealed record ResolveConfiguredLogicInputsRequest(
+    string ModuleManifestJson,
+    IReadOnlyCollection<ConfiguredLogicAssetBindingRequest> AssetBindings);
+
 public sealed record ConfiguredLogicScheduleRequest(
     bool Enabled,
     int CadenceSeconds,
     DateTimeOffset StartAtUtc,
-    string TimeZoneId);
+    string TimeZoneId)
+{
+    public int? Every { get; init; }
+    public string? Unit { get; init; }
+    public bool SkipMissingMonthDay { get; init; }
+    public DateTimeOffset? EndAtUtc { get; init; }
+}
 
 public sealed record CreateConfiguredLogicRequest(
     string Name,
@@ -55,7 +65,13 @@ public sealed record ConfiguredLogicScheduleResponse(
     bool Enabled,
     int CadenceSeconds,
     DateTimeOffset StartAtUtc,
-    string TimeZoneId);
+    string TimeZoneId)
+{
+    public int? Every { get; init; }
+    public string? Unit { get; init; }
+    public bool SkipMissingMonthDay { get; init; }
+    public DateTimeOffset? EndAtUtc { get; init; }
+}
 
 public sealed record ConfiguredLogicRevisionResponse(
     Guid Id,

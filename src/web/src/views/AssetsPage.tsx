@@ -273,6 +273,8 @@ export function AssetsPage({
               </select>
             </label>
             {permissions.includes('asset-views.create') && <ActionButton label={t('assetViews.create')} onClick={() => { setInitialViewConnection(null); setEditingView('new'); }} />}
+            {activeView && permissions.includes('configured-logic.manage') && permissions.includes('configured-logic.read') &&
+              permissions.includes('logic.read') && <a className="action-link" href={`#logic/new-view:${activeView.id}`}>{t('assignment.assign')}</a>}
             {activeView && (activeView.canEdit || activeView.canDelete) && <ActionButton label={t('assetViews.edit')} onClick={() => setEditingView(activeView)} />}
             {activeView?.hasUnavailableMembers && <span role="note" className="connection-help">{t('assetViews.unavailableMembers')}</span>}
           </div>}

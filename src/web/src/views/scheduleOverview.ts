@@ -18,6 +18,7 @@ export type ScheduleRow = {
   changed: boolean;
   cadenceSeconds: number;
   timeZoneId: string | null;
+  every?: number | null; unit?: string | null; endAtUtc?: string | null;
   /** The next occurrence of the schedule, which is when a run is due, not a promise that it starts then. */
   nextRunAtUtc: string | null;
   lastRun: { requestedAtUtc: string; status: string | null } | null;
@@ -65,6 +66,8 @@ export function buildScheduleOverview(
       changed: Boolean(declared) && (declared!.enabled !== schedule.enabled || declared!.cadenceSeconds !== schedule.cadenceSeconds),
       cadenceSeconds: schedule.cadenceSeconds ?? 0,
       timeZoneId: schedule.timeZoneId ?? null,
+      ...(schedule.unit && schedule.every ? { every: schedule.every, unit: schedule.unit } : {}),
+      ...(schedule.endAtUtc ? { endAtUtc: schedule.endAtUtc } : {}),
       nextRunAtUtc: next === null ? null : new Date(next).toISOString(),
       lastRun: lastRuns.get(configuration.id) ?? null,
     });

@@ -18,7 +18,7 @@ public sealed partial class RecommendationRepository
     }
 
     public async Task<IReadOnlyCollection<RecommendationRecord>> ListAuthorizedAsync(AccessSubject subject,
-        RecommendationStatus? status, int limit, Guid? configuredLogicId = null, Guid? assetId = null,
+        RecommendationStatus? status, int limit, Guid? configuredLogicId = null, Guid? assetId = null, Guid? executionId = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
@@ -28,6 +28,7 @@ public sealed partial class RecommendationRepository
         if (status is { } value) query = query.Where(recommendation => recommendation.Status == value.ToString());
         if (configuredLogicId is { } logic) query = query.Where(recommendation => recommendation.ConfiguredLogicId == logic);
         if (assetId is { } asset) query = query.Where(recommendation => recommendation.AssetId == asset);
+        if (executionId is { } execution) query = query.Where(recommendation => recommendation.ExecutionId == execution);
         return (await query.OrderByDescending(recommendation => recommendation.CreatedAtUtc).ThenByDescending(recommendation => recommendation.Id)
             .Take(limit).ToArrayAsync(cancellationToken)).Select(ToDomain).ToArray();
     }

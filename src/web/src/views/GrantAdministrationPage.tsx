@@ -1,4 +1,5 @@
 import { ActionButton } from '../components/ActionButton';
+import { PanelHeader } from '../components/common';
 import { RefreshCw } from 'lucide-react';
 import { groupSubjectKey } from '../security/directoryGroup';
 import { DirectoryGroupPicker } from './DirectoryGroupPicker';
@@ -202,11 +203,9 @@ export function GrantAdministrationPage(
   return (
     <>
       <section className="panel grant-management-panel">
-        <div className="panel-header">
-          <h2>{t('grants.manage')}</h2>
-          <ActionButton variant="primary" icon={RefreshCw} iconOnly label={t('access.refresh')}
-            disabled={isLoading || saving} onClick={() => void load()} />
-        </div>
+        <PanelHeader title={t('grants.manage')}
+          actions={<ActionButton variant="primary" icon={RefreshCw} iconOnly label={t('access.refresh')}
+            disabled={isLoading || saving} onClick={() => void load()} />} />
         <div className="grant-selection">
         {isLoading && <LoadingIndicator label={t('access.loading')} />}
         {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}

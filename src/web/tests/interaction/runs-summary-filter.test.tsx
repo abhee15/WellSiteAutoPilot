@@ -22,20 +22,20 @@ it('a summary card filters the table to its kind of run, shows that it is on, an
   const { container } = render(<OperationsPage executions={runs as never} userId="u1" />);
   expect(shown(container)).toContain('Well-Done');
 
-  await user.click(card(/^Requires attention/));
-  expect(card(/^Requires attention/).getAttribute('aria-pressed')).toBe('true');
-  expect(card(/Active executions/).getAttribute('aria-pressed')).toBe('false');
+  await user.click(card(/^Run issues$/));
+  expect(card(/^Run issues$/).getAttribute('aria-pressed')).toBe('true');
+  expect(card(/^Active$/).getAttribute('aria-pressed')).toBe('false');
   expect(shown(container)).toContain('Well-Failed');
   expect(shown(container)).not.toContain('Well-Running');
   expect(shown(container)).not.toContain('Well-Done');
 
-  await user.click(card(/Active executions/));   // switching replaces, never adds
-  expect(card(/^Requires attention/).getAttribute('aria-pressed')).toBe('false');
+  await user.click(card(/^Active$/));   // switching replaces, never adds
+  expect(card(/^Run issues$/).getAttribute('aria-pressed')).toBe('false');
   expect(shown(container)).toContain('Well-Running');
   expect(shown(container)).not.toContain('Well-Failed');
 
-  await user.click(card(/Active executions/));
-  expect(card(/Active executions/).getAttribute('aria-pressed')).toBe('false');
+  await user.click(card(/^Active$/));
+  expect(card(/^Active$/).getAttribute('aria-pressed')).toBe('false');
   expect(shown(container)).toContain('Well-Failed');
   expect(shown(container)).toContain('Well-Done');
 });
@@ -44,11 +44,11 @@ it('says so, and offers to clear the filters, when the chosen kind has no runs',
   const user = userEvent.setup();
   const onlyDone = runs.filter(item => item.status === 'Completed');
   const { container } = render(<OperationsPage executions={onlyDone as never} userId="u1" />);
-  await user.click(card(/^Requires attention/));
+  await user.click(card(/^Run issues$/));
   expect(within(container.querySelector('tbody')!).getByText('No recent executions match this view.')).toBeTruthy();
   await user.click(screen.getAllByRole('button', { name: 'Clear filters' })[0]);
   expect(shown(container)).toContain('Well-Done');
-  expect(card(/^Requires attention/).getAttribute('aria-pressed')).toBe('false');
+  expect(card(/^Run issues$/).getAttribute('aria-pressed')).toBe('false');
 });
 
 it('offers no clear button when there are no runs at all (nothing is hiding them)', () => {
@@ -67,7 +67,7 @@ it('a saved view stops showing as selected once a card changes what is on screen
   expect(picker.value).toBe('v1');
   expect(shown(container)).not.toContain('Well-Done');
 
-  await user.click(card(/Active executions/));
+  await user.click(card(/^Active$/));
   expect(picker.value).toBe('');
 });
 
@@ -81,6 +81,6 @@ it('a saved view stays selected while what it describes is still what is shown',
   await user.selectOptions(picker, 'v1');
   expect(picker.value).toBe('v1');
   // The card for the same kind is now "on" and clicking elsewhere does not disturb the selection.
-  expect(card(/^Requires attention/).getAttribute('aria-pressed')).toBe('true');
+  expect(card(/^Run issues$/).getAttribute('aria-pressed')).toBe('true');
   expect(picker.value).toBe('v1');
 });

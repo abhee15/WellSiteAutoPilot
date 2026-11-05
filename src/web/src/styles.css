@@ -357,11 +357,12 @@ button:disabled {
 }
 
 .summary-card-action:hover,
-.summary-card-link:hover { background: var(--color-surface-control-hover); }
+.summary-card-link:hover { background: var(--color-surface-status-info); }
 
 .summary-card-action[aria-pressed='true'] {
-  border-color: var(--color-focus-ring);
-  box-shadow: inset 0 calc(-1 * var(--border-width-thick)) 0 var(--color-focus-ring);
+  background: var(--color-surface-status-info);
+  border-color: var(--color-border-selected);
+  box-shadow: inset 0 calc(-1 * var(--border-width-thick)) 0 var(--color-border-selected);
 }
 
 .summary-card span,
@@ -381,6 +382,7 @@ button:disabled {
 
 .panel-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-16);
@@ -388,9 +390,18 @@ button:disabled {
   border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
 }
 
-.panel-header h2 {
+.panel-header :is(h2, h3) {
   margin: 0;
   font-size: var(--font-size-body);
+}
+.panel-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-10);
+  min-width: 0;
+  margin-inline-start: auto;
 }
 
 .record-count {
@@ -944,11 +955,6 @@ button:disabled {
 
 /* Administration uses the same shared page navigation as Logic and Assets. */
 .administration-content { margin-top: var(--space-16); }
-.role-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-10);
-}
 .role-fields {
   display: grid;
   gap: var(--space-16);
@@ -1004,9 +1010,6 @@ button:disabled {
 .role-editor > .access-review,
 .role-editor > .access-confirm { margin-inline: var(--space-18); }
 .role-editor > .primary-button { margin: 0 var(--space-18) var(--space-20); }
-@media (width <= 40em) {
-  .role-actions button { flex: 1; }
-}
 
 .skip-link {
   position: absolute;

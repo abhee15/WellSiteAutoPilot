@@ -887,6 +887,36 @@ v1.MapGet(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json");
 
 v1.MapPost(
+    "/configured-logic/schedule-preview",
+    (ConfiguredLogicScheduleRequest request, TimeProvider clock) =>
+    {
+        var schedule = new ConfiguredLogicSchedule(true, request.CadenceSeconds, request.StartAtUtc, request.TimeZoneId)
+        {
+            Recurrence = request.Unit is null && request.Every is null ? null
+                : new ConfiguredLogicRecurrence(request.Every ?? 0, request.Unit ?? "", request.SkipMissingMonthDay),
+            EndAtUtc = request.EndAtUtc
+        };
+        return ScheduleOccurrences.Preview(schedule, clock.GetUtcNow());
+    })
+    .WithName("PreviewConfiguredLogicSchedule")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<DateTimeOffset[]>(StatusCodes.Status200OK);
+
+v1.MapPost(
+    "/configured-logic/resolve-inputs",
+    async (ResolveConfiguredLogicInputsRequest request, ConfiguredLogicService logic,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+        (await logic.ResolveInputsAuthorizedAsync(request.ModuleManifestJson,
+            request.AssetBindings.Select(binding => new ConfiguredLogicAssetBindingCommand(
+                binding.Role, binding.AssetId, binding.ParameterOverridesJson)).ToArray(),
+            access.Subject, cancellationToken)).Select(binding => new ConfiguredLogicDataBindingResponse(
+                binding.RequirementId, binding.AssetId, binding.ProviderId,
+                binding.ProviderAssetExternalId, binding.ProviderMappingJson)).ToArray())
+    .WithName("ResolveConfiguredLogicInputs")
+    .RequireAuthorization(WellSitePolicies.ConfiguredLogicManage)
+    .Produces<ConfiguredLogicDataBindingResponse[]>(StatusCodes.Status200OK);
+
+v1.MapPost(
     "/configured-logic",
     async (
         CreateConfiguredLogicRequest request,
@@ -925,7 +955,9 @@ v1.MapPost(
                         request.Schedule.Enabled,
                         request.Schedule.CadenceSeconds,
                         request.Schedule.StartAtUtc,
-                        request.Schedule.TimeZoneId),
+                        request.Schedule.TimeZoneId)
+                    { Every = request.Schedule.Every, Unit = request.Schedule.Unit,
+                      SkipMissingMonthDay = request.Schedule.SkipMissingMonthDay, EndAtUtc = request.Schedule.EndAtUtc },
                 request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role),
                 request.Mode?.ToDomain() ?? WellSiteAutoPilot.Domain.Executions.ExecutionMode.Shadow),
             access.Subject, access.CreateActor(httpContext), cancellationToken);
@@ -1382,11 +1414,11 @@ v1.MapPost(
 
 v1.MapGet(
     "/recommendations",
-    async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, IRecommendationRepository recommendations,
+    async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, Guid? executionId, IRecommendationRepository recommendations,
         IResourceActionRepository actions, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
         var items = await recommendations.ListAuthorizedAsync(access.Subject, ParseFilter<WellSiteAutoPilot.Domain.Recommendations.RecommendationStatus>(status),
-            PageLimit(limit ?? 50, 100), configuredLogicId, assetId, cancellationToken);
+            PageLimit(limit ?? 50, 100), configuredLogicId, assetId, executionId, cancellationToken);
         var capabilities = (await actions.GetRecommendationActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
         return items.Select(item => ToRecommendationSummaryResponse(item) with { CanDecide = capabilities.GetValueOrDefault(item.Id)?.CanDecide == true }).ToArray();
@@ -1881,7 +1913,9 @@ static CreateConfiguredLogicRevisionCommand ToRevisionCommand(CreateConfiguredLo
                 request.Schedule.Enabled,
                 request.Schedule.CadenceSeconds,
                 request.Schedule.StartAtUtc,
-                request.Schedule.TimeZoneId),
+                request.Schedule.TimeZoneId)
+                    { Every = request.Schedule.Every, Unit = request.Schedule.Unit,
+                      SkipMissingMonthDay = request.Schedule.SkipMissingMonthDay, EndAtUtc = request.Schedule.EndAtUtc },
         request.View is null ? null : new ConfiguredLogicViewBindingCommand(request.View.ViewId, request.View.ExpectedRevision, request.View.Role),
         request.Mode?.ToDomain() ?? WellSiteAutoPilot.Domain.Executions.ExecutionMode.Shadow);
 }
@@ -1904,7 +1938,9 @@ static ConfiguredLogicRevisionResponse ToConfiguredLogicRevisionResponse(Configu
             revision.Schedule.Enabled,
             revision.Schedule.CadenceSeconds,
             revision.Schedule.StartAtUtc,
-            revision.Schedule.TimeZoneId),
+            revision.Schedule.TimeZoneId)
+            { Every = revision.Schedule.Recurrence?.Every, Unit = revision.Schedule.Recurrence?.Unit,
+              SkipMissingMonthDay = revision.Schedule.Recurrence?.SkipMissingMonthDay ?? false, EndAtUtc = revision.Schedule.EndAtUtc },
     revision.AssetBindings
         .Select(binding => new ConfiguredLogicAssetBindingResponse(
             binding.Role,
@@ -2070,7 +2106,9 @@ static async Task<ConfiguredLogicScheduleControlResponse> ToScheduleControlRespo
     var capability = (await actions.GetConfiguredLogicActionsAsync(access.Subject, [view.ConfiguredLogicId], cancellationToken))
         .SingleOrDefault();
     static ConfiguredLogicScheduleResponse? Schedule(ConfiguredLogicSchedule? value) => value is null
-        ? null : new ConfiguredLogicScheduleResponse(value.Enabled, value.CadenceSeconds, value.StartAtUtc, value.TimeZoneId);
+        ? null : new ConfiguredLogicScheduleResponse(value.Enabled, value.CadenceSeconds, value.StartAtUtc, value.TimeZoneId)
+        { Every = value.Recurrence?.Every, Unit = value.Recurrence?.Unit,
+          SkipMissingMonthDay = value.Recurrence?.SkipMissingMonthDay ?? false, EndAtUtc = value.EndAtUtc };
     return new ConfiguredLogicScheduleControlResponse(
         view.ConfiguredLogicId, view.ActiveRevisionId, view.Token, Schedule(view.Declared), Schedule(view.Effective),
         view.Live is not null, view.NextRunAtUtc,
@@ -2098,6 +2136,8 @@ static ConfiguredLogicResponse WithConfigurationActions(
         NextRunAtUtc = EffectiveSchedule.NextRunAt(activeRevision, scheduleState, now),
         EffectiveSchedule = effectiveSchedule is { } effective
             ? new ConfiguredLogicScheduleResponse(effective.Enabled, effective.CadenceSeconds, effective.StartAtUtc, effective.TimeZoneId)
+              { Every = effective.Recurrence?.Every, Unit = effective.Recurrence?.Unit,
+                SkipMissingMonthDay = effective.Recurrence?.SkipMissingMonthDay ?? false, EndAtUtc = effective.EndAtUtc }
             : null,
     };
 }

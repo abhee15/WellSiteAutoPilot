@@ -170,6 +170,17 @@ internal static class AssetViewChecks
                 var dataManifest = manifest.Replace(moduleId, moduleId + "-data", StringComparison.Ordinal)
                     .Replace("\"dataRequirements\":[]", "\"dataRequirements\":[{\"id\":\"value\",\"assetRole\":\"well\",\"quantity\":\"PumpFillage\",\"access\":\"Current\",\"allowUncertainQuality\":false}]", StringComparison.Ordinal);
                 await modules.RegisterAsync(new RegisterLogicModuleCommand(dataManifest, new string('d', 64), LogicModuleTrustStatus.TrustedPublisher));
+                db.SourceBindings.Add(new SourceBindingEntity { Id = Guid.NewGuid(), ConnectionId = connectionId, AssetId = originalIds[1],
+                    ResourceKind = "foresite.well", ExternalId = "FS-VIEW-0002", CreatedAtUtc = DateTimeOffset.UtcNow, SnapshotJson = "{}" });
+                await db.SaveChangesAsync();
+                var batchTargets = originalIds.Take(2).Select(id => new ConfiguredLogicAssetBindingCommand("well", id, "{}")).ToArray();
+                var resolved = await service.ResolveInputsAuthorizedAsync(dataManifest, batchTargets, subject);
+                if (resolved.Count != 2 || resolved.Any(binding => binding.ProviderId != "foresite" || binding.RequirementId != "value" || binding.ProviderMappingJson != "{}") ||
+                    !resolved.Select(binding => binding.ProviderAssetExternalId).ToHashSet().SetEquals(["FS-VIEW-0001", "FS-VIEW-0002"]))
+                    throw new InvalidOperationException("Batch input resolution did not derive each imported source identity.");
+                await RejectAsync(() => service.ResolveInputsAuthorizedAsync(dataManifest, batchTargets, new AccessSubject(Guid.NewGuid())), "CONFIGURED_LOGIC_ASSET_NOT_FOUND");
+                await RejectAsync(() => service.ResolveInputsAuthorizedAsync(dataManifest,
+                    [new ConfiguredLogicAssetBindingCommand("well", originalIds[2], "{}")], subject), "CONFIGURED_LOGIC_SOURCE_UNAVAILABLE");
                 var dataCommand = command with { Name = "Source fixture", ModuleManifestJson = dataManifest,
                     View = new ConfiguredLogicViewBindingCommand(sourceView.Id, 1, "well"),
                     DataBindings = [new ConfiguredLogicDataBindingCommand("value", originalIds[0], "simulator", "FS-VIEW-0001", "{}")] };
@@ -184,6 +195,8 @@ internal static class AssetViewChecks
                     DataBindings = [new ConfiguredLogicDataBindingCommand("value", originalIds[0], "foresite", "FS-VIEW-0001", "{}")] };
                 // Direct selection does not require Connection/View browsing permission.
                 await db.RolePermissions.Where(permission => permission.RoleId == roleId && permission.Permission == WellSitePermissions.ConnectionsRead).ExecuteDeleteAsync();
+                if ((await service.ResolveInputsAuthorizedAsync(dataManifest, batchTargets, subject)).Count != 2)
+                    throw new InvalidOperationException("Input resolution incorrectly required Connection browsing permission.");
                 var direct = await service.CreateAuthorizedAsync(directCommand, subject, actor);
                 extraConfigurations.Add(direct.Id);
                 if (direct.Revisions.Single().View is not null || direct.Revisions.Single().AssetBindings.Single().AssetId != originalIds[0])
@@ -198,6 +211,8 @@ internal static class AssetViewChecks
                     [new ConfiguredLogicAssetBindingCommand("well", originalIds[0], "{}"), new ConfiguredLogicAssetBindingCommand("well", originalIds[1], "{}")] }, subject, actor), FailureCodes.ValidationFailed);
 
                 await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, false));
+                db.ChangeTracker.Clear();
+                await RejectAsync(() => service.ResolveInputsAuthorizedAsync(dataManifest, batchTargets, subject), "CONFIGURED_LOGIC_SOURCE_UNAVAILABLE");
                 await RejectAsync(() => service.CreateAuthorizedAsync(command with { Name = "Disabled Connection",
                     View = command.View! with { ExpectedRevision = 3 } }, subject, actor), "CONFIGURED_LOGIC_VIEW_INCOMPATIBLE");
                 await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, true));
@@ -225,7 +240,7 @@ internal static class AssetViewChecks
             {
                 db.ChangeTracker.Clear();
                 await db.ConfiguredLogicDefinitions.Where(item => item.Id == configurationId || extraConfigurations.Contains(item.Id)).ExecuteDeleteAsync();
-                await db.SourceBindings.Where(binding => binding.ConnectionId == connectionId && binding.ExternalId == "FS-VIEW-0001").ExecuteDeleteAsync();
+                await db.SourceBindings.Where(binding => binding.ConnectionId == connectionId && (binding.ExternalId == "FS-VIEW-0001" || binding.ExternalId == "FS-VIEW-0002")).ExecuteDeleteAsync();
                 await db.LogicModules.Where(module => module.ModuleId == moduleId || module.ModuleId == moduleId + "-wrong" ||
                     module.ModuleId == moduleId + "-single" || module.ModuleId == moduleId + "-data").ExecuteDeleteAsync();
                 await db.Connections.Where(connection => connection.Id == connectionId).ExecuteUpdateAsync(set => set.SetProperty(connection => connection.IsEnabled, true));
