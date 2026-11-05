@@ -18,7 +18,7 @@ import {
 } from './operationsViews';
 
 const statusLabels: Record<(typeof OPERATIONS_STATUS_FILTERS)[number], MessageKey> = {
-  active: 'views.active', attention: 'views.attention', completed: 'views.completed',
+  active: 'views.active', attention: 'operations.runIssues', completed: 'views.completed',
 };
 
 type Props = {
@@ -136,7 +136,7 @@ export function OperationsViewControls({
         {(['active', 'attention'] as const).map(status => (
           <ActionButton className="run-quick-filter" aria-pressed={showsOnly(criteria, status)} key={status}
             onClick={() => changeCriteria(toggleOnly(criteria, status))}
-            label={t(status === 'active' ? 'views.active' : 'operations.runIssues')} />
+            label={t(statusLabels[status])} />
         ))}
       </div>}
       chips={chips} isFiltered={!sameCriteria(criteria, DEFAULT_OPERATIONS_VIEW)}
