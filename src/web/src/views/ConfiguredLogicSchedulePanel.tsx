@@ -98,13 +98,13 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
   }
 
   const state = scheduleRunState(control);
-  const manage = mayManage && control.canManage && state !== 'none';
+  const manage = mayManage && control.canManage && state !== 'none' && state !== 'ended';
   const busy = disabled || saving;
   const parsed = Number(seconds);
   const cadenceValid = seconds.trim() !== '' && Number.isInteger(parsed) &&
     parsed >= control.minimumCadenceSeconds && parsed <= control.maximumCadenceSeconds;
   const latest = control.changes[0];
-  const summary = state === 'none' ? t('scheduleControl.none')
+  const summary = state === 'ended' ? t('assignment.ended') : state === 'none' ? t('scheduleControl.none')
     : state === 'paused'
       ? t('scheduleControl.pausedBy', { by: latest?.kind === 'Paused' ? latest.changedBy : '—' }) +
         (latest?.kind === 'Paused' && latest.reason ? ` “${latest.reason}”.` : '')
