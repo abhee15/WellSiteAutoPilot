@@ -3,6 +3,7 @@ import './operatorItems.css';
 import type { AssetResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { StatusIndicator, Status } from '../components/Status';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
+import { shortId } from '../format';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { fetchRecommendationInbox, recommendationIsAwaiting, recommendationIsExpired, recommendationProposal } from './recommendationInbox';
@@ -39,6 +40,7 @@ export function RunRecommendations({ executionId, assets, canReadAssets, userId 
   if (!items.length) return null;
   return <section className="execution-recommendations" aria-label={t('operations.recommendations')}>
     <h4>{t('operations.recommendations')}</h4>
+    <small title={executionId}>{t('overview.runReference', { id: shortId(executionId) })}</small>
     <ul className="operator-items">
       {items.map(item => {
         const awaiting = recommendationIsAwaiting(item, Date.now());
