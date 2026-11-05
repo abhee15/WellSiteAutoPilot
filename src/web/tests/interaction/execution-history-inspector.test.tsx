@@ -92,6 +92,9 @@ it('changes the asset-history URL without remounting the history and keeps its s
   const { container } = render(<OperationsPage executions={[]} assets={assets as never}
     configuredLogic={configuredLogic as never} userId={id(90)} />);
   const buttons = await screen.findAllByRole('button', { name: /Inspect run/ });
+  const backToAsset = screen.getByRole('link', { name: 'Back to asset' });
+  expect(backToAsset.classList.contains('secondary-button')).toBe(true);
+  expect(backToAsset.getAttribute('href')).toBe('#assets/' + assetId);
   await waitFor(() => expect(window.location.hash).toContain('runId'));
   const history = container.querySelector('.execution-history');
   await user.click(buttons[1]!);
