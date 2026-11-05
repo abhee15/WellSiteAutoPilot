@@ -4,7 +4,6 @@
 .overview-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-10); }
 .overview-list li { display: flex; justify-content: space-between; gap: var(--space-12); align-items: baseline; flex-wrap: wrap; }
 .overview-list .status-indicator { white-space: normal; }
-.overview-note { color: var(--color-text-subtle); }
 
 .overview-latest { margin-top: var(--space-16); }
 .overview-runs { list-style: none; margin: 0; padding: 0; }
