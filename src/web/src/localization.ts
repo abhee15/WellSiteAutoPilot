@@ -1443,7 +1443,6 @@ export const englishMessages = {
   'overview.services': 'Services needing attention',
   'overview.recentRunsDetail': 'From the most recent runs loaded',
   'overview.loading': 'Loading…',
-  'overview.shadowNote': 'Everything here runs in shadow mode: results are calculated and recorded, and nothing is sent to equipment.',
   'page.operationsTitle': 'Runs',
   'page.assetsTitle': 'Assets',
   'page.logicTitle': 'Logic workspace',
