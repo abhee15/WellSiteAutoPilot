@@ -186,9 +186,10 @@ export async function changeSchedule(current: ScheduleControl, change: Change, r
 }
 
 /** Running, paused, or no schedule at all, from the schedule that is in effect and not only the one declared. */
-export type ScheduleRunState = 'running' | 'paused' | 'none';
+export type ScheduleRunState = 'running' | 'paused' | 'none' | 'ended';
 export function scheduleRunState(control: Pick<ScheduleControl, 'activeRevisionId' | 'effective'>): ScheduleRunState {
   if (!control.activeRevisionId || !control.effective) return 'none';
+  if (control.effective.endAtUtc && Date.parse(control.effective.endAtUtc) < Date.now()) return 'ended';
   return control.effective.enabled ? 'running' : 'paused';
 }
 
