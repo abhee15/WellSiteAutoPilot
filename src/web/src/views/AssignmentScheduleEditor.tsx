@@ -3,7 +3,6 @@ import { t } from '../localization';
 import { SCHEDULE_UNITS, buildAssignmentSchedule, scheduleErrorKeys, scheduleUnitKeys } from './assignmentSchedule';
 import type { ScheduleDraft } from './assignmentSchedule';
 import { setupResponse } from './configuredLogicSetup';
-import { formatTimestamp } from '../format';
 
 export function AssignmentScheduleEditor({ value, onChange }: {
   value: ScheduleDraft; onChange: (value: ScheduleDraft) => void;
@@ -49,7 +48,7 @@ export function AssignmentScheduleEditor({ value, onChange }: {
       </div>
       <label className="assignment-checkbox"><input type="checkbox" checked={value.hasEnd}
         onChange={event => change({ hasEnd: event.target.checked })} />{t('assignment.setEnd')}</label>
-      {value.hasEnd && <label>{t('assignment.endDate')}<input required type="date" min={value.date} value={value.endDate}
+      {value.hasEnd && <label>{t('assignment.endDate')}<input required type="date" aria-label={t('assignment.endDate')} min={value.date} value={value.endDate}
         onChange={event => change({ endDate: event.target.value })} /><small>{t('assignment.endHint')}</small></label>}
       {value.unit === 'Months' && <label>{t('assignment.shortMonth')}<select value={value.skipMissingMonthDay ? 'skip' : 'last'}
         onChange={event => change({ skipMissingMonthDay: event.target.value === 'skip' })}>
@@ -63,7 +62,7 @@ export function AssignmentScheduleEditor({ value, onChange }: {
             timeZone: value.timeZone, dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(time))}</li>)}</ul>
             : <p>{t('assignment.noStarts')}</p>
           : <p>{t(preview?.key === key && preview.error ? 'assignment.previewError' : 'assignment.previewLoading')}</p>}
-        <small>{value.timeZone} · {formatTimestamp(built.schedule?.startAtUtc)}</small>
+        <small>{value.timeZone}</small>
       </details>}
     </>}
   </section>;
