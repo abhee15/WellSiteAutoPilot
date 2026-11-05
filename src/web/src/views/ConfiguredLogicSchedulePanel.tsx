@@ -108,7 +108,7 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
     : state === 'paused'
       ? t('scheduleControl.pausedBy', { by: latest?.kind === 'Paused' ? latest.changedBy : '—' }) +
         (latest?.kind === 'Paused' && latest.reason ? ` “${latest.reason}”.` : '')
-      : t('scheduleControl.running', { interval: interval(control.effective?.cadenceSeconds ?? null) });
+      : t('scheduleControl.running', { interval: control.effective?.unit ? `${control.effective.every} ${control.effective.unit.toLowerCase()}` : interval(control.effective?.cadenceSeconds ?? null) });
   const next = state === 'running'
     ? `${t('logicDetail.nextScheduled')}: ${control.nextRunAtUtc ? formatTimestamp(control.nextRunAtUtc) : t('logicDetail.notAvailable')}`
     : state === 'paused' ? `${t('logicDetail.nextScheduled')}: ${t('scheduleControl.nextNone')}` : null;
@@ -119,10 +119,10 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
     <p>{summary}{next && <> {next}</>}</p>
     {control.belowMinimum && <p role="note">{t('scheduleControl.belowMinimum', { interval: interval(control.minimumCadenceSeconds) })}</p>}
     <p className="logic-detail-note">{control.differsFromRevision
-      ? t('scheduleControl.differs', { interval: interval(control.declared?.cadenceSeconds ?? null) })
+      ? t('scheduleControl.differs', { interval: control.declared?.unit ? `${control.declared.every} ${control.declared.unit.toLowerCase()}` : interval(control.declared?.cadenceSeconds ?? null) })
       : t('scheduleControl.matches')} {t('scheduleControl.noRevision')}</p>
     {manage && form === null && <div className="setup-actions">
-      <ActionButton label={t('scheduleControl.changeFrequency')} disabled={busy} onClick={() => { setError(null); setSeconds(String(control.effective?.cadenceSeconds ?? '')); setForm('frequency'); }} />
+      {!control.effective?.unit && <ActionButton label={t('scheduleControl.changeFrequency')} disabled={busy} onClick={() => { setError(null); setSeconds(String(control.effective?.cadenceSeconds ?? '')); setForm('frequency'); }} />}
       {state === 'running'
         ? <ActionButton variant="primary" label={t('scheduleControl.pause')} busy={saving} disabled={busy} onClick={() => void run({ kind: 'pause' })} />
         : <ActionButton variant="primary" label={t('scheduleControl.resume')} disabled={busy || !canResume(control) || control.belowMinimum} onClick={() => { setError(null); setForm('resume'); }} />}
@@ -135,7 +135,7 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
       </label>}
       {form === 'frequency' && cadenceValid && <p className="logic-detail-note">{t('scheduleControl.preview', { interval: interval(parsed) })}</p>}
       {form === 'resume' && <>
-        <p>{t('scheduleControl.resumeNote', { interval: interval(control.effective?.cadenceSeconds ?? null) })}</p>
+        <p>{t('scheduleControl.resumeNote', { interval: control.effective?.unit ? `${control.effective.every} ${control.effective.unit.toLowerCase()}` : interval(control.effective?.cadenceSeconds ?? null) })}</p>
         <label className="recommendation-review-confirm">
           <input type="checkbox" checked={acknowledged} disabled={busy} onChange={event => setAcknowledged(event.target.checked)} />
           {t('scheduleControl.resumeConfirmation')}
