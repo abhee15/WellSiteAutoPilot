@@ -19,12 +19,12 @@ it('puts what needs a person first, with a link to act on it', async () => {
   expect(screen.getByRole('link', { name: 'Review change' }).getAttribute('href')).toBe('#recommendations/r1');
 });
 
-it('says so when nothing needs attention, and states that nothing is sent to equipment', async () => {
+it('says so when nothing needs attention without the generic Shadow footer', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([])));
   render(<OverviewPage {...(props as never)} executions={[
     { logicInstanceId: 'c1', status: 'Completed', requestedAtUtc: new Date().toISOString() }] as never} />);
   expect(await screen.findByText('Nothing needs your attention right now.')).toBeTruthy();
-  expect(screen.getByText(/nothing is sent to equipment/)).toBeTruthy();
+  expect(screen.queryByText(/nothing is sent to equipment/)).toBeNull();
 });
 
 it('guides a brand-new installation to the first asset', async () => {
