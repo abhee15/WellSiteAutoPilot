@@ -1382,11 +1382,11 @@ v1.MapPost(
 
 v1.MapGet(
     "/recommendations",
-    async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, IRecommendationRepository recommendations,
+    async (string? status, int? limit, Guid? configuredLogicId, Guid? assetId, Guid? executionId, IRecommendationRepository recommendations,
         IResourceActionRepository actions, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
         var items = await recommendations.ListAuthorizedAsync(access.Subject, ParseFilter<WellSiteAutoPilot.Domain.Recommendations.RecommendationStatus>(status),
-            PageLimit(limit ?? 50, 100), configuredLogicId, assetId, cancellationToken);
+            PageLimit(limit ?? 50, 100), configuredLogicId, assetId, executionId, cancellationToken);
         var capabilities = (await actions.GetRecommendationActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
         return items.Select(item => ToRecommendationSummaryResponse(item) with { CanDecide = capabilities.GetValueOrDefault(item.Id)?.CanDecide == true }).ToArray();
