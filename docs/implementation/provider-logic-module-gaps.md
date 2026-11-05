@@ -174,6 +174,37 @@ Direction to discuss (not yet decided):
 
 Open questions: how a module declares "any of these keys" for different device types; how the catalog is versioned and cached; whether setpoints are in the same catalog or a separate one; how `Gateway` identity limits what the catalog shows.
 
+## CygNet findings (where we are)
+
+Source: the CygNet adapter code. Live CygNet probing and the managed API surface are not yet verified. Reflection over the CygNet assemblies crashed (StackOverflow), so the API surface needs a small probe project instead.
+
+**Today**
+- Capabilities: asset discovery (facilities) and current data (one point per call).
+- Quantities: five, mapped to UDCs by a built-in map (`PumpFillage`=RRLPFILAVG, `CasingPressure`=PRCASXIN, `TubingPressure`=PRTUBXIN, `RodLoad`=RRLMXLDDLY, `MotorAmps` has none). A per-connection `pointMap` overrides it.
+- Reads go through a bounded, off-thread gate (the API is synchronous), with a 10 s budget and quality mapped from status flags.
+- Not implemented: history, alarms, setpoint reads or writes, UDC discovery.
+
+**Needed (CygNet source per gap)**
+
+| Gap area | CygNet source | Status |
+|---|---|---|
+| Catalog (G3) | Enumerate the UDCs on a facility (facility and point services); units and descriptions from point attributes | To verify |
+| Units/ranges (G2) | Point attribute units instead of the forced map | To verify |
+| History (G5) | Historian client, with bounded windows | Assembly exists, unverified |
+| Alarms (G7) | Alarms client | Assembly exists, unverified |
+| Setpoints and writes (G4, G8, G11) | Point read for current values; writes need Devices or Points control, which needs a design review | Unverified |
+| Well tests, daily values (G22, G23) | UDCs such as the daily and yesterday values, or the WellTest assembly | Unverified |
+| Device type (G13) | Facility attributes | To verify |
+
+**Differences from ForeSite**
+- CygNet is the raw point layer: no `AvailableQuantities`, so applicability comes from which UDCs exist on the facility.
+- Quantity names are UDC ids, so catalog keys use the `cygnet.udc.<UDC>` namespace and optionally a mapping to the stable core keys.
+- ForeSite already does the quantity-to-point mapping, so its mapped point ids (from `CygNetTrends`) can seed the CygNet map.
+
+**Next probes**
+1. A small .NET probe that lists facility UDCs, point attributes and a history read on a rod-lift facility (domains 9033 and 22567; sites CYGNET.UIS, CYGQAUS.UIS).
+2. Compare values with the ForeSite status for wells 776 and 1596.
+
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
 2. G3 (catalog endpoint, also feeds the starter kit download)
