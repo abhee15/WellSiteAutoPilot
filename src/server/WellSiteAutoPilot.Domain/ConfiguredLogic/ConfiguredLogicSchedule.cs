@@ -8,6 +8,7 @@ public sealed record ConfiguredLogicSchedule(
 {
     public ConfiguredLogicRecurrence? Recurrence { get; init; }
     public DateTimeOffset? EndAtUtc { get; init; }
+    public DateTimeOffset? ResumeAfterUtc { get; init; }
 }
 
 public sealed record ConfiguredLogicRecurrence(int Every, string Unit, bool SkipMissingMonthDay = false);
