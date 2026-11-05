@@ -55,3 +55,11 @@
 /* Existing logic already supplies the editor frame; avoid repeated inset frames on phones. */
 .revision-editor > fieldset { padding: 0; border: 0; }
 .revision-editor-section > fieldset { padding-inline: 0; border: 0; }
+
+.assignment-schedule-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-12); }
+.assignment-frequency { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-8); }
+.assignment-checkbox { display: flex; align-items: center; gap: var(--space-8); }
+.assignment-schedule small { color: var(--color-text-muted); }
+@media (width <= 40em) { .assignment-schedule-fields { grid-template-columns: 1fr; } }
+
+.assignment-review { padding: var(--space-12); margin-block: var(--space-12); background: var(--color-surface-detail); border-radius: var(--radius-8); }
