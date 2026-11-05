@@ -64,7 +64,7 @@ it('verify with no answer keeps the command and says so', async () => {
   const user = userEvent.setup();
   render(<ControlActionsPanel userId={userId} canManage />);
   await user.click(await screen.findByRole('button', { name: 'Verify SET_CHOKE' }));
-  expect(await screen.findByText('The target gave no answer, so the command still needs a decision.')).toBeTruthy();
+  expect(await screen.findByText('The target gave no answer, so the command remains unconfirmed.')).toBeTruthy();
   expect(screen.getByText('SET_CHOKE')).toBeTruthy();
 });
 
@@ -120,4 +120,17 @@ it('says when the page is full so the count is not read as complete', async () =
   server(rows);
   render(<ControlActionsPanel userId={userId} canManage />);
   expect(await screen.findByText('200+ open, showing the longest waiting')).toBeTruthy();
+});
+
+it('focuses the linked unconfirmed command without substituting another open command', async () => {
+  server([action(), action({ id: '77777777-7777-4777-8777-777777777777', command: 'SET_SPEED' })]);
+  const view = render(<ControlActionsPanel userId={userId} canManage selectedActionId={actionId} />);
+  await screen.findByText('SET_CHOKE');
+  expect(screen.queryByText('SET_SPEED')).toBeNull();
+  expect(screen.getByRole('region', { name: 'Unconfirmed commands' })).toBe(document.activeElement);
+  expect(screen.getByRole('link', { name: 'All unconfirmed commands' }).getAttribute('href')).toBe('#recommendations/actions');
+  view.rerender(<ControlActionsPanel userId={userId} canManage selectedActionId="missing" />);
+  expect(await screen.findByText(/no longer in the authorized open-command list/)).toBeTruthy();
+  expect(screen.queryByText('SET_CHOKE')).toBeNull();
+  expect(screen.queryByRole('button', { name: /Verify/ })).toBeNull();
 });

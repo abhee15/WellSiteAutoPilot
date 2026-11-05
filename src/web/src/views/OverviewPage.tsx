@@ -178,7 +178,7 @@ export function OverviewPage({
                 <span>{recommendationProposal({ ...action, suggestedValue: action.value })}</span>
                 <small>{t('overview.runReference', { id: shortId(action.executionId) })} · {formatDetailTimestamp(action.createdAtUtc)}</small>
               </div>
-              <a className="action-link" href="#recommendations">{t('overview.inspectActions')}</a>
+              <a className="action-link" href={hashFor('recommendations', `actions/${action.id}`)}>{t('overview.inspectActions')}</a>
             </li>}
             {pendingShown.map(item => <li key={item.id}>
               <div className="operator-item-context">
@@ -202,13 +202,22 @@ export function OverviewPage({
             })}
           </ul>
           <div className="overview-attention-links">
-            {(controlActions?.length ?? 0) > 1 && <a href="#recommendations">{t('overview.inspectActions')}</a>}
             {pending.length > pendingShown.length && <a href="#recommendations">{t('overview.allRecommendations')}</a>}
             {failed.length > failedShown.length && <a href="#operations">{t('overview.allRuns')}</a>}
           </div>
         </>}
       </section>
 
+      <section className="summary-grid overview-metrics" aria-label={t('overview.glance')}>
+        {canReadAssets &&
+          <SummaryCard label={t('overview.assets')} value={assetTotalLabel(owners, assets.length, SNAPSHOT_ASSET_LIMIT)} detail="" href={hashFor('assets')} />}
+        {permissions.includes('configured-logic.read') &&
+          <SummaryCard label={t('overview.logic')} value={cappedCount(configuredLogic.length, 100)} detail="" href={hashFor('logic')} />}
+        {permissions.includes('executions.read') &&
+          <SummaryCard label={t('overview.recentRuns')} value={String(executions.length)} detail={t('overview.recentRunsDetail')} href={hashFor('operations')} />}
+        {canReadServices &&
+          <SummaryCard label={t('overview.services')} value={unhealthy == null ? t('overview.unknown') : String(unhealthy)} detail="" href={hashFor('status')} />}
+      </section>
       {permissions.includes('executions.read') && ready && latestRuns.length > 0 && (
         <section className="panel overview-latest" aria-label={t('overview.latestRuns')}>
           <PanelHeader title={t('overview.latestRuns')}
@@ -228,16 +237,6 @@ export function OverviewPage({
           </ul>
         </section>
       )}
-      <section className="summary-grid overview-metrics" aria-label={t('overview.glance')}>
-        {canReadAssets &&
-          <SummaryCard label={t('overview.assets')} value={assetTotalLabel(owners, assets.length, SNAPSHOT_ASSET_LIMIT)} detail="" href={hashFor('assets')} />}
-        {permissions.includes('configured-logic.read') &&
-          <SummaryCard label={t('overview.logic')} value={cappedCount(configuredLogic.length, 100)} detail="" href={hashFor('logic')} />}
-        {permissions.includes('executions.read') &&
-          <SummaryCard label={t('overview.recentRuns')} value={String(executions.length)} detail={t('overview.recentRunsDetail')} href={hashFor('operations')} />}
-        {canReadServices &&
-          <SummaryCard label={t('overview.services')} value={unhealthy == null ? t('overview.unknown') : String(unhealthy)} detail="" href={hashFor('status')} />}
-      </section>
       {ready && setup.length > 0 && <ul className="overview-setup">
         {setup.map(item => <li key={item.kind}><a href={item.href}>{attentionText(item)}</a></li>)}
       </ul>}
