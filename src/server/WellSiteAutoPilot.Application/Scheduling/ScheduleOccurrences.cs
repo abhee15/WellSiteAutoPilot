@@ -6,11 +6,12 @@ namespace WellSiteAutoPilot.Application.Scheduling;
 /// <summary>Shared occurrence calculation for dispatch, review and next-run presentation.</summary>
 public static class ScheduleOccurrences
 {
-    public static IReadOnlyList<DateTimeOffset> Preview(ConfiguredLogicSchedule schedule)
+    public static IReadOnlyList<DateTimeOffset> Preview(ConfiguredLogicSchedule schedule, DateTimeOffset nowUtc)
     {
         Validate(schedule);
         var occurrences = new List<DateTimeOffset>();
         var after = schedule.StartAtUtc == DateTimeOffset.MinValue ? schedule.StartAtUtc : schedule.StartAtUtc.AddTicks(-10);
+        if (nowUtc > schedule.StartAtUtc) after = nowUtc;
         for (var index = 0; index < 3; index++)
         {
             if (NextAfter(schedule, after) is not { } next) break;
