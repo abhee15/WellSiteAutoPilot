@@ -72,10 +72,10 @@ public sealed class ConfiguredLogicScheduleControlService(
                 if (effective.Enabled) throw Conflict("SCHEDULE_NOT_PAUSED", "This schedule is not paused.");
                 // Resuming below the adapter's floor would only produce skipped runs; the person must pick a valid frequency first.
                 RequireAtLeastFloor(effective.CadenceSeconds, floor);
-                // Missed occurrences are not made up: the first run is one cadence from now.
+                // Skip missed occurrences while preserving the original calendar anchor.
                 if (effective.EndAtUtc is { } end && end <= now)
                     throw Conflict("SCHEDULE_ENDED", "The schedule has ended. Create a revision to change its end date.");
-                return effective with { Enabled = true, StartAtUtc = effective.Recurrence is null
+                return effective with { Enabled = true, ResumeAfterUtc = now, StartAtUtc = effective.Recurrence is null
                     ? now.AddSeconds(effective.CadenceSeconds) : effective.StartAtUtc };
             }, cancellationToken);
 
