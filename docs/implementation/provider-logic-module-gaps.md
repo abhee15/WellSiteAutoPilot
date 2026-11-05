@@ -1,4 +1,15 @@
-# ForeSite adapter: capability gaps for Logic Modules
+# Provider adapters: capability gaps for Logic Modules
+
+## Scope: provider-neutral gaps
+
+A logic's intent can be served by either ForeSite or CygNet. A module declares the quantities, setpoints, history and actions it needs. Any provider adapter that satisfies that contract can supply them. So each gap below is a gap in the **provider contract**, and is closed once per adapter:
+
+1. Define the neutral capability in `Integration.Contracts` (quantity catalog, units, history, setpoints, alarms, commands).
+2. Implement it in ForeSite and in CygNet, each from its own source.
+3. Prove it with a provider-neutral module test, run against each adapter or its simulator.
+
+ForeSite details and sources named in the tables are the first implementation. For each gap, the CygNet source (point or UIS facility) is to be filled in as it is investigated. The "ForeSite source" column is not a statement that the gap is ForeSite-only.
+
 
 Status: working document, updated as reference logics are reviewed. Source of truth for the gap list and the proposed build order; individual gaps become GitHub issues and PRs one at a time.
 
