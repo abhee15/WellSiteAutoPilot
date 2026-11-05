@@ -126,10 +126,10 @@ internal static class ConfiguredLogicScheduleWriter
     private static void Validate(ConfiguredLogicScheduleChangeRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ScheduleOccurrences.Validate(request.Schedule);
         if (request.Kind == ConfiguredLogicScheduleChangeKind.Reset)
             throw Invalid("Reset is recorded by revision activation, not requested directly.");
         if (request.Schedule.CadenceSeconds <= 0) throw Invalid("The cadence must be positive.");
+        ScheduleOccurrences.Validate(request.Schedule);
         if (string.IsNullOrWhiteSpace(request.Schedule.TimeZoneId)) throw Invalid("A time zone is required.");
         if (request.Schedule.TimeZoneId.Length > 64) throw Invalid("The time zone is too long.");
         if (string.IsNullOrWhiteSpace(request.ChangedBy)) throw Invalid("Who made the change is required.");
