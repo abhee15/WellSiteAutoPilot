@@ -13,6 +13,10 @@ internal static class CalendarScheduleChecks
         var march = DateTimeOffset.Parse("2027-03-31T13:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
         Require(ScheduleOccurrences.NextAfter(monthly, start) == february, "Monthly short-day clamp");
         Require(ScheduleOccurrences.NextAfter(monthly, february) == march, "Monthly anchor and DST");
+        var resumed = monthly with { ResumeAfterUtc = february.AddDays(1) };
+        Require(ScheduleOccurrences.LatestDue(resumed, february.AddDays(2)) is null, "Resume skips missed calendar runs");
+        Require(ScheduleOccurrences.NextAfter(resumed, february) == march, "Resume preserves original month day");
+        Require(ScheduleOccurrences.LatestDue(resumed, march) == march, "Resumed calendar dispatch");
         Require(ScheduleOccurrences.LatestDue(monthly, march.AddHours(1)) == march, "Latest calendar occurrence");
         Require(ScheduleOccurrences.NextAfter(monthly with { Recurrence = new(1, "Months", true) }, start) == march, "Skip missing day");
         Require(ScheduleOccurrences.NextAfter(monthly with { EndAtUtc = february }, february) is null, "End boundary");
