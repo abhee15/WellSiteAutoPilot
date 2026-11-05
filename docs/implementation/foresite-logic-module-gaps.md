@@ -39,6 +39,18 @@ Today the adapter advertises only `AssetDiscovery` and `CurrentData`. Current re
 
 **Legacy defects spotted in logic 2 (fix in any port):** the safety-loop's revert uses `val_max_spm` which is inconsistent between branches; `val_max_spm_new` can be unset when the speed record has no match (`speed_rec_match` can be `None`); the save key differs between load (`-`) and save (`_`), so yesterday's data never loads and defaults to 0.0; early `return` without an `AclExecutionResult`; `acl_params.validate()` result ignored.
 
+## Additional gaps from logic 3: Target Fillage Phase 1 for Unico (SPM)
+
+| # | Gap | Legacy ACL need | Notes | Size |
+|---|-----|-----------------|-------|------|
+| G19 | Controller-specific setpoint names | Unico names: `UMINSPM`/`DMINSPM`, `UMAXSPM`/`DMAXSPM`, `TPMPFIL`, `MINPFA`, in a Unico control group | Same intent as logic 1 on a different controller (VSD: `VFDMinFrq`, `VFDMaxFrq`, `IdealPF`). Needs a per-device-type setpoint map (extends G4/G11 and G13) rather than names baked into each module | M |
+| G20 | Paired setpoints | Up and Down speeds are written together with the same value | A command or recommendation may carry several setpoints that move as one (G8) | S |
+| G21 | Recommendation target type | Recommendations are typed by device action (basic, control) | G8 design: the action kind must come from the adapter, not the module | S |
+
+Logic 3 is logic 1 with SPM instead of Hz. Intent, sanity checks and decision tree are the same, and it reads the same quantities: average fillage, average SPM over N hours, cycles yesterday, runtime yesterday. The shared pattern (target, current, step, floor/ceiling, min/max span, sanity gates) suggests one parametrised module with per-controller setpoint maps rather than separate copies.
+
+**Legacy defects spotted in logic 3:** an average of 0 is treated as missing; the "Need to update Min Fillage Setpoint" message prints the wrong limit; `val_cycles_yest` and `val_rt_yest` can be `None` in comparisons; early `return` without a result.
+
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
 2. G3 (catalog endpoint, also feeds the starter kit download)
@@ -53,6 +65,7 @@ Today the adapter advertises only `AssetDiscovery` and `CurrentData`. Current re
 
 ## Intent of each reference logic (platform-neutral)
 - **Target Fillage Phase 1 (VSD):** keep average fillage near a target by trimming the VFD speed range. If fillage is low and speed is low, lower the minimum speed. If fillage is low and speed is at or above target, lower the maximum speed. At the floor, raise a minimum-fillage condition. Guarded by sanity limits on step size, cycles, run time and min/max span.
+- **Target Fillage Phase 1 (Unico SPM):** the same as Phase 1 (VSD), expressed in SPM on a Unico controller, including paired up/down setpoints.
 - **Rotaflex Target Fillage Phase 2:** when fillage is at or above target and the operating point is stable, raise the maximum speed in small steps, within the pumping unit's limits. Back out if the well shows alarms, and require Speed Trim Adjustment beyond the cornering speed.
 
 ## Test plan
