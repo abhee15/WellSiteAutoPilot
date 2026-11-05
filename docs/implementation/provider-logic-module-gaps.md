@@ -130,6 +130,21 @@ Access: `GET TokenService/CreateToken` as the Windows account, then the session 
 
 Device-type differences matter: the quantity set varies by well type and device, so a fixed list cannot be right.
 
+Finding wells to test with: `POST Wells/WellFilter` (body `[null]`) returns the filter options. `POST Wells/Well/Filter` takes a `WellFilterDTO`, for example `{"AssetIds":[],"welScadaTypeValues":[{"Value":"CygNet"}],"welDeviceTypeValues":[{"Value":"WellPilotRPOC"}]}`. On the test server (1,403 wells):
+- SCADA types: Concentrator, CygNet, None.
+- Device types: AEBEAM, LufkinSam, SAMIWC, WellPilotRPOC, WFordKS, WFTA1K.
+- Well types: CInj, ESP, GInj, GLift, NF, OT, PCP, PLift, RRL, SInj, WGInj, WInj.
+- Logic modes: Autonomous, Recommendation. The configured logic list includes `RRL_AEBEAM Logic`, `RRL_LufkinSam Logic`, `RRL_RPOC Logic`, `RRL_SPM Optimization Logic (Well Pilot)` and `RRL_VSD Optimization (LufkinSAM)`.
+
+Wells seen with live data (last scan 2026-11-05): 776 `RPOC_00016+9077` (WellPilotRPOC; fillage 99.6, SPM about 10, setpoints present), 457, 488, 732, 715 (WellPilotRPOC); 833, 995, 1520 (LufkinSam); 1609 AEPOC2 (AEBEAM). Well 1596 `AR-RRL1` (AEBEAM) has no fillage and no saved setpoints.
+
+Observed gaps in the data, which a catalog has to tolerate:
+- `StrokesYesterday` reads 65535 on WellPilotRPOC wells, which looks like an unset sentinel, and is empty on AEBEAM wells.
+- Fillage fields are null for AEBEAM.
+- Test-server CygNet returned no point history, so history needs a server with archived data.
+
+Probe tooling (not in the repo): a PowerShell session helper that creates the token and calls any path, plus the extractor for the service interfaces. A copy is kept with the session files.
+
 ACLM service: a gRPC Windows service that runs each logic as a Python or PowerShell child process, with a timeout, and captures its output. It holds no business logic. The Python helper library the legacy logics import (`servicefactory`, `models`, `constants`) is not in the ACLM tree and still needs to be located; it defines the API those logics actually used.
 
 ## Catalog design: a discovered quantity catalog instead of a fixed list
