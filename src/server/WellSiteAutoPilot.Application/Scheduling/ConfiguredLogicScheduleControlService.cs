@@ -73,7 +73,10 @@ public sealed class ConfiguredLogicScheduleControlService(
                 // Resuming below the adapter's floor would only produce skipped runs; the person must pick a valid frequency first.
                 RequireAtLeastFloor(effective.CadenceSeconds, floor);
                 // Missed occurrences are not made up: the first run is one cadence from now.
-                return effective with { Enabled = true, StartAtUtc = now.AddSeconds(effective.CadenceSeconds) };
+                if (effective.EndAtUtc is { } end && end <= now)
+                    throw Conflict("SCHEDULE_ENDED", "The schedule has ended. Create a revision to change its end date.");
+                return effective with { Enabled = true, StartAtUtc = effective.Recurrence is null
+                    ? now.AddSeconds(effective.CadenceSeconds) : effective.StartAtUtc };
             }, cancellationToken);
 
     public Task<ConfiguredLogicScheduleView> ChangeFrequencyAsync(
@@ -87,13 +90,14 @@ public sealed class ConfiguredLogicScheduleControlService(
             ConfiguredLogicScheduleChangeKind.FrequencyChanged, (effective, now, floor) =>
             {
                 RequireAtLeastFloor(cadenceSeconds, floor);
-                if (effective.CadenceSeconds == cadenceSeconds)
+                if (effective.CadenceSeconds == cadenceSeconds && effective.Recurrence is null)
                     throw new WellSiteAutoPilotException("SCHEDULE_UNCHANGED", FailureKind.Validation,
                         "The schedule already runs at this frequency.");
                 // A paused schedule stays paused; its first run is set when it is resumed.
                 return effective with
                 {
                     CadenceSeconds = cadenceSeconds,
+                    Recurrence = null,
                     StartAtUtc = effective.Enabled ? now.AddSeconds(cadenceSeconds) : effective.StartAtUtc
                 };
             }, cancellationToken);
