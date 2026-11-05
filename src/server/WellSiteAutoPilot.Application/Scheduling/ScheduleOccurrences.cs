@@ -6,6 +6,20 @@ namespace WellSiteAutoPilot.Application.Scheduling;
 /// <summary>Shared occurrence calculation for dispatch, review and next-run presentation.</summary>
 public static class ScheduleOccurrences
 {
+    public static IReadOnlyList<DateTimeOffset> Preview(ConfiguredLogicSchedule schedule)
+    {
+        Validate(schedule);
+        var occurrences = new List<DateTimeOffset>();
+        var after = schedule.StartAtUtc == DateTimeOffset.MinValue ? schedule.StartAtUtc : schedule.StartAtUtc.AddTicks(-10);
+        for (var index = 0; index < 3; index++)
+        {
+            if (NextAfter(schedule, after) is not { } next) break;
+            occurrences.Add(next);
+            after = next;
+        }
+        return occurrences;
+    }
+
     public static void Validate(ConfiguredLogicSchedule schedule)
     {
         if (schedule.CadenceSeconds <= 0) throw Invalid("The schedule interval must be positive.");
@@ -40,19 +54,20 @@ public static class ScheduleOccurrences
             var index = Estimate(schedule, now);
             for (; index >= 0; index--)
                 if (CalendarOccurrence(schedule, index) is { } occurrence && occurrence <= now)
-                    return occurrence;
+                    return AfterResume(schedule, occurrence);
             return null;
         }
         try
         {
             var cadence = TimeSpan.FromSeconds(schedule.CadenceSeconds).Ticks;
-            return start.AddTicks((now.UtcTicks - start.UtcTicks) / cadence * cadence);
+            return AfterResume(schedule, start.AddTicks((now.UtcTicks - start.UtcTicks) / cadence * cadence));
         }
         catch (OverflowException) { return null; }
     }
 
     public static DateTimeOffset? NextAfter(ConfiguredLogicSchedule schedule, DateTimeOffset nowUtc)
     {
+        if (schedule.ResumeAfterUtc is { } resumed && nowUtc < resumed) nowUtc = resumed;
         if (!schedule.Enabled || schedule.CadenceSeconds <= 0 ||
             schedule.EndAtUtc is { } end && nowUtc >= end) return null;
         var start = Normalize(schedule.StartAtUtc);
@@ -66,7 +81,7 @@ public static class ScheduleOccurrences
                 if (occurrence is { } next && next > nowUtc) return WithinEnd(schedule, next);
             }
         }
-        if (LatestDue(schedule, nowUtc) is not { } due) return null;
+        if (LatestDue(schedule with { ResumeAfterUtc = null }, nowUtc) is not { } due) return null;
         try { return WithinEnd(schedule, due.AddSeconds(schedule.CadenceSeconds)); }
         catch (ArgumentOutOfRangeException) { return null; }
     }
@@ -114,6 +129,9 @@ public static class ScheduleOccurrences
 
     private static DateTimeOffset? WithinEnd(ConfiguredLogicSchedule schedule, DateTimeOffset value) =>
         schedule.EndAtUtc is { } end && value > end ? null : value;
+
+    private static DateTimeOffset? AfterResume(ConfiguredLogicSchedule schedule, DateTimeOffset value) =>
+        schedule.ResumeAfterUtc is { } resumed && value <= resumed ? null : value;
 
     private static DateTimeOffset Normalize(DateTimeOffset value) =>
         new(value.UtcTicks - value.UtcTicks % TimeSpan.TicksPerMicrosecond, TimeSpan.Zero);
