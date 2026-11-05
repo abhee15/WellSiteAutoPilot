@@ -110,6 +110,42 @@ Gaps G16-G18 stay outside the adapters by design (persistence, closed loop).
 
 Where the two adapters differ, the neutral contract takes the smaller common surface. A provider-specific extra is reported by a capability flag, not assumed. A module that needs a capability the connected provider lacks fails validation, not the run.
 
+## ForeSite API findings (probed read-only on the test server, 2026-11-05)
+
+Access: `GET TokenService/CreateToken` as the Windows account, then the session cookie on every call. Routes carry the service prefix: `Surveillance/`, `Wells/`, `WellConfig/`, `WellTests/`, `Alarms/`, `IntelligentAlarm/`. Several read-only queries are POST (`OptionalQuantities`, `CygNetTrends`, `DailyAverageQuantities`).
+
+| Family | Endpoint (examples) | What it gives | Self-describing? |
+|---|---|---|---|
+| Quantity availability | `Surveillance/AvailableQuantities/{wellId}` | Ids of the `WellQuantity` enum (~75 members) valid for that well. Well 1596 (AEBEAM) has no fillage (15/16); well 776 (WellPilotRPOC) has | Ids only. Names and units come from the enum and the status document |
+| Current status | `Surveillance/well/{id}` | Every status quantity plus a `Units` block (unit key, precision, min, max) | Yes |
+| KPI and gauges | `Surveillance/KPI/{id}`, `Well/Gauges/{id}` | Inferred production, SPM, cycles; gauge values with unit and range | Yes |
+| Site-defined quantities | `Surveillance/OptionalQuantities/{wellType}`, `CalculatedQuantities/{wellType}` | Name, UDC, unit, unit category, point type | Yes. Already site-configurable in ForeSite |
+| Daily history | `Surveillance/GetTrends/{id}/{from}/{to}`, `Well/DailyAverage/...` | Daily averages and volumes with units | Yes |
+| Point history by quantity | `POST Surveillance/CygNetTrends/{id}/{from}/{to}` with quantity names | History of any mapped `WellQuantity`, with units, from the well's CygNet point. An unmapped quantity returns a blank UDC | Yes. No data on the test CygNet, so not yet verified with values |
+| Setpoints | `Surveillance/Well/AllSavedSetPointParams`, `SetPointsDGs` | Element id, description, unit, range, read-only flag, enum, value and original value, by data group | Yes. `IdleTime` shows `00:01:00` and original `60` (G24). Live-read variants need a UIS command and failed on stale wells |
+| Alarms | `Alarms/CurrentAlarms/{id}`, `Surveillance/GetCygNetAlarms/{id}`, `IntelligentAlarm/...` | Type, value, start time | Partly |
+| Well tests | `WellTests/GetLatestWellTestData`, `WelltestQuantities/{wellType}`, `WellTestTrend/...` | Test results, test quantity catalog by well type | Yes |
+| Config and logic | `WellConfig/{id}`, `GetLogicModuleList/{id}` | Well attributes, available ACL logic modules | Yes |
+| Autonomous control | `WellAutoSetPointService/GetACLLogicSettings`, `GetRRLAutonomousControlHistory`, `ApplyRecommendationForEachSetpoint` | Logic settings, run history, applying recommendations | To be probed |
+
+Device-type differences matter: the quantity set varies by well type and device, so a fixed list cannot be right.
+
+ACLM service: a gRPC Windows service that runs each logic as a Python or PowerShell child process, with a timeout, and captures its output. It holds no business logic. The Python helper library the legacy logics import (`servicefactory`, `models`, `constants`) is not in the ACLM tree and still needs to be located; it defines the API those logics actually used.
+
+## Catalog design: a discovered quantity catalog instead of a fixed list
+
+Direction to discuss (not yet decided):
+
+1. **Discover instead of declare.** For a connection and asset, the adapter asks the provider what exists, and returns a catalog of entries: key, display name, data kind, unit, range, applicability. ForeSite sources: `AvailableQuantities`, the `Units` block, `OptionalQuantities`, `CalculatedQuantities`, `WelltestQuantities`, and setpoint groups. CygNet sources: the site's UDC mapping.
+2. **Data kinds, not one list.** Each entry says what it is: `current` (status), `daily` (daily average or snapshot), `history` (point history), `welltest`, `setpoint`, `alarm`, `card`. A module's requirement then names the kind, the key and the window, for example "daily `InferredProductionYesterday` for the last 2 days".
+3. **Stable keys with a namespace.** Core keys are shared across providers (`PumpFillage`, `CurrentSPM`). Site or provider-specific entries are namespaced (`foresite.optional.VOLSTEAMY`, `cygnet.udc.PRCASXIN`). Modules that use only core keys stay portable.
+4. **Applicability from the asset.** Well type, device type and what `AvailableQuantities` returns decide which entries show for an asset. The UI and `module validate` use it to reject a module whose requirement the asset cannot meet.
+5. **Units come from the provider.** The adapter reports the unit it received and the module can ask for a conversion, rather than the adapter forcing one.
+6. **Cache and batch.** One status document read serves every current quantity of a well in one execution.
+7. **Bounded freedom.** Arbitrary queries are limited to catalog entries and bounded windows and counts, so a module cannot pull arbitrary data or overload the provider.
+
+Open questions: how a module declares "any of these keys" for different device types; how the catalog is versioned and cached; whether setpoints are in the same catalog or a separate one; how `Gateway` identity limits what the catalog shows.
+
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
 2. G3 (catalog endpoint, also feeds the starter kit download)
