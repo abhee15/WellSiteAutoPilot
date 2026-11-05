@@ -6,6 +6,7 @@ export const englishMessages = {
   'assignment.overrides': 'Per-well settings (optional)',
   'assignment.review': 'Review assignment',
   'assignment.reviewCount': '{count} wells selected · data sources resolved',
+  'assignment.ended': 'This schedule has ended. Create a revision to change its dates.',
   'assignment.assign': 'Assign logic',
   'assignment.wells': 'wells',
   'assignment.mappingError': 'Some inputs could not be resolved. Check that the selected wells have an enabled source connection and that the module supports their data.',
