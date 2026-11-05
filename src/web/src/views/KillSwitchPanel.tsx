@@ -6,6 +6,7 @@ import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { KILL_SWITCH_REASON_MAX, KillSwitchError, fetchKillSwitch, setKillSwitch } from './controlKillSwitch';
 import type { KillSwitchErrorKind, KillSwitchState } from './controlKillSwitch';
+import './killSwitch.css';
 
 type Props = {
   userId: string | null | undefined;
@@ -106,7 +107,7 @@ export function KillSwitchPanel({ userId, canManage }: Props) {
     return (
       <section className="panel kill-switch" aria-label={t('killSwitch.heading')}>
         <div className="panel-header"><h2>{t('killSwitch.heading')}</h2></div>
-        <p role={loadError ? 'alert' : 'status'} className={loadError ? 'execution-detail-error' : undefined}>
+        <p role={loadError ? 'alert' : 'status'} className={loadError ? 'kill-switch-message execution-detail-error' : 'kill-switch-message'}>
           {loadError ? errors[loadError] : t('killSwitch.loading')}
         </p>
       </section>
@@ -118,20 +119,22 @@ export function KillSwitchPanel({ userId, canManage }: Props) {
     <section className="panel kill-switch" aria-label={t('killSwitch.heading')} data-engaged={engaged}>
       <div className="panel-header">
         <h2>{t('killSwitch.heading')}</h2>
-        <Status value={engaged ? t('killSwitch.engaged') : t('killSwitch.released')} tone={engaged ? 'warning' : 'success'} />
-      </div>
-      <p>{engaged ? t('killSwitch.engagedNote') : t('killSwitch.releasedNote')}</p>
-      {!state.autonomousControlEnabled && <p role="note">{t('killSwitch.deploymentOff')}</p>}
-      {state.changedBy && (
-        <p><small>{t('killSwitch.changedBy', { by: state.changedBy, at: formatDetailTimestamp(state.changedAtUtc) })}
-          {state.reason ? ' ' + t('killSwitch.reason', { reason: state.reason }) : ''}</small></p>
-      )}
-      {canManage && !formOpen && (
-        <div className="execution-detail-actions">
-          <ActionButton label={engaged ? t('killSwitch.release') : t('killSwitch.engage')}
-            variant={engaged ? 'secondary' : 'primary'} onClick={() => setFormOpen(true)} />
+        <div className="panel-header-actions">
+          <Status value={engaged ? t('killSwitch.engaged') : t('killSwitch.released')} tone={engaged ? 'warning' : 'neutral'} />
+          {canManage && !formOpen && (
+            <ActionButton label={engaged ? t('killSwitch.release') : t('killSwitch.engage')}
+              variant={engaged ? 'secondary' : 'primary'} onClick={() => setFormOpen(true)} />
+          )}
         </div>
-      )}
+      </div>
+      <div className="kill-switch-message">
+        <p>{engaged ? t('killSwitch.engagedNote') : t('killSwitch.releasedNote')}</p>
+        {!state.autonomousControlEnabled && <p role="note">{t('killSwitch.deploymentOff')}</p>}
+        {state.changedBy && (
+          <p><small>{t('killSwitch.changedBy', { by: state.changedBy, at: formatDetailTimestamp(state.changedAtUtc) })}
+            {state.reason ? ' ' + t('killSwitch.reason', { reason: state.reason }) : ''}</small></p>
+        )}
+      </div>
       {canManage && formOpen && (
         <div className="kill-switch-form">
           <label className="recommendation-review-reason">

@@ -244,7 +244,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
               </div>}
             </div>}
           </section>
-          {canReadControl && <AutonomyPolicyPanel key={detail.id} configuredLogicId={detail.id}
+          {canReadControl && selected.mode !== 'Shadow' && <AutonomyPolicyPanel key={detail.id} configuredLogicId={detail.id}
             canManage={canManageControl} disabled={mutationBlocked} />}
         </>}
         {editor}
