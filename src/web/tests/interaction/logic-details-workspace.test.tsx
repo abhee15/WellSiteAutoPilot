@@ -6,6 +6,7 @@ import { LiveUpdatesProvider } from '../../src/live/LiveUpdates';
 import { ChangeSignalClient } from '../../src/live/changeSignal';
 import type { HubConnectionLike } from '../../src/live/changeSignal';
 import { accessibilityViolations } from './axe';
+import type { ConfiguredLogicRevisionResponse } from '../../src/api/generated/v1/types.gen';
 
 const id = (n: number) => `77777777-7777-4777-8777-${String(n).padStart(12, '0')}`;
 const manifest = { moduleId: 'sample.complex', version: '1.0.0', executionProfile: 'Shadow',
@@ -13,7 +14,7 @@ const manifest = { moduleId: 'sample.complex', version: '1.0.0', executionProfil
   parameterSchema: { type: 'object', properties: { nested: { type: 'object' }, sequence: { type: 'array' } } },
   dataRequirements: [{ id: 'fillage', assetRole: 'well', quantity: 'PumpFillage' }, { id: 'calc', assetRole: 'well', quantity: 'CalculatedValue' }] };
 const parametersJson = '{"nested":{"limits":[30,40],"strategy":{"enabled":true}},"sequence":[[1,2],[3,4]]}';
-const revision = { id: id(3), revisionNumber: 3, mode: 'Shadow' as const, status: 'Active' as const,
+const revision = { id: id(3), revisionNumber: 3, mode: 'Shadow' as ConfiguredLogicRevisionResponse['mode'], status: 'Active' as const,
   moduleId: 'sample.complex', moduleVersion: '1.0.0', moduleManifestJson: JSON.stringify(manifest), parametersJson,
   schedule: { enabled: true, cadenceSeconds: 300, startAtUtc: '2026-11-01T12:00:00Z', timeZoneId: 'America/Chicago' },
   assetBindings: [{ role: 'well', assetId: id(1), parameterOverridesJson: '{}' }],
@@ -150,6 +151,26 @@ it('can inspect other known execution modes without exposing a Shadow-only edito
   expect(screen.queryByRole('button', { name: /Run active revision/ })).toBeNull();
   await userEvent.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
   expect(screen.getByRole('button', { name: 'Copy revision 3' })).toHaveProperty('disabled', true);
+});
+
+it('hides the configuration policy while inspecting a Shadow draft', async () => {
+  const { state, http } = fixture();
+  state.config = { ...configuration, revisions: [{ ...revision, mode: 'Recommendation' }, configuration.revisions[1]!] };
+  render(<ConfiguredLogicWorkspace {...props} canReadControl canManageControl />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('tab', { name: 'Configuration', exact: true }));
+  await screen.findByRole('heading', { name: 'Autonomy policy' });
+
+  const picker = screen.getByRole('combobox', { name: 'Saved revision' });
+  const requestsBefore = http.mock.calls.filter(([url]) => url.startsWith('/api/v1/control/policies/')).length;
+  await user.selectOptions(picker, id(4));
+  expect(screen.getByText('Shadow (read-only)')).toBeTruthy();
+  expect(screen.getByText(/cannot create recommendations or send commands/)).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: 'Autonomy policy' })).toBeNull();
+  expect(http.mock.calls.filter(([url]) => url.startsWith('/api/v1/control/policies/'))).toHaveLength(requestsBefore);
+
+  await user.selectOptions(picker, id(3));
+  await screen.findByRole('heading', { name: 'Autonomy policy' });
 });
 
 it('keeps Refresh and Close together in the detail header when a configuration cannot load', async () => {

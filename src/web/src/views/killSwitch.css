@@ -1,0 +1,35 @@
+.kill-switch .panel-header {
+  row-gap: var(--space-8);
+}
+
+.kill-switch-message {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-12) var(--space-18);
+  overflow-wrap: anywhere;
+}
+
+.kill-switch-message p {
+  margin: 0;
+}
+
+.kill-switch-message small {
+  color: var(--color-text-subtle);
+}
+
+.kill-switch-form {
+  padding: var(--space-12) var(--space-18);
+  border-top: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+.kill-switch-form .recommendation-review-reason {
+  margin-top: 0;
+}
+
+@media (width <= 40em) {
+  .kill-switch .panel-header-actions {
+    justify-content: flex-start;
+    margin-inline-start: 0;
+  }
+}
