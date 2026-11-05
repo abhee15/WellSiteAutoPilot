@@ -1456,7 +1456,6 @@ export const englishMessages = {
   'operations.recommendations': 'Recommendations from this run',
   'operations.recommendationsUnavailable': 'Recommendations for this run could not be loaded.',
   'operations.recommendationsLimited': 'Showing the latest 100 recommendations for this run.',
-  'overview.shadowNote': 'Everything here runs in shadow mode: results are calculated and recorded, and nothing is sent to equipment.',
   'page.operationsTitle': 'Runs',
   'page.assetsTitle': 'Assets',
   'page.logicTitle': 'Logic workspace',
