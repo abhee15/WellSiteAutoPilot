@@ -8,6 +8,7 @@ public sealed class ConfiguredLogicScheduleStateEntity
     public bool Enabled { get; set; }
     public int CadenceSeconds { get; set; }
     public DateTimeOffset StartAtUtc { get; set; }
+    public string? ScheduleJson { get; set; }
     public string TimeZoneId { get; set; } = string.Empty;
     public string ChangedBy { get; set; } = string.Empty;
     public DateTimeOffset ChangedAtUtc { get; set; }
@@ -24,6 +25,7 @@ public sealed class ConfiguredLogicScheduleChangeEntity
     public bool Enabled { get; init; }
     public int CadenceSeconds { get; init; }
     public DateTimeOffset StartAtUtc { get; init; }
+    public string? ScheduleJson { get; set; }
     public string TimeZoneId { get; init; } = string.Empty;
     public string ChangedBy { get; init; } = string.Empty;
     public DateTimeOffset ChangedAtUtc { get; init; }
