@@ -241,7 +241,6 @@ export function OverviewPage({
       {ready && setup.length > 0 && <ul className="overview-setup">
         {setup.map(item => <li key={item.kind}><a href={item.href}>{attentionText(item)}</a></li>)}
       </ul>}
-      <p className="overview-note">{t('overview.shadowNote')}</p>
     </>
   );
 }
