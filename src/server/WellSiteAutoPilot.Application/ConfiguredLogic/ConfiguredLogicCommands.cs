@@ -18,7 +18,13 @@ public sealed record ConfiguredLogicScheduleCommand(
     bool Enabled,
     int CadenceSeconds,
     DateTimeOffset StartAtUtc,
-    string TimeZoneId);
+    string TimeZoneId)
+{
+    public int? Every { get; init; }
+    public string? Unit { get; init; }
+    public bool SkipMissingMonthDay { get; init; }
+    public DateTimeOffset? EndAtUtc { get; init; }
+}
 
 public sealed record CreateConfiguredLogicCommand(
     string Name,
