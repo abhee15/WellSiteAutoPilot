@@ -177,7 +177,6 @@ export function OverviewPage({
           </ul>
         </section>
       )}
-      <p className="overview-note">{t('overview.shadowNote')}</p>
     </>
   );
 }
