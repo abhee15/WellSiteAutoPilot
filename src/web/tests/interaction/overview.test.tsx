@@ -12,10 +12,11 @@ const props = { permissions, systemInfo: null, isLoaded: true,
 
 it('puts what needs a person first, with a link to act on it', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([
-    { id: 'r1', assetId: 'a1', status: 'Pending', expiresAtUtc: new Date(Date.now() + 3600_000).toISOString() }])));
+    { id: 'r1', assetId: 'a1', executionId: 'e1', command: 'Set frequency', suggestedValue: 48, unit: 'Hz', canDecide: true, status: 'Pending', expiresAtUtc: new Date(Date.now() + 3600_000).toISOString() }])));
   render(<OverviewPage {...(props as never)} />);
-  expect(await screen.findByText('1 recommendation is waiting for a decision.')).toBeTruthy();
-  expect(screen.getAllByRole('link', { name: 'Open' })[0].getAttribute('href')).toBe('#recommendations');
+  expect(await screen.findByText('Awaiting decision')).toBeTruthy();
+  expect(screen.getByText('Set frequency: 48 Hz')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Review change' }).getAttribute('href')).toBe('#recommendations/r1');
 });
 
 it('says so when nothing needs attention, and states that nothing is sent to equipment', async () => {
