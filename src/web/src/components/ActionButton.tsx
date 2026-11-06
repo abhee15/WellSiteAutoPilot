@@ -30,3 +30,18 @@ export function ActionButton({ label, icon: Icon, iconOnly = false, busy = false
     <span className={hideText ? 'visually-hidden' : undefined}>{label}</span>
   </button>;
 }
+
+type ActionLinkProps = Omit<ComponentProps<'a'>, 'children' | 'href'> & {
+  href: string;
+  label: string;
+  icon?: LucideIcon;
+  variant?: 'primary' | 'secondary';
+};
+
+/** Navigation in an action group shares button presentation while keeping native link behavior. */
+export function ActionLink({ label, icon: Icon, variant = 'secondary', className = '', ...props }: ActionLinkProps) {
+  return <a {...props} className={`ui-action-button ${variant}-button ${className}`}>
+    {Icon && <Icon size={16} aria-hidden="true" />}
+    <span>{label}</span>
+  </a>;
+}
