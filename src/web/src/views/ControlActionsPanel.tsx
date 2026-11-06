@@ -193,8 +193,8 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId, compa
             : t('controlActions.count', { count: open.length })}
           tone={open.length > 0 ? 'warning' : 'neutral'} />
       </div>
-      <p>{t('controlActions.intro')}</p>
-      {showEmpty && actions !== null && !open.length && !selectedActionId && <Notice announce={false}>{t('workspace.noCommands')}</Notice>}
+      {open.length > 0 && <p>{t('controlActions.intro')}</p>}
+      {showEmpty && actions !== null && !open.length && !selectedActionId && <div className="control-actions-empty"><Notice announce={false}>{t('workspace.noCommands')}</Notice></div>}
       {selectedActionId && <ContextLink href={hashFor('recommendations', 'actions')} label={t('controlActions.all')} />}
       {selectedActionId && actions !== null && !shown.length && <p role="status">{t('controlActions.selectedUnavailable')}</p>}
       <ul className="control-actions-list">
