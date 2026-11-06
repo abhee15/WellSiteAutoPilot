@@ -1,0 +1,190 @@
+{
+  "App.tsx": {
+    "controls": 0,
+    "notices": 3
+  },
+  "views/AccessManagementPage.tsx": {
+    "controls": 2,
+    "notices": 2
+  },
+  "views/ActivityPage.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/AssetBrowser.tsx": {
+    "controls": 1,
+    "notices": 1
+  },
+  "views/AssetCreationPanel.tsx": {
+    "controls": 4,
+    "notices": 2
+  },
+  "views/AssetDetail.tsx": {
+    "controls": 0,
+    "notices": 2
+  },
+  "views/AssetInventoryControls.tsx": {
+    "controls": 5,
+    "notices": 1
+  },
+  "views/AssetLogicCard.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/AssetTypeActions.tsx": {
+    "controls": 1,
+    "notices": 1
+  },
+  "views/AssetTypeDefinitionPanel.tsx": {
+    "controls": 3,
+    "notices": 2
+  },
+  "views/AssetViewBrowser.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/AssetViewEditor.tsx": {
+    "controls": 3,
+    "notices": 3
+  },
+  "views/AssetsPage.tsx": {
+    "controls": 2,
+    "notices": 1
+  },
+  "views/AssignmentScheduleEditor.tsx": {
+    "controls": 9,
+    "notices": 1
+  },
+  "views/AutonomyPolicyPanel.tsx": {
+    "controls": 8,
+    "notices": 5
+  },
+  "views/ConfiguredLogicControls.tsx": {
+    "controls": 3,
+    "notices": 0
+  },
+  "views/ConfiguredLogicRevisionOverview.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/ConfiguredLogicSchedulePanel.tsx": {
+    "controls": 3,
+    "notices": 4
+  },
+  "views/ConfiguredLogicSetupPanel.tsx": {
+    "controls": 5,
+    "notices": 6
+  },
+  "views/ConfiguredLogicWorkspace.tsx": {
+    "controls": 1,
+    "notices": 4
+  },
+  "views/ConfiguredShadowPanel.tsx": {
+    "controls": 0,
+    "notices": 2
+  },
+  "views/ConnectionImport.tsx": {
+    "controls": 2,
+    "notices": 10
+  },
+  "views/ConnectionInventory.tsx": {
+    "controls": 4,
+    "notices": 7
+  },
+  "views/ConnectionSourceChanges.tsx": {
+    "controls": 0,
+    "notices": 2
+  },
+  "views/ConnectionsPage.tsx": {
+    "controls": 4,
+    "notices": 5
+  },
+  "views/ControlActionsPanel.tsx": {
+    "controls": 3,
+    "notices": 4
+  },
+  "views/CopyButton.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/DirectoryGroupPicker.tsx": {
+    "controls": 2,
+    "notices": 3
+  },
+  "views/ExecutionDetailPanel.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/ExecutionHistory.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/GrantAdministrationPage.tsx": {
+    "controls": 3,
+    "notices": 2
+  },
+  "views/KillSwitchPanel.tsx": {
+    "controls": 2,
+    "notices": 4
+  },
+  "views/LogicCatalogControls.tsx": {
+    "controls": 3,
+    "notices": 0
+  },
+  "views/ModuleApprovalControls.tsx": {
+    "controls": 1,
+    "notices": 2
+  },
+  "views/ModulePackageState.tsx": {
+    "controls": 0,
+    "notices": 2
+  },
+  "views/ModulePackageUpload.tsx": {
+    "controls": 1,
+    "notices": 3
+  },
+  "views/ModulePanel.tsx": {
+    "controls": 1,
+    "notices": 0
+  },
+  "views/OperationsViewControls.tsx": {
+    "controls": 3,
+    "notices": 1
+  },
+  "views/OverviewPage.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/ParameterOverridesEditor.tsx": {
+    "controls": 1,
+    "notices": 0
+  },
+  "views/RecommendationInboxControls.tsx": {
+    "controls": 1,
+    "notices": 0
+  },
+  "views/RecommendationsPage.tsx": {
+    "controls": 0,
+    "notices": 2
+  },
+  "views/RoleCatalogPage.tsx": {
+    "controls": 5,
+    "notices": 3
+  },
+  "views/RunRecommendations.tsx": {
+    "controls": 0,
+    "notices": 1
+  },
+  "views/ScopedGrantEditor.tsx": {
+    "controls": 4,
+    "notices": 1
+  },
+  "views/StatusPage.tsx": {
+    "controls": 0,
+    "notices": 2
+  },
+  "views/UserAccessDetailsPanel.tsx": {
+    "controls": 0,
+    "notices": 2
+  }
+}
