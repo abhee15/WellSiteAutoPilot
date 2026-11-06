@@ -10,6 +10,7 @@ on:
       - 'src/web/src/views/**'
       - 'src/web/src/styles.css'
       - 'src/web/src/tokens.css'
+      - 'src/web/tests/visual/shared-forms*'
       - 'tools/design-preview/**'
       - '.github/workflows/tab-visual-review.yml'
   workflow_dispatch:
@@ -108,6 +109,11 @@ jobs:
                   raise RuntimeError(f'Preview server on {port} did not start')
           PY
           python after/tools/design-preview/capture-tab-layout.py "$GITHUB_WORKSPACE/screenshots" http://127.0.0.1:5198 http://127.0.0.1:5199
+      - name: Build and review shared native form fixture
+        working-directory: after/src/web
+        run: |
+          npx vite build --config ../../tools/design-preview/shared-forms.vite.mjs --outDir "$GITHUB_WORKSPACE/preview-forms" --emptyOutDir
+          python ../../tools/design-preview/capture-shared-forms.py "$GITHUB_WORKSPACE/preview-forms" "$GITHUB_WORKSPACE/screenshots/shared-forms" http://127.0.0.1:5198 http://127.0.0.1:5199
       - name: Upload before/after screenshots and layout audit
         if: always()
         uses: actions/upload-artifact@v4
