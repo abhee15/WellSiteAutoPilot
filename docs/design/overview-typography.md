@@ -18,6 +18,8 @@ Validate computed role sizes and weights against tokens, loaded font faces, hori
 
 Local evidence: 349 UI tests, 555 interaction tests, production build/typecheck and lint passed. The reusable browser audit passed 88 before/after page/state/width cases; the existing run-history geometry check passed eight cases. Four-width baseline/type-only/layout comparisons were inspected. These are representative mock-data checks; they do not verify live provider behavior.
 
+CI exposed the recurring Windows DevTools-startup timeout before layout assertions. The fixture now uses a fresh temporary browser profile outside the watched source tree, ignores generated artifacts in the Vite watcher, waits for the actual HTTP page target within a bounded 45-second window and uploads startup diagnostics. An intentional browser early-exit check fails promptly with diagnostics; all eight real geometry cases pass locally. Layout assertions are unchanged.
+
 Remaining data-presentation finding: proposal summaries can expose quantity keys (for example PumpSpeed) alongside a readable command. Review that shared formatter and the remaining detail/metadata roles in the next slice rather than applying a special Overview-only text rule.
 
 Primary guidance:
