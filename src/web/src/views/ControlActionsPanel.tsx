@@ -2,7 +2,11 @@ import { ContextLink } from '../components/ContextLink';
 import { Notice } from '../components/Notice';
 import { PanelLoading } from '../components/LoadingIndicator';
 import './controlActions.css';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AssetResponse } from '../api/generated/v1/types.gen';
+import { shortId } from '../format';
+import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
+import { assetIdentityLabel } from './runContext';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
@@ -27,6 +31,9 @@ type Props = {
   selectedActionId?: string | null;
   compact?: boolean;
   showEmpty?: boolean;
+  assets?: readonly AssetResponse[];
+  canReadAssets?: boolean;
+  canReadRuns?: boolean;
 };
 
 const ERRORS: Record<ControlActionErrorKind, MessageKey> = {
@@ -48,7 +55,8 @@ function waitingLabel(createdAtUtc: string, nowMs: number): string {
  * Commands that were sent but whose result nobody has confirmed. Verifying asks the target again; resolving records,
  * as the operator and with a note, whether the command was applied. Shown only while something needs a decision.
  */
-export function ControlActionsPanel({ userId, canManage, selectedActionId, compact = false, showEmpty = false }: Props) {
+export function ControlActionsPanel({ userId, canManage, selectedActionId, compact = false, showEmpty = false,
+  assets = [], canReadAssets = false, canReadRuns = false }: Props) {
   const [actions, setActions] = useState<ControlAction[] | null>(null);
   const [loadError, setLoadError] = useState<ControlActionErrorKind | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -60,6 +68,9 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId, compa
   const panelRef = useRef<HTMLElement | null>(null);
   const refreshRef = useRef<AbortController | null>(null);
   const actRef = useRef<AbortController | null>(null);
+  const targetIds = useMemo(() => compact ? [] : [...new Set((actions ?? [])
+    .filter(controlActionNeedsDecision).flatMap(action => typeof action.assetId === 'string' ? [action.assetId] : []))], [actions, compact]);
+  const directory = useAssetIdentityDirectory(targetIds, assets, canReadAssets, userId);
 
   const refresh = useCallback(async () => {
     refreshRef.current?.abort();
@@ -193,8 +204,20 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId, compa
           const resolving = resolvingId === action.id;
           const busy = busyId === action.id;
           const mayDecide = canManage && action.canManage === true;
+          const assetId = typeof action.assetId === 'string' ? action.assetId : null;
+          const executionId = typeof action.executionId === 'string' ? action.executionId : null;
+          const assetName = assetIdentityLabel(assetId, directory.assets, directory.owners);
           return (
             <li key={action.id} data-status={action.status}>
+              <div className="control-actions-context">
+                <span>{t('decision.asset')}: {canReadAssets && assetId
+                  ? <ContextLink href={hashFor('assets', assetId)} label={assetName} />
+                  : <strong title={assetId ?? undefined}>{assetName}</strong>}</span>
+                {executionId && (canReadRuns
+                  ? <ContextLink href={hashFor('operations', executionId)} label={t('overview.runReference', { id: shortId(executionId) })} />
+                  : <span title={executionId}>{t('overview.runReference', { id: shortId(executionId) })}</span>)}
+                <span title={action.id}>{t('workspace.commandReference', { id: shortId(action.id) })}</span>
+              </div>
               <p>
                 <strong>{action.command}</strong>
                 {action.value !== null && action.value !== undefined

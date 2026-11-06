@@ -16,7 +16,7 @@ from playwright.sync_api import sync_playwright
 output = Path(sys.argv[1])
 output.mkdir(parents=True, exist_ok=True)
 report = []
-identity = lambda number: f"00000000-0000-4000-8000-{number:012d}"
+identity = lambda number: f"{number if number >= 700 else 0:08x}-0000-4000-8000-{number:012d}"
 now = datetime.now(timezone.utc)
 records = [{
     "id": identity(700 + number), "assetId": identity(11 + number % 2),
@@ -30,7 +30,7 @@ records = [{
     "decisionAtUtc": now.isoformat() if number >= 12 else None,
 } for number in range(15)]
 actions = [{
-    "id": identity(800 + number), "recommendationId": identity(712), "assetId": identity(11),
+    "id": identity(800 + number), "recommendationId": identity(712), "assetId": identity(11 + number % 2), "executionId": identity(101 + number % 3),
     "command": "SET_CHOKE", "value": 40 + number, "unit": "%", "status": "Ambiguous",
     "gateCode": "SINK_AMBIGUOUS", "createdAtUtc": (now - timedelta(hours=number + 1)).isoformat(), "canManage": True,
 } for number in range(4)]
@@ -107,6 +107,10 @@ with sync_playwright() as playwright:
                     if state == "read-only":
                         assert page.get_by_role("button", name="Review", exact=True).count() == 0
                         assert page.get_by_role("button", name="Execute command", exact=True).count() == 0
+                    if state == "commands":
+                        page.locator('.control-actions-context a[href="#assets/' + identity(11) + '"]').first.wait_for()
+                        assert page.locator('.control-actions-context').count() == len(actions)
+                        assert page.locator('.control-actions-context a[href^="#operations/"]').count() == len(actions)
                     if state == "decision":
                         detail = page.locator('.split-selected')
                         if width <= 900:

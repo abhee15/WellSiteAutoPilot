@@ -6,3 +6,5 @@
 .control-actions-resolve { display: grid; gap: var(--space-12); margin-top: var(--space-12); }
 .control-actions-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12); padding: var(--space-10) var(--space-panel-inline); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); background: var(--color-surface-status-warning); }
 .control-actions-summary > .action-link { margin-inline-start: auto; }
+.control-actions-context { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-16); margin-bottom: var(--space-8); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.control-actions-context > span:first-child { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }

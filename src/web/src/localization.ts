@@ -3,6 +3,7 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'workspace.commandReference': 'Command {id}',
   'workspace.proposalCount': '{count} matching proposed changes in this run',
   'workspace.loadingCommands': 'Loading unconfirmed commands…',
   'workspace.awaiting': 'Awaiting',

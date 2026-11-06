@@ -311,7 +311,8 @@ export function RecommendationsPage({
       <div className="recommendations-control-context">
         <KillSwitchPanel userId={userId} canManage={canExecute} compact={!settingsSelected} />
         <ControlActionsPanel userId={userId} canManage={canExecute} selectedActionId={selectedActionId}
-          compact={!controlSelected} showEmpty={Boolean(controlSelected)} />
+          compact={!controlSelected} showEmpty={Boolean(controlSelected)} assets={assetDirectory.assets}
+          canReadAssets={Boolean(permissions?.includes('assets.read'))} canReadRuns={Boolean(permissions?.includes('executions.read'))} />
       </div>
       {queueSelected && <>
       <div {...splitFocus} className="split-layout runs-layout recs-layout" data-has-selection={reviewOpen}>
