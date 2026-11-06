@@ -55,7 +55,18 @@ public sealed class WamiNetTcpClient : IWamiClient
         var status = await Guarded(channel, () => channel.Proxy.HasWAMILicense(), WamiCallOutcome.NotStarted, cancellationToken);
         if (status != WAMILicenseStatus.Valid)
             throw new WamiException(WamiFailureCodes.LicenseMissing, $"WAMI licence is {status}.", WamiCallOutcome.NotStarted);
-        return new WamiServerInfo("unknown", ["WAMI"]);
+        // Per-feature licences tell a module which analyses this server can run; read-only calls.
+        var checks = new (string Feature, Func<WAMILicenseStatus> Check)[]
+        {
+            ("RRL", channel.Proxy.HasRRLLicense), ("ESP", channel.Proxy.HasESPLicense), ("GasLift", channel.Proxy.HasGasLiftLicense),
+            ("PlungerLift", channel.Proxy.HasPlungerLiftLicense), ("PCP", channel.Proxy.HasPCPLicense), ("FlowAssurance", channel.Proxy.HasFlowAssuranceLicense),
+            ("RRLGibbs", channel.Proxy.HasRRLGibbsLicense), ("RRLEJ", channel.Proxy.HasRRLEJLicense),
+            ("RRLDesignVertical", channel.Proxy.HasRRLDesignVerticalLicense), ("RRLPatternMatching", channel.Proxy.HasRRLPatternMatchingLicense)
+        };
+        var features = new List<string> { "WAMI" };
+        foreach (var (feature, check) in checks)
+            if (await Guarded(channel, check, WamiCallOutcome.NotStarted, cancellationToken) == WAMILicenseStatus.Valid) features.Add(feature);
+        return new WamiServerInfo("unknown", features);
     }
 
     public async ValueTask<IWamiModelSession> OpenModelAsync(ModelArtifact model, CancellationToken cancellationToken = default)
