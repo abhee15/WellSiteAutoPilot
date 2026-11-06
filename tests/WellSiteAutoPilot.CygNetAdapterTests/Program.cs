@@ -201,6 +201,26 @@ release.Set();
 await Task.Delay(100);
 Expect(await gate.RunAsync("27212/CYG_DEMO.UIS", () => 2, TimeSpan.FromSeconds(5), CancellationToken.None) == 2, "slots free up when the hung calls finish");
 
+// G3/G2 for CygNet: the catalog is the facility's points, keyed by UDC, with each point's own unit.
+var cygCatalog = await CygNetCatalog.ReadAsync(sim, new CygNetConnection(27212, "CYG_DEMO", "UIS"), "WELL_001", CancellationToken.None);
+Expect(cygCatalog.AssetExternalId == "WELL_001" && cygCatalog.Entries.Count == 6 &&
+    cygCatalog.Entries.Single(e => e.Key == "cygnet.udc.RRLPFILAVG") is { DisplayName: "Average Pump Fillage", Unit: "%" } &&
+    cygCatalog.Entries.Single(e => e.Key == "cygnet.udc.RRLSTKYEST").Unit == "" &&
+    cygCatalog.Entries.Single(e => e.Key == "cygnet.udc.TMRUNYD").Unit == "second" &&
+    cygCatalog.Entries.Select(e => e.Key).SequenceEqual(cygCatalog.Entries.Select(e => e.Key).OrderBy(k => k, StringComparer.OrdinalIgnoreCase)),
+    "CygNet catalog lost a point, a unit, or its UDC ordering");
+var built = CygNetCatalog.Build("X", [new("abc", "", "psi"), new("ABC", "dup", "psi"), new("bad udc", "x", ""), new("ZED", " Label ", "")]);
+Expect(built.Entries.Count == 2 && built.Entries[0].Key == "cygnet.udc.ABC" && built.Entries[0].DisplayName == "abc" &&
+    built.Entries[1].DisplayName == "Label", "catalog kept a duplicate or invalid UDC, or did not fall back to the UDC for a blank description");
+var missing = false;
+try { await sim.ListPointsAsync(new CygNetConnection(27212, "CYG_DEMO", "UIS"), "NOPE", CancellationToken.None); }
+catch (CygNetReadException e) when (e.Code == "CYGNET_FACILITY_NOT_FOUND") { missing = true; }
+Expect(missing, "an unknown facility listed points");
+var unsupported = false;
+try { await ((ICygNetClient)new CygNetUnconfiguredClient()).ListPointsAsync(new CygNetConnection(1, "A", "UIS"), "W", CancellationToken.None); }
+catch (CygNetReadException e) when (e.Code == "CYGNET_CATALOG_UNSUPPORTED") { unsupported = true; }
+Expect(unsupported, "a client without point listing did not say so");
+
 Console.WriteLine("CygNet adapter checks passed.");
 return 0;
 

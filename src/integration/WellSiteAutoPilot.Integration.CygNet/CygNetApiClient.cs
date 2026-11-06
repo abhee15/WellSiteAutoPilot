@@ -19,7 +19,12 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
     /// <summary>Facilities read in one discovery. A larger service is reported as truncated, never as complete.</summary>
     private const int MaximumFacilities = 5000;
     private const int PageSize = 250;
+    /// <summary>A facility has a few hundred points; the cap stops a misconfigured service from running a long read.</summary>
+    private const int MaximumPoints = 1000;
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(60);
+
+    private static readonly ConcurrentDictionary<string, global::CygNet.API.Points.ConfigClient> PointClients =
+        new(StringComparer.OrdinalIgnoreCase);
 
     // The FAC service behind a connection's owning service does not change while the Gateway runs.
     private static readonly ConcurrentDictionary<string, global::CygNet.API.Facilities.Client> FacilityClients =
@@ -66,6 +71,23 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
             .GetCurrentAsync(connection.TagFor(facilityId), quantity, cancellationToken);
     }
 
+    public Task<IReadOnlyList<CygNetPoint>> ListPointsAsync(CygNetConnection connection, string facilityId, CancellationToken cancellationToken) =>
+        Run(connection, () =>
+        {
+            var client = PointsClient(connection);
+            var site = connection.SiteService;
+            var tags = client.GetPointTagList($"siteservice = '{site}' AND facilityid = '{facilityId.Replace("'", "''")}'", CancellationToken.None);
+            if (tags.Count == 0) throw new CygNetReadException("CYGNET_FACILITY_NOT_FOUND", "CygNet has no points for this facility.");
+            var points = new List<CygNetPoint>();
+            foreach (var tag in tags.Take(MaximumPoints))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var record = client.ReadPointRecord(tag);
+                points.Add(new CygNetPoint(tag.UDC, record.Description ?? "", record.PrimaryUnits ?? ""));
+            }
+            return (IReadOnlyList<CygNetPoint>)points;
+        }, cancellationToken);
+
     // Site and service are restricted to letters, digits, underscore and hyphen by the adapter's settings.
     private static string FacilityQuery(CygNetConnection connection) =>
         $"facility_site = '{connection.Site}' AND facility_service = '{connection.Service}'";
@@ -74,6 +96,11 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
         FacilityClients.GetOrAdd($"{connection.Domain}/{connection.SiteService}", _ =>
             new global::CygNet.API.Facilities.Client(
                 new ServiceInformation().GetAssociatedService(Service(connection), ServiceType.FAC)));
+
+    private static global::CygNet.API.Points.ConfigClient PointsClient(CygNetConnection connection) =>
+        PointClients.GetOrAdd($"{connection.Domain}/{connection.SiteService}", _ =>
+            new global::CygNet.API.Points.ConfigClient(
+                new ServiceInformation().GetAssociatedService(Service(connection), ServiceType.PNT)));
 
     private static DomainSiteService Service(CygNetConnection connection) =>
         new((ushort)connection.Domain, connection.Site, connection.Service);

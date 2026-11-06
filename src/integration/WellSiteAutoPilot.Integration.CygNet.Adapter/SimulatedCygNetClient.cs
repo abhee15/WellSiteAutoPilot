@@ -73,6 +73,23 @@ public sealed class SimulatedCygNetClient(TimeProvider? clock = null, SimulatedC
         return Task.FromResult(new CygNetFacilityList(Facilities));
     }
 
+    public Task<IReadOnlyList<CygNetPoint>> ListPointsAsync(CygNetConnection connection, string facilityId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Points.ContainsKey(facilityId) && !string.Equals(facilityId, NoValueWell, StringComparison.OrdinalIgnoreCase))
+            throw new CygNetReadException("CYGNET_FACILITY_NOT_FOUND", "CygNet has no such facility.");
+        return Task.FromResult<IReadOnlyList<CygNetPoint>>(
+        [
+            new("RRLPFILAVG", "Average Pump Fillage", "%"),
+            new("PRCASXIN", "Casing Pressure", "psi"),
+            new("PRTUBXIN", "Tubing Pressure", "psi"),
+            new("RRLMXLDDLY", "Maximum Load Daily", "lbf"),
+            new("RRLSTKYEST", "Strokes Yesterday", ""),
+            new("TMRUNYD", "Run Time Yesterday", "second")
+        ]);
+    }
+
     public Task<EngineeringValue> ReadCurrentAsync(
         CygNetConnection connection, string facilityId, string quantity, CancellationToken cancellationToken)
     {

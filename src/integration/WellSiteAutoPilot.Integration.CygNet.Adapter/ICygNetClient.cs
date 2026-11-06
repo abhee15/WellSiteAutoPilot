@@ -26,6 +26,9 @@ public sealed record CygNetFacility(string Id, string? Description = null, strin
 /// <summary><see cref="Truncated"/> is true when the client stopped before the end of the service's facilities.</summary>
 public sealed record CygNetFacilityList(IReadOnlyList<CygNetFacility> Facilities, bool Truncated = false);
 
+/// <summary>A point on a facility as CygNet reports it: the UDC that says what it measures, its label, and its engineering unit (empty means unitless).</summary>
+public sealed record CygNetPoint(string Udc, string Description, string Unit);
+
 /// <summary>
 /// The CygNet libraries sit behind this seam, so everything above it is built and tested without them. Implementations
 /// throw <see cref="CygNetUnavailableException"/> (worded for a person), <see cref="UnauthorizedAccessException"/> or
@@ -42,6 +45,13 @@ public interface ICygNetClient
     /// <summary>Reads one current value. <paramref name="quantity"/> is the logical quantity; the client decides which point serves it.</summary>
     Task<EngineeringValue> ReadCurrentAsync(
         CygNetConnection connection, string facilityId, string quantity, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lists the points on one facility with their UDC, description and unit. This is the source of the quantity catalog:
+    /// a quantity is available when its point exists. Clients that cannot list points keep this default.
+    /// </summary>
+    Task<IReadOnlyList<CygNetPoint>> ListPointsAsync(CygNetConnection connection, string facilityId, CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<CygNetPoint>>(new CygNetReadException("CYGNET_CATALOG_UNSUPPORTED", "This CygNet client cannot list points."));
 }
 
 /// <summary>A reason the connection cannot be used that is already worded for a person.</summary>
