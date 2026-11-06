@@ -20,8 +20,9 @@ it('operations show plain wording, a fallback asset name and keep the raw code a
   render(<App />);
   const row = (await screen.findByText('pump-monitor')).closest('tr')!;
   expect(within(row).getByText('Timed out')).not.toBeNull();
-  const outcome = within(row).getByText('An input was too old');
-  expect(outcome.getAttribute('title')).toBe('EXECUTION_INPUT_STALE');
+  const outcomes = within(row).getAllByText('An input was too old');
+  expect(outcomes).toHaveLength(2); // Wide column and compact row context share the same wording.
+  for (const outcome of outcomes) expect(outcome.getAttribute('title')).toBe('EXECUTION_INPUT_STALE');
   expect(within(row).getByText(assetId.slice(0, 8) + '…')).not.toBeNull();
   expect(document.title).toBe('Runs · WellSite AutoPilot');
 });
