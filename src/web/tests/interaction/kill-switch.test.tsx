@@ -39,6 +39,7 @@ it('says plainly when control is switched off for the whole deployment', async (
   server({ ...released, autonomousControlEnabled: false });
   render(<KillSwitchPanel userId={userId} canManage={false} />);
   expect(await screen.findByText(/Control is switched off for this deployment/)).toBeTruthy();
+  expect(screen.queryByText('The kill switch is released. Approved commands can be sent through the control gate.')).toBeNull();
 });
 
 it('engaging needs no confirmation, sends the optional reason once, and shows the new state', async () => {

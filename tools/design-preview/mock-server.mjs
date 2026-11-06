@@ -46,15 +46,15 @@ const espManifest = { moduleId: 'esp-frequency-optimizer', version: '1.2.0',
         targetFrequencyHz: { type: 'number', minimum: 30, maximum: 70, title: 'Target frequency (Hz)', description: 'Where the optimizer aims.' },
         mode: { type: 'string', enum: ['Hold', 'Trim'] }, allowIncrease: { type: 'boolean' } } } };
 const exec = (n, mode, status, result, minutes, asset) => ({
-  executionId: id(100 + n), logicInstanceId: id(200), moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0',
+  executionId: id(100 + n), logicInstanceId: id(500), moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0',
   configurationRevisionId: id(300), assetId: asset, assetExternalId: null, quantity: null, requestContractVersion: 2,
   trigger: 'Scheduled', scheduledForUtc: iso(minutes), mode, status, correlationId: `corr-${n}`,
   requestedAtUtc: iso(minutes), startedAtUtc: iso(minutes - 0.1), completedAtUtc: status === 'Completed' ? iso(minutes - 0.3) : null,
   resultCode: result, failureCode: status === 'Failed' ? 'PROVIDER_TIMEOUT' : null, outputJson: '{}',
 });
 const configuredDetail = { id: id(500), name: 'ESP frequency — Permian Pad 7', activeRevisionId: id(300), canManage: true, canRequestShadow: true,
-  createdAtUtc: iso(5000), revisions: [{ id: id(300), configuredLogicId: id(500), revisionNumber: 2, moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0',
-    moduleManifestJson: JSON.stringify(espManifest), parametersJson: '{"targetFrequencyHz":52.5,"mode":"Trim","allowIncrease":true}', mode: 'Shadow', status: 'Active',
+  createdAtUtc: iso(5000), nextRunAtUtc: new Date(now + 1800000).toISOString(), revisions: [{ id: id(300), configuredLogicId: id(500), revisionNumber: 2, moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0',
+    moduleManifestJson: JSON.stringify(espManifest), schedule: { enabled: true, cadenceSeconds: 3600, every: 1, unit: 'Hours', startAtUtc: iso(3000), timeZoneId: 'America/Chicago' }, parametersJson: '{"targetFrequencyHz":52.5,"mode":"Trim","allowIncrease":true}', mode: 'Shadow', status: 'Active',
     createdAtUtc: iso(3000), assetBindings: [{ role: 'well', assetId: id(11), parameterOverridesJson: '{}' }], dataBindings: [] }] };
 const executions = [
   exec(1, 'Shadow', 'Completed', 'RecommendationProduced', 3, id(11)),
@@ -66,7 +66,7 @@ const responses = {
   '/api/v1/security/me': { userId: id(900), identityName: 'FIELD\\10482267', displayName: 'Alex Rivera', isActive: true,
     permissions: ['assets.read', 'assets.manage', 'configured-logic.read', 'configured-logic.manage', 'executions.read',
       'executions.request', 'recommendations.read', 'recommendations.decide', 'logic.read', 'logic.manage', 'security.manage'] },
-  '/api/v1/system/health': { status: 'Healthy' },
+  '/api/v1/system/health': { status: 'Degraded', unhealthyCount: 1 },
   '/api/v1/system/info': { product: 'WellSite AutoPilot', components: [
     { name: 'Server', version: '0.1.0', status: 'Healthy' }, { name: 'Integration Gateway', version: '0.1.0', status: 'Healthy' },
     { name: '.NET Worker', version: '0.1.0', status: 'Healthy' }, { name: 'NATS JetStream', version: '2.11', status: 'Degraded' }] },
@@ -108,10 +108,11 @@ const responses = {
   '/api/v1/assets/owners': [{ connectionId: null, name: null, isEnabled: true, assetCount: 4 }],
   '/api/v1/configured-logic': [configuredDetail],
   ['/api/v1/configured-logic/' + id(500)]: configuredDetail,
+  '/api/v1/control/kill-switch': { engaged: false, autonomousControlEnabled: false, changedBy: null, changedAtUtc: null, reason: null },
   '/api/v1/recommendations': [
     { id: id(700), assetId: id(11), status: 'Created', canDecide: true, command: 'Set pump speed', suggestedValue: 58, unit: 'Hz',
       moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0', reasonCode: 'pump_efficiency_low', quantity: 'PumpSpeed',
-      executionId: id(600), configuredLogicId: id(500), configurationRevisionId: id(300), createdAtUtc: iso(6), expiresAtUtc: new Date(now + 3_600_000).toISOString() },
+      executionId: id(101), configuredLogicId: id(500), configurationRevisionId: id(300), createdAtUtc: iso(6), expiresAtUtc: new Date(now + 3_600_000).toISOString() },
     { id: id(701), assetId: id(12), status: 'Created', canDecide: false, command: 'Lower choke', suggestedValue: 12, unit: '%',
       moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0', reasonCode: 'intake_pressure_high', quantity: 'ChokePosition',
       createdAtUtc: iso(40), expiresAtUtc: new Date(now + 3_000_000).toISOString() }],
@@ -229,10 +230,38 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ canCreateRoot: can, canCreateUnderAuthorizedParents: can })); return;
   }
-  if (granted && url.pathname.startsWith('/api/v1/recommendations') && req.method === 'GET') {
-    const decide = granted.includes('recommendations.decide');
+  if (url.pathname.startsWith('/api/v1/recommendations') && req.method === 'GET') {
+    const decide = !granted || granted.includes('recommendations.decide');
+    const items = responses['/api/v1/recommendations'].map(item => ({ ...item, canDecide: item.canDecide && decide }));
+    const detail = url.pathname.match(/^\/api\/v1\/recommendations\/([^/]+)$/);
+    const body = detail ? items.find(item => item.id === detail[1])
+      : items.filter(item => (!url.searchParams.has('executionId') || item.executionId === url.searchParams.get('executionId')) &&
+        (!url.searchParams.has('assetId') || item.assetId === url.searchParams.get('assetId')));
+    res.writeHead(body ? 200 : 404, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(body ?? {})); return;
+  }
+  if (url.pathname === '/api/v1/security/users/page' && req.method === 'GET') {
+    let items = responses['/api/v1/security/users'];
+    const search = (url.searchParams.get('search') ?? '').toLowerCase();
+    if (search) items = items.filter(item => [item.displayName, item.identityName].some(value => value?.toLowerCase().includes(search)));
+    const status = url.searchParams.get('accountStatus');
+    if (status === 'active' || status === 'inactive') items = items.filter(item => item.isActive === (status === 'active'));
+    const assignments = url.searchParams.get('directAssignments');
+    if (assignments === 'with' || assignments === 'without') items = items.filter(item => (item.activeDirectGrantCount > 0) === (assignments === 'with'));
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(responses['/api/v1/recommendations'].map(item => ({ ...item, canDecide: item.canDecide && decide })))); return;
+    res.end(JSON.stringify({ items, nextCursor: null })); return;
+  }
+  if (url.pathname === '/api/v1/configured-logic/' + id(500) + '/schedule' && req.method === 'GET') {
+    const schedule = configuredDetail.revisions[0].schedule;
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ configuredLogicId: id(500), activeRevisionId: id(300), version: 'preview-1', declared: schedule, effective: schedule,
+      differsFromRevision: false, nextRunAtUtc: configuredDetail.nextRunAtUtc, minimumCadenceSeconds: 60, maximumCadenceSeconds: 31536000,
+      belowMinimum: false, canManage: !granted || granted.includes('configured-logic.manage'), changes: [] })); return;
+  }
+  if (url.pathname === '/api/v1/configured-logic/' + id(500) + '/activity' && req.method === 'GET') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ activeRevisionId: id(300), observedAtUtc: new Date(now).toISOString(), nextScheduledAtUtc: configuredDetail.nextRunAtUtc,
+      recentRuns: executions.filter(item => item.logicInstanceId === id(500)) })); return;
   }
   if (granted && url.pathname.startsWith('/api/v1/configured-logic') && req.method === 'GET') {
     const manage = granted.includes('configured-logic.manage'), request = granted.includes('executions.request');
@@ -240,6 +269,19 @@ http.createServer(async (req, res) => {
     const body = responses[url.pathname] ?? [];
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(Array.isArray(body) ? body.map(shape) : shape(body))); return;
+  }
+  if (url.pathname === '/api/v1/executions' && req.method === 'GET') {
+    const items = executions.filter(item => (!url.searchParams.has('assetId') || item.assetId === url.searchParams.get('assetId')) &&
+      (!url.searchParams.has('configuredLogicId') || item.logicInstanceId === url.searchParams.get('configuredLogicId')));
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(items.slice(0, Number(url.searchParams.get('limit') ?? 100)))); return;
+  }
+  if (/^\/api\/v1\/assets\/[^/]+\/logic$/.test(url.pathname) && req.method === 'GET') {
+    const assetId = url.pathname.split('/')[4];
+    const items = configuredDetail.revisions.some(revision => revision.assetBindings.some(binding => binding.assetId === assetId))
+      ? [{ configuration: configuredDetail, nextScheduledAtUtc: configuredDetail.nextRunAtUtc }] : [];
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ isGroupingNode: assetId === id(10), items, hasMore: false })); return;
   }
   const one = url.pathname.match(/^\/api\/v1\/(executions|assets)\/([^/]+)$/);
   if (one && req.method === 'GET') {

@@ -139,7 +139,9 @@ it('pages configurations on the server and keeps the add-logic action', async ()
   await user.click(await screen.findByRole('button', { name: 'More logic' }));
   await screen.findByRole('button', { name: 'Previous logic' });
   expect(fetcher.mock.calls.some(([url]) => url.includes('offset=5&limit=5'))).toBe(true);
-  expect(screen.getByRole('link', { name: /Put logic/ })).toBeTruthy();
+  const assign = screen.getByRole('link', { name: /Put logic/ });
+  expect(assign.compareDocumentPosition(screen.getByText('Technical details')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(assign.getAttribute('href')).toBe('#logic/new%3A' + assetId);
 });
 
 it('opens scoped history, pages older runs and preserves the inspected run through live replacement', async () => {

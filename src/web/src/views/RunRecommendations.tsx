@@ -50,7 +50,7 @@ export function RunRecommendations({ executionId, assets, canReadAssets, userId 
             <strong>{assetIdentityLabel(item.assetId, directory.assets, directory.owners)}</strong>
             {awaiting ? <StatusIndicator tone="warning" label={t('operations.awaitingDecision')} />
               : <Status value={recommendationIsExpired(item, Date.now()) ? 'Expired' : item.status} />}
-            <span>{recommendationProposal(item)}</span>
+            <span className="operator-item-proposal">{recommendationProposal(item)}</span>
             {awaiting && <small>{t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>}
           </div>
           {awaiting && item.canDecide && <ContextLink href={`#recommendations/${item.id}`} label={t('operations.reviewChange')} />}

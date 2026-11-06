@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react';
 import { LoadingIndicator } from './LoadingIndicator';
+import { Check, ChevronRight, Filter } from 'lucide-react';
+import { StatusIndicator } from './Status';
+import type { StatusTone } from './Status';
+import './summaryCard.css';
 
 type SummaryCardProps = {
   label: string;
   value: string;
   detail: string;
+  tone?: StatusTone;
 } & (
   | { href: string; onSelect?: never; selected?: never }
   | { href?: never; onSelect?: () => void; selected?: boolean }
@@ -18,12 +23,17 @@ export function SummaryCard({
   href,
   onSelect,
   selected = false,
+  tone,
 }: SummaryCardProps) {
   const body = (
     <>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
+      <span className="summary-card-heading"><span>{label}</span>
+        {href ? <ChevronRight className="summary-card-cue" size={16} aria-hidden="true" />
+          : onSelect ? (selected ? <Check className="summary-card-cue" size={16} aria-hidden="true" />
+            : <Filter className="summary-card-cue" size={16} aria-hidden="true" />) : null}
+      </span>{' '}
+      <strong>{tone ? <StatusIndicator tone={tone} label={value} /> : value}</strong>{' '}
+      {detail && <small>{detail}</small>}
     </>
   );
   if (href) return <a className="summary-card summary-card-link" href={href}>{body}</a>;

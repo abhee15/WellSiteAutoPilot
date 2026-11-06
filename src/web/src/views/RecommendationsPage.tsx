@@ -1,6 +1,6 @@
 import { ContextLink } from '../components/ContextLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Check, RefreshCw } from 'lucide-react';
 import { hashFor, useHashDetail } from '../routing';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import type { AssetResponse, ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
@@ -94,7 +94,9 @@ export function RecommendationInboxTable({
                 else onExecute?.(item.id!);
               }}>
               <td>
-                {item.status ? <Status value={item.status} tone={recommendationIsAwaiting(item, nowUtc) ? 'warning' : undefined} /> : '—'}
+                {item.status ? <Status value={recommendationIsExpired(item, nowUtc) ? 'Expired' : item.status}
+                  label={recommendationIsAwaiting(item, nowUtc) ? t('operations.awaitingDecision') : undefined}
+                  tone={recommendationIsAwaiting(item, nowUtc) ? 'warning' : undefined} /> : '—'}
                 {recommendationIsExpired(item, nowUtc) && (
                   <small>{t('inbox.expiredNote')}</small>
                 )}
@@ -108,13 +110,13 @@ export function RecommendationInboxTable({
               </td>
               <td>
                 <strong>{item.command ?? item.code ?? '—'}</strong>
-                <small>{formatSuggestedValue(item.suggestedValue, item.unit)}</small>
-                <small>{item.quantity ?? '—'}</small>
+                <span className="recommendation-proposal-value">{formatSuggestedValue(item.suggestedValue, item.unit)}</span>
+                {item.quantity && <small>{humanize(item.quantity)}</small>}
+                <small>{t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>
               </td>
               <td className="run-col-secondary">{item.reasonCode ? humanize(item.reasonCode) : '—'}</td>
               <td className="run-col-secondary">
                 <strong>{formatDetailTimestamp(item.createdAtUtc)}</strong>
-                <small>{t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>
               </td>
               <td className="run-col-secondary">
                 <strong>{item.decisionBy ?? '—'}</strong>
@@ -303,10 +305,11 @@ export function RecommendationsPage({
     <>
       <KillSwitchPanel userId={userId} canManage={canExecute} />
       <ControlActionsPanel userId={userId} canManage={canExecute} selectedActionId={selectedActionId} />
-      <section className="summary-grid" aria-label={t('inbox.summary')}>
+      <section className="summary-grid recommendation-summary" data-detail-open={reviewOpen} aria-label={t('inbox.summary')}>
         {RECOMMENDATION_INBOX_FILTERS.map(kind => (
           <SummaryCard key={kind} label={t(cardLabels[kind].label)} value={String(counts[kind])}
             detail={t(cardLabels[kind].detail)}
+            tone={counts[kind] > 0 && kind !== 'decided' ? 'warning' : undefined}
             selected={criteria.filters.length === 1 && criteria.filters[0] === kind}
             onSelect={() => setCriteria(current => ({ ...current,
               filters: current.filters.length === 1 && current.filters[0] === kind ? [] : [kind] }))} />
@@ -352,7 +355,9 @@ export function RecommendationsPage({
               className="recommendation-run" aria-pressed={selectedRun === run.key}
               onClick={() => { setChosenRun(run.key); setSelectedReviewId(null); setReviewNotice(null); }}>
               <strong>{[...new Set(run.items.map(item => configuredLogic.find(logic => logic.id === item.configuredLogicId)?.name ?? item.moduleId).filter(Boolean))].join(', ') || t('inbox.runUnavailable')}</strong>
-              <span>{run.executionId ? t('overview.runReference', { id: shortId(run.executionId) }) : t('inbox.runUnavailable')}</span>
+              <span className="recommendation-run-reference">{run.executionId ? t('overview.runReference', { id: shortId(run.executionId) }) : t('inbox.runUnavailable')}
+                {selectedRun === run.key && <Check size={16} aria-hidden="true" />}
+              </span>
               <small>{t('inbox.runProposals', { count: run.items.length })}</small>
               {run.latestAtUtc && <time dateTime={run.latestAtUtc}>{formatDetailTimestamp(run.latestAtUtc)}</time>}
             </button>)}

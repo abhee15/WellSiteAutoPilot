@@ -9,7 +9,7 @@ import { formatTimestamp } from '../format';
 import { connectionStatus, loadAdapters, loadConnections } from './connections';
 import type { Adapter, Connection, ConnectionStatus } from './connections';
 import { LoadingIndicator } from '../components/LoadingIndicator';
-import { Status } from '../components/Status';
+import { Status, statusTone } from '../components/Status';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 
 const statusLabels: Record<ConnectionStatus, MessageKey> = {
@@ -87,7 +87,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
           {services.state === 'ready' && (
             <div className="health-list">
               {services.value.components.map(component => (
-                <div className="health-row" key={component.name}>
+                <div className="health-row" data-tone={statusTone(component.status)} key={component.name}>
                   <div>
                     <strong>{component.name}</strong>
                     <small>{t('status.version', { version: component.version })}</small>
@@ -111,7 +111,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
                 const status = connectionStatus(item);
                 const system = connections.value.adapters.find(a => a.key === item.adapterKey)?.displayName ?? item.adapterKey;
                 return (
-                  <div className="health-row" key={item.id}>
+                  <div className="health-row" data-tone={statusTone(status)} key={item.id}>
                     <div>
                       <a className="text-link" href={`#connections/${item.id}`}><strong>{item.name}</strong></a>
                       <small>{system} · {item.lastTest
