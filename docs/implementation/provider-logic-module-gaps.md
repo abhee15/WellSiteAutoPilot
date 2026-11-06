@@ -28,7 +28,7 @@ Today the adapter advertises only `AssetDiscovery` and `CurrentData`. Current re
 | G2 | Units and ranges are hard-coded | The adapter forces `%` and 0-100 for every quantity | Per-quantity unit and precision come from the Units block | S |
 | G3 | No quantity catalog for authors | Authors must guess supported quantities, units and per-well-type availability | `Surveillance/AvailableQuantities/{wellId}`, `WellControllerCapabilities/{wellId}` | M |
 | G4 | Setpoints cannot be read | `VFDMinFrq/SloSpeed`, `VFDMaxFrq/PkSpeed`, `IdealPF/PmpFillPer`, `MinPFA` | `WellConfig/GetWellAutonomousControlGroupData` (already called for device types) | M |
-| G5 | No history | Averages of SPM and fillage over the last N hours | `Surveillance/GetTrends/{well}/{start}/{end}` returns daily averages only. Hourly history may exist only via CygNet. Needs a decision | M-L |
+| G5 | No history | Averages of SPM and fillage over the last N hours | `Surveillance/Well/DailyAverage/{well}/{start}/{end}` (GET) returns daily values only; `Surveillance/GetTrends` returned 401 in our probe. Hourly history may exist only via CygNet. Needs a decision | M-L |
 | G6 | Module parameters come from ForeSite ACL settings | Sheaves, motor RPM, reducer ratio, step limits | `GetACLLogicSettings`, `GetLogicModuleForWellId` | M |
 | G7 | Alarms | Set and clear `VSD_Minimum_Fillage` | Read: `CurrentAlarms/{wellId}`. Write: `SetWellAlarms`, `ClearWellAlarms` | M |
 | G8 | Recommendations and writes | Recommendation mode and autonomous setpoint writes | `ApplyRecommendationForEachSetpoint`, `Well/Command`, ASU workbench. Needs a governed design (Shadow, then recommend, then approved write) and `Verification` readback | L |
@@ -289,9 +289,9 @@ One POC branch per gap, in `origin`. Code-gap branches are **stacked** in the or
 | G12 `AverageSPM` | `poc/gap-g12-average-spm` | POC done | From the status document |
 | G23 daily quantities and sentinel | `poc/gap-g23-daily-quantities-sentinel` | POC done | Today and yesterday cycles, run time, idle time, strokes, inferred production. 65535 strokes is missing |
 | G3 discovered catalog, G13 device type | `poc/gap-g03-discovered-catalog` (`8c3d395c`) | POC done (adapter level) | `ForeSiteCatalog.ReadAsync` lists only quantities the well reports with a real value, with units and ranges from the `Units` block, plus `DeviceType`. Gateway/API exposure and `OptionalQuantities` are not done |
-| G4, G11, G19, G24, G26 setpoint reads | not started | Planned | `AllSavedSetPointParams`, per-controller map as data |
-| G5, G22, G25 history, daily snapshot, time zone | not started | Planned | `GetTrends`, `DailyAverage`; time zone as an asset attribute |
-| G7, G14 alarms | not started | Planned | `CurrentAlarms`, intelligent alarms, read-only |
+| G4, G11, G19, G24, G26 setpoint reads | `poc/gap-g04-readonly-setpoints` (`099d739c`) | POC done (read-only) | `ForeSiteSetpoints.ReadAsync`: GET `Surveillance/Well/AllSavedSetPointParams?WellId=&scanOption=0`, live-probed on well 776 (groups, `ElementId`, string `Value`, `UnitKey`, `RangeLow/High`, `IsReadOnly`). Element ids stay controller-native; the per-device-type map is still to do (data, not code) |
+| G5, G22, G25 history, daily snapshot, time zone | `poc/gap-g05-daily-averages` (`65b467d4`) | POC done (daily only) | `ForeSiteDailyAverageReader`: GET `Surveillance/Well/DailyAverage/{id}/{start}/{end}` (ISO 8601), live-probed. Day edges come back as UTC (05:00Z for a Central well), so the asset needs a time zone attribute. `Surveillance/GetTrends` returned 401 on both GET and POST for 776 and is not used. Sub-daily history is still open |
+| G7, G14 alarms | `poc/gap-g07-readonly-alarms` (`d965f647`) | POC done (read-only) | `ForeSiteAlarms.ReadAsync`: GET `Alarms/CurrentAlarms/{id}`, live-probed. Intelligent-alarm detail and set/clear are not done |
 | G10 ForeSite simulator | not started | Planned | Recorded from live responses |
 | G6 parameter pre-fill, G15 reference data | not started | Design only | Needs the ACL settings route (401 on GET) and a decision on module resources |
 | G8, G20, G21 recommendations and writes | not started | Planned last | Governed design first |
