@@ -156,7 +156,7 @@ export function OverviewPage({
   const action = controlActions?.[0];
   const pendingShown = pending.slice(0, action ? 2 : 3);
   const failedShown = failed.slice(0, 3 - pendingShown.length - (action ? 1 : 0));
-  const setup = items.filter(item => ['noAssets', 'noLogic', 'idleLogic'].includes(item.kind));
+  const setup = items.filter(item => ['noAssets', 'noLogic'].includes(item.kind));
   const runAssetIds = [...new Set([...latestRuns, ...failedShown].flatMap(run =>
     describeRunContext(run, configuredLogic, assets).assetIds.slice(0, 2))
     .concat(pendingShown.flatMap(item => item.assetId ? [item.assetId] : []), action?.assetId ? [action.assetId] : []))];
@@ -170,13 +170,13 @@ export function OverviewPage({
         <h2>{t('overview.attention')}</h2>
         {!attentionReady ? <LoadingIndicator label={t('overview.loading')} /> : <>
           {attentionUnavailable && <p role="status">{t('overview.attentionUnavailable')}</p>}
-          {!action && !pendingShown.length && !failedShown.length && !attentionUnavailable && <p>{t('overview.allClear')}</p>}
+          {!action && !pendingShown.length && !failedShown.length && !attentionUnavailable && setup.length === 0 && <p>{t('overview.allClear')}</p>}
           <ul className="operator-items">
             {action && <li>
               <div className="operator-item-context">
                 <strong>{assetIdentityLabel(action.assetId, directory.assets, directory.owners)}</strong>
                 <StatusIndicator tone="warning" label={t('overview.actionUnconfirmed')} />
-                <span>{recommendationProposal({ ...action, suggestedValue: action.value })}</span>
+                <span className="operator-item-proposal">{recommendationProposal({ ...action, suggestedValue: action.value })}</span>
                 <small>{t('overview.runReference', { id: shortId(action.executionId) })} · {formatDetailTimestamp(action.createdAtUtc)}</small>
               </div>
               <ContextLink href={hashFor('recommendations', `actions/${action.id}`)} label={t('overview.inspectActions')} />
@@ -185,7 +185,7 @@ export function OverviewPage({
               <div className="operator-item-context">
                 <strong>{assetIdentityLabel(item.assetId, directory.assets, directory.owners)}</strong>
                 <StatusIndicator tone="warning" label={t('operations.awaitingDecision')} />
-                <span>{recommendationProposal(item)}</span>
+                <span className="operator-item-proposal">{recommendationProposal(item)}</span>
                 <small>{item.moduleId} · {t('overview.runReference', { id: shortId(item.executionId) })} · {t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>
               </div>
               {item.canDecide && <ContextLink href={`#recommendations/${item.id}`} label={t('operations.reviewChange')} />}
@@ -202,6 +202,9 @@ export function OverviewPage({
               </li>;
             })}
           </ul>
+          {setup.length > 0 && <ul className="overview-setup">
+            {setup.map(item => <li key={item.kind}><ContextLink href={item.href} label={attentionText(item)} /></li>)}
+          </ul>}
           <div className="overview-attention-links">
             {pending.length > pendingShown.length && <a href="#recommendations">{t('overview.allRecommendations')}</a>}
             {failed.length > failedShown.length && <a href="#operations">{t('overview.allRuns')}</a>}
@@ -217,7 +220,7 @@ export function OverviewPage({
         {permissions.includes('executions.read') &&
           <SummaryCard label={t('overview.recentRuns')} value={String(executions.length)} detail={t('overview.recentRunsDetail')} href={hashFor('operations')} />}
         {canReadServices &&
-          <SummaryCard label={t('overview.services')} value={unhealthy == null ? t('overview.unknown') : String(unhealthy)} detail="" href={hashFor('status')} />}
+          <SummaryCard label={t('overview.services')} value={unhealthy == null ? t('overview.unknown') : String(unhealthy)} tone={unhealthy != null && unhealthy > 0 ? 'warning' : undefined} detail="" href={hashFor('status')} />}
       </section>
       {permissions.includes('executions.read') && ready && latestRuns.length > 0 && (
         <section className="panel overview-latest" aria-label={t('overview.latestRuns')}>
@@ -238,9 +241,6 @@ export function OverviewPage({
           </ul>
         </section>
       )}
-      {ready && setup.length > 0 && <ul className="overview-setup">
-        {setup.map(item => <li key={item.kind}><a href={item.href}>{attentionText(item)}</a></li>)}
-      </ul>}
     </>
   );
 }
