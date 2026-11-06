@@ -158,7 +158,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     } finally { pending.current = false; if (!c.signal.aborted) setBusy(false); }
   }
   const editor = (editing && mayManage && !denied && (!selectedId || detail) && <ConfiguredLogicSetupPanel
-      modules={modules} assets={assets} owners={owners} assetTypes={assetTypes} canReadViews={canReadViews}
+      modules={modules} assets={assets} owners={owners} assetTypes={assetTypes} canReadViews={canReadViews} showHeading={Boolean(detail)}
       configuration={detail ?? undefined} revision={source} editDraft={editDraft} initialAssetId={initialAssetId} initialViewId={initialViewId}
       onSaved={(value, savedRevisionId) => { setDetail(value); setRevisionId(savedRevisionId ?? orderedRevisions(value)[0]?.id ?? null); setTab('configuration');
         setEditing(false); setSource(undefined); setNotice(t('setup.saved')); void onChanged(); }}
