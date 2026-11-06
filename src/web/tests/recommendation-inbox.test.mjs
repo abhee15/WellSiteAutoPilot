@@ -130,7 +130,7 @@ test('decision visibility follows server permission even for a custom role name'
   const readOnly = renderToStaticMarkup(createElement(page.RecommendationsPage, {
     userId: 'named-admin', permissions: [],
   }));
-  assert.match(deciding, /Approval records a governed review decision/);
+  assert.doesNotMatch(deciding, /Read-only review/);
   assert.match(readOnly, /Read-only review/);
 });
 

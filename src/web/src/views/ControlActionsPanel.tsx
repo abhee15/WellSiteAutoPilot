@@ -1,4 +1,6 @@
 import { ContextLink } from '../components/ContextLink';
+import { Notice } from '../components/Notice';
+import { PanelLoading } from '../components/LoadingIndicator';
 import './controlActions.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
@@ -23,6 +25,8 @@ type Props = {
    */
   canManage: boolean;
   selectedActionId?: string | null;
+  compact?: boolean;
+  showEmpty?: boolean;
 };
 
 const ERRORS: Record<ControlActionErrorKind, MessageKey> = {
@@ -44,7 +48,7 @@ function waitingLabel(createdAtUtc: string, nowMs: number): string {
  * Commands that were sent but whose result nobody has confirmed. Verifying asks the target again; resolving records,
  * as the operator and with a note, whether the command was applied. Shown only while something needs a decision.
  */
-export function ControlActionsPanel({ userId, canManage, selectedActionId }: Props) {
+export function ControlActionsPanel({ userId, canManage, selectedActionId, compact = false, showEmpty = false }: Props) {
   const [actions, setActions] = useState<ControlAction[] | null>(null);
   const [loadError, setLoadError] = useState<ControlActionErrorKind | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -140,6 +144,18 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
   });
 
   if (!userId) return null;
+  const open = (actions ?? []).filter(controlActionNeedsDecision);
+  const count = open.length >= CONTROL_ACTION_LIST_LIMIT
+    ? t('controlActions.countMany', { count: CONTROL_ACTION_LIST_LIMIT })
+    : t('controlActions.count', { count: open.length });
+  if (compact) {
+    if (loadError) return <Notice tone="error">{t(ERRORS[loadError])}</Notice>;
+    if (!open.length) return null;
+    return <section className="control-actions-summary" aria-label={t('controlActions.heading')}>
+      <strong>{t('controlActions.heading')}</strong><Status value={count} tone="warning" />
+      <ContextLink href={hashFor('recommendations', 'actions')} label={t('workspace.reviewCommands')} />
+    </section>;
+  }
   if (loadError) {
     return (
       <section ref={panelRef} tabIndex={selectedActionId ? -1 : undefined} className="panel control-actions" aria-label={t('controlActions.heading')}>
@@ -148,10 +164,13 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
       </section>
     );
   }
-  const open = (actions ?? []).filter(controlActionNeedsDecision);
   const shown = selectedActionId ? open.filter(action => action.id === selectedActionId) : open;
   const nowMs = Date.now();
-  if (open.length === 0 && !selectedActionId) return null;
+  if (showEmpty && actions === null) return <section className="panel control-actions" aria-label={t('controlActions.heading')}>
+    <div className="panel-header"><h2>{t('controlActions.heading')}</h2></div>
+    <PanelLoading label={t('workspace.loadingCommands')} />
+  </section>;
+  if (open.length === 0 && !selectedActionId && !showEmpty) return null;
 
   return (
     <section ref={panelRef} tabIndex={selectedActionId ? -1 : undefined} className="panel control-actions" aria-label={t('controlActions.heading')}>
@@ -161,9 +180,10 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
           value={open.length >= CONTROL_ACTION_LIST_LIMIT
             ? t('controlActions.countMany', { count: CONTROL_ACTION_LIST_LIMIT })
             : t('controlActions.count', { count: open.length })}
-          tone="warning" />
+          tone={open.length > 0 ? 'warning' : 'neutral'} />
       </div>
       <p>{t('controlActions.intro')}</p>
+      {showEmpty && actions !== null && !open.length && !selectedActionId && <Notice announce={false}>{t('workspace.noCommands')}</Notice>}
       {selectedActionId && <ContextLink href={hashFor('recommendations', 'actions')} label={t('controlActions.all')} />}
       {selectedActionId && actions !== null && !shown.length && <p role="status">{t('controlActions.selectedUnavailable')}</p>}
       <ul className="control-actions-list">

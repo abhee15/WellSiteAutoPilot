@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
+import { Notice } from '../components/Notice';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { KILL_SWITCH_REASON_MAX, KillSwitchError, fetchKillSwitch, setKillSwitch } from './controlKillSwitch';
@@ -12,6 +14,8 @@ type Props = {
   userId: string | null | undefined;
   /** control.manage: may engage and release. Everyone who can read recommendations sees the state. */
   canManage: boolean;
+  /** The review workspace keeps state visible; editing lives in the addressable controls task. */
+  compact?: boolean;
 };
 
 /**
@@ -19,7 +23,7 @@ type Props = {
  * release for those who hold control.manage. Engaging only ever stops commands, so it needs no confirmation;
  * releasing lets them flow again, so it asks for one.
  */
-export function KillSwitchPanel({ userId, canManage }: Props) {
+export function KillSwitchPanel({ userId, canManage, compact = false }: Props) {
   const [state, setState] = useState<KillSwitchState | null>(null);
   const [loadError, setLoadError] = useState<KillSwitchErrorKind | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -103,6 +107,17 @@ export function KillSwitchPanel({ userId, canManage }: Props) {
   };
 
   if (!userId) return null;
+  if (compact) return <section className="kill-switch-summary" aria-label={t('killSwitch.heading')}>
+    {state ? <>
+      <div className="kill-switch-summary-state">
+        <strong>{t('killSwitch.heading')}</strong>
+        <Status value={state.engaged ? t('killSwitch.engaged') : t('killSwitch.released')} tone={state.engaged ? 'warning' : 'neutral'} />
+        <span>{!state.autonomousControlEnabled ? t('workspace.controlOff')
+          : state.engaged ? t('workspace.commandsBlocked') : t('workspace.gatesApply')}</span>
+      </div>
+    </> : loadError ? <Notice tone="error">{errors[loadError]}</Notice>
+      : <LoadingIndicator label={t('killSwitch.loading')} />}
+  </section>;
   if (!state) {
     return (
       <section className="panel kill-switch" aria-label={t('killSwitch.heading')}>

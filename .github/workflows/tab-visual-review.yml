@@ -114,6 +114,8 @@ jobs:
         run: |
           npx vite build --config ../../tools/design-preview/shared-forms.vite.mjs --outDir "$GITHUB_WORKSPACE/preview-forms" --emptyOutDir
           python ../../tools/design-preview/capture-shared-forms.py "$GITHUB_WORKSPACE/preview-forms" "$GITHUB_WORKSPACE/screenshots/shared-forms" http://127.0.0.1:5198 http://127.0.0.1:5199
+      - name: Review recommendation task and scroll ownership
+        run: python after/tools/design-preview/capture-recommendations.py "$GITHUB_WORKSPACE/screenshots/recommendations" http://127.0.0.1:5198 http://127.0.0.1:5199
       - name: Upload before/after screenshots and layout audit
         if: always()
         uses: actions/upload-artifact@v4

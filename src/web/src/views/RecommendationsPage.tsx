@@ -1,7 +1,9 @@
+import { SelectField } from '../components/FormFields';
+import { TabBar, TabStrip } from '../components/TabStrip';
 import { Notice } from '../components/Notice';
 import { ContextLink } from '../components/ContextLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { hashFor, useHashDetail } from '../routing';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import type { AssetResponse, ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
@@ -28,7 +30,6 @@ import { PanelLoading } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { ActionButton } from '../components/ActionButton';
 import { EmptyRow, SummaryCard } from '../components/common';
-import type { MessageKey } from '../localization';
 import { humanize } from './auditPresentation';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
@@ -147,11 +148,7 @@ export function RecommendationInboxTable({
   );
 }
 
-const cardLabels: Record<'awaiting' | 'expired' | 'decided', { label: MessageKey; detail: MessageKey }> = {
-  awaiting: { label: 'inbox.awaiting', detail: 'inbox.authorizedWindow' },
-  expired: { label: 'inbox.expired', detail: 'inbox.expiryDescription' },
-  decided: { label: 'inbox.decided', detail: 'inbox.authorizedWindow' },
-};
+const cardLabels = { awaiting: 'workspace.awaiting', expired: 'workspace.expired', decided: 'workspace.decided' } as const;
 
 export function RecommendationsPage({
   userId, permissions, assets = [], configuredLogic = [],
@@ -171,7 +168,9 @@ export function RecommendationsPage({
   const [detail, setSelectedReviewId] = useHashDetail('recommendations');
   const controlSelected = detail === 'actions' || detail?.startsWith('actions/');
   const selectedActionId = detail?.startsWith('actions/') ? detail.slice('actions/'.length) : null;
-  const selectedReviewId = controlSelected ? null : detail;
+  const settingsSelected = detail === 'settings';
+  const queueSelected = !controlSelected && !settingsSelected;
+  const selectedReviewId = queueSelected ? detail : null;
   const [chosenRun, setChosenRun] = useState<string | null>(null);
   const [reviewNotice, setReviewNotice] = useState<string | null>(null);
   const canDecide = Boolean(userId && permissions?.includes('recommendations.decide'));
@@ -303,19 +302,18 @@ export function RecommendationsPage({
   };
 
   return (
-    <>
-      <KillSwitchPanel userId={userId} canManage={canExecute} />
-      <ControlActionsPanel userId={userId} canManage={canExecute} selectedActionId={selectedActionId} />
-      <section className="summary-grid recommendation-summary" data-detail-open={reviewOpen} aria-label={t('inbox.summary')}>
-        {RECOMMENDATION_INBOX_FILTERS.map(kind => (
-          <SummaryCard key={kind} label={t(cardLabels[kind].label)} value={String(counts[kind])}
-            detail={t(cardLabels[kind].detail)}
-            tone={counts[kind] > 0 && kind !== 'decided' ? 'warning' : undefined}
-            selected={criteria.filters.length === 1 && criteria.filters[0] === kind}
-            onSelect={() => setCriteria(current => ({ ...current,
-              filters: current.filters.length === 1 && current.filters[0] === kind ? [] : [kind] }))} />
-        ))}
-      </section>
+    <div className="recommendations-workspace" data-task={queueSelected ? 'review' : 'control'}>
+      <TabBar><TabStrip mode="navigation" label={t('workspace.navigation')}>
+        <a className="tab-strip-item" href={hashFor('recommendations')} aria-current={queueSelected ? 'page' : undefined}>{t('workspace.review')}</a>
+        <a className="tab-strip-item" href={hashFor('recommendations', 'actions')} aria-current={controlSelected ? 'page' : undefined}>{t('controlActions.heading')}</a>
+        <a className="tab-strip-item" href={hashFor('recommendations', 'settings')} aria-current={settingsSelected ? 'page' : undefined}>{t('workspace.commandControls')}</a>
+      </TabStrip></TabBar>
+      <div className="recommendations-control-context">
+        <KillSwitchPanel userId={userId} canManage={canExecute} compact={!settingsSelected} />
+        <ControlActionsPanel userId={userId} canManage={canExecute} selectedActionId={selectedActionId}
+          compact={!controlSelected} showEmpty={Boolean(controlSelected)} />
+      </div>
+      {queueSelected && <>
       <div {...splitFocus} className="split-layout runs-layout recs-layout" data-has-selection={reviewOpen}>
       <div className="split-panes">
       <section className="panel split-browse">
@@ -330,9 +328,18 @@ export function RecommendationsPage({
             <ActionButton icon={RefreshCw} iconOnly label={t('inbox.reload')} busy={isLoading} disabled={!userId} onClick={() => void refresh()} />
           </div>
         </div>
-        <p className="recommendation-readonly-note">
-          {canExecute ? t('control.execute.pageNotice') : canDecide ? t('decision.governanceNotice') : t('inbox.readOnly')}
-        </p>
+      <section className="summary-grid recommendation-summary" data-detail-open={reviewOpen} aria-label={t('inbox.summary')}>
+        {RECOMMENDATION_INBOX_FILTERS.map(kind => (
+          <SummaryCard density="compact" key={kind} label={t(cardLabels[kind])} value={String(counts[kind])}
+            detail=""
+            tone={counts[kind] > 0 && kind !== 'decided' ? 'warning' : undefined}
+            selected={criteria.filters.length === 1 && criteria.filters[0] === kind}
+            onSelect={() => setCriteria(current => ({ ...current,
+              filters: current.filters.length === 1 && current.filters[0] === kind ? [] : [kind] }))} />
+        ))}
+      </section>
+        {canExecute && <p className="recommendation-readonly-note">{t('control.execute.pageNotice')}</p>}
+        {!canExecute && !canDecide && <p className="recommendation-readonly-note">{t('inbox.readOnly')}</p>}
         <RecommendationInboxControls
           criteria={criteria}
           onChange={setCriteria}
@@ -346,22 +353,24 @@ export function RecommendationsPage({
         {error && <p role="alert" className="execution-detail-error inbox-error">
           {errorMessages[error]}
         </p>}
-        <div className="recommendation-run-heading">
-          <p>{t('inbox.runPreview')}</p>
-          {permissions?.includes('executions.read') && <ContextLink href={hashFor('operations')} label={t('inbox.viewAllRuns')} />}
-        </div>
         {(!isLoading || lastUpdated) && !error && <>
-          <div className="recommendation-run-list" role="group" aria-label={t('inbox.runSelection')}>
-            {runs.map(run => <button type="button" key={run.key}
-              className="recommendation-run" aria-pressed={selectedRun === run.key}
-              onClick={() => { setChosenRun(run.key); setSelectedReviewId(null); setReviewNotice(null); }}>
-              <strong>{[...new Set(run.items.map(item => configuredLogic.find(logic => logic.id === item.configuredLogicId)?.name ?? item.moduleId).filter(Boolean))].join(', ') || t('inbox.runUnavailable')}</strong>
-              <span className="recommendation-run-reference">{run.executionId ? t('overview.runReference', { id: shortId(run.executionId) }) : t('inbox.runUnavailable')}
-                {selectedRun === run.key && <Check size={16} aria-hidden="true" />}
-              </span>
-              <small>{t('inbox.runProposals', { count: run.items.length })}</small>
-              {run.latestAtUtc && <time dateTime={run.latestAtUtc}>{formatDetailTimestamp(run.latestAtUtc)}</time>}
-            </button>)}
+          <div className="recommendation-run-picker">
+            <SelectField label={t('inbox.runSelection')} value={selectedRun ?? ''}
+              disabled={!runs.length && !linkedRun}
+              onChange={event => { setChosenRun(event.target.value); setSelectedReviewId(null); setReviewNotice(null); }}>
+              {!runs.length && !linkedRun && <option value="">{t('inbox.noRuns')}</option>}
+              {linkedRun && !selectedGroup && <option value={linkedRun}>{t('overview.runReference', { id: shortId(linkedRun) })}</option>}
+              {runs.map(run => <option key={run.key} value={run.key}>
+                {[...new Set(run.items.map(item => configuredLogic.find(logic => logic.id === item.configuredLogicId)?.name ?? item.moduleId).filter(Boolean))].join(', ') || t('inbox.runUnavailable')}
+                {' · '}{run.executionId ? t('overview.runReference', { id: shortId(run.executionId) }) : t('inbox.runUnavailable')}
+                {run.latestAtUtc ? ' · ' + formatDetailTimestamp(run.latestAtUtc) : ''}
+              </option>)}
+            </SelectField>
+            <div className="recommendation-run-scope">
+              <span>{t('workspace.runScope')}</span>
+              {!runLoading && !runFailed && <span>{t('workspace.proposalCount', { count: proposals.length })}</span>}
+              {permissions?.includes('executions.read') && <ContextLink href={hashFor('operations')} label={t('inbox.viewAllRuns')} />}
+            </div>
           </div>
           {!runs.length && !linkedRun && <p>{t('inbox.noRuns')}</p>}
           {linkedRun && !selectedGroup && <h3>{t('overview.runReference', { id: shortId(linkedRun) })}</h3>}
@@ -381,7 +390,7 @@ export function RecommendationsPage({
           {runItems.length === 100 && <p>{t('operations.recommendationsLimited')}</p>}
         </>}
       </section>
-      <div className="split-selected">
+      <div className="split-selected" tabIndex={-1}>
         <ActionButton label={t('inbox.backToList')} className="split-back" onClick={() => setSelectedReviewId(null)} />
         {reviewing && selectedRecommendation && (
             <RecommendationDecisionReviewPanel
@@ -425,6 +434,7 @@ export function RecommendationsPage({
       </div>
       </div>
       </div>
-    </>
+      </>}
+    </div>
   );
 }

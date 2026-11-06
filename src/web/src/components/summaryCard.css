@@ -46,3 +46,12 @@
 .summary-card strong .status-indicator-icon { width: var(--size-icon); height: var(--size-icon); }
 
 .summary-card-heading > span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Compact metric filters keep data workspaces focused on their records. */
+.summary-card[data-density='compact'] { grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--space-6); padding: var(--space-10); min-height: var(--size-control); }
+.summary-card[data-density='compact'] .summary-card-heading { font-size: var(--font-size-body-small); gap: var(--space-6); }
+.summary-card[data-density='compact'] .summary-card-cue { display: none; }
+.summary-card[data-density='compact'] strong { font-size: var(--font-size-body); font-weight: var(--font-weight-medium); }
+.summary-card[data-density='compact'] small { grid-column: 1 / -1; }
+@media (pointer: coarse) { .summary-card[data-density='compact'] { min-height: var(--size-touch-target); } }
+@container (width <= 25em) { .summary-card[data-density='compact'] { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } }

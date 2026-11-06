@@ -63,3 +63,12 @@ python ../../tools/design-preview/capture-shared-forms.py /tmp/wsa-form-fixture 
 ```
 
 Set `CHROMIUM_PATH` only when using an existing local browser instead of Playwright's installed Chromium.
+
+## Recommendations workspace
+
+`capture-recommendations.py OUTPUT BEFORE_URL AFTER_URL` reviews local mock previews at
+1440/900/420/320px plus a short desktop viewport. It captures pending, expired, approved,
+read-only, unconfirmed-command and settings tasks, measures scroll ownership and overflow,
+and checks detail/return focus, metadata disclosure and browser Back. It sends no commands;
+the shared-form audit separately covers delayed decisions, retained input and execution refusals.
+The visual-review workflow runs both and uploads their screenshots and JSON audits.
