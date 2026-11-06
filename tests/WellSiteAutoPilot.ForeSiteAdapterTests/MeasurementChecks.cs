@@ -119,6 +119,24 @@ internal static class MeasurementChecks
         Check(catalog.DeviceType == "WellPilotRPOC" && keys.SequenceEqual(["CurrentSPM", "CyclesYesterday", "PumpFillage"]) &&
             catalog.Entries.Single(e => e.Key == "CurrentSPM").Unit == "SPM" && catalog.Entries.Single(e => e.Key == "PumpFillage").Max == 100,
             "catalog listed a missing, null or unset quantity, or lost units or device type: " + string.Join(",", keys));
+        // G4: setpoints are read-only, keep the controller's own element ids, skip hidden ones, and keep non-numeric text raw.
+        var setpointFactory = new Factory
+        {
+            Payload = """
+                [{"WellId":42,"DataGroupName":"Basic","SetPointsList":[
+                  {"ElementId":"POLoadSP","Description":"Pumpoff Load","UnitKey":"%","RangeLow":0,"RangeHigh":100,"Value":"30","IsHidden":false,"IsReadOnly":false},
+                  {"ElementId":"Mode","Value":"Auto","IsHidden":false,"IsReadOnly":true},
+                  {"ElementId":"Secret","Value":"1","IsHidden":true}]}]
+                """
+        };
+        var setpointClient = setpointFactory.CreateClient("");
+        setpointClient.BaseAddress = new Uri("http://a/prefix/");
+        var setpoints = await ForeSiteSetpoints.ReadAsync(new ForeSiteSession(setpointClient), "42", CancellationToken.None);
+        Check(setpoints.Count == 2 && setpoints[0].ElementId == "POLoadSP" && setpoints[0].Value == 30 && setpoints[0].Unit == "%" &&
+            setpoints[0].RangeHigh == 100 && setpoints[1].Value is null && setpoints[1].RawValue == "Auto" && setpoints[1].ReadOnly,
+            "setpoint read lost units, ranges, raw text or returned a hidden element");
+        Check(setpointFactory.Methods.All(m => m == HttpMethod.Get) &&
+            setpointFactory.Paths.Contains("/prefix/Surveillance/Well/AllSavedSetPointParams"), "setpoint read was not a GET on the setpoint route: " + string.Join(",", setpointFactory.Paths));
         // G9: quantities asked for together are served from one status document.
         var fanOut = new Factory();
         using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))
