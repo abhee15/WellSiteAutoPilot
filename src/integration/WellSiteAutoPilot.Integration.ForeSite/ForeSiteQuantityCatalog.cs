@@ -18,6 +18,7 @@ public static class ForeSiteQuantityCatalog
         new("PumpFillage", "CurrentPumpFillage", "CurrentPumpFillage", "%", 0, 100),
         new("AveragePumpFillage", "AveragePumpFillage", "AveragePumpFillage", "%", 0, 100),
         new("CurrentSPM", "CurrentSPM", "CurrentSPM", "SPM", 0),
+        new("AverageSPM", "AverageSPM", "AverageSPM", "SPM", 0),
         new("CyclesYesterday", "CyclesYesterday", null, "", 0),
         new("RunTimeYesterday", "RunTimeYesterday", "RunTimeYesterday", "s", 0)
     ];

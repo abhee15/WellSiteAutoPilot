@@ -88,6 +88,10 @@ internal static class MeasurementChecks
         Check(spm is { Value: 12.3m, Unit: "SPM" } && cycles is { Value: 0, Unit: "" } && runtime is { Value: 24540, Unit: "s" },
             "added status quantities lost their value or ForeSite unit; a real zero must stay a value");
         factory.Payload = null;
+        factory.Payload = """{"Value":{"AverageSPM":11,"LastGoodScanTime":"2026-10-27T00:00:00Z"},"Units":{"AverageSPM":{"UnitKey":"SPM"}}}""";
+        var averageSpm = await pool.ReadAsync(a with { Quantity = "AverageSPM" }, CancellationToken.None);
+        Check(averageSpm is { Value: 11, Unit: "SPM" }, "AverageSPM was not served from the status document");
+        factory.Payload = null;
         // G9: quantities asked for together are served from one status document.
         var fanOut = new Factory();
         using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))
