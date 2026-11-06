@@ -41,6 +41,16 @@ Status: POC findings, probed read-only against the local WAMI server (`net.tcp:/
 - `poc/gap-wami-calc-functions` (`0a1f9e07`): adapter functions `ipr-flow-rate`, `pvt-properties`, `well-performance-curve` (read-only; curve points returned as `curve[i].*` outputs, 2 to 100 points) next to `nodal-analysis`. Live results match the direct probe. `validate-model` was left out because the installed 7.2 contract lacks `ModelValidationResult`.
 - `poc/gap-wami-wellflo-model-library` (`1e215dc8`): `WellFloModelLibrary`, an `IModelArtifactSource` over a folder of `.wfl` files, so a logic module can list and fetch a WellFlo model by relative id (pinned SHA-256, last-write time as revision; ids outside the folder and non-`.wfl` files refused). The WellFlo repo has no model service, only files (169 `.wfl` files, mostly test models), so a folder is the stand-in.
 
+## Runtime facts the builder needs
+
+- Endpoint: `net.tcp://<host>:5656/Weatherford/IRouter/<Contract>` (`IModel`, `ILicense`, `IReciprocatingRodLift`...). Windows transport security; caller must be in `WCFAllowedGroups` (default `Users, Administrators`). Timeouts 6 min; very large message limits.
+- One channel is one stateful session, backed by one COM worker. Limit 10 sessions (licence-capped, shared with ForeSite), no queue: the 11th gets an untyped fault ("workers are already being used"), mapped to `WAMI_BUSY` (`NotStarted`, retry with backoff). Always dispose the session. A timeout after dispatch is `Ambiguous`.
+- Units are oilfield (psia, stb/d, MMscf/d, scf/stb, water cut as a fraction) regardless of the model.
+- `SetOperatingPointTopNode(-1, p)` then `DoNodalAnalysis`: wellhead 100 psia gives 24,027 stb/d, 300 gives 19,339, 600 gives 5,393 (Blank38Model). Results are deterministic, so a re-run in a new session is safe.
+- Function inputs used by the adapter: `ipr-flow-rate` (bottomhole pressure psia), `pvt-properties` (pressure, temperature, GOR, water cut, flag as in `CalculatePVTData(2000, 150, 1000, 100, 1)`), `well-performance-curve` (points 2-100).
+- Opt-in build: `-p:WamiInterfacesPath=<Weatherford.WAMI.Interfaces.dll>`; the contract source is `WellFlo\Trunk\API\Common\WellFlo.API.Interfaces\ServiceContracts`. ForeSite's `WAMIBinding` and the WellFlo `WamiClient` App.config show the binding.
+- Result envelope: scalar outputs with provenance `wami:{conn}@{rev}:{function}:{sha12}`; `ResultStatus` non-success is a failure, not a value.
+
 ## Gaps for the adapter
 
 - Function catalog: ESP, gas lift, PCP, plunger lift, rod-lift analysis, validate-model (once the contract version allows).

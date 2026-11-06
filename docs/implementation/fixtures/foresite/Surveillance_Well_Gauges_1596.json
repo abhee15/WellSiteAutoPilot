@@ -1,0 +1,1 @@
+[{"MinVal":45,"MaxVal":135,"CurrentVal":null,"Name":"TubingPressure","RangeValue1":81,"RangeValue2":99,"Unit":"psia"},{"MinVal":0,"MaxVal":100,"CurrentVal":null,"Name":"SteamInjectionRate","RangeValue1":30,"RangeValue2":70,"Unit":"bbl\/d"},{"MinVal":0,"MaxVal":24,"CurrentVal":23.7297222222222,"Name":"RunTimeYesterday","RangeValue1":12,"RangeValue2":18,"Unit":"hr"}]

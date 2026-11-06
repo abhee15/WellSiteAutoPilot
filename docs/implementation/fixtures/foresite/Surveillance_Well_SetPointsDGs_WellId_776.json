@@ -1,0 +1,1 @@
+{"DeviceType":"WellPilotRPOC","PrimarySPDgType":"SetPoints","PrimarySPDgDesc":"Basic SetPoints Configuration","PrimarySPDgOrdinal":null,"IsWritable":true,"OtherSetPointsDGList":[{"DgDesc":"Control Parameters","DgOrdinal":null,"DgType":"CtrlParms","IsWritable":true,"PartialWrite":false}],"ErrorMessage":"success","PartialWrite":false}

@@ -1,5 +1,7 @@
 # Provider adapters: capability gaps for Logic Modules
 
+> **Handoff:** read `poc-handoff-index.md` first, then `../architecture/provider-adapter-architecture-recommendation.md` (architecture, provider differences, authoring, commands design). Per-provider references: `foresite-adapter-reference.md`, `cygnet-adapter-reference.md`, `wami-adapter-reference.md`. Recorded ForeSite responses are in `fixtures/foresite/`.
+
 ## Scope: provider-neutral gaps
 
 A logic's intent can be served by either ForeSite or CygNet. A module declares the quantities, setpoints, history and actions it needs. Any provider adapter that satisfies that contract can supply them. So each gap below is a gap in the **provider contract**, and is closed once per adapter:
