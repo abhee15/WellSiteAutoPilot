@@ -1,0 +1,57 @@
+{
+  "probe": "candidate-dependent-calculation-document",
+  "status": "passed",
+  "checks": 13,
+  "document": {
+    "schemaVersion": 1,
+    "numberSemantics": "probe-js-finite-double",
+    "opaqueStep": {
+      "moduleId": "sample.card-calibration",
+      "version": "1.0.0"
+    },
+    "condition": "positive",
+    "nodes": [
+      {
+        "id": "custom-1",
+        "name": "Load difference",
+        "operation": "difference",
+        "left": "peak",
+        "right": "prediction"
+      },
+      {
+        "id": "custom-2",
+        "name": "Normalized difference",
+        "operation": "ratio",
+        "left": "custom-1",
+        "right": "peak"
+      }
+    ]
+  },
+  "output": [
+    {
+      "id": "custom-1",
+      "name": "Load difference",
+      "operation": "difference",
+      "left": "peak",
+      "right": "prediction",
+      "value": 98,
+      "unit": "lbf"
+    },
+    {
+      "id": "custom-2",
+      "name": "Normalized difference",
+      "operation": "ratio",
+      "left": "custom-1",
+      "right": "peak",
+      "value": 0.2,
+      "unit": "1"
+    }
+  ],
+  "importedEvidence": null,
+  "notEstablished": [
+    "Product graph compiler or manifest compatibility",
+    "Arbitrary source import; opaque code step identity is preserved only",
+    "Console CLI/web equivalence for decimal algorithms",
+    "Production validation or routing"
+  ]
+}

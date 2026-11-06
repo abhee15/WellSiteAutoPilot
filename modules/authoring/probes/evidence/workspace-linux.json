@@ -1,0 +1,80 @@
+{
+  "probe": "disposable-calculation-workspace",
+  "status": "passed",
+  "results": [
+    {
+      "width": 1440,
+      "status": "passed",
+      "checks": [
+        "Enter activates a focused outline button",
+        "reference fixture arithmetic",
+        "structured JSON metadata displayed",
+        "dependent step creation and edge editing",
+        "cycle rejection",
+        "condition editing",
+        "browser export-console import-export-browser import",
+        "build permitted without executing tests",
+        "parameter-dependent recomputation",
+        "stale test discarded",
+        "mismatched arrays rejected",
+        "build failure",
+        "cancellation",
+        "export invalidation",
+        "no horizontal overflow",
+        "no page errors"
+      ]
+    },
+    {
+      "width": 390,
+      "status": "passed",
+      "checks": [
+        "Enter activates a focused outline button",
+        "reference fixture arithmetic",
+        "structured JSON metadata displayed",
+        "dependent step creation and edge editing",
+        "cycle rejection",
+        "condition editing",
+        "browser export-console import-export-browser import",
+        "build permitted without executing tests",
+        "parameter-dependent recomputation",
+        "stale test discarded",
+        "mismatched arrays rejected",
+        "build failure",
+        "cancellation",
+        "export invalidation",
+        "no horizontal overflow",
+        "no page errors"
+      ]
+    },
+    {
+      "width": 320,
+      "status": "passed",
+      "checks": [
+        "Enter activates a focused outline button",
+        "reference fixture arithmetic",
+        "structured JSON metadata displayed",
+        "dependent step creation and edge editing",
+        "cycle rejection",
+        "condition editing",
+        "browser export-console import-export-browser import",
+        "build permitted without executing tests",
+        "parameter-dependent recomputation",
+        "stale test discarded",
+        "mismatched arrays rejected",
+        "build failure",
+        "cancellation",
+        "export invalidation",
+        "no horizontal overflow",
+        "no page errors"
+      ]
+    }
+  ],
+  "notEstablished": [
+    "Production React integration",
+    "Product graph-to-code compilation or existing CLI compatibility",
+    "Arbitrary-code or decimal algorithm equivalence",
+    "Authenticated live preview or download",
+    "Hosted build/test isolation",
+    "Live providers"
+  ]
+}
