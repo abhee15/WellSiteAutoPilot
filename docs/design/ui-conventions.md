@@ -18,6 +18,10 @@ Material guidance on dense data applications.
 | Filters | `FilterBar` / `FilterField` (`trailing` slot for the refresh icon) |
 | Copy | `CopyButton` |
 | Status | `Status` |
+| Native labelled fields | `TextField`, `NumberField`, `TextAreaField`, `SelectField` from `FormFields`; helper/error IDs, required, disabled and read-only state belong to the component |
+| Choices | `CheckboxField` and `RadioGroup`; native keyboard behavior, visible labels and a fieldset/legend for the group |
+| Form actions / existing consequential confirmation | `FormActions` and non-modal `ConfirmPanel` |
+| Context / progress / outcomes | `Notice`; static guidance uses `announce={false}`, runtime error uses error tone/alert, progress/success uses status |
 | Summary metric / filter | `SummaryCard`: linked cards have a chevron; filter cards have a filter/check cue; optional semantic tone is reserved for meaningful nonzero attention counts |
 
 **Icon or text?** Icon-only for universally understood actions (close, refresh, copy, expand/collapse, overflow), always
@@ -92,3 +96,5 @@ keyboard, seen rendered, and guarded by a test. New screens do not merge until e
 - Audit events could name the user and role of a grant; the server records only their ids, so the server would need to add names to the event details first.
 
 See [visual hierarchy and task-flow review](visual-flow-review.md) for page order, compact row context, border checks and evidence limits. Summary card appearance belongs to `components/summaryCard.css`; pages may position cards but not override their visual rules.
+
+Shared forms and notices migrate under [#467](https://github.com/abhee15/WellSiteAutoPilot/issues/467); see [component contract and first recommendation migration](shared-form-notices.md). Recommendation decision and explicit execution are migrated first. The explicit legacy field/notice inventory in tests can only shrink; a migrated screen cannot reintroduce raw controls or notices. Specialized search/filter/multi-select components keep their existing ownership.
