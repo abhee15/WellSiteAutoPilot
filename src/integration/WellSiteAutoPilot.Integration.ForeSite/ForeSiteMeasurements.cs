@@ -45,7 +45,7 @@ public static class ForeSiteMeasurements
     }
 
     // One status document carries every current quantity of the well, so a cached copy serves all of them.
-    private static async Task<byte[]> ReadStatusAsync(ForeSiteSession session, long wellId, ForeSiteStatusCache? cache,
+    internal static async Task<byte[]> ReadStatusAsync(ForeSiteSession session, long wellId, ForeSiteStatusCache? cache,
         CancellationToken cancellationToken)
     {
         if (cache is not null && cache.TryGet(wellId, out var cached)) return cached;
@@ -60,7 +60,7 @@ public static class ForeSiteMeasurements
     }
 
     // The unit is what ForeSite reports for this well. The catalog's range and unit apply only when ForeSite sends none.
-    private static (string Unit, decimal Min, decimal Max) UnitAndRange(JsonElement root, ForeSiteQuantity map)
+    internal static (string Unit, decimal Min, decimal Max) UnitAndRange(JsonElement root, ForeSiteQuantity map)
     {
         var unit = map.FallbackUnit;
         var min = map.FallbackMin ?? decimal.MinValue;

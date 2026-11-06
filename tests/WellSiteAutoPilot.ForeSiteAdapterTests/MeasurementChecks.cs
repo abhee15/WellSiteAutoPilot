@@ -104,6 +104,21 @@ internal static class MeasurementChecks
             "idle time, inferred production or a real zero stroke count was not served");
         await RejectAsync(a with { Quantity = "StrokesYesterday" }, "FORESITE_MEASUREMENT_MISSING");
         factory.Payload = null;
+        // G3/G13: the catalog lists only quantities the well really reports, with its units and device type.
+        var catalogFactory = new Factory
+        {
+            Payload = """
+                {"Value":{"DeviceType":"WellPilotRPOC","CurrentPumpFillage":99.6,"CurrentSPM":12.3,"StrokesYesterday":65535,"CyclesYesterday":0,"AveragePumpFillage":null,"LastGoodScanTime":"2026-10-27T00:00:00Z"},
+                 "Units":{"CurrentSPM":{"UnitKey":"SPM"}}}
+                """
+        };
+        var catalogClient = catalogFactory.CreateClient("");
+        catalogClient.BaseAddress = new Uri("http://a/prefix/");
+        var catalog = await ForeSiteCatalog.ReadAsync(new ForeSiteSession(catalogClient), "42", CancellationToken.None);
+        var keys = catalog.Entries.Select(e => e.Key).Order().ToArray();
+        Check(catalog.DeviceType == "WellPilotRPOC" && keys.SequenceEqual(["CurrentSPM", "CyclesYesterday", "PumpFillage"]) &&
+            catalog.Entries.Single(e => e.Key == "CurrentSPM").Unit == "SPM" && catalog.Entries.Single(e => e.Key == "PumpFillage").Max == 100,
+            "catalog listed a missing, null or unset quantity, or lost units or device type: " + string.Join(",", keys));
         // G9: quantities asked for together are served from one status document.
         var fanOut = new Factory();
         using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))
