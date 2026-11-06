@@ -421,3 +421,9 @@ test('scroll regions contain their absolutely positioned helpers, so a long list
   assert.match(styles, /\.page-body \{ position: relative;/);
   assert.match(source(join(root, 'views/splitLayout.css')), /\.split-panes > \.split-browse, \.split-panes > \.split-selected \{ position: relative;/);
 });
+
+
+test('detail panels do not restore retired schedule and observation boilerplate', () => {
+  assert.deepEqual(offenders(/assetDetail\.scheduleHint|scheduleControl\.(?:matches|noRevision)|logicDetail\.observed/), [],
+    'Show zones on timestamps and useful exceptions at their source; omit normal-state reassurance and repeated observation footers');
+});
