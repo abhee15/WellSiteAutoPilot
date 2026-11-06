@@ -16,7 +16,10 @@ public static class ForeSiteQuantityCatalog
     public static readonly IReadOnlyList<ForeSiteQuantity> All =
     [
         new("PumpFillage", "CurrentPumpFillage", "CurrentPumpFillage", "%", 0, 100),
-        new("AveragePumpFillage", "AveragePumpFillage", "AveragePumpFillage", "%", 0, 100)
+        new("AveragePumpFillage", "AveragePumpFillage", "AveragePumpFillage", "%", 0, 100),
+        new("CurrentSPM", "CurrentSPM", "CurrentSPM", "SPM", 0),
+        new("CyclesYesterday", "CyclesYesterday", null, "", 0),
+        new("RunTimeYesterday", "RunTimeYesterday", "RunTimeYesterday", "s", 0)
     ];
 
     private static readonly FrozenDictionary<string, ForeSiteQuantity> ByKey =

@@ -77,6 +77,17 @@ internal static class MeasurementChecks
         factory.Payload = """{"Value":{"CurrentPumpFillage":1.5,"LastGoodScanTime":"2026-10-27T00:00:00Z"},"Units":{"CurrentPumpFillage":{"UnitKey":"fraction","Min":0,"Max":1}}}""";
         await RejectAsync(a, "FORESITE_MEASUREMENT_INVALID");
         factory.Payload = null;
+        // G1: further status quantities come from the same document, with ForeSite's own units.
+        factory.Payload = """
+            {"Value":{"CurrentSPM":12.3,"CyclesYesterday":0,"RunTimeYesterday":24540,"LastGoodScanTime":"2026-10-27T00:00:00Z"},
+             "Units":{"CurrentSPM":{"UnitKey":"SPM","Precision":1},"RunTimeYesterday":{"UnitKey":"s","Precision":2}}}
+            """;
+        var spm = await pool.ReadAsync(a with { Quantity = "CurrentSPM" }, CancellationToken.None);
+        var cycles = await pool.ReadAsync(a with { Quantity = "CyclesYesterday" }, CancellationToken.None);
+        var runtime = await pool.ReadAsync(a with { Quantity = "RunTimeYesterday" }, CancellationToken.None);
+        Check(spm is { Value: 12.3m, Unit: "SPM" } && cycles is { Value: 0, Unit: "" } && runtime is { Value: 24540, Unit: "s" },
+            "added status quantities lost their value or ForeSite unit; a real zero must stay a value");
+        factory.Payload = null;
         // G9: quantities asked for together are served from one status document.
         var fanOut = new Factory();
         using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))
