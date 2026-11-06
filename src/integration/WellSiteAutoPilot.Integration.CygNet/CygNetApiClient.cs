@@ -130,6 +130,20 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
             new global::CygNet.API.Historian.Client(
                 new ServiceInformation().GetAssociatedService(Service(connection), ServiceType.VHS)));
 
+    public Task<IReadOnlyList<CygNetAlarm>> ReadAlarmsAsync(CygNetConnection connection, string facilityId, CancellationToken cancellationToken) =>
+        Run(connection, () =>
+        {
+            var tags = PointsClient(connection)
+                .GetPointTagList($"siteservice = '{connection.SiteService}' AND facilityid = '{facilityId.Replace("'", "''")}'", CancellationToken.None)
+                .Take(MaximumPoints).ToList();
+            if (tags.Count == 0) throw new CygNetReadException("CYGNET_FACILITY_NOT_FOUND", "CygNet has no points for this facility.");
+            var cas = new ServiceInformation().GetAssociatedService(Service(connection), ServiceType.CAS);
+            return (IReadOnlyList<CygNetAlarm>)new global::CygNet.API.Alarms.Client(cas).GetAlarmsForPoints(tags)
+                .Select(a => new CygNetAlarm(a.Tag.UDC, a.IsSet, (int)a.AlarmPriority,
+                    new DateTimeOffset(DateTime.SpecifyKind(a.ReportedTime, DateTimeKind.Utc)), a.PointValue?.ToString()?.Trim()))
+                .ToList();
+        }, cancellationToken);
+
     // Site and service are restricted to letters, digits, underscore and hyphen by the adapter's settings.
     private static string FacilityQuery(CygNetConnection connection) =>
         $"facility_site = '{connection.Site}' AND facility_service = '{connection.Service}'";

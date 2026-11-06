@@ -60,7 +60,14 @@ public interface ICygNetClient
     Task<CygNetHistory> ReadHistoryAsync(
         CygNetConnection connection, string facilityId, string udc, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
         Task.FromException<CygNetHistory>(new CygNetReadException("CYGNET_HISTORY_UNSUPPORTED", "This CygNet client cannot read history."));
+
+    /// <summary>Reads the alarms CygNet holds for one facility's points, active and recently cleared. Read-only; never acknowledges or clears.</summary>
+    Task<IReadOnlyList<CygNetAlarm>> ReadAlarmsAsync(CygNetConnection connection, string facilityId, CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<CygNetAlarm>>(new CygNetReadException("CYGNET_ALARMS_UNSUPPORTED", "This CygNet client cannot read alarms."));
 }
+
+/// <summary>One alarm record on a point. <see cref="Priority"/> is CygNet's alarm priority number (lower is more urgent in the CygNet scheme).</summary>
+public sealed record CygNetAlarm(string Udc, bool IsSet, int Priority, DateTimeOffset ReportedUtc, string? PointValue);
 
 /// <summary>One numeric history entry. <see cref="Unreliable"/> carries CygNet's unreliable status flag.</summary>
 public sealed record CygNetHistoryEntry(DateTimeOffset Timestamp, double Value, bool Unreliable);

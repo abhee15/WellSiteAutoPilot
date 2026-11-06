@@ -243,6 +243,14 @@ Expect(histUnsupported, "a client without history did not say so");
 var flaky = await CygNetHistoryReads.ReadDailyAveragesAsync(new FlakyHistoryClient(), cygConn, "W", "X", new(2026, 1, 10), new(2026, 1, 10), central, CancellationToken.None);
 Expect(flaky.Count == 1 && flaky[0].Average == 10 && flaky[0].Samples == 2 && flaky[0].UnreliableSkipped == 1, "unreliable entries were averaged");
 
+var cygAlarms = await sim.ReadAlarmsAsync(cygConn, "WELL_003", CancellationToken.None);
+Expect(cygAlarms.Count(a => a.IsSet) == 1 && cygAlarms.Single(a => a.IsSet).Udc == "PRCASXIN", "WELL_003 lost its set alarm");
+Expect((await sim.ReadAlarmsAsync(cygConn, "WELL_001", CancellationToken.None)).All(a => !a.IsSet), "a quiet well reported a set alarm");
+var alarmsUnsupported = false;
+try { await ((ICygNetClient)new CygNetUnconfiguredClient()).ReadAlarmsAsync(cygConn, "W", CancellationToken.None); }
+catch (CygNetReadException e) when (e.Code == "CYGNET_ALARMS_UNSUPPORTED") { alarmsUnsupported = true; }
+Expect(alarmsUnsupported, "a client without alarms did not say so");
+
 Console.WriteLine("CygNet adapter checks passed.");
 return 0;
 

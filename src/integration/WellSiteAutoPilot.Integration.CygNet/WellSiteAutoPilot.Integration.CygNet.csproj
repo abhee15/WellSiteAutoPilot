@@ -24,6 +24,8 @@
     <Reference Include="CygNet.Data.Points"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Points.dll</HintPath></Reference>
     <Reference Include="CygNet.Data.Facilities"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Facilities.dll</HintPath></Reference>
     <Reference Include="CygNet.API.Historian"><HintPath>$(CygNetLibraryPath)\CygNet.API.Historian.dll</HintPath></Reference>
+    <Reference Include="CygNet.API.Alarms"><HintPath>$(CygNetLibraryPath)\CygNet.API.Alarms.dll</HintPath></Reference>
+    <Reference Include="CygNet.Data.Alarms"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Alarms.dll</HintPath></Reference>
     <Reference Include="CygNet.Data.Historian"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Historian.dll</HintPath></Reference>
   </ItemGroup>
   <ItemGroup>

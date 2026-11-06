@@ -107,6 +107,20 @@ public sealed class SimulatedCygNetClient(TimeProvider? clock = null, SimulatedC
         return Task.FromResult(new CygNetHistory(entries));
     }
 
+    public Task<IReadOnlyList<CygNetAlarm>> ReadAlarmsAsync(CygNetConnection connection, string facilityId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Points.ContainsKey(facilityId))
+            throw new CygNetReadException("CYGNET_FACILITY_NOT_FOUND", "CygNet has no alarms for this facility.");
+        var now = _clock.GetUtcNow();
+        // WELL_003 has its high casing pressure alarm set; every other well is quiet apart from one cleared alarm.
+        IReadOnlyList<CygNetAlarm> alarms = string.Equals(facilityId, "WELL_003", StringComparison.OrdinalIgnoreCase)
+            ? [new("PRCASXIN", true, 2, now.AddMinutes(-42), "395"), new("RRLPFILAVG", false, 3, now.AddHours(-9), "28")]
+            : [new("RRLPFILAVG", false, 3, now.AddHours(-9), "28")];
+        return Task.FromResult(alarms);
+    }
+
     public Task<EngineeringValue> ReadCurrentAsync(
         CygNetConnection connection, string facilityId, string quantity, CancellationToken cancellationToken)
     {
