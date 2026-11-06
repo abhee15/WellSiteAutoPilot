@@ -60,7 +60,7 @@ test('controls have accessible labels and dynamic runtime options', () => {
   assert.match(html, /Logic module catalog controls/);
   assert.match(html, /role="group"/);
   assert.match(html, /<option value="DotNet">DotNet<\/option>/);
-  assert.match(html, /Showing 2 of 3 loaded modules/);
+  assert.match(html, /Showing 2 of 3 loaded versions/);
 });
 
 test('the toolbar is one search box plus a Filters button, with the other filters in a closed panel', () => {
@@ -70,5 +70,23 @@ test('the toolbar is one search box plus a Filters button, with the other filter
   assert.equal(html.match(/type="search"/g)?.length, 1);
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /class="filter-toolbar-panel[^"]*" hidden=""/);
-  assert.match(html, /Showing 3 of 3 loaded modules/);
+  assert.match(html, /Showing 3 of 3 loaded versions/);
+});
+
+test('groups stable module identities, orders numeric versions and does not alter authorization or filters', () => {
+  const versions = [
+    { id: 'old', moduleId: 'a', displayName: 'Pump', version: '1.9.0', isEnabled: true },
+    { id: 'new', moduleId: 'a', displayName: 'Pump', version: '1.10.0', isEnabled: false },
+    { id: 'other', moduleId: 'b', displayName: 'Pump', version: '2.0.0', isEnabled: true },
+  ];
+  assert.deepEqual(catalog.groupModuleVersions(versions).map(group => [group.key, ids(group.versions)]), [['a', ['new', 'old']], ['b', ['other']]]);
+  assert.deepEqual(ids(catalog.groupModuleVersions(catalog.filterLogicCatalog(versions, { ...criteria, eligibility: 'enabled' }))[0].versions), ['old']);
+  assert.equal(versions[0].id, 'old');
+});
+
+test('SemVer precedence preserves releases, prereleases and large numeric identifiers', () => {
+  const ordered = ['1.0.0-alpha', '1.0.0-alpha.2', '1.0.0-alpha.10', '1.0.0-beta', '1.0.0', '1.0.1', '2.0.0'];
+  for (let index = 1; index < ordered.length; index++) assert.ok(catalog.compareModuleVersions(ordered[index], ordered[index - 1]) > 0);
+  assert.equal(catalog.compareModuleVersions('1.0.0+build.1', '1.0.0+build.2'), 0);
+  assert.ok(catalog.compareModuleVersions('99999999999999999999.0.0', '9999999999999999999.0.0') > 0);
 });

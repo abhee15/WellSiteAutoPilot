@@ -16,7 +16,7 @@ import { Status } from '../components/Status';
 import { formatTimestamp } from '../format';
 import { profileLabel, statusLabel } from '../words';
 import { moduleStateLabel, moduleStateToken } from './moduleApproval';
-import { configurationTargetAssetIds, configuredTargetLabel, latestRunByConfiguration } from './runContext';
+import { configuredTargetLabel, latestRunByConfiguration } from './runContext';
 import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
@@ -25,9 +25,9 @@ import { ModulePanel } from './ModulePanel';
 import { SchedulesOverview } from './SchedulesOverview';
 import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
-import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, listedStatus } from './configuredLogicViews';
+import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, listedStatus, orderedRevisions } from './configuredLogicViews';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
-import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes } from './logicCatalog';
+import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes, groupModuleVersions } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
 import './splitLayout.css';
 
@@ -92,7 +92,7 @@ export function LogicPage({
     if (showModules) return [];
     const selectedTargets = (selectedConfiguration?.revisions ?? []).flatMap(revision =>
       (revision.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : [])).slice(0, 40);
-    const gridTargets = visibleConfigurations.flatMap(item => configurationTargetAssetIds(item).slice(0, 2));
+    const gridTargets = visibleConfigurations.flatMap(item => (contextRevision(item)?.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []).slice(0, 2));
     return [...new Set([...selectedTargets, ...gridTargets])].slice(0, 100);
   }, [showModules, selectedConfiguration, visibleConfigurations]);
   const assetDirectory = useAssetIdentityDirectory(visibleTargetIds, assets, permissions.includes('assets.read'), userId);
@@ -100,6 +100,9 @@ export function LogicPage({
     () => filterLogicCatalog(modules, catalogCriteria),
     [modules, catalogCriteria],
   );
+  const moduleGroups = useMemo(() => groupModuleVersions(modules), [modules]);
+  const visibleGroups = useMemo(() => groupModuleVersions(visibleModules), [visibleModules]);
+  const selectedModuleVersions = moduleGroups.find(group => group.versions.some(version => version.id === aboutModuleId))?.versions ?? [];
   const runtimes = useMemo(() => availableLogicRuntimes(modules), [modules]);
 
   const splitFocus = useSplitPaneFocus(showModules ? aboutModule?.id ?? null
@@ -115,7 +118,7 @@ export function LogicPage({
             { id: SCHEDULES_TAB, label: t('logic.tabSchedules'), href: hashFor('logic', SCHEDULES_TAB) },
           ] : []),
           ...(canReadCatalog ? [
-            { id: MODULES_TAB, label: t('logic.tabModules'), href: hashFor('logic', MODULES_TAB), count: modules.length },
+            { id: MODULES_TAB, label: t('logic.tabModules'), href: hashFor('logic', MODULES_TAB), count: moduleGroups.length },
           ] : []),
         ]}
         activeId={showSchedules ? SCHEDULES_TAB : showModules ? MODULES_TAB : 'configured'}
@@ -129,7 +132,7 @@ export function LogicPage({
       ) : showModules ? (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
-            <PanelHeader title="Logic modules" count={visibleModules.length} />
+            <PanelHeader title="Logic modules" count={visibleGroups.length} />
             <LogicCatalogControls
               criteria={catalogCriteria}
               onChange={setCatalogCriteria}
@@ -151,27 +154,32 @@ export function LogicPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleModules.map(module => (
-                    <tr key={module.id} data-selected={aboutModuleId === module.id}
+                  {visibleGroups.map(group => {
+                    const selectedFamily = selectedModuleVersions.some(version => version.id === group.versions[0].id);
+                    const module = group.versions.find(version => version.id === aboutModuleId) ?? group.versions[0];
+                    const allVersions = moduleGroups.find(item => item.key === group.key)?.versions ?? group.versions;
+                    return <tr key={group.key} data-selected={selectedFamily}
                       onClick={event => {
                         // The row is a convenience; the name button stays the keyboard and screen-reader route.
                         if ((event.target as HTMLElement).closest('button, a')) return;
                         if (module.id) setAboutModuleId(module.id);
                       }}>
-                      <td><Status value={moduleStateToken(module)} label={moduleStateLabel(module)} /></td>
+                      <td><Status value={moduleStateToken(module)} label={moduleStateLabel(module)} /><small>{t('moduleGroup.shown', { version: module.version ?? '—' })}</small></td>
                       <td>
                         <button type="button" className="asset-select"
-                          aria-expanded={aboutModuleId === module.id}
+                          aria-expanded={selectedFamily}
                           aria-label={t('modulePanel.about', { name: module.displayName ?? '—' })}
-                          onClick={() => setAboutModuleId(current => (current === module.id ? null : module.id ?? null))}>
+                          onClick={() => setAboutModuleId(selectedFamily ? null : module.id ?? null)}>
                           {module.displayName}
                         </button>
-                        <small>{module.moduleId} · v{module.version}</small>
+                        <small>{module.moduleId}</small>
+                        <small>{t('moduleGroup.versions', { count: allVersions.length })}</small>
+                        {group.versions.length < allVersions.length && <small>{t('moduleGroup.matches', { count: group.versions.length })}</small>}
                       </td>
                       <td className="run-col-secondary">{module.publisher}</td>
                       <td className="run-col-secondary">{module.runtime} · {profileLabel(module.executionProfile)}</td>
-                    </tr>
-                  ))}
+                    </tr>;
+                  })}
                   {visibleModules.length === 0 && (
                     <EmptyRow columns={4} loading={!isLoaded}
                       hint={isLoaded && modules.length === 0 ? t('logicCatalog.noneHint') : undefined}
@@ -185,7 +193,8 @@ export function LogicPage({
           </section>
           <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabModules')}>
             <ActionButton label={t('logic.back')} className="split-back" onClick={() => setAboutModuleId(null)} />
-            {aboutModule ? <ModulePanel module={aboutModule}
+            {aboutModule ? <ModulePanel key={aboutModule.id} module={aboutModule}
+              versions={selectedModuleVersions} onSelectVersion={setAboutModuleId}
               configurations={canReadConfigurations ? configuredLogic : []}
               canManage={permissions.includes('logic.manage')} onChanged={onRefresh}
               onClose={() => setAboutModuleId(null)} />
@@ -209,7 +218,6 @@ export function LogicPage({
                   <tr>
                     <th>Status</th>
                     <th>Logic</th>
-                    <th className="run-col-secondary">Assets</th>
                     <th className="run-col-secondary">Revision</th>
                     {canReadRuns && <th className="run-col-secondary">Last run</th>}
                   </tr>
@@ -231,14 +239,16 @@ export function LogicPage({
                             current === item.id ? null : item.id ?? null); }}>
                           {item.name}
                         </button>
+                        <small>{configuredTargetLabel((contextRevision(item)?.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []), assetDirectory.assets, assetDirectory.owners)}</small>
+                        <small>{contextRevision(item)?.moduleId} · v{contextRevision(item)?.moduleVersion}</small>
+                        {(item.revisions ?? []).some(revision => revision.status === 'Draft') && <small>{t('logic.rowDrafts', { count: (item.revisions ?? []).filter(revision => revision.status === 'Draft').length })}</small>}
                       </td>
-                      <td className="run-col-secondary">{configuredTargetLabel(configurationTargetAssetIds(item), assetDirectory.assets, assetDirectory.owners)}</td>
                       <td className="run-col-secondary">{activeRevisionLabel(item)}</td>
                       {canReadRuns && <td className="run-col-secondary">{lastRunText(lastRuns.get(item.id ?? ''))}</td>}
                     </tr>
                   ))}
                   {visibleConfigurations.length === 0 && (
-                    <EmptyRow columns={canReadRuns ? 5 : 4} loading={!isLoaded}
+                    <EmptyRow columns={canReadRuns ? 4 : 3} loading={!isLoaded}
                       hint={isLoaded && configuredLogic.length === 0 ? t('configured.noneHint') : undefined}
                       action={isLoaded && configuredLogic.length > 0 ? <ActionButton label={t('views.clearFilters')} onClick={() => setConfiguredCriteria(DEFAULT_CONFIGURED_LOGIC_CRITERIA)} /> : undefined}>
                       {!isLoaded ? t('views.loading') : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
@@ -270,6 +280,10 @@ export function LogicPage({
       )}
     </div>
   );
+}
+
+function contextRevision(item: ConfiguredLogicResponse) {
+  return item.revisions?.find(revision => revision.id === item.activeRevisionId) ?? orderedRevisions(item)[0];
 }
 
 function activeRevisionLabel(item: ConfiguredLogicResponse): string {

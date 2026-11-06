@@ -46,3 +46,41 @@ export function availableLogicRuntimes(
     .filter((runtime): runtime is LogicRuntimeKind => typeof runtime === 'string' && !!runtime))]
     .sort((left, right) => left.localeCompare(right));
 }
+
+export type ModuleVersionGroup = { key: string; versions: LogicModuleResponse[] };
+
+/** Group only the supplied authorized/matching versions; never merge modules by display name. */
+export function groupModuleVersions(modules: readonly LogicModuleResponse[]): ModuleVersionGroup[] {
+  const groups = new Map<string, LogicModuleResponse[]>();
+  for (const module of modules) {
+    const key = module.moduleId || module.id;
+    if (!key) continue;
+    const versions = groups.get(key) ?? [];
+    versions.push(module); groups.set(key, versions);
+  }
+  return [...groups].map(([key, versions]) => ({ key, versions: versions.sort((a, b) =>
+    compareModuleVersions(b.version ?? '', a.version ?? '') || (a.id ?? '').localeCompare(b.id ?? '')) }));
+}
+
+/** SemVer precedence, including numeric prerelease identifiers; build metadata does not order releases. */
+export function compareModuleVersions(left: string, right: string): number {
+  const parts = (version: string) => {
+    const [core, ...release] = version.split('+')[0].split('-');
+    return { core: core.split('.'), pre: release.join('-').split('.').filter(Boolean) };
+  };
+  const a = parts(left), b = parts(right);
+  const numeric = (x: string, y: string) => x.length - y.length || (x < y ? -1 : x > y ? 1 : 0);
+  for (let index = 0; index < Math.max(a.core.length, b.core.length); index++) {
+    const order = numeric(a.core[index] ?? '0', b.core[index] ?? '0');
+    if (order) return order;
+  }
+  if (!a.pre.length || !b.pre.length) return Number(!a.pre.length) - Number(!b.pre.length);
+  for (let index = 0; index < Math.max(a.pre.length, b.pre.length); index++) {
+    const x = a.pre[index], y = b.pre[index];
+    if (x === undefined || y === undefined) return Number(x !== undefined) - Number(y !== undefined);
+    const nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+    const order = nx && ny ? numeric(x, y) : nx !== ny ? (nx ? -1 : 1) : (x < y ? -1 : x > y ? 1 : 0);
+    if (order) return order;
+  }
+  return 0;
+}
