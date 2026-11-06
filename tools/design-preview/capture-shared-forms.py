@@ -44,6 +44,8 @@ try:
                 probe.style.cssText = 'position:absolute;visibility:hidden;font-size:var(--font-size-control);font-weight:var(--font-weight-medium);height:var(--size-control)';
                 document.body.append(probe);
                 const expected = {font:getComputedStyle(probe).fontSize, weight:getComputedStyle(probe).fontWeight, regular:getComputedStyle(document.documentElement).getPropertyValue('--font-weight-regular').trim()};
+                probe.style.fontSize = 'var(--font-size-label)';
+                expected.labelFont = getComputedStyle(probe).fontSize;
                 const coarse = matchMedia('(pointer: coarse)').matches;
                 if (coarse) probe.style.height = 'var(--size-touch-target)';
                 expected.height = parseFloat(getComputedStyle(probe).height);
@@ -61,7 +63,7 @@ try:
                     controls:[...document.querySelectorAll('.ui-field-control:not(:disabled)')].map(e => {
                         const c = getComputedStyle(e); return {height:e.getBoundingClientRect().height, font:c.fontSize, weight:c.fontWeight,
                             borderContrast:contrast(c.borderTopColor, c.backgroundColor), textContrast:contrast(c.color, c.backgroundColor)};
-                    }), labels:[...document.querySelectorAll('.ui-field-label')].map(e => ({font:getComputedStyle(e).fontSize, weight:getComputedStyle(e).fontWeight})),
+                    }), labels:[...document.querySelectorAll('.ui-field-label, .ui-radio-group legend')].map(e => ({font:getComputedStyle(e).fontSize, weight:getComputedStyle(e).fontWeight})),
                     targets:[...document.querySelectorAll('.ui-choice')].map(e => e.getBoundingClientRect().height)};
             }""")
             assert state["documentWidth"] <= width, f"{width}: document overflow"
@@ -73,7 +75,7 @@ try:
                 assert control["borderContrast"] >= 3, (width, control)
                 assert control["textContrast"] >= 4.5, (width, control)
             for label in state["labels"]:
-                assert label == {"font": state["expected"]["font"], "weight": state["expected"]["weight"]}, (width, label)
+                assert label == {"font": state["expected"]["labelFont"], "weight": state["expected"]["weight"]}, (width, label)
             for height in state["targets"]:
                 assert height >= state["expected"]["height"], (width, height)
             date = page.get_by_label("Start date", exact=False)
