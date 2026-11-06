@@ -3,6 +3,7 @@
   background: var(--color-surface-panel);
   border-radius: var(--radius-8);
   display: grid;
+  min-width: 0;
   gap: var(--space-6);
   padding: var(--space-16) var(--space-18);
 }
@@ -43,3 +44,5 @@
 .summary-card-cue { flex: none; color: var(--color-text-link); }
 .summary-card strong .status-indicator { font-size: inherit; }
 .summary-card strong .status-indicator-icon { width: var(--size-icon); height: var(--size-icon); }
+
+.summary-card-heading > span { min-width: 0; overflow-wrap: anywhere; }
