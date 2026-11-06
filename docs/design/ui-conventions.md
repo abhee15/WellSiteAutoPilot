@@ -18,6 +18,7 @@ Material guidance on dense data applications.
 | Filters | `FilterBar` / `FilterField` (`trailing` slot for the refresh icon) |
 | Copy | `CopyButton` |
 | Status | `Status` |
+| Summary metric / filter | `SummaryCard`: linked cards have a chevron; filter cards have a filter/check cue; optional semantic tone is reserved for meaningful nonzero attention counts |
 
 **Icon or text?** Icon-only for universally understood actions (close, refresh, copy, expand/collapse, overflow), always
 with a tooltip and accessible name. Text for primary and commit actions (Save, Approve, Configure Logic), anything with a
@@ -89,3 +90,5 @@ keyboard, seen rendered, and guarded by a test. New screens do not merge until e
 
 - Pin the detail header (title and actions) while the details body scrolls. It needs the detail panels restructured so the header sits outside the scrolling body; a sticky header inside the current wrappers ends early.
 - Audit events could name the user and role of a grant; the server records only their ids, so the server would need to add names to the event details first.
+
+See [visual hierarchy and task-flow review](visual-flow-review.md) for page order, compact row context, border checks and evidence limits. Summary card appearance belongs to `components/summaryCard.css`; pages may position cards but not override their visual rules.
