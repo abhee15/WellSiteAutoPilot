@@ -12,12 +12,9 @@ public static class ForeSiteMeasurements
         ArgumentNullException.ThrowIfNull(session);
         if (!long.TryParse(externalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
-        var field = quantity switch
-        {
-            "PumpFillage" => "CurrentPumpFillage",
-            "AveragePumpFillage" => "AveragePumpFillage",
-            _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
-        };
+        var map = ForeSiteQuantityCatalog.Find(quantity)
+            ?? throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED");
+        var field = map.ValueField;
         var body = await ReadStatusAsync(session, wellId, cache, cancellationToken);
         try
         {
@@ -28,7 +25,9 @@ public static class ForeSiteMeasurements
                 throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
             if (!value.TryGetProperty(field, out var reading) || reading.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
                 throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_MISSING");
-            if (reading.ValueKind != JsonValueKind.Number || !reading.TryGetDecimal(out var number) || number is < 0 or > 100)
+            var (unit, min, max) = UnitAndRange(root, map);
+            if (reading.ValueKind != JsonValueKind.Number || !reading.TryGetDecimal(out var number) ||
+                number < min || number > max)
                 throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_INVALID");
             if (!value.TryGetProperty("LastGoodScanTime", out var time) || time.ValueKind != JsonValueKind.String ||
                 !TryOffsetTime(time.GetString(), out var timestamp))
@@ -38,7 +37,7 @@ public static class ForeSiteMeasurements
             // never substitute it, retrieval time, or a well-test date for acquisition time.
             // Good means successful acquisition of a valid controller value, not independent
             // sensor validation. The host separately enforces the module's age/future policy.
-            return new(quantity, number, "%", timestamp, "Good", "foresite:controller-scan",
+            return new(quantity, number, unit, timestamp, "Good", "foresite:controller-scan",
                 DateTimeOffset.UtcNow, "ControllerScan");
         }
         catch (JsonException) { throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID"); }
@@ -57,6 +56,23 @@ public static class ForeSiteMeasurements
         var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         cache?.Set(wellId, body);
         return body;
+    }
+
+    // The unit is what ForeSite reports for this well. The catalog's range and unit apply only when ForeSite sends none.
+    private static (string Unit, decimal Min, decimal Max) UnitAndRange(JsonElement root, ForeSiteQuantity map)
+    {
+        var unit = map.FallbackUnit;
+        var min = map.FallbackMin ?? decimal.MinValue;
+        var max = map.FallbackMax ?? decimal.MaxValue;
+        if (map.UnitField is not null && root.TryGetProperty("Units", out var units) && units.ValueKind == JsonValueKind.Object &&
+            units.TryGetProperty(map.UnitField, out var entry) && entry.ValueKind == JsonValueKind.Object)
+        {
+            if (entry.TryGetProperty("UnitKey", out var key) && key.ValueKind == JsonValueKind.String &&
+                key.GetString() is { Length: > 0 and <= 32 } text) unit = text;
+            if (entry.TryGetProperty("Min", out var low) && low.ValueKind == JsonValueKind.Number && low.TryGetDecimal(out var lowValue)) min = lowValue;
+            if (entry.TryGetProperty("Max", out var high) && high.ValueKind == JsonValueKind.Number && high.TryGetDecimal(out var highValue)) max = highValue;
+        }
+        return (unit, min, max);
     }
 
     private static bool TryOffsetTime(string? text, out DateTimeOffset timestamp)

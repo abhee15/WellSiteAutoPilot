@@ -70,6 +70,13 @@ internal static class MeasurementChecks
         await cancellation.CancelAsync();
         try { await pool.ReadAsync(a, cancellation.Token); throw new InvalidOperationException("Caller cancellation was swallowed."); }
         catch (OperationCanceledException) { }
+        // G2: the unit and range come from ForeSite's Units block when it sends one.
+        factory.Payload = """{"Value":{"CurrentPumpFillage":0.8,"LastGoodScanTime":"2026-10-27T00:00:00Z"},"Units":{"CurrentPumpFillage":{"UnitKey":"fraction","Min":0,"Max":1}}}""";
+        var provided = await pool.ReadAsync(a, CancellationToken.None);
+        Check(provided.Value == 0.8m && provided.Unit == "fraction", "the adapter replaced the unit ForeSite reported");
+        factory.Payload = """{"Value":{"CurrentPumpFillage":1.5,"LastGoodScanTime":"2026-10-27T00:00:00Z"},"Units":{"CurrentPumpFillage":{"UnitKey":"fraction","Min":0,"Max":1}}}""";
+        await RejectAsync(a, "FORESITE_MEASUREMENT_INVALID");
+        factory.Payload = null;
         // G9: quantities asked for together are served from one status document.
         var fanOut = new Factory();
         using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))
