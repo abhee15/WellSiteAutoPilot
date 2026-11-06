@@ -3,6 +3,12 @@
  * can be added without editing component markup or persisted event codes.
  */
 export const englishMessages = {
+  'form.required': '(required)',
+  'form.reasonHelp': 'Enter 2–1,024 characters explaining your decision.',
+  'form.reasonShort': 'Enter at least 2 characters for the audit reason.',
+  'form.confirmDecision': 'Confirm your decision',
+  'form.confirmExecution': 'Confirm command execution',
+  'notice.dismiss': 'Dismiss notice',
   'assignment.overrides': 'Per-well settings (optional)',
   'assignment.review': 'Review assignment',
   'assignment.reviewCount': '{count} wells selected · data sources resolved',
@@ -778,7 +784,7 @@ export const englishMessages = {
   'decision.chooseAction': 'Choose the operator decision',
   'decision.approve': 'Approve recommendation',
   'decision.reject': 'Reject recommendation',
-  'decision.reason': 'Reason (required for audit)',
+  'decision.reason': 'Reason for audit',
   'decision.confirmation': 'I reviewed the asset, recommendation, proposed value, and expiry.',
   'decision.submit': 'Submit decision',
   'decision.submitting': 'Saving decision…',
