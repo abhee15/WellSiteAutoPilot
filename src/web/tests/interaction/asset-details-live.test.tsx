@@ -140,7 +140,7 @@ it('pages configurations on the server and keeps the add-logic action', async ()
   await screen.findByRole('button', { name: 'Previous logic' });
   expect(fetcher.mock.calls.some(([url]) => url.includes('offset=5&limit=5'))).toBe(true);
   const assign = screen.getByRole('link', { name: /Put logic/ });
-  expect(assign.closest('.asset-page-header')).toBeTruthy();
+  expect(assign.compareDocumentPosition(screen.getByText('Technical details')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(assign.getAttribute('href')).toBe('#logic/new%3A' + assetId);
 });
 
