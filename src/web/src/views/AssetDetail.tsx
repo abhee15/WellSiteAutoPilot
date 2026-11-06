@@ -85,6 +85,9 @@ export function AssetDetail({
             {where.length === 0 ? t('assetPage.topLevel')
               : t('assetPage.locatedUnder', { path: where.join(' › ') })}
           </p>
+          {operational && canReadLogic && canConfigureLogic && asset.isActive && <div className="asset-detail-actions">
+            <ActionLink href={hashFor('logic', 'new:' + assetId)} label={t('assetPage.putLogic')} />
+          </div>}
         </div>
         <CloseButton label={t('assets.clearSelection')} onClick={onClose} />
       </header>
@@ -121,11 +124,10 @@ export function AssetDetail({
         <div className="asset-logic-list">
           {logic.data?.items?.map(item => <AssetLogicCard key={item.configuration?.id} item={item} assetId={assetId} canReadRuns={canReadRuns} />)}
         </div>
-        <div className="asset-detail-actions">
+        {(offset > 0 || logic.data?.hasMore) && <div className="asset-detail-actions">
           {offset > 0 && <ActionButton onClick={() => setOffset(Math.max(0, offset - LOGIC_PAGE_SIZE))} label={t('assetDetail.previousLogic')} />}
           {logic.data?.hasMore && <ActionButton onClick={() => setOffset(offset + LOGIC_PAGE_SIZE)} label={t('assetDetail.moreLogic')} />}
-          {canConfigureLogic && asset.isActive && <ActionLink href={hashFor('logic', 'new:' + assetId)} label={t('assetPage.putLogic')} />}
-        </div>
+        </div>}
       </section>}
 
       {operational && canReadRuns && (!canReadLogic || (offset === 0 && logic.data?.items?.length === 0)) && <AssetRunPreview assetId={assetId} />}
