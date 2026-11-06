@@ -88,3 +88,8 @@ before/after screenshots and geometry; the audit never submits a command or chan
 scenes at four widths, including selected Run/Logic/Asset details and Schedules. It compares computed
 appearance, cue, contrast, fine/coarse targets, keyboard focus and long-label overflow, writes JSON
 in the existing visual-review artifact and submits no actions.
+
+`audit-loading.py OUTPUT BEFORE_URL AFTER_URL` withholds local mock GET responses in Connections,
+Access and Status, checks the loading-region center/announcement/navigation scope and then releases
+populated, empty or failed results at four widths (72 cases). It also verifies retained Status rows
+during a held background refresh. It writes JSON in visual-review artifacts and submits no actions.
