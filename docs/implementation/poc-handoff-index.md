@@ -37,4 +37,4 @@ Each branch has offline tests (`dotnet run -c Release` in the matching `tests\We
 
 ## Not built / needs owner
 
-Commands and recommendation/autonomous mode (architecture doc 10b); CygNet setpoint reader and element map (device type and the passive read are proven, see the CygNet reference); WAMI ESP/gas lift/PCP/plunger/rod-lift analysis functions; ForeSite RRL config to WAMI `RRLData` mapping (parked, see `ModelFileService.GetRRLData` in ForeSite); Gateway identity and `WCFAllowedGroups`; DLL redistribution; manifest V3 sign-off.
+Commands and recommendation/autonomous mode (architecture doc 10b); CygNet setpoint reader and element map (device type and the passive read are proven, see the CygNet reference); WAMI ESP/gas lift/PCP/plunger functions (probed live, see WAMI reference finding 8; not yet adapter functions; rod-lift `PerformAnalysis` unprobed); ForeSite RRL config to WAMI `RRLData` mapping (parked, see `ModelFileService.GetRRLData` in ForeSite); Gateway identity and `WCFAllowedGroups`; DLL redistribution; manifest V3 sign-off.
