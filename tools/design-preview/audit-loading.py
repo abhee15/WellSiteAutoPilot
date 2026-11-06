@@ -29,7 +29,16 @@ with sync_playwright() as p:
                 for terminal in ('ready', 'empty', 'failed'):
                     page = browser.new_page(viewport={'width': width, 'height': 850}, reduced_motion='reduce')
                     page.context.add_cookies([{'name': 'persona', 'value': 'Admin', 'url': base}])
+                    print(f'{revision} {width}px {scene} {terminal}', flush=True)
                     held, writes = [], []
+                    if scene == 'status':
+                        # Deliberately start the service read later than the connection read. Placeholders alone
+                        # do not prove that every request has reached the response gate.
+                        page.add_init_script("""(() => {
+                            const fetch = window.fetch.bind(window);
+                            window.fetch = (input, init) => String(typeof input === 'string' ? input : input.url).includes('/api/v1/system/info')
+                                ? new Promise(resolve => setTimeout(resolve, 200)).then(() => fetch(input, init)) : fetch(input, init);
+                        })()""")
                     def hold(route):
                         # Read the disposable mock now, but withhold its response from the app.
                         response = route.fetch()
@@ -41,6 +50,15 @@ with sync_playwright() as p:
                     panels.first.locator('.loading-indicator').wait_for()
                     if scene == 'status':
                         panels.nth(1).locator('.loading-indicator').wait_for()
+                    expected = {'/api/v1/connections', '/api/v1/system/info'} if scene == 'status' else {
+                        '/api/v1/connections' if scene == 'connections' else '/api/v1/security/users/page'}
+                    def await_reads():
+                        deadline = time.monotonic() + 5
+                        captured = lambda: {urlparse(route.request.url).path for route, _ in held}
+                        while not expected.issubset(captured()) and time.monotonic() < deadline:
+                            page.wait_for_timeout(20)
+                        assert expected.issubset(captured()), (scene, 'required reads not captured', captured())
+                    await_reads()
                     initial = panels.evaluate_all('''panels => panels.map(panel=>{
                         const loader=panel.querySelector('.loading-indicator'),state=panel.querySelector('.panel-loading-state');
                         const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,cx:r.x+r.width/2,cy:r.y+r.height/2}};
@@ -85,10 +103,7 @@ with sync_playwright() as p:
                         assert page.locator('.health-row').count() == rows
                         assert page.locator('.panel-loading-state').count() == 0, 'background refresh must retain content'
                         # Wait until both independently fetched responses are held.
-                        deadline = time.monotonic() + 3
-                        while len(held) < 2 and time.monotonic() < deadline:
-                            page.wait_for_timeout(20)
-                        assert len(held) >= 2, 'both refresh reads must be pending'
+                        await_reads()
                         release()
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (revision, scene, width, terminal, 'overflow')
                     assert not writes, writes

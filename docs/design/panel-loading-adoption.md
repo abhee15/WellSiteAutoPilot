@@ -33,3 +33,9 @@ loader. All writes are rejected by the audit. JSON evidence is retained by the v
 The audit and existing primary-page/responsive checks run in CI. The broader #482 gutter/indentation
 review remains open, including detail panes and state transitions beyond these initial content regions.
 #467 continues to own the remaining form/notice foundation migration; no new parallel component kit.
+
+The first CI run exposed a response-gating race in the audit: Status renders both initial placeholders
+before both requests have necessarily reached the interceptor. Releasing only the first captured read
+left the later read withheld. The harness now waits for the required endpoint paths before releasing
+initial and refresh responses and logs each case; all application geometry/content assertions remain. The Status fixture deliberately starts the service
+read 200ms later than the connection read to exercise the race deterministically.
