@@ -44,3 +44,22 @@ then `node ../../tools/design-preview/cascade/split.mjs "$PWD/src/" /tmp/wsa-cas
 start the mock server, and `python3 ../../tools/design-preview/cascade/cascade-audit.py /tmp/segments.json`.
 It reinstalls each source file as its own stylesheet in bundle order, walks every page, tab and the Filters panel at 1440 and 420 px,
 and lists each element/property where two files tie on specificity and differ in value. Fix by raising the intended rule's specificity (e.g. `.a.b`), not by reordering imports.
+
+## Shared native forms
+
+The existing visual-review workflow builds `tests/visual/shared-forms.html` using the isolated
+`shared-forms.vite.mjs` config, then runs `capture-shared-forms.py`. The fixture build has no API proxy
+and does not enter the production bundle. The script serves it locally, checks computed typography
+against the actual tokens, contrast, native control/choice sizes, focus and overflow at four widths,
+and captures fields and notices. Optional local before/after mock URLs also exercise the recommendation
+decision and execution flows without sending commands. The JSON audits and screenshots are uploaded
+in the visual-review artifact.
+
+From `src/web` (Python Playwright and Chromium required):
+
+```bash
+npx vite build --config ../../tools/design-preview/shared-forms.vite.mjs --outDir /tmp/wsa-form-fixture --emptyOutDir
+python ../../tools/design-preview/capture-shared-forms.py /tmp/wsa-form-fixture /tmp/wsa-form-evidence
+```
+
+Set `CHROMIUM_PATH` only when using an existing local browser instead of Playwright's installed Chromium.

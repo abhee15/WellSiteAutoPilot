@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { CheckboxField, ConfirmPanel, FormActions } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import type { ConfiguredLogicResponse, ControlActionResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import './decisionBrief.css';
@@ -115,19 +117,18 @@ export function ControlExecutionPanel({
         <div><dt>{t('control.execute.approvedBy')}</dt>
           <dd>{item.decisionBy ?? '—'}<small>{formatDetailTimestamp(item.decisionAtUtc)}</small></dd></div>
       </dl>
-      <p className="recommendation-review-warning" role="note">{t('control.execute.notice')}</p>
-      <label className="recommendation-review-confirm">
-        <input type="checkbox" checked={acknowledged} disabled={submitting}
+      <ConfirmPanel title={t('form.confirmExecution')}>
+        <Notice tone="warning" announce={false}>{t('control.execute.notice')}</Notice>
+        <CheckboxField label={t('control.execute.confirmation')} checked={acknowledged} disabled={submitting} required
           onChange={event => setAcknowledged(event.target.checked)} />
-        {t('control.execute.confirmation')}
-      </label>
-      {refusal && <p className="execution-detail-error" role="alert">{refusal}</p>}
-      {error && <p className="execution-detail-error" role="alert">{errors[error]}</p>}
-      {submitting && <p role="status">{t('control.execute.submitting')}</p>}
-      <div className="execution-detail-actions">
-        <ActionButton variant="primary" label={t('control.execute.submit')}
-          disabled={submitting || !acknowledged} onClick={() => void submit()} />
-      </div>
+        {refusal && <Notice tone="error">{refusal}</Notice>}
+        {error && <Notice tone="error">{errors[error]}</Notice>}
+        {submitting && <Notice>{t('control.execute.submitting')}</Notice>}
+        <FormActions>
+          <ActionButton variant="primary" label={t('control.execute.submit')}
+            disabled={submitting || !acknowledged} busy={submitting} onClick={() => void submit()} />
+        </FormActions>
+      </ConfirmPanel>
     </section>
   );
 }

@@ -10,6 +10,8 @@ function walk(dir) {
     ? entry.name === 'generated' ? [] : walk(join(dir, entry.name)) : [join(dir, entry.name)]);
 }
 const owners = [
+  [/\.(?:ui-field(?:-[\w-]+)?|ui-choice(?:-[\w-]+)?|ui-radio-group|ui-form-actions|ui-confirm-panel)\b/, 'components/forms.css'],
+  [/\.ui-notice(?:-[\w-]+)?\b/, 'components/notice.css'],
   [/\.summary-card(?:-[\w-]+)?\b/, 'components/summaryCard.css'],
   [/\.ui-action-button\b/, 'components/searchControls.css'],
   [/\.(?:loading-indicator|loading-skeleton|loading-spinner|panel-loading-state)\b/, 'components/loading.css'],
@@ -43,6 +45,8 @@ test('the ownership guard catches the toolbar sizing and loader indentation regr
   assert.equal(violations('.tab-strip-item { border-color: red; }', 'views/page.css').length, 1);
   assert.equal(violations('.summary-card { padding: 2rem; }', 'views/page.css').length, 1);
   assert.equal(violations('.action-link { font-size: 12px; }', 'views/page.css').length, 1);
+  assert.equal(violations('.ui-field-control { padding: 2rem; }', 'views/page.css').length, 1);
+  assert.equal(violations('.ui-notice { background: red; }', 'views/page.css').length, 1);
   assert.equal(violations('.ui-action-button { margin-inline-start: auto; }', 'views/page.css').length, 0);
 });
 
