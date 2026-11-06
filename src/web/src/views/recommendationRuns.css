@@ -12,7 +12,8 @@
 
 /* One task at a time; global command state stays visible without stacking its editor above review. */
 .recommendations-workspace { display: flex; flex-direction: column; gap: var(--space-12); min-width: 0; }
-.recommendations-control-context { display: grid; align-content: start; gap: var(--space-8); min-width: 0; }
+/* Preserve each card's content height; auto tracks would shrink overflow:hidden panels and clip their rows. */
+.recommendations-control-context { display: grid; grid-auto-rows: max-content; align-content: start; gap: var(--space-8); min-width: 0; }
 .recommendations-workspace .recommendation-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: var(--space-12) var(--space-panel-inline); margin: 0; }
 .recommendation-run-picker { display: grid; gap: var(--space-6); padding: var(--space-12) var(--space-panel-inline); }
 .recommendation-run-scope { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); color: var(--color-text-muted); font-size: var(--font-size-body-small); }

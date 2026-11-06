@@ -77,3 +77,9 @@ The visual-review workflow runs both and uploads their screenshots and JSON audi
 clear/unavailable/restricted Overview states at four widths. It compares computed section,
 metric, compact-filter and supporting-text roles with tokens, checks loaded font faces,
 responsive Overview grouping and horizontal overflow, and publishes screenshots with JSON evidence.
+
+`capture-command-scroll.py OUTPUT BEFORE_URL AFTER_URL` checks a 30-command queue and expanded
+resolution/release forms at seven viewport/text-scale combinations. It uses wheel, keyboard End
+and Tab, intersects target bounds with every clipping ancestor and verifies the final controls are
+reachable. Hidden panels cannot be a programmatic-scroll workaround. The workflow captures
+before/after screenshots and geometry; the audit never submits a command or changes the kill switch.
