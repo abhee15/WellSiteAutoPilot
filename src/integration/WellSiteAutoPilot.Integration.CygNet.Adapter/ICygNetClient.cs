@@ -52,7 +52,21 @@ public interface ICygNetClient
     /// </summary>
     Task<IReadOnlyList<CygNetPoint>> ListPointsAsync(CygNetConnection connection, string facilityId, CancellationToken cancellationToken) =>
         Task.FromException<IReadOnlyList<CygNetPoint>>(new CygNetReadException("CYGNET_CATALOG_UNSUPPORTED", "This CygNet client cannot list points."));
+
+    /// <summary>
+    /// Reads the history of one point (by UDC) between two UTC instants, oldest first. Numeric entries only; non-numeric
+    /// ones are dropped. Clients that cannot read history keep this default.
+    /// </summary>
+    Task<CygNetHistory> ReadHistoryAsync(
+        CygNetConnection connection, string facilityId, string udc, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
+        Task.FromException<CygNetHistory>(new CygNetReadException("CYGNET_HISTORY_UNSUPPORTED", "This CygNet client cannot read history."));
 }
+
+/// <summary>One numeric history entry. <see cref="Unreliable"/> carries CygNet's unreliable status flag.</summary>
+public sealed record CygNetHistoryEntry(DateTimeOffset Timestamp, double Value, bool Unreliable);
+
+/// <summary><see cref="Truncated"/> is true when the client stopped at its entry cap before the end of the window.</summary>
+public sealed record CygNetHistory(IReadOnlyList<CygNetHistoryEntry> Entries, bool Truncated = false);
 
 /// <summary>A reason the connection cannot be used that is already worded for a person.</summary>
 public sealed class CygNetUnavailableException(string message) : Exception(message);

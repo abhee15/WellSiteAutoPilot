@@ -23,6 +23,8 @@
     <Reference Include="CygNet.Data.Core"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Core.dll</HintPath></Reference>
     <Reference Include="CygNet.Data.Points"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Points.dll</HintPath></Reference>
     <Reference Include="CygNet.Data.Facilities"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Facilities.dll</HintPath></Reference>
+    <Reference Include="CygNet.API.Historian"><HintPath>$(CygNetLibraryPath)\CygNet.API.Historian.dll</HintPath></Reference>
+    <Reference Include="CygNet.Data.Historian"><HintPath>$(CygNetLibraryPath)\CygNet.Data.Historian.dll</HintPath></Reference>
   </ItemGroup>
   <ItemGroup>
     <!-- Mixed-mode *64 assemblies and native Cx*64.dll must sit beside the host binaries. -->

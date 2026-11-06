@@ -221,6 +221,28 @@ try { await ((ICygNetClient)new CygNetUnconfiguredClient()).ListPointsAsync(new 
 catch (CygNetReadException e) when (e.Code == "CYGNET_CATALOG_UNSUPPORTED") { unsupported = true; }
 Expect(unsupported, "a client without point listing did not say so");
 
+// History: bounded windows, a calendar day in the asset's time zone, unreliable entries left out of the average.
+var central = TimeZoneInfo.FindSystemTimeZoneById("Central Standard Time");
+var cygConn = new CygNetConnection(27212, "CYG_DEMO", "UIS");
+var days = await CygNetHistoryReads.ReadDailyAveragesAsync(sim, cygConn, "WELL_001", "rrlpfilavg", new(2026, 3, 1), new(2026, 3, 2), central, CancellationToken.None);
+Expect(days.Count == 2 && days.All(d => d.Samples == 96 && d.Average is >= 80 and <= 84), "daily averages did not cover two 96-sample local days");
+var springDay = await CygNetHistoryReads.ReadDailyAveragesAsync(sim, cygConn, "WELL_001", "RRLPFILAVG", new(2026, 3, 8), new(2026, 3, 8), central, CancellationToken.None);
+Expect(springDay.Count == 1 && springDay[0].Samples == 92, "the 23-hour spring-forward day did not hold 92 samples");
+var badWindow = false;
+try { await CygNetHistoryReads.ReadRangeAsync(sim, cygConn, "WELL_001", "RRLPFILAVG", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(40), CancellationToken.None); }
+catch (CygNetReadException e) when (e.Code == "CYGNET_HISTORY_WINDOW_INVALID") { badWindow = true; }
+Expect(badWindow, "a 40-day window was allowed");
+var badUdc = false;
+try { await CygNetHistoryReads.ReadRangeAsync(sim, cygConn, "WELL_001", "A;B", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(1), CancellationToken.None); }
+catch (CygNetReadException e) when (e.Code == "CYGNET_POINT_NOT_FOUND") { badUdc = true; }
+Expect(badUdc, "an invalid UDC reached the client");
+var histUnsupported = false;
+try { await ((ICygNetClient)new CygNetUnconfiguredClient()).ReadHistoryAsync(cygConn, "W", "X", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(1), CancellationToken.None); }
+catch (CygNetReadException e) when (e.Code == "CYGNET_HISTORY_UNSUPPORTED") { histUnsupported = true; }
+Expect(histUnsupported, "a client without history did not say so");
+var flaky = await CygNetHistoryReads.ReadDailyAveragesAsync(new FlakyHistoryClient(), cygConn, "W", "X", new(2026, 1, 10), new(2026, 1, 10), central, CancellationToken.None);
+Expect(flaky.Count == 1 && flaky[0].Average == 10 && flaky[0].Samples == 2 && flaky[0].UnreliableSkipped == 1, "unreliable entries were averaged");
+
 Console.WriteLine("CygNet adapter checks passed.");
 return 0;
 
@@ -311,4 +333,18 @@ sealed class UnmappedClient(ICygNetClient inner, string quantity) : ICygNetClien
         q == quantity
             ? Task.FromException<EngineeringValue>(new CygNetReadException("CYGNET_QUANTITY_UNSUPPORTED", "Not mapped."))
             : inner.ReadCurrentAsync(connection, facilityId, q, cancellationToken);
+}
+
+internal sealed class FlakyHistoryClient : ICygNetClient
+{
+    public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<CygNetFacilityList> ListFacilitiesAsync(CygNetConnection connection, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<WellSiteAutoPilot.Integration.Contracts.Providers.EngineeringValue> ReadCurrentAsync(CygNetConnection connection, string facilityId, string quantity, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<CygNetHistory> ReadHistoryAsync(CygNetConnection connection, string facilityId, string udc, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
+        Task.FromResult(new CygNetHistory(
+        [
+            new(startUtc.AddHours(1), 10, false), new(startUtc.AddHours(2), 999, true), new(startUtc.AddHours(3), 10, false),
+            new(startUtc.AddHours(-1), 500, false), new(endUtc.AddHours(1), 500, false)
+        ]));
 }

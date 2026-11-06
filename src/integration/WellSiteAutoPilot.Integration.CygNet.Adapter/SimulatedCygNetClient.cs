@@ -90,6 +90,23 @@ public sealed class SimulatedCygNetClient(TimeProvider? clock = null, SimulatedC
         ]);
     }
 
+    public Task<CygNetHistory> ReadHistoryAsync(
+        CygNetConnection connection, string facilityId, string udc, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Points.ContainsKey(facilityId))
+            throw new CygNetReadException("CYGNET_FACILITY_NOT_FOUND", "CygNet has no history for this facility.");
+        if (!CygNetCatalog.IsUdc(udc))
+            throw new CygNetReadException("CYGNET_POINT_NOT_FOUND", "CygNet has no such point.");
+        // One entry every 15 minutes on the quarter hour; the value steps with the hour so averages are predictable.
+        const long Step = 15 * 60;
+        var entries = new List<CygNetHistoryEntry>();
+        for (var t = (startUtc.ToUnixTimeSeconds() + Step - 1) / Step * Step; t <= endUtc.ToUnixTimeSeconds(); t += Step)
+            entries.Add(new(DateTimeOffset.FromUnixTimeSeconds(t), 80 + t / 3600 % 5, Unreliable: false));
+        return Task.FromResult(new CygNetHistory(entries));
+    }
+
     public Task<EngineeringValue> ReadCurrentAsync(
         CygNetConnection connection, string facilityId, string quantity, CancellationToken cancellationToken)
     {

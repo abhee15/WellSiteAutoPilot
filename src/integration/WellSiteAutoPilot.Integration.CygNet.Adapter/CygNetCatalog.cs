@@ -15,6 +15,8 @@ public static partial class CygNetCatalog
     [GeneratedRegex("^[A-Za-z0-9_]{1,16}$")]
     private static partial Regex UdcPattern();
 
+    public static bool IsUdc(string? udc) => udc is not null && UdcPattern().IsMatch(udc);
+
     public static AssetQuantityCatalog Build(string facilityId, IReadOnlyList<CygNetPoint> points)
     {
         ArgumentNullException.ThrowIfNull(points);

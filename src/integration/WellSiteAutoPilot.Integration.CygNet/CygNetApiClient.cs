@@ -21,6 +21,13 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
     private const int PageSize = 250;
     /// <summary>A facility has a few hundred points; the cap stops a misconfigured service from running a long read.</summary>
     private const int MaximumPoints = 1000;
+    /// <summary>A month at one entry a minute would be 44,640; the cap keeps a dense point from holding the call.</summary>
+    private const int MaximumHistoryEntries = 50_000;
+    // Held in a nested class so the Historian assembly loads only after the assembly resolver is registered.
+    private static class Historians
+    {
+        public static readonly ConcurrentDictionary<string, global::CygNet.API.Historian.Client> Clients = new(StringComparer.OrdinalIgnoreCase);
+    }
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(60);
 
     private static readonly ConcurrentDictionary<string, global::CygNet.API.Points.ConfigClient> PointClients =
@@ -87,6 +94,41 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
             }
             return (IReadOnlyList<CygNetPoint>)points;
         }, cancellationToken);
+
+    public Task<CygNetHistory> ReadHistoryAsync(
+        CygNetConnection connection, string facilityId, string udc, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
+        Run(connection, () =>
+        {
+            var client = HistorianClient(connection);
+            // The history long id is SITE.SERVICE:FACILITY_UDC.
+            var name = new global::CygNet.Data.Historian.Name { ID = $"{connection.SiteService}:{facilityId}_{udc}" };
+            var entries = new List<CygNetHistoryEntry>();
+            var truncated = false;
+            foreach (var entry in client.GetHistoricalEntriesReverse(name, startUtc.UtcDateTime, endUtc.UtcDateTime, false))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (entries.Count >= MaximumHistoryEntries) { truncated = true; break; }
+                double value;
+                switch (entry.ValueType)
+                {
+                    case global::CygNet.Data.Historian.HistoricalEntryValueType.Double: value = BitConverter.ToDouble(entry.Value, 0); break;
+                    case global::CygNet.Data.Historian.HistoricalEntryValueType.Int64: value = BitConverter.ToInt64(entry.Value, 0); break;
+                    case global::CygNet.Data.Historian.HistoricalEntryValueType.UTF8
+                        when double.TryParse(System.Text.Encoding.UTF8.GetString(entry.Value), System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out value): break;
+                    default: continue;
+                }
+                var stamp = DateTime.SpecifyKind(entry.Timestamp, DateTimeKind.Utc);
+                entries.Add(new CygNetHistoryEntry(stamp, value, entry.BaseStatus.HasFlag(global::CygNet.Data.Core.BaseStatusFlags.Unreliable)));
+            }
+            entries.Reverse();
+            return new CygNetHistory(entries, truncated);
+        }, cancellationToken);
+
+    private static global::CygNet.API.Historian.Client HistorianClient(CygNetConnection connection) =>
+        Historians.Clients.GetOrAdd($"{connection.Domain}/{connection.SiteService}", _ =>
+            new global::CygNet.API.Historian.Client(
+                new ServiceInformation().GetAssociatedService(Service(connection), ServiceType.VHS)));
 
     // Site and service are restricted to letters, digits, underscore and hyphen by the adapter's settings.
     private static string FacilityQuery(CygNetConnection connection) =>
