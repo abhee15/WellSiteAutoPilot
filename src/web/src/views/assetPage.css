@@ -17,7 +17,6 @@
 .asset-logic-list { display: grid; gap: var(--space-12); margin-top: var(--space-12); }
 .asset-logic-card { border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); padding: var(--space-12); min-width: 0; }
 .asset-logic-card > header, .asset-logic-runs-heading, .asset-detail-actions { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-10); flex-wrap: wrap; }
-.asset-logic-name { font-weight: var(--font-weight-bold); }
 .asset-schedule { margin: var(--space-10) 0; }
 .asset-logic-runs { border-top: var(--border-width-thin) solid var(--color-border-subtle); padding-top: var(--space-10); }
 .asset-logic-runs-heading { margin-bottom: var(--space-10); }

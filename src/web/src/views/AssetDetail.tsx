@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { ActionButton, ActionLink } from '../components/ActionButton';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CloseButton } from '../components/CloseButton';
@@ -140,7 +141,7 @@ export function AssetDetail({
           : <ul className="asset-page-list">
             {recommendations.data.map(item => (
               <li key={item.id}>
-                <a href={hashFor('recommendations', item.id)}>{item.command ?? item.code ?? '—'}</a>
+                <ContextLink appearance="record" href={hashFor('recommendations', item.id)} label={item.command ?? item.code ?? '—'} />
                 <small>{statusLabel(item.status)} · {formatTimestamp(item.createdAtUtc)}</small>
               </li>
             ))}

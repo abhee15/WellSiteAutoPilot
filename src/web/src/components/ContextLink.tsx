@@ -3,10 +3,10 @@ import { ChevronRight } from 'lucide-react';
 import './contextLink.css';
 
 /** A lightweight standalone destination in a row/card; workflow actions use ActionLink. */
-export function ContextLink({ label, className = '', ...props }: Omit<ComponentProps<'a'>, 'children' | 'href'> & {
-  label: string; href: string;
+export function ContextLink({ label, className = '', appearance = 'destination', ...props }: Omit<ComponentProps<'a'>, 'children' | 'href'> & {
+  label: string; href: string; appearance?: 'destination' | 'record';
 }) {
-  return <a {...props} className={['action-link', className].filter(Boolean).join(' ')}>
+  return <a {...props} data-appearance={appearance} className={['action-link', className].filter(Boolean).join(' ')}>
     <span>{label}</span><ChevronRight size={16} aria-hidden="true" />
   </a>;
 }

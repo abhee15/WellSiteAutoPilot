@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useEffect, useMemo, useState } from 'react';
 import { hashFor } from '../routing';
 import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
@@ -62,7 +63,7 @@ export function SchedulesOverview({ configuredLogic, assets, owners = [], execut
             <tbody>
               {overview.rows.map(row => (
                 <tr key={row.id}>
-                  <td><a href={hashFor('logic', row.id)}>{row.name}</a></td>
+                  <td><ContextLink appearance="record" href={hashFor('logic', row.id)} label={row.name} /></td>
                   <td>{row.endAtUtc && Date.parse(row.endAtUtc) < clock ? <Status value={t('assignment.ended')} /> : row.enabled
                     ? scheduleText({ enabled: true, cadenceSeconds: row.cadenceSeconds, timeZoneId: row.timeZoneId, every: row.every, unit: row.unit, endAtUtc: row.endAtUtc })
                     : <Status value={t(row.paused ? 'schedules.paused' : 'schedules.off')} />}

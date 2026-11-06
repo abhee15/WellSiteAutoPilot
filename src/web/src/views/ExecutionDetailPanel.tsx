@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CloseButton } from '../components/CloseButton';
@@ -183,13 +184,13 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
         <dl className="run-facts">
           <div><dt>{t('execution.summaryLogic')}</dt><dd>
             {detail.logicInstanceId && context.logicName
-              ? <a href={hashFor('logic', detail.logicInstanceId)}>{context.logicName}</a>
+              ? <ContextLink appearance="record" href={hashFor('logic', detail.logicInstanceId)} label={context.logicName} />
               : (detail.moduleId ?? '—')}
-            {context.revisionNumber ? ` · ${t('setup.revision', { number: context.revisionNumber })}` : ''}
+            {context.revisionNumber && <small>{t('setup.revision', { number: context.revisionNumber })}</small>}
           </dd></div>
           {context.assetIds.length > 0 && <div><dt>{t('execution.summaryAssets')}</dt><dd>
             {context.assetIds.map((id, index) => <span key={id}>
-              {index > 0 && ', '}<a href={hashFor('assets', id)}>{context.assetLabels[index]}</a>
+              {index > 0 && ', '}<ContextLink appearance="record" href={hashFor('assets', id)} label={context.assetLabels[index]} />
             </span>)}
           </dd></div>}
           <div><dt>{t('execution.runType')}</dt><dd>

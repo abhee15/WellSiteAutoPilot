@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useEffect, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
 import { CheckboxField, ConfirmPanel, FormActions, RadioGroup, TextAreaField } from '../components/FormFields';
@@ -107,10 +108,10 @@ export function RecommendationDecisionReviewPanel({
       <div className="decision-brief">
         <p className="decision-brief-proposal">{proposalSentence(item, assetName)}</p>
         <ul>
-          {item.assetId && <li><a href={'#assets/' + item.assetId}>{assetName ?? t('decision.asset')}</a></li>}
+          {item.assetId && <li><ContextLink appearance="record" href={'#assets/' + item.assetId} label={assetName ?? t('decision.asset')} /></li>}
           <li>{logic ? t('decision.fromLogic', { name: logic.name ?? '—',
             revision: revision?.revisionNumber ?? '—' }) : t('workspace.fromModule', { name: item.moduleId ?? '—', version: item.moduleVersion ?? '—' })}</li>
-          {item.executionId && <li><a href={'#operations/' + item.executionId}>{t('decision.fromRun')}</a></li>}
+          {item.executionId && <li><ContextLink href={'#operations/' + item.executionId} label={t('decision.fromRun')} /></li>}
           {left && <li>{left}</li>}
         </ul>
         {item.reasonCode && <p>{t('inbox.reason')}: {humanize(item.reasonCode)}</p>}

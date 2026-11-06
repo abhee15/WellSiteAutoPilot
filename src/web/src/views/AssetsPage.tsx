@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActionButton, ActionLink } from '../components/ActionButton';
@@ -305,7 +306,7 @@ export function AssetsPage({
                     <p className="split-note">{t('assets.none')}</p>
                     <p className="split-note">{t('assets.noneHint')}</p>
                     {permissions.includes('connections.manage') && permissions.includes('connections.read') &&
-                      <p className="split-note"><a href="#connections">{t('assets.importFromConnection')}</a></p>}
+                      <p className="split-note"><ContextLink href="#connections" label={t('assets.importFromConnection')} /></p>}
                   </>
                 ) : activeView ? (
                   <AssetViewBrowser key={activeView.id + ':' + activeView.revision + ':' + localRefresh + ':' + criteria.search} viewId={activeView.id}

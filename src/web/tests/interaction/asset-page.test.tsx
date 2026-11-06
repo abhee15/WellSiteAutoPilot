@@ -83,7 +83,7 @@ it('an empty asset list offers importing only to people who can manage connectio
   first.unmount();
   as(['assets.read', 'connections.read', 'connections.manage']);
   render(<App />);
-  expect((await screen.findByText('Import from a connection')).getAttribute('href')).toBe('#connections');
+  expect((await screen.findByRole('link', { name: 'Import from a connection' })).getAttribute('href')).toBe('#connections');
 });
 
 it('selecting an asset highlights it in the hierarchy and brings the asset page into view', async () => {

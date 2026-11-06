@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useEffect, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
 import { CheckboxField, ConfirmPanel, FormActions } from '../components/FormFields';
@@ -103,10 +104,10 @@ export function ControlExecutionPanel({
       <div className="decision-brief">
         <p className="decision-brief-proposal">{proposalSentence(item, assetName)}</p>
         <ul>
-          {item.assetId && <li><a href={'#assets/' + item.assetId}>{assetName ?? t('decision.asset')}</a></li>}
+          {item.assetId && <li><ContextLink appearance="record" href={'#assets/' + item.assetId} label={assetName ?? t('decision.asset')} /></li>}
           {logic && <li>{t('decision.fromLogic', { name: logic.name ?? '—',
             revision: logic.revisions?.find(candidate => candidate.id === item.configurationRevisionId)?.revisionNumber ?? '—' })}</li>}
-          {item.executionId && <li><a href={'#operations/' + item.executionId}>{t('decision.fromRun')}</a></li>}
+          {item.executionId && <li><ContextLink href={'#operations/' + item.executionId} label={t('decision.fromRun')} /></li>}
         </ul>
       </div>
       <dl className="execution-detail-grid">

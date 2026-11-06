@@ -2,7 +2,11 @@
 .action-link { display: inline-flex; align-items: center; gap: var(--space-4); min-height: var(--size-control);
   padding-block: var(--space-6); color: var(--color-text-link); font-size: var(--font-size-control);
   font-weight: var(--font-weight-medium); text-decoration: none; text-underline-offset: var(--underline-offset); }
+.action-link > span { min-width: 0; overflow-wrap: anywhere; }
 .action-link > svg { flex: none; width: var(--size-icon); height: var(--size-icon); }
 .action-link:hover { text-decoration: underline; }
 .action-link:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
-@media (pointer: coarse) { .action-link { min-height: var(--size-touch-target); } }
+/* A record value keeps its surrounding type size and fits dense tables/fact lists. The cue stays visible. */
+.action-link[data-appearance='record'] { min-height: var(--size-control-small); padding-block: 0;
+  font-size: inherit; max-width: 100%; vertical-align: middle; }
+@media (pointer: coarse) { .action-link, .action-link[data-appearance='record'] { min-height: var(--size-touch-target); } }

@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import type { AssetResponse, ConfiguredLogicActivityResponse, ConfiguredLogicResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
@@ -49,7 +50,7 @@ export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, 
       <div className="logic-detail-row"><h4>{t('assetDetail.latestRuns')}</h4><ActionButton variant="quiet" label={t('assetDetail.history')} onClick={onHistory} /></div>
       {activity?.recentRuns?.length === 0 && <p>{t('logicSummary.noRuns')}</p>}
       <ul className="asset-page-list">{activity?.recentRuns?.map(run => <li key={run.executionId}>
-        <Status value={run.status} /><a href={hashFor('operations', run.executionId)}>{formatTimestamp(run.requestedAtUtc)}</a>
+        <Status value={run.status} /><ContextLink appearance="record" href={hashFor('operations', run.executionId)} label={formatTimestamp(run.requestedAtUtc)} />
       </li>)}</ul>
     </section>}
   </section>;
