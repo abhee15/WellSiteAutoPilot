@@ -72,3 +72,8 @@ read-only, unconfirmed-command and settings tasks, measures scroll ownership and
 and checks detail/return focus, metadata disclosure and browser Back. It sends no commands;
 the shared-form audit separately covers delayed decisions, retained input and execution refusals.
 The visual-review workflow runs both and uploads their screenshots and JSON audits.
+
+`capture-typography.py OUTPUT BEFORE_URL AFTER_URL` reviews all eight primary pages and
+clear/unavailable/restricted Overview states at four widths. It compares computed section,
+metric, compact-filter and supporting-text roles with tokens, checks loaded font faces,
+responsive Overview grouping and horizontal overflow, and publishes screenshots with JSON evidence.

@@ -134,7 +134,8 @@
   --font-size-control: 0.875rem;
   --font-size-body-small: 0.875rem;
   --font-size-heading: clamp(1.5rem, 3vw, 2rem);
-  --font-size-metric: 1.25rem;
+  --font-size-section-heading: 1.125rem;
+  --font-size-metric: 1.75rem;
   --letter-spacing-caps: 0.08em;
   --letter-spacing-wide: 0.04em;
   --underline-offset: 0.18em;

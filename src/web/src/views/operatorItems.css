@@ -9,7 +9,8 @@
   display: flex; flex: 1 1 var(--layout-field-min); flex-wrap: wrap; align-items: baseline;
   gap: var(--space-4) var(--space-10); min-width: 0; overflow-wrap: anywhere;
 }
-.operator-item-context > small { flex-basis: 100%; color: var(--color-text-muted); }
+.operator-item-context > small { flex-basis: 100%; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.operator-item-context > strong { font-weight: var(--font-weight-medium); }
 .operator-items .status-indicator { white-space: normal; }
 .execution-recommendations { padding: var(--space-12) var(--space-16); }
 .execution-recommendations h4 { margin: 0; }

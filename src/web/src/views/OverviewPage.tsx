@@ -165,9 +165,11 @@ export function OverviewPage({
   const attentionUnavailable = recommendationsUnavailable || controlUnavailable;
 
   return (
-    <>
+    <div className="overview-workspace">
+      <div className="overview-top">
       <section className="panel overview-attention" aria-label={t('overview.attention')}>
-        <h2>{t('overview.attention')}</h2>
+        <PanelHeader title={t('overview.attention')} />
+        <div className="overview-attention-body">
         {!attentionReady ? <LoadingIndicator label={t('overview.loading')} /> : <>
           {attentionUnavailable && <p role="status">{t('overview.attentionUnavailable')}</p>}
           {!action && !pendingShown.length && !failedShown.length && !attentionUnavailable && setup.length === 0 && <p>{t('overview.allClear')}</p>}
@@ -210,6 +212,7 @@ export function OverviewPage({
             {failed.length > failedShown.length && <a href="#operations">{t('overview.allRuns')}</a>}
           </div>
         </>}
+        </div>
       </section>
 
       <section className="summary-grid overview-metrics" aria-label={t('overview.glance')}>
@@ -222,6 +225,7 @@ export function OverviewPage({
         {canReadServices &&
           <SummaryCard label={t('overview.services')} value={unhealthy == null ? t('overview.unknown') : String(unhealthy)} tone={unhealthy != null && unhealthy > 0 ? 'warning' : undefined} detail="" href={hashFor('status')} />}
       </section>
+      </div>
       {permissions.includes('executions.read') && ready && latestRuns.length > 0 && (
         <section className="panel overview-latest" aria-label={t('overview.latestRuns')}>
           <PanelHeader title={t('overview.latestRuns')}
@@ -234,13 +238,13 @@ export function OverviewPage({
                 <a href={`#operations/${run.executionId}`}>
                   <strong>{executionAssetLabel(run, context)}</strong>
                 </a>
-                <span className="overview-run-module">{run.moduleId}</span>
-                {run.requestedAtUtc && <time dateTime={run.requestedAtUtc}>{relativeTime(run.requestedAtUtc, Date.now())}</time>}
+                <span className="overview-run-module">{context.logicName ?? run.moduleId}</span>
+                {run.requestedAtUtc && <time dateTime={run.requestedAtUtc} title={formatDetailTimestamp(run.requestedAtUtc)} aria-label={formatDetailTimestamp(run.requestedAtUtc)}>{relativeTime(run.requestedAtUtc, Date.now())}</time>}
               </li>;
             })}
           </ul>
         </section>
       )}
-    </>
+    </div>
   );
 }
