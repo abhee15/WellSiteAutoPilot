@@ -6,7 +6,7 @@ import './loading.css';
  * moment (CSS delay) so a fast response never flashes it, and stops moving for people who ask for less motion.
  */
 export function LoadingIndicator({
-  label, size = 'medium', inline = false, variant = 'spinner',
+  label, size = 'medium', inline = false, variant = 'spinner', inset = false,
 }: {
   label: string;
   size?: 'small' | 'medium' | 'large';
@@ -14,19 +14,26 @@ export function LoadingIndicator({
   inline?: boolean;
   /** Placeholder rows for a list or panel; the label stays for assistive technology only. */
   variant?: 'spinner' | 'skeleton';
+  /** Only an unpadded container needs the shared panel gutter. */
+  inset?: boolean;
 }) {
   if (variant === 'skeleton') {
     return (
-      <div role="status" aria-live="polite" className="loading-skeleton">
+      <div role="status" aria-live="polite" className="loading-skeleton" data-inset={inset || undefined}>
         <span className="visually-hidden">{label}</span>
         {[0, 1, 2, 3].map(row => <span key={row} className="loading-skeleton-row" aria-hidden="true" />)}
       </div>
     );
   }
   return (
-    <div role="status" aria-live="polite" className="loading-indicator" data-size={size} data-inline={inline || undefined}>
+    <div role="status" aria-live="polite" className="loading-indicator" data-size={size} data-inline={inline || undefined} data-inset={inset || undefined}>
       <span className="loading-spinner" aria-hidden="true" />
       <span className="loading-label">{label}</span>
     </div>
   );
+}
+
+/** Initial/changed-record loading replaces only that panel's unavailable content. Navigation stays usable. */
+export function PanelLoading({ label }: { label: string }) {
+  return <div className="panel-loading-state"><LoadingIndicator label={label} size="large" /></div>;
 }
