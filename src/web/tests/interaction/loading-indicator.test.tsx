@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { LoadingIndicator } from '../../src/components/LoadingIndicator';
+import { LoadingIndicator, PanelLoading } from '../../src/components/LoadingIndicator';
 
 afterEach(cleanup);
 
 describe('LoadingIndicator', () => {
+  it('panel loading announces one status and leaves unrelated navigation outside its scope', () => {
+    render(<><a href="#assets">Assets</a><section aria-label="Logic content"><PanelLoading label="Loading logic…" /></section></>);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.getByRole('status').textContent).toBe('Loading logic…');
+    expect(screen.getByRole('link', { name: 'Assets' }).getAttribute('href')).toBe('#assets');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
   it('announces its label politely and hides the spinner from assistive technology', () => {
     render(<LoadingIndicator label="Loading status…" />);
     const status = screen.getByRole('status');
