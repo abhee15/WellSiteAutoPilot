@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { hashFor, useHashDetail } from '../routing';
@@ -22,7 +23,7 @@ import {
   RECOMMENDATION_INBOX_FILTERS,
 } from './recommendationInbox';
 import type { RecommendationInboxCriteria } from './recommendationInbox';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { ActionButton } from '../components/ActionButton';
 import { EmptyRow, SummaryCard } from '../components/common';
@@ -337,13 +338,13 @@ export function RecommendationsPage({
         {reviewNotice && <p role="status" className="recommendation-readonly-note">
           {reviewNotice}
         </p>}
-        {isLoading && !lastUpdated && <LoadingIndicator label={t('inbox.loading')} />}
+        {isLoading && !lastUpdated && <PanelLoading label={t('inbox.loading')} />}
         {error && <p role="alert" className="execution-detail-error inbox-error">
           {errorMessages[error]}
         </p>}
         <div className="recommendation-run-heading">
           <p>{t('inbox.runPreview')}</p>
-          {permissions?.includes('executions.read') && <a className="action-link" href={hashFor('operations')}>{t('inbox.viewAllRuns')}</a>}
+          {permissions?.includes('executions.read') && <ContextLink href={hashFor('operations')} label={t('inbox.viewAllRuns')} />}
         </div>
         {(!isLoading || lastUpdated) && !error && <>
           <div className="recommendation-run-list" role="group" aria-label={t('inbox.runSelection')}>
@@ -358,7 +359,7 @@ export function RecommendationsPage({
           </div>
           {!runs.length && !linkedRun && <p>{t('inbox.noRuns')}</p>}
           {linkedRun && !selectedGroup && <h3>{t('overview.runReference', { id: shortId(linkedRun) })}</h3>}
-          {runLoading && <LoadingIndicator label={t('inbox.loading')} />}
+          {runLoading && <PanelLoading label={t('inbox.loading')} />}
           {runFailed && <p role="alert">{t('operations.recommendationsUnavailable')}</p>}
           {!runLoading && !runFailed && <RecommendationInboxTable items={proposals} nowUtc={nowUtc} assetNames={assetNames}
             onClearFilters={items.length > 0 ? () => setCriteria(DEFAULT_RECOMMENDATION_INBOX_CRITERIA) : undefined}

@@ -1,7 +1,7 @@
-.recommendation-run-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8) var(--space-16); padding: var(--space-12) var(--space-16); }
+.recommendation-run-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8) var(--space-16); padding: var(--space-12) var(--space-panel-inline); }
 .recommendation-run-heading p { flex: 1 1 var(--layout-field-min); margin: 0; color: var(--color-text-muted); }
-.recommendation-run-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); padding: var(--space-12) var(--space-16); }
-.recommendation-run { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); text-align: start; min-width: 0; padding: var(--space-12); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-6); background: var(--color-surface-panel); color: var(--color-text-primary); overflow-wrap: anywhere; cursor: pointer; }
+.recommendation-run-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); padding: var(--space-12) var(--space-panel-inline); }
+.recommendation-run { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); text-align: start; min-width: 0; padding: var(--space-12); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); background: var(--color-surface-panel); color: var(--color-text-primary); overflow-wrap: anywhere; cursor: pointer; }
 .recommendation-run[aria-pressed='true'] { background: var(--color-surface-status-info); border-color: var(--color-border-selected); }
 .recommendation-run small, .recommendation-run time { font-size: var(--font-size-body-small); color: var(--color-text-muted); }
 @container (width <= 40em) { .recommendation-run-list { grid-template-columns: 1fr; } }
@@ -10,7 +10,7 @@
 @container (width <= 40em) {
   .recommendation-proposals, .recommendation-proposals tbody { display: block; width: 100%; }
   .recommendation-proposals thead { position: absolute; width: var(--border-width-thin); height: var(--border-width-thin); padding: 0; overflow: hidden; clip-path: inset(50%); }
-  .recommendation-proposals tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-12) var(--space-16); gap: var(--space-8); border-bottom: var(--border-width-thin) solid var(--color-border-subtle); }
+  .recommendation-proposals tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-12) var(--space-panel-inline); gap: var(--space-8); border-bottom: var(--border-width-thin) solid var(--color-border-subtle); }
   .recommendation-proposals tbody td { grid-column: 1; display: block; padding: 0; border: 0; overflow-wrap: anywhere; }
   .recommendation-proposals .run-col-secondary { display: none; }
   .recommendation-proposals tbody td:last-child:not(:nth-child(7)) { grid-column: 2; grid-row: 1 / span 3; align-self: start; }

@@ -1,5 +1,5 @@
 /* Asset hierarchy: semantic tokens only. */
-.asset-tree { padding: var(--space-12) var(--space-18); }
+.asset-tree { padding: var(--space-12) var(--space-panel-inline); }
 .asset-tree ul { list-style: none; margin: 0; padding: 0 0 0 var(--space-16); }
 .asset-tree > ul { padding-left: 0; }
 .asset-tree-row { display: flex; align-items: center; gap: var(--space-4) var(--space-6);

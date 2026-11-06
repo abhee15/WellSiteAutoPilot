@@ -9,6 +9,8 @@ Material guidance on dense data applications.
 | Need | Use |
 |---|---|
 | Any button | `ActionButton` (`primary` once per area, `secondary`, `quiet`; `iconOnly` for symbols) |
+| Standalone contextual destination in a row/card | `ContextLink`; inline prose links stay native inline links, workflow entry beside buttons uses `ActionLink` |
+| Initial panel content is unavailable | `PanelLoading`; center within the affected panel, keep navigation usable, retain populated content on background refresh |
 | Navigation presented alongside action buttons | `ActionLink` from `ActionButton.tsx`; same shared action styles and sizing, native anchor semantics. Never use the compact `.action-link` row style for toolbar actions. |
 | Panel heading, optional count and controls | `PanelHeader` (`title`, optional `count`, `actions`, and `level=3` only for nested editors); actions share one wrapping token-based layout |
 | Close a details pane | `CloseButton` (✕ icon, tooltip, accessible name) |
@@ -34,6 +36,8 @@ See [Tab navigation design-system inventory and contract — Phase 1](tab-naviga
 See [Phase 4 component consistency audit](design-system-consistency-phase4.md) for the cross-screen inventory, ownership, first header migration and remaining form/notice/selection work. Form fields and notices follow the existing [Control UI audit](control-ui-audit.md) D1 ownership; do not build a competing kit.
 
 ## Layout
+
+Panel headers, edge table cells, filters and content states share `--space-panel-inline`. Do not override shared action, tab, link or loading appearance in a page stylesheet. See [panel loading, link, border and alignment contracts](panel-loading-link-border-contracts.md) for behavior, border roles, guards and remaining migration scope.
 
 - Master-detail pages (`split-layout`): on screens wider than 900px the panes fill the window under the header and each
   scrolls on its own; the page does not scroll. `useSplitPaneViewport` measures the offset, `splitLayout.css` holds the one

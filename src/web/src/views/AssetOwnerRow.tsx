@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { hashFor } from '../routing';
 import { t } from '../localization';
 import { AssetNodeIcon } from './AssetNodeIcon';
@@ -39,7 +40,7 @@ export function AssetOwnerRow({
         <small>{t('assetOwner.count', { count: String(owner.assetCount) })}</small>
         {owner.connectionId !== null && !owner.isEnabled && <small>{t('assetOwner.disabled')}</small>}
         {owner.connectionId !== null && canOpenConnection &&
-          <a className="action-link" href={hashFor('connections', owner.connectionId)}>{t('assetOwner.open')}</a>}
+          <ContextLink href={hashFor('connections', owner.connectionId)} label={t('assetOwner.open')} />}
       </div>
     </div>
   );

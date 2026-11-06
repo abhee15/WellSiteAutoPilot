@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useEffect, useState } from 'react';
 import './operatorItems.css';
 import type { AssetResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
@@ -52,7 +53,7 @@ export function RunRecommendations({ executionId, assets, canReadAssets, userId 
             <span>{recommendationProposal(item)}</span>
             {awaiting && <small>{t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>}
           </div>
-          {awaiting && item.canDecide && <a className="action-link" href={`#recommendations/${item.id}`}>{t('operations.reviewChange')}</a>}
+          {awaiting && item.canDecide && <ContextLink href={`#recommendations/${item.id}`} label={t('operations.reviewChange')} />}
         </li>;
       })}
     </ul>

@@ -11,7 +11,7 @@ it('offers access management only to someone who can use it, not as a disabled i
   expect(screen.queryByText('Manage access and roles')).toBeNull();
   cleanup();
   render(<UserMenu user={user(['security.manage']) as never} isLoading={false} />);
-  expect(screen.getByText('Manage access and roles').getAttribute('href')).toBe('#access');
+  expect(screen.getByRole('link', { name: 'Manage access and roles', hidden: true }).getAttribute('href')).toBe('#access');
 });
 
 it('closes with Escape (focus returns to the button) and on a click outside', async () => {

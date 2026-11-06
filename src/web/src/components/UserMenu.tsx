@@ -1,3 +1,4 @@
+import { ContextLink } from './ContextLink';
 import { useEffect, useRef } from 'react';
 import { hasPermission } from '../security/sessionAccess';
 import type { CurrentUserResponse } from '../api/generated/v1/types.gen';
@@ -62,7 +63,7 @@ export function UserMenu({
         )}
         <p className="user-panel-note">{t('session.authNotice')}</p>
         {hasPermission(user, 'security.manage') && (
-          <a className="action-link user-panel-link" href="#access">{t('access.menu')}</a>
+          <ContextLink href="#access" label={t('access.menu')} className="user-panel-link" />
         )}
       </div>
     </details>

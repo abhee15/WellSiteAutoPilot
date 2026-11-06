@@ -106,6 +106,7 @@
   --space-14: 0.875rem;
   --space-16: 1rem;
   --space-18: 1.125rem;
+  --space-panel-inline: var(--space-18);
   --space-20: 1.25rem;
   --space-24: 1.5rem;
   --space-28: 1.75rem;

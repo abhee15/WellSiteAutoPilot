@@ -34,7 +34,7 @@ import { createAssetContextCache } from './assetContextCache';
 import { useChangeRefresh } from '../live/LiveUpdates';
 import { isSecurityId } from '../security/identifiers';
 import './splitLayout.css';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 
 /** The address `#assets/types` opens the Asset types tab; any other detail is an asset id. */
 const TYPES_TAB = 'types';
@@ -299,7 +299,7 @@ export function AssetsPage({
                     label={t('assets.focusOn', { name: selectedAuthorized.name ?? t('assets.unnamed') })} />
                 </p>
               )}
-              {!isLoaded ? <LoadingIndicator variant="skeleton" label={t('views.loading')} />
+              {!isLoaded ? <PanelLoading label={t('views.loading')} />
                 : assets.length === 0 ? (
                   <>
                     <p className="split-note">{t('assets.none')}</p>

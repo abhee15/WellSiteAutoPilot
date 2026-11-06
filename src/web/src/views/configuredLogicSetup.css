@@ -16,7 +16,7 @@
 .setup-form select[multiple] { min-height: var(--size-listbox-min); }
 .setup-form p, .setup-revisions p { color: var(--color-text-subtle); overflow-wrap: anywhere; }
 .setup-panel [role="alert"] { color: var(--color-text-warning-strong); }
-.setup-panel [role="status"] { color: var(--color-text-selected); }
+.setup-panel [role="status"]:not([class]) { color: var(--color-text-selected); }
 .setup-panel :is(input,select,textarea,button,summary):focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset);
 }

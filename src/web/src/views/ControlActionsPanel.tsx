@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import './controlActions.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
@@ -163,7 +164,7 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
           tone="warning" />
       </div>
       <p>{t('controlActions.intro')}</p>
-      {selectedActionId && <a className="action-link" href={hashFor('recommendations', 'actions')}>{t('controlActions.all')}</a>}
+      {selectedActionId && <ContextLink href={hashFor('recommendations', 'actions')} label={t('controlActions.all')} />}
       {selectedActionId && actions !== null && !shown.length && <p role="status">{t('controlActions.selectedUnavailable')}</p>}
       <ul className="control-actions-list">
         {shown.map(action => {

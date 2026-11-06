@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '../components/ActionButton';
 import './connections.css';
@@ -120,8 +121,8 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
                     </div>
                     <div className="health-row-end">
                       <Status value={status} label={t(statusLabels[status])} />
-                      <a className="action-link" href={`#connections/${item.id}`}
-                        aria-label={t('status.openConnection', { name: item.name })}>{t('status.open')}</a>
+                      <ContextLink href={`#connections/${item.id}`}
+                        aria-label={t('status.openConnection', { name: item.name })} label={t('status.open')} />
                     </div>
                   </div>
                 );
