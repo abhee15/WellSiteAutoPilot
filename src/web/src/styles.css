@@ -386,7 +386,7 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   gap: var(--space-16);
-  padding: var(--space-16) var(--space-18);
+  padding: var(--space-16) var(--space-panel-inline);
   border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
 }
 
@@ -507,9 +507,9 @@ button:disabled {
 
 /* The first and last columns use the panel gutter, so table text lines up with the headings and filters above it. */
 .activity-table th:first-child,
-.activity-table td:first-child { padding-inline-start: var(--space-18); }
+.activity-table td:first-child { padding-inline-start: var(--space-panel-inline); }
 .activity-table th:last-child,
-.activity-table td:last-child { padding-inline-end: var(--space-18); }
+.activity-table td:last-child { padding-inline-end: var(--space-panel-inline); }
 
 .activity-table th {
   color: var(--color-text-muted);
@@ -1142,27 +1142,6 @@ a.secondary-button, a.primary-button {
 a.secondary-button:hover { color: var(--color-text-control); }
 a.primary-button:hover { color: var(--color-text-on-accent); }
 
-/* A navigation link that reads as clickable: a small bordered pill with a chevron, not underlined text. */
-.action-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  min-height: var(--size-control-compact);
-  box-sizing: border-box;
-  padding: 0 var(--space-10);
-  border: var(--border-width-thin) solid var(--color-border-control);
-  border-radius: var(--radius-6);
-  background: var(--color-surface-panel);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-medium);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.action-link::after { content: '\203A' / ''; font-size: var(--font-size-body); line-height: 1; }
-.action-link:hover { background: var(--color-surface-control-hover); color: var(--color-text-link); }
-
 /* A name that opens something: link colour, no underline until hovered. */
 .text-link { color: var(--color-text-primary); text-decoration: none; }
 .text-link:hover { color: var(--color-text-link); text-decoration: underline; }
@@ -1209,7 +1188,6 @@ select:not([multiple], [size]) {
    titles are body size bold; sub-sections inside a detail are body-small bold. The browser default (1.17em) is never used. */
 :where(h3) { font-size: var(--font-size-body); font-weight: var(--font-weight-medium); }
 :where(h4) { font-size: var(--font-size-body-small); font-weight: var(--font-weight-medium); }
-.ui-action-button.quiet-button { border-radius: var(--radius-6); }
 
 /* Type scale: three weights (Roboto ships 400, 500 and 700, so a 600 would silently render as 700). Regular for text,
    medium for headings, controls, tabs and column headers, bold only for emphasis inside a sentence and big figures.
@@ -1221,7 +1199,7 @@ select:not([multiple], [size]) {
    the value is body text. A label is never caption-sized: at 12px it is hard to read beside a 16px value. */
 :where(dt) { font-size: var(--font-size-label); font-weight: var(--font-weight-regular); color: var(--color-text-detail-label); }
 :where(dd) { font-size: var(--font-size-body); }
-.primary-button, .secondary-button, .quiet-button, .ui-action-button { font-weight: var(--font-weight-medium); }
+.primary-button, .secondary-button, .quiet-button { font-weight: var(--font-weight-medium); }
 .activity-table td strong { font-weight: var(--font-weight-medium); }
 .activity-table td .activity-sentence strong, .activity-detail h3 strong { font-weight: var(--font-weight-bold); }
 /* Disclosures ("Filters and saved views") and the side navigation read at the control size, like the content they sit beside. */
