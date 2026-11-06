@@ -26,7 +26,7 @@ async function review() {
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Review' }));
   await user.click(screen.getByRole('radio', { name: 'Approve recommendation' }));
-  await user.type(screen.getByRole('textbox', { name: 'Reason (required for audit)' }), 'Reviewed for this Asset');
+  await user.type(screen.getByRole('textbox', { name: 'Reason for audit' }), 'Reviewed for this Asset');
   await user.click(screen.getByRole('checkbox', { name: 'I reviewed the asset, recommendation, proposed value, and expiry.' }));
   return user;
 }
@@ -47,7 +47,7 @@ it('revocation clears a reviewed decision even when coarse permissions and the r
   expect(screen.getByRole('button', { name: 'Submit decision' })).toHaveProperty('disabled', false);
   state.value = { ...item, canDecide: false };
   await user.click(screen.getByRole('button', { name: 'Reload inbox' }));
-  await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Reason (required for audit)' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Reason for audit' })).toBeNull());
   expect(screen.queryByRole('button', { name: 'Submit decision' })).toBeNull();
   state.value = item;
   await user.click(screen.getByRole('button', { name: 'Reload inbox' }));
@@ -60,7 +60,7 @@ it('an equivalent refresh preserves the reason and acknowledgement without resub
   fixture(); const user = await review();
   await user.click(screen.getByRole('button', { name: 'Reload inbox' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Reload inbox' })).toHaveProperty('disabled', false));
-  expect(screen.getByRole('textbox', { name: 'Reason (required for audit)' })).toHaveProperty('value', 'Reviewed for this Asset');
+  expect(screen.getByRole('textbox', { name: 'Reason for audit' })).toHaveProperty('value', 'Reviewed for this Asset');
   expect(screen.getByRole('button', { name: 'Submit decision' })).toHaveProperty('disabled', false);
 });
 
@@ -68,7 +68,7 @@ it('changed proposal metadata requires a fresh review for the same recommendatio
   const { state } = fixture(); const user = await review();
   state.value = { ...item, suggestedValue: 71 };
   await user.click(screen.getByRole('button', { name: 'Reload inbox' }));
-  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Reason (required for audit)' })).toHaveProperty('value', ''));
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Reason for audit' })).toHaveProperty('value', ''));
   expect(screen.getByRole('button', { name: 'Submit decision' })).toHaveProperty('disabled', true);
 });
 
