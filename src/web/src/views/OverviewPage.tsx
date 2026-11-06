@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useEffect, useRef, useState } from 'react';
 import type {
   AssetResponse,
@@ -178,7 +179,7 @@ export function OverviewPage({
                 <span>{recommendationProposal({ ...action, suggestedValue: action.value })}</span>
                 <small>{t('overview.runReference', { id: shortId(action.executionId) })} · {formatDetailTimestamp(action.createdAtUtc)}</small>
               </div>
-              <a className="action-link" href={hashFor('recommendations', `actions/${action.id}`)}>{t('overview.inspectActions')}</a>
+              <ContextLink href={hashFor('recommendations', `actions/${action.id}`)} label={t('overview.inspectActions')} />
             </li>}
             {pendingShown.map(item => <li key={item.id}>
               <div className="operator-item-context">
@@ -187,7 +188,7 @@ export function OverviewPage({
                 <span>{recommendationProposal(item)}</span>
                 <small>{item.moduleId} · {t('overview.runReference', { id: shortId(item.executionId) })} · {t('inbox.expires')} {formatDetailTimestamp(item.expiresAtUtc)}</small>
               </div>
-              {item.canDecide && <a className="action-link" href={`#recommendations/${item.id}`}>{t('operations.reviewChange')}</a>}
+              {item.canDecide && <ContextLink href={`#recommendations/${item.id}`} label={t('operations.reviewChange')} />}
             </li>)}
             {failedShown.map(run => {
               const context = describeRunContext(run, configuredLogic, directory.assets, directory.owners);
@@ -197,7 +198,7 @@ export function OverviewPage({
                   <Status value={run.status} />
                   <small>{context.logicName ?? run.moduleId} · {t('overview.runReference', { id: shortId(run.executionId) })} · {formatDetailTimestamp(run.requestedAtUtc)}</small>
                 </div>
-                <a className="action-link" href={`#operations/${run.executionId}`}>{t('overview.inspectRun')}</a>
+                <ContextLink href={`#operations/${run.executionId}`} label={t('overview.inspectRun')} />
               </li>;
             })}
           </ul>
@@ -221,7 +222,7 @@ export function OverviewPage({
       {permissions.includes('executions.read') && ready && latestRuns.length > 0 && (
         <section className="panel overview-latest" aria-label={t('overview.latestRuns')}>
           <PanelHeader title={t('overview.latestRuns')}
-            actions={<a className="action-link" href="#operations">{t('overview.allRuns')}</a>} />
+            actions={<ContextLink href="#operations" label={t('overview.allRuns')} />} />
           <ul className="overview-runs">
             {latestRuns.map(run => {
               const context = describeRunContext(run, configuredLogic, directory.assets, directory.owners);
