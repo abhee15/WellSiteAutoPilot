@@ -23,6 +23,14 @@ function offenders(pattern, { except = [] } = {}) {
   return files.filter(path => !except.includes(rel(path)) && pattern.test(source(path))).map(rel);
 }
 
+test('navigation actions use ActionLink rather than raw button classes or compact Assets toolbar links', () => {
+  assert.deepEqual(offenders(/<a\b[^>]*className=["'][^"']*\b(?:primary-button|secondary-button)\b/,
+    { except: ['components/ActionButton.tsx'] }), []);
+  const assets = source(join(root, 'views/AssetsPage.tsx'));
+  assert.doesNotMatch(assets, /className="action-link"/,
+    'Assets toolbar navigation belongs to ActionLink so it matches adjacent ActionButton controls');
+});
+
 test('states are shown with components/Status, never with ad-hoc pills or colour classes', () => {
   assert.deepEqual(offenders(/StatusPill|status-pill|health-state|\bstatus-(good|bad|warn|ok)\b/), []);
 });

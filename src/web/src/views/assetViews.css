@@ -15,9 +15,9 @@
 .asset-view-levels li { display: flex; align-items: center; gap: var(--space-6); }
 .asset-view-levels li > span { flex: 1; }
 .asset-view-bar { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; padding: var(--space-4) 0; }
-.asset-view-bar label { display: flex; align-items: center; gap: var(--space-8); color: var(--color-text-secondary); font-size: var(--font-size-body-small); }
-.asset-view-bar select { min-inline-size: var(--layout-card-min); }
-.asset-view-bar .secondary-button, .asset-view-bar select { min-height: var(--size-control); font-size: var(--font-size-body-small); }
+.asset-view-bar label { display: flex; align-items: center; gap: var(--space-8); min-inline-size: 0; max-inline-size: 100%; color: var(--color-text-secondary); font-size: var(--font-size-body-small); }
+.asset-view-bar select { min-inline-size: 0; flex: 1; }
+.asset-view-bar select { min-height: var(--size-control); font-size: var(--font-size-body-small); }
 .well-selection-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); }
 .well-selection-layout > section { min-inline-size: 0; }
 .well-selection-list { list-style: none; padding: 0; max-block-size: var(--layout-list-max-large); overflow: auto; }

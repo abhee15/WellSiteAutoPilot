@@ -9,6 +9,7 @@ Material guidance on dense data applications.
 | Need | Use |
 |---|---|
 | Any button | `ActionButton` (`primary` once per area, `secondary`, `quiet`; `iconOnly` for symbols) |
+| Navigation presented alongside action buttons | `ActionLink` from `ActionButton.tsx`; same shared action styles and sizing, native anchor semantics. Never use the compact `.action-link` row style for toolbar actions. |
 | Panel heading, optional count and controls | `PanelHeader` (`title`, optional `count`, `actions`, and `level=3` only for nested editors); actions share one wrapping token-based layout |
 | Close a details pane | `CloseButton` (✕ icon, tooltip, accessible name) |
 | Search | `SearchInput` (always with a placeholder) |

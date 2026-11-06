@@ -1,6 +1,6 @@
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActionButton } from '../components/ActionButton';
+import { ActionButton, ActionLink } from '../components/ActionButton';
 import { PageTabNav } from '../components/PageTabNav';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
@@ -274,7 +274,7 @@ export function AssetsPage({
             </label>
             {permissions.includes('asset-views.create') && <ActionButton label={t('assetViews.create')} onClick={() => { setInitialViewConnection(null); setEditingView('new'); }} />}
             {activeView && permissions.includes('configured-logic.manage') && permissions.includes('configured-logic.read') &&
-              permissions.includes('logic.read') && <a className="action-link" href={`#logic/new-view:${activeView.id}`}>{t('assignment.assign')}</a>}
+              permissions.includes('logic.read') && <ActionLink href={`#logic/new-view:${activeView.id}`} label={t('assignment.assign')} />}
             {activeView && (activeView.canEdit || activeView.canDelete) && <ActionButton label={t('assetViews.edit')} onClick={() => setEditingView(activeView)} />}
             {activeView?.hasUnavailableMembers && <span role="note" className="connection-help">{t('assetViews.unavailableMembers')}</span>}
           </div>}

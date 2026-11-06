@@ -31,9 +31,10 @@ type Props = {
   onDenied?: (committed: boolean) => void;
   /** Begin from this asset: it is pre-selected for the first role it fits. */
   initialAssetId?: string | null; initialViewId?: string | null; canReadViews?: boolean;
+  showHeading?: boolean;
 };
 export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners = [],
-  configuration, revision, editDraft = false, onSaved, onCancel, onDenied, initialAssetId, initialViewId, canReadViews = false }: Props) {
+  configuration, revision, editDraft = false, onSaved, onCancel, onDenied, initialAssetId, initialViewId, canReadViews = false, showHeading = true }: Props) {
   const [views, setViews] = useState<AssetView[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [viewAssets, setViewAssets] = useState<AssetResponse[]>([]);
@@ -220,7 +221,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
     }
   }
   return <section className="setup-panel" aria-label={t('setup.heading')}>
-    <h3>{editDraft ? t('draftEditor.edit', { number: revision?.revisionNumber ?? '—' }) : configuration ? t('setup.newRevision') : t('setup.heading')}</h3>
+    {showHeading && <h3>{editDraft ? t('draftEditor.edit', { number: revision?.revisionNumber ?? '—' }) : configuration ? t('setup.newRevision') : t('setup.heading')}</h3>}
     {configuration && <p>{t(editDraft ? 'draftEditor.editHint' : 'draftEditor.copyHint', { number: revision?.revisionNumber ?? '—' })}</p>}
     <p>{t('setup.shadowOnly')}</p>
     {initialViewId && !configuration && <p role="note">{t('assignment.selectedView', { name: views.find(view => view.id === initialViewId)?.name ?? initialViewId })}</p>}
