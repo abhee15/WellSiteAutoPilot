@@ -14,7 +14,7 @@ import {
   setConnectionEnabled, testConnection, updateConnection,
 } from './connections';
 import type { Adapter, Connection, ConnectionDraft, ConnectionStatus, Discovery, ImportSelection } from './connections';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { useChangeRefresh } from '../live/LiveUpdates';
 
@@ -100,7 +100,7 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
         <PanelHeader title={t('connections.listLabel')}
           actions={canManage ? <ActionButton label={t('connections.new')} variant="primary"
             disabled={adapters.length === 0} onClick={() => setSelected('new')} /> : undefined} />
-        {loading && <LoadingIndicator label={t('connections.loading')} />}
+        {loading && connections.length === 0 && <PanelLoading label={t('connections.loading')} />}
         {loadError && <p role="alert" className="status-error">{loadError}</p>}
         {adaptersFailed && !loadError && <p role="status" className="connection-help">{t('connections.adaptersUnavailable')}</p>}
         {!loading && !loadError && connections.length === 0 && <p className="empty-state">{t('connections.empty')}</p>}

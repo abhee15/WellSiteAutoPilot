@@ -77,3 +77,16 @@ test('record and standalone destinations use ContextLink; native prose and secti
   }
   assert.deepEqual(found, []);
 });
+
+
+test('primary page content uses PanelLoading; pagination progress stays inline', () => {
+  // Overview has a contextual attention read inside its already inset body, not a full-panel initial load.
+  const pages = ['OperationsPage', 'AssetsPage', 'LogicPage', 'RecommendationsPage',
+    'ConnectionsPage', 'StatusPage', 'AccessManagementPage'];
+  for (const name of pages) {
+    const source = readFileSync(join(root, 'views', name + '.tsx'), 'utf8');
+    for (const [tag] of source.matchAll(/<LoadingIndicator\b[^>]*>/g)) {
+      assert.match(tag, /\binline\b/, name + ': initial panel content belongs to PanelLoading, not an uninset spinner');
+    }
+  }
+});

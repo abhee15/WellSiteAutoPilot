@@ -7,7 +7,7 @@ import type { UserDirectoryFilters, VerifiedSecurityUser } from './accessManagem
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import { FilterToolbar, FilterField } from '../components/FilterToolbar';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { LoadingIndicator, PanelLoading } from '../components/LoadingIndicator';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
@@ -135,7 +135,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
       </FilterField>
       <p className="access-filter-help">{t('access.groupNote')}</p>
     </FilterToolbar>
-    {loading && <LoadingIndicator label={t('access.loading')} />}
+    {loading && <PanelLoading label={t('access.loading')} />}
     {failed && <p role="alert" className="access-intro">{t('access.denied')}</p>}
     {!loading && !failed && users.length === 0 &&
       <p role="status" className="access-intro">{t(isFiltered ? 'access.noMatches' : 'access.noUsers')}</p>}
@@ -172,7 +172,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
     {!loading && !failed && nextCursor &&
       <div className="access-directory-more"><ActionButton label={t('access.loadMore')}
         disabled={loadingMore} onClick={() => void load(filters, nextCursor)} />
-        {loadingMore && <LoadingIndicator label={t('access.loading')} />}
+        {loadingMore && <LoadingIndicator label={t('access.loading')} size="small" inline />}
       </div>}
     </section>
     <section className="split-selected" tabIndex={-1} aria-label={t('access.detailHeading')}>

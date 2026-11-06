@@ -8,7 +8,7 @@ import type { MessageKey } from '../localization';
 import { formatTimestamp } from '../format';
 import { connectionStatus, loadAdapters, loadConnections } from './connections';
 import type { Adapter, Connection, ConnectionStatus } from './connections';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { Status, statusTone } from '../components/Status';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 
@@ -82,7 +82,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
       {canSeeServices && (
         <section aria-labelledby="status-services">
           <h2 id="status-services">{t('status.services')}</h2>
-          {services.state === 'loading' && <LoadingIndicator label={t('status.loading')} />}
+          {services.state === 'loading' && <PanelLoading label={t('status.loading')} />}
           {services.state === 'failed' && <div className="status-error" role="alert">{t('status.servicesFailed')}</div>}
           {services.state === 'ready' && (
             <div className="health-list">
@@ -102,7 +102,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
       {canSeeConnections && (
         <section aria-labelledby="status-connections">
           <h2 id="status-connections">{t('status.connections')}</h2>
-          {connections.state === 'loading' && <LoadingIndicator label={t('status.loading')} />}
+          {connections.state === 'loading' && <PanelLoading label={t('status.loading')} />}
           {connections.state === 'failed' && <div className="status-error" role="alert">{t('status.connectionsFailed')}</div>}
           {connections.state === 'ready' && connections.value.items.length === 0 && <p>{t('status.noConnections')}</p>}
           {connections.state === 'ready' && connections.value.items.length > 0 && (
