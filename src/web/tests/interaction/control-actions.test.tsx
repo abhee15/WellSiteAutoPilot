@@ -127,7 +127,7 @@ it('focuses the linked unconfirmed command without substituting another open com
   const view = render(<ControlActionsPanel userId={userId} canManage selectedActionId={actionId} />);
   await screen.findByText('SET_CHOKE');
   expect(screen.queryByText('SET_SPEED')).toBeNull();
-  expect(screen.getByRole('region', { name: 'Unconfirmed commands' })).toBe(document.activeElement);
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Unconfirmed commands' })).toBe(document.activeElement));
   expect(screen.getByRole('link', { name: 'All unconfirmed commands' }).getAttribute('href')).toBe('#recommendations/actions');
   view.rerender(<ControlActionsPanel userId={userId} canManage selectedActionId="missing" />);
   expect(await screen.findByText(/no longer in the authorized open-command list/)).toBeTruthy();
