@@ -37,7 +37,10 @@ describe('Connections page', () => {
     render(<ConnectionsPage canManage />);
     await screen.findByText('Field simulator');
     expect(screen.getByText('Not tested')).toBeTruthy();
-    await userEvent.click(screen.getByText('Field simulator'));
+    const connection = screen.getByRole('button', { name: /Field simulator/ });
+    expect(connection.getAttribute('aria-current')).toBe('false');
+    await userEvent.click(connection);
+    expect(connection.getAttribute('aria-current')).toBe('true');
     expect((await screen.findByLabelText('Simulator address (required)') as HTMLInputElement).value).toBe('http://127.0.0.1:5091');
     expect(screen.getByText(/system cannot be changed/i)).toBeTruthy();
   });

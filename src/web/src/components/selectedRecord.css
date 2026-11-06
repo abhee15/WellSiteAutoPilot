@@ -1,0 +1,23 @@
+/* Shared selected-record appearance: one background and leading indicator everywhere.
+ * Selection is not focus. Focus rings remain governed by the global :focus-visible rule.
+ * An actual tree selection keeps aria-selected on its treeitem; plain record navigation
+ * and detail-opening buttons use aria-current, never a fake tab/grid widget.
+ */
+:is(
+  .runs-layout .activity-table tbody tr[data-selected='true'],
+  .users-directory-layout .activity-table tbody tr[data-selected='true'],
+  .activity-table tr.asset-row[data-selected='true'],
+  .split-results li[data-selected='true'],
+  .asset-tree-row:has([data-selected='true'])
+) {
+  background: var(--color-surface-navigation-active);
+  box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring);
+}
+
+/* Connection rows are already border-box buttons: reuse the same selected surface
+ * but use their existing leading border rather than adding a second indicator. */
+.connection-row[aria-current='true'],
+.connection-row[aria-current='true']:hover {
+  border-left-color: var(--color-border-selected);
+  background: var(--color-surface-navigation-active);
+}

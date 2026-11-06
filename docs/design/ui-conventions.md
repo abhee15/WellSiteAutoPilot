@@ -53,6 +53,21 @@ Panel headers, edge table cells, filters and content states share `--space-panel
 - Details are one bordered, full-height card with a single frame (Activity shares the list panel instead).
 - Gutters: panel headings, filters and table text all start on `--space-18`.
 
+## Selected records and keyboard focus
+
+- Selected records in tables, list results and Asset trees, plus the current Connection, share one
+  token-based visual appearance from `components/selectedRecord.css`. Never create per-page
+  selected-row backgrounds or indicators; the selected surface is not merely a hover color.
+- A detail-opening **button** may mark the currently shown record with `aria-current="true"`
+  while keeping its existing `aria-expanded` and `aria-controls` behavior. Native table rows
+  use `data-selected` for appearance, **not** invented `role="grid"` or `role="tab"`.
+- Actual Asset tree items use `aria-selected`; true tabs use `aria-selected`; navigation links use
+  `aria-current="page"`. Maintain the meaning of each rather than adopting one attribute everywhere.
+- Focus indication comes from `:focus-visible` and must remain independently visible
+  regardless of selected/hover state. Review keyboard and responsive behavior separately.
+- See [Phase 4 design audit](design-system-consistency-phase4.md) for the cross-screen scope and
+  [WAI-ARIA](https://www.w3.org/TR/wai-aria/#aria-current) for the current/selected distinction.
+
 ## Type
 
 - Three weights from tokens: regular 400, medium 500, bold 700 (Roboto ships only these; 600 would render as 700).

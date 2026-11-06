@@ -9,7 +9,6 @@
 .asset-page-list li { display: flex; gap: var(--space-10); align-items: baseline; flex-wrap: wrap; }
 .asset-page-list small { color: var(--color-text-subtle); }
 
-.activity-table tr.asset-row[data-selected='true'] { background: var(--color-surface-navigation-active); box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring); }
 
 .asset-page { min-width: 0; overflow-wrap: anywhere; }
 .asset-page-header > div { min-width: 0; }

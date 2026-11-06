@@ -106,6 +106,39 @@ test('buttons are not restyled by where they sit: use ActionButton, not a contai
     'A rule like ".some-container button { ... }" gives one screen its own button look; use <ActionButton> (or the shared button classes)');
 });
 
+test('selection states share one visible treatment without inventing tab or grid roles', () => {
+  const main = source(join(root, 'main.tsx'));
+  assert.match(main, /import '\.\/components\/selectedRecord\.css'/,
+    'selected-record CSS must be loaded for all screens');
+  const selected = source(join(root, 'components/selectedRecord.css'));
+  for (const selector of [
+    ".runs-layout .activity-table tbody tr[data-selected='true']",
+    ".users-directory-layout .activity-table tbody tr[data-selected='true']",
+    ".activity-table tr.asset-row[data-selected='true']",
+    ".split-results li[data-selected='true']",
+    ".asset-tree-row:has([data-selected='true'])",
+    ".connection-row[aria-current='true']",
+  ]) {
+    assert.ok(selected.includes(selector), 'missing shared selection owner: ' + selector);
+  }
+  assert.match(selected, /background: var\(--color-surface-navigation-active\)/);
+  assert.match(selected, /box-shadow: inset var\(--border-width-thick\) 0 0 var\(--color-focus-ring\)/);
+  const legacy = [
+    'views/splitLayout.css', 'views/assetTree.css', 'views/assetPage.css',
+    'views/connections.css', 'views/accessManagement.css',
+  ];
+  for (const path of legacy) {
+    const css = source(join(root, path));
+    assert.doesNotMatch(css, /(?:data-selected='true'|aria-current='true')[^{]*\{[^}]*\b(?:background|box-shadow|border-left-color):/,
+      path + ' must not restyle the selected-record appearance');
+  }
+  const runs = source(join(root, 'views/OperationsPage.tsx'));
+  assert.match(runs, /aria-current=\{hasSelection && selectedExecutionId === execution\.executionId \? 'true' : undefined\}/);
+  const tree = source(join(root, 'views/AssetTree.tsx'));
+  assert.match(tree, /role="treeitem" aria-expanded=\{hasChildren \? expanded : undefined\}[\s\S]*?aria-selected=\{id === selectedId\}/);
+  assert.doesNotMatch(tree, /role="tab"/, 'tree selection is not tab selection');
+});
+
 test('panels reuse the shared header action slot instead of screen-specific wrappers', () => {
   const examples = [
     'views/ConnectionsPage.tsx',

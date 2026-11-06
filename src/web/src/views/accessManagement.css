@@ -11,10 +11,6 @@
 .users-directory-layout[data-has-selection='true'] .user-col-secondary,
 .users-directory-layout[data-has-selection='true'] .user-col-actions { display: none; }
 .users-directory-layout .activity-table tbody tr { cursor: pointer; }
-.users-directory-layout .activity-table tbody tr[data-selected='true'] {
-  background: var(--color-surface-navigation-active);
-  box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring);
-}
 .users-directory-layout .activity-table .access-user-open {
   color: var(--color-text-primary);
   font-weight: var(--font-weight-medium);
