@@ -2,6 +2,18 @@
 
 Start here. The builder has no access to ForeSite, CygNet or WAMI: use these docs and fixtures.
 
+## Links (GitHub: abhee15/WellSiteAutoPilot)
+
+Docs branch: https://github.com/abhee15/WellSiteAutoPilot/tree/docs/provider-logic-module-gaps (tip `49cbf96a` at time of writing)
+
+POC branches (tree URLs are `https://github.com/abhee15/WellSiteAutoPilot/tree/<branch>`):
+- ForeSite tip: `poc/gap-g05b-time-range-trends` (`c91fd329`), stack contains G9 through G5b
+- CygNet: `poc/gap-cygnet-udc-catalog` (`d5a5dc22`), `poc/gap-cygnet-history` (`0ea4a561`), `poc/gap-cygnet-alarms` (`ec25a0ef`)
+- WAMI: `poc/wami-baseline` (`f627a3bc`), `poc/gap-wami-foresite-model-live` (`1a223ad7`), `poc/gap-wami-license-features` (`d53d748e`), `poc/gap-wami-calc-functions` (`0a1f9e07`), `poc/gap-wami-wellflo-model-library` (`1e215dc8`), `poc/gap-wami-gateway-registration` (`f3e05c09`)
+- Earlier WAMI composition prototype: `feature/poc-wami-provider` (`755ee2f1`)
+
+Live probe sources are not in the repo (they need the provider systems); their findings are in the reference docs and fixtures.
+
 ## Read in this order
 
 1. `architecture/provider-adapter-architecture-recommendation.md`: layers, capabilities, provider differences, authoring, commands, PR order.
