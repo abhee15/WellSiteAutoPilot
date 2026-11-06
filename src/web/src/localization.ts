@@ -1020,7 +1020,7 @@ export const englishMessages = {
   'inbox.module': 'Logic module',
   'inbox.proposal': 'Suggested change',
   'inbox.reason': 'Reason code',
-  'inbox.timing': 'Created / expiry',
+  'inbox.timing': 'Created',
   'inbox.review': 'Decision actor',
   'inbox.expires': 'Expires:',
   'inbox.expiredNote': 'Expired, do not act',
