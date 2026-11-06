@@ -119,7 +119,6 @@ export function AssetDetail({
       {logic.failed && <p role="status" className="asset-page-empty">{t('assetDetail.logicUnavailable')} <button type="button" className="row-link" onClick={logic.refresh}>{t('assetDetail.retry')}</button></p>}
       {operational && canReadLogic && <section aria-label={t('assetPage.logicHere')}>
         <h4>{t('assetDetail.logicAndRuns')}</h4>
-        <p className="asset-page-meta">{t('assetDetail.scheduleHint')}</p>
         {logic.data?.items?.length === 0 && <p className="asset-page-empty">{t('assetPage.noLogic')}</p>}
         <div className="asset-logic-list">
           {logic.data?.items?.map(item => <AssetLogicCard key={item.configuration?.id} item={item} assetId={assetId} canReadRuns={canReadRuns} />)}

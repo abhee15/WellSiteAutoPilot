@@ -60,6 +60,24 @@ Panel headers, edge table cells, filters and content states share `--space-panel
 - Sizes: 12px caption/small, 14px controls/body-small/tabs/navigation, 16px body, 20px metric, 24-32px headings.
 - Line height 1.45 body, 1.25 headings.
 
+## Detail copy
+
+Lead with record identity, current state, values and available actions. Each sentence must help the user
+identify the record, understand a meaningful exception or complete the current task.
+
+- Include the zone in each formatted timestamp; do not add a paragraph explaining local-time display.
+- Omit routine schedule-agreement reassurance and revision implementation notes. When the live schedule
+  actually differs, show the saved frequency once beside the effective state and existing controls.
+- Do not repeat a successful operational-read timestamp in a footer. Preserve refresh failure, stale/revision-change
+  and unavailable messages, retry actions, field requirements and consequential-action acknowledgements.
+- Keep the shared-view schedule scope: changing one view assignment affects its members, which matters to the task.
+- Avoid moving essential instructions into tooltips. Technical provenance can use the existing disclosure.
+
+This is a content decision, not a blanket rule to delete helper text. The retired boilerplate is guarded in
+`tests/consistency.test.mjs`. Follow-up reviews must exercise failed, read-only and changed states as well as normal data.
+Guidance: [Atlassian content](https://atlassian.design/foundations/content/),
+[W3C cognitive accessibility: avoid too much content](https://www.w3.org/WAI/WCAG2/supplemental/patterns/o5p03-manageable-quantity/).
+
 ## Units
 
 `rem` for spacing, control, radius, layout and font sizes (value / 16); `px` only for hairlines (borders, focus ring),

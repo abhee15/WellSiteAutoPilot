@@ -42,7 +42,6 @@ export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, 
     </dl>
     {active?.schedule?.enabled && <p>{t('logicDetail.nextScheduled')}: {matching && activity.nextScheduledAtUtc
       ? formatTimestamp(activity.nextScheduledAtUtc) : t('logicDetail.notAvailable')}</p>}
-    <p className="logic-detail-note">{t('assetDetail.scheduleHint')}</p>
     {shown.view && <p className="logic-detail-note">{t('assetDetail.viewSchedule')}</p>}
     {loading && <LoadingIndicator label={t('assetPage.loading')} />}
     {failed && <p role="status">{t('logicDetail.activityUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={onRetry} /></p>}
@@ -53,6 +52,5 @@ export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, 
         <Status value={run.status} /><a href={hashFor('operations', run.executionId)}>{formatTimestamp(run.requestedAtUtc)}</a>
       </li>)}</ul>
     </section>}
-    {activity?.observedAtUtc && <p className="logic-detail-note">{t('logicDetail.observed', { time: formatTimestamp(activity.observedAtUtc) })}</p>}
   </section>;
 }

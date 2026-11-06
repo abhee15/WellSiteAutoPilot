@@ -118,9 +118,9 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
     {heading}
     <p>{summary}{next && <> {next}</>}</p>
     {control.belowMinimum && <p role="note">{t('scheduleControl.belowMinimum', { interval: interval(control.minimumCadenceSeconds) })}</p>}
-    <p className="logic-detail-note">{control.differsFromRevision
-      ? t('scheduleControl.differs', { interval: control.declared?.unit ? `${control.declared.every} ${control.declared.unit.toLowerCase()}` : interval(control.declared?.cadenceSeconds ?? null) })
-      : t('scheduleControl.matches')} {t('scheduleControl.noRevision')}</p>
+    {control.differsFromRevision && <p className="logic-detail-note">{t('scheduleControl.differs', {
+      interval: control.declared?.unit ? `${control.declared.every} ${control.declared.unit.toLowerCase()}` : interval(control.declared?.cadenceSeconds ?? null),
+    })}</p>}
     {manage && form === null && <div className="setup-actions">
       {!control.effective?.unit && <ActionButton label={t('scheduleControl.changeFrequency')} disabled={busy} onClick={() => { setError(null); setSeconds(String(control.effective?.cadenceSeconds ?? '')); setForm('frequency'); }} />}
       {state === 'running'
