@@ -37,9 +37,11 @@ public static class AdapterReadRules
 
     private static readonly AdapterReadRule[] Rules =
     [
-        new(ForeSiteKey, "foresite.well",         new HashSet<string>(StringComparer.Ordinal)
+        new(ForeSiteKey, "foresite.well", new HashSet<string>(StringComparer.Ordinal)
         {
-            "PumpFillage", "AveragePumpFillage", "CurrentSPM", "AverageSPM", "CyclesYesterday", "RunTimeYesterday"
+            "PumpFillage", "AveragePumpFillage", "CurrentSPM", "AverageSPM", "CyclesYesterday", "RunTimeYesterday",
+            "CyclesToday", "RunTimeToday", "IdleTimeToday", "IdleTimeYesterday", "StrokesToday", "StrokesYesterday",
+            "InferredProductionToday", "InferredProductionYesterday"
         },
             [new StructuredCurrentRead("SurfaceCards", "structured.current", "foresite.surface-cards/v1")]),
         new(CygNetKey, CygNetResourceKind, CygNetQuantities)

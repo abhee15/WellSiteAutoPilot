@@ -9,7 +9,7 @@ namespace WellSiteAutoPilot.Integration.ForeSite;
 /// </summary>
 public sealed record ForeSiteQuantity(
     string Key, string ValueField, string? UnitField = null, string FallbackUnit = "",
-    decimal? FallbackMin = null, decimal? FallbackMax = null);
+    decimal? FallbackMin = null, decimal? FallbackMax = null, decimal? UnsetValue = null);
 
 public static class ForeSiteQuantityCatalog
 {
@@ -20,7 +20,16 @@ public static class ForeSiteQuantityCatalog
         new("CurrentSPM", "CurrentSPM", "CurrentSPM", "SPM", 0),
         new("AverageSPM", "AverageSPM", "AverageSPM", "SPM", 0),
         new("CyclesYesterday", "CyclesYesterday", null, "", 0),
-        new("RunTimeYesterday", "RunTimeYesterday", "RunTimeYesterday", "s", 0)
+        new("RunTimeYesterday", "RunTimeYesterday", "RunTimeYesterday", "s", 0),
+        new("CyclesToday", "CyclesToday", null, "", 0),
+        new("RunTimeToday", "RunTimeToday", "RunTimeToday", "s", 0),
+        new("IdleTimeToday", "IdleTimeToday", "IdleTimeToday", "s", 0),
+        new("IdleTimeYesterday", "IdleTimeYesterday", "IdleTimeYesterday", "s", 0),
+        // Controllers send 65535 for a stroke count they have not rolled over yet.
+        new("StrokesToday", "StrokesToday", null, "", 0, null, 65535),
+        new("StrokesYesterday", "StrokesYesterday", null, "", 0, null, 65535),
+        new("InferredProductionToday", "InferredProductionToday", "InferredProductionToday", "bbl/d", 0),
+        new("InferredProductionYesterday", "InferredProductionYesterday", "InferredProductionYesterday", "bbl/d", 0)
     ];
 
     private static readonly FrozenDictionary<string, ForeSiteQuantity> ByKey =

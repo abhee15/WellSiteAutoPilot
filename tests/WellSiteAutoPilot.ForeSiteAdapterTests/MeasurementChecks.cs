@@ -92,6 +92,18 @@ internal static class MeasurementChecks
         var averageSpm = await pool.ReadAsync(a with { Quantity = "AverageSPM" }, CancellationToken.None);
         Check(averageSpm is { Value: 11, Unit: "SPM" }, "AverageSPM was not served from the status document");
         factory.Payload = null;
+        // G23: idle time and inferred production are served, 65535 strokes is "not available", and a real zero is a value.
+        factory.Payload = """
+            {"Value":{"IdleTimeYesterday":61860,"InferredProductionYesterday":106.4,"StrokesYesterday":65535,"StrokesToday":0,"LastGoodScanTime":"2026-10-27T00:00:00Z"},
+             "Units":{"IdleTimeYesterday":{"UnitKey":"s"},"InferredProductionYesterday":{"UnitKey":"bbl/d"}}}
+            """;
+        var idle = await pool.ReadAsync(a with { Quantity = "IdleTimeYesterday" }, CancellationToken.None);
+        var inferred = await pool.ReadAsync(a with { Quantity = "InferredProductionYesterday" }, CancellationToken.None);
+        var zeroStrokes = await pool.ReadAsync(a with { Quantity = "StrokesToday" }, CancellationToken.None);
+        Check(idle is { Value: 61860, Unit: "s" } && inferred is { Value: 106.4m, Unit: "bbl/d" } && zeroStrokes.Value == 0,
+            "idle time, inferred production or a real zero stroke count was not served");
+        await RejectAsync(a with { Quantity = "StrokesYesterday" }, "FORESITE_MEASUREMENT_MISSING");
+        factory.Payload = null;
         // G9: quantities asked for together are served from one status document.
         var fanOut = new Factory();
         using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))

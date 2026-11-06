@@ -29,6 +29,7 @@ public static class ForeSiteMeasurements
             if (reading.ValueKind != JsonValueKind.Number || !reading.TryGetDecimal(out var number) ||
                 number < min || number > max)
                 throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_INVALID");
+            if (map.UnsetValue == number) throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_MISSING");
             if (!value.TryGetProperty("LastGoodScanTime", out var time) || time.ValueKind != JsonValueKind.String ||
                 !TryOffsetTime(time.GetString(), out var timestamp))
                 throw new ForeSiteMeasurementException("FORESITE_TIMESTAMP_INVALID");
