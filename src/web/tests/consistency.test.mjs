@@ -168,8 +168,8 @@ test('all page tabs and in-panel tabs have one semantic owner and one visual fou
 
 test('table text starts on the same gutter as the panel headings and filters above it', () => {
   const styles = source(join(root, 'styles.css'));
-  assert.match(styles, /\.activity-table td:first-child \{ padding-inline-start: var\(--space-18\); \}/);
-  assert.match(styles, /\.activity-table td:last-child \{ padding-inline-end: var\(--space-18\); \}/);
+  assert.match(styles, /\.activity-table td:first-child \{ padding-inline-start: var\(--space-panel-inline\); \}/);
+  assert.match(styles, /\.activity-table td:last-child \{ padding-inline-end: var\(--space-panel-inline\); \}/);
 });
 
 test('master-detail panes scroll on their own and the page does not (one shared rule, measured by a hook)', () => {
