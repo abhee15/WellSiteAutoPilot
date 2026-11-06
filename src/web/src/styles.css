@@ -329,51 +329,13 @@ button:disabled {
   margin-bottom: var(--space-18);
 }
 
-.summary-card,
 .panel {
   border: var(--border-width-thin) solid var(--color-border-subtle);
   background: var(--color-surface-panel);
   border-radius: var(--radius-8);
 }
 
-.summary-card {
-  display: grid;
-  gap: var(--space-6);
-  padding: var(--space-16) var(--space-18);
-}
-
-.summary-card-action {
-  width: 100%;
-  font: inherit;
-  color: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-.summary-card-link {
-  color: inherit;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.summary-card-action:hover,
-.summary-card-link:hover { background: var(--color-surface-status-info); }
-
-.summary-card-action[aria-pressed='true'] {
-  background: var(--color-surface-status-info);
-  border-color: var(--color-border-selected);
-  box-shadow: inset 0 calc(-1 * var(--border-width-thick)) 0 var(--color-border-selected);
-}
-
-.summary-card span,
-.summary-card small,
-.health-row small {
-  color: var(--color-text-muted);
-}
-
-.summary-card strong {
-  font-size: var(--font-size-metric);
-}
+.health-row small { color: var(--color-text-muted); }
 
 .panel {
   margin-bottom: var(--space-18);
