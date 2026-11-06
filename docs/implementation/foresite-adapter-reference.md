@@ -30,6 +30,7 @@ Advertised capabilities: `AssetDiscovery`, `CurrentData`. Nothing else (no histo
 | G4 | `poc/gap-g04-readonly-setpoints` | read-only setpoints: id, description, group, value, unit, range, read-only flag | `Surveillance/Well/AllSavedSetPointParams?WellId=&scanOption=0` (GET) |
 | G7, G14 | `poc/gap-g07-readonly-alarms` | active alarms: id, type, name, UTC start, value, deviation, suppressed | `Alarms/CurrentAlarms/{id}` (GET) |
 | G5, G22, G25 | `poc/gap-g05-daily-averages` | daily values with UTC production-day edges, units | `Surveillance/Well/DailyAverage/{id}/{start}/{end}` (GET, ISO 8601) |
+| G5b | `poc/gap-g05b-time-range-trends` | time-range history of any quantity (about 5 min points), unit per quantity, per-quantity errors | `Surveillance/CygNetTrends/{id}/{start}/{end}` (POST, quantity enum names in the body; read-only) |
 | G10 | `poc/gap-g10-foresite-simulator` | offline simulator replaying recorded well 776 responses | test project only |
 
 All POC reads are GET, read-only, and passed the ForeSite adapter checks. The routes for G4, G7 and G5 were also probed live on well 776.
@@ -38,7 +39,7 @@ All POC reads are GET, read-only, and passed the ForeSite adapter checks. The ro
 
 | Route | Result | Consequence |
 |---|---|---|
-| `Surveillance/GetTrends/{id}/{start}/{end}` | 401 on GET and POST for well 776 | not used; sub-daily history is open |
+| `Surveillance/GetTrends/{id}/{start}/{end}` | 401 on GET and POST for well 776 | not used; use `Surveillance/CygNetTrends` for sub-daily history (G5b) |
 | `WellAutoSetPointService/GetACLLogicSettings`, `GetRRLAutonomousControlHistory` | 401 on GET | route or verb unconfirmed; blocks G6 |
 | `Surveillance/AvailableQuantities/{id}` | 200, but only enum ids, no names | not usable for the catalog on its own |
 
