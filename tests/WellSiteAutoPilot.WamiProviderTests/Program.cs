@@ -191,6 +191,35 @@ using (var already = new CancellationTokenSource())
     Expect(result.Status == CompositionStatus.Cancelled && wami.CalculationsDispatched == before, "cancel before dispatch is a clean cancel");
 }
 
+// --- Model library: a folder of .wfl files, by relative path.
+var libraryRoot = Path.Combine(Path.GetTempPath(), "wsa-wfl-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(Path.Combine(libraryRoot, "pad1"));
+try
+{
+    File.WriteAllBytes(Path.Combine(libraryRoot, "pad1", "Well-A.wfl"), [1, 2, 3]);
+    File.WriteAllText(Path.Combine(libraryRoot, "notes.txt"), "x");
+    File.WriteAllText(Path.Combine(Path.GetDirectoryName(libraryRoot)!, "outside.wfl"), "x");
+    var library = new WellFloModelLibrary(libraryRoot);
+    Expect(library.List().SequenceEqual(["pad1/Well-A.wfl"]) && library.List("zzz").Count == 0, "library: lists only .wfl files, filterable by name");
+    var found = await library.GetCurrentModelAsync("pad1/Well-A.wfl");
+    Expect(found.Ref.Format == ForeSiteModelArtifactSource.WamiFormat && found.Ref.SizeBytes == 3 && found.Ref.ModelId == "pad1/Well-A.wfl", "library: returns the model with its pinned identity");
+    Expect((await library.GetCurrentModelAsync("pad1\\Well-A.wfl")).Ref.Sha256 == found.Ref.Sha256, "library: backslash ids resolve to the same model");
+    async Task Refused(string id, string label)
+    {
+        try { await library.GetCurrentModelAsync(id); }
+        catch (ModelSourceException error) { Expect(error.Code == "MODEL_NOT_FOUND", label); return; }
+        throw new InvalidOperationException("FAILED (no exception): " + label);
+    }
+    await Refused("../outside.wfl", "library: an id leaving the folder is refused");
+    await Refused("notes.txt", "library: only .wfl files are served");
+    await Refused("pad1/missing.wfl", "library: a missing model is reported, not crashed");
+}
+finally
+{
+    Directory.Delete(libraryRoot, true);
+    File.Delete(Path.Combine(Path.GetDirectoryName(libraryRoot)!, "outside.wfl"));
+}
+
 // --- Descriptor: WAMI declares only a calculation capability, no discovery.
 Expect(!WamiAdapter.Descriptor.CanDiscover && WamiAdapter.Descriptor.Capabilities.Single().Kind == ProviderCapabilityKind.Calculation,
     "descriptor: WAMI is a calculation provider with no asset discovery");
