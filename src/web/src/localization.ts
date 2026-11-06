@@ -845,7 +845,7 @@ export const englishMessages = {
   'killSwitch.unavailable': 'The kill switch state could not be confirmed. Treat commands as possibly enabled and try again.',
   'killSwitch.invalidResponse': 'The server answered in an unexpected way. The kill switch state is not confirmed.',
   'schedules.heading': 'Schedules',
-  'schedules.intro': 'Logic that runs on a schedule, from its live revision. To change a schedule, save a new revision of the logic.',
+  'schedules.intro': 'Schedules for active logic. Select a logic to review its schedule and controls.',
   'schedules.logic': 'Logic',
   'schedules.frequency': 'Frequency',
   'schedules.nextRun': 'Next run',
