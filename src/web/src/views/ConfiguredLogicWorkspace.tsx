@@ -12,7 +12,7 @@ import { ConfiguredLogicRevisionOverview } from './ConfiguredLogicRevisionOvervi
 import { ConfiguredLogicSchedulePanel } from './ConfiguredLogicSchedulePanel';
 import { readConfiguration, setupResponse, SetupApiError } from './configuredLogicSetup';
 import type { VerifiedConfiguration } from './configuredLogicSetup';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { CloseButton } from '../components/CloseButton';
 import type { OwnerGroup } from './assetHierarchy';
 import { Status } from '../components/Status';
@@ -182,7 +182,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     </header>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert">{error}</p>}
-    {!detail && selectedId && !error && <LoadingIndicator label={t('setup.loading')} />}
+    {!detail && selectedId && !error && <PanelLoading label={t('setup.loading')} />}
     {detail && <>
       {changedElsewhere && <p role="status">{t('logicDetail.changedElsewhere')}</p>}
       <div className="setup-actions">
