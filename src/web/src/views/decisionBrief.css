@@ -5,3 +5,7 @@
 .decision-brief ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-12); }
 
 .decision-form { display: grid; gap: var(--space-16); min-width: 0; }
+.decision-metadata { margin-block: var(--space-12); border-block: var(--border-width-thin) solid var(--color-border-subtle); }
+.decision-metadata > summary { cursor: pointer; padding-block: var(--space-10); color: var(--color-text-link); font-size: var(--font-size-body-small); font-weight: var(--font-weight-medium); }
+.decision-metadata > .execution-detail-grid { margin-block: var(--space-12); }
+@media (pointer: coarse) { .decision-metadata > summary { min-height: var(--size-touch-target); } }

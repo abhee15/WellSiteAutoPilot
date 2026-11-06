@@ -1,6 +1,12 @@
 import { ContextLink } from '../components/ContextLink';
+import { Notice } from '../components/Notice';
+import { PanelLoading } from '../components/LoadingIndicator';
 import './controlActions.css';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AssetResponse } from '../api/generated/v1/types.gen';
+import { shortId } from '../format';
+import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
+import { assetIdentityLabel } from './runContext';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
@@ -23,6 +29,11 @@ type Props = {
    */
   canManage: boolean;
   selectedActionId?: string | null;
+  compact?: boolean;
+  showEmpty?: boolean;
+  assets?: readonly AssetResponse[];
+  canReadAssets?: boolean;
+  canReadRuns?: boolean;
 };
 
 const ERRORS: Record<ControlActionErrorKind, MessageKey> = {
@@ -44,7 +55,8 @@ function waitingLabel(createdAtUtc: string, nowMs: number): string {
  * Commands that were sent but whose result nobody has confirmed. Verifying asks the target again; resolving records,
  * as the operator and with a note, whether the command was applied. Shown only while something needs a decision.
  */
-export function ControlActionsPanel({ userId, canManage, selectedActionId }: Props) {
+export function ControlActionsPanel({ userId, canManage, selectedActionId, compact = false, showEmpty = false,
+  assets = [], canReadAssets = false, canReadRuns = false }: Props) {
   const [actions, setActions] = useState<ControlAction[] | null>(null);
   const [loadError, setLoadError] = useState<ControlActionErrorKind | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -56,6 +68,9 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
   const panelRef = useRef<HTMLElement | null>(null);
   const refreshRef = useRef<AbortController | null>(null);
   const actRef = useRef<AbortController | null>(null);
+  const targetIds = useMemo(() => compact ? [] : [...new Set((actions ?? [])
+    .filter(controlActionNeedsDecision).flatMap(action => typeof action.assetId === 'string' ? [action.assetId] : []))], [actions, compact]);
+  const directory = useAssetIdentityDirectory(targetIds, assets, canReadAssets, userId);
 
   const refresh = useCallback(async () => {
     refreshRef.current?.abort();
@@ -140,6 +155,18 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
   });
 
   if (!userId) return null;
+  const open = (actions ?? []).filter(controlActionNeedsDecision);
+  const count = open.length >= CONTROL_ACTION_LIST_LIMIT
+    ? t('controlActions.countMany', { count: CONTROL_ACTION_LIST_LIMIT })
+    : t('controlActions.count', { count: open.length });
+  if (compact) {
+    if (loadError) return <Notice tone="error">{t(ERRORS[loadError])}</Notice>;
+    if (!open.length) return null;
+    return <section className="control-actions-summary" aria-label={t('controlActions.heading')}>
+      <strong>{t('controlActions.heading')}</strong><Status value={count} tone="warning" />
+      <ContextLink href={hashFor('recommendations', 'actions')} label={t('workspace.reviewCommands')} />
+    </section>;
+  }
   if (loadError) {
     return (
       <section ref={panelRef} tabIndex={selectedActionId ? -1 : undefined} className="panel control-actions" aria-label={t('controlActions.heading')}>
@@ -148,10 +175,13 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
       </section>
     );
   }
-  const open = (actions ?? []).filter(controlActionNeedsDecision);
   const shown = selectedActionId ? open.filter(action => action.id === selectedActionId) : open;
   const nowMs = Date.now();
-  if (open.length === 0 && !selectedActionId) return null;
+  if (showEmpty && actions === null) return <section className="panel control-actions" aria-label={t('controlActions.heading')}>
+    <div className="panel-header"><h2>{t('controlActions.heading')}</h2></div>
+    <PanelLoading label={t('workspace.loadingCommands')} />
+  </section>;
+  if (open.length === 0 && !selectedActionId && !showEmpty) return null;
 
   return (
     <section ref={panelRef} tabIndex={selectedActionId ? -1 : undefined} className="panel control-actions" aria-label={t('controlActions.heading')}>
@@ -161,9 +191,10 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
           value={open.length >= CONTROL_ACTION_LIST_LIMIT
             ? t('controlActions.countMany', { count: CONTROL_ACTION_LIST_LIMIT })
             : t('controlActions.count', { count: open.length })}
-          tone="warning" />
+          tone={open.length > 0 ? 'warning' : 'neutral'} />
       </div>
-      <p>{t('controlActions.intro')}</p>
+      {open.length > 0 && <p>{t('controlActions.intro')}</p>}
+      {showEmpty && actions !== null && !open.length && !selectedActionId && <div className="control-actions-empty"><Notice announce={false}>{t('workspace.noCommands')}</Notice></div>}
       {selectedActionId && <ContextLink href={hashFor('recommendations', 'actions')} label={t('controlActions.all')} />}
       {selectedActionId && actions !== null && !shown.length && <p role="status">{t('controlActions.selectedUnavailable')}</p>}
       <ul className="control-actions-list">
@@ -173,8 +204,20 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId }: Pro
           const resolving = resolvingId === action.id;
           const busy = busyId === action.id;
           const mayDecide = canManage && action.canManage === true;
+          const assetId = typeof action.assetId === 'string' ? action.assetId : null;
+          const executionId = typeof action.executionId === 'string' ? action.executionId : null;
+          const assetName = assetIdentityLabel(assetId, directory.assets, directory.owners);
           return (
             <li key={action.id} data-status={action.status}>
+              <div className="control-actions-context">
+                <span>{t('decision.asset')}: {canReadAssets && assetId
+                  ? <ContextLink href={hashFor('assets', assetId)} label={assetName} />
+                  : <strong title={assetId ?? undefined}>{assetName}</strong>}</span>
+                {executionId && (canReadRuns
+                  ? <ContextLink href={hashFor('operations', executionId)} label={t('overview.runReference', { id: shortId(executionId) })} />
+                  : <span title={executionId}>{t('overview.runReference', { id: shortId(executionId) })}</span>)}
+                <span title={action.id}>{t('workspace.commandReference', { id: shortId(action.id) })}</span>
+              </div>
               <p>
                 <strong>{action.command}</strong>
                 {action.value !== null && action.value !== undefined

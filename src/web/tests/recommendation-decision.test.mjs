@@ -112,7 +112,7 @@ test('review panel requires deliberate selection, reason and acknowledgement', (
     },
   ));
   assert.match(html, /Recommendation decision review/);
-  assert.match(html, /explicit confirmation/);
+  assert.match(html, /Confirm your decision/);
   assert.match(html, /SetSpeed/);
   assert.match(html, /type="radio"/);
   assert.match(html, /type="checkbox"/);

@@ -1,11 +1,3 @@
-.recommendation-run-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8) var(--space-16); padding: var(--space-12) var(--space-panel-inline); }
-.recommendation-run-heading p { flex: 1 1 var(--layout-field-min); margin: 0; color: var(--color-text-muted); }
-.recommendation-run-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); padding: var(--space-12) var(--space-panel-inline); }
-.recommendation-run { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); text-align: start; min-width: 0; padding: var(--space-12); border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); background: var(--color-surface-panel); color: var(--color-text-primary); overflow-wrap: anywhere; cursor: pointer; }
-.recommendation-run[aria-pressed='true'] { background: var(--color-surface-status-info); border-color: var(--color-border-selected); }
-.recommendation-run small, .recommendation-run time { font-size: var(--font-size-body-small); color: var(--color-text-muted); }
-@container (width <= 40em) { .recommendation-run-list { grid-template-columns: 1fr; } }
-@media (width <= 40em) { .recommendation-run-list { grid-template-columns: 1fr; } }
 /* Proposal cards keep Review reachable at phone and narrow inspector widths. */
 @container (width <= 40em) {
   .recommendation-proposals, .recommendation-proposals tbody { display: block; width: 100%; }
@@ -16,9 +8,29 @@
   .recommendation-proposals tbody td:last-child:not(:nth-child(7)) { grid-column: 2; grid-row: 1 / span 3; align-self: start; }
 }
 
-.recommendation-run-reference { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); width: 100%; }
-.recommendation-run-reference svg { flex: none; color: var(--color-text-selected); }
 .recommendation-proposal-value { display: block; font-size: var(--font-size-body); font-weight: var(--font-weight-medium); color: var(--color-text-primary); }
+
+/* One task at a time; global command state stays visible without stacking its editor above review. */
+.recommendations-workspace { display: flex; flex-direction: column; gap: var(--space-12); min-width: 0; }
+.recommendations-control-context { display: grid; align-content: start; gap: var(--space-8); min-width: 0; }
+.recommendations-workspace .recommendation-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: var(--space-12) var(--space-panel-inline); margin: 0; }
+.recommendation-run-picker { display: grid; gap: var(--space-6); padding: var(--space-12) var(--space-panel-inline); }
+.recommendation-run-scope { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+@container (width <= 25em) { .recommendations-workspace .recommendation-summary { grid-template-columns: minmax(0, 1fr); } }
+
+@media (width > 56.25em) and (height > 36em) {
+  .page-body:has(> .recommendations-workspace) { display: flex; flex-direction: column; overflow-y: hidden; }
+  .recommendations-workspace { flex: 1; min-height: 0; }
+  .recommendations-workspace > .recs-layout { flex: 1; min-height: 0; }
+  .recommendations-workspace .split-panes { height: 100%; min-height: 0; }
+  .recommendations-workspace[data-task='control'] .recommendations-control-context { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+}
+/* A short desktop viewport uses the task's outer scroll region so no action is clipped. */
+@media (width > 56.25em) and (height <= 36em) {
+  .recommendations-workspace .split-panes { height: auto; }
+  .recommendations-workspace .split-panes > .split-browse,
+  .recommendations-workspace .split-panes > .split-selected { max-height: none; overflow: visible; }
+}
 
 @media (width <= 56.25em) {
   .recommendation-summary[data-detail-open='true'] { display: none; }

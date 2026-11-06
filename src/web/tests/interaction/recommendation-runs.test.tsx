@@ -34,17 +34,16 @@ function fixture() {
 
 it('shows three distinct runs and fetches the selected run including proposals outside the inbox window', async () => {
   const { http } = fixture();
-  const group = await screen.findByRole('group', { name: 'Recommendation runs' });
-  await waitFor(() => expect(within(group).getAllByRole('button')).toHaveLength(3));
+  const picker = await screen.findByRole('combobox', { name: 'Recommendation runs' });
+  await waitFor(() => expect(within(picker).getAllByRole('option')).toHaveLength(3));
   expect(await screen.findByText('Proposal 6')).toBeTruthy();
   expect(screen.getByText('Proposal 1')).toBeTruthy();
   expect(screen.queryByText('Proposal 3')).toBeNull();
   expect(screen.getByRole('link', { name: 'View all runs' }).getAttribute('href')).toBe('#operations');
-  const buttons = within(group).getAllByRole('button');
-  await userEvent.setup().click(buttons[1]);
+  await userEvent.setup().selectOptions(picker, id(12));
   expect(await screen.findByText('Proposal 3')).toBeTruthy();
   expect(screen.queryByText('Proposal 1')).toBeNull();
-  expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
+  expect((picker as HTMLSelectElement).value).toBe(id(12));
   expect(http.mock.calls.some(([url]) => url.includes('executionId=' + id(12)))).toBe(true);
 });
 

@@ -15,6 +15,30 @@ const action = (over: Record<string, unknown> = {}) => ({
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+it('names the target and source run from authorized context, including targets outside the initial asset snapshot', async () => {
+  const target = action().assetId;
+  const connection = '99999999-9999-4999-8999-999999999999';
+  const http = vi.fn(async (url: string) => {
+    if (url.startsWith('/api/v1/control/actions?')) return Response.json([action()]);
+    if (url === '/api/v1/assets/' + target) return Response.json({ id: target, name: 'North Well', ownerConnectionId: connection });
+    if (url === '/api/v1/assets/owners') return Response.json([{ connectionId: connection, connectionName: 'ForeSite Houston', assetCount: 1 }]);
+    throw new Error('Unexpected request: ' + url);
+  });
+  vi.stubGlobal('fetch', http);
+  render(<ControlActionsPanel userId={userId} canManage canReadAssets canReadRuns />);
+  expect((await screen.findByRole('link', { name: 'North Well (ForeSite Houston)' })).getAttribute('href')).toBe('#assets/' + target);
+  expect(screen.getByRole('link', { name: 'Run 44444444…' }).getAttribute('href')).toBe('#operations/' + action().executionId);
+  expect(screen.getByText('Command 22222222…').getAttribute('title')).toBe(actionId);
+});
+
+it('does not resolve asset names or offer target/run destinations without their read permissions', async () => {
+  const { http } = server([action()]);
+  render(<ControlActionsPanel userId={userId} canManage />);
+  expect(await screen.findByText('Command 22222222…')).toBeTruthy();
+  expect(screen.queryByRole('link')).toBeNull();
+  expect(http.mock.calls.every(([url]) => url.startsWith('/api/v1/control/actions?'))).toBe(true);
+});
+
 /** A control server: the list holds `rows`; verify and resolve answer with what the test sets. */
 function server(rows: Array<Record<string, unknown>>, answers: { verify?: Record<string, unknown>; resolve?: Record<string, unknown> } = {}) {
   const state = { rows };

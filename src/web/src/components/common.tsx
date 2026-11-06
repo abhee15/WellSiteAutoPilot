@@ -10,6 +10,7 @@ type SummaryCardProps = {
   value: string;
   detail: string;
   tone?: StatusTone;
+  density?: 'default' | 'compact';
 } & (
   | { href: string; onSelect?: never; selected?: never }
   | { href?: never; onSelect?: () => void; selected?: boolean }
@@ -24,6 +25,7 @@ export function SummaryCard({
   onSelect,
   selected = false,
   tone,
+  density = 'default',
 }: SummaryCardProps) {
   const body = (
     <>
@@ -36,10 +38,10 @@ export function SummaryCard({
       {detail && <small>{detail}</small>}
     </>
   );
-  if (href) return <a className="summary-card summary-card-link" href={href}>{body}</a>;
-  if (!onSelect) return <article className="summary-card">{body}</article>;
+  if (href) return <a className="summary-card summary-card-link" data-density={density} href={href}>{body}</a>;
+  if (!onSelect) return <article className="summary-card" data-density={density}>{body}</article>;
   return (
-    <button type="button" className="summary-card summary-card-action" aria-pressed={selected} onClick={onSelect}>
+    <button type="button" className="summary-card summary-card-action" data-density={density} aria-pressed={selected} onClick={onSelect}>
       {body}
     </button>
   );

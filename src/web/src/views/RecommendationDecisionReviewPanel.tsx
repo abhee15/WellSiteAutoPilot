@@ -99,7 +99,6 @@ export function RecommendationDecisionReviewPanel({
       <div className="execution-detail-header">
         <div>
           <h3>{t('decision.heading')}</h3>
-          <p>{t('decision.readOnlyUntilConfirmed')}</p>
         </div>
         <div className="execution-detail-actions">
           <ActionButton label={t('decision.cancel')} onClick={onCancel} disabled={submitting} />
@@ -107,15 +106,17 @@ export function RecommendationDecisionReviewPanel({
       </div>
       <div className="decision-brief">
         <p className="decision-brief-proposal">{proposalSentence(item, assetName)}</p>
-        <p>{t('decision.recordedNotice')}</p>
         <ul>
           {item.assetId && <li><a href={'#assets/' + item.assetId}>{assetName ?? t('decision.asset')}</a></li>}
-          {logic && <li>{t('decision.fromLogic', { name: logic.name ?? '—',
-            revision: revision?.revisionNumber ?? '—' })}</li>}
+          <li>{logic ? t('decision.fromLogic', { name: logic.name ?? '—',
+            revision: revision?.revisionNumber ?? '—' }) : t('workspace.fromModule', { name: item.moduleId ?? '—', version: item.moduleVersion ?? '—' })}</li>
           {item.executionId && <li><a href={'#operations/' + item.executionId}>{t('decision.fromRun')}</a></li>}
           {left && <li>{left}</li>}
         </ul>
+        {item.reasonCode && <p>{t('inbox.reason')}: {humanize(item.reasonCode)}</p>}
       </div>
+      <details className="decision-metadata">
+      <summary>{t('workspace.proposalDetails')}</summary>
       <dl className="execution-detail-grid">
         <div><dt>{t('decision.asset')}</dt><dd title={item.assetId ?? undefined}>{assetName ?? item.assetId ?? '—'}</dd></div>
         <div><dt>{t('decision.command')}</dt><dd>{item.command ?? item.code ?? '—'}</dd></div>
@@ -128,8 +129,9 @@ export function RecommendationDecisionReviewPanel({
         <div><dt>{t('decision.reasonCode')}</dt>
           <dd title={item.reasonCode ?? undefined}>{item.reasonCode ? humanize(item.reasonCode) : '—'}</dd></div>
       </dl>
+      </details>
       <div className="decision-form">
-        <Notice announce={false}>{t('decision.governanceNotice')}</Notice>
+        <Notice announce={false}>{t('decision.recordedNotice')}</Notice>
         <RadioGroup label={t('decision.chooseAction')} required
           disabled={submitting} value={choice}
           options={[{ value: 'Approved', label: t('decision.approve') }, { value: 'Rejected', label: t('decision.reject') }]}
