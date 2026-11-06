@@ -167,7 +167,13 @@ it('shows Assign logic only after selecting a saved view and preserves its ident
   const selector = await screen.findByRole('combobox', { name: /View/ });
   expect(screen.queryByRole('link', { name: 'Assign logic' })).toBeNull();
   await userEvent.setup().selectOptions(selector, viewId);
-  expect((await screen.findByRole('link', { name: 'Assign logic' })).getAttribute('href')).toBe('#logic/new-view:' + viewId);
+  const assign = await screen.findByRole('link', { name: 'Assign logic' });
+  expect(assign.getAttribute('href')).toBe('#logic/new-view:' + viewId);
+  const edit = screen.getByRole('button', { name: 'Edit view' });
+  for (const sharedClass of ['ui-action-button', 'secondary-button']) {
+    expect(assign.classList.contains(sharedClass)).toBe(true);
+    expect(edit.classList.contains(sharedClass)).toBe(true);
+  }
   await userEvent.setup().selectOptions(selector, '');
   expect(screen.queryByRole('link', { name: 'Assign logic' })).toBeNull();
 });
