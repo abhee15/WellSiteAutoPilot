@@ -143,6 +143,10 @@ function RecentOperationsPage({
                       <strong>{executionAssetLabel(execution, context)}</strong>
                     </button>
                     {execution.quantity && <small>{execution.quantity}</small>}
+                    <span className="run-compact-context">
+                      <small>{context.logicName ?? execution.moduleId} · v{execution.moduleVersion}</small>
+                      <small><OutcomeCell execution={execution} /></small>
+                    </span>
                   </td>
                   <td className="run-col-logic">
                     <strong>{context.logicName ?? execution.moduleId}</strong>
