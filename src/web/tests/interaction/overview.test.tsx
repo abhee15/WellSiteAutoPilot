@@ -70,6 +70,7 @@ it('preserves SummaryCard filter buttons when a card does not navigate', () => {
   render(<SummaryCard label="Active executions" value="3" detail="Running" onSelect={onSelect} selected />);
   const button = screen.getByRole('button', { name: /Active executions/ });
   expect(button.getAttribute('aria-pressed')).toBe('true');
+  expect(button.querySelector('.summary-card-cue')?.getAttribute('aria-hidden')).toBe('true');
   fireEvent.click(button);
   expect(onSelect).toHaveBeenCalledOnce();
   expect(screen.queryByRole('link')).toBeNull();
@@ -117,7 +118,8 @@ it('still lists a run that has no request time, without a time, and never throws
 it('leaves the panel out when there are no runs to show', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([])));
   render(<OverviewPage {...(props as never)} executions={[]} />);
-  await screen.findByText(/no recorded runs yet/);
+  await screen.findByText('Nothing needs your attention right now.');
+  expect(screen.queryByText(/no recorded runs yet/)).toBeNull();
   expect(screen.queryByRole('region', { name: 'Latest runs' })).toBeNull();
 });
 
@@ -154,4 +156,15 @@ it('keeps KPIs above Latest runs and offers one Inspect action for multiple unco
   const metrics = screen.getByRole('region', { name: 'At a glance' });
   const latest = screen.getByRole('region', { name: 'Latest runs' });
   expect(metrics.compareDocumentPosition(latest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('keeps a passive metric quiet and pairs an attention count with a shape and text', () => {
+  const { rerender } = render(<SummaryCard label="Services needing attention" value="2" detail="" href="#status" tone="warning" />);
+  const card = screen.getByRole('link', { name: 'Services needing attention 2' });
+  expect(card.querySelector('.status-indicator')?.getAttribute('data-tone')).toBe('warning');
+  expect(card.querySelector('.summary-card-cue')?.getAttribute('aria-hidden')).toBe('true');
+  rerender(<SummaryCard label="Services needing attention" value="0" detail="" />);
+  expect(screen.queryByRole('link')).toBeNull();
+  expect(document.querySelector('.summary-card-cue')).toBeNull();
+  expect(document.querySelector('.status-indicator')).toBeNull();
 });
