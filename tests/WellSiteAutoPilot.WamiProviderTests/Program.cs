@@ -220,6 +220,17 @@ finally
     File.Delete(Path.Combine(Path.GetDirectoryName(libraryRoot)!, "outside.wfl"));
 }
 
+// --- Connection check: settings, then a licence round trip; each failure maps to an outcome.
+Expect(WamiConnectionCheck.ReadEndpoint(new Dictionary<string, string?> { ["endpoint"] = "net.tcp://wami:5656/Weatherford/IRouter" }, out _) is not null, "check: a net.tcp address is accepted");
+Expect(WamiConnectionCheck.ReadEndpoint(new Dictionary<string, string?> { ["endpoint"] = "http://wami:5656" }, out var badAddress) is null && badAddress is not null, "check: a non-net.tcp address is explained");
+var healthyCheck = await WamiConnectionCheck.CheckAsync(new FakeWamiClient(), "svc");
+Expect(healthyCheck.Outcome == AdapterTestOutcomes.Healthy && healthyCheck.ActingAs == "svc", "check: a licensed server is healthy");
+foreach (var (mode, outcome) in new[] { (FakeWamiMode.Down, AdapterTestOutcomes.Unreachable), (FakeWamiMode.NoLicense, AdapterTestOutcomes.NeedsAttention), (FakeWamiMode.Busy, AdapterTestOutcomes.NeedsAttention) })
+{
+    var failing = new FakeWamiClient { Mode = mode };
+    Expect((await WamiConnectionCheck.CheckAsync(failing, "svc")).Outcome == outcome, $"check: {mode} maps to {outcome}");
+}
+
 // --- Descriptor: WAMI declares only a calculation capability, no discovery.
 Expect(!WamiAdapter.Descriptor.CanDiscover && WamiAdapter.Descriptor.Capabilities.Single().Kind == ProviderCapabilityKind.Calculation,
     "descriptor: WAMI is a calculation provider with no asset discovery");

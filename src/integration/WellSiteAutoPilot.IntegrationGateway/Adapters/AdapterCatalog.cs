@@ -2,6 +2,7 @@ using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.Integration.ForeSite;
 using WellSiteAutoPilot.Integration.PetroVisor;
+using WellSiteAutoPilot.Integration.Wami;
 
 namespace WellSiteAutoPilot.IntegrationGateway.Adapters;
 
@@ -32,7 +33,7 @@ public sealed class AdapterCatalog
                 AdapterCommandValueKind.OnOff, [], AdapterCommandVerification.ReadBack, "PumpRunning", 2, 60, 30, 300)
         ]);
 
-    private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator, ForeSiteAdapter.Descriptor, PetroVisorAdapter.Descriptor, CygNetAdapter.Descriptor];
+    private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator, ForeSiteAdapter.Descriptor, PetroVisorAdapter.Descriptor, CygNetAdapter.Descriptor, WamiAdapter.Descriptor];
 
     public IReadOnlyList<AdapterDescriptor> List() => _descriptors;
 
