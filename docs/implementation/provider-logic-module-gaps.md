@@ -176,7 +176,9 @@ Open questions: how a module declares "any of these keys" for different device t
 
 ## CygNet findings (where we are)
 
-Source: the CygNet adapter code. Live CygNet probing and the managed API surface are not yet verified. Reflection over the CygNet assemblies crashed (StackOverflow), so the API surface needs a small probe project instead.
+Sources: the CygNet adapter code, and ForeSite's own CygNet wrapper (`ForeSiteService\Server\Support\CygNetWrapper`), which shows the managed CygNet API calls ForeSite uses for the same jobs.
+
+**Live probing is blocked from this box.** The existing probe (`poc-cygnet\out\Probe.dll`) loads the managed API, but every service call fails: `DCL error (-12) Unable to contact a CygNet directory service` for domains 9077 and 22567 (an earlier run on domains 27212 and 9033 failed with `-30`, CAL locked/disabled/expired). So the API calls below come from ForeSite's source and are proven there, but are **not yet exercised from the WSA host**. A directory-service route and a CAL for this host are prerequisites for any live CygNet test.
 
 **Today**
 - Capabilities: asset discovery (facilities) and current data (one point per call).
@@ -186,24 +188,36 @@ Source: the CygNet adapter code. Live CygNet probing and the managed API surface
 
 **Needed (CygNet source per gap)**
 
-| Gap area | CygNet source | Status |
+| Gap area | CygNet source (as ForeSite does it) | Status |
 |---|---|---|
-| Catalog (G3) | Enumerate the UDCs on a facility (facility and point services); units and descriptions from point attributes | To verify |
-| Units/ranges (G2) | Point attribute units instead of the forced map | To verify |
-| History (G5) | Historian client, with bounded windows | Assembly exists, unverified |
-| Alarms (G7) | Alarms client | Assembly exists, unverified |
-| Setpoints and writes (G4, G8, G11) | Point read for current values; writes need Devices or Points control, which needs a design review | Unverified |
-| Well tests, daily values (G22, G23) | UDCs such as the daily and yesterday values, or the WellTest assembly | Unverified |
-| Device type (G13) | Facility attributes | To verify |
+| Catalog (G3) | `Points.ConfigClient(PNT).GetPointTagList("siteservice = 'S.SVC' AND facilityid = 'F'")` lists every point on a facility; each tag carries its UDC | In ForeSite source; not run from WSA |
+| Units, description (G2) | `ConfigClient` point record: primary and alternate units, description, enum table, digital on/off strings | In ForeSite source |
+| Current value (G1, G9) | `RealtimeClient(CVS).GetPointValueRecord(tag)`; batch variant reads many tags (`GetPointValueRecordsInner`) | Single read in the adapter; batch in ForeSite |
+| History (G5, G22) | `Historian.Client(VHS)`: `GetHistoricalEntriesReverse(name, start, end)` and `GetHistoricalRollup(name, start, end, type, unit, period, topSubUnit)`; entries carry a base status (`Unreliable` is filtered) | In ForeSite source; ForeSite adds a lookback to carry the prior sample into a window |
+| Alarms (G7) | `Alarms.Client(CAS).GetAlarmsForPoints(tags)`, found through `ServiceInformation.GetAssociatedService(site, CAS)` | In ForeSite source |
+| Setpoint reads (G4, G11) | Not a point read. A setpoint group is a device data group fetched with a UIS command and stored as a DDS transaction; `GetLatestSetpointTransaction(dgType, relation, ordinal)` reads the last stored one, so it is passive | Per device type, from an XML map (`ControllerSetPointInfo`: group name, get and send command names, shown and hidden elements, partial-write flag, ordinal) |
+| Setpoint writes (G8) | `GetTokenizedDataGroupTransaction(dgType, ordinal, time, uisCommandParam, relation, timeout)` sends the group to the device through the UIS command, with a timeout. Needs the design review | In ForeSite source |
+| Device type (G13) | `DdsClient.GetDeviceProperty(deviceId, "DevType")` through the DDS service | In ForeSite source (a COM-based client) |
+| Daily values (G22, G23) | UDC-named points, read through the same history calls with daily rollups (`GetDailyRollupByPointName`, `GetDailyRollupLastForAnalogs`) | In ForeSite source |
+| Well tests | `CygNet.API.WellTest` assembly and `CygNetAutomatedWellTestHelper` | Not examined |
+| Quantity to point mapping | ForeSite maps a `WellQuantity` to a UDC per mapping id (`GetNames`, `GetHistoricalPointNamesByFacility`), with site-configurable optional UDCs | In ForeSite source |
 
 **Differences from ForeSite**
 - CygNet is the raw point layer: no `AvailableQuantities`, so applicability comes from which UDCs exist on the facility.
 - Quantity names are UDC ids, so catalog keys use the `cygnet.udc.<UDC>` namespace and optionally a mapping to the stable core keys.
 - ForeSite already does the quantity-to-point mapping, so its mapped point ids (from `CygNetTrends`) can seed the CygNet map.
 
-**Next probes**
-1. A small .NET probe that lists facility UDCs, point attributes and a history read on a rod-lift facility (domains 9033 and 22567; sites CYGNET.UIS, CYGQAUS.UIS).
-2. Compare values with the ForeSite status for wells 776 and 1596.
+**What this means for the design**
+- A CygNet catalog can be discovered: list the facility's points, then read units and description from the point records. No fixed list is needed. Applicability is "the point exists".
+- History and alarms are separate CygNet services (VHS, CAS), each found through the directory. The adapter needs a service lookup per service type, not only the facility service.
+- Setpoints are the biggest difference from ForeSite. ForeSite's `Well/AllSavedSetPointParams` returns a typed, self-describing view. CygNet gives raw data-group transactions per device type, so a provider-neutral setpoint read needs the per-device-type group map (the same one ForeSite uses) or ForeSite as the source. This is a strong case for a ForeSite-first setpoint read and a later CygNet read.
+- Writes go through device transactions with timeouts and can fail on the device, so G8 stays a design-review item for both providers.
+- The CygNet API is synchronous and some calls are slow (ForeSite gives service lookups a 15 s timeout), so the existing bounded gate stays, and history windows must be bounded.
+
+**Next probes (blocked until the host can reach a CygNet directory service and holds a CAL)**
+1. Run the probe with a facility such as `[9077]CYGNET.UIS::RPOC_00016` and list its points, units and descriptions, then read one history window.
+2. Compare the values with the ForeSite status for wells 776 and 1596.
+3. Until then, treat ForeSite as the reference source for CygNet-backed wells, and validate the CygNet adapter against the simulator.
 
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
