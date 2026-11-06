@@ -4,9 +4,19 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RefreshCw } from 'lucide-react';
 import { SearchInput } from '../../src/components/SearchInput';
-import { ActionButton } from '../../src/components/ActionButton';
+import { ActionButton, ActionLink } from '../../src/components/ActionButton';
 
 afterEach(cleanup);
+it('navigation actions share the button foundation without losing native link semantics', () => {
+  render(<><ActionButton label="Edit view" /><ActionLink label="Assign logic" href="#logic/new-view:view-1" target="_blank" rel="noopener" /></>);
+  const link = screen.getByRole('link', { name: 'Assign logic' });
+  const button = screen.getByRole('button', { name: 'Edit view' });
+  expect(link.className).toBe(button.className);
+  expect(link.getAttribute('href')).toBe('#logic/new-view:view-1');
+  expect(link.getAttribute('target')).toBe('_blank');
+  expect(link.getAttribute('rel')).toBe('noopener');
+  expect(link.getAttribute('role')).toBeNull();
+});
 it('preserves native input labels, refs and caller-owned filtering', async () => {
   const ref = createRef<HTMLInputElement>(); const change = vi.fn(); const user = userEvent.setup();
   render(<label>Find wells<SearchInput ref={ref} defaultValue="" onChange={change} maxLength={8} /></label>);
