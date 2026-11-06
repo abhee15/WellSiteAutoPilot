@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The real WAMI client. WAMI's service contract lives in Weatherford's proprietary Weatherford.WAMI.Interfaces.dll
+    (.NET Framework 4.0, redistribution terms unconfirmed), so it is neither checked in nor referenced by the main
+    solution. Build explicitly:
+      dotnet build src/integration/WellSiteAutoPilot.Integration.Wami.NetTcp -p:WamiInterfacesPath=<full path to the dll>
+    The dll is referenced with Private=false: it is never copied into this project's output.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Opt-in project: WCF's transitive crypto packages have open advisories even at the newest cached version. Windows
+         transport security does not use their XML-signature or PKCS paths; revisit when a fixed version ships. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1902;NU1903</WarningsNotAsErrors>
+  </PropertyGroup>
+  <Target Name="RequireWamiInterfaces" BeforeTargets="BeforeBuild;BeforeResolveReferences">
+    <Error Condition="'$(WamiInterfacesPath)' == '' Or !Exists('$(WamiInterfacesPath)')"
+           Text="Set -p:WamiInterfacesPath to the full path of Weatherford.WAMI.Interfaces.dll (from a ForeSite or WAMI install)." />
+  </Target>
+  <ItemGroup>
+    <PackageReference Include="System.ServiceModel.NetTcp" />
+    <!-- NetTcp 8.1.2 pulls vulnerable 8.0.x copies of these two transitively; pin patched ones. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.Wami/WellSiteAutoPilot.Integration.Wami.csproj" />
+    <Reference Include="Weatherford.WAMI.Interfaces">
+      <HintPath>$(WamiInterfacesPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

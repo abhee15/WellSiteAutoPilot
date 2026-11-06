@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Sample: a well-analysis module fed by ForeSite data, a ForeSite-style model file and a WAMI calculation.
+       Builds without special libraries; it runs against the fake WAMI by default. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../WellSiteAutoPilot.Integration.Wami/WellSiteAutoPilot.Integration.Wami.csproj" />
+    <ProjectReference Include="../../modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
+  </ItemGroup>
+</Project>
