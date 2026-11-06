@@ -97,3 +97,6 @@
 .source-change-table td:first-child { overflow-wrap: normal; }
 
 .connection-source-search { display: grid; gap: var(--space-8); flex: 1; min-width: 0; }
+
+.health-row[data-tone='warning'] { background: var(--color-surface-status-warning); border-inline-start: var(--border-width-thick) solid var(--color-text-status-warning); }
+.health-row[data-tone='error'] { background: var(--color-surface-status-error); border-inline-start: var(--border-width-thick) solid var(--color-text-status-error); }
