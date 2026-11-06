@@ -1,0 +1,7 @@
+{
+  "DevAddr": "1",
+  "deviceId": "RPOC_0001",
+  "DevType": "WellPilotRPOC",
+  "DevCommId": "ORION_COMM",
+  "ddsService": "[27212]CYG_DEMO.DDS"
+}

@@ -14,7 +14,7 @@ Start here. The builder has no access to ForeSite, CygNet or WAMI: use these doc
 
 `implementation/fixtures/foresite/*.json`: real ForeSite responses (well 776 `RPOC_00016+9077` WellPilotRPOC, well 1596 AEBEAM): well status with `Units` block (1596), saved setpoints with units/ranges (776), available quantities, CygNet trends, KPI, setpoint data groups, alarms, daily averages, well test, optional quantities, controller capabilities, gauges. Build the ForeSite simulator (G10) from these. Anything with a person's name or credentials was not recorded; there are none.
 
-WAMI and CygNet shapes are tabulated in their reference docs (results are scalar; curves flattened to `curve[i].liquidRate`).
+WAMI and CygNet fixtures: `fixtures/cygnet/` (DDS device, data-group list, setpoint transaction XML, adapter catalog and history output) and `fixtures/wami/wami_live_results.json`.
 
 ## POC branches (origin)
 
@@ -37,4 +37,4 @@ Each branch has offline tests (`dotnet run -c Release` in the matching `tests\We
 
 ## Not built / needs owner
 
-Commands and recommendation/autonomous mode (architecture doc 10b); CygNet device type and setpoints; WAMI ESP/gas lift/PCP/plunger/rod-lift analysis functions; ForeSite RRL config to WAMI `RRLData` mapping (parked, see `ModelFileService.GetRRLData` in ForeSite); Gateway identity and `WCFAllowedGroups`; DLL redistribution; manifest V3 sign-off.
+Commands and recommendation/autonomous mode (architecture doc 10b); CygNet setpoint reader and element map (device type and the passive read are proven, see the CygNet reference); WAMI ESP/gas lift/PCP/plunger/rod-lift analysis functions; ForeSite RRL config to WAMI `RRLData` mapping (parked, see `ModelFileService.GetRRLData` in ForeSite); Gateway identity and `WCFAllowedGroups`; DLL redistribution; manifest V3 sign-off.

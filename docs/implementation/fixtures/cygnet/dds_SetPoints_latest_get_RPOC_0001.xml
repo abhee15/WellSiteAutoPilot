@@ -1,0 +1,17 @@
+<dgData xmlns:dt="urn:schemas-microsoft-com:datatypes">
+<POLoadSP dt:dt="ui1">30</POLoadSP>
+<POPosSP dt:dt="ui1">23</POPosSP>
+<PODeadBand dt:dt="ui1">8</PODeadBand>
+<IdleTime dt:dt="ui4">60</IdleTime>
+<HiHiLim dt:dt="ui2">25000</HiHiLim>
+<HiLim dt:dt="ui2">22000</HiLim>
+<LoLim dt:dt="ui2">7000</LoLim>
+<LoLoLim dt:dt="ui2">6000</LoLoLim>
+<MinLdSpan dt:dt="ui2">0</MinLdSpan>
+<VFDMinSPM dt:dt="r4">0</VFDMinSPM>
+<VFDMaxSPM dt:dt="r4">10</VFDMaxSPM>
+<IdealPF dt:dt="ui1">0</IdealPF>
+<MinPFA dt:dt="ui1">0</MinPFA>
+<UISCMDPRMS>DGORD=0;DGTYPE=SetPoints;LIFTOPT_TOKEN=8DF3B71EBE892A2;</UISCMDPRMS>
+<UISCMDTYPE>DG_F_DEV</UISCMDTYPE>
+</dgData>

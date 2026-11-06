@@ -62,6 +62,32 @@ CAS returned a set alarm on `RRLPFILCUR` dated 2023 (stale). Alarm state otherwi
 - No single `IdleTime` point; derive from idle UDCs or time-in-state points.
 - Values on the test CygNet match ForeSite well 776 only because ForeSite is fed from it. Do not generalise.
 
+## Device type and setpoints (probed read-only, facility RPOC_0001)
+
+DDS is a COM client (`CxDds.DdsClient`, 64-bit `CxDds64.dll`); ForeSite uses `CXDDSLib.DdsClient`. The service string is `[<domain>]<site>.DDS`, found with `GetAssociatedService(site.UIS, ServiceType.DDS)`; here `[27212]CYG_DEMO.DDS`. Calls, all passive reads:
+
+| Call | Result |
+|---|---|
+| `Connect("[27212]CYG_DEMO.DDS")` | connects (a guessed `27212.CYG_DEMO.DDS` fails with DCL `-11`) |
+| `GetDeviceIdListFromFacilityId(facilityId, out list)` | `RPOC_0001` (device id equals facility id here) |
+| `GetDeviceProperty(deviceId, "DevType", out v)` | `WellPilotRPOC` (matches ForeSite's device type). Also `DevCommId`=`ORION_COMM`, `DevAddr`=`1`. The call returns bool and the value is in `out` |
+| `GetDataGroupInfo(facilityId, 1)` | XML list of 36 data groups: `dgType`, `ordinal`, `desc`, `dbKey`. Includes `SetPoints|0` (Basic SetPoint Configuration), `CtrlParms`, `OptCurStat`, `VSDSetup`, `LoadSetup`, `CmdCfgMsg` (device commands) |
+| `GetDataGroupTransactions(deviceId, "SetPoints", 0)` | XML list of transactions (21): `dbKey`, `timestampUtc`, `txType` (`G` get, `S` send), `statusCodeTxt`, `userId`, `partialData` |
+| `GetDataGroupTransactionData(dbKey)` | the group's values as XML, typed per element |
+
+Latest `SetPoints` Get transaction (2026-11-05 19:20 UTC, succeeded). A passive read gives the last value the device returned; it does not talk to the device:
+
+```
+POLoadSP ui1=30  POPosSP ui1=23  PODeadBand ui1=8  IdleTime ui4=60
+HiHiLim ui2=25000  HiLim ui2=22000  LoLim ui2=7000  LoLoLim ui2=6000
+MinLdSpan ui2=0  VFDMinSPM r4=0  VFDMaxSPM r4=10  IdealPF ui1=0  MinPFA ui1=0
+UISCMDPRMS  DGORD=0;DGTYPE=SetPoints;LIFTOPT_TOKEN=<token>;   UISCMDTYPE DG_F_DEV
+```
+
+Rules for a CygNet setpoint reader: pick the newest transaction with `txType=G`, `statusCodeTxt=Succeeded`; parse each element by its `dt:dt` type; unit and range are not in the data (they come from the per-device-type map, see ForeSite `ControllerSetPointInfo`), and `IdleTime` is raw seconds (ForeSite shows `00:01:00`, original `60`). Surface the transaction timestamp as the value time. A send (`txType=S`) is a write record: history of who changed what (`userId`), useful as an audit signal for manual-change detection (G18). Do not call `GetTokenizedDataGroupTransaction` or any `Send` for reads.
+
+Fixtures: `fixtures/cygnet/dds_*` and `adapter_catalog_history_RPOC_0001.txt`.
+
 ## Open
 
-Device type, setpoints, relaxing `AdapterReadRules.CygNetQuantities` for `cygnet.udc.*`, daily rollups (`GetHistoricalRollup`, `GetDailyRollupByPointName`), well tests (`CygNet.API.WellTest`), writes. ForeSite's reference implementation: `ForeSiteService\Server\Support\CygNetWrapper\`.
+Relaxing `AdapterReadRules.CygNetQuantities` for `cygnet.udc.*`, the per-device-type setpoint element map (units, ranges, read-only), daily rollups (`GetHistoricalRollup`, `GetDailyRollupByPointName`), well tests (`CygNet.API.WellTest`), writes. ForeSite's reference implementation: `ForeSiteService\Server\Support\CygNetWrapper\`.

@@ -1,0 +1,32 @@
+137 entries for RPOC_0001
+cygnet.udc.CYCLES | Cycles | ''
+cygnet.udc.DHPGAUGE | Downhole Gauge Pressure | 'psi'
+cygnet.udc.IDLTIMENEW | New Idle Time | ''
+cygnet.udc.IDLTIMEORG | Original Idle Time | ''
+cygnet.udc.ITCHGDATE | Idle Time Change Date | ''
+cygnet.udc.POACTMST | Master Valve Status | ''
+cygnet.udc.PRCASXIN | Casing Pressure | 'psi'
+cygnet.udc.PRESLINE | Flowline Pressure | 'psi'
+cygnet.udc.PRFLOLINE | Flow line Pressure | 'psi'
+cygnet.udc.PRTUBXIN | Tubing Head Pressure | 'psi'
+cygnet.udc.QTLIQT | Inferred Prod Today | 'bbl/D'
+cygnet.udc.QTLIQYD | Inferred Prod Yesterday | 'bbl/D'
+cygnet.udc.QTLIQYDCHG | Inferred Production Cha | '%'
+cygnet.udc.QTLIQYOPT | InfProdYesterday | 'bbl/D'
+cygnet.udc.RATESTEAM | Injection Rate | 'MCFD'
+cygnet.udc.RRLALM0001 | RPC Control Fail | ''
+cygnet.udc.RRLALM0002 | Low Load Alarm | ''
+cygnet.udc.RRLALM0003 | High Load Alarm | ''
+cygnet.udc.RRLALM0004 | Low Avg Load Alm | ''
+cygnet.udc.RRLALM0005 | Pos Switch Fail | ''
+cygnet.udc.RRLALM0006 | Mul Pos Sw Fail | ''
+cygnet.udc.RRLALM0009 | Low Ld Span Alm | ''
+cygnet.udc.RRLALM0010 | Ld Sensor Fault | ''
+cygnet.udc.RRLALM0011 | Pos Sensor Fault | ''
+cygnet.udc.RRLALM0013 | No SW Timer Val | ''
+RRLPFILAVG: 7 days with data in the 7 days to 11/5/2026
+  11/1/2026 avg=99.67 n=50 unreliable=0
+  11/2/2026 avg=99.67 n=48 unreliable=0
+  11/3/2026 avg=99.67 n=48 unreliable=0
+  11/4/2026 avg=99.67 n=48 unreliable=0
+  11/5/2026 avg=99.67 n=48 unreliable=0

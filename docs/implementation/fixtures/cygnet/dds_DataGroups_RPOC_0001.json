@@ -1,0 +1,182 @@
+[
+  {
+    "dgType": "AnlgInCfg",
+    "ordinal": 1,
+    "desc": "Analog Input Configuration"
+  },
+  {
+    "dgType": "AnlgInCfg",
+    "ordinal": 2,
+    "desc": "Analog Input Configuration"
+  },
+  {
+    "dgType": "AnlgInCfg",
+    "ordinal": 3,
+    "desc": "Analog Input Configuration"
+  },
+  {
+    "dgType": "AnlgScan",
+    "ordinal": 0,
+    "desc": "Analog IO Status"
+  },
+  {
+    "dgType": "CfgDg",
+    "ordinal": 0,
+    "desc": "Optimization User Defined"
+  },
+  {
+    "dgType": "CmdCfgMsg",
+    "ordinal": 0,
+    "desc": "Turn Well On (524)"
+  },
+  {
+    "dgType": "CmdCfgMsg",
+    "ordinal": 1,
+    "desc": "Force Well Into Idle Time (525)"
+  },
+  {
+    "dgType": "CmdCfgMsg",
+    "ordinal": 2,
+    "desc": "Clear Errors (523)"
+  },
+  {
+    "dgType": "CmdCfgMsg",
+    "ordinal": 3,
+    "desc": "Force Off Until Reset (31)"
+  },
+  {
+    "dgType": "CmdCfgMsg",
+    "ordinal": 4,
+    "desc": "Force Control Transfer (32)"
+  },
+  {
+    "dgType": "CmdCfgMsg",
+    "ordinal": 5,
+    "desc": "Force Software Timer (33)"
+  },
+  {
+    "dgType": "CmdMsg",
+    "ordinal": 0,
+    "desc": "Command Message"
+  },
+  {
+    "dgType": "ComSetup",
+    "ordinal": 0,
+    "desc": "Comm Setup"
+  },
+  {
+    "dgType": "CtrlInfo",
+    "ordinal": 0,
+    "desc": "Controller Version Information"
+  },
+  {
+    "dgType": "CtrlParms",
+    "ordinal": 0,
+    "desc": "Control Parameters"
+  },
+  {
+    "dgType": "DHSetup",
+    "ordinal": 0,
+    "desc": "Downhole Setup Complete"
+  },
+  {
+    "dgType": "DHSetup1",
+    "ordinal": 0,
+    "desc": "Downhole Setup Part 1"
+  },
+  {
+    "dgType": "DHSetup2",
+    "ordinal": 0,
+    "desc": "Downhole Setup Part 2"
+  },
+  {
+    "dgType": "DHSetup3",
+    "ordinal": 0,
+    "desc": "Downhole Setup Part 3"
+  },
+  {
+    "dgType": "DateTime",
+    "ordinal": 0,
+    "desc": "Date and Time"
+  },
+  {
+    "dgType": "DigInCntrs",
+    "ordinal": 0,
+    "desc": "Digital Input Counters"
+  },
+  {
+    "dgType": "DlyRt",
+    "ordinal": 0,
+    "desc": "Daily Percent Run Times, 120 day"
+  },
+  {
+    "dgType": "DynaCard",
+    "ordinal": 0,
+    "desc": "Current Card"
+  },
+  {
+    "dgType": "DynaCard",
+    "ordinal": 1,
+    "desc": "Shutdown Card"
+  },
+  {
+    "dgType": "DynaCard",
+    "ordinal": 2,
+    "desc": "Pumpup Card"
+  },
+  {
+    "dgType": "DynaCard",
+    "ordinal": 3,
+    "desc": "Reference Card"
+  },
+  {
+    "dgType": "DynaCard",
+    "ordinal": 6,
+    "desc": "Alarm Card"
+  },
+  {
+    "dgType": "DynaCard",
+    "ordinal": 7,
+    "desc": "Failure Card"
+  },
+  {
+    "dgType": "DynaConfig",
+    "ordinal": 0,
+    "desc": "Pumpoff Configuration"
+  },
+  {
+    "dgType": "FldCalcSet",
+    "ordinal": 0,
+    "desc": "Gross Fluid Calculation Settings"
+  },
+  {
+    "dgType": "LoadSetup",
+    "ordinal": 0,
+    "desc": "Load Violations Setup"
+  },
+  {
+    "dgType": "OptCurStat",
+    "ordinal": 0,
+    "desc": "Optimization Current Status"
+  },
+  {
+    "dgType": "RRLIAlms",
+    "ordinal": 0,
+    "desc": "RRL Intelligent Alarms"
+  },
+  {
+    "dgType": "SetPoints",
+    "ordinal": 0,
+    "desc": "Basic SetPoint Configuration"
+  },
+  {
+    "dgType": "StatusData",
+    "ordinal": 0,
+    "desc": "Status Data"
+  },
+  {
+    "dgType": "VSDSetup",
+    "ordinal": 0,
+    "desc": "Yaskawa VSD Setup"
+  }
+]

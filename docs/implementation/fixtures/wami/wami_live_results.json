@@ -1,0 +1,20 @@
+{
+  "server": "WAMI 7.2 net.tcp://localhost:5656/Weatherford/IRouter",
+  "model": "Blank38Model.wfl (15682 bytes)",
+  "licenses": { "RRL": true, "ESP": true, "GasLift": true, "PlungerLift": true, "PCP": true, "FlowAssurance": true, "RRLGibbs": true, "RRLEJ": true, "RRLDesignVertical": true, "RRLPatternMatching": true },
+  "limits": { "maxSessions": 10, "eleventhSession": "untyped fault: workers are already being used" },
+  "timingsMs": { "openModel": 1400, "nodalAnalysis": 120, "wellPerformanceCurve5pts": 190, "typicalCallAfterOpen": "80-200" },
+  "calls": {
+    "DoNodalAnalysis": { "liquidRate_stbd": 22182.5, "bottomholePressure_psia": 3883.9 },
+    "SetOperatingPointTopNode(-1,p)+DoNodalAnalysis": [
+      { "wellhead_psia": 100, "rate_stbd": 24027 },
+      { "wellhead_psia": 300, "rate_stbd": 19339 },
+      { "wellhead_psia": 600, "rate_stbd": 5393 }
+    ],
+    "GetIPRFlowRate(0,2000)": { "rate_stbd": 59624 },
+    "CalculatePVTData(2000,150,1000,100,1)": { "bubblePoint_psia": 4569.2, "Rs": 355.9, "Bo": 1.159, "z": 0.856, "oilViscosity": 1.19, "unitsNote": "undocumented; labelled oilfield" },
+    "GenerateWellPerformanceCurve(5)": { "points": 5, "flattenedKeys": "curve[i].liquidRate ..." },
+    "ValidateModel": "reports missing tubing and terrain rows although nodal analysis solves"
+  },
+  "rodLift": { "GetConfigurationData_fresh": null, "SetConfigurationData": "returns empty validation list; values read back unchanged" }
+}
