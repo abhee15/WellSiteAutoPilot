@@ -5,6 +5,7 @@ import { shortId } from '../format';
 import { ExecutionHistory } from './ExecutionHistory';
 import { runHistoryHash } from './assetActivity';
 import './assetPage.css';
+import { ActionLink } from '../components/ActionButton';
 
 export function AssetRunHistory({ assetId, logicId, runId, assets, configuredLogic }: {
   assetId: string; logicId: string; runId: string | null;
@@ -15,7 +16,7 @@ export function AssetRunHistory({ assetId, logicId, runId, assets, configuredLog
   return <section className="panel asset-page" aria-label={t('assetDetail.historyTitle')}>
     <header className="asset-page-header"><div><h3>{t('assetDetail.historyTitle')}</h3>
       <p>{assetName} · {logicName}</p><p className="asset-page-meta">{t('assetDetail.historyScope')}</p></div>
-      <a className="secondary-button" href={hashFor('assets', assetId)}>{t('assetDetail.backToAsset')}</a></header>
+      <ActionLink href={hashFor('assets', assetId)} label={t('assetDetail.backToAsset')} /></header>
     <ExecutionHistory assetId={assetId} logicId={logicId} runId={runId}
       assets={assets} configuredLogic={configuredLogic} focused
       onRunSelect={next => { window.location.hash = runHistoryHash(assetId, logicId, next ?? undefined); }} />
