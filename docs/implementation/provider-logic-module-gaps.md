@@ -288,7 +288,7 @@ One POC branch per gap, in `origin`. Code-gap branches are **stacked** in the or
 | G1 more current quantities | `poc/gap-g01-more-current-quantities` | POC done | `CurrentSPM`, `CyclesYesterday`, `RunTimeYesterday`. A real zero stays a value |
 | G12 `AverageSPM` | `poc/gap-g12-average-spm` | POC done | From the status document |
 | G23 daily quantities and sentinel | `poc/gap-g23-daily-quantities-sentinel` | POC done | Today and yesterday cycles, run time, idle time, strokes, inferred production. 65535 strokes is missing |
-| G3 discovered catalog, G13 device type | not started | Planned | `AvailableQuantities` plus `OptionalQuantities`, keyed on well and device type |
+| G3 discovered catalog, G13 device type | `poc/gap-g03-discovered-catalog` (`8c3d395c`) | POC done (adapter level) | `ForeSiteCatalog.ReadAsync` lists only quantities the well reports with a real value, with units and ranges from the `Units` block, plus `DeviceType`. Gateway/API exposure and `OptionalQuantities` are not done |
 | G4, G11, G19, G24, G26 setpoint reads | not started | Planned | `AllSavedSetPointParams`, per-controller map as data |
 | G5, G22, G25 history, daily snapshot, time zone | not started | Planned | `GetTrends`, `DailyAverage`; time zone as an asset attribute |
 | G7, G14 alarms | not started | Planned | `CurrentAlarms`, intelligent alarms, read-only |
