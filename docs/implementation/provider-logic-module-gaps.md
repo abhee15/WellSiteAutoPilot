@@ -178,7 +178,7 @@ Open questions: how a module declares "any of these keys" for different device t
 
 Sources: the CygNet adapter code, and ForeSite's own CygNet wrapper (`ForeSiteService\Server\Support\CygNetWrapper`), which shows the managed CygNet API calls ForeSite uses for the same jobs.
 
-**Live probing is blocked from this box.** The existing probe (`poc-cygnet\out\Probe.dll`) loads the managed API, but every service call fails: `DCL error (-12) Unable to contact a CygNet directory service` for domains 9077 and 22567 (an earlier run on domains 27212 and 9033 failed with `-30`, CAL locked/disabled/expired). So the API calls below come from ForeSite's source and are proven there, but are **not yet exercised from the WSA host**. A directory-service route and a CAL for this host are prerequisites for any live CygNet test.
+**Live probing works against domain 27212 only.** Domains 9077 and 22567 fail with `DCL error (-12)` (no directory service reachable) and 9033 with `-30` (CAL). The API calls below come from ForeSite's source, and the 27212 results at the end of this section confirm the point, units and history calls from the WSA host.
 
 **Today**
 - Capabilities: asset discovery (facilities) and current data (one point per call).
@@ -214,10 +214,27 @@ Sources: the CygNet adapter code, and ForeSite's own CygNet wrapper (`ForeSiteSe
 - Writes go through device transactions with timeouts and can fail on the device, so G8 stays a design-review item for both providers.
 - The CygNet API is synchronous and some calls are slow (ForeSite gives service lookups a 15 s timeout), so the existing bounded gate stays, and history windows must be bounded.
 
-**Next probes (blocked until the host can reach a CygNet directory service and holds a CAL)**
-1. Run the probe with a facility such as `[9077]CYGNET.UIS::RPOC_00016` and list its points, units and descriptions, then read one history window.
-2. Compare the values with the ForeSite status for wells 776 and 1596.
-3. Until then, treat ForeSite as the reference source for CygNet-backed wells, and validate the CygNet adapter against the simulator.
+**Live probe results: domain 27212, site `CYG_DEMO`, facility `RPOC_0001` (read-only, from this host)**
+
+Domain 27212 works (UIS, VHS, HSS, PNT, FAC, DDS up; CVS not found). Domains 9077 and 22567 still fail with `-12`; 9033 with `-30`. The site has 2063 WELL facilities; `RPOC_0001` has 137 points.
+
+| Finding | Evidence | Design implication |
+|---|---|---|
+| Quantity UDCs are discoverable per facility | Fillage `RRLPFILAVG`/`RRLPFILCUR`; strokes `RRLSPMAVG`/`RRLSTKTDY`/`RRLSTKYEST`; cycles `RRLCYCTDY`/`RRLCYCYEST`/`RRLCYCTAVG`; run time `TMRUNT`/`TMRUNYD`; idle `RRLIDLTDY`/`RRLIDLYEST`; loads `RRLMXLDDLY`/`RRLMNLDDLY`; pressures `PRTUBXIN`/`PRCASXIN`/`PRESLINE`/`DHPGAUGE` | Build the catalog from the point list, not a fixed map (G1, G9) |
+| Units come from the point record | `RRLPFILAVG` primary `%`; `TMRUNYD` primary `second`; counts have empty units | Take units from `PrimaryUnits`; do not force them (G2). Empty means unitless |
+| Descriptions are usable labels | "Average Pump Fillage", "Cycles Yesterday", "RPC Control Fail" | Use as catalog display names |
+| Unset sentinel | `RRLSTKYEST` = 65535, same as ForeSite's `StrokesYesterday` | Treat 65535 as missing for count UDCs |
+| Stale points | Some timestamps are from 2023 | Surface the timestamp and apply freshness rules |
+| History works | VHS long id `SITE.SVC:FAC_UDC` returns 30-minute entries for fillage and cycles; `TMRUNYD` had none in 3 days (daily point) | Entry values are `byte[]`, so decode them with the point type. Window bounds are required |
+| Alarms | CAS `GetAlarmsForPoints` returned 0 records; alarm state otherwise lives in `RRLALM0001..0168` digital points | Treat alarm points as a point group, and query CAS for active alarms |
+| Daily and yesterday values | Plain UDC points, no single IdleTime point | Derive idle time from the idle UDCs or the time-in-state points |
+
+Probe harness: `poc-cygnet\Probe2` (`Probe2 <domain> <site> <service> <facId> <udc,...>`: config, history, alarms).
+
+**Remaining probes**
+1. DDS device type and the setpoint data-group transaction (passive latest read only).
+2. Compare with ForeSite if domain 27212 maps to a ForeSite well.
+3. Domains 9077, 22567 and 9033 need a directory route and a CAL before they can be tested.
 
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
