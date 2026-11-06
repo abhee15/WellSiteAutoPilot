@@ -1,5 +1,5 @@
 /* Shared two-pane layouts; tab navigation is owned by components/TabStrip. */
-.split-layout { display: grid; gap: var(--space-12); }
+.split-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-12); min-width: 0; }
 .split-intro, .split-note { margin: 0; padding: var(--space-12) var(--space-18); color: var(--color-text-subtle); }
 .split-panes { display: grid; grid-template-columns: minmax(var(--layout-panel-min), 1fr) minmax(0, 3fr); gap: var(--space-12); align-items: start; }
 .split-back.ui-action-button { display: none; margin: var(--space-12) var(--space-18) 0; }
