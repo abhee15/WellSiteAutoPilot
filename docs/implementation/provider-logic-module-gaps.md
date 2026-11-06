@@ -310,6 +310,8 @@ Workflow note: the first stacked branches were rebuilt once because commits race
 
 Open: the gateway/API route, cache, refresh trigger and storage for the catalog are not designed; the time zone is not yet an asset attribute.
 
+Storage decision (proposed): the ForeSite adapter adds no tables and keeps no copy of ForeSite data; ForeSite's API is the only source. Three things need a home: the asset time zone (one more asset attribute set at import), the catalog cache (in memory with a TTL, persisted only if authoring must work while ForeSite is down), and the per-controller setpoint map (shipped data or config, not read from ForeSite).
+
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
 2. G3 (catalog endpoint, also feeds the starter kit download)
