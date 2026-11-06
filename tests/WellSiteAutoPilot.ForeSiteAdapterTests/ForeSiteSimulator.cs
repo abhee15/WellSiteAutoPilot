@@ -22,6 +22,11 @@ internal sealed class ForeSiteSimulator : HttpMessageHandler
             token.Headers.TryAddWithoutValidation("Set-Cookie", "fs=sim; Path=/");
             return Task.FromResult(token);
         }
+        if (request.Method == HttpMethod.Post && path.Contains("/Surveillance/CygNetTrends/" + WellId + "/", StringComparison.Ordinal))
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(File.ReadAllText(Path.Combine(Directory, "trends.json")), Encoding.UTF8, "application/json")
+            });
         if (request.Method != HttpMethod.Get) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.MethodNotAllowed));
         var fixture = path switch
         {

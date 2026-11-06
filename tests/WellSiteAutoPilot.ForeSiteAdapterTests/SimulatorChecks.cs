@@ -27,6 +27,13 @@ internal static class SimulatorChecks
             new DateTimeOffset(2026, 10, 30, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 11, 5, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
         Check(daily.Days.Count == 6 && daily.Days[0].StartUtc.Hour == 5, "recorded daily averages changed");
 
+        var trends = await ForeSiteTrends.ReadAsync(session, ForeSiteSimulator.WellId, ["CurrentPumpFillage", "CurrentSPM", "PumpFillage", "RunTimeToday"],
+            new DateTimeOffset(2026, 11, 5, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        Check(trends.Count == 4 && trends[0].Quantity == "CurrentPumpFillage" && trends[0].Unit == "%" && trends[0].Points.Count == 6 &&
+            trends[0].Points[0].TimestampUtc < trends[0].Points[5].TimestampUtc && trends[3].Unit == "h" &&
+            trends[2].Quantity == "PumpFillage" && trends[2].Error is not null && trends[2].Points.Count == 0,
+            "recorded trends lost units, order, or the per-quantity error for an unknown quantity");
+
         try { await ForeSiteSetpoints.ReadAsync(session, "999", CancellationToken.None); }
         catch (ForeSiteMeasurementException) { Console.WriteLine("ForeSite simulator checks passed."); return; }
         throw new InvalidOperationException("simulator served an unknown well");
