@@ -1178,3 +1178,7 @@ select:not([multiple], [size]) {
 
 /* Several actions on one table row sit together with the same gap as other button groups. */
 .row-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+
+@media (width <= 26em) {
+  .summary-grid { grid-template-columns: minmax(0, 1fr); }
+}
