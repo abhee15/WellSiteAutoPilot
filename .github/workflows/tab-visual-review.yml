@@ -116,6 +116,8 @@ jobs:
           python ../../tools/design-preview/capture-shared-forms.py "$GITHUB_WORKSPACE/preview-forms" "$GITHUB_WORKSPACE/screenshots/shared-forms" http://127.0.0.1:5198 http://127.0.0.1:5199
       - name: Review recommendation task and scroll ownership
         run: python after/tools/design-preview/capture-recommendations.py "$GITHUB_WORKSPACE/screenshots/recommendations" http://127.0.0.1:5198 http://127.0.0.1:5199
+      - name: Review typography roles and Overview hierarchy
+        run: python after/tools/design-preview/capture-typography.py "$GITHUB_WORKSPACE/screenshots/typography" http://127.0.0.1:5198 http://127.0.0.1:5199
       - name: Upload before/after screenshots and layout audit
         if: always()
         uses: actions/upload-artifact@v4

@@ -330,7 +330,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: run-history-browser-${{ github.run_id }}
-          path: src/web/artifacts/visual-run-history/*.png
+          path: |
+            src/web/artifacts/visual-run-history/*.png
+            src/web/artifacts/visual-run-history/*.log
           if-no-files-found: ignore
           retention-days: 7
 

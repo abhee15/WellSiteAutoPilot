@@ -81,9 +81,9 @@ with sync_playwright() as playwright:
                 else:
                     page.get_by_text("Set pump speed", exact=True).first.wait_for()
                 if state in ("expired", "approved"):
-                    label = "Expired" if state == "expired" else "Decided"
-                    old_label = "Expired or invalid expiry" if state == "expired" else "Approved or rejected"
-                    page.locator('.summary-card').filter(has_text=label if revision == "after" else old_label).click()
+                    # The PR base may already include the compact labels from the workspace redesign.
+                    label = re.compile(r"^Expired(?:\s|$)" if state == "expired" else r"^(?:Decided|Approved or rejected)(?:\s|$)")
+                    page.locator('.summary-card').filter(has_text=label).click()
                     page.get_by_text("Set pump speed", exact=True).first.wait_for()
                 page.evaluate("document.fonts.ready")
                 audit = page.evaluate("""() => {

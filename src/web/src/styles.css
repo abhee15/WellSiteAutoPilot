@@ -356,6 +356,7 @@ button:disabled {
   margin: 0;
   font-size: var(--font-size-body);
 }
+.panel-header h2 { font-size: var(--font-size-section-heading); font-weight: var(--font-weight-medium); }
 .panel-header-actions {
   display: flex;
   flex-wrap: wrap;

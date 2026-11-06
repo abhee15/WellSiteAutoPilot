@@ -1,7 +1,8 @@
 import { createServer as createHttpServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { Buffer } from 'node:buffer';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
@@ -21,7 +22,8 @@ const chrome = [
 if (!chrome) throw new Error('Chrome, Chromium or Edge is required for real browser layout checks.');
 
 const vite = await createViteServer({
-  root, configFile: false, plugins: [react()], server: { middlewareMode: true }, appType: 'mpa',
+  root, configFile: false, plugins: [react()],
+  server: { middlewareMode: true, watch: { ignored: ['**/artifacts/**'] } }, appType: 'mpa',
 });
 const server = createHttpServer((request, response) => vite.middlewares(request, response));
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -29,32 +31,52 @@ const base = `http://127.0.0.1:${server.address().port}/tests/visual/run-history
 
 // Headless Chrome command-line windows have a 500 CSS-pixel minimum and a 16-pixel scrollbar
 // difference. Use CDP viewport emulation, rather than screenshots pretending to be 320px.
-const profile = join(output, 'headless-profile');
-mkdirSync(profile, { recursive: true });
+// Isolate each run from prior profiles and the Vite watcher (Windows locks browser cache files).
+const profile = mkdtempSync(join(tmpdir(), 'wsa-run-history-'));
+const browserLog = join(output, 'browser-startup.log');
+writeFileSync(browserLog, JSON.stringify({ browser: chrome, profile }) + '\n');
+let diagnostics = '';
+let spawnError = null;
+const capture = chunk => {
+  appendFileSync(browserLog, chunk);
+  diagnostics = (diagnostics + String(chunk)).slice(-8000);
+};
 const browser = spawn(chrome, [
   '--headless=new', '--disable-gpu', '--disable-extensions', '--no-first-run',
   '--no-default-browser-check', '--disable-dev-shm-usage', '--no-sandbox',
-  '--disable-background-timer-throttling', '--remote-allow-origins=*',
+  '--disable-background-timer-throttling', '--remote-allow-origins=*', '--enable-logging=stderr',
   '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank',
-], { stdio: 'ignore', windowsHide: true });
+], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+browser.stdout.on('data', capture);
+browser.stderr.on('data', capture);
+browser.on('error', error => { spawnError = error; capture(String(error)); });
 const portFile = join(profile, 'DevToolsActivePort');
 let socket;
 let channel;
 
 async function connectDebugger() {
-  let port;
-  for (let tries = 0; tries < 100; tries++) {
-    if (existsSync(portFile)) {
+  const failure = message => new Error(`${message} See ${browserLog}.\n${diagnostics.slice(-4000)}`);
+  let target;
+  const deadline = Date.now() + 45000;
+  while (Date.now() < deadline) {
+    if (spawnError) throw failure(`Browser could not start: ${spawnError.message}`);
+    if (browser.exitCode !== null) throw failure(`Browser exited early (code ${browser.exitCode})`);
+    try {
       const value = readFileSync(portFile, 'utf8').split(/\r?\n/)[0];
-      if (/^\d+$/.test(value)) { port = Number(value); break; }
+      if (/^\d+$/.test(value)) {
+        const response = await globalThis.fetch(`http://127.0.0.1:${Number(value)}/json/list`, { signal: globalThis.AbortSignal.timeout(1000) });
+        if (response.ok) {
+          const targets = await response.json();
+          target = targets.find(item => item.type === 'page' && item.webSocketDebuggerUrl);
+          if (target) break;
+        }
+      }
+    } catch {
+      // The profile, port file and HTTP page target become ready at different points during startup.
     }
-    if (browser.exitCode !== null) throw new Error(`Browser exited early (code ${browser.exitCode})`);
     await delay(200);
   }
-  if (!port) throw new Error('Headless browser did not expose its DevTools debugging port.');
-  const targets = await (await globalThis.fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const target = targets.find(item => item.type === 'page' && item.webSocketDebuggerUrl);
-  if (!target) throw new Error('Browser did not expose a page target.');
+  if (!target) throw failure('Browser did not expose a DevTools page target within 45 seconds.');
   const webSocket = new globalThis.WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     webSocket.addEventListener('open', resolve, { once: true });
@@ -151,6 +173,8 @@ try {
   browser.kill();
   await new Promise(resolve => server.close(resolve));
   await vite.close();
+  try { rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+  catch { console.warn('Temporary browser profile remains locked:', profile); }
 }
 
 if (problems.length) {
