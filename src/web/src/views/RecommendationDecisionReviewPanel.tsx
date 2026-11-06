@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { CheckboxField, ConfirmPanel, FormActions, RadioGroup, TextAreaField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import type { ConfiguredLogicResponse, RecommendationSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import './decisionBrief.css';
@@ -34,6 +36,7 @@ export function RecommendationDecisionReviewPanel({
   const left = timeLeft(item.expiresAtUtc, Date.now());
   const [choice, setChoice] = useState<RecommendationDecision | null>(null);
   const [reason, setReason] = useState('');
+  const [reasonTouched, setReasonTouched] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<RecommendationDecisionErrorKind | 'expired' | null>(null);
@@ -125,38 +128,29 @@ export function RecommendationDecisionReviewPanel({
         <div><dt>{t('decision.reasonCode')}</dt>
           <dd title={item.reasonCode ?? undefined}>{item.reasonCode ? humanize(item.reasonCode) : '—'}</dd></div>
       </dl>
-      <p className="recommendation-review-warning" role="note">
-        {t('decision.governanceNotice')}
-      </p>
-      <fieldset className="recommendation-review-options" disabled={submitting}>
-        <legend>{t('decision.chooseAction')}</legend>
-        <label>
-          <input type="radio" name="recommendation-decision" value="Approved"
-            checked={choice === 'Approved'}
-            onChange={() => { setChoice('Approved'); setError(null); }} />
-          {t('decision.approve')}
-        </label>
-        <label>
-          <input type="radio" name="recommendation-decision" value="Rejected"
-            checked={choice === 'Rejected'}
-            onChange={() => { setChoice('Rejected'); setError(null); }} />
-          {t('decision.reject')}
-        </label>
-      </fieldset>
-      <label className="recommendation-review-reason">
-        <span>{t('decision.reason')}</span>
-        <textarea rows={3} maxLength={1024} value={reason} disabled={submitting}
+      <div className="decision-form">
+        <Notice announce={false}>{t('decision.governanceNotice')}</Notice>
+        <RadioGroup label={t('decision.chooseAction')} required
+          disabled={submitting} value={choice}
+          options={[{ value: 'Approved', label: t('decision.approve') }, { value: 'Rejected', label: t('decision.reject') }]}
+          onChange={value => {
+            if (value === 'Approved' || value === 'Rejected') setChoice(value);
+            setError(null);
+          }} />
+        <TextAreaField label={t('decision.reason')} rows={3} minLength={2} maxLength={1024} required
+          value={reason} disabled={submitting} helper={t('form.reasonHelp')}
+          error={reasonTouched && reason.trim().length < 2 ? t('form.reasonShort') : undefined}
+          onBlur={() => setReasonTouched(true)}
           onChange={event => { setReason(event.target.value); setError(null); }} />
-      </label>
-      <label className="recommendation-review-confirm">
-        <input type="checkbox" checked={acknowledged} disabled={submitting}
-          onChange={event => setAcknowledged(event.target.checked)} />
-        {t('decision.confirmation')}
-      </label>
-      {error && <p className="execution-detail-error" role="alert">{errors[error]}</p>}
-      {submitting && <p role="status">{t('decision.submitting')}</p>}
-      <div className="execution-detail-actions">
-        <ActionButton variant="primary" label={t('decision.submit')} disabled={!canSubmit} onClick={() => void submit()} />
+        <ConfirmPanel title={t('form.confirmDecision')}>
+          <CheckboxField label={t('decision.confirmation')} checked={acknowledged} disabled={submitting} required
+            onChange={event => setAcknowledged(event.target.checked)} />
+          {error && <Notice tone="error">{errors[error]}</Notice>}
+          {submitting && <Notice>{t('decision.submitting')}</Notice>}
+          <FormActions>
+            <ActionButton variant="primary" label={t('decision.submit')} disabled={!canSubmit} busy={submitting} onClick={() => void submit()} />
+          </FormActions>
+        </ConfirmPanel>
       </div>
     </section>
   );
