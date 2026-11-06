@@ -236,6 +236,47 @@ Probe harness: `poc-cygnet\Probe2` (`Probe2 <domain> <site> <service> <facId> <u
 2. Compare with ForeSite if domain 27212 maps to a ForeSite well.
 3. Domains 9077, 22567 and 9033 need a directory route and a CAL before they can be tested.
 
+## ForeSite adapter: recommended build
+
+Inputs: the adapter as built (`AssetDiscovery` + `CurrentData`, two hard-coded quantities, `%` forced, 0-100 enforced, one HTTP call per quantity), the API findings above, the four reference logics, and the sample module `demo.foresite-low-fillage-flag` (reads `PumpFillage` and `AveragePumpFillage` only).
+
+**Keep.** Windows-identity session and token handshake, asset-scoped discovery (never `Wells/All`), the response-size and depth bounds, the timestamp rule (`LastGoodScanTime`, never retrieval time), and the `ForeSiteMeasurementException` error codes. The existing sample module keeps working unchanged.
+
+**Change.**
+1. **One status read per execution, data-driven field map (G9, G1, G23, G12).** `Surveillance/well/{id}` already returns every status quantity with a paired `Units` block. Replace the two-entry `switch` with a table of `{catalogKey, valueField, unitField}` and read the document once per run. Verified on well 776 (WellPilotRPOC):
+
+   | Catalog key | `Value` field | `Units` field | Live value, unit |
+   |---|---|---|---|
+   | `PumpFillage` | `CurrentPumpFillage` | `CurrentPumpFillage` | 99.6 % |
+   | `AveragePumpFillage` | `AveragePumpFillage` | same | 99.67 % |
+   | `CurrentSPM` | `CurrentSPM` | same | 12.3 SPM |
+   | `AverageSPM` | `AverageSPM` | same | 11 SPM |
+   | `CyclesToday` / `CyclesYesterday` | same | none (count) | 0 |
+   | `StrokesToday` / `StrokesYesterday` | same | none (count) | 9683 / 65535 (sentinel) |
+   | `RunTimeToday` / `RunTimeYesterday` | same | same | 74 s / 24540 s |
+   | `IdleTimeToday` / `IdleTimeYesterday` | same | same | 82734 s / 61860 s |
+   | `InferredProductionToday` / `Yesterday` | same | same | 0.5 / 106.4 bbl/d |
+   | `EffectiveRunTimePercentage` | same | same | 0.09 % |
+   | `DailyMinimumLoad` / `DailyMaximumLoad` | same | same | 0 / 23739 lb |
+   | `TubingPressure`, `CasingPressure`, `DHGaugePressure`, `TubingHeadTemperature` | same | same | psia, psia, psia, F |
+
+   Idle time and `*Yesterday` values are already in the status document, so logic 4 needs no history for its inputs (G22 reduces to "read the yesterday fields"). Count fields have no unit block entry: report them unitless.
+2. **Units and ranges from the provider (G2).** Take `UnitKey`, `Precision`, `Min` and `Max` from the `Units` block. Validate against that range when present, not a fixed 0-100. Missing range means no range check.
+3. **Missing and sentinel handling (G23).** Null means `MISSING`. `65535` on a count field is reported as missing, with the raw value kept in the result for diagnosis. A real `0` is a value, so logics must not treat zero as missing (a legacy defect in logics 3 and 4).
+4. **Discovered catalog (G3).** Add `ProviderCapabilityKind` catalog discovery per asset. Candidates are the intersection of `Surveillance/AvailableQuantities/{wellId}` and the field table, plus site-defined entries from `OptionalQuantities/{wellType}` and `CalculatedQuantities/{wellType}`, namespaced `foresite.optional.*`. Keys outside the table are exposed only when the provider gives a unit and the value is numeric.
+5. **Device and well-type applicability (G13).** Already in discovery metadata (`deviceType`, `wellType`). Expose them to the catalog so a requirement can be rejected at validation for an AEBEAM well that has no fillage.
+6. **Setpoints (G4, G11, G19, G24, G26), read-only first.** `Surveillance/Well/AllSavedSetPointParams?WellId=&scanOption=0` is self-describing (id, description, unit, range, read-only flag, value, original value, data group). Expose a neutral "setpoint read": logical name to typed value with unit, with a per-controller-family map (VSD, SPM/Unico, RPOC idle time) held as data, not code. `IdleTime` returns `00:01:00` with an original of `60`, so parse by the declared unit.
+7. **Daily and history (G5, G22).** `GetTrends` and `DailyAverage` for day-level values. For finer windows use `POST CygNetTrends` once a server with archived data is available. Until then advertise `HistoricalData` only for the daily kind.
+8. **Alarms (G7, G14).** `Alarms/CurrentAlarms/{id}` and intelligent alarms as a read-only `Alarms` capability. The status document also carries `CurrentAlarmsForWell`, `UnsuppressedAlarms` and `IntelligentAlarmMessage`.
+9. **Simulator (G10).** A fake ForeSite that serves the 776 status document, units, `AvailableQuantities` and a setpoint group, recorded from the live responses. It is what CI runs.
+10. **Writes last (G8, G20, G21).** `WellAutoSetPointService` (`ApplyRecommendationForEachSetpoint`) behind the governed design (Shadow, recommend, approved write, readback). `GetACLLogicSettings` and `GetRRLAutonomousControlHistory` returned 401 on well 776 with GET (a 401 can also mean wrong verb or route), so they need the route and verb confirmed from the service interface before any use.
+
+**Why this shape.** The status document is the single source ForeSite already computes from the controller, so reading it once and fanning out gives most of the four logics' inputs at the cost of a table plus units handling. Setpoint reads and alarms are separate read-only capabilities. Writes are the only part that needs a design review. Nothing here needs the legacy Python helper library.
+
+**Cross-adapter check.** Well 776 shows `CurrentPumpFillage` 99.6, `AveragePumpFillage` 99.67 and `AverageSPM` 11, the same as CygNet `CYG_DEMO` `RPOC_0001` (`RRLPFILCUR`, `RRLPFILAVG`, `RRLSPMAVG`). One module can therefore be run against both adapters and its results compared, which proves the provider-neutral contract (the sample module's two quantities are the first test).
+
+**Build order for the ForeSite adapter (one PR each):** (a) field table, one read, provider units and ranges, sentinel handling (G1, G2, G9, G23); (b) discovered catalog plus applicability (G3, G13); (c) read-only setpoints with the per-family map (G4, G11, G19, G24); (d) alarms (G7, G14); (e) daily values (G5, G22); (f) simulator (G10, can land with (a)); (g) writes (G8, G20, G21).
+
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
 2. G3 (catalog endpoint, also feeds the starter kit download)
