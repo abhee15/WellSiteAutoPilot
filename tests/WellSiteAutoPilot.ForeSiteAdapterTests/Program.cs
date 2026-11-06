@@ -7,6 +7,7 @@ using WellSiteAutoPilot.Integration.ForeSite;
 ShippedAdapterCommandChecks.Run();
 await SimulatorCommandProviderChecks.RunAsync();
 await MeasurementChecks.RunAsync();
+await SimulatorChecks.RunAsync();
 await CardChecks.RunAsync();
 await MeasurementProbeChecks.RunAsync();
 

@@ -1,0 +1,1 @@
+[{"AlarmTypeId":597,"NumericValue":4.5,"StringValue":"4.5","AlarmDeviation":3,"AlarmType":{"AlarmCategory":0,"AlarmType":"Inferred Production Today","Id":597,"IsActive":true,"IsAlarmManuallySuppressed":null,"IsDevationAlarm":true,"Quantity":17},"Id":135703,"StartTime":"2022-12-30T18:11:14.8230000Z","Well":null,"WellId":776}]
