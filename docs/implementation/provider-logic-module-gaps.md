@@ -277,6 +277,28 @@ Inputs: the adapter as built (`AssetDiscovery` + `CurrentData`, two hard-coded q
 
 **Build order for the ForeSite adapter (one PR each):** (a) field table, one read, provider units and ranges, sentinel handling (G1, G2, G9, G23); (b) discovered catalog plus applicability (G3, G13); (c) read-only setpoints with the per-family map (G4, G11, G19, G24); (d) alarms (G7, G14); (e) daily values (G5, G22); (f) simulator (G10, can land with (a)); (g) writes (G8, G20, G21).
 
+## Gap tracker (epic)
+
+One POC branch per gap, in `origin`. Code-gap branches are **stacked** in the order shown (each is based on the one above it) because they touch the same ForeSite files; review and re-implement them in that order. All base on `origin/develop` at `b1e45e06` (#477). Status values: **POC done** (built and checked with the ForeSite adapter checks), **Planned**, **Design only** (no code in the adapters), **Not a requirement**.
+
+| Gap | Branch | Status | Notes |
+|---|---|---|---|
+| G9 one status read | `poc/gap-g09-single-status-read` | POC done | `ForeSiteStatusCache`, 3 s default lifetime per connection session, off when zero. Test: two quantities, one GET |
+| G2 provider units and ranges | `poc/gap-g02-provider-units-ranges` | POC done | `ForeSiteQuantityCatalog` table. Unit, min and max from the `Units` block; catalog fallbacks only when absent |
+| G1 more current quantities | `poc/gap-g01-more-current-quantities` | POC done | `CurrentSPM`, `CyclesYesterday`, `RunTimeYesterday`. A real zero stays a value |
+| G12 `AverageSPM` | `poc/gap-g12-average-spm` | POC done | From the status document |
+| G23 daily quantities and sentinel | `poc/gap-g23-daily-quantities-sentinel` | POC done | Today and yesterday cycles, run time, idle time, strokes, inferred production. 65535 strokes is missing |
+| G3 discovered catalog, G13 device type | not started | Planned | `AvailableQuantities` plus `OptionalQuantities`, keyed on well and device type |
+| G4, G11, G19, G24, G26 setpoint reads | not started | Planned | `AllSavedSetPointParams`, per-controller map as data |
+| G5, G22, G25 history, daily snapshot, time zone | not started | Planned | `GetTrends`, `DailyAverage`; time zone as an asset attribute |
+| G7, G14 alarms | not started | Planned | `CurrentAlarms`, intelligent alarms, read-only |
+| G10 ForeSite simulator | not started | Planned | Recorded from live responses |
+| G6 parameter pre-fill, G15 reference data | not started | Design only | Needs the ACL settings route (401 on GET) and a decision on module resources |
+| G8, G20, G21 recommendations and writes | not started | Planned last | Governed design first |
+| G16, G17, G18 | none | Not a requirement | Legacy persistence, closed loop, manual-change detection |
+
+Workflow note: the first stacked branches were rebuilt once because commits raced with edits; the pushed history is the corrected one.
+
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
 2. G3 (catalog endpoint, also feeds the starter kit download)
