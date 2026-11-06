@@ -137,6 +137,23 @@ internal static class MeasurementChecks
             "setpoint read lost units, ranges, raw text or returned a hidden element");
         Check(setpointFactory.Methods.All(m => m == HttpMethod.Get) &&
             setpointFactory.Paths.Contains("/prefix/Surveillance/Well/AllSavedSetPointParams"), "setpoint read was not a GET on the setpoint route: " + string.Join(",", setpointFactory.Paths));
+        // G7/G14: active alarms, read-only, UTC start, name from the alarm type.
+        var alarmFactory = new Factory
+        {
+            Payload = """
+                [{"AlarmTypeId":405,"NumericValue":null,"StringValue":"Run Time 7 days (98)","Id":9,"StartTime":"2023-04-11T17:09:38.0330000Z",
+                  "AlarmType":{"AlarmType":"Pattern Card Match","IsDevationAlarm":false,"IsAlarmManuallySuppressed":null}},
+                 {"AlarmTypeId":597,"NumericValue":4.5,"Id":10,"StartTime":"2022-12-30T18:11:14Z","AlarmType":{"AlarmType":"Inferred Production Today","IsDevationAlarm":true}},
+                 {"AlarmTypeId":1,"Id":11,"StartTime":"not a time"}]
+                """
+        };
+        var alarmClient = alarmFactory.CreateClient("");
+        alarmClient.BaseAddress = new Uri("http://a/prefix/");
+        var alarms = await ForeSiteAlarms.ReadAsync(new ForeSiteSession(alarmClient), "42", CancellationToken.None);
+        Check(alarms.Count == 2 && alarms[0].Name == "Pattern Card Match" && alarms[0].StringValue == "Run Time 7 days (98)" &&
+            alarms[0].StartedUtc == new DateTimeOffset(2023, 4, 11, 17, 9, 38, 33, TimeSpan.Zero) && alarms[1].NumericValue == 4.5m && alarms[1].Deviation &&
+            alarmFactory.Methods.All(m => m == HttpMethod.Get) && alarmFactory.Paths.Contains("/prefix/Alarms/CurrentAlarms/42"),
+            "alarm read lost fields, kept an unparsable record, or was not a GET");
         // G9: quantities asked for together are served from one status document.
         var fanOut = new Factory();
         using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))
