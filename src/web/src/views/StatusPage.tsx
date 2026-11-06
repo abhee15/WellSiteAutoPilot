@@ -113,7 +113,7 @@ export function StatusPage({ canSeeServices, canSeeConnections }: { canSeeServic
                 return (
                   <div className="health-row" data-tone={statusTone(status)} key={item.id}>
                     <div>
-                      <a className="text-link" href={`#connections/${item.id}`}><strong>{item.name}</strong></a>
+                      <ContextLink appearance="record" href={`#connections/${item.id}`} label={item.name} />
                       <small>{system} · {item.lastTest
                         ? t(item.lastTest.source === 'scheduled' ? 'status.checked' : 'status.tested',
                           { when: formatTimestamp(item.lastTest.testedAtUtc) })

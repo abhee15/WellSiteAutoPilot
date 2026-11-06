@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { useCallback } from 'react';
 import type { AssetLogicSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
@@ -23,7 +24,7 @@ export function AssetLogicCard({ item, assetId, canReadRuns }: {
     : t('assetDetail.scheduleUnavailable');
   return <article className="asset-logic-card" aria-label={configuration.name ?? id}>
     <header>
-      <a className="asset-logic-name" href={hashFor('logic', id)}>{configuration.name}</a>
+      <ContextLink appearance="record" href={hashFor('logic', id)} label={configuration.name ?? id} />
       <Status value={active ? 'Active' : revision?.status ?? 'Draft'} />
     </header>
     {revision && <p className="asset-page-meta">{revision.moduleId} · v{revision.moduleVersion} · {revision.mode}</p>}
@@ -40,14 +41,14 @@ export function AssetRunPreview({ assetId, logicId, logicName }: { assetId: stri
   const Heading = logicId ? 'h5' : 'h4';
   return <div className="asset-logic-runs">
     <div className="asset-logic-runs-heading"><Heading>{t('assetDetail.latestRuns')}</Heading>
-      {logicId && <a href={runHistoryHash(assetId, logicId)} aria-label={t('assetDetail.historyFor', { name: logicName ?? logicId })}>{t('assetDetail.history')}</a>}</div>
+      {logicId && <ContextLink href={runHistoryHash(assetId, logicId)} aria-label={t('assetDetail.historyFor', { name: logicName ?? logicId })} label={t('assetDetail.history')} />}</div>
     {runs.loading && <LoadingIndicator label={t('assetPage.loading')} />}
     {runs.failed && <p role="status" className="asset-page-empty">{t('assetDetail.runsUnavailable')} <button type="button" className="row-link" onClick={runs.refresh}>{t('assetDetail.retry')}</button></p>}
     {runs.data?.length === 0 && <p className="asset-page-empty">{t('assetPage.noRuns')}</p>}
     {runs.data && runs.data.length > 0 && <ul className="asset-page-list">
       {runs.data.map(run => <li key={run.executionId}>
         <Status value={run.status} />
-        <a aria-label={t('assetDetail.runAt', { time: formatTimestamp(run.requestedAtUtc), status: statusLabel(run.status), id: shortId(run.executionId) })} href={logicId || run.logicInstanceId ? runHistoryHash(assetId, logicId ?? run.logicInstanceId!, run.executionId) : hashFor('operations', run.executionId)}>{formatTimestamp(run.requestedAtUtc)}</a>
+        <ContextLink appearance="record" aria-label={t('assetDetail.runAt', { time: formatTimestamp(run.requestedAtUtc), status: statusLabel(run.status), id: shortId(run.executionId) })} href={logicId || run.logicInstanceId ? runHistoryHash(assetId, logicId ?? run.logicInstanceId!, run.executionId) : hashFor('operations', run.executionId)} label={formatTimestamp(run.requestedAtUtc)} />
       </li>)}
     </ul>}
   </div>;

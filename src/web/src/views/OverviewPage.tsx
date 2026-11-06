@@ -208,8 +208,8 @@ export function OverviewPage({
             {setup.map(item => <li key={item.kind}><ContextLink href={item.href} label={attentionText(item)} /></li>)}
           </ul>}
           <div className="overview-attention-links">
-            {pending.length > pendingShown.length && <a href="#recommendations">{t('overview.allRecommendations')}</a>}
-            {failed.length > failedShown.length && <a href="#operations">{t('overview.allRuns')}</a>}
+            {pending.length > pendingShown.length && <ContextLink href="#recommendations" label={t('overview.allRecommendations')} />}
+            {failed.length > failedShown.length && <ContextLink href="#operations" label={t('overview.allRuns')} />}
           </div>
         </>}
         </div>
@@ -235,9 +235,7 @@ export function OverviewPage({
               const context = describeRunContext(run, configuredLogic, directory.assets, directory.owners);
               return <li key={run.executionId}>
                 <Status value={run.status} />
-                <a href={`#operations/${run.executionId}`}>
-                  <strong>{executionAssetLabel(run, context)}</strong>
-                </a>
+                <ContextLink appearance="record" href={`#operations/${run.executionId}`} label={executionAssetLabel(run, context)} />
                 <span className="overview-run-module">{context.logicName ?? run.moduleId}</span>
                 {run.requestedAtUtc && <time dateTime={run.requestedAtUtc} title={formatDetailTimestamp(run.requestedAtUtc)} aria-label={formatDetailTimestamp(run.requestedAtUtc)}>{relativeTime(run.requestedAtUtc, Date.now())}</time>}
               </li>;

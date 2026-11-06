@@ -1106,8 +1106,6 @@ a.secondary-button:hover { color: var(--color-text-control); }
 a.primary-button:hover { color: var(--color-text-on-accent); }
 
 /* A name that opens something: link colour, no underline until hovered. */
-.text-link { color: var(--color-text-primary); text-decoration: none; }
-.text-link:hover { color: var(--color-text-link); text-decoration: underline; }
 
 /* Visible to assistive technology only. */
 .visually-hidden {

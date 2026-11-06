@@ -83,3 +83,8 @@ resolution/release forms at seven viewport/text-scale combinations. It uses whee
 and Tab, intersects target bounds with every clipping ancestor and verifies the final controls are
 reachable. Hidden panels cannot be a programmatic-scroll workaround. The workflow captures
 before/after screenshots and geometry; the audit never submits a command or changes the kill switch.
+
+`audit-links.py OUTPUT BEFORE_URL AFTER_URL` checks shared record/destination links in six populated
+scenes at four widths, including selected Run/Logic/Asset details and Schedules. It compares computed
+appearance, cue, contrast, fine/coarse targets, keyboard focus and long-label overflow, writes JSON
+in the existing visual-review artifact and submits no actions.

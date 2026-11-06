@@ -62,3 +62,18 @@ test('contextual destinations and loading markup are created by their shared com
   }
   assert.deepEqual(found, []);
 });
+
+
+test('record and standalone destinations use ContextLink; native prose and section navigation stay explicit', () => {
+  const found = [];
+  for (const path of walk(join(root, 'views')).filter(path => path.endsWith('.tsx'))) {
+    const name = relative(root, path).replaceAll('\\', '/');
+    for (const [tag] of readFileSync(path, 'utf8').matchAll(/<a\b[^>]*>/g)) {
+      if (name === 'views/RecommendationsPage.tsx' && tag.includes('className="tab-strip-item"')) continue;
+      // This link is embedded in the owning-connection sentence; its persistent underline is intentional.
+      if (name === 'views/AssetDetail.tsx' && tag.includes("href={hashFor('connections', owner.connectionId)}")) continue;
+      found.push(name + ': use ContextLink for a record/destination, or document a genuine prose/navigation exception');
+    }
+  }
+  assert.deepEqual(found, []);
+});

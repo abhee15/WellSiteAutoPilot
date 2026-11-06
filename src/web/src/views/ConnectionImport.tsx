@@ -1,3 +1,4 @@
+import { ContextLink } from '../components/ContextLink';
 import { ArrowDown, ArrowUp, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { t } from '../localization';
@@ -160,8 +161,8 @@ export function ConnectionImport({ connection, adapter, selection = null, select
           <strong>{result.hierarchyAdopted && result.wellsCreated === 0 ? t('hierarchy.adopted') : t('connections.importDone', { wells: result.wellsCreated, groups: result.groupsCreated })}</strong>
           {result.groupsReused > 0 && <span>{t('connections.importReused', { count: result.groupsReused })}</span>}
           {result.alreadyImported > 0 && <span>{t('connections.importSkipped', { count: result.alreadyImported })}</span>}
-          <a href="#assets">{t('connections.importOpenAssets')}</a>
-          <a href={'#assets/' + encodeURIComponent('new-view:' + connection.id)}>{t('assetViews.create')}</a>
+          <ContextLink href="#assets" label={t('connections.importOpenAssets')} />
+          <ContextLink href={'#assets/' + encodeURIComponent('new-view:' + connection.id)} label={t('assetViews.create')} />
         </div>
       )}
     </section>

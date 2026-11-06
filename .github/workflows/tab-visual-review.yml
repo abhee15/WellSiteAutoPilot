@@ -120,6 +120,8 @@ jobs:
         run: python after/tools/design-preview/capture-command-scroll.py "$GITHUB_WORKSPACE/screenshots/command-scroll" http://127.0.0.1:5198 http://127.0.0.1:5199
       - name: Review typography roles and Overview hierarchy
         run: python after/tools/design-preview/capture-typography.py "$GITHUB_WORKSPACE/screenshots/typography" http://127.0.0.1:5198 http://127.0.0.1:5199
+      - name: Review shared record and destination links
+        run: python after/tools/design-preview/audit-links.py "$GITHUB_WORKSPACE/screenshots/links" http://127.0.0.1:5198 http://127.0.0.1:5199
       - name: Upload before/after screenshots and layout audit
         if: always()
         uses: actions/upload-artifact@v4
