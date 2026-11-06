@@ -7,8 +7,10 @@ namespace WellSiteAutoPilot.IntegrationGateway.Providers;
 
 // Bounded connection/revision sessions. One operation per session coalesces expiry
 // and prevents a concurrent 401 token storm. Busy entries are never disposed.
-public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, TimeProvider clock) : IDisposable
+public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, TimeProvider clock, TimeSpan? statusCacheLifetime = null) : IDisposable
 {
+    private static readonly TimeSpan DefaultStatusCacheLifetime = TimeSpan.FromSeconds(3);
+    private readonly TimeSpan _statusCacheLifetime = statusCacheLifetime ?? DefaultStatusCacheLifetime;
     private readonly object _gate = new();
     private readonly Dictionary<Guid, Entry> _sessions = [];
     private bool _disposed;
@@ -29,7 +31,7 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
             {
                 return request.Quantity == ForeSiteCards.Quantity
                     ? await ForeSiteCards.ReadAsync(entry.Session, request.ExternalId, budget.Token)
-                    : await ForeSiteMeasurements.ReadAsync(entry.Session, request.ExternalId, request.Quantity, budget.Token);
+                    : await ForeSiteMeasurements.ReadAsync(entry.Session, request.ExternalId, request.Quantity, budget.Token, entry.Status);
             }
             finally { entry.Gate.Release(); }
         }
@@ -74,7 +76,7 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
                 var client = clients.CreateClient(AdapterConnectionTester.WindowsClientName);
                 client.BaseAddress = address;
                 client.MaxResponseContentBufferSize = 1024 * 1024;
-                current = new(client, request.ConnectionRevision, clock.GetUtcNow());
+                current = new(client, request.ConnectionRevision, clock.GetUtcNow(), new ForeSiteStatusCache(clock, _statusCacheLifetime));
                 _sessions.Add(request.ConnectionId, current);
             }
             current.Users++;
@@ -96,9 +98,10 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         }
     }
 
-    private sealed class Entry(HttpClient client, int revision, DateTimeOffset now) : IDisposable
+    private sealed class Entry(HttpClient client, int revision, DateTimeOffset now, ForeSiteStatusCache status) : IDisposable
     {
         public HttpClient Client { get; } = client;
+        public ForeSiteStatusCache Status { get; } = status;
         public int Revision { get; } = revision;
         public ForeSiteSession Session { get; } = new(client);
         public SemaphoreSlim Gate { get; } = new(1, 1);

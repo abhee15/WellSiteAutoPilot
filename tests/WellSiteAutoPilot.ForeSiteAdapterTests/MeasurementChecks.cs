@@ -9,7 +9,7 @@ internal static class MeasurementChecks
     public static async Task RunAsync()
     {
         var factory = new Factory();
-        using var pool = new ForeSiteConnectionMeasurements(factory, TimeProvider.System);
+        using var pool = new ForeSiteConnectionMeasurements(factory, TimeProvider.System, TimeSpan.Zero);
         var a = new ConnectionMeasurementRequest(Guid.NewGuid(), 1, new() { ["baseUrl"] = "http://a/prefix" }, "42", "PumpFillage");
         var b = a with { ConnectionId = Guid.NewGuid(), Settings = new() { ["baseUrl"] = "http://b/prefix" } };
         var first = await pool.ReadAsync(a, CancellationToken.None);
@@ -70,7 +70,20 @@ internal static class MeasurementChecks
         await cancellation.CancelAsync();
         try { await pool.ReadAsync(a, cancellation.Token); throw new InvalidOperationException("Caller cancellation was swallowed."); }
         catch (OperationCanceledException) { }
-        Console.WriteLine("ForeSite measurement sessions: connection isolation, prefix, cookies, concurrent expiry, revision, zero writes, strict values/timestamps and controller acquisition provenance checks passed.");
+        // G9: quantities asked for together are served from one status document.
+        var fanOut = new Factory();
+        using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))
+        {
+            fanOut.Payload = """{"Value":{"CurrentPumpFillage":70,"AveragePumpFillage":65,"LastGoodScanTime":"2026-10-27T00:00:00-05:00"}}""";
+            var now = await cached.ReadAsync(a, CancellationToken.None);
+            var avg = await cached.ReadAsync(a with { Quantity = "AveragePumpFillage" }, CancellationToken.None);
+            Check(now.Value == 70 && avg.Value == 65 && fanOut.Paths.Count(p => p.EndsWith("/Surveillance/well/42", StringComparison.Ordinal)) == 1,
+                "two quantities of one well did not share one status read");
+            await cached.ReadAsync(a with { ConnectionId = Guid.NewGuid() }, CancellationToken.None);
+            Check(fanOut.Paths.Count(p => p.EndsWith("/Surveillance/well/42", StringComparison.Ordinal)) == 2,
+                "a different connection reused another connection's cached status");
+        }
+        Console.WriteLine("ForeSite measurement sessions: connection isolation, prefix, cookies, concurrent expiry, revision, zero writes, strict values/timestamps, controller acquisition provenance and single status read checks passed.");
     }
     private static void Check(bool value, string message)
     {

@@ -7,7 +7,7 @@ namespace WellSiteAutoPilot.Integration.ForeSite;
 public static class ForeSiteMeasurements
 {
     public static async Task<EngineeringValue> ReadAsync(ForeSiteSession session, string externalId, string quantity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, ForeSiteStatusCache? cache = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         if (!long.TryParse(externalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
@@ -18,16 +18,11 @@ public static class ForeSiteMeasurements
             "AveragePumpFillage" => "AveragePumpFillage",
             _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
         };
-        using var response = await session.GetAsync("Surveillance/well/" + wellId.ToString(CultureInfo.InvariantCulture), cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            // The shared error parser retains FullErrorMessage within the Gateway boundary.
-            throw new ForeSiteMeasurementException("FORESITE_READ_FAILED",
-                await ForeSiteAdapter.ExplainAsync(response, "the Gateway Windows account", cancellationToken));
+        var body = await ReadStatusAsync(session, wellId, cache, cancellationToken);
         try
         {
             // HttpClient bounds buffered bytes; never deserialize arbitrary provider objects into module inputs.
-            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken),
-                new JsonDocumentOptions { MaxDepth = 16 }, cancellationToken);
+            using var document = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 16 });
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("Value", out var value) || value.ValueKind != JsonValueKind.Object)
                 throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
@@ -47,6 +42,21 @@ public static class ForeSiteMeasurements
                 DateTimeOffset.UtcNow, "ControllerScan");
         }
         catch (JsonException) { throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID"); }
+    }
+
+    // One status document carries every current quantity of the well, so a cached copy serves all of them.
+    private static async Task<byte[]> ReadStatusAsync(ForeSiteSession session, long wellId, ForeSiteStatusCache? cache,
+        CancellationToken cancellationToken)
+    {
+        if (cache is not null && cache.TryGet(wellId, out var cached)) return cached;
+        using var response = await session.GetAsync("Surveillance/well/" + wellId.ToString(CultureInfo.InvariantCulture), cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            // The shared error parser retains FullErrorMessage within the Gateway boundary.
+            throw new ForeSiteMeasurementException("FORESITE_READ_FAILED",
+                await ForeSiteAdapter.ExplainAsync(response, "the Gateway Windows account", cancellationToken));
+        var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        cache?.Set(wellId, body);
+        return body;
     }
 
     private static bool TryOffsetTime(string? text, out DateTimeOffset timestamp)
