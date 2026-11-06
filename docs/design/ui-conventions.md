@@ -97,6 +97,22 @@ the panel. The toolbar adapts to its own width (container query), so a narrow li
 
 Asset hierarchy controls opt into `FilterToolbar`'s `sticky` behavior above the split-pane breakpoint. The compact search/filter toolbar stays at the top of its own scroll pane. Opening Filters returns the toolbar to normal flow and resets only that pane to the top, keeping tall filter and saved-view forms reachable without nested scroll regions. Escape closes the panel and returns keyboard focus to Filters. On smaller screens controls stay in normal page flow; the existing container-responsive layout remains in use.
 
+## Words, dates and time zones
+
+Wording and formatting have one owner each, so the same value reads the same on every screen:
+
+- **Table column headers** are message keys, `<th>{t('page.colName')}</th>`, never literal text. Keys are scoped to the page
+  that owns the table (`operations.colStatus`), not borrowed from a form label that happens to read the same.
+- **A status shown as text** goes through `statusLabel` in `words.ts` (`NotReturned` reads "Not returned"). A status badge
+  is the `Status` component. The raw server value is never printed; keep it in a tooltip or disclosure if support needs it.
+- **Dates and times** are formatted by `formatTimestamp` in `format.ts`, which always carries the time zone. Screens do not
+  call `toLocaleDateString`, `toLocaleTimeString` or `toLocaleString` themselves.
+- **Time zone choices** come from `timeZoneChoices()` in `views/assignmentSchedule.ts`: the saved zone first, the browser's
+  zone, UTC, then every zone the browser lists. No screen names a zone.
+
+Guards in `tests/consistency.test.mjs` fail on a literal `<th>`, a raw `{x.status}`, a direct `toLocale*String` call outside
+the formatters, and a named time zone; `tests/schedule-time-zones.test.mjs` covers the zone list.
+
 ## Breakpoints
 
 In `em`, range syntax: `(width <= 40em)` phone, `(width < 48em)` / `(width >= 48em)` tablet, `(width <= 56.25em)` /

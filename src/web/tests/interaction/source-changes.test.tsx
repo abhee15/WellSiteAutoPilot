@@ -42,12 +42,12 @@ it('retains displayed evidence after a failed check and shows missing-well wordi
   vi.mocked(api.loadSourceChanges).mockResolvedValue({ ...page, items: [{ ...page.items[0], status: 'NotReturned', evidence: { ...page.items[0].evidence, status: 'NotReturned', differences: [] } }] });
   render(<ConnectionSourceChanges {...props} />);
   await userEvent.click(screen.getByRole('button', { name: 'Review saved findings' }));
-  await userEvent.click(await screen.findByText(/Well 10000 · NotReturned/));
+  await userEvent.click(await screen.findByText(/Well 10000 · Not returned/));
   expect(screen.getByText(/does not confirm deletion/)).toBeTruthy();
   vi.mocked(api.checkSourceChanges).mockRejectedValue(new api.ConnectionsError('gatewayUnavailable'));
   await userEvent.click(screen.getByRole('button', { name: 'Check for changes' }));
   await screen.findByRole('alert');
-  expect(screen.getByText(/Well 10000 · NotReturned/)).toBeTruthy();
+  expect(screen.getByText(/Well 10000 · Not returned/)).toBeTruthy();
 });
 it('disables checking dirty or read-only connections and explains denied review scope', async () => {
   vi.mocked(api.loadSourceChanges).mockRejectedValue(new api.ConnectionsError('accessDenied'));

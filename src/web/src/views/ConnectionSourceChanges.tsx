@@ -5,6 +5,7 @@ import { formatTimestamp } from '../format';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
+import { statusLabel } from '../words';
 const factLabels: Record<string, MessageKey> = { sourceName: 'sourceChanges.sourceName', wellType: 'sourceChanges.wellType',
   wellTypeId: 'sourceChanges.wellTypeId', deviceType: 'sourceChanges.deviceType', assetName: 'sourceChanges.assetName', assetId: 'sourceChanges.assetId' };
 const factLabel = (key: string) => factLabels[key] ? t(factLabels[key]) : key;
@@ -75,7 +76,7 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
       </div>
       <p>{t('sourceChanges.results', { total: page.total })}</p>
       <ul className="source-change-list">{page.items.map(item => <li key={item.id}>
-        <details><summary>{item.name} · {item.status} · {item.externalId}</summary>
+        <details><summary>{item.name} · {statusLabel(item.status)} · {item.externalId}</summary>
           <p>{t('sourceChanges.seen', { first: formatTimestamp(item.firstSeenAtUtc), last: formatTimestamp(item.lastSeenAtUtc) })}</p>
           {item.status === 'NotReturned' && <p>{t('sourceChanges.notDeleted')}</p>}
           {item.status === 'New' && <p>{t('sourceChanges.newWell')}</p>}
@@ -91,7 +92,7 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
           <h4>{t('sourceChanges.configurations')}</h4>
           <p className="connection-help">{t('sourceChanges.visibleOnly')}</p>
           <ul>{item.configurations.map(ref => <li key={`${ref.revisionId}:${ref.kind}:${ref.reference}`}>
-            {ref.name} · r{ref.revisionNumber} · {ref.status} · {ref.kind}: {ref.reference}
+            {ref.name} · r{ref.revisionNumber} · {statusLabel(ref.status)} · {ref.kind}: {ref.reference}
           </li>)}</ul>
         </details>
       </li>)}</ul>

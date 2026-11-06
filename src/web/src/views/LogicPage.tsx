@@ -148,10 +148,10 @@ export function LogicPage({
               <table className="activity-table">
                 <thead>
                   <tr>
-                    <th>Status</th>
-                    <th>Module</th>
-                    <th className="run-col-secondary">Publisher</th>
-                    <th className="run-col-secondary">Runtime</th>
+                    <th>{t('logicCatalog.colStatus')}</th>
+                    <th>{t('logicCatalog.colModule')}</th>
+                    <th className="run-col-secondary">{t('logicCatalog.colPublisher')}</th>
+                    <th className="run-col-secondary">{t('logicCatalog.colRuntime')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -217,10 +217,10 @@ export function LogicPage({
               <table className="activity-table">
                 <thead>
                   <tr>
-                    <th>Status</th>
-                    <th>Logic</th>
-                    <th className="run-col-secondary">Revision</th>
-                    {canReadRuns && <th className="run-col-secondary">Last run</th>}
+                    <th>{t('configured.colStatus')}</th>
+                    <th>{t('configured.colLogic')}</th>
+                    <th className="run-col-secondary">{t('configured.colRevision')}</th>
+                    {canReadRuns && <th className="run-col-secondary">{t('configured.colLastRun')}</th>}
                   </tr>
                 </thead>
                 <tbody>

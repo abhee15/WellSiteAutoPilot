@@ -191,11 +191,11 @@ export function AssetsPage({
             <table className="activity-table">
               <thead>
                 <tr>
-                  <th>Display name</th>
-                  <th>Key</th>
+                  <th>{t('assetTypes.colDisplayName')}</th>
+                  <th>{t('assetTypes.colKey')}</th>
                   <th>{t('assets.typeCount')}</th>
-                  <th>Schema version</th>
-                  <th>Status</th>
+                  <th>{t('assetTypes.colSchemaVersion')}</th>
+                  <th>{t('assetTypes.colStatus')}</th>
                 </tr>
               </thead>
               <tbody>

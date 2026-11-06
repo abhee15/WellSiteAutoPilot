@@ -99,12 +99,12 @@ function RecentOperationsPage({
           <table className="activity-table">
             <thead>
               <tr>
-                <th>Status</th>
-                <th>Asset</th>
-                <th className="run-col-logic">Logic module</th>
-                <th className="run-col-secondary">Mode</th>
-                <th className="run-col-secondary">Requested</th>
-                <th className="run-col-secondary">Outcome</th>
+                <th>{t('operations.colStatus')}</th>
+                <th>{t('operations.colAsset')}</th>
+                <th className="run-col-logic">{t('operations.colLogicModule')}</th>
+                <th className="run-col-secondary">{t('operations.colMode')}</th>
+                <th className="run-col-secondary">{t('operations.colRequested')}</th>
+                <th className="run-col-secondary">{t('operations.colOutcome')}</th>
               </tr>
             </thead>
             <tbody>
