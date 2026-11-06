@@ -123,12 +123,12 @@ export function KillSwitchPanel({ userId, canManage }: Props) {
           <Status value={engaged ? t('killSwitch.engaged') : t('killSwitch.released')} tone={engaged ? 'warning' : 'neutral'} />
           {canManage && !formOpen && (
             <ActionButton label={engaged ? t('killSwitch.release') : t('killSwitch.engage')}
-              variant={engaged ? 'secondary' : 'primary'} onClick={() => setFormOpen(true)} />
+              variant="secondary" onClick={() => setFormOpen(true)} />
           )}
         </div>
       </div>
       <div className="kill-switch-message">
-        <p>{engaged ? t('killSwitch.engagedNote') : t('killSwitch.releasedNote')}</p>
+        {(engaged || state.autonomousControlEnabled) && <p>{engaged ? t('killSwitch.engagedNote') : t('killSwitch.releasedNote')}</p>}
         {!state.autonomousControlEnabled && <p role="note">{t('killSwitch.deploymentOff')}</p>}
         {state.changedBy && (
           <p><small>{t('killSwitch.changedBy', { by: state.changedBy, at: formatDetailTimestamp(state.changedAtUtc) })}
