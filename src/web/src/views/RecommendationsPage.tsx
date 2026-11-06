@@ -1,3 +1,4 @@
+import { Notice } from '../components/Notice';
 import { ContextLink } from '../components/ContextLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, RefreshCw } from 'lucide-react';
@@ -338,9 +339,9 @@ export function RecommendationsPage({
           matchingCount={visible.length}
           loadedCount={items.length}
         />
-        {reviewNotice && <p role="status" className="recommendation-readonly-note">
-          {reviewNotice}
-        </p>}
+        {reviewNotice && <div className="recommendation-readonly-note">
+          <Notice>{reviewNotice}</Notice>
+        </div>}
         {isLoading && !lastUpdated && <PanelLoading label={t('inbox.loading')} />}
         {error && <p role="alert" className="execution-detail-error inbox-error">
           {errorMessages[error]}
