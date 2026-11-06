@@ -168,6 +168,8 @@ public sealed class MultiProviderCoordinator(ProviderRegistry registry, IDepende
         }
 
         var observed = new CompositionPins([.. plan.Bindings], model.Ref);
+        if (model.Ref.Format != ForeSiteModelArtifactSource.WamiFormat)
+            return Fail("MODEL_FORMAT_UNSUPPORTED", "model", plan.ModelRole, $"The model is a {model.Ref.Format}, which WAMI cannot open as a model file.", observed);
         if (expected is not null && expected.Model != model.Ref)
             return Fail("MODEL_PIN_MISMATCH", "model", plan.ModelRole, $"Model is {model.Ref.Sha256}, the run was pinned to {expected.Model.Sha256}.", observed);
         Log("model", plan.ModelRole, "ok", $"{model.Ref.ModelId} revision {model.Ref.Revision} sha256 {model.Ref.Sha256}");

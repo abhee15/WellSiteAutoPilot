@@ -7,13 +7,14 @@ namespace WellSiteAutoPilot.Integration.Wami;
 
 /// <summary>
 /// Reads the current model file of a well through ForeSite's ModelFiles web service, as the Gateway's Windows account.
-/// Read-only: only GET CurrentWellModel is used. The route and JSON shape come from ForeSite's source
-/// (IModelFileService, ModelFileDTO) and are NOT yet confirmed against a running ForeSite.
+/// Read-only: only GET CurrentWellModel is used. Confirmed live against ForeSite: Contents is a JSON array of byte values,
+/// and a rod-lift well's model is ForeSite's own delimited text configuration (see <see cref="ForeSiteRrlConfigFormat"/>).
 /// </summary>
 public sealed class ForeSiteModelArtifactSource(HttpClient client) : IModelArtifactSource
 {
     public const string CurrentModelPath = "ModelFiles/CurrentWellModel/";
     public const string WamiFormat = "wami-model-file";
+    public const string ForeSiteRrlConfigFormat = "foresite-rrl-config";
 
     private readonly ForeSiteSession _session = new(client);
 
@@ -29,8 +30,8 @@ public sealed class ForeSiteModelArtifactSource(HttpClient client) : IModelArtif
             throw new ModelSourceException("MODEL_NOT_FOUND", "ForeSite has no current model file for this well.");
         if (!response.IsSuccessStatusCode)
             throw new ModelSourceException("MODEL_SOURCE_FAILED", $"ForeSite answered {(int)response.StatusCode} for the model file.");
-        // base64 inflates by a third; refuse before reading anything larger than the artifact limit allows.
-        if (response.Content.Headers.ContentLength > ModelArtifact.MaximumBytes * 4L / 3 + 4096)
+        // Base64 inflates by a third and a JSON byte array by up to four times; refuse before reading anything larger.
+        if (response.Content.Headers.ContentLength > ModelArtifact.MaximumBytes * 4L + 4096)
             throw new ModelSourceException("MODEL_TOO_LARGE", "The model file is larger than AutoPilot accepts.");
 
         JsonElement root;
@@ -46,18 +47,36 @@ public sealed class ForeSiteModelArtifactSource(HttpClient client) : IModelArtif
         }
 
         if (root.ValueKind != JsonValueKind.Object || !TryGet(root, "Contents", out var contents) ||
-            contents.ValueKind != JsonValueKind.String || !TryGet(root, "Id", out var id))
+            contents.ValueKind is not (JsonValueKind.String or JsonValueKind.Array) || !TryGet(root, "Id", out var id))
             throw new ModelSourceException("MODEL_SOURCE_INVALID", "ForeSite's model file answer lacks Id or Contents.");
         var applicable = TryGet(root, "ApplicableDate", out var date) && date.ValueKind == JsonValueKind.String ? date.GetString() : null;
 
         byte[] bytes;
-        try { bytes = Convert.FromBase64String(contents.GetString()!); }
-        catch (FormatException) { throw new ModelSourceException("MODEL_SOURCE_INVALID", "The model file contents are not base64."); }
+        if (contents.ValueKind == JsonValueKind.Array)
+        {
+            // The live service sends the bytes as a JSON array of numbers, not base64.
+            if (contents.GetArrayLength() is 0 or > ModelArtifact.MaximumBytes)
+                throw new ModelSourceException("MODEL_TOO_LARGE", "The model file is empty or larger than AutoPilot accepts.");
+            bytes = new byte[contents.GetArrayLength()];
+            var index = 0;
+            foreach (var item in contents.EnumerateArray())
+            {
+                if (!item.TryGetByte(out bytes[index++]))
+                    throw new ModelSourceException("MODEL_SOURCE_INVALID", "The model file contents are not bytes.");
+            }
+        }
+        else
+        {
+            try { bytes = Convert.FromBase64String(contents.GetString()!); }
+            catch (FormatException) { throw new ModelSourceException("MODEL_SOURCE_INVALID", "The model file contents are not base64."); }
+        }
         if (bytes.Length is 0 or > ModelArtifact.MaximumBytes)
             throw new ModelSourceException("MODEL_TOO_LARGE", "The model file is empty or larger than AutoPilot accepts.");
 
         var modelId = id.ToString();
-        return new ModelArtifact(modelId, applicable is null ? modelId : $"{modelId}@{applicable}", WamiFormat, bytes);
+        // A rod-lift well's ForeSite model is its own delimited text configuration, not a WellFlo model file WAMI can open.
+        var format = bytes.AsSpan().StartsWith("Well Name|"u8) ? ForeSiteRrlConfigFormat : WamiFormat;
+        return new ModelArtifact(modelId, applicable is null ? modelId : $"{modelId}@{applicable}", format, bytes);
     }
 
     private static bool TryGet(JsonElement root, string name, out JsonElement value)

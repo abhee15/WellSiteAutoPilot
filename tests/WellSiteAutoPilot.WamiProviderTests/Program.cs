@@ -61,6 +61,15 @@ await ExpectModelFailure(source, "MODEL_SOURCE_INVALID", "ForeSite model: bad co
 foreSite.Body = "{\"Id\":41,\"Contents\":\"" + Convert.ToBase64String(new byte[ModelArtifact.MaximumBytes + 1]) + "\"}";
 await ExpectModelFailure(source, "MODEL_TOO_LARGE", "ForeSite model: oversize model is refused");
 
+// Live shape: Contents is a JSON array of byte values, and a rod-lift well's model is ForeSite's own text configuration.
+var rrlText = "Well Name|Pumping Unit Type\nRPOC_0001|C"u8.ToArray();
+foreSite.Body = "{\"Id\":2671,\"Contents\":[" + string.Join(",", rrlText) + "]}";
+var rrl = await source.GetCurrentModelAsync("776");
+Expect(rrl.Content.SequenceEqual(rrlText) && rrl.Ref.Format == ForeSiteModelArtifactSource.ForeSiteRrlConfigFormat, "ForeSite model: a JSON byte array is read and a rod-lift configuration is labelled");
+foreSite.Body = """{"Id":2671,"Contents":[1,2,300]}""";
+await ExpectModelFailure(source, "MODEL_SOURCE_INVALID", "ForeSite model: a value above 255 is not a byte");
+foreSite.Body = null;
+
 // --- Multi-provider coordinator: data:foresite-a, model:foresite-b (same external id, different source), calc:wami.
 var dependencies = new[]
 {
@@ -133,6 +142,10 @@ authorizer.Denied.Clear();
 live.Body = null;
 live.Bytes = Model(productivityIndex: 3);
 await Stopped("model: a changed model file stops a pinned run", Plan(), pins, "MODEL_PIN_MISMATCH");
+live.Bytes = modelBytes;
+
+live.Bytes = rrlText;
+await Stopped("model: a rod-lift configuration is not a WAMI model file", Plan(), null, "MODEL_FORMAT_UNSUPPORTED");
 live.Bytes = modelBytes;
 
 data["597/WellheadPressure"] = data["597/WellheadPressure"] with { TimestampUtc = now.AddHours(-2) };
