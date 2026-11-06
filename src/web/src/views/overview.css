@@ -19,7 +19,6 @@
 }
 
 .overview-metrics { margin-block-start: var(--space-16); }
-.overview-metrics .summary-card { min-height: 0; padding-block: var(--space-10); }
 .overview-attention-links, .overview-setup { display: flex; flex-wrap: wrap; gap: var(--space-12); }
 .overview-attention-links:not(:empty) { margin-block-start: var(--space-10); }
 .overview-setup { padding-inline-start: 0; list-style: none; font-size: var(--font-size-body-small); }
