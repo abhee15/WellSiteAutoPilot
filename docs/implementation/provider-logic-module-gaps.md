@@ -292,12 +292,23 @@ One POC branch per gap, in `origin`. Code-gap branches are **stacked** in the or
 | G4, G11, G19, G24, G26 setpoint reads | `poc/gap-g04-readonly-setpoints` (`099d739c`) | POC done (read-only) | `ForeSiteSetpoints.ReadAsync`: GET `Surveillance/Well/AllSavedSetPointParams?WellId=&scanOption=0`, live-probed on well 776 (groups, `ElementId`, string `Value`, `UnitKey`, `RangeLow/High`, `IsReadOnly`). Element ids stay controller-native; the per-device-type map is still to do (data, not code) |
 | G5, G22, G25 history, daily snapshot, time zone | `poc/gap-g05-daily-averages` (`65b467d4`) | POC done (daily only) | `ForeSiteDailyAverageReader`: GET `Surveillance/Well/DailyAverage/{id}/{start}/{end}` (ISO 8601), live-probed. Day edges come back as UTC (05:00Z for a Central well), so the asset needs a time zone attribute. `Surveillance/GetTrends` returned 401 on both GET and POST for 776 and is not used. Sub-daily history is still open |
 | G7, G14 alarms | `poc/gap-g07-readonly-alarms` (`d965f647`) | POC done (read-only) | `ForeSiteAlarms.ReadAsync`: GET `Alarms/CurrentAlarms/{id}`, live-probed. Intelligent-alarm detail and set/clear are not done |
-| G10 ForeSite simulator | not started | Planned | Recorded from live responses |
+| G10 ForeSite simulator | `poc/gap-g10-foresite-simulator` (`27d822f3`) | POC done | Test-project `ForeSiteSimulator` serving fixtures recorded read-only from well 776 (well name sanitized): status, setpoints, alarms, daily averages. `SimulatorChecks` runs every adapter read against it. Only well 776 exists |
 | G6 parameter pre-fill, G15 reference data | not started | Design only | Needs the ACL settings route (401 on GET) and a decision on module resources |
 | G8, G20, G21 recommendations and writes | not started | Planned last | Governed design first |
 | G16, G17, G18 | none | Not a requirement | Legacy persistence, closed loop, manual-change detection |
 
 Workflow note: the first stacked branches were rebuilt once because commits raced with edits; the pushed history is the corrected one.
+
+### When each kind of data is fetched (proposed)
+
+| Data | When | Reason |
+|---|---|---|
+| Identity and attributes (id, name, `deviceType`, `wellType`, controller family, time zone) | Asset import, refreshed by re-sync | Rarely changes; modules and validation need it before any run. Discovery already carries `deviceType` and `wellType` |
+| Quantity catalog (G3) and setpoint list (G4) | On demand when authoring or validating a module, cached per asset with a TTL and manual refresh | Depends on what the well reports now; reading it for every well at import is slow at 10,000-well scale and goes stale when a controller changes |
+| Current values, setpoint values, active alarms | At run time, one status read per well (G9) | Must be fresh |
+| Daily history (G5) | At run time, only the window a module asks for | Day boundaries need the asset time zone (G25) |
+
+Open: the gateway/API route, cache, refresh trigger and storage for the catalog are not designed; the time zone is not yet an asset attribute.
 
 ## Proposed order (one gap per PR)
 1. G1 + G2 + G9 (small read-only change; needs a per-quantity table: field, unit, range, well type)
