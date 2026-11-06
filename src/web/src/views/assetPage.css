@@ -23,3 +23,5 @@
 .asset-logic-runs-heading { margin-bottom: var(--space-10); }
 .asset-logic-runs-heading :is(h4, h5) { margin: 0; font-size: inherit; }
 .asset-detail-actions { justify-content: flex-start; margin-top: var(--space-12); }
+
+.asset-page > .asset-detail-actions { margin-top: 0; }
