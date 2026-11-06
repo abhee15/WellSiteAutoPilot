@@ -1,4 +1,4 @@
-import { ActionButton } from '../components/ActionButton';
+import { ActionButton, ActionLink } from '../components/ActionButton';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CloseButton } from '../components/CloseButton';
 import type {
@@ -124,7 +124,7 @@ export function AssetDetail({
         <div className="asset-detail-actions">
           {offset > 0 && <ActionButton onClick={() => setOffset(Math.max(0, offset - LOGIC_PAGE_SIZE))} label={t('assetDetail.previousLogic')} />}
           {logic.data?.hasMore && <ActionButton onClick={() => setOffset(offset + LOGIC_PAGE_SIZE)} label={t('assetDetail.moreLogic')} />}
-          {canConfigureLogic && asset.isActive && <a className="secondary-button" href={hashFor('logic', 'new:' + assetId)}>{t('assetPage.putLogic')}</a>}
+          {canConfigureLogic && asset.isActive && <ActionLink href={hashFor('logic', 'new:' + assetId)} label={t('assetPage.putLogic')} />}
         </div>
       </section>}
 
