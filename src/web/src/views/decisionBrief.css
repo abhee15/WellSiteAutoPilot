@@ -3,3 +3,5 @@
 .decision-brief p { margin: 0; }
 .decision-brief-proposal { font-weight: var(--font-weight-medium); }
 .decision-brief ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-12); }
+
+.decision-form { display: grid; gap: var(--space-16); min-width: 0; }
