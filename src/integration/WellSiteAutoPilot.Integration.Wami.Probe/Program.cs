@@ -60,6 +60,23 @@ try
     await using var session = await client.OpenModelAsync(model);
     Console.WriteLine($"model opened ({clock.ElapsedMilliseconds} ms)");
 
+    if (Environment.GetEnvironmentVariable("WAMI_PROBE_CALCS") == "1")
+    {
+        // Read-only calculation functions, run before the nodal runs so the stored model is untouched.
+        var extras = new (string Function, Dictionary<string, WamiQuantity> Inputs)[]
+        {
+            (WamiNetTcpClient.IprFlowRate, new() { ["bottomholePressure"] = new(2000m, "psia") }),
+            (WamiNetTcpClient.PvtProperties, new() { ["pressure"] = new(2000m, "psia"), ["temperature"] = new(150m, "degF"), ["oilRate"] = new(1000m, "stb/d"), ["waterRate"] = new(100m, "stb/d"), ["gasRate"] = new(1m, "MMscf/d") }),
+            (WamiNetTcpClient.PerformanceCurve, new() { ["pointCount"] = new(5m, "") })
+        };
+        foreach (var (function, inputs) in extras)
+        {
+            clock.Restart();
+            var result = await session.CalculateAsync(new WamiCalculationRequest(Guid.NewGuid().ToString("N"), function, inputs));
+            Console.WriteLine($"{function} in {clock.ElapsedMilliseconds} ms: " + string.Join(", ", result.Outputs.Select(o => $"{o.Key}={o.Value.Value:0.###}{o.Value.Unit}")));
+        }
+    }
+
     var runs = new List<Dictionary<string, WamiQuantity>> { new() };
     runs.AddRange(args.Skip(2).Select(a => new Dictionary<string, WamiQuantity> { [WamiNetTcpClient.WellheadPressure] = new(decimal.Parse(a, System.Globalization.CultureInfo.InvariantCulture), "psia") }));
     foreach (var inputs in runs)

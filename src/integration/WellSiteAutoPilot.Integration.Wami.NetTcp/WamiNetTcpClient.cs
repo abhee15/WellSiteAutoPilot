@@ -43,10 +43,23 @@ public sealed class WamiNetTcpClient : IWamiClient
     // wellheadPressure maps to IModel.SetOperatingPointTopNode(-1, pressure) (-1 keeps the model's top node). WAMI works in
     // oilfield units regardless of the model (SolutionPointData documents psia and STB/d); confirmed live: raising the
     // pressure lowers the rate. Setting it changes the session's model.
-    public IReadOnlyList<WamiFunctionDescriptor> Functions { get; } =
+    public const string IprFlowRate = "ipr-flow-rate";
+    public const string PvtProperties = "pvt-properties";
+    public const string PerformanceCurve = "well-performance-curve";
+
+    public IReadOnlyList<WamiFunctionDescriptor> Functions => Descriptors;
+
+    private static readonly IReadOnlyList<WamiFunctionDescriptor> Descriptors =
     [
         new(NodalAnalysis, "Nodal-analysis operating point; optional wellhead (top node) pressure override.", WamiFunctionEffect.ChangesSessionModel,
-            [WellheadPressure], ["operatingPoint.liquidRate", "operatingPoint.bottomholePressure"])
+            [WellheadPressure], ["operatingPoint.liquidRate", "operatingPoint.bottomholePressure"]),
+        new(IprFlowRate, "Inflow rate of reservoir layer 1 at a flowing bottomhole pressure.", WamiFunctionEffect.None,
+            ["bottomholePressure"], ["ipr.liquidRate"]),
+        new(PvtProperties, "Fluid properties at a pressure, temperature and test rates.", WamiFunctionEffect.None,
+            ["pressure", "temperature", "oilRate", "waterRate", "gasRate"],
+            ["pvt.bubblePointPressure", "pvt.solutionGor", "pvt.oilFormationVolumeFactor", "pvt.zFactor", "pvt.oilViscosity"]),
+        new(PerformanceCurve, "Well performance (outflow vs rate) curve for a natural-flow well; pointCount points, outputs indexed curve[i].*.", WamiFunctionEffect.None,
+            ["pointCount"], ["curve[i].liquidRate", "curve[i].wellheadPressure"])
     ];
 
     public async ValueTask<WamiServerInfo> GetServerInfoAsync(CancellationToken cancellationToken = default)
@@ -180,11 +193,65 @@ public sealed class WamiNetTcpClient : IWamiClient
 
     private sealed class Session(Channel<IModel> channel) : IWamiModelSession
     {
+        // Read-only functions: they do not change the session model, so a repeat after an ambiguous failure is safe.
+        private async ValueTask<WamiCalculationResult> CalculateOtherAsync(WamiCalculationRequest request, CancellationToken cancellationToken)
+        {
+            static decimal Number(WamiCalculationRequest r, string name, string unit)
+            {
+                if (!r.Inputs.TryGetValue(name, out var q))
+                    throw new WamiException(WamiFailureCodes.InputInvalid, $"{r.Function} needs {name}.", WamiCallOutcome.NotStarted);
+                if (q.Unit != unit)
+                    throw new WamiException(WamiFailureCodes.InputInvalid, $"{name} must be in {unit}.", WamiCallOutcome.NotStarted);
+                return q.Value;
+            }
+            static WamiQuantity Q(double value, string unit) => new(Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture), unit);
+
+            var descriptor = Descriptors.FirstOrDefault(d => d.Name == request.Function)
+                ?? throw new WamiException(WamiFailureCodes.FunctionUnsupported, $"No WAMI function '{request.Function}'.", WamiCallOutcome.NotStarted);
+            if (request.Inputs.Keys.Any(k => !descriptor.Inputs.Contains(k)) || descriptor.Inputs.Any(k => !request.Inputs.ContainsKey(k)))
+                throw new WamiException(WamiFailureCodes.InputInvalid, $"{request.Function} takes exactly: {string.Join(", ", descriptor.Inputs)}.", WamiCallOutcome.NotStarted);
+
+            var outputs = new Dictionary<string, WamiQuantity>();
+            switch (request.Function)
+            {
+                case IprFlowRate:
+                    var pressure = (double)Number(request, "bottomholePressure", "psia");
+                    var rate = await Guarded(channel, () => channel.Proxy.GetIPRFlowRate(0, pressure), WamiCallOutcome.Ambiguous, cancellationToken);
+                    outputs["ipr.liquidRate"] = Q(rate, "stb/d");
+                    break;
+                case PvtProperties:
+                    var args = new[] { ("pressure", "psia"), ("temperature", "degF"), ("oilRate", "stb/d"), ("waterRate", "stb/d"), ("gasRate", "MMscf/d") }
+                        .Select(a => (double)Number(request, a.Item1, a.Item2)).ToArray();
+                    var pvt = await Guarded(channel, () => channel.Proxy.CalculatePVTData(args[0], args[1], args[2], args[3], args[4]), WamiCallOutcome.Ambiguous, cancellationToken);
+                    if (pvt is null) throw new WamiException(WamiFailureCodes.CalculationFailed, "WAMI returned no PVT data.", WamiCallOutcome.Failed);
+                    outputs["pvt.bubblePointPressure"] = Q(pvt.BubblePointPressure, "psia");
+                    outputs["pvt.solutionGor"] = Q(pvt.SolutionGOR, "scf/stb");
+                    outputs["pvt.oilFormationVolumeFactor"] = Q(pvt.OilFormationVolumeFactor, "rb/stb");
+                    outputs["pvt.zFactor"] = Q(pvt.ZFactor, "");
+                    outputs["pvt.oilViscosity"] = Q(pvt.OilViscosity, "cp");
+                    break;
+                case PerformanceCurve:
+                    var count = request.Inputs["pointCount"];
+                    if (count.Unit != "" || count.Value < 2 || count.Value > 100 || count.Value != decimal.Truncate(count.Value))
+                        throw new WamiException(WamiFailureCodes.InputInvalid, "pointCount must be a whole number from 2 to 100.", WamiCallOutcome.NotStarted);
+                    var curve = await Guarded(channel, () => channel.Proxy.GenerateWellPerformanceCurve((int)count.Value), WamiCallOutcome.Ambiguous, cancellationToken);
+                    var points = curve?.wellPerformanceCurvePoints;
+                    if (points is null || points.Length == 0) throw new WamiException(WamiFailureCodes.CalculationFailed, "WAMI returned no performance curve.", WamiCallOutcome.Failed);
+                    for (var i = 0; i < points.Length; i++)
+                    {
+                        outputs[$"curve[{i}].liquidRate"] = Q(points[i].LiquidRate, "stb/d");
+                        outputs[$"curve[{i}].wellheadPressure"] = Q(points[i].WellHeadPressure, "psia");
+                    }
+                    break;
+            }
+
+            return new WamiCalculationResult(request.Function, outputs, "wami", []);
+        }
+
         public async ValueTask<WamiCalculationResult> CalculateAsync(WamiCalculationRequest request, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(request);
-            if (request.Function != NodalAnalysis)
-                throw new WamiException(WamiFailureCodes.FunctionUnsupported, $"No WAMI function '{request.Function}'.", WamiCallOutcome.NotStarted);
+            if (request.Function != NodalAnalysis) return await CalculateOtherAsync(request, cancellationToken);
             if (request.Inputs.Keys.Any(k => k != WellheadPressure))
                 throw new WamiException(WamiFailureCodes.InputInvalid, $"{NodalAnalysis} accepts only {WellheadPressure}.", WamiCallOutcome.NotStarted);
 
