@@ -154,6 +154,25 @@ internal static class MeasurementChecks
             alarms[0].StartedUtc == new DateTimeOffset(2023, 4, 11, 17, 9, 38, 33, TimeSpan.Zero) && alarms[1].NumericValue == 4.5m && alarms[1].Deviation &&
             alarmFactory.Methods.All(m => m == HttpMethod.Get) && alarmFactory.Paths.Contains("/prefix/Alarms/CurrentAlarms/42"),
             "alarm read lost fields, kept an unparsable record, or was not a GET");
+        // G5/G22/G25: daily values keep ForeSite's production-day boundaries in UTC; unzoned days are dropped.
+        var dailyFactory = new Factory
+        {
+            Payload = """
+                {"Units":{"THP":{"UnitKey":"psia"}},
+                 "Values":[{"Id":2,"WellId":42,"RunTime":10.08,"THP":145.9,"OilRateAllocated":null,"StartDateTime":"2026-10-31T05:00:00Z","EndDateTime":"2026-11-01T04:59:59.99Z"},
+                           {"Id":1,"WellId":42,"RunTime":8,"StartDateTime":"2026-10-30T05:00:00Z","EndDateTime":"2026-10-31T04:59:59.99Z"},
+                           {"Id":3,"RunTime":9,"StartDateTime":"2026-11-01T00:00:00","EndDateTime":"2026-11-01T23:59:59"}]}
+                """
+        };
+        var dailyClient = dailyFactory.CreateClient("");
+        dailyClient.BaseAddress = new Uri("http://a/prefix/");
+        var daily = await ForeSiteDailyAverageReader.ReadAsync(new ForeSiteSession(dailyClient), "42",
+            new DateTimeOffset(2026, 10, 30, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 11, 2, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        Check(daily.Days.Count == 2 && daily.Days[0].StartUtc == new DateTimeOffset(2026, 10, 30, 5, 0, 0, TimeSpan.Zero) && daily.Days[0].Values["RunTime"] == 8 &&
+            daily.Days[1].Values["THP"] == 145.9m && !daily.Days[1].Values.ContainsKey("OilRateAllocated") && !daily.Days[1].Values.ContainsKey("Id") &&
+            daily.Units["THP"] == "psia" && dailyFactory.Methods.All(m => m == HttpMethod.Get) &&
+            dailyFactory.Paths.Contains("/prefix/Surveillance/Well/DailyAverage/42/2026-10-30T00:00:00Z/2026-11-02T00:00:00Z"),
+            "daily read mis-ordered days, kept an unzoned day, kept nulls or ids, or used the wrong route: " + string.Join(",", dailyFactory.Paths));
         // G9: quantities asked for together are served from one status document.
         var fanOut = new Factory();
         using (var cached = new ForeSiteConnectionMeasurements(fanOut, TimeProvider.System, TimeSpan.FromSeconds(30)))
