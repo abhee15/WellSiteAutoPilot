@@ -85,12 +85,12 @@ export function AssetDetail({
             {where.length === 0 ? t('assetPage.topLevel')
               : t('assetPage.locatedUnder', { path: where.join(' › ') })}
           </p>
-          {operational && canReadLogic && canConfigureLogic && asset.isActive && <div className="asset-detail-actions">
-            <ActionLink href={hashFor('logic', 'new:' + assetId)} label={t('assetPage.putLogic')} />
-          </div>}
         </div>
         <CloseButton label={t('assets.clearSelection')} onClick={onClose} />
       </header>
+      {operational && canReadLogic && canConfigureLogic && asset.isActive && <div className="asset-detail-actions">
+        <ActionLink href={hashFor('logic', 'new:' + assetId)} label={t('assetPage.putLogic')} />
+      </div>}
 
       <details className="asset-technical">
         <summary>{t('assetDetail.technical')}</summary>
