@@ -1,3 +1,5 @@
+import { SectionTabs } from '../components/SectionTabs';
+import { AdaptersPanel } from './AdaptersPanel';
 import './connections.css';
 import { ConnectionInventory } from './ConnectionInventory';
 import { ActionButton } from '../components/ActionButton';
@@ -46,6 +48,17 @@ function errorMessage(error: unknown): string {
 
 /** Saved ways to reach outside systems. The server and the adapter decide what is valid; this only collects it. */
 export function ConnectionsPage({ canManage }: { canManage: boolean }) {
+  const [tab, setTab] = useState<'connections' | 'adapters'>('connections');
+  return <div className="split-layout">
+    <SectionTabs prefix="connections" label="Connections" selected={tab} onSelect={setTab}
+      tabs={[{ id: 'connections', label: 'Connections' }, { id: 'adapters', label: 'Adapters' }]} />
+    <div role="tabpanel" id={'connections-' + tab} aria-labelledby={'connections-tab-' + tab}>
+      {tab === 'connections' ? <ConnectionWorkspace canManage={canManage} /> : <AdaptersPanel />}
+    </div>
+  </div>;
+}
+
+function ConnectionWorkspace({ canManage }: { canManage: boolean }) {
   const [selected, setSelected] = useHashDetail('connections');
   const [connections, setConnections] = useState<Connection[]>([]);
   const [adapters, setAdapters] = useState<Adapter[]>([]);

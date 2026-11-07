@@ -1637,6 +1637,31 @@ v1.MapGet(
     .Produces<AdapterResponse[]>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
 
+// Read-only metadata. These endpoints make no live provider read and grant no asset access.
+v1.MapGet("/connections/adapter-operations",
+    async (ConnectionService connections, CancellationToken cancellationToken) =>
+        (await connections.ListAdaptersAsync(cancellationToken)).Select(ConnectionMapping.ToOperations).ToArray())
+    .WithName("ListAdapterOperations")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<AdapterOperationsResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+v1.MapGet("/connections/{connectionId:guid}/operations",
+    async (Guid connectionId, ConnectionService connections, CancellationToken cancellationToken) =>
+    {
+        var connection = await connections.GetAsync(connectionId, cancellationToken);
+        var adapter = (await connections.ListAdaptersAsync(cancellationToken))
+            .FirstOrDefault(item => string.Equals(item.Key, connection.AdapterKey, StringComparison.Ordinal));
+        var availability = ConnectionOperationAvailability.Evaluate(connection, adapter);
+        return new ConnectionOperationsResponse(connection.Id, connection.Revision, connection.AdapterKey,
+            availability.State, availability.Reason, availability.OperationKeys);
+    })
+    .WithName("GetConnectionOperations")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<ConnectionOperationsResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
 v1.MapGet(
     "/connections/{connectionId:guid}",
     async (Guid connectionId, ConnectionService connections, CancellationToken cancellationToken) =>

@@ -282,6 +282,21 @@ v1.MapPost("/adapters/foresite/current",
     .RequireAuthorization(ServiceCaller.ServerPolicy)
     .Produces<EngineeringValue>(StatusCodes.Status200OK);
 
+v1.MapPost("/adapters/cygnet/history",
+    async (ConnectionHistoryRequest request, CygNetConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.ReadHistoryAsync(request, cancellationToken)))
+    .WithName("ReadAuthorizedCygNetHistory")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<HistoricalReadResult>(StatusCodes.Status200OK);
+
+// Server-only typed history boundary; no worker or public explorer execution endpoint.
+v1.MapPost("/adapters/foresite/history",
+    async (ConnectionHistoryRequest request, ForeSiteConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.ReadHistoryAsync(request, cancellationToken)))
+    .WithName("ReadAuthorizedForeSiteHistory")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<HistoricalReadResult>(StatusCodes.Status200OK);
+
 v1.MapGet(
     "/data/current",
     async (

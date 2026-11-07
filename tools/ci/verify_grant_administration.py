@@ -206,6 +206,16 @@ request("GET", "/system/health", None, expected=401)
 request("GET", "/connections", OPERATOR, expected=403)
 request("GET", "/connections", None, expected=401)
 request("POST", "/connections", OPERATOR, {"name": "Denied", "adapterKey": "simulator", "settings": {}}, expected=403)
+# Read-only Operations metadata has the same permission boundary and exposes no discovery/control inventory.
+request("GET", "/connections/adapter-operations", OPERATOR, expected=403)
+request("GET", "/connections/adapter-operations", None, expected=401)
+profiles = request("GET", "/connections/adapter-operations")
+assert {item["adapterKey"] for item in profiles} == {"simulator", "foresite", "petrovisor", "cygnet"}, profiles
+for profile in profiles:
+    for operation in profile["operations"]:
+        assert operation["effect"] == "ReadOnly" and operation["capability"] in ("CurrentData", "HistoricalData", "Alarms", "Calculation"), operation
+        assert operation["request"]["id"] and operation["response"]["id"] and operation["limits"]["maximumQuantities"] == 1, operation
+request("GET", "/connections/" + str(uuid.uuid4()) + "/operations", expected=404)
 adapters = request("GET", "/connections/adapters")
 assert [item["key"] for item in adapters] == ["simulator", "foresite", "petrovisor", "cygnet"], adapters
 # CygNet is addressed by domain and site.service, not by a URL; every other adapter is reached at a base URL.
@@ -219,6 +229,12 @@ created = request("POST", "/connections", body={"name": conn_name, "adapterKey":
     "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=201)
 assert created["revision"] == 1 and created["isEnabled"] and created["lastTest"] is None, created
 assert created["hasImports"] is False, created
+request("GET", "/connections/" + created["id"] + "/operations", OPERATOR, expected=403)
+request("GET", "/connections/" + created["id"] + "/operations", None, expected=401)
+readiness = request("GET", "/connections/" + created["id"] + "/operations")
+assert readiness["connectionId"] == created["id"] and readiness["connectionRevision"] == 1 and readiness["adapterKey"] == "simulator", readiness
+assert "settings" not in readiness and "assets" not in readiness, readiness
+
 request("POST", "/connections", body={"name": conn_name.lower(), "adapterKey": "simulator",
     "settings": {"baseUrl": "http://127.0.0.1:5091"}}, expected=409)
 tested = request("POST", "/connections/" + created["id"] + "/test")
