@@ -14,7 +14,7 @@ namespace WellSiteAutoPilot.Integration.CygNet;
 /// quantity-to-point map from the Gateway's configuration.
 /// </summary>
 /// <remarks>Compiled only where the CygNet libraries exist; ported from a proof of concept that ran against a live domain.</remarks>
-public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClient
+public sealed partial class CygNetApiClient(CygNetProviderOptions options) : ICygNetClient
 {
     /// <summary>Facilities read in one discovery. A larger service is reported as truncated, never as complete.</summary>
     private const int MaximumFacilities = 5000;
@@ -80,12 +80,12 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
 
     // The CygNet API is synchronous and cannot be cancelled: run it off the caller's thread and bound the wait.
     // The gate keeps a call that never returns from piling up blocked threads: it holds its slot until it ends.
-    private static async Task<T> Run<T>(CygNetConnection connection, Func<T> work, CancellationToken cancellationToken)
+    private static async Task<T> Run<T>(CygNetConnection connection, Func<T> work, CancellationToken cancellationToken, TimeSpan? budget = null)
     {
         try
         {
             return await CygNetCallGate.Shared.RunAsync(
-                $"{connection.Domain}/{connection.SiteService}", work, Budget, cancellationToken);
+                $"{connection.Domain}/{connection.SiteService}", work, budget ?? Budget, cancellationToken);
         }
         catch (TimeoutException)
         {
