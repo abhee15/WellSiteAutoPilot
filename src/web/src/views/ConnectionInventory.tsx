@@ -1,5 +1,7 @@
 import { SearchInput } from '../components/SearchInput';
 import { ActionButton } from '../components/ActionButton';
+import { CheckboxField, RadioGroup } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import { formatTimestamp } from '../format';
@@ -74,11 +76,11 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
   return <section className="connection-found" aria-label={t('connections.findHeading')}>
     <p className="connection-step">{t('connections.stageDiscover')}</p>
     <h3>{t('inventory.heading')}</h3>
-    {stale && <p role="status" className="connection-help">{t('connections.findStale')}</p>}
+    {stale && <Notice tone="warning">{t('connections.findStale')}</Notice>}
     <p className="connection-help">{t('connections.findKeptUntil', { time: formatTimestamp(found.expiresAtUtc) })}</p>
     {found.actingAs && <p className="connection-help">{t('connections.findActingAs', { account: found.actingAs })}</p>}
-    {!found.complete && <p role="alert" className="status-error">{t('connections.findIncomplete')}</p>}
-    {found.warnings.map(warning => <p key={warning} role="status" className="connection-help">{warning}</p>)}
+    {!found.complete && <Notice tone="error">{t('connections.findIncomplete')}</Notice>}
+    {found.warnings.map(warning => <Notice key={warning} tone="warning">{warning}</Notice>)}
     {found.complete && <dl className="inventory-summary">
       <div><dt>{t('inventory.totalWells')}</dt><dd>{found.totalCount}</dd></div>
       {found.sourceAssetCount != null && <div><dt>{t('inventory.sourceAssets')}</dt><dd>{found.sourceAssetCount}</dd></div>}
@@ -88,12 +90,9 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
     {found.complete && found.totalCount === 0 && <p className="empty-state">{t('connections.findEmpty')}</p>}
     {found.complete && found.totalCount > 0 && <>
       <fieldset disabled={blocked} className="inventory-controls">
-        <legend>{t('inventory.selectionHeading')}</legend>
-        <div className="inventory-modes">
-          <label><input type="radio" name={'selection-' + connection.id} checked={mode === 'matching'} onChange={() => choose('matching')} />{t('inventory.allMatching')}</label>
-          <label><input type="radio" name={'selection-' + connection.id} checked={mode === 'individual'} onChange={() => choose('individual')} />{t('inventory.individual')}</label>
-        </div>
-        <p className="connection-help">{t('inventory.selectionHelp')}</p>
+        <RadioGroup label={t('inventory.selectionHeading')} helper={t('inventory.selectionHelp')} name={'selection-' + connection.id} value={mode}
+          options={[{ value: 'matching', label: t('inventory.allMatching') }, { value: 'individual', label: t('inventory.individual') }]}
+          onChange={value => choose(value === 'individual' ? 'individual' : 'matching')} />
         <details className="inventory-filters"><summary>{t('inventory.filters')}</summary>
           <p className="connection-help">{t('inventory.filterHelp')}</p>
           <div className="connection-facets">{found.facets.map(facet => <InventoryFacet key={facet.key} facet={facet}
@@ -110,7 +109,7 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
             }} /></label>
           <ActionButton label={t('inventory.applyFilters')} onClick={() => void search(query, facets)} />
         </div>
-        {dirty && <p role="status" className="connection-help">{t('inventory.applySearch')}</p>}
+        {dirty && <Notice>{t('inventory.applySearch')}</Notice>}
         {mode === 'individual' && <div className="connection-actions">
           <strong>{t('inventory.selected', { count: selected.size })}</strong>
           <ActionButton label={t('inventory.selectPage')} disabled={dirty || problem !== null} onClick={() => select(new Map([...selected, ...items.map(item => [discoveryKey(item), item] as const)]))} />
@@ -118,14 +117,19 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
         </div>}
         {!dirty && !problem && !searching && <>
           {count === 0 && <p>{t('connections.findNone')}</p>}
-          {count > 0 && <p role="status">{t('inventory.page', { from: offset + 1, to: offset + items.length, count })}</p>}
+          {count > 0 && <Notice>{t('inventory.page', { from: offset + 1, to: offset + items.length, count })}</Notice>}
           <div className="inventory-groups">{[...groups].map(([name, wells]) => <details key={name} open>
             <summary>{t('inventory.groupPage', { name, count: wells.length })}</summary>
             <ul className="connection-found-list">{wells.map(item => <li key={discoveryKey(item)}>
-              <label className="inventory-well">{mode === 'individual' && <input type="checkbox" checked={selected.has(discoveryKey(item))}
-                aria-label={t('inventory.selectWell', { name: item.displayName })} aria-describedby={found.snapshotId + '-' + encodeURIComponent(discoveryKey(item))} onChange={event => {
-                  const next = new Map(selected); if (event.target.checked) next.set(discoveryKey(item), item); else next.delete(discoveryKey(item)); select(next);
-                }} />}<span><strong>{item.displayName}</strong><small id={found.snapshotId + '-' + encodeURIComponent(discoveryKey(item))}>{t('inventory.sourceId', { id: item.externalId })}</small><small>{[item.metadata.wellType, item.metadata.deviceType || t('inventory.unknownDevice'), item.metadata.field, item.metadata.lease].filter(Boolean).join(' · ')}</small></span></label>
+              <div className="inventory-well">
+                {mode === 'individual'
+                  ? <CheckboxField label={item.displayName} helper={t('inventory.sourceId', { id: item.externalId })} aria-label={t('inventory.selectWell', { name: item.displayName })}
+                    checked={selected.has(discoveryKey(item))} onChange={event => {
+                      const next = new Map(selected); if (event.target.checked) next.set(discoveryKey(item), item); else next.delete(discoveryKey(item)); select(next);
+                    }} />
+                  : <span><strong>{item.displayName}</strong><small>{t('inventory.sourceId', { id: item.externalId })}</small></span>}
+                <small>{[item.metadata.wellType, item.metadata.deviceType || t('inventory.unknownDevice'), item.metadata.field, item.metadata.lease].filter(Boolean).join(' · ')}</small>
+              </div>
             </li>)}</ul>
           </details>)}</div>
           <nav className="connection-actions" aria-label={t('inventory.paging')}>
@@ -135,8 +139,8 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
         </>}
       </fieldset>
       {searching && <LoadingIndicator label={t('views.loading')} />}
-      {capacityError && <p role="alert" className="status-error">{t('inventory.tooMany')}</p>}
-      {problem && <p role="alert" className="status-error">{problem}</p>}
+      {capacityError && <Notice tone="error">{t('inventory.tooMany')}</Notice>}
+      {problem && <Notice tone="error">{problem}</Notice>}
     </>}
   </section>;
 }
@@ -154,11 +158,9 @@ function InventoryFacet({ facet, selected, onChange }: {
       <legend>{facet.label}</legend>
       <label><span>{t('inventory.searchValues', { field: facet.label })}</span><SearchInput value={valueQuery} maxLength={100} placeholder={t('inventory.searchValuesPlaceholder')}
         onChange={event => setValueQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} /></label>
-      <div className="inventory-facet-values">{values.map(value => <label key={value.value}>
-        <input type="checkbox" checked={selected.includes(value.value)} onChange={event => onChange(event.target.checked
-          ? [...selected, value.value].sort() : selected.filter(item => item !== value.value))} />
-        <span>{t('connections.findFacetOption', value)}</span>
-      </label>)}</div>
+      <div className="inventory-facet-values">{values.map(value => <CheckboxField key={value.value} label={t('connections.findFacetOption', value)}
+        checked={selected.includes(value.value)} onChange={event => onChange(event.target.checked
+          ? [...selected, value.value].sort() : selected.filter(item => item !== value.value))} />)}</div>
       {values.length === 0 && <p className="connection-help">{t('inventory.noValues')}</p>}
       {facet.hasMore && <p className="connection-help">{t('connections.findFacetMore')}</p>}
     </fieldset>
