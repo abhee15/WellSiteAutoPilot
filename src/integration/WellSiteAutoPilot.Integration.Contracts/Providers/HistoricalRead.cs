@@ -56,5 +56,5 @@ public static class HistoricalReadLimits
             new("diagnostics", "string[]", true, "Stable codes only; no raw provider errors.")]),
         timestampSemantics, qualitySemantics,
         new(1, MeasurementPayloadLimits.MaximumValueBytes, MeasurementPayloadLimits.MaximumReplyBytes, timeoutSeconds,
-            MaximumWindowDays, MaximumSamples), quantity, resourceKind);
+            MaximumWindowDays, MaximumSamples, MaximumSourceBytes), quantity, resourceKind);
 }

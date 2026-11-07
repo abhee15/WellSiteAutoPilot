@@ -12,12 +12,7 @@ public static class ForeSiteMeasurements
         ArgumentNullException.ThrowIfNull(session);
         if (!long.TryParse(externalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
-        var field = quantity switch
-        {
-            "PumpFillage" => "CurrentPumpFillage",
-            "AveragePumpFillage" => "AveragePumpFillage",
-            _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
-        };
+        var field = SourceField(quantity);
         using var response = await session.GetAsync("Surveillance/well/" + wellId.ToString(CultureInfo.InvariantCulture), cancellationToken);
         if (!response.IsSuccessStatusCode)
             // The shared error parser retains FullErrorMessage within the Gateway boundary.
@@ -48,6 +43,13 @@ public static class ForeSiteMeasurements
         }
         catch (JsonException) { throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID"); }
     }
+
+    internal static string SourceField(string quantity) => quantity switch
+    {
+        "PumpFillage" => "CurrentPumpFillage",
+        "AveragePumpFillage" => "AveragePumpFillage",
+        _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
+    };
 
     private static bool TryOffsetTime(string? text, out DateTimeOffset timestamp)
     {

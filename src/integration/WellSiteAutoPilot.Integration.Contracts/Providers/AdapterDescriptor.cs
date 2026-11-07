@@ -35,15 +35,29 @@ public sealed record AdapterDescriptor(
     IReadOnlyList<DiscoveryField>? GroupingFields = null,
     int MinimumScheduleSeconds = 0,
     IReadOnlyList<AdapterCommandDefinition>? Commands = null,
-    IReadOnlyList<AdapterOperationDescriptor>? Operations = null)
+    IReadOnlyList<AdapterOperationDescriptor>? Operations = null,
+    IReadOnlyList<AdapterCapabilityGroup>? OperationGroups = null)
 {
     /// <summary>Explicit read declarations only. Import and control capabilities are never Operations rows.</summary>
     public IReadOnlyList<AdapterOperationDescriptor> ReadOperations() => (Operations ?? [])
         .Where(operation => (operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData or
-            ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation) &&
+            ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation or ProviderCapabilityKind.ConfigurationData) &&
             Capabilities.Any(capability => capability.Kind == operation.Capability) &&
             Version.TryParse(operation.ContractVersion, out var version) && version.Major == 1)
         .ToArray();
+
+    /// <summary>Only versioned groups with complete, unique references to installed reads are public.</summary>
+    public IReadOnlyList<AdapterCapabilityGroup> ReadCapabilityGroups()
+    {
+        var keys = ReadOperations().Select(operation => operation.Key).ToHashSet(StringComparer.Ordinal);
+        var groups = OperationGroups ?? [];
+        var duplicateKeys = groups.GroupBy(group => group.Key, StringComparer.Ordinal).Where(group => group.Count() != 1)
+            .Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
+        return groups.Where(group => !duplicateKeys.Contains(group.Key) && !string.IsNullOrWhiteSpace(group.Key) &&
+            !string.IsNullOrWhiteSpace(group.DisplayName) && Version.TryParse(group.ContractVersion, out var version) && version.Major == 1 &&
+            group.OperationKeys.Count > 0 && group.OperationKeys.Distinct(StringComparer.Ordinal).Count() == group.OperationKeys.Count &&
+            group.OperationKeys.All(keys.Contains)).ToArray();
+    }
 
     /// <summary>True when the adapter can list what the provider holds.</summary>
     public bool CanDiscover => Capabilities.Any(item => item.Kind == ProviderCapabilityKind.AssetDiscovery);

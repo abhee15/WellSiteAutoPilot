@@ -17,12 +17,13 @@ public sealed record AdapterOperationDescriptor(
     string? ResourceKind = null,
     string? Unit = null,
     string? StructuredSchemaId = null,
-    AdapterOperationSchema? StructuredResponse = null);
+    AdapterOperationSchema? StructuredResponse = null,
+    AdapterOperationDocumentation? Documentation = null);
 
 public sealed record AdapterOperationSchema(string Id, IReadOnlyList<AdapterOperationField> Fields, string DataType = "object");
 public sealed record AdapterOperationField(string Name, string DataType, bool Required, string Description);
 public sealed record AdapterOperationLimits(int MaximumQuantities, int MaximumValueBytes, int MaximumReplyBytes,
-    int? TimeoutSeconds = null, int? MaximumWindowDays = null, int? MaximumSamples = null);
+    int? TimeoutSeconds = null, int? MaximumWindowDays = null, int? MaximumSamples = null, int? MaximumSourceBytes = null);
 
 /// <summary>Shared schemas for the actual engineering-value transport; adapters supply source semantics and limits.</summary>
 public static class EngineeringOperationSchemas
@@ -49,3 +50,12 @@ public static class EngineeringOperationSchemas
             new(1, MeasurementPayloadLimits.MaximumValueBytes, MeasurementPayloadLimits.MaximumReplyBytes, timeoutSeconds),
             quantity, resourceKind, unit, structuredSchemaId);
 }
+
+
+/// <summary>A provider-owned semantic family. Quantities/fields are details of its referenced typed operations.</summary>
+public sealed record AdapterCapabilityGroup(string Key, string DisplayName, string Description, string ContractVersion,
+    IReadOnlyList<string> OperationKeys);
+
+/// <summary>Reference-only, synthetic examples of a typed API. This is never an execution request or authority token.</summary>
+public sealed record AdapterOperationDocumentation(string Invocation, string ExecutionBoundary,
+    string RequestExampleJson, string ResponseExampleJson, string? ProviderReference = null);

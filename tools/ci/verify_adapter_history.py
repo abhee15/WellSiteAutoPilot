@@ -6,11 +6,11 @@ import urllib.request
 
 BASE = os.environ.get("WSA_GATEWAY_BASE", "http://127.0.0.1:5081") + "/api/internal/v1/adapters/"
 
-def call(adapter, body, caller="server", status=200):
+def call(adapter, body, caller="server", status=200, operation="history"):
     headers = {"Content-Type": "application/json"}
     if caller:
         headers["Authorization"] = "WSA-Service " + caller + ":" + os.environ["WSA_" + caller.upper() + "_KEY"]
-    request = urllib.request.Request(BASE + adapter + "/history", data=json.dumps(body).encode(), headers=headers)
+    request = urllib.request.Request(BASE + adapter + "/" + operation, data=json.dumps(body).encode(), headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
             actual, raw = response.status, response.read()
@@ -43,3 +43,17 @@ assert result["samples"][0]["quality"] == "Uncertain", result
 call("cygnet", cygnet | {"read": cygnet["read"] | {"assetExternalId": "OTHER.UIS::WELL_005"}}, status=400)
 call("cygnet", cygnet | {"read": cygnet["read"] | {"maximumSamples": 0}}, status=400)
 print("Gateway bounded history: server/worker/anonymous authorization, explicit provider, scope, UTC/DST, units, quality, truncation and bounds passed (simulated sources).")
+
+# Service-only configuration contract: no browser preview or discovery operation.
+configuration = request | {"read": {"assetExternalId": "101"}}
+for caller, status in [(None, 401), ("worker", 403), ("server", 200)]:
+    result = call("foresite", configuration, caller=caller, status=status, operation="configuration")
+    if status == 200:
+        assert result["assetExternalId"] == "101" and result["displayName"] == "Alpha 1", result
+        assert result["details"]["classificationCode"] == "1" and result["details"]["facilityId"] == "7", result
+        assert result["sourceChangedAtUtc"] is None and result["retrievedAtUtc"], result
+        assert "settings" not in result and "quality" not in result, result
+call("cygnet", configuration, status=404, operation="configuration")
+call("foresite", configuration | {"connectionId": "00000000-0000-0000-0000-000000000000"}, status=503, operation="configuration")
+call("foresite", configuration | {"read": {"assetExternalId": "999"}}, status=503, operation="configuration")
+print("Gateway configuration: explicit provider, server-only authorization, typed projection and source/retrieval semantics passed (synthetic source).")

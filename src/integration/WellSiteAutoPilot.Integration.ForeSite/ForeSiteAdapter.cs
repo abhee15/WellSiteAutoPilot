@@ -41,7 +41,8 @@ public static class ForeSiteAdapter
         [
             new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Wells"),
             new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current well values"),
-            new ProviderCapability(ProviderCapabilityKind.HistoricalData, "Time-range well history")
+            new ProviderCapability(ProviderCapabilityKind.HistoricalData, "Time-range well history"),
+            new ProviderCapability(ProviderCapabilityKind.ConfigurationData, "Well configuration details")
         ],
         [
             new DiscoveryField("assetName", "ForeSite asset", "Unassigned", AsAttribute: false, IdentityMetadataKey: "assetId"),
@@ -53,14 +54,17 @@ public static class ForeSiteAdapter
         [
             EngineeringOperationSchemas.Current("current.pump-fillage", "Pump fillage", "Current controller pump fillage.",
                 "PumpFillage", WellResourceKind, "%", "LastGoodScanTime: successful controller scan, never the latest attempted scan.",
-                "Good indicates successful acquisition of a valid controller value, not independent sensor validation.", 6),
+                "Good indicates successful acquisition of a valid controller value, not independent sensor validation.", 6) with
+            { Documentation = ForeSiteReference.Current("PumpFillage") },
             EngineeringOperationSchemas.Current("current.average-pump-fillage", "Average pump fillage", "Controller average pump fillage.",
                 "AveragePumpFillage", WellResourceKind, "%", "LastGoodScanTime from the controller scan.",
-                "Good indicates successful acquisition of a valid controller value.", 6),
+                "Good indicates successful acquisition of a valid controller value.", 6) with
+            { Documentation = ForeSiteReference.Current("AveragePumpFillage") },
             EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
                 "SurfaceCards", WellResourceKind, null, "Oldest card acquisition time; each card also preserves its capture time. Retrieval time is separate.",
                 "Quality is Unknown because the source supplies no quality code. Invalid, mismatched or oversized arrays are refused.", 6, "foresite.surface-cards/v1") with
             {
+                Documentation = ForeSiteReference.Cards(),
                 StructuredResponse = new("foresite.surface-cards/v1", [
                     new("[].id", "string", true, "Stable card identity within this response."),
                     new("[].kind", "string", true, "CURRENT or FULL stored library card."),
@@ -75,7 +79,17 @@ public static class ForeSiteAdapter
             },
             HistoricalReadLimits.Operation("history.pump-fillage", "PumpFillage", WellResourceKind, 6,
                 "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants with whole-second request bounds; fractional bounds are refused.",
-                "Trend responses do not supply quality; returned quality is Unknown.")
+                "Trend responses do not supply quality; returned quality is Unknown.") with
+            { Documentation = AdapterReferenceExamples.History("101", "PumpFillage", "%", "foresite:trends", "Unknown") with
+                { ProviderReference = "POST Surveillance/CygNetTrends/{wellId}/{start}/{end}; requests CurrentPumpFillage. Whole-second UTC bounds, no implicit aggregation." } },
+            ForeSiteReference.ConfigurationOperation
+        ], OperationGroups:
+        [
+            new("surveillance", "Surveillance data", "Current controller surveillance measurements. This adapter currently exposes the supported quantities listed here, not the entire ForeSite surveillance DTO.", "1.0",
+                ["current.pump-fillage", "current.average-pump-fillage"]),
+            new("well-configuration", "Well configuration data", "Well identity and classification details read from ForeSite. Engineering model files, configuration writes and well-test data are outside this operation.", "1.0", ["configuration.well-details"]),
+            new("well-trends", "Well trend data", "Bounded raw historical samples over an explicit UTC time range. Only declared series are exposed; there is no implicit daily averaging.", "1.0", ["history.pump-fillage"]),
+            new("cards", "Card data", "Structured CURRENT and FULL surface cards, preserving paired position/load arrays, source units and capture timestamps. Downhole cards are not exposed.", "1.0", ["current.surface-cards"])
         ]);
 
     // ForeSite's WellTypeId enum: stable numeric ids on the wire, abbreviations for people.

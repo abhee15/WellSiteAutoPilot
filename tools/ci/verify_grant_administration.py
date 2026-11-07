@@ -212,8 +212,17 @@ request("GET", "/connections/adapter-operations", None, expected=401)
 profiles = request("GET", "/connections/adapter-operations")
 assert {item["adapterKey"] for item in profiles} == {"simulator", "foresite", "petrovisor", "cygnet"}, profiles
 for profile in profiles:
+    operation_keys = {operation["key"] for operation in profile["operations"]}
+    for capability in profile["capabilities"]:
+        assert capability["contractVersion"].startswith("1.") and capability["operationKeys"], capability
+        assert set(capability["operationKeys"]).issubset(operation_keys), capability
+    if profile["adapterKey"] == "foresite":
+        assert [capability["displayName"] for capability in profile["capabilities"]] == ["Surveillance data", "Well configuration data", "Well trend data", "Card data"], profile
     for operation in profile["operations"]:
-        assert operation["effect"] == "ReadOnly" and operation["capability"] in ("CurrentData", "HistoricalData", "Alarms", "Calculation"), operation
+        assert operation["documentation"]["invocation"] and operation["documentation"]["executionBoundary"], operation
+        assert isinstance(json.loads(operation["documentation"]["requestExampleJson"]), dict), operation
+        assert isinstance(json.loads(operation["documentation"]["responseExampleJson"]), dict), operation
+        assert operation["effect"] == "ReadOnly" and operation["capability"] in ("CurrentData", "HistoricalData", "Alarms", "Calculation", "ConfigurationData"), operation
         assert operation["request"]["id"] and operation["response"]["id"] and operation["limits"]["maximumQuantities"] == 1, operation
 request("GET", "/connections/" + str(uuid.uuid4()) + "/operations", expected=404)
 adapters = request("GET", "/connections/adapters")

@@ -24,7 +24,8 @@ public enum ProviderCapabilityKind
     AssetDiscovery = 3,
     Calculation = 4,
     Command = 5,
-    Verification = 6
+    Verification = 6,
+    ConfigurationData = 7
 }
 
 public sealed record ProviderHealth(

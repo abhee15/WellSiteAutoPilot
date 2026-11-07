@@ -36,6 +36,6 @@ public sealed class CygNetConnectionMeasurements(ICygNetClient client)
                 "The saved CygNet connection is not valid.");
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         budget.CancelAfter(Budget);
-        return await CygNetAdapter.ReadCurrentAsync(client, connection, request.ExternalId, request.Quantity, budget.Token);
+        return await new CygNetConnectionDataProvider(client, connection).GetCurrentAsync(request.ExternalId, request.Quantity, budget.Token);
     }
 }

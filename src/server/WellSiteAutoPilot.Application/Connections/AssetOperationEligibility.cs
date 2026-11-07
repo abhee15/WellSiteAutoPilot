@@ -46,7 +46,7 @@ public static class AssetOperationEligibilityEvaluator
             if (readiness.State == "Unknown") return (AssetOperationEligibilityState.ConnectionTestRequired, "Test the current Connection revision before checking this source.");
             if (readiness.State != "ConnectionReady") return (AssetOperationEligibilityState.ConnectionUnavailable, "The latest connection test did not establish readiness.");
             return (AssetOperationEligibilityState.SourceCheckRequired,
-                "The declaration and imported source match. Point mapping, device/quantity availability, quality and values have not been verified. Execution requires separate fresh authorization and bounded reads.");
+                "The declaration and imported source match. Source-specific data availability, quality where applicable, and values have not been verified. Execution requires separate fresh authorization and bounded reads.");
         }
     }
 }

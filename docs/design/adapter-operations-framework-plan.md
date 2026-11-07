@@ -3,21 +3,21 @@
 Status: approved design direction; implementation in progress  
 Tracking: #484  
 Base: `develop`  
-Branch: `feature/adapter-operations-framework`
+Current branch: `feature/adapter-operations-ui-phase4` (original delivery: `feature/adapter-operations-framework`)
 
 ## Product boundary
 
-The adapter Operations explorer describes **what the installed adapter can do**, while a connection-specific inspector describes **what this connection and asset may do**. Asset discovery remains available to connection import workflows, but is **hidden from the Operations UI**. Module authoring is deferred. The page must not issue control commands.
+The adapter reference describes **the versioned capabilities and callable contracts implemented by the installed adapter**. It is independent of saved Connections and Assets. Connection/Asset availability and authorization belong to execution/configuration workflows, outside this reference screen. Asset discovery remains available to connection import workflows, but is **hidden from the Operations UI**. Module authoring is deferred. The page must not issue control commands.
 
 ## UI contract
 
-Under Connections > Adapters, present an adapter list and searchable operations list with a persistent selected-operation detail panel. Details include overview, typed request/response contract, quality and timestamp semantics, bounds, compatibility, and connection-specific availability when selected. On narrow screens, switch to list/detail navigation rather than compressed columns. Respect shared tabs, selection states, scrolling, loading/empty/error patterns, and accessible keyboard navigation.
+Under Connections > Adapters, present adapter selection and a searchable capability list with a persistent capability detail panel. ForeSite capability families are Surveillance data, Well configuration data, Well trend data and Card data, only when backed by implemented operations. Each adapter owns its families; other providers can declare different families. Details include purpose, supported data/functions, exact typed adapter invocation, request/response schemas, synthetic examples, timestamp/quality semantics, limits and execution boundary. There is no Connection selector, Asset picker, live readiness check or execution action. On narrow screens, switch to list/detail navigation rather than compressed columns. Respect shared tabs, selection states, scrolling, loading/empty/error patterns, and accessible keyboard navigation.
 
-Do not hardcode a ForeSite list of operations. Render only descriptor-declared operations. Discovery remains a private capability for import, not an operation row. Do not advertise an alarm, setpoint, or daily-average read until a working adapter implementation and contract tests exist.
+Individual quantities are supported fields/variants inside a capability, not the primary navigation. Do not hardcode a ForeSite list of capabilities or operations in application/UI code. Render only descriptor-declared operations. Discovery remains a private capability for import, not an operation row. Do not advertise an alarm, setpoint, or daily-average read until a working adapter implementation and contract tests exist.
 
 ## Backend decisions
 
-1. Extend the existing `AdapterCatalog` and `AdapterDescriptor`; no second registry. Retain typed provider interfaces (`ICurrentDataProvider`, `IHistoricalDataProvider`, `IAssetDiscoveryProvider`, etc.). Do not replace them with a string-and-JSON catch-all.
+1. Extend the existing `AdapterCatalog` and `AdapterDescriptor` with adapter-owned capability groups referencing implemented operation keys; no second registry. Retain typed provider interfaces (`ICurrentDataProvider`, `IHistoricalDataProvider`, `IAssetDiscoveryProvider`, etc.). Do not replace them with a string-and-JSON catch-all.
 2. Add a versioned, stable `AdapterOperationDescriptor`: operation key, display name, capability kind, contract version, input/output schema IDs, data shape, units, timestamp/quality semantics, declared limits and read-only/effect classification. Adapter implementations own declarations; API maps them to a safe public DTO.
 3. Distinguish static adapter capabilities from dynamic `ConnectionOperationAvailability` scoped to connection revision, asset, mapping, access, and provider compatibility. Missing/unauthorized/unmapped operations must fail closed; never silently select another provider.
 4. Keep credentials, auth, session reuse, and provider calls in the existing integration gateway. The application API authorizes caller and connection scope; the gateway revalidates scope. Never expose secrets or unrestricted raw provider requests through metadata APIs.
@@ -78,3 +78,27 @@ Phase 3 was merged through #490 independently from PR #488's native CygNet candi
 - API enum parity/serialization, pure state and service race tests, PostgreSQL paired-grant/ownership/source-bound tests, HTTP authorization/revision/no-fallback tests and OpenAPI string-enum checks cover the extension. The current frontend remains the metadata Operations explorer from #485; frontend validation uses regenerated clients without committing generated files.
 
 Validation results and CI run links are recorded on the Phase 3 PR. Simulated tests and metadata checks are not live ForeSite/CygNet validation. Issue #484 remains open for licensed-provider validation and final hardening.
+
+
+## Corrected capability reference and Phase 4 delivery (2026-11-07)
+
+This section supersedes the connection-aware explorer and quantity-first presentation in earlier checkpoints. Sri clarified that this is an adapter API reference for understanding capabilities before future module authoring. Selecting an adapter produces the same implemented inventory regardless of saved installations. Well data means **well configuration/details**, not well tests. Native CygNet local verification remains Sri’s follow-up, not a merge gate.
+
+### Foundation contracts
+
+- Keep `AdapterDescriptor.Operations` and existing typed providers. Add versioned capability groups (stable key, label, purpose and referenced operation keys), plus adapter-owned typed-call documentation and synthetic request/response examples. The server projects only groups backed by installed, supported read operations. Validate references, versions and examples; no second registry or universal JSON executor.
+- Capability → callable operation → supported fields/quantities → request/result schema. Field variants may share the same typed function; their presence does not imply a complete provider API or field inventory. Group labels never manufacture support.
+- Extend typed provider contracts for configuration reads. The initial ForeSite Well configuration operation reads well identity/classification details from `Wells/Well/{id}` with bounded parsing and explicit source identity matching. Engineering model files, full provider DTO passthrough, configuration writes and well tests are separate unsupported scope.
+- Configuration results preserve retrieval time separately from source change time; absent source time remains absent. Configuration is not controller telemetry and cannot inherit scan timestamps or telemetry quality.
+- Existing Gateway ServerPolicy, revision-scoped ForeSite sessions, Windows/cookie authentication, cancellation and six-second read budget apply. The reference endpoint performs no source reads. New Gateway operations are service-only; no browser preview/public execution endpoint or new module authoring surface is introduced.
+- Examples describe the actual typed adapter boundary. Supported hosted-module inputs are documented separately: current scalars and structured cards exist; an adapter history/configuration function does not imply an implemented module binding. Modules receive authorized inputs through the runtime and never provider settings/credentials.
+
+### Implementation increments
+
+1. Plan correction and descriptor audit (this section).
+2. Typed bounded ForeSite well-details read, source/identity/error/size/session tests and authenticated Gateway regression checks.
+3. Adapter-owned capability groups, versioned documentation/examples, conformance tests and safe API projection. ForeSite declares the four implemented groups; CygNet declares only installed backend support. PetroVisor/WAMI do not acquire speculative data capabilities.
+4. Metadata-only reusable reference UI: Adapter → Capabilities → Overview / API and examples / Contracts / Limits. Shared design controls/tables, responsive split panes, highlighted selection, search, refresh/empty/error/loading behavior and no Connection/Asset selectors.
+5. Generated-client typecheck/build/lint, frontend interaction tests, sample/contract conformance, real HTTP authorization checks, desktop/mobile browser evidence and full current-head CI before merging. Simulator validation is explicitly distinct from Sri’s local provider validation.
+
+Historical connection/asset eligibility APIs from #490 remain available to appropriate execution workflows. They are not used by the adapter reference. No authoring, discovery UI, live-value preview or control execution is part of this delivery.

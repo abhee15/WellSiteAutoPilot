@@ -14,18 +14,25 @@ const operations = Array.from({ length: 40 }, (_, index) => ({ key: `current.${i
   description: 'A bounded read from the selected source.', capability: 'CurrentData', capabilityId: 'engineering.current', contractVersion: '1.0', effect: 'ReadOnly',
   request: { id: 'engineering.current-request/v1', fields }, response: { id: 'engineering.value/v1', fields },
   timestampSemantics: 'Original source timestamp in UTC.', qualitySemantics: 'Original source reliability.',
-  limits: { maximumQuantities: 1, maximumValueBytes: 65536, maximumReplyBytes: 262144, timeoutSeconds: 6 } }));
+  limits: { maximumQuantities: 1, maximumValueBytes: 65536, maximumReplyBytes: 262144, timeoutSeconds: 6 },
+  documentation: { invocation: '// Integration Gateway: ICurrentDataProvider provider\nvar result = await provider.GetCurrentAsync("101", "PumpFillage", cancellationToken);',
+    executionBoundary: 'Typed adapter interface inside the Integration Gateway. Modules receive authorized inputs through the runtime.',
+    requestExampleJson: JSON.stringify({ externalId: '101', quantity: 'PumpFillage' }, null, 2),
+    responseExampleJson: JSON.stringify({ quantity: 'PumpFillage', value: 62.5, unit: '%', timestampUtc: '2026-01-15T12:00:00Z', quality: 'Unknown', source: 'synthetic:layout-example' }, null, 2) }
+}));
+const capabilities = operations.map((operation, index) => ({ key: `capability.${index}`, displayName: ['Surveillance data', 'Well configuration data', 'Well trend data', 'Card data'][index] ?? `Example capability ${index + 1}`,
+  description: 'Adapter-owned typed data capability; synthetic layout fixture.', contractVersion: '1.0', operationKeys: [operation.key] }));
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (resource, init) => {
   const path = String(resource);
   if (path === '/api/v1/connections/adapter-operations') return new Response(JSON.stringify([
-    { adapterKey: 'fixture', displayName: 'Synthetic adapter', description: 'Responsive Operations layout fixture.', operations },
+    { adapterKey: 'fixture', displayName: 'Synthetic adapter', description: 'Responsive capability reference fixture.', operations, capabilities },
   ]), { headers: { 'content-type': 'application/json' } });
-  if (path === '/api/v1/connections') return new Response('[]', { headers: { 'content-type': 'application/json' } });
   return originalFetch(resource, init);
 };
 const params = new URLSearchParams(window.location.search);
-const listOnly = params.get('mode') === 'list';
+const mode = params.get('mode') ?? 'selected';
+const listOnly = mode === 'list';
 function App() {
   const main = useRef<HTMLElement>(null);
   useSplitPaneViewport(main);
@@ -44,8 +51,10 @@ window.setInterval(() => {
   const rows = [...document.querySelectorAll<HTMLElement>('.split-results li')];
   if (!layout || !browse || !inspector || rows.length === 0) return;
   if (!listOnly && !inspector.querySelector('.split-type-detail')) { rows[0].querySelector('button')?.click(); return; }
-  if (!listOnly && !inspector.querySelector('table')) {
-    [...inspector.querySelectorAll('button')].find(button => button.textContent === 'Request and response')?.click(); return;
+  const tabLabel = mode === 'examples' ? 'API and examples' : 'Contracts';
+  const tab = [...inspector.querySelectorAll('button[role="tab"]')].find(button => button.textContent === tabLabel);
+  if (!listOnly && tab?.getAttribute('aria-selected') !== 'true') {
+    tab?.click(); return;
   }
   const visible = (element: HTMLElement | null) => !!element && getComputedStyle(element).display !== 'none' && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
   const rect = (element: HTMLElement) => {
@@ -55,13 +64,14 @@ window.setInterval(() => {
   const selected = browse.querySelector<HTMLElement>('[data-selected="true"]');
   const other = browse.querySelector<HTMLElement>('[data-selected="false"]');
   document.getElementById('visual-report')!.textContent = 'VISUAL_REPORT:' + JSON.stringify({
-    mode: listOnly ? 'list' : 'selected', viewport: window.innerWidth, viewportClient: document.documentElement.clientWidth,
+    mode, viewport: window.innerWidth, viewportClient: document.documentElement.clientWidth,
     documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth,
     pageBodyClient: document.querySelector('.page-body')!.clientWidth, pageBodyScroll: document.querySelector('.page-body')!.scrollWidth,
     rowDisplay: getComputedStyle(rows[0].querySelector('button')!).display,
+    fieldNameCase: inspector.querySelector('tbody th') ? getComputedStyle(inspector.querySelector('tbody th')!).textTransform : null,
     contractWidth: inspector.querySelector('table')?.getBoundingClientRect().width ?? 0,
     container: layout.getBoundingClientRect().width, browseVisible: visible(browse), inspectorVisible: visible(inspector),
-    detailVisible: visible(inspector.querySelector('.split-type-detail')), selectedOperation: inspector.querySelector('h2')?.textContent,
+    exampleVisible: visible(inspector.querySelector('pre')), detailVisible: visible(inspector.querySelector('.split-type-detail')), selectedOperation: inspector.querySelector('h2')?.textContent,
     backVisible: visible(inspector.querySelector('.split-back')), selectedRowVisible: visible(selected),
     selectedRowColor: selected ? getComputedStyle(selected).backgroundColor : '', otherRowColor: other ? getComputedStyle(other).backgroundColor : '',
     detailOverflow: getComputedStyle(inspector).overflowY, browseOverflow: getComputedStyle(browse).overflowY,
