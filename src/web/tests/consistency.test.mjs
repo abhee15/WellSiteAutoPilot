@@ -449,10 +449,13 @@ test('a status shown as text goes through statusLabel, never the raw server valu
 test('dates and times are formatted by format.ts, which always carries the time zone', () => {
   // executionDetail.ts adds the zone itself; auditPresentation.ts only builds the day labels that group a feed.
   const allowed = ['format.ts', 'views/executionDetail.ts', 'views/auditPresentation.ts'];
-  const direct = /\.toLocale(?:Date|Time)?String\(/;
+  // Number.toLocaleString() (byte counts, totals) is not a date and is fine; only date and time formatting is shared.
+  const direct = /\.toLocale(?:Date|Time)String\(|new Date\([^)]*\)\.toLocaleString\(/;
   assert.deepEqual(code.filter(path => !allowed.includes(rel(path)) && direct.test(source(path))).map(rel), [],
     'use formatTimestamp (or formatTime) from format.ts so every time shows its zone; do not add to the allow list');
   assert.match('new Date(x).toLocaleDateString()', direct, 'the guard sees a zone-less date');
+  assert.match('new Date(x).toLocaleString()', direct, 'and a zone-less date and time');
+  assert.doesNotMatch('{limits?.maximumValueBytes?.toLocaleString()} bytes', direct, 'a grouped number is not a date');
 });
 
 test('no time zone is named in screen code: the choices come from the browser', () => {
