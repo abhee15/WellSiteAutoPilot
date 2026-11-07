@@ -11,7 +11,7 @@ internal static class AdapterOperationChecks
             Check(operations.Select(o => o.Key).Distinct(StringComparer.Ordinal).Count() == operations.Count, "Duplicate operation keys.");
             foreach (var operation in operations)
             {
-                Check(operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData, "Unsafe public operation.");
+                Check(operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData or ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation, "Unsafe public operation.");
                 Check(Version.TryParse(operation.ContractVersion, out var version) && version.Major == 1, "Invalid contract version.");
                 Check(operation.Request.Fields.Count > 0 && operation.Response.Fields.Count > 0, "Missing schema fields.");
                 Check(operation.Limits.MaximumQuantities == 1 && operation.Limits.MaximumReplyBytes > 0, "Missing read bounds.");
@@ -28,6 +28,8 @@ internal static class AdapterOperationChecks
         var declared = EngineeringOperationSchemas.Current("test", "Test", "Test", "q", "kind", null, "Source", "Source", 1);
         Check(AdapterOperations.List(broad with { Operations = [declared with { Capability = ProviderCapabilityKind.Command }] }).Count == 0,
             "Command metadata leaked into public operations.");
+        Check(AdapterOperations.List(broad with { Operations = [declared with { Capability = ProviderCapabilityKind.Calculation }] }).Count == 1,
+            "An explicitly declared typed calculation must not require provider-specific application changes.");
         Check(AdapterOperations.List(broad with { Operations = [declared with { ContractVersion = "2.0" }] }).Count == 0,
             "Unknown major operation contracts must not be published as supported.");
         Check(AdapterOperations.List(broad with { Capabilities = [], Operations = [declared] }).Count == 0,

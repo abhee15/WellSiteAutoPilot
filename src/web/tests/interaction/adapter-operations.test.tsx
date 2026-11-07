@@ -47,6 +47,15 @@ describe('Adapter operations explorer', () => {
     expect(loadConnectionOperations).not.toHaveBeenCalled();
   });
 
+  it('renders explicitly declared typed calculations without assuming every operation is a current read', async () => {
+    vi.mocked(loadAdapterOperations).mockResolvedValue([{ adapterKey: 'fixture', displayName: 'Calculation fixture', operations: [
+      { ...operation('calculate', 'Pressure calculation'), capability: 'Calculation', capabilityId: 'engineering.calculation' },
+    ] }]);
+    render(<AdaptersPanel />);
+    const button = await screen.findByRole('button', { name: /Pressure calculation/ });
+    expect(button.querySelector('small')?.textContent).toContain('calculation');
+  });
+
   it('shows loading, access errors and retry without retaining stale descriptors', async () => {
     vi.mocked(loadAdapterOperations).mockRejectedValueOnce(new ConnectionsError('accessDenied'));
     render(<AdaptersPanel />);

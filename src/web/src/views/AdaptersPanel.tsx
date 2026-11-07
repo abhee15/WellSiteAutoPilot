@@ -85,7 +85,7 @@ export function AdaptersPanel() {
         <ul className="split-results">{operations.map(operation => <li key={operation.key} data-selected={operation.key === selection}>
           <button type="button" className="connection-row" aria-current={operation.key === selection}
             data-split-focus-key={operation.key} onClick={() => setSelection(operation.key ?? null)}>
-            <strong>{operation.displayName}</strong><small>{operation.capability === 'HistoricalData' ? 'Historical data' : 'Current data'} · v{operation.contractVersion}</small>
+            <strong>{operation.displayName}</strong><small>{operation.capability?.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()} · v{operation.contractVersion}</small>
           </button></li>)}</ul>
       </section>
       <section className="panel split-selected" tabIndex={-1} aria-label="Selected operation">

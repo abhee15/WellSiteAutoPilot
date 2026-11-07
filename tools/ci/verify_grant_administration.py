@@ -213,7 +213,7 @@ profiles = request("GET", "/connections/adapter-operations")
 assert {item["adapterKey"] for item in profiles} == {"simulator", "foresite", "petrovisor", "cygnet"}, profiles
 for profile in profiles:
     for operation in profile["operations"]:
-        assert operation["effect"] == "ReadOnly" and operation["capability"] in ("CurrentData", "HistoricalData"), operation
+        assert operation["effect"] == "ReadOnly" and operation["capability"] in ("CurrentData", "HistoricalData", "Alarms", "Calculation"), operation
         assert operation["request"]["id"] and operation["response"]["id"] and operation["limits"]["maximumQuantities"] == 1, operation
 request("GET", "/connections/" + str(uuid.uuid4()) + "/operations", expected=404)
 adapters = request("GET", "/connections/adapters")
