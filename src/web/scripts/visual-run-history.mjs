@@ -152,7 +152,10 @@ try {
       `page content has horizontal scrolling (${result.pageBodyScroll} > ${result.pageBodyClient})`);
     issue(result.container < 170, `content region too narrow (${result.container}px)`);
     if (adapters) issue(result.rowDisplay !== 'grid', 'operation list styling is missing');
-    if (adapters && mode === 'selected') issue(result.contractWidth < 479, 'contract columns are compressed below a readable width');
+    if (adapters && mode === 'selected') {
+      issue(result.contractWidth < 479, 'contract columns are compressed below a readable width');
+      issue(result.fieldNameCase !== 'none', 'API field identifiers must retain their declared casing');
+    }
     if (mode !== 'list') {
       if (adapters && mode === 'examples') issue(!result.exampleVisible, 'API examples are not visible');
       issue(!result.inspectorVisible || !result.detailVisible, 'selected run inspector is not visible');

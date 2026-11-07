@@ -68,6 +68,7 @@ window.setInterval(() => {
     documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth,
     pageBodyClient: document.querySelector('.page-body')!.clientWidth, pageBodyScroll: document.querySelector('.page-body')!.scrollWidth,
     rowDisplay: getComputedStyle(rows[0].querySelector('button')!).display,
+    fieldNameCase: inspector.querySelector('tbody th') ? getComputedStyle(inspector.querySelector('tbody th')!).textTransform : null,
     contractWidth: inspector.querySelector('table')?.getBoundingClientRect().width ?? 0,
     container: layout.getBoundingClientRect().width, browseVisible: visible(browse), inspectorVisible: visible(inspector),
     exampleVisible: visible(inspector.querySelector('pre')), detailVisible: visible(inspector.querySelector('.split-type-detail')), selectedOperation: inspector.querySelector('h2')?.textContent,

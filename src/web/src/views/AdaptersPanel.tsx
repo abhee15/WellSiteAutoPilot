@@ -33,7 +33,7 @@ export function AdaptersPanel() {
     void loadAdapterOperations(abort.signal).then(adapters => {
       if (abort.signal.aborted) return;
       setProfiles(adapters);
-      setAdapterKey(current => adapters.some(adapter => adapter.adapterKey === current) ? current : adapters[0]?.adapterKey ?? '');
+      setAdapterKey(current => current || adapters[0]?.adapterKey || '');
     }).catch((caught: unknown) => {
       if (!abort.signal.aborted) {
         setProfiles([]); setSelection(null);
@@ -56,11 +56,12 @@ export function AdaptersPanel() {
     <div className="operation-controls">
       <SelectField label={t('adapterReference.adapter')} value={adapterKey} disabled={loading || !!error || profiles.length === 0} onChange={event => {
         setAdapterKey(event.target.value); setSelection(null); setQuery('');
-      }}>{profiles.map(profile => <option key={profile.adapterKey} value={profile.adapterKey ?? ''}>{profile.displayName}</option>)}</SelectField>
+      }}>{adapterKey && !adapter && <option value={adapterKey}>{t('adapterReference.missingOption', { adapter: adapterKey })}</option>}{profiles.map(profile => <option key={profile.adapterKey} value={profile.adapterKey ?? ''}>{profile.displayName}</option>)}</SelectField>
       <ActionButton label={t('adapterReference.refresh')} icon={RefreshCw} iconOnly onClick={() => setAttempt(value => value + 1)} busy={loading} />
     </div>
     <p className="split-intro">{t('adapterReference.intro')}</p>
     {adapter && !loading && !error && <p className="split-intro">{adapter.description}</p>}
+    {!loading && !error && adapterKey && !adapter && <Notice>{t('adapterReference.missing')}</Notice>}
     {error && <Notice tone="error">{error}</Notice>}
     {loading ? <PanelLoading label={t('adapterReference.loading')} /> : !error && <div className="split-panes">
       <section className="panel split-browse" aria-label={t('adapterReference.capabilities')}>

@@ -92,6 +92,19 @@ describe('Adapter capability reference', () => {
     expect(await screen.findByRole('button', { name: /Surveillance data/ })).toBeTruthy();
   });
 
+  it('does not substitute another adapter when a refresh removes the selected adapter', async () => {
+    const user = userEvent.setup();
+    render(<AdaptersPanel />);
+    await user.click(await screen.findByRole('button', { name: /Surveillance data/ }));
+    vi.mocked(loadAdapterOperations).mockResolvedValue([{ ...profiles[0], adapterKey: 'other', displayName: 'Another adapter' }]);
+    await user.click(screen.getByRole('button', { name: 'Refresh capabilities' }));
+    expect(await screen.findByText(/The selected adapter is no longer installed/)).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Adapter' })).toHaveProperty('value', 'foresite');
+    expect(screen.queryByRole('button', { name: /Surveillance data/ })).toBeNull();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Adapter' }), 'other');
+    expect(screen.getByRole('button', { name: /Surveillance data/ })).toBeTruthy();
+  });
+
   it('refreshes metadata while preserving the selected adapter and capability', async () => {
     const user = userEvent.setup();
     render(<AdaptersPanel />);
