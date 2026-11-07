@@ -12,9 +12,6 @@ const BASELINE = [
   '-button', 'connection-test-',
   // Hooks or markers with no rule of their own yet.
   'asset-create-panel', 'loading-label', 'logic-detail-overview',
-  // The control panels and the schedule panel were built without styles. Each goes when its screen is rebuilt on the
-  // shared field and notice components (docs/design/control-ui-audit.md, steps D2 to D5).
-  'schedule-control', 'schedule-control-form',
 ];
 
 const root = fileURLToPath(new URL('../src/', import.meta.url));

@@ -63,10 +63,6 @@
     "controls": 0,
     "notices": 1
   },
-  "views/ConfiguredLogicSchedulePanel.tsx": {
-    "controls": 3,
-    "notices": 4
-  },
   "views/ConfiguredLogicSetupPanel.tsx": {
     "controls": 5,
     "notices": 6

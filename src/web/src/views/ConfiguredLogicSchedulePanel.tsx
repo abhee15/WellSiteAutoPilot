@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { CheckboxField, FormActions, NumberField, TextAreaField } from '../components/FormFields';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -8,6 +10,7 @@ import { formatDuration } from './executionDetail';
 import { SCHEDULE_REASON_MAX, ScheduleControlError, canResume, changeSchedule, fetchScheduleControl, scheduleRunState } from './scheduleControl';
 import type { ScheduleChange, ScheduleControl, ScheduleControlErrorKind } from './scheduleControl';
 import { useLiveResource } from './useLiveResource';
+import './scheduleControl.css';
 
 type Props = {
   configuredLogicId: string;
@@ -93,7 +96,7 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
     return <section className="logic-detail-section" aria-label={t('scheduleControl.heading')}>
       {heading}
       {live.loading && <LoadingIndicator label={t('scheduleControl.loading')} />}
-      {live.failed && <p role="alert">{t('scheduleControl.unavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={live.refresh} /></p>}
+      {live.failed && <Notice tone="error">{t('scheduleControl.unavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={live.refresh} /></Notice>}
     </section>;
   }
 
@@ -113,49 +116,45 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
     ? `${t('logicDetail.nextScheduled')}: ${control.nextRunAtUtc ? formatTimestamp(control.nextRunAtUtc) : t('logicDetail.notAvailable')}`
     : state === 'paused' ? `${t('logicDetail.nextScheduled')}: ${t('scheduleControl.nextNone')}` : null;
 
+  // Pause and resume are alternatives: exactly one is offered, and it is the primary action of the row.
+  const primaryAction = state === 'running'
+    ? <ActionButton variant="primary" label={t('scheduleControl.pause')} busy={saving} disabled={busy} onClick={() => void run({ kind: 'pause' })} />
+    : <ActionButton variant="primary" label={t('scheduleControl.resume')} disabled={busy || !canResume(control) || control.belowMinimum} onClick={() => { setError(null); setForm('resume'); }} />;
+
   return <section className="logic-detail-section schedule-control" aria-label={t('scheduleControl.heading')}
     data-state={state} data-differs={control.differsFromRevision}>
     {heading}
     <p>{summary}{next && <> {next}</>}</p>
-    {control.belowMinimum && <p role="note">{t('scheduleControl.belowMinimum', { interval: interval(control.minimumCadenceSeconds) })}</p>}
-    {control.differsFromRevision && <p className="logic-detail-note">{t('scheduleControl.differs', {
+    {control.belowMinimum && <Notice tone="warning" announce={false}>{t('scheduleControl.belowMinimum', { interval: interval(control.minimumCadenceSeconds) })}</Notice>}
+    {control.differsFromRevision && <Notice announce={false}>{t('scheduleControl.differs', {
       interval: control.declared?.unit ? `${control.declared.every} ${control.declared.unit.toLowerCase()}` : interval(control.declared?.cadenceSeconds ?? null),
-    })}</p>}
-    {manage && form === null && <div className="setup-actions">
+    })}</Notice>}
+    {manage && form === null && <FormActions>
       {!control.effective?.unit && <ActionButton label={t('scheduleControl.changeFrequency')} disabled={busy} onClick={() => { setError(null); setSeconds(String(control.effective?.cadenceSeconds ?? '')); setForm('frequency'); }} />}
-      {state === 'running'
-        ? <ActionButton variant="primary" label={t('scheduleControl.pause')} busy={saving} disabled={busy} onClick={() => void run({ kind: 'pause' })} />
-        : <ActionButton variant="primary" label={t('scheduleControl.resume')} disabled={busy || !canResume(control) || control.belowMinimum} onClick={() => { setError(null); setForm('resume'); }} />}
-    </div>}
+      {primaryAction}
+    </FormActions>}
     {manage && form !== null && <div className="schedule-control-form">
-      {form === 'frequency' && <label>
-        <span>{t('scheduleControl.secondsLabel', { minimum: control.minimumCadenceSeconds, maximum: control.maximumCadenceSeconds })}</span>
-        <input type="number" inputMode="numeric" min={control.minimumCadenceSeconds} max={control.maximumCadenceSeconds} step={1}
-          value={seconds} disabled={busy} onChange={event => { setSeconds(event.target.value); setError(null); }} />
-      </label>}
-      {form === 'frequency' && cadenceValid && <p className="logic-detail-note">{t('scheduleControl.preview', { interval: interval(parsed) })}</p>}
+      {form === 'frequency' && <NumberField label={t('scheduleControl.secondsLabel', { minimum: control.minimumCadenceSeconds, maximum: control.maximumCadenceSeconds })}
+        inputMode="numeric" min={control.minimumCadenceSeconds} max={control.maximumCadenceSeconds} step={1}
+        value={seconds} disabled={busy} onChange={event => { setSeconds(event.target.value); setError(null); }} />}
+      {form === 'frequency' && cadenceValid && <Notice announce={false}>{t('scheduleControl.preview', { interval: interval(parsed) })}</Notice>}
       {form === 'resume' && <>
         <p>{t('scheduleControl.resumeNote', { interval: control.effective?.unit ? `${control.effective.every} ${control.effective.unit.toLowerCase()}` : interval(control.effective?.cadenceSeconds ?? null) })}</p>
-        <label className="recommendation-review-confirm">
-          <input type="checkbox" checked={acknowledged} disabled={busy} onChange={event => setAcknowledged(event.target.checked)} />
-          {t('scheduleControl.resumeConfirmation')}
-        </label>
+        <CheckboxField label={t('scheduleControl.resumeConfirmation')} checked={acknowledged} disabled={busy}
+          onChange={event => setAcknowledged(event.target.checked)} />
       </>}
-      <label>
-        <span>{t('scheduleControl.reasonLabel')}</span>
-        <textarea rows={2} maxLength={SCHEDULE_REASON_MAX} value={reason} disabled={busy}
-          onChange={event => { setReason(event.target.value); setError(null); }} />
-      </label>
-      <div className="setup-actions">
+      <TextAreaField label={t('scheduleControl.reasonLabel')} rows={2} maxLength={SCHEDULE_REASON_MAX} value={reason} disabled={busy}
+        onChange={event => { setReason(event.target.value); setError(null); }} />
+      <FormActions>
         <ActionButton label={t('decision.cancel')} disabled={saving} onClick={close} />
         <ActionButton variant="primary" busy={saving}
           label={form === 'resume' ? t('scheduleControl.confirmResume') : t('scheduleControl.confirmFrequency')}
           disabled={disabled || (form === 'resume' ? !acknowledged : !cadenceValid)}
           onClick={() => void run(form === 'resume' ? { kind: 'resume' } : { kind: 'frequency', cadenceSeconds: parsed })} />
-      </div>
+      </FormActions>
     </div>}
-    {error && <p className="execution-detail-error" role="alert">{errors[error]}</p>}
-    {saving && <p role="status">{t('scheduleControl.saving')}</p>}
+    {error && <Notice tone="error">{errors[error]}</Notice>}
+    {saving && <Notice>{t('scheduleControl.saving')}</Notice>}
     {control.changes.length > 0 && <details>
       <summary>{t('scheduleControl.changes', { count: control.changes.length })}</summary>
       <ul className="asset-page-list">{control.changes.map(change => <li key={change.id}>{changeText(change)}</li>)}</ul>
