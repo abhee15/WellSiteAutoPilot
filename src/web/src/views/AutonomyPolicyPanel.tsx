@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChangeRefresh } from '../live/LiveUpdates';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
+import { CheckboxField, FormActions, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
 import {
@@ -12,6 +14,7 @@ import {
 import type {
   AutonomyLimitDraft, AutonomyPolicy, AutonomyPolicyDraft, AutonomyPolicyErrorKind, PolicyIssue,
 } from './autonomyPolicy';
+import './autonomyPolicy.css';
 
 type Props = {
   configuredLogicId: string;
@@ -130,9 +133,7 @@ export function AutonomyPolicyPanel({ configuredLogicId, canManage, disabled = f
     return (
       <section className="panel autonomy-policy" aria-label={t('autonomyPolicy.heading')}>
         <div className="panel-header"><h4>{t('autonomyPolicy.heading')}</h4></div>
-        <p role={loadError ? 'alert' : 'status'} className={loadError ? 'execution-detail-error' : undefined}>
-          {loadError ? errors[loadError] : t('autonomyPolicy.loading')}
-        </p>
+        {loadError ? <Notice tone="error">{errors[loadError]}</Notice> : <Notice>{t('autonomyPolicy.loading')}</Notice>}
       </section>
     );
   }
@@ -146,7 +147,7 @@ export function AutonomyPolicyPanel({ configuredLogicId, canManage, disabled = f
           tone={policy?.enabled ? 'success' : 'neutral'} />
       </div>
       <p>{t('autonomyPolicy.scope')}</p>
-      {saved && !draft && <p role="status">{t('autonomyPolicy.saved')}</p>}
+      {saved && !draft && <Notice tone="success">{t('autonomyPolicy.saved')}</Notice>}
       {!policy && <p>{t('autonomyPolicy.none')}</p>}
       {policy && !draft && (
         <>
@@ -178,28 +179,21 @@ export function AutonomyPolicyPanel({ configuredLogicId, canManage, disabled = f
       )}
       {canManage && draft && (
         <form className="autonomy-policy-form" onSubmit={event => { event.preventDefault(); void submit(); }}>
-          <label className="recommendation-review-confirm">
-            <input type="checkbox" checked={draft.enabled} disabled={saving}
-              onChange={event => edit({ enabled: event.target.checked })} />
-            {t('autonomyPolicy.enabledLabel')}
-          </label>
+          <CheckboxField label={t('autonomyPolicy.enabledLabel')} checked={draft.enabled} disabled={saving}
+            onChange={event => edit({ enabled: event.target.checked })} />
           <fieldset disabled={saving}>
             <legend>{t('autonomyPolicy.commandsLegend')}</legend>
             {draft.limits.map((limit, index) => (
               <div className="autonomy-policy-row" role="group" key={index}
                 aria-label={t('autonomyPolicy.row', { row: index + 1 })}>
-                <label><span>{t('autonomyPolicy.command')}</span>
-                  <input value={limit.command} maxLength={POLICY_COMMAND_MAX}
-                    onChange={event => editLimit(index, { command: event.target.value })} /></label>
-                <label><span>{t('autonomyPolicy.unit')}</span>
-                  <input value={limit.unit} maxLength={POLICY_UNIT_MAX}
-                    onChange={event => editLimit(index, { unit: event.target.value })} /></label>
-                <label><span>{t('autonomyPolicy.minimum')}</span>
-                  <input inputMode="decimal" value={limit.minimumValue}
-                    onChange={event => editLimit(index, { minimumValue: event.target.value })} /></label>
-                <label><span>{t('autonomyPolicy.maximum')}</span>
-                  <input inputMode="decimal" value={limit.maximumValue}
-                    onChange={event => editLimit(index, { maximumValue: event.target.value })} /></label>
+                <TextField label={t('autonomyPolicy.command')} value={limit.command} maxLength={POLICY_COMMAND_MAX}
+                  onChange={event => editLimit(index, { command: event.target.value })} />
+                <TextField label={t('autonomyPolicy.unit')} value={limit.unit} maxLength={POLICY_UNIT_MAX}
+                  onChange={event => editLimit(index, { unit: event.target.value })} />
+                <TextField label={t('autonomyPolicy.minimum')} inputMode="decimal" value={limit.minimumValue}
+                  onChange={event => editLimit(index, { minimumValue: event.target.value })} />
+                <TextField label={t('autonomyPolicy.maximum')} inputMode="decimal" value={limit.maximumValue}
+                  onChange={event => editLimit(index, { maximumValue: event.target.value })} />
                 <ActionButton label={t('autonomyPolicy.removeCommand', { row: index + 1 })}
                   onClick={() => edit({ limits: draft.limits.filter((_, at) => at !== index) })} />
               </div>
@@ -207,29 +201,26 @@ export function AutonomyPolicyPanel({ configuredLogicId, canManage, disabled = f
             <ActionButton label={t('autonomyPolicy.addCommand')} disabled={draft.limits.length >= POLICY_MAX_LIMITS}
               onClick={() => edit({ limits: [...draft.limits, { command: '', unit: '', minimumValue: '', maximumValue: '' }] })} />
           </fieldset>
-          <label><span>{t('autonomyPolicy.maxActions', { max: POLICY_ACTIONS_MAX })}</span>
-            <input inputMode="numeric" value={draft.maxActionsPerWindow} disabled={saving}
-              onChange={event => edit({ maxActionsPerWindow: event.target.value })} /></label>
-          <label><span>{t('autonomyPolicy.windowSeconds', { max: POLICY_WINDOW_MAX_SECONDS })}</span>
-            <input inputMode="numeric" value={draft.windowSeconds} disabled={saving}
-              onChange={event => edit({ windowSeconds: event.target.value })} /></label>
-          <label className="recommendation-review-confirm">
-            <input type="checkbox" checked={draft.allowApprovedRecommendations} disabled={saving}
-              onChange={event => edit({ allowApprovedRecommendations: event.target.checked })} />
-            {t('autonomyPolicy.approvedLabel')}
-          </label>
+          <TextField label={t('autonomyPolicy.maxActions', { max: POLICY_ACTIONS_MAX })} inputMode="numeric"
+            value={draft.maxActionsPerWindow} disabled={saving}
+            onChange={event => edit({ maxActionsPerWindow: event.target.value })} />
+          <TextField label={t('autonomyPolicy.windowSeconds', { max: POLICY_WINDOW_MAX_SECONDS })} inputMode="numeric"
+            value={draft.windowSeconds} disabled={saving}
+            onChange={event => edit({ windowSeconds: event.target.value })} />
+          <CheckboxField label={t('autonomyPolicy.approvedLabel')} checked={draft.allowApprovedRecommendations} disabled={saving}
+            onChange={event => edit({ allowApprovedRecommendations: event.target.checked })} />
           {issues.length > 0 && (
-            <div className="execution-detail-error" role="alert">
+            <Notice tone="error">
               <ul>{issues.map((issue, at) => <li key={at}>{policyIssueMessage(issue)}</li>)}</ul>
-            </div>
+            </Notice>
           )}
-          {saveError && <p className="execution-detail-error" role="alert">{errors[saveError]}</p>}
-          {saving && <p role="status">{t('autonomyPolicy.saving')}</p>}
-          <div className="execution-detail-actions">
+          {saveError && <Notice tone="error">{errors[saveError]}</Notice>}
+          {saving && <Notice>{t('autonomyPolicy.saving')}</Notice>}
+          <FormActions>
             <ActionButton label={t('decision.cancel')} onClick={close} disabled={saving} />
             <ActionButton variant="primary" label={t('autonomyPolicy.save')} disabled={blocked}
               onClick={() => void submit()} />
-          </div>
+          </FormActions>
         </form>
       )}
     </section>
