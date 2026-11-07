@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { FilterToolbar, FilterField } from '../components/FilterToolbar';
 import { SearchInput } from '../components/SearchInput';
@@ -148,8 +149,7 @@ export function ActivityPage({ selectedId = null, onSelect, userId, assets = [],
         <div {...splitFocus} className="split-layout runs-layout activity-layout" data-has-selection={selected !== null}>
           <div className="split-panes">
             <div className="split-browse">
-              <div className="table-wrap">
-                <table className="activity-table activity-feed" aria-label={t('activity.heading')}>
+              <DataTable label={t('activity.heading')} className="activity-feed">
                   <thead><tr>
                     <th scope="col">{t('activity.when')}</th>
                     <th scope="col" className="run-col-secondary">{t('activity.who')}</th>
@@ -199,8 +199,7 @@ export function ActivityPage({ selectedId = null, onSelect, userId, assets = [],
                       );
                     })}
                   </tbody>
-                </table>
-              </div>
+                </DataTable>
               {nextCursor && !error && (
                 <div className="activity-more">
                   <ActionButton label={loadingMore ? t('activity.loading') : t('activity.loadOlder')} disabled={busy} onClick={() => void loadOlder()} />

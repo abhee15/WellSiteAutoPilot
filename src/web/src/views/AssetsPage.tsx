@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { ContextLink } from '../components/ContextLink';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -187,8 +188,7 @@ export function AssetsPage({
           {(canManageTypes || canHideTypes) && <label className="split-note">
             <input type="checkbox" checked={showHidden} onChange={event => setShowHidden(event.target.checked)} />
             {' '}{t('assetTypes.showHidden')}</label>}
-          <div className="table-wrap">
-            <table className="activity-table">
+          <DataTable label={t('assetTypes.tableLabel')}>
               <thead>
                 <tr>
                   <th>{t('assetTypes.colDisplayName')}</th>
@@ -221,8 +221,7 @@ export function AssetsPage({
                 })}
                 {listedTypes.length === 0 && <EmptyRow columns={5}>{t('assets.noTypes')}</EmptyRow>}
               </tbody>
-            </table>
-          </div>
+            </DataTable>
           {listedTypes.filter(type => type.id === openTypeId).map(type => (
             <AssetTypeDetail key={type.id} type={type} count={typeCounts.get(type.id ?? '') ?? 0}
               countKnown={!lazy} canHide={canHideTypes} canManage={canManageTypes}

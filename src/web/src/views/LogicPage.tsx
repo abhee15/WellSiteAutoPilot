@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { PanelLoading } from '../components/LoadingIndicator';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useEffect, useMemo, useState } from 'react';
@@ -144,8 +145,7 @@ export function LogicPage({
             <ModulePackageUpload canManage={permissions.includes('logic.manage')} onUploaded={async module => {
               await onRefresh(); setAboutModuleId(module.id ?? null);
             }} />
-            {!isLoaded ? <PanelLoading label={t('views.loading')} /> : <div className="table-wrap">
-              <table className="activity-table">
+            {!isLoaded ? <PanelLoading label={t('views.loading')} /> : <DataTable label={t('logicCatalog.tableLabel')}>
                 <thead>
                   <tr>
                     <th>{t('logicCatalog.colStatus')}</th>
@@ -189,8 +189,7 @@ export function LogicPage({
                     </EmptyRow>
                   )}
                 </tbody>
-              </table>
-            </div>}
+              </DataTable>}
           </section>
           <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabModules')}>
             <ActionButton label={t('logic.back')} className="split-back" onClick={() => setAboutModuleId(null)} />
@@ -213,8 +212,7 @@ export function LogicPage({
               matchingCount={visibleConfigurations.length}
               totalCount={configuredLogic.length}
             />
-            {!isLoaded ? <PanelLoading label={t('views.loading')} /> : <div className="table-wrap">
-              <table className="activity-table">
+            {!isLoaded ? <PanelLoading label={t('views.loading')} /> : <DataTable label={t('configured.tableLabel')}>
                 <thead>
                   <tr>
                     <th>{t('configured.colStatus')}</th>
@@ -256,8 +254,7 @@ export function LogicPage({
                     </EmptyRow>
                   )}
                 </tbody>
-              </table>
-            </div>}
+              </DataTable>}
           </section>
           <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabConfigured')}>
             <ActionButton label={t('logic.back')} className="split-back" onClick={() => { setSelectedConfiguredId(null); setCreating(false); }} />

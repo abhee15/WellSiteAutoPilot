@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { SearchInput } from '../components/SearchInput';
 import { useEffect, useId, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
@@ -80,11 +81,11 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
           <p>{t('sourceChanges.seen', { first: formatTimestamp(item.firstSeenAtUtc), last: formatTimestamp(item.lastSeenAtUtc) })}</p>
           {item.status === 'NotReturned' && <p>{t('sourceChanges.notDeleted')}</p>}
           {item.status === 'New' && <p>{t('sourceChanges.newWell')}</p>}
-          {item.evidence.differences.length > 0 && <div className="source-change-table"><table><thead><tr>
+          {item.evidence.differences.length > 0 && <DataTable variant="embedded" label={t('sourceChanges.differencesLabel', { name: item.name })}><thead><tr>
             <th>{t('sourceChanges.fact')}</th><th>{t('sourceChanges.accepted')}</th><th>{t('sourceChanges.observed')}</th>
           </tr></thead><tbody>{item.evidence.differences.map(diff => <tr key={diff.field}>
             <td>{factLabel(diff.field)}</td><td>{diff.accepted}</td><td>{diff.observed}</td>
-          </tr>)}</tbody></table></div>}
+          </tr>)}</tbody></DataTable>}
           {item.evidence.unknownFields.length > 0 && <p>{t('sourceChanges.unavailable', { fields: item.evidence.unknownFields.map(factLabel).join(', ') })}</p>}
           {item.referencesTruncated && <p>{t('sourceChanges.referencesTruncated')}</p>}
           <h4>{t('sourceChanges.views')}</h4>
