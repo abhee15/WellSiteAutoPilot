@@ -43,10 +43,6 @@
     "controls": 2,
     "notices": 1
   },
-  "views/ConfiguredLogicControls.tsx": {
-    "controls": 3,
-    "notices": 0
-  },
   "views/ConfiguredLogicRevisionOverview.tsx": {
     "controls": 0,
     "notices": 1
@@ -87,10 +83,6 @@
     "controls": 3,
     "notices": 2
   },
-  "views/LogicCatalogControls.tsx": {
-    "controls": 3,
-    "notices": 0
-  },
   "views/ModuleApprovalControls.tsx": {
     "controls": 1,
     "notices": 2
@@ -116,10 +108,6 @@
     "notices": 1
   },
   "views/ParameterOverridesEditor.tsx": {
-    "controls": 1,
-    "notices": 0
-  },
-  "views/RecommendationInboxControls.tsx": {
     "controls": 1,
     "notices": 0
   },

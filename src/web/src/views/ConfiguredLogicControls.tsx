@@ -1,4 +1,4 @@
-import { FilterToolbar, FilterField } from '../components/FilterToolbar';
+import { FilterToolbar, FilterSelect } from '../components/FilterToolbar';
 import { DEFAULT_CONFIGURED_LOGIC_CRITERIA } from './configuredLogicViews';
 import type { FilterChip } from '../components/FilterToolbar';
 import { t } from '../localization';
@@ -29,8 +29,7 @@ export function ConfiguredLogicControls({
       chips={chips} isFiltered={criteria.search !== D.search || chips.length > 0 || criteria.sort !== D.sort}
       onClear={() => onChange({ ...D })}
       note={t('configured.count', { shown: matchingCount, total: totalCount })}>
-        <FilterField label={t('configured.lifecycle')}>
-          <select value={criteria.lifecycle}
+        <FilterSelect label={t('configured.lifecycle')} value={criteria.lifecycle}
             onChange={event => onChange({
               ...criteria,
               lifecycle: event.target.value as ConfiguredLogicCriteria['lifecycle'],
@@ -38,10 +37,8 @@ export function ConfiguredLogicControls({
             <option value="all">{t('configured.all')}</option>
             <option value="active">{t('configured.active')}</option>
             <option value="inactive">{t('configured.inactive')}</option>
-          </select>
-        </FilterField>
-        <FilterField label={t('configured.latestStatus')}>
-          <select value={criteria.revisionStatus}
+          </FilterSelect>
+        <FilterSelect label={t('configured.latestStatus')} value={criteria.revisionStatus}
             onChange={event => onChange({
               ...criteria,
               revisionStatus: event.target.value as ConfiguredLogicCriteria['revisionStatus'],
@@ -51,10 +48,8 @@ export function ConfiguredLogicControls({
             <option value="validated">{t('configured.validated')}</option>
             <option value="active">{t('configured.statusActive')}</option>
             <option value="superseded">{t('configured.superseded')}</option>
-          </select>
-        </FilterField>
-        <FilterField label={t('configured.sort')}>
-          <select value={criteria.sort}
+          </FilterSelect>
+        <FilterSelect label={t('configured.sort')} value={criteria.sort}
             onChange={event => onChange({
               ...criteria,
               sort: event.target.value as ConfiguredLogicCriteria['sort'],
@@ -62,8 +57,7 @@ export function ConfiguredLogicControls({
             <option value="name">{t('configured.name')}</option>
             <option value="newest">{t('configured.newest')}</option>
             <option value="oldest">{t('configured.oldest')}</option>
-          </select>
-        </FilterField>
+          </FilterSelect>
     </FilterToolbar>
   );
 }

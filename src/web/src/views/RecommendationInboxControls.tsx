@@ -1,4 +1,4 @@
-import { FilterToolbar, FilterField } from '../components/FilterToolbar';
+import { FilterToolbar, FilterSelect } from '../components/FilterToolbar';
 import { MultiSelect } from '../components/MultiSelect';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -40,16 +40,14 @@ export function RecommendationInboxControls({
         selected={criteria.filters}
         onChange={filters => onChange({ ...criteria, filters })}
       />
-      <FilterField label={t('inbox.sort')}>
-        <select value={criteria.sort}
+      <FilterSelect label={t('inbox.sort')} value={criteria.sort}
           onChange={event => onChange({
             ...criteria,
             sort: event.target.value as RecommendationInboxCriteria['sort'],
           })}>
           <option value="newest">{t('inbox.newest')}</option>
           <option value="oldest">{t('inbox.oldest')}</option>
-        </select>
-      </FilterField>
+        </FilterSelect>
     </FilterToolbar>
   );
 }
