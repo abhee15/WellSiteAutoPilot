@@ -1277,7 +1277,7 @@ jobs:
           dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
           echo $! > simulator.pid
 
-          Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
+          Providers__CygNet__Backend=simulated Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
           echo $! > gateway.pid
 
           for attempt in {1..30}; do
@@ -1336,6 +1336,9 @@ jobs:
             -d '{"settings":{"baseUrl":"ftp://x","extra":"1"}}' "$base/adapters/simulator/validate")
           echo "$problems" | python -c "import json,sys; d=json.load(sys.stdin)['problems']; assert {p['fieldKey'] for p in d}=={'baseUrl','extra'}, d"
           expect "$(status -X POST -H 'Content-Type: application/json' -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" -d '{}' "$base/adapters/unknown/validate")" 404 "unknown adapter"
+
+      - name: Verify bounded history and Gateway authorization
+        run: python tools/ci/verify_adapter_history.py
 
       - name: Verify simulated provider commands and faults
         shell: bash

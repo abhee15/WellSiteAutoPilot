@@ -47,6 +47,6 @@ public sealed class CygNetHistoricalDataProvider(ICygNetClient client, CygNetCon
         return result.Samples;
     }
 
-    private static WellSiteAutoPilotException Failure(string code) => new(code, FailureKind.DependencyUnavailable,
+    private static WellSiteAutoPilotException Failure(string code) => new(code, code is "CYGNET_FACILITY_INVALID" or "CYGNET_QUANTITY_UNSUPPORTED" ? FailureKind.Validation : FailureKind.DependencyUnavailable,
         "The selected CygNet connection could not provide the requested bounded history.");
 }

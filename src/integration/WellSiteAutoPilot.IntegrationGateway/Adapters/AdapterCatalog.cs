@@ -33,13 +33,7 @@ public sealed class AdapterCatalog(ICygNetClient? cygnet = null)
         ]);
 
     private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator, ForeSiteAdapter.Descriptor, PetroVisorAdapter.Descriptor,
-        cygnet is ICygNetHistoryClient ? CygNetAdapter.Descriptor with
-        {
-            Capabilities = CygNetAdapter.Descriptor.Capabilities.Append(new ProviderCapability(ProviderCapabilityKind.HistoricalData, "Time-range point history")).ToArray(),
-            Operations = (CygNetAdapter.Descriptor.Operations ?? []).Concat(AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity =>
-                HistoricalReadLimits.Operation("history." + quantity.ToLowerInvariant(), quantity, AdapterReadRules.CygNetResourceKind, 10,
-                    "Source historian timestamps in UTC; [start, end) instant interval.", "Preserves CygNet base reliability status. Units come from the configured point mapping."))).ToArray()
-        } : CygNetAdapter.Descriptor];
+        CygNetAdapter.Describe(cygnet)];
 
     public IReadOnlyList<AdapterDescriptor> List() => _descriptors;
 
