@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Explicit licensed-host tool; excluded from the default solution and distribution. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- The CLI boundary redacts all provider exceptions into stable failure codes. -->
+    <NoWarn>$(NoWarn);CA1031</NoWarn>
+    <CygNetLibraryPath Condition="'$(CygNetLibraryPath)' == ''">$(CYGNET_LIBRARY_PATH)</CygNetLibraryPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/integration/WellSiteAutoPilot.Integration.CygNet/WellSiteAutoPilot.Integration.CygNet.csproj" />
+  </ItemGroup>
+  <Target Name="RequireLicensedHistorianLibraries" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(CygNetLibraryPath)' == ''" Text="Set CYGNET_LIBRARY_PATH to the licensed Windows CygNet library directory. This native probe cannot be validated by the simulator build." />
+    <Error Condition="'$(CygNetLibraryPath)' != '' and !Exists('$(CygNetLibraryPath)/CygNet.API.Historian.dll')" Text="CygNet.API.Historian.dll is required from the licensed host." />
+    <Error Condition="'$(CygNetLibraryPath)' != '' and !Exists('$(CygNetLibraryPath)/CygNet.Data.Historian.dll')" Text="CygNet.Data.Historian.dll is required from the licensed host." />
+  </Target>
+</Project>
