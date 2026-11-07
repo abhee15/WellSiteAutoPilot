@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '../components/ActionButton';
+import { FormActions, SelectField, TextAreaField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import type { FormEvent } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
@@ -224,14 +226,14 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
     {showHeading && <h3>{editDraft ? t('draftEditor.edit', { number: revision?.revisionNumber ?? '—' }) : configuration ? t('setup.newRevision') : t('setup.heading')}</h3>}
     {configuration && <p>{t(editDraft ? 'draftEditor.editHint' : 'draftEditor.copyHint', { number: revision?.revisionNumber ?? '—' })}</p>}
     <p>{t('setup.shadowOnly')}</p>
-    {initialViewId && !configuration && <p role="note">{t('assignment.selectedView', { name: views.find(view => view.id === initialViewId)?.name ?? initialViewId })}</p>}
-    {initialAssetId && !configuration && <p role="note">{t('setup.startingFromAsset', { name: allAssets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</p>}
-    {approved.length === 0 && <p role="status">{t('setup.noModules')}</p>}
+    {initialViewId && !configuration && <Notice announce={false}>{t('assignment.selectedView', { name: views.find(view => view.id === initialViewId)?.name ?? initialViewId })}</Notice>}
+    {initialAssetId && !configuration && <Notice announce={false}>{t('setup.startingFromAsset', { name: allAssets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</Notice>}
+    {approved.length === 0 && <Notice tone="warning">{t('setup.noModules')}</Notice>}
     <form className={configuration ? 'setup-form revision-editor' : 'setup-form'} onSubmit={e => void submit(e)}>
       <fieldset disabled={busy || blocked}>
         <h4 className="setup-step">{t('setupStep.logic')}</h4>
         <p className="setup-step-hint">{t('setupStep.logicHint')}</p>
-        <label>{t('setup.module')}<select required value={moduleKey} onChange={e => {
+        <SelectField label={t('setup.module')} required value={moduleKey} onChange={e => {
           const chosen = approved.find(m => JSON.stringify([m.moduleId, m.version]) === e.target.value);
           const chosenManifest = chosen ? setupManifest(chosen) : null;
           viewController.current.abort(); setViewRef(null); setViewAssets([]); setViewLoading(false); setViewError(false);
@@ -249,11 +251,11 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
             candidate.requiredAdapterKey.toLowerCase() !== source.adapterKey.toLowerCase());
           return <option key={m.id} value={JSON.stringify([m.moduleId, m.version])} disabled={mismatch}>
             {m.displayName} · {m.version}{mismatch ? ' · ' + t('assignment.requiresAdapter', { adapter: candidate?.requiredAdapterKey ?? '' }) : ''}</option>;
-        })}</select></label>
+        })}</SelectField>
         <h4 className="setup-step">{t('setupStep.name')}</h4>
         <p className="setup-step-hint">{t('setupStep.nameHint')}</p>
-        <label>{t('setup.name')}<input required maxLength={256} value={name}
-          disabled={!!configuration} onChange={e => setName(e.target.value)} /></label>
+        <TextField label={t('setup.name')} required maxLength={256} value={name}
+          disabled={!!configuration} onChange={e => setName(e.target.value)} />
         <details className="revision-editor-section" open={Boolean(manifest?.parameterSchema || (revision?.parametersJson && revision.parametersJson !== '{}'))}><summary>{t('draftEditor.settings')}</summary>
 
         {manifest?.description && <p>{t('setup.moduleDescription')}: {manifest.description}</p>}
@@ -266,8 +268,8 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
             setError(null);
           }}
           onUseJson={() => { setParameters(buildParameters(paramFields, formValues).json); setParamJson(true); setParamErrors({}); }} />
-        : <><label>{t('setup.parameters')}<textarea required rows={4} maxLength={65536}
-          value={parameters} onChange={e => setParameters(e.target.value)} /></label>
+        : <><TextAreaField label={t('setup.parameters')} required rows={4} maxLength={65536}
+          value={parameters} onChange={e => setParameters(e.target.value)} />
         <p>{t(manifest?.parameterSchema ? 'setup.parametersHintSchema' : 'setup.parametersHint')}</p>
         {paramFields && parameterValues(paramFields, parameters) !== null && <ActionButton label={t('draftEditor.useFields')}
           onClick={() => { setParamValues(parameterValues(paramFields, parameters)); setParamJson(false); setParamErrors({}); }} />}</>}
@@ -277,7 +279,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
         <p className="setup-step-hint">{t('setupStep.assetsHint')}</p></>}
         {manifest?.assetRequirements.map(r => <fieldset key={r.role}>
           <legend>{t('setup.assetRole', { role: r.role, min: r.minimumCount, max: r.maximumCount })}</legend>
-          {canReadViews && <label>{t('setup.targetView')}<select value={viewRef?.role === r.role ? viewRef.viewId : ''} disabled={viewLoading}
+          {canReadViews && <SelectField label={t('setup.targetView')} value={viewRef?.role === r.role ? viewRef.viewId : ''} disabled={viewLoading}
             onChange={event => void chooseView(event.target.value, r.role)}>
             <option value="">{t('setup.individualAssets')}</option>
             {views.map(view => {
@@ -292,12 +294,12 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
                       ? t('assignment.countRange', { min: r.minimumCount, max: r.maximumCount }) : '';
               return <option key={view.id} value={view.id} disabled={incompatible}>{view.name} · {view.memberCount} · {source?.name ?? view.connectionId}{reason ? ' · ' + reason : ''}</option>;
             })}
-          </select></label>}
+          </SelectField>}
           {canReadViews && !viewRef && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
           {viewRef?.role === r.role && <p className="connection-help">{t('setup.viewSnapshot', { revision: viewRef.expectedRevision, count: bindings[r.role]?.length ?? 0 })}
             {canReadViews && <ActionButton icon={RefreshCw} iconOnly label={t('setup.refreshView')} disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)} />}</p>}
           {viewLoading && <LoadingIndicator label={t('views.loading')} />}
-          {viewError && <p role="alert">{t('setup.viewUnavailable')}</p>}
+          {viewError && <Notice tone="error">{t('setup.viewUnavailable')}</Notice>}
           {viewRef?.role !== r.role && <p>{t('setup.loadedAssets')}</p>}
           {manifest.requiredAdapterKey === 'foresite' && !viewRef && <p className="connection-help">{t('setup.directWellHint')}</p>}
           {!viewRef && (bindings[r.role] ?? []).map(id => {
@@ -326,7 +328,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
         </fieldset>)}
         </details>
         {mappingPending && <LoadingIndicator label={t('assignment.resolving')} />}
-        {mappingError && <p role="alert">{mappingError}</p>}
+        {mappingError && <Notice tone="error">{mappingError}</Notice>}
         <details className="revision-editor-section"><summary>{t('assignment.dataSources')}</summary>
           <p>{t('assignment.derived')}</p>
           {manifest?.dataRequirements.map(input => <p key={input.id}>
@@ -343,10 +345,12 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           <p>{t(scheduleDraft.scheduled ? 'assignment.scheduled' : 'assignment.onDemand')}</p>
           {scheduleDraft.scheduled && <p>{scheduleDraft.every} {scheduleDraft.unit} · {scheduleDraft.date} {scheduleDraft.time} · {scheduleDraft.timeZone}</p>}
         </section>}
-        <ActionButton type="submit" variant="primary" label={busy ? t('setup.saving') : editDraft ? t('draftEditor.save') : t('setup.save')} disabled={!manifest || approved.length === 0 || Boolean(scheduleResult.error) || mappingPending || Boolean(mappingError) || viewLoading || (!!viewRef && !canReadViews)} />
       </fieldset>
-      {error && <p role="alert">{error}</p>}
-      <ActionButton label={t('setup.cancel')} disabled={busy} onClick={onCancel} />
+      {error && <Notice tone="error">{error}</Notice>}
+      <FormActions>
+        <ActionButton label={t('setup.cancel')} disabled={busy} onClick={onCancel} />
+        <ActionButton type="submit" variant="primary" label={busy ? t('setup.saving') : editDraft ? t('draftEditor.save') : t('setup.save')} disabled={busy || blocked || !manifest || approved.length === 0 || Boolean(scheduleResult.error) || mappingPending || Boolean(mappingError) || viewLoading || (!!viewRef && !canReadViews)} />
+      </FormActions>
     </form>
   </section>;
 }
