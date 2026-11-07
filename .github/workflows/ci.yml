@@ -203,6 +203,7 @@ jobs:
               "/api/v1/executions",
               "/api/v1/asset-types",
               "/api/v1/asset-types/{assetTypeId}",
+              "/api/v1/connections/{connectionId}/assets/{assetId}/operations",
               "/api/v1/assets",
               "/api/v1/assets/{assetId}",
               "/api/v1/configured-logic",
@@ -229,6 +230,7 @@ jobs:
             # API-owned finite values must be published as string enums and
             # referenced by their fields so the generated client emits unions.
             $closedValues = [ordered]@{
+              AssetOperationEligibilityState = "SourceCheckRequired,ConnectionDisabled,ConnectionIncompatible,ConnectionTestRequired,ConnectionUnavailable,Unsupported,AssetInactive,Unmapped,AmbiguousSource,ResourceUnsupported"
               AccessGrantSubjectKind = "User,Group"
               AccessGrantScopeKind = "ExactAssets,DeploymentWide,AllAssets"
               ExecutionMode = "Shadow,Recommendation,Autonomous"
@@ -253,6 +255,7 @@ jobs:
             }
 
             $closedFields = [ordered]@{
+              "AssetOperationEligibilityResponse.state" = "AssetOperationEligibilityState"
               "AccessGrantResponse.subjectKind" = "AccessGrantSubjectKind"
               "AccessGrantResponse.scopeKind" = "AccessGrantScopeKind"
               "CreateAccessGrantRequest.scopeKind" = "AccessGrantScopeKind"

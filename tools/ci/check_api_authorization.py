@@ -43,6 +43,7 @@ EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
     ("GET", "/asset-types/{assetTypeId:guid}"): ("GetAssetType", "AssetsRead"),
     ("GET", "/connections"): ("ListConnections", "ConnectionsRead"),
     ("GET", "/connections/adapters"): ("ListConnectionAdapters", "ConnectionsRead"),
+    ("GET", "/connections/{connectionId:guid}/assets/{assetId:guid}/operations"): ("GetAssetConnectionOperations", "ConnectionsRead"),
     ("GET", "/connections/adapter-operations"): ("ListAdapterOperations", "ConnectionsRead"),
     ("GET", "/connections/{connectionId:guid}/operations"): ("GetConnectionOperations", "ConnectionsRead"),
     ("GET", "/connections/{connectionId:guid}"): ("GetConnection", "ConnectionsRead"),

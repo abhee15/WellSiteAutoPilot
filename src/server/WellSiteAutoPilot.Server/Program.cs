@@ -197,6 +197,7 @@ builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
 });
 builder.Services.AddSingleton<DiscoverySnapshotStore>();
 builder.Services.AddScoped<ConnectionService>();
+builder.Services.AddScoped<AssetOperationService>();
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.ConnectionCommandCatalogService>();
 builder.Services.AddScoped<ConnectionMonitorService>();
 builder.Services.Configure<ConnectionMonitorOptions>(
@@ -1644,6 +1645,22 @@ v1.MapGet("/connections/adapter-operations",
     .WithName("ListAdapterOperations")
     .RequireAuthorization(WellSitePolicies.ConnectionsRead)
     .Produces<AdapterOperationsResponse[]>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
+
+// Connection policy plus the service's fresh deployment grant and paired Asset SQL predicate.
+// Explicit adapter/revision inputs prevent substituting another source or silently inspecting a stale selection.
+v1.MapGet("/connections/{connectionId:guid}/assets/{assetId:guid}/operations",
+    async (Guid connectionId, Guid assetId, string adapterKey, int expectedRevision, AssetOperationService operations,
+        RequestAccessContext access, CancellationToken cancellationToken) =>
+        ConnectionMapping.ToResponse(await operations.InspectAsync(access.Subject, connectionId, assetId,
+            adapterKey, expectedRevision, cancellationToken)))
+    .WithName("GetAssetConnectionOperations")
+    .RequireAuthorization(WellSitePolicies.ConnectionsRead)
+    .Produces<AssetOperationsResponse>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
     .Produces<WellSiteProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json");
 
 v1.MapGet("/connections/{connectionId:guid}/operations",
