@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { ActionButton } from '../components/ActionButton';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { CloseButton } from '../components/CloseButton';
@@ -62,8 +63,7 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
       {count > 0 && <ActionButton onClick={() => onShowAssets(name)} label={t('assets.showOfType', { count, name })} />}
       <h4>{t('assetTypes.fields')}</h4>
       {fields.length === 0 ? <p className="split-note">{t('assetTypes.noFields')}</p> : (
-        <div className="table-wrap">
-          <table className="activity-table">
+        <DataTable label={t('assetTypes.fields')}>
             <thead><tr>
               <th>{t('assetTypes.fieldName')}</th><th>{t('assetTypes.fieldType')}</th>
               <th>{t('assetTypes.fieldRule')}</th><th>{t('assetTypes.required')}</th>
@@ -76,8 +76,7 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </DataTable>
       )}
       <details>
         <summary>{t('assetTypes.rawSchema')}</summary>

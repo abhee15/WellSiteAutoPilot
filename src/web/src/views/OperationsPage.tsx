@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { PanelLoading } from '../components/LoadingIndicator';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useEffect, useMemo, useState } from 'react';
@@ -95,8 +96,7 @@ function RecentOperationsPage({
           matchingCount={visibleExecutions.length}
           recentCount={executions.length}
         />
-        {!isLoaded ? <PanelLoading label={t('views.loading')} /> : <div className="table-wrap">
-          <table className="activity-table">
+        {!isLoaded ? <PanelLoading label={t('views.loading')} /> : <DataTable label={t('operations.tableLabel')}>
             <thead>
               <tr>
                 <th>Status</th>
@@ -171,8 +171,7 @@ function RecentOperationsPage({
                   : t('views.noMatches')}</EmptyRow>
               )}
             </tbody>
-          </table>
-        </div>}
+          </DataTable>}
       </section>
       <section className="split-selected" tabIndex={-1} aria-label={t('execution.heading')}>
         <ActionButton label={t('execution.backToList')} className="split-back" onClick={() => setSelectedExecutionId(null)} />

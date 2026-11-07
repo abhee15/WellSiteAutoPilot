@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { ContextLink } from '../components/ContextLink';
 import { useEffect, useMemo, useState } from 'react';
 import { hashFor } from '../routing';
@@ -48,8 +49,7 @@ export function SchedulesOverview({ configuredLogic, assets, owners = [], execut
       <section className="panel split-browse" aria-label={t('logic.tabSchedules')}>
         <PanelHeader title={t('schedules.heading')} count={overview.rows.length} />
         <p className="split-note">{t('schedules.intro')}</p>
-        <div className="table-wrap">
-          <table className="activity-table">
+        <DataTable label={t('schedules.heading')}>
             <thead>
               <tr>
                 <th>{t('schedules.logic')}</th>
@@ -85,8 +85,7 @@ export function SchedulesOverview({ configuredLogic, assets, owners = [], execut
                 </EmptyRow>
               )}
             </tbody>
-          </table>
-        </div>
+          </DataTable>
         {isLoaded && overview.unscheduledCount > 0 && (
           <p className="split-note">{t('schedules.unscheduled', { count: overview.unscheduledCount })}</p>
         )}

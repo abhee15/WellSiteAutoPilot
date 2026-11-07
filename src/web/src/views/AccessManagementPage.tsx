@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
@@ -139,8 +140,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
     {failed && <p role="alert" className="access-intro">{t('access.denied')}</p>}
     {!loading && !failed && users.length === 0 &&
       <p role="status" className="access-intro">{t(isFiltered ? 'access.noMatches' : 'access.noUsers')}</p>}
-    {!loading && !failed && users.length > 0 && <div className="table-wrap">
-      <table className="activity-table">
+    {!loading && !failed && users.length > 0 && <DataTable label={t('access.tableLabel')}>
         <thead><tr><th>{t('access.identity')}</th><th>{t('access.directAssignments')}</th>
           <th>{t('session.account')}</th><th className="user-col-secondary">{t('access.lastSeen')}</th>
           <th className="user-col-actions">{t('access.actions')}</th></tr></thead>
@@ -167,8 +167,7 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
             aria-label={t('access.assignRoleTo', { name: user.displayName || user.identityName })}
             onClick={() => onAssignRole?.(user)} />}</td>
         </tr>)}</tbody>
-      </table>
-    </div>}
+      </DataTable>}
     {!loading && !failed && nextCursor &&
       <div className="access-directory-more"><ActionButton label={t('access.loadMore')}
         disabled={loadingMore} onClick={() => void load(filters, nextCursor)} />

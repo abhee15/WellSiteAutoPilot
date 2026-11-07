@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { ActionButton } from '../components/ActionButton';
 import { EmptyRow, PanelHeader } from '../components/common';
 import { RefreshCw } from 'lucide-react';
@@ -263,8 +264,7 @@ export function RoleCatalogPage() {
               search={{ value: query, label: t('roles.search'), placeholder: t('roles.searchPlaceholder'), onChange: setQuery }}
               isFiltered={query.trim() !== ''} onClear={() => setQuery('')}
               note={query.trim() !== '' ? t('roles.count', { shown: visible.length, total: roles.length }) : undefined} />
-            <div className="table-wrap">
-              <table className="activity-table" aria-label={t('roles.heading')}>
+            <DataTable label={t('roles.heading')}>
                 <thead><tr>
                   <th scope="col">{t('roles.name')}</th>
                   <th scope="col" className="run-col-secondary">{t('roles.type')}</th>
@@ -292,8 +292,7 @@ export function RoleCatalogPage() {
                     action={roles.length > 0 && query.trim() !== '' ? <ActionButton label={t('views.clearFilters')} onClick={() => setQuery('')} /> : undefined}>
                     {t('roles.empty')}</EmptyRow>}
                 </tbody>
-              </table>
-            </div>
+              </DataTable>
           </>
         )}
       </section>

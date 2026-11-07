@@ -1,0 +1,6 @@
+/* Shared table: semantic tokens only. The `list` look (.activity-table) is in styles.css with the row and
+   gutter rules the guards pin; this file owns the scroll wrapper and the small embedded table. */
+.table-wrap { overflow-x: auto; }
+.data-table-embedded { border-collapse: collapse; width: 100%; }
+.data-table-embedded th, .data-table-embedded td { text-align: left; padding: var(--space-8); vertical-align: top; }
+.data-table-embedded td:first-child { overflow-wrap: normal; }
