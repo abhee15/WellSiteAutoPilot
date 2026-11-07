@@ -14,6 +14,7 @@
 .connection-help { color: var(--color-text-subtle); font-size: var(--font-size-label); line-height: 1.4; }
 .connection-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; }
 .connection-test { border: var(--border-width-thin) solid var(--color-border-status-neutral); border-radius: var(--radius-6); padding: var(--space-10) var(--space-12); display: grid; gap: var(--space-4); }
+.connection-test-result { display: grid; gap: var(--space-4); }
 .connection-test-healthy { border-color: var(--color-border-status-success); background: var(--color-surface-status-success); color: var(--color-text-status-success); }
 .connection-test-needsattention, .connection-test-outdated { border-color: var(--color-border-status-warning); background: var(--color-surface-status-warning); color: var(--color-text-status-warning); }
 .connection-test-unreachable { border-color: var(--color-border-status-error); background: var(--color-surface-status-error); color: var(--color-text-status-error); }

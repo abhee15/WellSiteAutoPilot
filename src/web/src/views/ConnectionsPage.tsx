@@ -3,7 +3,8 @@ import { AdaptersPanel } from './AdaptersPanel';
 import './connections.css';
 import { ConnectionInventory } from './ConnectionInventory';
 import { ActionButton } from '../components/ActionButton';
-import { FormActions } from '../components/FormFields';
+import { FormActions, SelectField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
 import { ConnectionImport } from './ConnectionImport';
 import { ConnectionSourceChanges } from './ConnectionSourceChanges';
@@ -26,6 +27,11 @@ const statusLabels: Record<ConnectionStatus, MessageKey> = {
   disabled: 'connections.statusDisabled', notTested: 'connections.statusNotTested',
   outdated: 'connections.statusOutdated', Healthy: 'connections.outcomeHealthy',
   NeedsAttention: 'connections.outcomeNeedsAttention', Unreachable: 'connections.outcomeUnreachable',
+};
+
+/** How a connection's last test reads in its notice: healthy is a success, anything that needs a look is a warning. */
+const testTone: Partial<Record<ConnectionStatus, 'success' | 'warning' | 'error'>> = {
+  Healthy: 'success', NeedsAttention: 'warning', outdated: 'warning', Unreachable: 'error',
 };
 
 function errorMessage(error: unknown): string {
@@ -115,8 +121,8 @@ function ConnectionWorkspace({ canManage }: { canManage: boolean }) {
           actions={canManage ? <ActionButton label={t('connections.new')} variant="primary"
             disabled={adapters.length === 0} onClick={() => setSelected('new')} /> : undefined} />
         {loading && connections.length === 0 && <PanelLoading label={t('connections.loading')} />}
-        {loadError && <p role="alert" className="status-error">{loadError}</p>}
-        {adaptersFailed && !loadError && <p role="status" className="connection-help">{t('connections.adaptersUnavailable')}</p>}
+        {loadError && <Notice tone="error">{loadError}</Notice>}
+        {adaptersFailed && !loadError && <Notice tone="warning">{t('connections.adaptersUnavailable')}</Notice>}
         {!loading && !loadError && connections.length === 0 && <p className="empty-state">{t('connections.empty')}</p>}
         <ul className="connection-list">
           {connections.map(item => {
@@ -195,19 +201,14 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
   const status = connection ? connectionStatus(connection) : null;
   return (
     <form className="connection-form" onSubmit={event => { event.preventDefault(); void save(); }}>
-      <label>
-        <span>{t('connections.name')}</span>
-        <input type="text" value={draft.name} maxLength={100} disabled={disabled}
-          onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} />
-      </label>
+      <TextField label={t('connections.name')} value={draft.name} maxLength={100} disabled={disabled}
+        onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} />
       {connection === null ? (
-        <label>
-          <span>{t('connections.system')}</span>
-          <select value={adapterKey} disabled={disabled} onChange={event => { setAdapterKey(event.target.value); setDraft(current => ({ ...current, settings: {} })); }}>
-            <option value="">{t('connections.chooseSystem')}</option>
-            {adapters.map(item => <option key={item.key} value={item.key}>{item.displayName}</option>)}
-          </select>
-        </label>
+        <SelectField label={t('connections.system')} value={adapterKey} disabled={disabled}
+          onChange={event => { setAdapterKey(event.target.value); setDraft(current => ({ ...current, settings: {} })); }}>
+          <option value="">{t('connections.chooseSystem')}</option>
+          {adapters.map(item => <option key={item.key} value={item.key}>{item.displayName}</option>)}
+        </SelectField>
       ) : (
         <div>
           <strong>{t('connections.system')}</strong>: {adapter?.displayName ?? connection.adapterKey}
@@ -221,37 +222,34 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
         const value = draft.settings[field.key] ?? '';
         const id = `connection-setting-${field.key}`;
         const locked = sourceLocked && field.required;
-        const describedBy = locked ? `${id}-help connection-source-locked` : `${id}-help`;
-        return (
-          <div key={field.key} className="connection-field">
-            <label htmlFor={id}>{label}</label>
-            {field.kind === 'YesNo' ? (
-              <select id={id} value={value} disabled={disabled || locked} aria-describedby={describedBy}
-                onChange={event => setValue(field.key, event.target.value)}>
-                <option value="">{t('connections.notSet')}</option>
-                <option value="yes">{t('connections.yes')}</option>
-                <option value="no">{t('connections.no')}</option>
-              </select>
-            ) : (
-              <input id={id} type="text" inputMode={field.kind === 'WholeNumber' ? 'numeric' : field.kind === 'Url' ? 'url' : 'text'}
-                value={value} maxLength={field.maxLength} disabled={disabled} readOnly={locked} aria-describedby={describedBy}
-                onChange={event => setValue(field.key, event.target.value)} />
-            )}
-            <span className="connection-help" id={`${id}-help`}>{field.helpText}</span>
-          </div>
+        const lockedReason = locked ? 'connection-source-locked' : undefined;
+        return field.kind === 'YesNo' ? (
+          <SelectField key={field.key} id={id} label={label} helper={field.helpText} value={value} disabled={disabled || locked}
+            aria-describedby={lockedReason} onChange={event => setValue(field.key, event.target.value)}>
+            <option value="">{t('connections.notSet')}</option>
+            <option value="yes">{t('connections.yes')}</option>
+            <option value="no">{t('connections.no')}</option>
+          </SelectField>
+        ) : (
+          <TextField key={field.key} id={id} label={label} helper={field.helpText}
+            inputMode={field.kind === 'WholeNumber' ? 'numeric' : field.kind === 'Url' ? 'url' : 'text'}
+            value={value} maxLength={field.maxLength} disabled={disabled} readOnly={locked} aria-describedby={lockedReason}
+            onChange={event => setValue(field.key, event.target.value)} />
         );
       })}
       {connection && status && (
-        <div className={`connection-test connection-test-${status.toLowerCase()}`} role="status">
-          {test ? <>
-            <strong>{t(test.source === 'scheduled' ? 'connections.checkResult' : 'connections.testResult', { outcome: t(statusLabels[test.outcome]), time: formatTimestamp(test.testedAtUtc) })}</strong>
-            <span>{test.message}</span>
-            {test.actingAs && <span>{t('connections.testActingAs', { account: test.actingAs })}</span>}
-            {!connection.lastTestIsCurrent && <span>{t('connections.testOutdated')}</span>}
-          </> : <span>{t('connections.statusNotTested')}</span>}
-        </div>
+        <Notice announce={false} tone={testTone[status] ?? 'info'}>
+          <div className="connection-test-result">
+            {test ? <>
+              <strong>{t(test.source === 'scheduled' ? 'connections.checkResult' : 'connections.testResult', { outcome: t(statusLabels[test.outcome]), time: formatTimestamp(test.testedAtUtc) })}</strong>
+              <span>{test.message}</span>
+              {test.actingAs && <span>{t('connections.testActingAs', { account: test.actingAs })}</span>}
+              {!connection.lastTestIsCurrent && <span>{t('connections.testOutdated')}</span>}
+            </> : <span>{t('connections.statusNotTested')}</span>}
+          </div>
+        </Notice>
       )}
-      {error && <p role="alert" className="status-error">{error}</p>}
+      {error && <Notice tone="error">{error}</Notice>}
       {canManage && (
         <FormActions>
           {connection && dirty && (
@@ -270,7 +268,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
             : !connection.isEnabled && <span className="connection-help">{t('connections.testDisabled')}</span>}
         </div>
       )}
-      {busy === 'find' && <p role="status">{t('connections.finding')}</p>}
+      {busy === 'find' && <Notice>{t('connections.finding')}</Notice>}
       {canManage && connection && adapter?.canDiscover && !found && busy !== 'find' && <p className="connection-help">{t('inventory.discoverFirst')}</p>}
       {found && connection && <ConnectionInventory key={'inventory-' + found.snapshotId} connection={connection} found={found} stale={dirty}
         disabled={disabled} onSelect={(value, count) => setSelection(value ? { value, count } : null)} />}

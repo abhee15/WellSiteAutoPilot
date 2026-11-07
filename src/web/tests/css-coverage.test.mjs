@@ -9,7 +9,7 @@ import { URL, fileURLToPath } from 'node:url';
 // classes that already lack a rule and may only shrink. A new class needs a rule, or it fails here.
 const BASELINE = [
   // Built from a prefix plus a variable, so the literal text is not a class.
-  '-button', 'connection-test-',
+  '-button',
   // Hooks or markers with no rule of their own yet.
   'asset-create-panel', 'loading-label', 'logic-detail-overview',
 ];
