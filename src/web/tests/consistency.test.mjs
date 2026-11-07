@@ -427,3 +427,28 @@ test('detail panels do not restore retired schedule and observation boilerplate'
   assert.deepEqual(offenders(/assetDetail\.scheduleHint|scheduleControl\.(?:matches|noRevision)|logicDetail\.observed/), [],
     'Show zones on timestamps and useful exceptions at their source; omit normal-state reassurance and repeated observation footers');
 });
+
+test('every table is DataTable: no page writes its own <table> or scroll wrapper, so each one is named and scrolls the same way', () => {
+  // Raw tables had drifted: nine had no accessible name, one carried its own copy of the table CSS, and every page
+  // repeated the scroll wrapper. DataTable owns the wrapper and requires the accessible name.
+  const own = ['components/DataTable.tsx'];
+  assert.deepEqual(offenders(/<table\b/, { except: own }).filter(path => path.endsWith('.tsx')), [],
+    'Use <DataTable label=...> from components/DataTable instead of <table>');
+  assert.deepEqual(offenders(/className=["']table-wrap["']/, { except: own }), [],
+    'DataTable renders the scroll wrapper; do not add another');
+  assert.match(source(join(root, 'components/DataTable.tsx')), /label: string;/, 'the accessible name must stay required');
+  // Negative samples for the patterns above.
+  assert.match('<div className="table-wrap"><table className="activity-table">', /<table\b/);
+  assert.match('<div className="table-wrap">', /className=["']table-wrap["']/);
+  assert.doesNotMatch('<DataTable label={x}>', /<table\b/);
+});
+
+test('table styling is shared: pages hook layout onto DataTable but do not restate its base look', () => {
+  const styles = source(join(root, 'styles.css'));
+  assert.match(styles, /\.activity-table th:first-child/);
+  const embedded = source(join(root, 'components/dataTable.css'));
+  assert.match(embedded, /\.data-table-embedded th, \.data-table-embedded td \{/);
+  assert.deepEqual(files.filter(path => /\.css$/.test(path) && !path.endsWith('components/dataTable.css'))
+    .filter(path => /^\.table-wrap\b|\.source-change-table\b/m.test(source(path))).map(rel), [],
+  'The scroll wrapper and embedded table rules live in components/dataTable.css');
+});

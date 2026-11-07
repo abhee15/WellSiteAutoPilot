@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { useState } from 'react';
 import type { AdapterOperationResponse, AdapterOperationSchemaResponse } from '../api/generated/v1/types.gen';
 import { SectionTabs } from '../components/SectionTabs';
@@ -43,11 +44,10 @@ export function AdapterOperationDetails({ operation }: { operation: AdapterOpera
 function Contract({ title, schema }: { title: string; schema: AdapterOperationSchemaResponse }) {
   return <>
     <h4>{title}</h4><code>{schema.id}</code><p>{schema.dataType}</p>
-    <div className="table-wrap"><table className="activity-table">
-      <caption className="visually-hidden">{title} contract</caption>
+    <DataTable label={`${title} contract`}>
       <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr></thead>
       <tbody>{schema.fields?.map(field => <tr key={field.name}><th scope="row">{field.name}</th><td>{field.dataType}</td>
         <td>{field.required ? 'Yes' : 'No'}</td><td>{field.description}</td></tr>)}</tbody>
-    </table></div>
+    </DataTable>
   </>;
 }

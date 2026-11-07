@@ -1,3 +1,4 @@
+import { DataTable } from '../components/DataTable';
 import { SelectField } from '../components/FormFields';
 import { TabBar, TabStrip } from '../components/TabStrip';
 import { Notice } from '../components/Notice';
@@ -68,8 +69,7 @@ export function RecommendationInboxTable({
   assetNames?: ReadonlyMap<string, string>;
 }) {
   return (
-    <div className="table-wrap">
-      <table className="activity-table recommendation-proposals">
+    <DataTable label={t('inbox.tableLabel')} className="recommendation-proposals">
         <thead>
           <tr>
             <th scope="col">{t('inbox.status')}</th>
@@ -143,8 +143,7 @@ export function RecommendationInboxTable({
             </EmptyRow>
           )}
         </tbody>
-      </table>
-    </div>
+      </DataTable>
   );
 }
 

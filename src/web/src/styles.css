@@ -450,10 +450,6 @@ button:disabled {
   }
 }
 
-.table-wrap {
-  overflow-x: auto;
-}
-
 .activity-table {
   width: 100%;
   border-collapse: collapse;
