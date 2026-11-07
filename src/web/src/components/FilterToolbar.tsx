@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { ComponentProps, FormEvent, ReactNode } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { ActionButton } from './ActionButton';
 import { SearchInput } from './SearchInput';
@@ -95,4 +95,9 @@ export function FilterToolbar({ label, search, children, chips = [], isFiltered 
 /** A label above one control inside the Filters panel. */
 export function FilterField({ label, children }: { label: string; children: ReactNode }) {
   return <label><span>{label}</span>{children}</label>;
+}
+
+/** One select with its compact caption inside the Filters panel; the options are its children. */
+export function FilterSelect({ label, children, ...props }: Omit<ComponentProps<'select'>, 'className' | 'style' | 'multiple' | 'size' | 'children'> & { label: string; children: ReactNode }) {
+  return <FilterField label={label}><select {...props}>{children}</select></FilterField>;
 }

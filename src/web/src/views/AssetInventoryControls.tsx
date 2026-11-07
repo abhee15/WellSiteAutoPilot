@@ -1,6 +1,8 @@
-import { FilterToolbar, FilterField } from '../components/FilterToolbar';
+import { FilterToolbar, FilterSelect } from '../components/FilterToolbar';
 import type { FilterChip } from '../components/FilterToolbar';
 import { ActionButton } from '../components/ActionButton';
+import { SelectField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { useState } from 'react';
 import { t } from '../localization';
 import { DEFAULT_ASSET_INVENTORY_CRITERIA } from './assetInventory';
@@ -35,7 +37,8 @@ export function AssetInventoryControls({
   );
   const [selectedId, setSelectedId] = useState('');
   const [name, setName] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
+  const warn = (key: Parameters<typeof t>[0]) => setNotice({ tone: 'warning', text: t(key) });
 
   const modify = (next: AssetInventoryCriteria) => {
     onChange(next);
@@ -54,31 +57,31 @@ export function AssetInventoryControls({
   const save = () => {
     const title = name.trim();
     if (!userId) return;
-    if (!title || title.length > 48) { setNotice(t('assets.saveNameInvalid')); return; }
-    if (views.length >= MAX_SAVED_ASSET_VIEWS) { setNotice(t('assets.saveLimit')); return; }
+    if (!title || title.length > 48) { warn('assets.saveNameInvalid'); return; }
+    if (views.length >= MAX_SAVED_ASSET_VIEWS) { warn('assets.saveLimit'); return; }
     if (views.some(view => view.name.toLocaleLowerCase() === title.toLocaleLowerCase())) {
-      setNotice(t('assets.saveDuplicate')); return;
+      warn('assets.saveDuplicate'); return;
     }
     const next = [...views, { id: newViewId(), name: title, criteria: { ...criteria } }];
     if (!persistSavedAssetViews(userId, next, browserStorage())) {
-      setNotice(t('assets.saveFailed')); return;
+      warn('assets.saveFailed'); return;
     }
     setViews(next);
     setSelectedId(next[next.length - 1].id);
     setName(title);
-    setNotice(t('assets.saved'));
+    setNotice({ tone: 'success', text: t('assets.saved') });
   };
   const remove = () => {
     if (!selectedId) return;
     const next = views.filter(view => view.id !== selectedId);
     if (next.length === views.length) return;
     if (!persistSavedAssetViews(userId, next, browserStorage())) {
-      setNotice(t('assets.saveFailed')); return;
+      warn('assets.saveFailed'); return;
     }
     setViews(next);
     setSelectedId('');
     setName('');
-    setNotice(t('assets.deleted'));
+    setNotice({ tone: 'success', text: t('assets.deleted') });
   };
   const D = DEFAULT_ASSET_INVENTORY_CRITERIA;
   const chips = [
@@ -95,8 +98,7 @@ export function AssetInventoryControls({
       chips={chips} isFiltered={isFiltered} onClear={() => modify({ ...D })}
       note={t('assets.count', { shown: matchingCount, total: totalCount })}>
         {!searchOnly && <>
-      <FilterField label={t('assets.activity')}>
-          <select value={criteria.activity}
+      <FilterSelect label={t('assets.activity')} value={criteria.activity}
             onChange={event => modify({
               ...criteria,
               activity: event.target.value as AssetInventoryCriteria['activity'],
@@ -104,10 +106,8 @@ export function AssetInventoryControls({
             <option value="all">{t('assets.allActivity')}</option>
             <option value="active">{t('assets.active')}</option>
             <option value="inactive">{t('assets.inactive')}</option>
-          </select>
-        </FilterField>
-        <FilterField label={t('assets.hierarchy')}>
-          <select value={criteria.hierarchy}
+          </FilterSelect>
+        <FilterSelect label={t('assets.hierarchy')} value={criteria.hierarchy}
             onChange={event => modify({
               ...criteria,
               hierarchy: event.target.value as AssetInventoryCriteria['hierarchy'],
@@ -115,10 +115,8 @@ export function AssetInventoryControls({
             <option value="all">{t('assets.allHierarchy')}</option>
             <option value="roots">{t('assets.roots')}</option>
             <option value="children">{t('assets.children')}</option>
-          </select>
-        </FilterField>
-        <FilterField label={t('assets.sort')}>
-          <select value={criteria.sort}
+          </FilterSelect>
+        <FilterSelect label={t('assets.sort')} value={criteria.sort}
             onChange={event => modify({
               ...criteria,
               sort: event.target.value as AssetInventoryCriteria['sort'],
@@ -126,29 +124,22 @@ export function AssetInventoryControls({
             <option value="name">{t('assets.name')}</option>
             <option value="newest">{t('assets.newest')}</option>
             <option value="oldest">{t('assets.oldest')}</option>
-          </select>
-        </FilterField>
+          </FilterSelect>
       <details className="filter-toolbar-saved">
         <summary>{t('assets.savedViews')}</summary>
       <div className="data-saved-view-fields">
-        <label>
-          <span>{t('assets.savedViews')}</span>
-          <select value={selectedId} disabled={!userId}
-            onChange={event => select(event.target.value)}>
-            <option value="">{t('assets.custom')}</option>
-            {views.map(view => <option key={view.id} value={view.id}>{view.name}</option>)}
-          </select>
-        </label>
-        <label>
-          <span>{t('assets.viewName')}</span>
-          <input value={name} maxLength={48} disabled={!userId} placeholder={t('assets.viewNamePlaceholder')}
-            onChange={event => { setName(event.target.value); setNotice(null); }} />
-        </label>
+        <SelectField label={t('assets.savedViews')} value={selectedId} disabled={!userId}
+          onChange={event => select(event.target.value)}>
+          <option value="">{t('assets.custom')}</option>
+          {views.map(view => <option key={view.id} value={view.id}>{view.name}</option>)}
+        </SelectField>
+        <TextField label={t('assets.viewName')} value={name} maxLength={48} disabled={!userId} placeholder={t('assets.viewNamePlaceholder')}
+          onChange={event => { setName(event.target.value); setNotice(null); }} />
         <ActionButton label={t('assets.save')} disabled={!userId} onClick={save} />
         <ActionButton label={t('assets.delete')} disabled={!selectedId} onClick={remove} />
       </div>
         <p className="data-view-note">{t('assets.localNote')}</p>
-        {notice && <p className="data-view-notice" role="status">{notice}</p>}
+        {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
       </details>
       </>}
     </FilterToolbar>
