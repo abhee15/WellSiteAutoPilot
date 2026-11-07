@@ -14,9 +14,8 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
     private bool _disposed;
 
     public Task<EngineeringValue> ReadAsync(ConnectionMeasurementRequest request, CancellationToken cancellationToken) =>
-        WithSessionAsync(request, session => request.Quantity == ForeSiteCards.Quantity
-            ? ForeSiteCards.ReadAsync(session.Session, request.ExternalId, session.Token)
-            : ForeSiteMeasurements.ReadAsync(session.Session, request.ExternalId, request.Quantity, session.Token), cancellationToken);
+        WithSessionAsync(request, async session => await new ForeSiteCurrentDataProvider(session.Session)
+            .GetCurrentAsync(request.ExternalId, request.Quantity, session.Token), cancellationToken);
 
     public Task<HistoricalReadResult> ReadHistoryAsync(ConnectionHistoryRequest request, CancellationToken cancellationToken)
     {
@@ -25,6 +24,15 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         return WithSessionAsync(new(request.ConnectionId, request.ConnectionRevision, request.Settings,
             request.Read.AssetExternalId, request.Read.Quantity),
             async session => await new ForeSiteHistoricalDataProvider(session.Session).ReadHistoryAsync(request.Read, session.Token), cancellationToken);
+    }
+
+    public Task<AssetConfigurationResult> ReadConfigurationAsync(ConnectionConfigurationRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Read);
+        return WithSessionAsync(new(request.ConnectionId, request.ConnectionRevision, request.Settings,
+            request.Read.AssetExternalId, "AssetConfiguration"),
+            async session => await new ForeSiteConfigurationDataProvider(session.Session).ReadConfigurationAsync(request.Read, session.Token), cancellationToken);
     }
 
     private async Task<T> WithSessionAsync<T>(ConnectionMeasurementRequest request,
@@ -121,5 +129,5 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         public void Dispose() { Client.Dispose(); Gate.Dispose(); }
     }
     private static WellSiteAutoPilotException Failure(string code) => new(code, FailureKind.DependencyUnavailable,
-        "The saved ForeSite connection did not provide a verified measurement.");
+        "The saved ForeSite connection did not provide the requested data.");
 }

@@ -50,7 +50,11 @@ public static class CygNetAdapter
             EngineeringOperationSchemas.Current("current." + quantity.ToLowerInvariant(), quantity,
                 "Current value of the mapped CygNet point.", quantity, AdapterReadRules.CygNetResourceKind, null,
                 "Point source timestamp in UTC; retrieval time is separate. Never substitute the current time for missing source time.",
-                "Preserves point reliability; missing values are refused. Units follow the configured point mapping.", 10)).ToArray());
+                "Preserves point reliability; missing values are refused. Units follow the configured point mapping.", 10) with
+            { Documentation = AdapterReferenceExamples.Current("SITE.UIS::EXAMPLE_WELL", quantity, "site-unit", "cygnet:example", "Uncertain", null) with
+                { ProviderReference = "ICygNetClient.ReadCurrentAsync; numeric logical quantities map to configured source UDCs and units. Source mappings are resolved at execution." } }).ToArray(),
+        OperationGroups: [new("surveillance", "Surveillance data", "Current measurements read through configured CygNet point mappings. Supported quantities and their units are described inside this capability.", "1.0",
+            AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity => "current." + quantity.ToLowerInvariant()).ToArray())]);
 
     /// <summary>Installed backend support, distinct from connection and individual point availability.</summary>
     public static AdapterDescriptor Describe(ICygNetClient? client) =>
@@ -60,7 +64,12 @@ public static class CygNetAdapter
             Operations = (Descriptor.Operations ?? []).Concat(AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity =>
                 HistoricalReadLimits.Operation("history." + quantity.ToLowerInvariant(), quantity, AdapterReadRules.CygNetResourceKind, 10,
                     "Source historian timestamps in UTC; [start, end) instant interval.",
-                    "Preserves source reliability. Simulated history is explicitly marked. Units come from the point mapping."))).ToArray()
+                    "Preserves source reliability. Simulated history is explicitly marked. Units come from the point mapping.") with
+                    { Documentation = AdapterReferenceExamples.History("SITE.UIS::EXAMPLE_WELL", quantity, "site-unit", "cygnet-simulated:example", "Uncertain") with
+                        { ProviderReference = "Installed ICygNetHistoryClient backend. Simulated results identify their source; the native candidate is not activated by this declaration." } })).ToArray(),
+            OperationGroups = (Descriptor.OperationGroups ?? []).Append(new("well-trends", "Well trend data",
+                "Bounded raw historian reads supported by this installed backend. Simulated sources identify themselves; this declaration is not live native validation.", "1.0",
+                AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity => "history." + quantity.ToLowerInvariant()).ToArray())).ToArray()
         } : Descriptor;
 
     /// <summary>Reads and checks the settings. Returns null with a plain-words reason when they cannot be used.</summary>

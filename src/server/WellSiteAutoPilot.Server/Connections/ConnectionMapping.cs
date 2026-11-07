@@ -20,9 +20,13 @@ internal static class ConnectionMapping
             operation.ContractVersion, "ReadOnly", ToSchema(operation.Request), ToSchema(operation.Response),
             operation.TimestampSemantics, operation.QualitySemantics,
             new(operation.Limits.MaximumQuantities, operation.Limits.MaximumValueBytes, operation.Limits.MaximumReplyBytes,
-                operation.Limits.TimeoutSeconds, operation.Limits.MaximumWindowDays, operation.Limits.MaximumSamples),
+                operation.Limits.TimeoutSeconds, operation.Limits.MaximumWindowDays, operation.Limits.MaximumSamples, operation.Limits.MaximumSourceBytes),
             operation.Quantity, operation.ResourceKind, operation.Unit, operation.StructuredSchemaId,
-            operation.StructuredResponse is null ? null : ToSchema(operation.StructuredResponse))).ToArray());
+            operation.StructuredResponse is null ? null : ToSchema(operation.StructuredResponse),
+            operation.Documentation is not { } docs ? null : new(docs.Invocation, docs.ExecutionBoundary,
+                docs.RequestExampleJson, docs.ResponseExampleJson, docs.ProviderReference))).ToArray(),
+        adapter.ReadCapabilityGroups().Select(group => new AdapterCapabilityGroupResponse(group.Key, group.DisplayName,
+            group.Description, group.ContractVersion, group.OperationKeys)).ToArray());
 
     private static AdapterOperationSchemaResponse ToSchema(AdapterOperationSchema schema) => new(schema.Id,
         schema.Fields.Select(field => new AdapterOperationFieldResponse(field.Name, field.DataType, field.Required, field.Description)).ToArray(), schema.DataType);

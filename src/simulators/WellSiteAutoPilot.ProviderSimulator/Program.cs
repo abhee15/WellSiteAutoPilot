@@ -159,6 +159,17 @@ app.MapPost("/foresite/Wells/Well/Filter", (ForeSiteDiscoveryFilter filter, Http
             WellType = state.Scenario == "foresite-well-type-change" && well.Id == 102 ? 1 : well.WellType,
             well.Field, well.Lease, well.FacilityId, well.PrincipalDeviceType }));
 });
+// Synthetic single-well configuration response. Not production ForeSite validation.
+app.MapGet("/foresite/Wells/Well/{wellId:long}", (long wellId, HttpContext context) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (wellId == 999) return Results.StatusCode(403);
+    var well = foreSiteWells.SingleOrDefault(well => well.Id == wellId);
+    return well is null ? Results.NotFound() : Results.Json(new {
+        well.Id, well.Name, well.WellType, well.FacilityId, well.Field, well.Lease, well.PrincipalDeviceType,
+        ChangeDate = (DateTimeOffset?)null
+    }, new System.Text.Json.JsonSerializerOptions());
+});
 app.MapPost("/foresite/WellConfig/GetWellAutonomousControlGroupData", (ForeSiteDiscoveryFilter filter, HttpContext context, SimulatorState state) =>
 {
     if (!HasForeSiteSession(context)) return Results.Unauthorized();

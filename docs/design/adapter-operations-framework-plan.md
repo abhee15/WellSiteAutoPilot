@@ -3,7 +3,7 @@
 Status: approved design direction; implementation in progress  
 Tracking: #484  
 Base: `develop`  
-Branch: `feature/adapter-operations-framework`
+Current branch: `feature/adapter-operations-ui-phase4` (original delivery: `feature/adapter-operations-framework`)
 
 ## Product boundary
 

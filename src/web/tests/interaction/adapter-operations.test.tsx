@@ -3,11 +3,11 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { AdapterOperationsResponse, AdapterOperationResponse } from '../../src/api/generated/v1/types.gen';
 import { AdaptersPanel } from '../../src/views/AdaptersPanel';
-import { loadAdapterOperations, loadConnectionOperations } from '../../src/views/adapterOperations';
+import { loadAdapterOperations } from '../../src/views/adapterOperations';
 import { ConnectionsError, loadConnections } from '../../src/views/connections';
 import { accessibilityViolations } from './axe';
 
-vi.mock('../../src/views/adapterOperations', () => ({ loadAdapterOperations: vi.fn(), loadConnectionOperations: vi.fn() }));
+vi.mock('../../src/views/adapterOperations', () => ({ loadAdapterOperations: vi.fn() }));
 vi.mock('../../src/views/connections', async original => ({ ...await original<typeof import('../../src/views/connections')>(), loadConnections: vi.fn() }));
 const operation = (key: string, name: string): AdapterOperationResponse => ({
   key, displayName: name, description: 'Bounded read', capability: 'CurrentData', capabilityId: 'engineering.current',
@@ -15,65 +15,90 @@ const operation = (key: string, name: string): AdapterOperationResponse => ({
   request: { id: 'request/v1', fields: [{ name: 'externalId', dataType: 'string', required: true, description: 'Imported object' }] },
   response: { id: 'value/v1', fields: [{ name: 'value', dataType: 'decimal', required: true, description: 'Engineering value' }] },
   limits: { maximumQuantities: 1, maximumValueBytes: 65536, maximumReplyBytes: 262144, timeoutSeconds: 6 },
+  documentation: { invocation: 'ICurrentDataProvider.GetCurrentAsync(externalId, quantity, cancellationToken)',
+    executionBoundary: 'Adapter contract in the Integration Gateway; runtime authorization applies.',
+    requestExampleJson: '{"externalId":"101","quantity":"PumpFillage"}', responseExampleJson: '{"value":62.5}' },
 });
 const profiles: AdapterOperationsResponse[] = [
-  { adapterKey: 'foresite', displayName: 'ForeSite', description: 'ForeSite connection', operations: [operation('pump', 'Pump fillage'), operation('cards', 'Surface cards')] },
-  { adapterKey: 'petrovisor', displayName: 'PetroVisor', description: 'Workspace inventory', operations: [] },
+  { adapterKey: 'foresite', displayName: 'ForeSite', description: 'ForeSite adapter reference', operations: [operation('pump', 'PumpFillage'), operation('average', 'AveragePumpFillage'),
+    operation('cards', 'SurfaceCards'), operation('well', 'Well details'), operation('trend', 'PumpFillage history')], capabilities: [
+    { key: 'surveillance', displayName: 'Surveillance data', description: 'Supported current surveillance fields.', contractVersion: '1.0', operationKeys: ['pump', 'average'] },
+    { key: 'configuration', displayName: 'Well configuration data', description: 'Supported well details.', contractVersion: '1.0', operationKeys: ['well'] },
+    { key: 'trends', displayName: 'Well trend data', description: 'Bounded time-range reads.', contractVersion: '1.0', operationKeys: ['trend'] },
+    { key: 'cards', displayName: 'Card data', description: 'Structured surface cards.', contractVersion: '1.0', operationKeys: ['cards'] },
+  ] },
+  { adapterKey: 'petrovisor', displayName: 'PetroVisor', description: 'Workspace inventory', operations: [], capabilities: [] },
 ];
-beforeEach(() => {
-  vi.mocked(loadAdapterOperations).mockResolvedValue(profiles);
-  vi.mocked(loadConnections).mockResolvedValue([]);
-});
+beforeEach(() => { vi.mocked(loadAdapterOperations).mockResolvedValue(profiles); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-describe('Adapter operations explorer', () => {
-  it('selects and searches operations, shares accessible tabs and resets selection when switching providers', async () => {
+describe('Adapter capability reference', () => {
+  it('presents capability families and keeps supported quantities inside details, without loading Connections or live data', async () => {
     const user = userEvent.setup();
+    const fetch = vi.spyOn(globalThis, 'fetch');
     const { container } = render(<AdaptersPanel />);
-    const pump = await screen.findByRole('button', { name: /Pump fillage/ });
-    await user.click(pump);
-    expect(pump.getAttribute('aria-current')).toBe('true');
-    expect(screen.getByText('Source timestamp in UTC')).toBeTruthy();
-    await user.click(screen.getByRole('tab', { name: 'Request and response' }));
+    const surveillance = await screen.findByRole('button', { name: /Surveillance data/ });
+    expect(screen.queryByRole('combobox', { name: 'Connection' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^PumpFillage/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Well configuration data/ })).toBeTruthy();
+    await user.click(surveillance);
+    expect(surveillance.getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('table', { name: 'Supported data and operations' })).toBeTruthy();
+    expect(screen.getByText('PumpFillage')).toBeTruthy();
+    await user.click(screen.getByRole('tab', { name: 'API and examples' }));
+    expect(screen.getByText(/ICurrentDataProvider.GetCurrentAsync/)).toBeTruthy();
+    expect(screen.getByText(/Synthetic example only/)).toBeTruthy();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Supported data example' }), 'average');
+    await user.click(screen.getByRole('tab', { name: 'Contracts' }));
     expect(screen.getByRole('table', { name: 'Request contract' })).toBeTruthy();
+    expect(screen.getByText('Source timestamp in UTC')).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'Limits' }));
     expect(screen.getByText('6 seconds')).toBeTruthy();
     expect(await accessibilityViolations(container)).toEqual([]);
-    await user.type(screen.getByRole('searchbox', { name: 'Search operations' }), 'no match');
-    expect(screen.getByText('No operations match your search.')).toBeTruthy();
-    expect(screen.queryByRole('tab', { name: 'Limits' })).toBeNull();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Adapter' }), 'petrovisor');
-    expect(screen.getByText('This adapter has no implemented read operations to display.')).toBeTruthy();
-    expect(loadConnectionOperations).not.toHaveBeenCalled();
+    expect(loadConnections).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('renders explicitly declared typed calculations without assuming every operation is a current read', async () => {
-    vi.mocked(loadAdapterOperations).mockResolvedValue([{ adapterKey: 'fixture', displayName: 'Calculation fixture', operations: [
-      { ...operation('calculate', 'Pressure calculation'), capability: 'Calculation', capabilityId: 'engineering.calculation' },
-    ] }]);
+  it('searches capability names and supported fields, and resets selection when switching adapters', async () => {
+    const user = userEvent.setup();
     render(<AdaptersPanel />);
-    const button = await screen.findByRole('button', { name: /Pressure calculation/ });
-    expect(button.querySelector('small')?.textContent).toContain('calculation');
+    await user.click(await screen.findByRole('button', { name: /Card data/ }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search capabilities' }), 'PumpFillage');
+    expect(screen.getByRole('button', { name: /Surveillance data/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Well trend data/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Card data/ })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Limits' })).toBeNull();
+    await user.clear(screen.getByRole('searchbox', { name: 'Search capabilities' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search capabilities' }), 'no match');
+    expect(screen.getByText('No capabilities match your search.')).toBeTruthy();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Adapter' }), 'petrovisor');
+    expect(screen.getByText('This adapter has no implemented data capabilities to display.')).toBeTruthy();
   });
 
-  it('shows loading, access errors and retry without retaining stale descriptors', async () => {
+  it('renders a new adapter-defined capability without application-specific inventory changes', async () => {
+    vi.mocked(loadAdapterOperations).mockResolvedValue([{ adapterKey: 'fixture', displayName: 'Fixture', description: 'Calculation fixture',
+      operations: [{ ...operation('calculate', 'Pressure calculation'), capability: 'Calculation' }],
+      capabilities: [{ key: 'pressure-model', displayName: 'Engineering calculations', description: 'Typed calculations.', contractVersion: '1.0', operationKeys: ['calculate'] }] }]);
+    render(<AdaptersPanel />);
+    await userEvent.click(await screen.findByRole('button', { name: /Engineering calculations/ }));
+    expect(screen.getByText('Pressure calculation')).toBeTruthy();
+  });
+
+  it('shows loading/access failure and retries without retaining stale descriptors', async () => {
     vi.mocked(loadAdapterOperations).mockRejectedValueOnce(new ConnectionsError('accessDenied'));
     render(<AdaptersPanel />);
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'You do not have access to connection metadata.');
-    await userEvent.click(screen.getByRole('button', { name: 'Refresh operations' }));
-    expect(await screen.findByRole('button', { name: /Pump fillage/ })).toBeTruthy();
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'You do not have access to adapter metadata.');
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh capabilities' }));
+    expect(await screen.findByRole('button', { name: /Surveillance data/ })).toBeTruthy();
   });
 
-  it('ignores an old connection readiness response after adapter selection changes', async () => {
-    vi.mocked(loadConnections).mockResolvedValue([{ id: 'a', name: 'Saved ForeSite', adapterKey: 'foresite' } as Awaited<ReturnType<typeof loadConnections>>[number]]);
-    let resolve!: (value: Awaited<ReturnType<typeof loadConnectionOperations>>) => void;
-    vi.mocked(loadConnectionOperations).mockImplementation(() => new Promise(done => { resolve = done; }));
+  it('refreshes metadata while preserving the selected adapter and capability', async () => {
+    const user = userEvent.setup();
     render(<AdaptersPanel />);
-    await screen.findByRole('button', { name: /Pump fillage/ });
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Connection' }), 'a');
-    expect(screen.getByText('Checking connection readiness…')).toBeTruthy();
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Adapter' }), 'petrovisor');
-    resolve({ connectionId: 'a', adapterKey: 'foresite', connectionRevision: 1, state: 'ConnectionReady', reason: 'Old response', operationKeys: ['pump'] });
-    await waitFor(() => expect(screen.queryByText('Old response')).toBeNull());
+    await user.click(await screen.findByRole('button', { name: /Card data/ }));
+    await user.click(screen.getByRole('button', { name: 'Refresh capabilities' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Overview' })).toBeTruthy());
+    expect(screen.getByRole('button', { name: /Card data/ }).getAttribute('aria-current')).toBe('true');
+    expect(loadAdapterOperations).toHaveBeenCalledTimes(2);
   });
 });
