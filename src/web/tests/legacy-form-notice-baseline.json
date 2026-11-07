@@ -60,8 +60,8 @@
     "notices": 1
   },
   "views/ConfiguredLogicSetupPanel.tsx": {
-    "controls": 5,
-    "notices": 6
+    "controls": 1,
+    "notices": 0
   },
   "views/ConfiguredLogicWorkspace.tsx": {
     "controls": 1,
