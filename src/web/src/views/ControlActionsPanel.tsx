@@ -1,5 +1,6 @@
 import { ContextLink } from '../components/ContextLink';
 import { Notice } from '../components/Notice';
+import { FormActions, RadioGroup, TextAreaField } from '../components/FormFields';
 import { PanelLoading } from '../components/LoadingIndicator';
 import './controlActions.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -171,7 +172,7 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId, compa
     return (
       <section ref={panelRef} tabIndex={selectedActionId ? -1 : undefined} className="panel control-actions" aria-label={t('controlActions.heading')}>
         <div className="panel-header"><h2>{t('controlActions.heading')}</h2></div>
-        <p role="alert" className="execution-detail-error">{t(ERRORS[loadError])}</p>
+        <Notice tone="error">{t(ERRORS[loadError])}</Notice>
       </section>
     );
   }
@@ -196,7 +197,7 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId, compa
       {open.length > 0 && <p>{t('controlActions.intro')}</p>}
       {showEmpty && actions !== null && !open.length && !selectedActionId && <div className="control-actions-empty"><Notice announce={false}>{t('workspace.noCommands')}</Notice></div>}
       {selectedActionId && <ContextLink href={hashFor('recommendations', 'actions')} label={t('controlActions.all')} />}
-      {selectedActionId && actions !== null && !shown.length && <p role="status">{t('controlActions.selectedUnavailable')}</p>}
+      {selectedActionId && actions !== null && !shown.length && <Notice>{t('controlActions.selectedUnavailable')}</Notice>}
       <ul className="control-actions-list">
         {shown.map(action => {
           const outcome = outcomeMessageKey(action.status);
@@ -227,44 +228,34 @@ export function ControlActionsPanel({ userId, canManage, selectedActionId, compa
               </p>
               <p>{gate ? t(gate) : outcome ? t(outcome) : action.status}</p>
               {verifyNote?.id === action.id && (
-                <p role="status">{t(verifyNote.unchanged ? 'controlActions.verifyUnchanged' : 'controlActions.verifyChanged')}</p>
+                <Notice>{t(verifyNote.unchanged ? 'controlActions.verifyUnchanged' : 'controlActions.verifyChanged')}</Notice>
               )}
               {rowError?.id === action.id && (
-                <p className="execution-detail-error" role="alert">{t(ERRORS[rowError.kind])}</p>
+                <Notice tone="error">{t(ERRORS[rowError.kind])}</Notice>
               )}
               {canManage && !mayDecide && <p>{t('controlActions.notDecidable')}</p>}
               {mayDecide && !resolving && (
-                <div className="execution-detail-actions">
+                <FormActions>
                   <ActionButton label={t('controlActions.verify')} aria-label={t('controlActions.verifyFor', { command: action.command })}
                     disabled={busyId !== null} busy={busy} onClick={() => void verify(action)} />
                   <ActionButton label={t('controlActions.resolve')} aria-label={t('controlActions.resolveFor', { command: action.command })}
                     disabled={busyId !== null}
                     onClick={() => { setResolvingId(action.id); setApplied(null); setNote(''); setRowError(null); setVerifyNote(null); }} />
-                </div>
+                </FormActions>
               )}
               {mayDecide && resolving && (
                 <div className="control-actions-resolve" role="group" aria-label={t('controlActions.resolveFor', { command: action.command })}>
                   <p>{t('controlActions.resolveWarning')}</p>
-                  <label className="recommendation-review-confirm">
-                    <input type="radio" name={`applied-${action.id}`} checked={applied === true} disabled={busy}
-                      onChange={() => setApplied(true)} />
-                    {t('controlActions.wasApplied')}
-                  </label>
-                  <label className="recommendation-review-confirm">
-                    <input type="radio" name={`applied-${action.id}`} checked={applied === false} disabled={busy}
-                      onChange={() => setApplied(false)} />
-                    {t('controlActions.wasNotApplied')}
-                  </label>
-                  <label className="recommendation-review-reason">
-                    <span>{t('controlActions.noteLabel')}</span>
-                    <textarea rows={2} maxLength={RESOLUTION_NOTE_MAX} value={note} disabled={busy}
-                      onChange={event => { setNote(event.target.value); setRowError(null); }} />
-                  </label>
-                  <div className="execution-detail-actions">
+                  <RadioGroup label={t('controlActions.appliedLegend')} name={`applied-${action.id}`} disabled={busy}
+                    value={applied === null ? null : applied ? 'yes' : 'no'} onChange={value => setApplied(value === 'yes')}
+                    options={[{ value: 'yes', label: t('controlActions.wasApplied') }, { value: 'no', label: t('controlActions.wasNotApplied') }]} />
+                  <TextAreaField label={t('controlActions.noteLabel')} rows={2} maxLength={RESOLUTION_NOTE_MAX} value={note} disabled={busy}
+                    onChange={event => { setNote(event.target.value); setRowError(null); }} />
+                  <FormActions>
                     <ActionButton label={t('decision.cancel')} disabled={busy} onClick={closeResolve} />
                     <ActionButton variant="primary" label={t('controlActions.confirmResolve')} busy={busy}
                       disabled={busy || applied === null || note.trim().length === 0} onClick={() => void resolve(action)} />
-                  </div>
+                  </FormActions>
                 </div>
               )}
             </li>

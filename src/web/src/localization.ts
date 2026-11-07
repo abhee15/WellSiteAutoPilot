@@ -917,6 +917,7 @@ export const englishMessages = {
   'controlActions.resolveWarning': 'Only record what you have checked on the target yourself. Your name and note are kept with the command.',
   'controlActions.wasApplied': 'The command was applied',
   'controlActions.wasNotApplied': 'The command was not applied',
+  'controlActions.appliedLegend': 'What happened on the target',
   'controlActions.noteLabel': 'What did you check? (required)',
   'controlActions.confirmResolve': 'Record decision',
   'controlActions.invalid': 'The request was not accepted. A note is required and must be printable text of at most 1024 characters.',
