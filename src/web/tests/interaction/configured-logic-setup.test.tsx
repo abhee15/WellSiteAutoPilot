@@ -273,11 +273,11 @@ describe('Configured logic setup journey', () => {
     render(<ConfiguredLogicSetupPanel {...props} />);
     await fill(user);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Run this logic' }), 'scheduled');
-    expect(screen.getByLabelText('Start date')).toHaveProperty('type', 'date');
-    expect(screen.getByLabelText('Start time')).toHaveProperty('type', 'time');
+    expect(screen.getByLabelText(/^Start date/)).toHaveProperty('type', 'date');
+    expect(screen.getByLabelText(/^Start time/)).toHaveProperty('type', 'time');
     expect(screen.queryByRole('textbox', { name: /timestamp.*UTC/i })).toBeNull();
     await user.click(screen.getByRole('checkbox', { name: 'Set an end date (optional)' }));
-    expect(screen.getByLabelText('End date')).toHaveProperty('type', 'date');
+    expect(screen.getByLabelText(/^End date/)).toHaveProperty('type', 'date');
   });
   it('clears the draft and selected configuration when the same user loses scope in the real App', async () => {
     window.location.hash = '#logic'; let revoked = false;

@@ -4,7 +4,7 @@
 .setup-form fieldset { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-14);
   padding: var(--space-14); border: var(--border-width-thin) solid var(--color-border-subtle);
   border-radius: var(--radius-6); }
-.setup-form label { display: grid; gap: var(--space-6); min-width: 0; }
+.setup-form label:not(.ui-field-label, .ui-choice) { display: grid; gap: var(--space-6); min-width: 0; }
 /* Layout only: the box itself (height, text size, border, colours) comes from the shared control primitives,
    so these fields look like every other form. */
 .setup-form :is(input:not([type="checkbox"]),select,textarea) { width: 100%; min-width: 0; }
@@ -57,8 +57,11 @@
 .revision-editor-section > fieldset { padding-inline: 0; border: 0; }
 
 .assignment-schedule-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-12); }
-.assignment-frequency { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-8); }
-.setup-form .assignment-checkbox { display: flex; align-items: center; gap: var(--space-8); margin-block: var(--space-12); }
+.assignment-repeat { display: grid; gap: var(--space-6); min-width: 0; align-content: start; }
+.assignment-frequency .ui-field-label { position: absolute; width: var(--border-width-thin); height: var(--border-width-thin); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.assignment-frequency { display: grid; align-items: end; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-8); }
+.assignment-schedule { display: grid; gap: var(--space-12); }
+.assignment-schedule > h4 { margin: 0; }
 .assignment-schedule small { color: var(--color-text-muted); }
 @media (width <= 40em) { .assignment-schedule-fields { grid-template-columns: 1fr; } }
 
