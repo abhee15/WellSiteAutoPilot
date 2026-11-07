@@ -1,6 +1,8 @@
 import './assetCreation.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { FormActions, SelectField, TextAreaField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import type { FormEvent } from 'react';
 import type {
   AssetCreationCapabilitiesResponse,
@@ -227,38 +229,29 @@ export function AssetCreationPanel({
         <p className="asset-create-hint">{t('assets.createNoScope')}</p>
       ) : (
         <form className="asset-create-form" onSubmit={event => void submit(event)}>
-          <label>
-            <span>{t('assets.createType')}</span>
-            <select value={typeId} onChange={event => {
-              setTypeId(event.target.value); setError(null);
-              setValues({}); setFieldErrors({}); setJsonMode(false); setAttributes('{}');
-            }} required disabled={isSubmitting}>
-              <option value="">{t('assets.createChooseType')}</option>
-              {activeTypes.map(type => (
-                <option key={type.id} value={type.id}>{type.displayName}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>{t('assets.createParent')}</span>
-            <select value={parentId} onChange={event => {
-              setParentId(event.target.value); setError(null);
-            }} required disabled={isSubmitting}>
-              <option value="">{t('assets.createChooseParent')}</option>
-              {canCreateRoot && (
-                <option value="__root__">{t('assets.createRoot')}</option>
-              )}
-              {parents.map(asset => (
-                <option value={asset.id} key={asset.id}>{asset.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>{t('assets.createName')}</span>
-            <input type="text" value={name} maxLength={256} required
-              disabled={isSubmitting}
-              onChange={event => { setName(event.target.value); setError(null); }} />
-          </label>
+          <SelectField label={t('assets.createType')} value={typeId} onChange={event => {
+            setTypeId(event.target.value); setError(null);
+            setValues({}); setFieldErrors({}); setJsonMode(false); setAttributes('{}');
+          }} required disabled={isSubmitting}>
+            <option value="">{t('assets.createChooseType')}</option>
+            {activeTypes.map(type => (
+              <option key={type.id} value={type.id}>{type.displayName}</option>
+            ))}
+          </SelectField>
+          <SelectField label={t('assets.createParent')} value={parentId} onChange={event => {
+            setParentId(event.target.value); setError(null);
+          }} required disabled={isSubmitting}>
+            <option value="">{t('assets.createChooseParent')}</option>
+            {canCreateRoot && (
+              <option value="__root__">{t('assets.createRoot')}</option>
+            )}
+            {parents.map(asset => (
+              <option value={asset.id} key={asset.id}>{asset.name}</option>
+            ))}
+          </SelectField>
+          <TextField label={t('assets.createName')} value={name} maxLength={256} required
+            disabled={isSubmitting}
+            onChange={event => { setName(event.target.value); setError(null); }} />
           {formMode && fields ? (
             <div className="asset-create-fields">
               <AttributeFieldsEditor fields={fields} values={values} errors={fieldErrors}
@@ -275,14 +268,13 @@ export function AssetCreationPanel({
                 }} />
             </div>
           ) : (
-          <label className="asset-create-attributes">
-            <span>{t('assets.createAttributes')}</span>
-            <textarea value={attributes} rows={5} maxLength={65536}
+          <div className="asset-create-attributes">
+            <TextAreaField label={t('assets.createAttributes')} value={attributes} rows={5} maxLength={65536}
               spellCheck={false} disabled={isSubmitting}
               onChange={event => {
                 setAttributes(event.target.value); setError(null);
               }} />
-          </label>
+          </div>
           )}
           {selectedType && (
             <details className="asset-create-schema">
@@ -291,11 +283,13 @@ export function AssetCreationPanel({
             </details>
           )}
           <p className="asset-create-hint">{t('assets.createValidationNote')}</p>
-          {error && <p className="asset-create-error" role="alert">{error}</p>}
-          {notice && <p className="asset-create-success" role="status">{notice}</p>}
+          {error && <Notice tone="error">{error}</Notice>}
+          {notice && <Notice tone="success">{notice}</Notice>}
           <div className="asset-create-actions">
-            <ActionButton label={isSubmitting ? t('assets.creating') : t('assets.createSubmit')} type="submit" disabled={ isSubmitting || !selectedType || !selectedParentValid || !name.trim() } />
-            {onCancel && <ActionButton label={t('assets.cancelAdd')} disabled={isSubmitting} onClick={onCancel} />}
+            <FormActions>
+              {onCancel && <ActionButton label={t('assets.cancelAdd')} disabled={isSubmitting} onClick={onCancel} />}
+              <ActionButton label={isSubmitting ? t('assets.creating') : t('assets.createSubmit')} type="submit" variant="primary" disabled={ isSubmitting || !selectedType || !selectedParentValid || !name.trim() } />
+            </FormActions>
           </div>
         </form>
       )}
