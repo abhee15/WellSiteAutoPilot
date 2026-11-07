@@ -46,9 +46,7 @@
 .inventory-summary dd { margin: var(--space-4) 0 0; font-weight: var(--font-weight-medium); }
 .inventory-controls { display: grid; gap: var(--space-12); min-width: 0; border: 0; padding: 0; margin: 0; }
 .inventory-controls legend { font-weight: var(--font-weight-medium); padding: 0 0 var(--space-8); }
-.inventory-modes { display: flex; gap: var(--space-12); flex-wrap: wrap; }
-.connection-form .inventory-modes label, .connection-form .inventory-well { display: flex; gap: var(--space-8); align-items: flex-start; }
-.connection-form .inventory-modes input, .connection-form .inventory-well input { width: auto; flex: 0 0 auto; }
+.inventory-well { display: grid; gap: var(--space-4); }
 .inventory-well > span { display: grid; gap: var(--space-4); min-width: 0; overflow-wrap: anywhere; }
 .inventory-filters > summary, .hierarchy-custom > summary { cursor: pointer; padding: var(--space-8) 0; }
 .inventory-facet { flex: 1 1 var(--layout-field-min); min-width: 0; border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-6); align-self: flex-start; }
@@ -57,8 +55,6 @@
 .inventory-facet fieldset { border: 0; padding: var(--space-8); margin: 0; min-width: 0; display: grid; gap: var(--space-8); }
 .inventory-facet legend { font-weight: var(--font-weight-medium); }
 .inventory-facet-values { max-height: var(--layout-list-max-small); overflow: auto; display: grid; gap: var(--space-8); }
-.connection-form .inventory-facet-values label { display: flex; gap: var(--space-8); align-items: flex-start; overflow-wrap: anywhere; }
-.connection-form .inventory-facet-values input { width: auto; flex: 0 0 auto; }
 .inventory-groups { border: var(--border-width-thin) solid var(--color-border-row); border-radius: var(--radius-6); max-height: var(--layout-list-max-large); overflow: auto; }
 .inventory-groups > details { padding: var(--space-8) var(--space-12); }
 .inventory-groups > details + details { border-top: var(--border-width-thin) solid var(--color-border-row); }
