@@ -19,10 +19,6 @@
     "controls": 0,
     "notices": 2
   },
-  "views/AssetInventoryControls.tsx": {
-    "controls": 5,
-    "notices": 1
-  },
   "views/AssetLogicCard.tsx": {
     "controls": 0,
     "notices": 1
