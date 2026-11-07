@@ -1,0 +1,14 @@
+/* Autonomy policy: panel gutters and the command table of limits. Fields and notices come from the shared components. */
+.autonomy-policy > :not(.panel-header) { margin-inline: var(--space-panel-inline); }
+.autonomy-policy > p { margin-block: var(--space-12) 0; }
+.autonomy-policy > :last-child { margin-block-end: var(--space-16); }
+.autonomy-policy-limits { margin-block: var(--space-12) 0; padding-inline-start: var(--space-20); }
+.autonomy-policy-form { display: grid; gap: var(--space-12); margin-block-start: var(--space-12); min-width: 0; }
+.autonomy-policy-form > fieldset { display: grid; gap: var(--space-12); min-width: 0; margin: 0; padding: var(--space-12) var(--space-16);
+  border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-6); }
+.autonomy-policy-form > fieldset > legend { padding-inline: var(--space-4); font-weight: var(--font-weight-medium); }
+/* One command per row: four fields share the line and wrap as the pane narrows; the remove action sits on the fields' baseline. */
+.autonomy-policy-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-field-narrow)), 1fr));
+  gap: var(--space-12); align-items: end; padding-block-end: var(--space-12); border-bottom: var(--border-width-thin) solid var(--color-border-row); }
+.autonomy-policy-row > .ui-action-button { grid-column: 1 / -1; justify-self: start; }
+.autonomy-policy-form > fieldset > .ui-action-button { justify-self: start; }

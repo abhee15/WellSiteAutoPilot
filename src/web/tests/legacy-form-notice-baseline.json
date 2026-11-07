@@ -55,10 +55,6 @@
     "controls": 9,
     "notices": 1
   },
-  "views/AutonomyPolicyPanel.tsx": {
-    "controls": 8,
-    "notices": 5
-  },
   "views/ConfiguredLogicControls.tsx": {
     "controls": 3,
     "notices": 0
