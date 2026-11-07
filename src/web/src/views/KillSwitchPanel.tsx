@@ -3,6 +3,7 @@ import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
 import { Notice } from '../components/Notice';
+import { CheckboxField, ConfirmPanel, FormActions, TextAreaField } from '../components/FormFields';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
@@ -122,9 +123,9 @@ export function KillSwitchPanel({ userId, canManage, compact = false }: Props) {
     return (
       <section className="panel kill-switch" aria-label={t('killSwitch.heading')}>
         <div className="panel-header"><h2>{t('killSwitch.heading')}</h2></div>
-        <p role={loadError ? 'alert' : 'status'} className={loadError ? 'kill-switch-message execution-detail-error' : 'kill-switch-message'}>
-          {loadError ? errors[loadError] : t('killSwitch.loading')}
-        </p>
+        <div className="kill-switch-message">
+          {loadError ? <Notice tone="error">{errors[loadError]}</Notice> : <Notice>{t('killSwitch.loading')}</Notice>}
+        </div>
       </section>
     );
   }
@@ -144,7 +145,7 @@ export function KillSwitchPanel({ userId, canManage, compact = false }: Props) {
       </div>
       <div className="kill-switch-message">
         {(engaged || state.autonomousControlEnabled) && <p>{engaged ? t('killSwitch.engagedNote') : t('killSwitch.releasedNote')}</p>}
-        {!state.autonomousControlEnabled && <p role="note">{t('killSwitch.deploymentOff')}</p>}
+        {!state.autonomousControlEnabled && <Notice tone="warning" announce={false}>{t('killSwitch.deploymentOff')}</Notice>}
         {state.changedBy && (
           <p><small>{t('killSwitch.changedBy', { by: state.changedBy, at: formatDetailTimestamp(state.changedAtUtc) })}
             {state.reason ? ' ' + t('killSwitch.reason', { reason: state.reason }) : ''}</small></p>
@@ -152,25 +153,21 @@ export function KillSwitchPanel({ userId, canManage, compact = false }: Props) {
       </div>
       {canManage && formOpen && (
         <div className="kill-switch-form">
-          <label className="recommendation-review-reason">
-            <span>{t('killSwitch.reasonLabel')}</span>
-            <textarea rows={2} maxLength={KILL_SWITCH_REASON_MAX} value={reason} disabled={saving}
-              onChange={event => { setReason(event.target.value); setSaveError(null); }} />
-          </label>
+          <TextAreaField label={t('killSwitch.reasonLabel')} rows={2} maxLength={KILL_SWITCH_REASON_MAX} value={reason} disabled={saving}
+            onChange={event => { setReason(event.target.value); setSaveError(null); }} />
           {engaged && (
-            <label className="recommendation-review-confirm">
-              <input type="checkbox" checked={acknowledged} disabled={saving}
+            <ConfirmPanel title={t('killSwitch.confirmTitle')} level={3}>
+              <CheckboxField label={t('killSwitch.releaseConfirmation')} checked={acknowledged} disabled={saving}
                 onChange={event => setAcknowledged(event.target.checked)} />
-              {t('killSwitch.releaseConfirmation')}
-            </label>
+            </ConfirmPanel>
           )}
-          {saveError && <p className="execution-detail-error" role="alert">{errors[saveError]}</p>}
-          {saving && <p role="status">{t('killSwitch.saving')}</p>}
-          <div className="execution-detail-actions">
+          {saveError && <Notice tone="error">{errors[saveError]}</Notice>}
+          {saving && <Notice>{t('killSwitch.saving')}</Notice>}
+          <FormActions>
             <ActionButton label={t('decision.cancel')} onClick={closeForm} disabled={saving} />
             <ActionButton variant="primary" label={engaged ? t('killSwitch.confirmRelease') : t('killSwitch.confirmEngage')}
               disabled={saving || (engaged && !acknowledged)} onClick={() => void submit()} />
-          </div>
+          </FormActions>
         </div>
       )}
     </section>

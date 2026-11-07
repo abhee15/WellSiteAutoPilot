@@ -82,7 +82,13 @@ export function FormActions({ children }: { children: ReactNode }) {
 }
 
 /** Existing consequential controls stay in-page; this component adds no dialog or extra workflow step. */
-export function ConfirmPanel({ title, children }: { title: string; children: ReactNode }) {
+export function ConfirmPanel({ title, level = 4, children }: {
+  title: string;
+  /** Heading level under the surrounding panel's heading (h2 panel: 3; nested editor under an h3: 4) so levels never skip. */
+  level?: 3 | 4;
+  children: ReactNode;
+}) {
   const id = useId();
-  return <section className="ui-confirm-panel" aria-labelledby={id}><h4 id={id}>{title}</h4>{children}</section>;
+  const Heading = level === 3 ? 'h3' : 'h4';
+  return <section className="ui-confirm-panel" aria-labelledby={id}><Heading id={id}>{title}</Heading>{children}</section>;
 }

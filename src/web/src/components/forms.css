@@ -23,7 +23,7 @@
 .ui-field-control:focus-visible, .ui-choice-control:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
 .ui-form-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; }
 .ui-confirm-panel { display: grid; gap: var(--space-12); min-width: 0; padding: var(--space-16); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-6); background: var(--color-surface-detail); }
-.ui-confirm-panel > h4 { margin: 0; color: var(--color-text-primary); font-size: var(--font-size-body-small); }
+.ui-confirm-panel > :is(h3, h4) { margin: 0; color: var(--color-text-primary); font-size: var(--font-size-body-small); }
 @media (pointer: coarse) {
   .ui-field > .ui-field-control, .ui-choice { min-height: var(--size-touch-target); }
   .ui-choice > .ui-choice-control { margin-block-start: var(--space-14); }

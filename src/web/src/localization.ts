@@ -874,6 +874,7 @@ export const englishMessages = {
   'killSwitch.release': 'Release kill switch',
   'killSwitch.confirmEngage': 'Engage now',
   'killSwitch.confirmRelease': 'Release now',
+  'killSwitch.confirmTitle': 'Confirm release',
   'killSwitch.reasonLabel': 'Reason (optional)',
   'killSwitch.releaseConfirmation': 'I understand that approved commands can be sent again.',
   'killSwitch.saving': 'Saving the kill switch…',

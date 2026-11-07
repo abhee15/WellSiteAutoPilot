@@ -123,10 +123,6 @@
     "controls": 3,
     "notices": 2
   },
-  "views/KillSwitchPanel.tsx": {
-    "controls": 2,
-    "notices": 4
-  },
   "views/LogicCatalogControls.tsx": {
     "controls": 3,
     "notices": 0

@@ -19,12 +19,10 @@
 }
 
 .kill-switch-form {
+  display: grid;
+  gap: var(--space-12);
   padding: var(--space-12) var(--space-18);
   border-top: var(--border-width-thin) solid var(--color-border-subtle);
-}
-
-.kill-switch-form .recommendation-review-reason {
-  margin-top: 0;
 }
 
 .kill-switch-summary, .kill-switch-summary-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12); min-width: 0; }
