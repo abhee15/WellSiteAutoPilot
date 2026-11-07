@@ -3,6 +3,7 @@ import { AdaptersPanel } from './AdaptersPanel';
 import './connections.css';
 import { ConnectionInventory } from './ConnectionInventory';
 import { ActionButton } from '../components/ActionButton';
+import { FormActions } from '../components/FormFields';
 import { PanelHeader } from '../components/common';
 import { ConnectionImport } from './ConnectionImport';
 import { ConnectionSourceChanges } from './ConnectionSourceChanges';
@@ -252,12 +253,12 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
       )}
       {error && <p role="alert" className="status-error">{error}</p>}
       {canManage && (
-        <div className="connection-actions connection-actions-settings">
-          <ActionButton label={connection ? t('connections.save') : t('connections.create')} variant="primary" type="submit" disabled={disabled || !adapter || !draft.name.trim() || !dirty} />
+        <FormActions>
           {connection && dirty && (
             <ActionButton label={t('connections.discard')} disabled={disabled} onClick={() => setDraft({ name: connection.name, settings: { ...connection.settings } })} />
           )}
-        </div>
+          <ActionButton label={connection ? t('connections.save') : t('connections.create')} variant="primary" type="submit" disabled={disabled || !adapter || !draft.name.trim() || !dirty} />
+        </FormActions>
       )}
       {canManage && connection && (
         <div className="connection-actions connection-actions-workflow" role="group" aria-label={t('connections.checkGroup')}>
@@ -288,10 +289,12 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
             {!confirmDelete && <ActionButton label={t('connections.delete')} disabled={disabled} onClick={() => setConfirmDelete(true)} />}
           </div>
           {confirmDelete && (
-            <div className="connection-actions connection-delete-confirm" role="alertdialog" aria-label={t('connections.delete')}>
+            <div className="connection-delete-confirm" role="alertdialog" aria-label={t('connections.delete')}>
               <span>{t('connections.deleteConfirm', { name: connection.name })}</span>
-              <ActionButton label={t('connections.deleteYes')} disabled={disabled} onClick={() => void run('delete', async () => { await deleteConnection(connection); onGone(); })} />
-              <ActionButton label={t('connections.deleteNo')} disabled={disabled} onClick={() => setConfirmDelete(false)} />
+              <FormActions>
+                <ActionButton label={t('connections.deleteNo')} disabled={disabled} onClick={() => setConfirmDelete(false)} />
+                <ActionButton label={t('connections.deleteYes')} disabled={disabled} onClick={() => void run('delete', async () => { await deleteConnection(connection); onGone(); })} />
+              </FormActions>
             </div>
           )}
         </section>

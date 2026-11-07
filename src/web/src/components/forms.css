@@ -22,6 +22,7 @@
 .ui-choice:has(:disabled) { color: var(--color-text-disabled); cursor: not-allowed; }
 .ui-field-control:focus-visible, .ui-choice-control:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
 .ui-form-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; }
+.ui-form-actions-leading { display: inline-flex; gap: var(--space-8); margin-inline-end: auto; }
 .ui-confirm-panel { display: grid; gap: var(--space-12); min-width: 0; padding: var(--space-16); border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-6); background: var(--color-surface-detail); }
 .ui-confirm-panel > :is(h3, h4) { margin: 0; color: var(--color-text-primary); font-size: var(--font-size-body-small); }
 @media (pointer: coarse) {

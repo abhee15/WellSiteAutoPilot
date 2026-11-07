@@ -34,11 +34,10 @@
 .status-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-12); }
 .status-updated { color: var(--color-text-subtle); overflow-wrap: anywhere; }
 .connection-facets { display: flex; flex-wrap: wrap; gap: var(--space-12); }
-.connection-actions-settings { padding: var(--space-4) 0; }
 .connection-actions-workflow { border-top: var(--border-width-thin) solid var(--color-border-row); padding-top: var(--space-12); }
 .connection-manage { display: grid; gap: var(--space-8); border-top: var(--border-width-thin) solid var(--color-border-row); padding-top: var(--space-12); }
 .connection-manage h3 { margin: 0; }
-.connection-delete-confirm { border: var(--border-width-thin) solid var(--color-border-status-error); border-radius: var(--radius-6); padding: var(--space-10) var(--space-12); color: var(--color-text-status-error); }
+.connection-delete-confirm { display: grid; gap: var(--space-8); border: var(--border-width-thin) solid var(--color-border-status-error); border-radius: var(--radius-6); padding: var(--space-10) var(--space-12); color: var(--color-text-status-error); }
 .connection-step { margin: 0; color: var(--color-text-subtle); font-size: var(--font-size-label); }
 
 /* Inventory and import are separate tasks; form actions align with control bottoms. */
