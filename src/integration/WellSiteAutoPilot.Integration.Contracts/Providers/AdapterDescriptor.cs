@@ -39,12 +39,21 @@ public sealed record AdapterDescriptor(
     IReadOnlyList<AdapterCapabilityGroup>? OperationGroups = null)
 {
     /// <summary>Explicit read declarations only. Import and control capabilities are never Operations rows.</summary>
-    public IReadOnlyList<AdapterOperationDescriptor> ReadOperations() => (Operations ?? [])
-        .Where(operation => (operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData or
-            ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation or ProviderCapabilityKind.ConfigurationData) &&
+    public IReadOnlyList<AdapterOperationDescriptor> ReadOperations()
+    {
+        var declared = Operations ?? [];
+        // A duplicate key cannot identify one typed contract unambiguously. Exclude every
+        // conflicting declaration instead of relying on ordering or breaking the reference UI.
+        var duplicateKeys = declared.GroupBy(operation => operation.Key, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
+        return declared.Where(operation => !string.IsNullOrWhiteSpace(operation.Key) &&
+            !duplicateKeys.Contains(operation.Key) &&
+            (operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData or
+                ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation or ProviderCapabilityKind.ConfigurationData) &&
             Capabilities.Any(capability => capability.Kind == operation.Capability) &&
             Version.TryParse(operation.ContractVersion, out var version) && version.Major == 1)
-        .ToArray();
+            .ToArray();
+    }
 
     /// <summary>Only versioned groups with complete, unique references to installed reads are public.</summary>
     public IReadOnlyList<AdapterCapabilityGroup> ReadCapabilityGroups()
