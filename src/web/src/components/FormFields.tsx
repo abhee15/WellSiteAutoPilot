@@ -77,8 +77,15 @@ export function RadioGroup({ label, helper, error, id: suppliedId, name, require
   </fieldset>;
 }
 
-export function FormActions({ children }: { children: ReactNode }) {
-  return <div className="ui-form-actions">{children}</div>;
+/**
+ * One row of form buttons: Cancel or Discard first, the primary action last. A destructive action goes in `leading`,
+ * which sits apart at the start of the row so it is never next to the primary action.
+ */
+export function FormActions({ children, leading }: { children: ReactNode; leading?: ReactNode }) {
+  return <div className="ui-form-actions">
+    {leading && <span className="ui-form-actions-leading">{leading}</span>}
+    {children}
+  </div>;
 }
 
 /** Existing consequential controls stay in-page; this component adds no dialog or extra workflow step. */

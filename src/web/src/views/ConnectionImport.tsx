@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { t } from '../localization';
 import { ActionButton } from '../components/ActionButton';
+import { FormActions } from '../components/FormFields';
 import { ConnectionsError, importFromConnection, previewImport } from './connections';
 import type { Adapter, Connection, ImportGroup, ImportPreview, ImportResult, ImportSelection, ImportHierarchy } from './connections';
 
@@ -192,11 +193,11 @@ function ImportReview({ preview, label, busy, disabled, confirming, onConfirm, o
       {preview.objectCount === 0 && !preview.adoptingHierarchy
         ? <p className="empty-state">{t('connections.importNothing')}</p>
         : confirming ? (
-          <div className="connection-actions">
+          <FormActions>
             <span>{preview.adoptingHierarchy ? t('hierarchy.adoptConfirm', { count: preview.objectCount, existing: preview.existingWells ?? 0 }) : t('connections.importConfirm', { count: preview.objectCount })}</span>
-            <ActionButton label={busy === 'import' ? t('connections.importing') : t('connections.importYes')} variant="primary" disabled={busy !== null || disabled || !preview.canImport} onClick={onApply} />
             <ActionButton label={t('connections.importNo')} disabled={busy !== null || disabled} onClick={onCancel} />
-          </div>
+            <ActionButton label={busy === 'import' ? t('connections.importing') : t('connections.importYes')} variant="primary" disabled={busy !== null || disabled || !preview.canImport} onClick={onApply} />
+          </FormActions>
         ) : (
           <ActionButton variant="primary" disabled={busy !== null || disabled || !preview.canImport} onClick={onConfirm}
             label={preview.adoptingHierarchy && preview.objectCount === 0 ? t('hierarchy.adoptButton') : t('connections.importButton', { count: preview.objectCount })} />

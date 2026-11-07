@@ -556,6 +556,7 @@ button:disabled {
 .execution-detail-header,
 .execution-detail-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-12);
 }

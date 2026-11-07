@@ -508,3 +508,16 @@ test('no time zone is named in screen code: the choices come from the browser', 
     'offer zones with timeZoneChoices() in views/assignmentSchedule.ts instead of naming one');
   assert.match("['UTC', 'America/Chicago']", named, 'the guard sees a named zone');
 });
+
+test('in a FormActions row the primary button comes last, so every form reads Cancel then the main action', () => {
+  const blocks = text => [...text.matchAll(/<FormActions\b[^>]*>([\s\S]*?)<\/FormActions>/g)].map(match => match[1]);
+  const primaryNotLast = text => blocks(text).some(body => {
+    const buttons = [...body.matchAll(/<ActionButton\b[^>]*?(?:\/>|>)/g)].map(match => match[0]);
+    const at = buttons.findIndex(tag => /variant="primary"/.test(tag));
+    return at !== -1 && at !== buttons.length - 1;
+  });
+  assert.deepEqual(code.filter(path => primaryNotLast(source(path))).map(rel), [],
+    'put Cancel or Discard first and the primary action last; a destructive action goes in FormActions leading');
+  assert.equal(primaryNotLast('<FormActions><ActionButton variant="primary" label="a" /><ActionButton label="b" /></FormActions>'), true);
+  assert.equal(primaryNotLast('<FormActions><ActionButton label="b" /><ActionButton variant="primary" label="a" /></FormActions>'), false);
+});

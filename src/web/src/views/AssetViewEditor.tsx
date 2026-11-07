@@ -1,5 +1,6 @@
 import { SearchInput } from '../components/SearchInput';
 import { ActionButton } from '../components/ActionButton';
+import { FormActions } from '../components/FormFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -160,15 +161,17 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
     {loading && <LoadingIndicator label={t('views.loading')} />}
     {busy && <p role="status">{t('assetViews.working')}</p>}
     {error && <p role="alert" className="status-error">{error}</p>}
-    <div className="connection-actions">
-      {!readOnly && <ActionButton label={t('assetViews.save')} variant="primary" type="submit" disabled={busy || loading || !selectionReady || !name.trim() || !connectionId || selected.size === 0 || selected.size > 50_000 || [...unavailableIds].some(id => selected.has(id))} />}
+    <FormActions leading={view?.canDelete && !confirmDelete
+      ? <ActionButton label={t('assetViews.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} /> : undefined}>
       <ActionButton label={t('assetViews.cancel')} disabled={busy} onClick={onCancel} />
-      {view?.canDelete && !confirmDelete && <ActionButton label={t('assetViews.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} />}
-    </div>
+      {!readOnly && <ActionButton label={t('assetViews.save')} variant="primary" type="submit" disabled={busy || loading || !selectionReady || !name.trim() || !connectionId || selected.size === 0 || selected.size > 50_000 || [...unavailableIds].some(id => selected.has(id))} />}
+    </FormActions>
     {view?.canDelete && confirmDelete && <div role="alertdialog" aria-label={t('assetViews.delete')}>
       <p>{t('assetViews.deleteConfirm', { name: view.name })}</p>
-      <ActionButton label={t('assetViews.deleteYes')} disabled={busy} onClick={() => void run(async () => { await deleteView(view); onDeleted(); })} />
-      <ActionButton label={t('assetViews.deleteNo')} disabled={busy} onClick={() => setConfirmDelete(false)} />
+      <FormActions>
+        <ActionButton label={t('assetViews.deleteNo')} disabled={busy} onClick={() => setConfirmDelete(false)} />
+        <ActionButton label={t('assetViews.deleteYes')} disabled={busy} onClick={() => void run(async () => { await deleteView(view); onDeleted(); })} />
+      </FormActions>
     </div>}
   </form>;
 }
