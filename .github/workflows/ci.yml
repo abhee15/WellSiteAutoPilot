@@ -153,6 +153,16 @@ jobs:
       - name: Verify CygNet adapter (simulated backend, no CygNet libraries)
         run: dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests/WellSiteAutoPilot.CygNetAdapterTests.csproj --configuration Release --no-build
 
+      - name: Parse the licensed-host CygNet history runner (no native read)
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path tools/ci/Invoke-CygNetHistoryValidation.ps1).Path,
+            [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+
       - name: Verify PetroVisor adapter POC
         run: dotnet run --project tests/WellSiteAutoPilot.PetroVisorAdapterTests/WellSiteAutoPilot.PetroVisorAdapterTests.csproj --configuration Release --no-build
 

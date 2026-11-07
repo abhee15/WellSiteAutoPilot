@@ -67,3 +67,12 @@ Compiled on a CygNet host as a proof of concept; availability confirmed on USDCF
 This port has not been compiled or run against live points: the CygNet libraries are needed for that. Check on a live
 point: that the value, unit and quality match CygNet, which status flags occur on healthy points, and that the
 timestamp matches CygNet's UTC time (a CygNet `DateTime` of unspecified kind would be read as local time).
+
+
+## Phase 2 historian candidate
+
+The Phase 2 branch adds a native historian candidate and licensed-host probe. It does not implement the capability
+interface and is not advertised or executed by the live Gateway. Its opt-in native build needs both historian
+assemblies in addition to the current/discovery libraries. The normal solution build does not compile this candidate.
+See [the host validation guide](../../../docs/implementation/cygnet-history-phase2.md) before compiling or deploying
+this branch. Native SDK compatibility and live source semantics remain unverified until that gate is completed.

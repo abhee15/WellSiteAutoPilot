@@ -56,3 +56,12 @@ Module authoring; third-party adapter SDK/scaffolding; connection-specific live 
 Local full solution builds, ForeSite recorded-shape tests, simulated CygNet and provider conformance tests, connection readiness tests, generated-client frontend typecheck/build/lint, frontend checks and interactions are recorded in PR #485. Local provider-to-Gateway HTTP tests also passed server/worker/anonymous authorization, provider selection, source scope, UTC/DST, quality, units, truncation and invalid bounds against simulated sources. CI includes the same history integration test, positive/negative metadata HTTP checks and eight responsive browser cases using synthetic descriptors; simulated tests are not live provider validation.
 
 **Remaining external blocker:** production CygNet VHS history requires a licensed Windows CygNet host, the matching `CygNet.API.Historian`/`CygNet.Data.Historian` assemblies and validation of the native point ID, status, timeout and truncation semantics. The POC depends on a point-catalog branch absent from develop. An uncompiled native port was deliberately excluded from the deliverable rather than advertised as verified. Issue #484 must remain open for that host validation and selective production port. Live ForeSite validation also requires a reachable ForeSite service and Windows identity; it was not performed in this environment. Module authoring, live-value preview and command execution remain deferred as agreed.
+
+
+## Phase 2 continuation
+
+Native CygNet history work continues on `feature/adapter-provider-operations-phase2`, tracked by #484. The candidate
+ports the POC behind the existing CygNet call gate and adds independently tested wire decoding/projection plus a
+read-only licensed-host probe. It does not activate or advertise live history. See
+[`cygnet-history-phase2.md`](../implementation/cygnet-history-phase2.md) for the exact host command, evidence requirements
+and promotion gate. The Phase 2 PR must remain draft until the licensed build and live source checks pass.
