@@ -60,6 +60,8 @@ it('releasing needs an explicit acknowledgement before it can be sent', async ()
   const user = userEvent.setup();
   render(<KillSwitchPanel userId={userId} canManage />);
   await user.click(await screen.findByRole('button', { name: 'Release kill switch' }));
+  // The confirmation sits under the panel's h2, so it is an h3 and the outline never skips a level.
+  expect(screen.getByRole('heading', { name: 'Confirm release', level: 3 })).toBeTruthy();
   const confirm = screen.getByRole('button', { name: 'Release now' });
   expect(confirm).toHaveProperty('disabled', true);
   await user.click(screen.getByRole('checkbox', { name: 'I understand that approved commands can be sent again.' }));
