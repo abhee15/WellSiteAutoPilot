@@ -408,7 +408,7 @@ describe('Connections page', () => {
       .mockRejectedValueOnce(new api.ConnectionsError('needsAllAssets'));
     await openImporter();
     await userEvent.click(screen.getByText('Review import'));
-    expect((await screen.findByText(/does not accept the values/)).getAttribute('role')).toBe('alert');
+    expect((await screen.findByText(/does not accept the values/)).closest('[role="alert"]')).not.toBeNull();
     expect((screen.getByText('Import 3 wells').closest('button') as HTMLButtonElement).disabled).toBe(true);
     await userEvent.click(screen.getByText('Review import'));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/permission to manage all assets/));
