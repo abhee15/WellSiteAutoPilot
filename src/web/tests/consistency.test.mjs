@@ -427,3 +427,21 @@ test('detail panels do not restore retired schedule and observation boilerplate'
   assert.deepEqual(offenders(/assetDetail\.scheduleHint|scheduleControl\.(?:matches|noRevision)|logicDetail\.observed/), [],
     'Show zones on timestamps and useful exceptions at their source; omit normal-state reassurance and repeated observation footers');
 });
+
+test('actions are ActionButton: the only raw asset-select / row-link buttons are record names, pinned per file', () => {
+  // A name that selects a record inside a master-detail list is a button styled as text (ContextLink is for hash
+  // destinations). Anything that does something else (Retry, Show more, Remove, Select) is an ActionButton.
+  // The counts can only shrink; a new name button needs a deliberate entry here, a new action does not belong here.
+  const nameButtons = {
+    'views/AccessManagementPage.tsx': 1, 'views/ActivityPage.tsx': 1, 'views/AssetBrowser.tsx': 2, 'views/AssetDetail.tsx': 1,
+    'views/AssetOwnerRow.tsx': 1, 'views/AssetTree.tsx': 1, 'views/AssetViewBrowser.tsx': 1, 'views/AssetsPage.tsx': 3,
+    'views/ExecutionHistory.tsx': 1, 'views/LogicPage.tsx': 2, 'views/OperationsPage.tsx': 1,
+  };
+  const raw = /<button\b(?:=>|[^>])*?className="[^"]*\b(?:asset-select|row-link)\b/g;
+  const actual = Object.fromEntries(code.map(path => [rel(path), (source(path).match(raw) ?? []).length]).filter(([, count]) => count > 0));
+  assert.deepEqual(actual, nameButtons,
+    'use <ActionButton label=... /> for an action; if a name button was removed or migrated, lower its count here');
+  assert.equal('<button type="button" className="asset-select" onClick={more}>'.match(raw)?.length, 1, 'the guard sees a raw action button');
+  assert.equal('<ActionButton label="x" className="asset-select" />'.match(raw), null, 'ActionButton is not a raw button');
+  assert.equal('<button\n  className="row-link"\n  onClick={() => go()}>'.match(raw)?.length, 1, 'it reads a multi-line button');
+});

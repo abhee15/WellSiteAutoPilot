@@ -28,6 +28,12 @@ Material guidance on dense data applications.
 with a tooltip and accessible name. Text for primary and commit actions (Save, Approve, Configure Logic), anything with a
 consequence, and anything whose icon is ambiguous.
 
+**Actions versus record names.** Retry, Show more, Remove and Select wells are actions: `ActionButton` (`quiet` for a
+low-emphasis action repeated inside a row or notice, `secondary` for a standalone one). A record's name that selects it in a
+master-detail list is the one raw button, `asset-select` or `row-link`, because `ContextLink` is only for hash destinations.
+`tests/consistency.test.mjs` pins how many of those each file may hold; the count can only shrink. A shared record-name button
+would retire the list.
+
 ## Tab and page-section navigation (migration contract)
 
 See [Tab navigation design-system inventory and contract — Phase 1](tab-navigation-design-system-phase1.md) for the source audit, proposed component APIs, behavioral preservation matrix, responsive decisions, and future CI guard requirements. **Phase 3 implementation:** `TabStrip`, `PageTabNav`, and `SectionTabs` are shared throughout Logic, Assets, Administration, and Configured Logic details. URL-addressable sections are links; local detail panels are manual-activation tabs. The old `DetailTabs` component and page-specific tab CSS have been removed. The global consistency guard rejects duplicate tab markup and legacy tab CSS.
