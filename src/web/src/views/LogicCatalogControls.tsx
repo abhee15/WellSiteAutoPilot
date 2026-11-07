@@ -1,4 +1,4 @@
-import { FilterToolbar, FilterField } from '../components/FilterToolbar';
+import { FilterToolbar, FilterSelect } from '../components/FilterToolbar';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA } from './logicCatalog';
 import type { FilterChip } from '../components/FilterToolbar';
 import { t } from '../localization';
@@ -29,8 +29,7 @@ export function LogicCatalogControls({
       chips={chips} isFiltered={criteria.search !== D.search || chips.length > 0 || criteria.sort !== D.sort}
       onClear={() => onChange({ ...D })}
       note={t('logicCatalog.count', { shown: matchingCount, total: totalCount })}>
-        <FilterField label={t('logicCatalog.eligibility')}>
-          <select value={criteria.eligibility}
+        <FilterSelect label={t('logicCatalog.eligibility')} value={criteria.eligibility}
             onChange={event => onChange({
               ...criteria,
               eligibility: event.target.value as LogicCatalogCriteria['eligibility'],
@@ -38,19 +37,14 @@ export function LogicCatalogControls({
             <option value="all">{t('logicCatalog.all')}</option>
             <option value="enabled">{t('logicCatalog.enabled')}</option>
             <option value="disabled">{t('logicCatalog.disabled')}</option>
-          </select>
-        </FilterField>
-        <FilterField label={t('logicCatalog.runtime')}>
-          <select value={criteria.runtime}
+          </FilterSelect>
+        <FilterSelect label={t('logicCatalog.runtime')} value={criteria.runtime}
             onChange={event => onChange({ ...criteria, runtime: event.target.value })}>
             <option value="all">{t('logicCatalog.allRuntimes')}</option>
             {runtimes.map(runtime => (
               <option key={runtime} value={runtime}>{runtime}</option>
-            ))}
-          </select>
-        </FilterField>
-        <FilterField label={t('logicCatalog.sort')}>
-          <select value={criteria.sort}
+            ))}</FilterSelect>
+        <FilterSelect label={t('logicCatalog.sort')} value={criteria.sort}
             onChange={event => onChange({
               ...criteria,
               sort: event.target.value as LogicCatalogCriteria['sort'],
@@ -58,8 +52,7 @@ export function LogicCatalogControls({
             <option value="name">{t('logicCatalog.name')}</option>
             <option value="newest">{t('logicCatalog.newest')}</option>
             <option value="oldest">{t('logicCatalog.oldest')}</option>
-          </select>
-        </FilterField>
+          </FilterSelect>
     </FilterToolbar>
   );
 }
