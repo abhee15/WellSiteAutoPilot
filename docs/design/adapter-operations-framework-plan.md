@@ -55,7 +55,7 @@ Module authoring; third-party adapter SDK/scaffolding; connection-specific live 
 
 Local full solution builds, ForeSite recorded-shape tests, simulated CygNet and provider conformance tests, connection readiness tests, generated-client frontend typecheck/build/lint, frontend checks and interactions are recorded in PR #485. Local provider-to-Gateway HTTP tests also passed server/worker/anonymous authorization, provider selection, source scope, UTC/DST, quality, units, truncation and invalid bounds against simulated sources. CI includes the same history integration test, positive/negative metadata HTTP checks and eight responsive browser cases using synthetic descriptors; simulated tests are not live provider validation.
 
-**Remaining external blocker:** production CygNet VHS history requires a licensed Windows CygNet host, the matching `CygNet.API.Historian`/`CygNet.Data.Historian` assemblies and validation of the native point ID, status, timeout and truncation semantics. The POC depends on a point-catalog branch absent from develop. An uncompiled native port was deliberately excluded from the deliverable rather than advertised as verified. Issue #484 must remain open for that host validation and selective production port. Live ForeSite validation also requires a reachable ForeSite service and Windows identity; it was not performed in this environment. Module authoring, live-value preview and command execution remain deferred as agreed.
+**Live-provider validation follow-up (owned by Sri locally, not a merge blocker):** production CygNet VHS history requires a licensed Windows CygNet host, the matching `CygNet.API.Historian`/`CygNet.Data.Historian` assemblies and validation of the native point ID, status, timeout and truncation semantics. The POC depends on a point-catalog branch absent from develop. An uncompiled native port was deliberately excluded from the deliverable rather than advertised as verified. Issue #484 records the local validation follow-up and selective production port. Live ForeSite validation also requires a reachable ForeSite service and Windows identity; it was not performed in this environment. Module authoring, live-value preview and command execution remain deferred as agreed.
 
 
 ## Phase 2 continuation
@@ -64,4 +64,17 @@ Native CygNet history work continues on `feature/adapter-provider-operations-pha
 ports the POC behind the existing CygNet call gate and adds independently tested wire decoding/projection plus a
 read-only licensed-host probe. It does not activate or advertise live history. See
 [`cygnet-history-phase2.md`](../implementation/cygnet-history-phase2.md) for the exact host command, evidence requirements
-and promotion gate. The Phase 2 PR must remain draft until the licensed build and live source checks pass.
+and activation checks. Per Sri’s direction on 2026-11-07, native SDK/live-source validation is performed on his local Windows system and is not a merge requirement. No licensed SDK installation is expected in the hosted environment.
+
+## Phase 3 checkpoint (2026-11-07)
+
+Phase 3 was merged through #490 independently from PR #488's native CygNet candidate. Live CygNet history stays unsupported pending Sri’s local Windows validation. The candidate and test tooling may merge after hosted CI without installing licensed assemblies here. Phase 3 started from the verified `develop` baseline merged through #485.
+
+- Added metadata-only `GET /api/v1/connections/{connectionId}/assets/{assetId}/operations?adapterKey=...&expectedRevision=...`. Both query parameters are required: the exact saved adapter and current revision must match, with no provider fallback.
+- The endpoint requires fresh deployment `connections.read` and the existing SQL paired-grant `assets.read` predicate. Asset ownership and source bindings must belong to the explicit Connection. Missing, unauthorized, inactive and wrong-owner Assets share a 404. Permission and scope from different grants are never combined.
+- Source selection is bounded to two matching bindings: none is `Unmapped`; multiple is `AmbiguousSource`. No first-match selection, source ID, raw snapshot, credential or Connection settings is exposed.
+- Grant authority, Asset visibility, source bindings and Connection revision are rechecked after Gateway descriptor I/O. Revocation fails closed; changes to the pinned context return 409. This is a read-time check, not a reusable execution authorization token.
+- The most positive eligibility state is `SourceCheckRequired`, never `Available`: a supported declaration, healthy Connection test and imported source cannot verify point mapping, device/quantity availability, live quality or values. Existing typed execution paths retain their separate authorization, Gateway session and read limits. No preview, value acquisition, command execution, discovery UI or authoring is added.
+- API enum parity/serialization, pure state and service race tests, PostgreSQL paired-grant/ownership/source-bound tests, HTTP authorization/revision/no-fallback tests and OpenAPI string-enum checks cover the extension. The current frontend remains the metadata Operations explorer from #485; frontend validation uses regenerated clients without committing generated files.
+
+Validation results and CI run links are recorded on the Phase 3 PR. Simulated tests and metadata checks are not live ForeSite/CygNet validation. Issue #484 remains open for licensed-provider validation and final hardening.

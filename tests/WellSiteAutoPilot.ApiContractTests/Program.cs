@@ -47,6 +47,9 @@ Parity<DomainConfiguredLogicRevisionStatus, ContractConfiguredLogicRevisionStatu
 Parity<DomainPlatformComponentStatus, ContractPlatformComponentStatus>(value => value.ToContract());
 Parity<DomainConfiguredLogicScheduleChangeKind, ContractConfiguredLogicScheduleChangeKind>(value => value.ToContract());
 
+Parity<WellSiteAutoPilot.Application.Connections.AssetOperationEligibilityState,
+    WellSiteAutoPilot.Api.Contracts.Connections.AssetOperationEligibilityState>(value => value.ToContract());
+
 // Pinned literals guard the documented wire values themselves.
 ExpectJson(AccessGrantSubjectKind.Group, "\"Group\"");
 ExpectJson(AccessGrantScopeKind.DeploymentWide, "\"DeploymentWide\"");
@@ -59,6 +62,7 @@ ExpectJson(ContractLogicModuleTrustStatus.CustomerApproved, "\"CustomerApproved\
 // values must never deserialize, for every converted enum.
 foreach (var type in new[]
 {
+    typeof(WellSiteAutoPilot.Api.Contracts.Connections.AssetOperationEligibilityState),
     typeof(AccessGrantSubjectKind), typeof(AccessGrantScopeKind), typeof(ExecutionMode),
     typeof(ExecutionStatus), typeof(ExecutionTriggerKind), typeof(ContractLogicRuntimeKind),
     typeof(ContractExecutionProfile), typeof(ContractLogicModuleTrustStatus), typeof(RecommendationStatus),

@@ -532,7 +532,26 @@ assert request("GET", "/asset-views/" + view["id"] + "/members?q=%25") == []
 connection_reader = role("Connection reader", ["connections.read"])
 well_reader = role("Well reader", ["assets.read"])
 connection_access = grant(other["userId"], connection_reader, "DeploymentWide")
+# Asset eligibility requires both Connection metadata access and a paired Asset read grant.
+operation_revision = request("GET", "/connections/" + twin["id"])["revision"]
+def operation_url(asset, adapter="foresite", revision=operation_revision, connection=twin["id"]):
+    return f"/connections/{connection}/assets/{asset}/operations?adapterKey={adapter}&expectedRevision={revision}"
+request("GET", operation_url(alpha["id"]), None, expected=401)
+request("GET", operation_url(alpha["id"]), OPERATOR, expected=403)
+request("GET", operation_url(alpha["id"]), OTHER, expected=404)
 well_access = grant(other["userId"], well_reader, "ExactAssets", selection)
+eligibility = request("GET", operation_url(alpha["id"]), OTHER)
+assert eligibility["assetId"] == alpha["id"] and eligibility["connectionId"] == twin["id"], eligibility
+assert eligibility["connectionRevision"] == operation_revision and eligibility["adapterKey"] == "foresite", eligibility
+assert eligibility["operations"] and all(item["state"] in ["SourceCheckRequired", "ConnectionTestRequired"] for item in eligibility["operations"]), eligibility
+assert all("discovery" not in item["key"].lower() and "command" not in item["key"].lower() for item in eligibility["operations"]), eligibility
+assert not {"settings", "externalId", "samples", "value", "values"}.intersection(eligibility), eligibility
+request("GET", operation_url(alpha["id"], adapter="cygnet"), OTHER, expected=400)
+request("GET", operation_url(alpha["id"], revision=operation_revision + 1), OTHER, expected=409)
+request("GET", operation_url(alpha["id"], connection=stand_in["id"]), OTHER, expected=404)
+request("GET", operation_url(other_alpha["id"], connection=stand_in["id"]), OTHER, expected=404)
+request("GET", f"/connections/{twin['id']}/assets/{alpha['id']}/operations", OTHER, expected=400)
+
 visible_view = request("GET", "/asset-views/" + view["id"], OTHER)
 assert visible_view["memberCount"] == 2 and not visible_view["canEdit"] and not visible_view["canDelete"], visible_view
 assert view["id"] in {item["id"] for item in request("GET", "/asset-views", OTHER)}
@@ -548,13 +567,17 @@ assert request("GET", "/asset-views/" + view["id"] + "/selection")["assetIds"] =
 # A restricted reader cannot obtain hidden IDs or erase the hidden portion through a replacement update.
 updated = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 2, "name": "ESP subset", "assetIds": selection})
 retire(other["userId"], well_access)
+request("GET", operation_url(alpha["id"]), OTHER, expected=404)
 partial_access = grant(other["userId"], well_reader, "ExactAssets", [alpha["id"]])
+request("GET", operation_url(alpha2["id"]), OTHER, expected=404)
+assert request("GET", operation_url(alpha["id"]), OTHER)["assetId"] == alpha["id"]
 partial = request("GET", "/asset-views/" + view["id"], OTHER)
 assert partial["memberCount"] == 1 and partial["hasUnavailableMembers"] and not partial["canEdit"], partial
 request("GET", "/asset-views/" + view["id"] + "/selection", OTHER, expected=400)
 request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "name": "Partial", "assetIds": [alpha["id"]]}, expected=400)
 # Losing Connection access removes all View routes, including mutations when edit is still granted.
 retire(other["userId"], connection_access)
+request("GET", operation_url(alpha["id"]), OTHER, expected=403)
 for suffix in ["", "/members", "/selection"]:
     request("GET", "/asset-views/" + view["id"] + suffix, OTHER, expected=403)
 request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "name": "Denied", "assetIds": selection}, expected=403)

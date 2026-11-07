@@ -11,8 +11,9 @@ licensed Windows host verification. Hosted CI success does not validate their na
 
 `CygNetApiClient` deliberately does not implement `ICygNetHistoryClient`. The native candidate can be called only
 explicitly by the host probe; the installed Gateway still reports live history unsupported and does not advertise it.
-Keep the Phase 2 PR draft until the native compile/read gate is satisfied. The external blocker is missing licensed
-assemblies and host access.
+Sri will perform the native compile/read validation on his local Windows system. Per his direction on 2026-11-07,
+this is not a merge requirement and licensed assemblies will not be installed in the hosted environment. The candidate
+and local probe may merge after hosted CI passes; native history activation remains a separate verified change.
 
 ## Reconciled POC behavior
 
@@ -41,7 +42,8 @@ Use PowerShell 7, .NET 10 and the intended Gateway Windows identity with read ac
 The host needs its normal CygNet libraries plus `CygNet.API.Historian.dll` and `CygNet.Data.Historian.dll`.
 No CygNet binaries are checked in or downloaded by this repository.
 
-1. Check out the Phase 2 PR head. Copy `examples/cygnet-history-probe.json` to a local input file and replace the
+1. Check out `develop` after PR #488 is merged (or the PR head before merge). Copy
+   `docs/implementation/examples/cygnet-history-probe.json` to a local input file and replace the
    synthetic domain/site/service/facility/UDC and interval with the approved test source. Keep one explicit quantity.
 2. Run from the repository root:
 
@@ -61,10 +63,12 @@ No CygNet binaries are checked in or downloaded by this repository.
    against the source. Verify exact values/types, first/last UTC instants, quality flags, UDC identity and truncation.
    Repeat across a DST boundary using explicit offsets. An empty success proves only that an empty response parsed.
 
-## Promotion gate
+## Local validation and subsequent activation
 
 Record the PR commit and native assembly versions with the successful build and source comparison evidence. Fix
 SDK or behavior differences on this branch and repeat the host checks. Only then implement `ICygNetHistoryClient`
 on the native client, run the Gateway authenticated history tests on that host, verify the existing current/discovery
-paths, require current-head CI and merge. Native point identifiers or sample correctness must never be inferred from
-passing synthetic fixtures. Until this gate passes, Phase 2 and issue #484 remain incomplete.
+paths and require current-head CI for that activation change. Native point identifiers or sample correctness must never
+be inferred from passing synthetic fixtures. This activation check does not block merging the candidate/probe or
+continuing the framework work. Issue #484 tracks Sri’s local validation follow-up; hosted CI results must continue to
+distinguish synthetic validation from native execution.
