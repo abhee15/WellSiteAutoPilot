@@ -39,6 +39,16 @@ export function localScheduleInstant(date: string, time: string, timeZone: strin
   } catch { return null; }
 }
 
+/**
+ * Every time zone the browser knows, led by the zone already chosen (kept even if the browser does not list it),
+ * the browser's own zone and UTC, which the browser's list leaves out. No zone is named in the app itself.
+ */
+export function timeZoneChoices(current: string): string[] {
+  const known = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
+  const browser = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return [...new Set([current, browser, 'UTC', ...known])].filter(Boolean);
+}
+
 export function initialScheduleDraft(schedule?: ConfiguredLogicScheduleResponse | null): ScheduleDraft {
   const timeZone = schedule?.timeZoneId || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const start = new Date(schedule?.startAtUtc ?? Date.now() + 60_000);

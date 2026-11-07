@@ -1,0 +1,17 @@
+{
+  "connectionId": "88888888-8888-4888-8888-888888888881",
+  "connectionRevision": 1,
+  "settings": {
+    "domain": "1",
+    "siteService": "SITE.UIS",
+    "facilityFilter": "WELL_001",
+    "pointMap": "PumpFillage=RRLPFILCUR|%"
+  },
+  "read": {
+    "assetExternalId": "SITE.UIS::WELL_001",
+    "quantity": "PumpFillage",
+    "startUtc": "2026-11-01T01:00:00-05:00",
+    "endUtc": "2026-11-01T01:00:00-06:00",
+    "maximumSamples": 100
+  }
+}

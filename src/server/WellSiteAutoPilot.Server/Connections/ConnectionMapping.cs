@@ -8,6 +8,25 @@ namespace WellSiteAutoPilot.Server.Connections;
 
 internal static class ConnectionMapping
 {
+    public static AssetOperationsResponse ToResponse(AssetOperationsSnapshot snapshot) => new(
+        snapshot.ConnectionId, snapshot.ConnectionRevision, snapshot.AssetId, snapshot.AdapterKey, snapshot.ConnectionState,
+        snapshot.Operations.Select(operation => new AssetOperationEligibilityResponse(operation.Key, operation.ContractVersion,
+            WellSiteAutoPilot.Server.Contracts.ContractEnumMapping.ToContract(operation.State), operation.Reason)).ToArray());
+
+    public static AdapterOperationsResponse ToOperations(AdapterDescriptor adapter) => new(
+        adapter.Key, adapter.DisplayName, adapter.Description,
+        adapter.ReadOperations().Select(operation => new AdapterOperationResponse(
+            operation.Key, operation.DisplayName, operation.Description, operation.Capability.ToString(), operation.CapabilityId,
+            operation.ContractVersion, "ReadOnly", ToSchema(operation.Request), ToSchema(operation.Response),
+            operation.TimestampSemantics, operation.QualitySemantics,
+            new(operation.Limits.MaximumQuantities, operation.Limits.MaximumValueBytes, operation.Limits.MaximumReplyBytes,
+                operation.Limits.TimeoutSeconds, operation.Limits.MaximumWindowDays, operation.Limits.MaximumSamples),
+            operation.Quantity, operation.ResourceKind, operation.Unit, operation.StructuredSchemaId,
+            operation.StructuredResponse is null ? null : ToSchema(operation.StructuredResponse))).ToArray());
+
+    private static AdapterOperationSchemaResponse ToSchema(AdapterOperationSchema schema) => new(schema.Id,
+        schema.Fields.Select(field => new AdapterOperationFieldResponse(field.Name, field.DataType, field.Required, field.Description)).ToArray(), schema.DataType);
+
     public static AdapterResponse ToResponse(AdapterDescriptor adapter) => new(
         adapter.Key, adapter.DisplayName, adapter.Description, adapter.SettingsVersion,
         adapter.Fields.Select(field => new AdapterSettingFieldResponse(

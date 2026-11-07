@@ -5,7 +5,7 @@ using WellSiteAutoPilot.Domain.Assets;
 namespace WellSiteAutoPilot.Persistence.Assets;
 
 public sealed partial class AssetRepository(
-    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IAssetRepository
+    WellSiteAutoPilotDbContext dbContext, TimeProvider? clock = null) : IAssetRepository, IAssetConnectionSourceReader
 {
     public Task<bool> AssetTypeKeyIsHiddenAsync(string key, CancellationToken cancellationToken = default) =>
         dbContext.AssetTypes.AnyAsync(item => item.Key == key && !item.IsActive, cancellationToken);

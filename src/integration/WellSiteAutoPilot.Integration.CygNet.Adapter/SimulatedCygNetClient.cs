@@ -13,7 +13,7 @@ public enum SimulatedCygNetProfile { Current, DemoStale }
 /// WELL_005 uncertain and stale, WELL_006 has points that never received a value.
 /// With <see cref="SimulatedCygNetProfile.DemoStale"/> every value is years old, like an idle demo domain.
 /// </summary>
-public sealed class SimulatedCygNetClient(TimeProvider? clock = null, SimulatedCygNetProfile profile = SimulatedCygNetProfile.Current) : ICygNetClient
+public sealed class SimulatedCygNetClient(TimeProvider? clock = null, SimulatedCygNetProfile profile = SimulatedCygNetProfile.Current) : ICygNetClient, ICygNetHistoryClient
 {
     public const string Source = "cygnet-simulated";
     private const string NoValueWell = "WELL_006";
@@ -71,6 +71,23 @@ public sealed class SimulatedCygNetClient(TimeProvider? clock = null, SimulatedC
         ArgumentNullException.ThrowIfNull(connection);
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(new CygNetFacilityList(Facilities));
+    }
+
+    public async Task<HistoricalReadResult> ReadHistoryAsync(CygNetConnection connection, string facilityId,
+        HistoricalReadRequest request, CancellationToken cancellationToken)
+    {
+        HistoricalReadLimits.Validate(request);
+        var current = await ReadCurrentAsync(connection, facilityId, request.Quantity, cancellationToken);
+        // Fixed five-minute source samples. Truncation is explicit; no invented daily averages.
+        var count = (int)Math.Ceiling((request.EndUtc - request.StartUtc).TotalMinutes / 5);
+        var samples = Enumerable.Range(0, Math.Min(count, request.MaximumSamples)).Select(index => current with
+        {
+            TimestampUtc = request.StartUtc.ToUniversalTime().AddMinutes(index * 5),
+            TimestampKind = "HistorianSample"
+        }).ToArray();
+        return new(request.Quantity, Source + ":history", null, "Raw", request.StartUtc.ToUniversalTime(),
+            request.EndUtc.ToUniversalTime(), samples, count > samples.Length,
+            count > samples.Length ? ["SIMULATED_DATA", "SAMPLE_LIMIT_REACHED"] : ["SIMULATED_DATA"]);
     }
 
     public Task<EngineeringValue> ReadCurrentAsync(

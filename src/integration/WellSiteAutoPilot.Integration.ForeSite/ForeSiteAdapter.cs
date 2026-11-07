@@ -40,7 +40,8 @@ public static class ForeSiteAdapter
             AdapterSettingKind.Url, true)],
         [
             new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Wells"),
-            new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current well values")
+            new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current well values"),
+            new ProviderCapability(ProviderCapabilityKind.HistoricalData, "Time-range well history")
         ],
         [
             new DiscoveryField("assetName", "ForeSite asset", "Unassigned", AsAttribute: false, IdentityMetadataKey: "assetId"),
@@ -48,6 +49,33 @@ public static class ForeSiteAdapter
             new DiscoveryField("deviceType", "Device type", "Unspecified device"),
             new DiscoveryField("field", "Field", "Unspecified field"),
             new DiscoveryField("lease", "Lease", "Unspecified lease")
+        ], Operations:
+        [
+            EngineeringOperationSchemas.Current("current.pump-fillage", "Pump fillage", "Current controller pump fillage.",
+                "PumpFillage", WellResourceKind, "%", "LastGoodScanTime: successful controller scan, never the latest attempted scan.",
+                "Good indicates successful acquisition of a valid controller value, not independent sensor validation.", 6),
+            EngineeringOperationSchemas.Current("current.average-pump-fillage", "Average pump fillage", "Controller average pump fillage.",
+                "AveragePumpFillage", WellResourceKind, "%", "LastGoodScanTime from the controller scan.",
+                "Good indicates successful acquisition of a valid controller value.", 6),
+            EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
+                "SurfaceCards", WellResourceKind, null, "Oldest card acquisition time; each card also preserves its capture time. Retrieval time is separate.",
+                "Quality is Unknown because the source supplies no quality code. Invalid, mismatched or oversized arrays are refused.", 6, "foresite.surface-cards/v1") with
+            {
+                StructuredResponse = new("foresite.surface-cards/v1", [
+                    new("[].id", "string", true, "Stable card identity within this response."),
+                    new("[].kind", "string", true, "CURRENT or FULL stored library card."),
+                    new("[].representation", "string", true, "SURFACE."),
+                    new("[].capturedAtUtc", "date-time", true, "Original capture timestamp in UTC."),
+                    new("[].source", "string", true, "foresite:dynacard-library."),
+                    new("[].positionUnit", "string", true, "in; unsupported units fail explicitly."),
+                    new("[].loadUnit", "string", true, "lb; never silently relabelled as lbf."),
+                    new("[].position", "decimal[]", true, "2–1024 positions paired by index with load."),
+                    new("[].load", "decimal[]", true, "2–1024 loads paired by index with position.")
+                ], "array (maximum 16 cards)")
+            },
+            HistoricalReadLimits.Operation("history.pump-fillage", "PumpFillage", WellResourceKind, 6,
+                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants with whole-second request bounds; fractional bounds are refused.",
+                "Trend responses do not supply quality; returned quality is Unknown.")
         ]);
 
     // ForeSite's WellTypeId enum: stable numeric ids on the wire, abbreviations for people.
