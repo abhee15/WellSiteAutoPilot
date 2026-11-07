@@ -68,8 +68,8 @@ internal static class AdapterOperationChecks
         var declaredCurrent = broad with { Operations = [declared], Capabilities = [
             new(ProviderCapabilityKind.CurrentData, "Current")] };
         var currentGroup = new AdapterCapabilityGroup("test.current", "Current", "Current data", "1.0", [declared.Key]);
-        Check(declaredCurrent with { OperationGroups = [currentGroup] } is { } valid &&
-            valid.ReadCapabilityGroups().Count == 1, "Unique operation/group must remain public.");
+        var unique = declaredCurrent with { OperationGroups = [currentGroup] };
+        Check(unique.ReadCapabilityGroups().Count == 1, "Unique operation/group must remain public.");
         var duplicates = declaredCurrent with { Operations = [declared, declared with { DisplayName = "Conflicting contract" }],
             OperationGroups = [currentGroup] };
         Check(duplicates.ReadOperations().Count == 0 && duplicates.ReadCapabilityGroups().Count == 0,
