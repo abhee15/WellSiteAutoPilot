@@ -448,7 +448,7 @@ test('table styling is shared: pages hook layout onto DataTable but do not resta
   assert.match(styles, /\.activity-table th:first-child/);
   const embedded = source(join(root, 'components/dataTable.css'));
   assert.match(embedded, /\.data-table-embedded th, \.data-table-embedded td \{/);
-  assert.deepEqual(files.filter(path => /\.css$/.test(path) && !path.endsWith('components/dataTable.css'))
+  assert.deepEqual(files.filter(path => /\.css$/.test(path) && rel(path) !== 'components/dataTable.css')
     .filter(path => /^\.table-wrap\b|\.source-change-table\b/m.test(source(path))).map(rel), [],
   'The scroll wrapper and embedded table rules live in components/dataTable.css');
 });
