@@ -71,10 +71,6 @@
     "controls": 0,
     "notices": 2
   },
-  "views/ConnectionImport.tsx": {
-    "controls": 2,
-    "notices": 10
-  },
   "views/ConnectionInventory.tsx": {
     "controls": 4,
     "notices": 7

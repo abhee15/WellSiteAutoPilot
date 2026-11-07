@@ -13,11 +13,8 @@
 .connection-form input[readonly] { color: var(--color-text-secondary); background: var(--color-surface-input-readonly); }
 .connection-help { color: var(--color-text-subtle); font-size: var(--font-size-label); line-height: 1.4; }
 .connection-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; }
-.connection-test { border: var(--border-width-thin) solid var(--color-border-status-neutral); border-radius: var(--radius-6); padding: var(--space-10) var(--space-12); display: grid; gap: var(--space-4); }
+.connection-legacy { display: grid; gap: var(--space-8); }
 .connection-test-result { display: grid; gap: var(--space-4); }
-.connection-test-healthy { border-color: var(--color-border-status-success); background: var(--color-surface-status-success); color: var(--color-text-status-success); }
-.connection-test-needsattention, .connection-test-outdated { border-color: var(--color-border-status-warning); background: var(--color-surface-status-warning); color: var(--color-text-status-warning); }
-.connection-test-unreachable { border-color: var(--color-border-status-error); background: var(--color-surface-status-error); color: var(--color-text-status-error); }
 .connection-found { display: grid; gap: var(--space-8); border-top: var(--border-width-thin) solid var(--color-border-row); padding-top: var(--space-12); }
 .connection-found h3 { margin: 0; }
 .connection-found-list { list-style: none; margin: 0; padding: 0; max-height: var(--layout-list-max); overflow: auto; }
@@ -43,7 +40,7 @@
 
 /* Inventory and import are separate tasks; form actions align with control bottoms. */
 .connection-control-row { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--space-8); }
-.connection-control-row > label { flex: 1 1 var(--layout-field-min); min-width: 0; }
+.connection-control-row > .ui-field { flex: 1 1 var(--layout-field-min); min-width: 0; }
 .inventory-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-field-narrow), 1fr)); gap: var(--space-12); margin: 0; }
 .inventory-summary > div { background: var(--color-surface-row-hover); padding: var(--space-10); border-radius: var(--radius-6); }
 .inventory-summary dd { margin: var(--space-4) 0 0; font-weight: var(--font-weight-medium); }
@@ -78,7 +75,7 @@
 .hierarchy-review-action { display: grid; justify-items: start; gap: var(--space-8); border-top: var(--border-width-thin) solid var(--color-border-row); padding-top: var(--space-12); }
 @media (width <= 40em) {
   .connection-control-row { align-items: stretch; }
-  .connection-control-row > label, .connection-control-row > button { flex: 1 1 100%; }
+  .connection-control-row > .ui-field, .connection-control-row > button { flex: 1 1 100%; }
   .connection-levels li > span { flex-basis: 100%; }
 }
 .connection-row .status-indicator { justify-self: start; }
