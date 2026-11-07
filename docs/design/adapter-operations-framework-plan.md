@@ -40,3 +40,19 @@ Each PR must run applicable .NET tests, frontend typecheck/build and integration
 ## Decisions intentionally deferred
 
 Module authoring; third-party adapter SDK/scaffolding; connection-specific live preview; command execution; site-defined quantity extension and cadence policy. These require separate decisions and acceptance criteria.
+
+## Implementation checkpoint (2026-11-06, #485)
+
+- Replaced inferred capability rows with explicit adapter-owned versioned operation descriptors. Unknown major operation versions are excluded. Current values retain existing read rules; structured surface cards include their payload fields, source units and array bounds.
+- Added bounded typed history contracts extending `IHistoricalDataProvider`, with UTC `[start, end)` semantics, per-sample quality/units/source, raw aggregation, explicit truncation and safe diagnostics. The legacy collection-only history method refuses truncated results.
+- ForeSite: selectively reconciled `poc/gap-g05b-time-range-trends`. PumpFillage history uses `CurrentPumpFillage`, the existing authenticated revision-scoped session pool and six-second gateway deadline. Source bodies are streamed with a 1 MiB ceiling, replies with a 256 KiB ceiling, windows with a 31-day ceiling and at most 1000 samples. Offset-free times and malformed/duplicate fields fail closed. Source quality is `Unknown`; no quality is inferred from a successful HTTP response.
+- CygNet: current reads remain unchanged. Added an optional typed historian seam and deterministic simulated history, with scope, filter, quantity, result and byte limits. Live CygNet has no history declaration and returns `CYGNET_HISTORY_UNSUPPORTED`. No fallback to current values or another provider occurs.
+- Read-only APIs: `/connections/adapter-operations` and `/connections/{connectionId}/operations`, both requiring `connections.read`. Connection readiness names the exact saved adapter and revision, distinguishes disabled/incompatible/stale/failed tests, and expressly does not authorize individual assets or point mappings. These endpoints perform no provider value reads and return no settings or asset identities.
+- UI: Connections → Adapters → Operations, using shared tabs, form fields, notices, search, selected-row styling, split-pane focus and scrolling. Overview, request/response/structured schemas and limits are descriptor-driven. Discovery stays in the unchanged import workflow. No command or preview execution was added.
+- Reviewed `poc/gap-cygnet-history`, `poc/gap-cygnet-alarms` and `probe/poc-adapter-experience`; no branch was merged wholesale. Alarms, daily averages and unverified trend quantities are not advertised. PetroVisor remains discovery-only; WAMI is not installed and is not invented in the registry.
+
+### Verification and external blocker
+
+Local full solution builds, ForeSite recorded-shape tests, simulated CygNet and provider conformance tests, connection readiness tests, generated-client frontend typecheck/build/lint, frontend checks and interactions are recorded in PR #485. CI includes positive/negative metadata HTTP checks and eight responsive browser cases using synthetic descriptors; simulated tests are not live provider validation.
+
+**Remaining external blocker:** production CygNet VHS history requires a licensed Windows CygNet host, the matching `CygNet.API.Historian`/`CygNet.Data.Historian` assemblies and validation of the native point ID, status, timeout and truncation semantics. The POC depends on a point-catalog branch absent from develop. An uncompiled native port was deliberately excluded from the deliverable rather than advertised as verified. Issue #484 must remain open for that host validation and selective production port. Live ForeSite validation also requires a reachable ForeSite service and Windows identity; it was not performed in this environment. Module authoring, live-value preview and command execution remain deferred as agreed.

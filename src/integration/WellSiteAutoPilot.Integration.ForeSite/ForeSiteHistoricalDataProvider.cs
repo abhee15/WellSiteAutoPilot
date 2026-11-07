@@ -16,22 +16,31 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
         var sourceQuantity = request.Quantity switch
         {
             "PumpFillage" => "CurrentPumpFillage",
-            "AveragePumpFillage" => "AveragePumpFillage",
             _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
         };
         static string Iso(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", CultureInfo.InvariantCulture);
         using var response = await session.PostAsync(
-            $"Surveillance/CygNetTrends/{wellId}/{Iso(request.StartUtc)}/{Iso(request.EndUtc)}", new[] { sourceQuantity }, cancellationToken);
+            $"Surveillance/CygNetTrends/{wellId}/{Iso(request.StartUtc)}/{Iso(request.EndUtc)}", new[] { sourceQuantity }, cancellationToken, HttpCompletionOption.ResponseHeadersRead);
         if (!response.IsSuccessStatusCode) throw new ForeSiteMeasurementException("FORESITE_READ_FAILED");
         try
         {
-            // The session HttpClient buffers at most 1 MiB. Also bound direct/test callers.
+            // Bound the stream before parsing, including chunked responses without a Content-Length.
             if (response.Content.Headers.ContentLength > HistoricalReadLimits.MaximumSourceBytes)
                 throw new ForeSiteMeasurementException("FORESITE_PAYLOAD_TOO_LARGE");
-            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-            if (bytes.Length > HistoricalReadLimits.MaximumSourceBytes) throw new ForeSiteMeasurementException("FORESITE_PAYLOAD_TOO_LARGE");
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var body = new MemoryStream();
+            var buffer = new byte[8192];
+            int count;
+            while ((count = await stream.ReadAsync(buffer, cancellationToken)) != 0)
+            {
+                if (body.Length + count > HistoricalReadLimits.MaximumSourceBytes)
+                    throw new ForeSiteMeasurementException("FORESITE_PAYLOAD_TOO_LARGE");
+                body.Write(buffer, 0, count);
+            }
+            var bytes = body.ToArray();
             using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 16 });
             var root = document.RootElement;
+            RejectDuplicates(root);
             if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() != 1)
                 throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
             var item = root[0];
@@ -75,6 +84,21 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
         var result = await ReadHistoryAsync(new(assetExternalId, quantity, startUtc, endUtc), cancellationToken);
         if (result.Truncated) throw new ForeSiteMeasurementException("FORESITE_HISTORY_TRUNCATED");
         return result.Samples;
+    }
+
+    private static void RejectDuplicates(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in value.EnumerateObject())
+            {
+                if (!names.Add(property.Name)) throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
+                RejectDuplicates(property.Value);
+            }
+        }
+        else if (value.ValueKind == JsonValueKind.Array)
+            foreach (var item in value.EnumerateArray()) RejectDuplicates(item);
     }
 
     private static string? Text(JsonElement item, string name) =>

@@ -58,12 +58,22 @@ public static class ForeSiteAdapter
                 "AveragePumpFillage", WellResourceKind, "%", "LastGoodScanTime from the controller scan.",
                 "Good indicates successful acquisition of a valid controller value.", 6),
             EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
-                "SurfaceCards", WellResourceKind, null, "Card acquisition time; retrieval time is recorded separately.",
-                "Invalid, mismatched or oversized card arrays are refused.", 6, "foresite.surface-cards/v1"),
+                "SurfaceCards", WellResourceKind, null, "Oldest card acquisition time; each card also preserves its capture time. Retrieval time is separate.",
+                "Quality is Unknown because the source supplies no quality code. Invalid, mismatched or oversized arrays are refused.", 6, "foresite.surface-cards/v1") with
+            {
+                StructuredResponse = new("foresite.surface-cards/v1", [
+                    new("[].id", "string", true, "Stable card identity within this response."),
+                    new("[].kind", "string", true, "CURRENT or FULL stored library card."),
+                    new("[].representation", "string", true, "SURFACE."),
+                    new("[].capturedAtUtc", "date-time", true, "Original capture timestamp in UTC."),
+                    new("[].source", "string", true, "foresite:dynacard-library."),
+                    new("[].positionUnit", "string", true, "in; unsupported units fail explicitly."),
+                    new("[].loadUnit", "string", true, "lb; never silently relabelled as lbf."),
+                    new("[].position", "decimal[]", true, "2–1024 positions paired by index with load."),
+                    new("[].load", "decimal[]", true, "2–1024 loads paired by index with position.")
+                ], "array (maximum 16 cards)")
+            },
             HistoricalReadLimits.Operation("history.pump-fillage", "PumpFillage", WellResourceKind, 6,
-                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants.",
-                "Trend responses do not supply quality; returned quality is Unknown."),
-            HistoricalReadLimits.Operation("history.average-pump-fillage", "AveragePumpFillage", WellResourceKind, 6,
                 "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants.",
                 "Trend responses do not supply quality; returned quality is Unknown.")
         ]);

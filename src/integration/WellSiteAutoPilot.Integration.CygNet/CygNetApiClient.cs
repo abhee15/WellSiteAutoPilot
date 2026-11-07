@@ -14,7 +14,7 @@ namespace WellSiteAutoPilot.Integration.CygNet;
 /// quantity-to-point map from the Gateway's configuration.
 /// </summary>
 /// <remarks>Compiled only where the CygNet libraries exist; ported from a proof of concept that ran against a live domain.</remarks>
-public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClient, ICygNetHistoryClient
+public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClient
 {
     /// <summary>Facilities read in one discovery. A larger service is reported as truncated, never as complete.</summary>
     private const int MaximumFacilities = 5000;
@@ -64,56 +64,6 @@ public sealed class CygNetApiClient(CygNetProviderOptions options) : ICygNetClie
             quantities[name] = new CygNetQuantityMapping(mapping.Udc, mapping.Unit);
         return await new CygNetCurrentDataProvider(new CygNetProviderOptions((ushort)connection.Domain, quantities))
             .GetCurrentAsync(connection.TagFor(facilityId), quantity, cancellationToken);
-    }
-
-    private static class Historians
-    {
-        public static readonly ConcurrentDictionary<string, global::CygNet.API.Historian.Client> Clients = new(StringComparer.OrdinalIgnoreCase);
-    }
-
-    public Task<HistoricalReadResult> ReadHistoryAsync(CygNetConnection connection, string facilityId,
-        HistoricalReadRequest request, CancellationToken cancellationToken)
-    {
-        HistoricalReadLimits.Validate(request);
-        var mapping = connection.PointMap?.TryGetValue(request.Quantity, out var local) == true
-            ? local : options.Quantities.TryGetValue(request.Quantity, out var configured)
-                ? new CygNetPointMapping(configured.Udc, configured.Unit) : null;
-        if (mapping is null) throw new CygNetReadException("CYGNET_QUANTITY_UNSUPPORTED", "The history quantity is not mapped.");
-        return Run(connection, () =>
-        {
-            var historian = Historians.Clients.GetOrAdd($"{connection.Domain}/{connection.SiteService}", _ =>
-                new global::CygNet.API.Historian.Client(new ServiceInformation().GetAssociatedService(Service(connection), ServiceType.VHS)));
-            var name = new global::CygNet.Data.Historian.Name { ID = $"{connection.SiteService}:{facilityId}_{mapping.Udc}" };
-            var samples = new List<EngineeringValue>();
-            var truncated = false;
-            var retrieved = DateTimeOffset.UtcNow;
-            foreach (var entry in historian.GetHistoricalEntriesReverse(name, request.StartUtc.UtcDateTime, request.EndUtc.UtcDateTime, false))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var stamp = new DateTimeOffset(DateTime.SpecifyKind(entry.Timestamp, DateTimeKind.Utc));
-                if (stamp < request.StartUtc || stamp >= request.EndUtc) continue;
-                if (samples.Count >= request.MaximumSamples) { truncated = true; break; }
-                decimal value;
-                switch (entry.ValueType)
-                {
-                    case global::CygNet.Data.Historian.HistoricalEntryValueType.Double:
-                        var number = BitConverter.ToDouble(entry.Value, 0);
-                        if (!double.IsFinite(number) || number > (double)decimal.MaxValue || number < (double)decimal.MinValue)
-                            throw new CygNetReadException("CYGNET_HISTORY_INVALID", "The historian returned an invalid number.");
-                        value = (decimal)number; break;
-                    case global::CygNet.Data.Historian.HistoricalEntryValueType.Int64:
-                        value = BitConverter.ToInt64(entry.Value, 0); break;
-                    case global::CygNet.Data.Historian.HistoricalEntryValueType.UTF8:
-                        value = CygNetValues.ParseNumber(System.Text.Encoding.UTF8.GetString(entry.Value)); break;
-                    default: throw new CygNetReadException("CYGNET_HISTORY_TYPE_UNSUPPORTED", "The historian value is not numeric.");
-                }
-                samples.Add(new(request.Quantity, value, mapping.Unit, stamp, CygNetValues.Quality(entry.BaseStatus.ToString()),
-                    "cygnet:history", retrieved, "HistorianSample"));
-            }
-            return new HistoricalReadResult(request.Quantity, "cygnet:history", mapping.Udc, "Raw",
-                request.StartUtc.ToUniversalTime(), request.EndUtc.ToUniversalTime(), samples.OrderBy(sample => sample.TimestampUtc).ToArray(),
-                truncated, truncated ? ["SAMPLE_LIMIT_REACHED"] : []);
-        }, cancellationToken);
     }
 
     // Site and service are restricted to letters, digits, underscore and hyphen by the adapter's settings.

@@ -14,8 +14,9 @@ public sealed class ForeSiteSession(HttpClient client)
         HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead) =>
         SendAuthenticatedAsync(HttpMethod.Get, path, null, ct, completionOption);
 
-    public Task<HttpResponseMessage> PostAsync(string path, object filter, CancellationToken ct) =>
-        SendAuthenticatedAsync(HttpMethod.Post, path, ForeSiteAdapter.SerializeFilter(filter), ct);
+    public Task<HttpResponseMessage> PostAsync(string path, object filter, CancellationToken ct,
+        HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead) =>
+        SendAuthenticatedAsync(HttpMethod.Post, path, ForeSiteAdapter.SerializeFilter(filter), ct, completionOption);
 
     private async Task<HttpResponseMessage> SendAuthenticatedAsync(HttpMethod method, string path, string? body, CancellationToken ct,
         HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead)

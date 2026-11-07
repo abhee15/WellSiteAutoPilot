@@ -325,6 +325,10 @@ jobs:
         working-directory: src/web
         run: npm run test:visual:run-history
 
+      - name: Review adapter Operations responsive browser layout
+        working-directory: src/web
+        run: npm run test:visual:adapter-operations
+
       - name: Upload run-history responsive screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -333,6 +337,8 @@ jobs:
           path: |
             src/web/artifacts/visual-run-history/*.png
             src/web/artifacts/visual-run-history/*.log
+            src/web/artifacts/visual-adapter-operations/*.png
+            src/web/artifacts/visual-adapter-operations/*.log
           if-no-files-found: ignore
           retention-days: 7
 

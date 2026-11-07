@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.ForeSite;
 
 HierarchyChecks.Verify();
+ConnectionOperationAvailabilityChecks.Run();
 SourceChangeChecks.Verify();
 ConnectionMonitorChecks.Verify();
 ConnectionCommandCatalogServiceChecks.Verify();

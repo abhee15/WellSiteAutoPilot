@@ -43,8 +43,11 @@ public static class HistoricalReadLimits
             new("quantity", "string", true, "Declared logical quantity."),
             new("startUtc", "date-time", true, "Inclusive instant with explicit UTC offset."),
             new("endUtc", "date-time", true, "Exclusive instant with explicit UTC offset."),
-            new("maximumSamples", "integer", true, "From 1 to 1000.")]),
+            new("maximumSamples", "integer", false, "From 1 to 1000; defaults to 1000.")]),
         new("engineering.history-result/v1", [
+            new("quantity", "string", true, "Logical quantity."),
+            new("startUtc", "date-time", true, "Inclusive requested instant normalized to UTC."),
+            new("endUtc", "date-time", true, "Exclusive requested instant normalized to UTC."),
             new("samples", "engineering.value/v1[]", true, "Ascending source times in [startUtc, endUtc)."),
             new("source", "string", true, "Provider provenance, with simulated sources identified."),
             new("sourcePoint", "string|null", false, "Mapped source point when supplied by provider."),

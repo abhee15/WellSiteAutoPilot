@@ -28,6 +28,8 @@ internal static class AdapterOperationChecks
         var declared = EngineeringOperationSchemas.Current("test", "Test", "Test", "q", "kind", null, "Source", "Source", 1);
         Check(AdapterOperations.List(broad with { Operations = [declared with { Capability = ProviderCapabilityKind.Command }] }).Count == 0,
             "Command metadata leaked into public operations.");
+        Check(AdapterOperations.List(broad with { Operations = [declared with { ContractVersion = "2.0" }] }).Count == 0,
+            "Unknown major operation contracts must not be published as supported.");
         Check(AdapterOperations.List(broad with { Capabilities = [], Operations = [declared] }).Count == 0,
             "Operation without capability must fail closed.");
     }

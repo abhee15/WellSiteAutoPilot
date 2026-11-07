@@ -16,9 +16,10 @@ public sealed record AdapterOperationDescriptor(
     string? Quantity = null,
     string? ResourceKind = null,
     string? Unit = null,
-    string? StructuredSchemaId = null);
+    string? StructuredSchemaId = null,
+    AdapterOperationSchema? StructuredResponse = null);
 
-public sealed record AdapterOperationSchema(string Id, IReadOnlyList<AdapterOperationField> Fields);
+public sealed record AdapterOperationSchema(string Id, IReadOnlyList<AdapterOperationField> Fields, string DataType = "object");
 public sealed record AdapterOperationField(string Name, string DataType, bool Required, string Description);
 public sealed record AdapterOperationLimits(int MaximumQuantities, int MaximumValueBytes, int MaximumReplyBytes,
     int? TimeoutSeconds = null, int? MaximumWindowDays = null, int? MaximumSamples = null);

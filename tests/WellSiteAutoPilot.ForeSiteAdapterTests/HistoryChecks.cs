@@ -30,6 +30,7 @@ internal static class HistoryChecks
         }
         foreach (var (payload, code) in new[] {
             ("[]", "FORESITE_RESPONSE_INVALID"),
+            ("[{\"ErrorMessage\":\"Success\",\"ErrorMessage\":\"Success\"}]", "FORESITE_RESPONSE_INVALID"),
             ("[{\"ErrorMessage\":\"unknown SECRET\"}]", "FORESITE_TREND_FAILED"),
             ("[{\"ErrorMessage\":\"Success\",\"Units\":\"%\",\"PointValues\":[{\"Timestamp\":\"2026-11-01T01:00:00\",\"Value\":80}]}]", "FORESITE_TIMESTAMP_INVALID"),
             ("[{\"ErrorMessage\":\"Success\",\"PointValues\":[]}]", "FORESITE_UNIT_MISSING"),
@@ -39,6 +40,11 @@ internal static class HistoryChecks
             try { await provider.ReadHistoryAsync(request); throw new InvalidOperationException("Invalid history payload accepted."); }
             catch (ForeSiteMeasurementException error) when (error.Code == code && !error.Message.Contains("SECRET", StringComparison.Ordinal)) { }
         }
+        handler.Payload = new string(' ', HistoricalReadLimits.MaximumSourceBytes + 1);
+        handler.Chunked = true;
+        try { await provider.ReadHistoryAsync(request); throw new InvalidOperationException("Unbounded chunked source accepted."); }
+        catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_PAYLOAD_TOO_LARGE") { }
+        handler.Chunked = false;
         handler.Payload = null;
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
@@ -49,6 +55,7 @@ internal static class HistoryChecks
     private static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
     private sealed class Handler : HttpMessageHandler
     {
+        public bool Chunked { get; set; }
         public string? Payload { get; set; }
         public string? Path { get; private set; }
         public string? Body { get; private set; }
@@ -56,6 +63,7 @@ internal static class HistoryChecks
         {
             if (request.RequestUri!.AbsolutePath.EndsWith("CreateToken", StringComparison.Ordinal))
                 return new(HttpStatusCode.OK) { Content = new StringContent("{}") };
+            if (Chunked) return new(HttpStatusCode.OK) { Content = new ChunkedContent(Payload!) };
             Path = request.RequestUri.AbsolutePath;
             Body = await request.Content!.ReadAsStringAsync(cancellationToken);
             return new(HttpStatusCode.OK) { Content = new StringContent(Payload ?? """
@@ -66,4 +74,12 @@ internal static class HistoryChecks
                 """, Encoding.UTF8, "application/json") };
         }
     }
+    private sealed class ChunkedContent(string body) : HttpContent
+    {
+        protected override bool TryComputeLength(out long length) { length = 0; return false; }
+        protected override Task<Stream> CreateContentReadStreamAsync() => Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(body)));
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            stream.WriteAsync(Encoding.UTF8.GetBytes(body)).AsTask();
+    }
+
 }
