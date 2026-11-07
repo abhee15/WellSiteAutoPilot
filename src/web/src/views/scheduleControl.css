@@ -1,0 +1,4 @@
+.schedule-control > .ui-notice { margin-block: var(--space-8); }
+.schedule-control > .ui-form-actions { margin-block-start: var(--space-12); }
+.schedule-control-form { display: grid; gap: var(--space-12); margin-block-start: var(--space-12); min-width: 0; }
+.schedule-control-form > p { margin: 0; }
