@@ -37,7 +37,7 @@ try
         qualityCounts = result.Samples.GroupBy(value => value.Quality).ToDictionary(group => group.Key, group => group.Count()),
         units = result.Samples.Select(value => value.Unit).Distinct().ToArray(),
         historianAssemblies = AppDomain.CurrentDomain.GetAssemblies().Select(assembly => assembly.GetName())
-            .Where(name => name.Name?.StartsWith("CygNet.", StringComparison.Ordinal) == true && name.Name.Contains("Historian", StringComparison.Ordinal))
+            .Where(name => name.Name is { } assemblyName && assemblyName.StartsWith("CygNet.", StringComparison.Ordinal) && assemblyName.Contains("Historian", StringComparison.Ordinal))
             .Select(name => new { name.Name, version = name.Version?.ToString() }).ToArray()
     }, json));
     return 0;

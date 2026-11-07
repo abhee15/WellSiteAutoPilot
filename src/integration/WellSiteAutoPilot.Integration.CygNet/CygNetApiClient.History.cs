@@ -23,7 +23,7 @@ public sealed partial class CygNetApiClient
         cancellationToken.ThrowIfCancellationRequested();
         if (!AdapterReadRules.CygNetQuantities.Contains(request.Quantity) ||
             !string.Equals(connection.TagFor(facilityId), request.AssetExternalId, StringComparison.OrdinalIgnoreCase) ||
-            string.IsNullOrWhiteSpace(facilityId) || facilityId.Any(character => character is ':' or '/' or '\\' || char.IsControl(character)) ||
+            string.IsNullOrWhiteSpace(facilityId) || facilityId.Any(character => character is ':' or '/' or '\\' or '*' or '?' || char.IsControl(character)) ||
             connection.FacilityFilter is { } filter && !CygNetAdapter.Matches(filter, facilityId))
             throw new CygNetReadException("CYGNET_HISTORY_SCOPE_INVALID", "The history request does not match this connection and facility.");
         var mapping = connection.PointMap?.TryGetValue(request.Quantity, out var local) == true
