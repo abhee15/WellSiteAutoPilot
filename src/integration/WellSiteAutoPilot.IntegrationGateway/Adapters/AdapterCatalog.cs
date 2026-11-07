@@ -6,7 +6,7 @@ using WellSiteAutoPilot.Integration.PetroVisor;
 namespace WellSiteAutoPilot.IntegrationGateway.Adapters;
 
 /// <summary>The adapters this build ships, registered in code. A new adapter adds one descriptor here.</summary>
-public sealed class AdapterCatalog
+public sealed class AdapterCatalog(ICygNetClient? cygnet = null)
 {
     private static readonly AdapterDescriptor Simulator = new(
         "simulator",
@@ -32,7 +32,8 @@ public sealed class AdapterCatalog
                 AdapterCommandValueKind.OnOff, [], AdapterCommandVerification.ReadBack, "PumpRunning", 2, 60, 30, 300)
         ]);
 
-    private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator, ForeSiteAdapter.Descriptor, PetroVisorAdapter.Descriptor, CygNetAdapter.Descriptor];
+    private readonly IReadOnlyList<AdapterDescriptor> _descriptors = [Simulator, ForeSiteAdapter.Descriptor, PetroVisorAdapter.Descriptor,
+        CygNetAdapter.Describe(cygnet)];
 
     public IReadOnlyList<AdapterDescriptor> List() => _descriptors;
 

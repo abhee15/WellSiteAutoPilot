@@ -36,6 +36,10 @@ namespace WellSiteAutoPilot.Server.Contracts;
 /// </summary>
 public static class ContractEnumMapping
 {
+    public static WellSiteAutoPilot.Api.Contracts.Connections.AssetOperationEligibilityState ToContract(
+        this WellSiteAutoPilot.Application.Connections.AssetOperationEligibilityState value) =>
+        Map<WellSiteAutoPilot.Api.Contracts.Connections.AssetOperationEligibilityState>(value);
+
     public static ContractGrantSubjectKind ToContract(this DomainGrantSubjectKind value) => Map<ContractGrantSubjectKind>(value);
     public static ContractGrantScopeKind ToContract(this DomainGrantScopeKind value) => Map<ContractGrantScopeKind>(value);
     public static ContractExecutionMode ToContract(this DomainExecutionMode value) => Map<ContractExecutionMode>(value);

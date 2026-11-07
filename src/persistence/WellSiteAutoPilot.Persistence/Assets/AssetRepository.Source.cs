@@ -6,6 +6,23 @@ namespace WellSiteAutoPilot.Persistence.Assets;
 
 public sealed partial class AssetRepository
 {
+    public async Task<AssetConnectionSource?> GetConnectionSourceAuthorizedAsync(AccessSubject subject, Guid assetId, Guid connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        // The paired AssetsRead grant, owner and explicit identity are applied in SQL before any binding is read.
+        var source = await VisibleAssets(subject).Where(asset => asset.Id == assetId && asset.OwnerConnectionId == connectionId)
+            .Select(asset => new
+            {
+                asset.Id, asset.IsActive,
+                Bindings = dbContext.SourceBindings.AsNoTracking()
+                    .Where(binding => binding.AssetId == asset.Id && binding.ConnectionId == connectionId)
+                    .OrderBy(binding => binding.Id).Take(2)
+                    .Select(binding => new AssetConnectionBinding(binding.ResourceKind, binding.ExternalId)).ToArray()
+            }).SingleOrDefaultAsync(cancellationToken);
+        return source is null ? null : new(source.Id, connectionId, source.IsActive, source.Bindings);
+    }
+
     public async Task<AssetSourceInfo?> GetSourceAuthorizedAsync(AccessSubject subject, Guid assetId,
         CancellationToken cancellationToken = default)
     {

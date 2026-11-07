@@ -203,6 +203,7 @@ jobs:
               "/api/v1/executions",
               "/api/v1/asset-types",
               "/api/v1/asset-types/{assetTypeId}",
+              "/api/v1/connections/{connectionId}/assets/{assetId}/operations",
               "/api/v1/assets",
               "/api/v1/assets/{assetId}",
               "/api/v1/configured-logic",
@@ -229,6 +230,7 @@ jobs:
             # API-owned finite values must be published as string enums and
             # referenced by their fields so the generated client emits unions.
             $closedValues = [ordered]@{
+              AssetOperationEligibilityState = "SourceCheckRequired,ConnectionDisabled,ConnectionIncompatible,ConnectionTestRequired,ConnectionUnavailable,Unsupported,AssetInactive,Unmapped,AmbiguousSource,ResourceUnsupported"
               AccessGrantSubjectKind = "User,Group"
               AccessGrantScopeKind = "ExactAssets,DeploymentWide,AllAssets"
               ExecutionMode = "Shadow,Recommendation,Autonomous"
@@ -253,6 +255,7 @@ jobs:
             }
 
             $closedFields = [ordered]@{
+              "AssetOperationEligibilityResponse.state" = "AssetOperationEligibilityState"
               "AccessGrantResponse.subjectKind" = "AccessGrantSubjectKind"
               "AccessGrantResponse.scopeKind" = "AccessGrantScopeKind"
               "CreateAccessGrantRequest.scopeKind" = "AccessGrantScopeKind"
@@ -325,6 +328,10 @@ jobs:
         working-directory: src/web
         run: npm run test:visual:run-history
 
+      - name: Review adapter Operations responsive browser layout
+        working-directory: src/web
+        run: npm run test:visual:adapter-operations
+
       - name: Upload run-history responsive screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -333,6 +340,8 @@ jobs:
           path: |
             src/web/artifacts/visual-run-history/*.png
             src/web/artifacts/visual-run-history/*.log
+            src/web/artifacts/visual-adapter-operations/*.png
+            src/web/artifacts/visual-adapter-operations/*.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -1271,7 +1280,7 @@ jobs:
           dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
           echo $! > simulator.pid
 
-          Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
+          Providers__CygNet__Backend=simulated Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
           echo $! > gateway.pid
 
           for attempt in {1..30}; do
@@ -1330,6 +1339,9 @@ jobs:
             -d '{"settings":{"baseUrl":"ftp://x","extra":"1"}}' "$base/adapters/simulator/validate")
           echo "$problems" | python -c "import json,sys; d=json.load(sys.stdin)['problems']; assert {p['fieldKey'] for p in d}=={'baseUrl','extra'}, d"
           expect "$(status -X POST -H 'Content-Type: application/json' -H "Authorization: WSA-Service server:$WSA_SERVER_KEY" -d '{}' "$base/adapters/unknown/validate")" 404 "unknown adapter"
+
+      - name: Verify bounded history and Gateway authorization
+        run: python tools/ci/verify_adapter_history.py
 
       - name: Verify simulated provider commands and faults
         shell: bash

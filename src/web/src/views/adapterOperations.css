@@ -1,0 +1,12 @@
+.operation-controls { display: flex; flex-wrap: wrap; gap: var(--space-12); align-items: end; padding: var(--space-12) var(--space-18); }
+.operation-controls .ui-field { flex: 1 1 var(--layout-column-min); min-width: 0; }
+.operation-search, .operation-availability { padding: var(--space-12) var(--space-18); }
+.operation-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-8) var(--space-12); margin: 0; }
+.operation-facts dt { font-weight: var(--font-weight-medium); }
+.operation-facts dd { margin: 0; overflow-wrap: anywhere; }
+.adapter-operations .split-type-detail p { margin: 0; }
+.adapter-operations .split-results li { padding: 0; }
+.adapter-operations .split-type-detail code { overflow-wrap: anywhere; }
+
+/* Keep contract columns readable; the shared table wrapper owns horizontal scrolling on narrow screens. */
+.adapter-operations .activity-table { min-width: calc(var(--layout-column-min) * 2); }

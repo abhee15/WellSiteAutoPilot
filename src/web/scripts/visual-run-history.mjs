@@ -10,7 +10,8 @@ import react from '@vitejs/plugin-react';
 
 const delay = ms => new Promise(resolve => globalThis.setTimeout(resolve, ms));
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
-const output = join(root, 'artifacts', 'visual-run-history');
+const adapters = process.argv.includes('--adapters');
+const output = join(root, 'artifacts', adapters ? 'visual-adapter-operations' : 'visual-run-history');
 mkdirSync(output, { recursive: true });
 const chrome = [
   process.env.WSA_VISUAL_BROWSER,
@@ -27,7 +28,7 @@ const vite = await createViteServer({
 });
 const server = createHttpServer((request, response) => vite.middlewares(request, response));
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const base = `http://127.0.0.1:${server.address().port}/tests/visual/run-history.html`;
+const base = `http://127.0.0.1:${server.address().port}/tests/visual/${adapters ? 'adapter-operations' : 'run-history'}.html`;
 
 // Headless Chrome command-line windows have a 500 CSS-pixel minimum and a 16-pixel scrollbar
 // difference. Use CDP viewport emulation, rather than screenshots pretending to be 320px.
@@ -149,10 +150,12 @@ try {
     issue(result.pageBodyScroll > result.pageBodyClient + 2,
       `page content has horizontal scrolling (${result.pageBodyScroll} > ${result.pageBodyClient})`);
     issue(result.container < 170, `content region too narrow (${result.container}px)`);
+    if (adapters) issue(result.rowDisplay !== 'grid', 'operation list styling is missing');
+    if (adapters && mode === 'selected') issue(result.contractWidth < 479, 'contract columns are compressed below a readable width');
     if (mode === 'selected') {
       issue(!result.inspectorVisible || !result.detailVisible, 'selected run inspector is not visible');
-      issue(!result.selectedRun, 'selected run identity is missing');
-      if (result.container > 900 && result.viewport > 900) {
+      issue(!(adapters ? result.selectedOperation : result.selectedRun), 'selected identity is missing');
+      if (result.viewport > 900 && (adapters || result.container > 900)) {
         issue(!result.browseVisible, 'history must be visible beside details on wide screens');
         issue(!result.selectedRowVisible, 'selected history row must be highlighted on wide screens');
         issue(result.selectedRowColor === result.otherRowColor, 'selected row lacks visible highlighting');
