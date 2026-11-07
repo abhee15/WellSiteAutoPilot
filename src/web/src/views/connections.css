@@ -31,7 +31,6 @@
 .connection-tree, .connection-tree ul { list-style: none; margin: 0; padding-left: var(--space-14); }
 .connection-tree { padding-left: 0; max-height: var(--layout-list-max); overflow: auto; }
 
-.status-page { display: grid; gap: var(--space-12); min-width: 0; }
 .status-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-12); }
 .status-updated { color: var(--color-text-subtle); overflow-wrap: anywhere; }
 .connection-facets { display: flex; flex-wrap: wrap; gap: var(--space-12); }
@@ -94,9 +93,4 @@
 
 .connection-source-search { display: grid; gap: var(--space-8); flex: 1; min-width: 0; }
 
-.health-row[data-tone='warning'] { background: var(--color-surface-status-warning); border-inline-start: var(--border-width-thick) solid var(--color-text-status-warning); }
-.health-row[data-tone='error'] { background: var(--color-surface-status-error); border-inline-start: var(--border-width-thick) solid var(--color-text-status-error); }
 
-.status-page > section, .health-row > div { min-width: 0; }
-.health-row { flex-wrap: wrap; }
-.health-row-end { flex-wrap: wrap; }

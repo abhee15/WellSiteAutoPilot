@@ -60,6 +60,14 @@ Panel headers, edge table cells, filters and content states share `--space-panel
 - Details are one bordered, full-height card with a single frame (Activity shares the list panel instead).
 - Gutters: panel headings, filters and table text all start on `--space-18`.
 
+## Stylesheets
+
+One class has one owner file: its base rules, state tones and responsive variants live together, and a page stylesheet may
+add layout hooks but not restate a shared class. `!important` is not used. The one exception is the `.empty-state` padding and
+alignment, which must beat every table layout (including the narrow card layouts) without depending on stylesheet order;
+`tests/css-tokens.test.mjs` pins it. The three narrow-screen table layouts (activity feed, operations, recommendations) differ
+in structure on purpose and stay with their pages.
+
 ## Type
 
 - Three weights from tokens: regular 400, medium 500, bold 700 (Roboto ships only these; 600 would render as 700).

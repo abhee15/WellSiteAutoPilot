@@ -75,3 +75,27 @@ test('sizes are rem so they grow with the reader\'s text size; px is only for ha
   }
   assert.deepEqual(offenders, [], 'spacing, control, radius and layout tokens are rem (value / 16)');
 });
+
+test('!important is not used, except the two declarations that let an empty-state cell win over every table layout', () => {
+  // `.empty-state` must beat each table's cell padding and alignment in every layout, including the narrow card layouts
+  // that restyle td. Specificity alone cannot do that without depending on stylesheet order, so these two are the
+  // only allowed exception. A new one means the cascade is being fought: fix the selector instead.
+  const found = [];
+  for (const file of files) {
+    for (const match of readFileSync(file, 'utf8').matchAll(/^[^\n]*!important[^\n]*$/gm)) {
+      found.push(`${file.split(/[\\/]/).pop()}: ${match[0].trim()}`);
+    }
+  }
+  assert.deepEqual(found, [
+    'styles.css: padding: var(--space-28) var(--space-16) !important;',
+    'styles.css: text-align: center !important;',
+  ]);
+  assert.match('a { color: red !important; }', /!important/, 'the scan sees an inline declaration');
+});
+
+test('one class, one stylesheet: the health row and status page are styled only in styles.css', () => {
+  // These were split, with flex-wrap and the warning/error tones living in connections.css; keep one owner.
+  const owners = file => /\.(?:health-row|health-row-end|status-page)\b/.test(readFileSync(file, 'utf8'));
+  assert.deepEqual(files.filter(owners).map(file => file.split(/[\\/]/).pop()), ['styles.css']);
+  assert.ok(owners.call(null, files.find(file => file.endsWith('styles.css'))), 'the owner really styles them');
+});
