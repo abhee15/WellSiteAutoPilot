@@ -6,7 +6,7 @@ export const englishMessages = {
   'adapterReference.yes': 'Yes',
   'adapterReference.no': 'No',
   'adapterReference.missing': 'The selected adapter is no longer installed. Choose another adapter to view its capabilities.',
-  'adapterReference.missingOption': '{adapter} (not installed)',
+  'adapterReference.missingOption': '{adapter} (unavailable)',
   'adapterReference.adapter': 'Adapter',
   'adapterReference.refresh': 'Refresh capabilities',
   'adapterReference.intro': 'Explore the APIs and data capabilities implemented by each adapter. Examples are reference data; no provider connection is used.',

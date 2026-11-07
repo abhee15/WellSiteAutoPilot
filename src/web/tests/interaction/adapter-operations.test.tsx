@@ -92,6 +92,17 @@ describe('Adapter capability reference', () => {
     expect(await screen.findByRole('button', { name: /Surveillance data/ })).toBeTruthy();
   });
 
+  it('distinguishes a metadata authorization failure from an uninstalled adapter', async () => {
+    const user = userEvent.setup();
+    render(<AdaptersPanel />);
+    await screen.findByRole('button', { name: /Surveillance data/ });
+    vi.mocked(loadAdapterOperations).mockRejectedValue(new ConnectionsError('accessDenied'));
+    await user.click(screen.getByRole('button', { name: 'Refresh capabilities' }));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'You do not have access to adapter metadata.');
+    expect(screen.getByRole('option', { name: 'foresite (unavailable)' })).toBeTruthy();
+    expect(screen.queryByText(/no longer installed/)).toBeNull();
+  });
+
   it('does not substitute another adapter when a refresh removes the selected adapter', async () => {
     const user = userEvent.setup();
     render(<AdaptersPanel />);
