@@ -95,10 +95,6 @@
     "controls": 4,
     "notices": 5
   },
-  "views/ControlActionsPanel.tsx": {
-    "controls": 3,
-    "notices": 4
-  },
   "views/CopyButton.tsx": {
     "controls": 0,
     "notices": 1
