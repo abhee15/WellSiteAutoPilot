@@ -19,7 +19,7 @@
 
 .split-layout .activity-table { min-width: 0; }
 /* The name of an item in a list or table reads as text: link colour and underline only on hover.
-   Real actions that share the class (Show more, Load) keep the link look. */
+   Only names use this class; actions (Show more, Retry, Remove) are ActionButton. */
 .split-results .asset-select, .split-layout .activity-table td .asset-select {
   color: var(--color-text-primary); font-weight: var(--font-weight-medium); text-decoration: none; }
 .split-results .asset-select:hover, .split-layout .activity-table td .asset-select:hover {

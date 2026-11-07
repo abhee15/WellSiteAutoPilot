@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
+import { ActionButton } from '../components/ActionButton';
 import { BROWSE_PAGE_SIZE, SEARCH_PAGE_SIZE, fetchChildren, fetchOwners, fetchSearch } from './assetBrowseApi';
 import type { OwnerGroup } from './assetHierarchy';
 import { AssetOwnerRow, ownerKey, ownerNameFor } from './AssetOwnerRow';
@@ -146,9 +147,8 @@ export function AssetBrowser({
                   <AssetNodeIcon kind={assetNodeKind(hasChildren, typeNames?.get(node.assetTypeId))} />{name}</button>
                 {hasChildren && <small className="asset-tree-count" title={t('assetTree.count', { count: String(node.childCount) })}>
                   <ChevronMark />{node.childCount}<span className="visually-hidden"> {t('assetTree.below')}</span></small>}
-                {hasChildren && selection && <button type="button" className="asset-select" disabled={selection.busy}
-                  aria-label={t('assetViews.selectBranch', { name })} onClick={() => selection.onSelectBranch(node.id)}>
-                  {t('assetViews.selectBranchShort')}</button>}
+                {hasChildren && selection && <ActionButton variant="quiet" label={t('assetViews.selectBranchShort')} disabled={selection.busy}
+                  aria-label={t('assetViews.selectBranch', { name })} onClick={() => selection.onSelectBranch(node.id)} />}
               </div>
               {open && <ul role="group">{renderLevel(node.id)}</ul>}
             </li>
@@ -157,12 +157,10 @@ export function AssetBrowser({
         {level.loading && <li role="none" className="asset-tree-status"><LoadingIndicator size="small" label={t('views.loading')} /></li>}
         {level.failed && <li role="none" className="asset-tree-status">
           {t('assetBrowse.failed')}{' '}
-          <button type="button" className="asset-select" onClick={() => void load(key, level.items.length > 0)}>
-            {t('assetBrowse.retry')}</button>
+          <ActionButton variant="quiet" label={t('assetBrowse.retry')} onClick={() => void load(key, level.items.length > 0)} />
         </li>}
         {level.hasMore && !level.loading && <li role="none" className="asset-tree-status">
-          <button type="button" className="asset-select" onClick={() => void load(key, true)}>
-            {t('assetBrowse.more')}</button>
+          <ActionButton label={t('assetBrowse.more')} onClick={() => void load(key, true)} />
         </li>}
       </>
     );
@@ -241,7 +239,7 @@ export function AssetSearchResults({
       {state.failed && <p className="split-note" role="alert">{t('assetBrowse.failed')}</p>}
       {!state.loading && !state.failed && state.hits.length === 0 && <p className="split-note">{t('assets.noMatches')}</p>}
       {state.hasMore && !state.loading && <p className="split-note">
-        <button type="button" className="asset-select" onClick={more}>{t('assetBrowse.more')}</button></p>}
+        <ActionButton label={t('assetBrowse.more')} onClick={more} /></p>}
     </>
   );
 }
