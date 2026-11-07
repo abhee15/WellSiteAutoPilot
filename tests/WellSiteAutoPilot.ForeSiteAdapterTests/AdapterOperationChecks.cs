@@ -65,6 +65,19 @@ internal static class AdapterOperationChecks
             "Unknown major operation contracts must not be published as supported.");
         Check(AdapterOperations.List(broad with { Capabilities = [], Operations = [declared] }).Count == 0,
             "Operation without capability must fail closed.");
+        var declaredCurrent = broad with { Operations = [declared], Capabilities = [
+            new(ProviderCapabilityKind.CurrentData, "Current")] };
+        var currentGroup = new AdapterCapabilityGroup("test.current", "Current", "Current data", "1.0", [declared.Key]);
+        Check(declaredCurrent with { OperationGroups = [currentGroup] } is { } valid &&
+            valid.ReadCapabilityGroups().Count == 1, "Unique operation/group must remain public.");
+        var duplicates = declaredCurrent with { Operations = [declared, declared with { DisplayName = "Conflicting contract" }],
+            OperationGroups = [currentGroup] };
+        Check(duplicates.ReadOperations().Count == 0 && duplicates.ReadCapabilityGroups().Count == 0,
+            "Duplicate operation identities must never publish ambiguous contracts or groups.");
+        var distinct = declaredCurrent with { Operations = [declared, declared with { Key = "second" }],
+            OperationGroups = [currentGroup] };
+        Check(distinct.ReadOperations().Count == 2 && distinct.ReadCapabilityGroups().Count == 1,
+            "Nonconflicting operations must remain available.");
     }
     private static void Check(bool valid, string message)
     {
