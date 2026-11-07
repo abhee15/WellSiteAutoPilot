@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse, ExecutionResponse,
   LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { statusLabel } from '../words';
 import { ConfiguredShadowPanel } from './ConfiguredShadowPanel';
 import { ConfiguredLogicSetupPanel } from './ConfiguredLogicSetupPanel';
 import { AutonomyPolicyPanel } from './AutonomyPolicyPanel';
@@ -215,16 +216,16 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
           <label className="logic-revision-select">{t('logicDetail.selectRevision')}
             <select value={selected.id} disabled={busy} onChange={event => { setRevisionId(event.target.value); setConfirmId(null); }}>
               <optgroup label={t('logicDetail.activeAndDrafts')}>
-                {active && <option value={active.id}>{t('setup.revision', { number: active.revisionNumber ?? '—' })} · {active.status}</option>}
-                {waiting.map(r => <option key={r.id} value={r.id}>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</option>)}
+                {active && <option value={active.id}>{t('setup.revision', { number: active.revisionNumber ?? '—' })} · {statusLabel(active.status)}</option>}
+                {waiting.map(r => <option key={r.id} value={r.id}>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {statusLabel(r.status)}</option>)}
               </optgroup>
               {earlier.length > 0 && <optgroup label={t('configured.earlier', { count: earlier.length })}>
-                {earlier.map(r => <option key={r.id} value={r.id}>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {r.status}</option>)}
+                {earlier.map(r => <option key={r.id} value={r.id}>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {statusLabel(r.status)}</option>)}
               </optgroup>}
             </select>
           </label>
           <section className="logic-detail-section" aria-label={t('logicDetail.selectedRevision')}>
-            <div className="logic-detail-row"><h4>{t('setup.revision', { number: selected.revisionNumber ?? '—' })} · {selected.status}</h4>
+            <div className="logic-detail-row"><h4>{t('setup.revision', { number: selected.revisionNumber ?? '—' })} · {statusLabel(selected.status)}</h4>
               <Status value={selected.status} /></div>
             <ConfiguredRevisionDetails revision={selected} assets={assets} owners={owners} />
             {mayManage && <div className="setup-actions">

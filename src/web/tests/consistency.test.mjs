@@ -452,3 +452,59 @@ test('table styling is shared: pages hook layout onto DataTable but do not resta
     .filter(path => /^\.table-wrap\b|\.source-change-table\b/m.test(source(path))).map(rel), [],
   'The scroll wrapper and embedded table rules live in components/dataTable.css');
 });
+
+test('actions are ActionButton: the only raw asset-select / row-link buttons are record names, pinned per file', () => {
+  // A name that selects a record inside a master-detail list is a button styled as text (ContextLink is for hash
+  // destinations). Anything that does something else (Retry, Show more, Remove, Select) is an ActionButton.
+  // The counts can only shrink; a new name button needs a deliberate entry here, a new action does not belong here.
+  const nameButtons = {
+    'views/AccessManagementPage.tsx': 1, 'views/ActivityPage.tsx': 1, 'views/AssetBrowser.tsx': 2, 'views/AssetDetail.tsx': 1,
+    'views/AssetOwnerRow.tsx': 1, 'views/AssetTree.tsx': 1, 'views/AssetViewBrowser.tsx': 1, 'views/AssetsPage.tsx': 3,
+    'views/ExecutionHistory.tsx': 1, 'views/LogicPage.tsx': 2, 'views/OperationsPage.tsx': 1,
+  };
+  const raw = /<button\b(?:=>|[^>])*?className="[^"]*\b(?:asset-select|row-link)\b/g;
+  const actual = Object.fromEntries(code.map(path => [rel(path), (source(path).match(raw) ?? []).length]).filter(([, count]) => count > 0));
+  assert.deepEqual(actual, nameButtons,
+    'use <ActionButton label=... /> for an action; if a name button was removed or migrated, lower its count here');
+  assert.equal('<button type="button" className="asset-select" onClick={more}>'.match(raw)?.length, 1, 'the guard sees a raw action button');
+  assert.equal('<ActionButton label="x" className="asset-select" />'.match(raw), null, 'ActionButton is not a raw button');
+  assert.equal('<button\n  className="row-link"\n  onClick={() => go()}>'.match(raw)?.length, 1, 'it reads a multi-line button');
+});
+
+test('table column headers go through t(), so their wording lives in one catalogue', () => {
+  const literal = /<th\b[^>]*>\s*[A-Z][A-Za-z]*(?: [A-Za-z]+)*\s*<\/th>/;
+  assert.deepEqual(code.filter(path => literal.test(source(path))).map(rel), [],
+    "write <th>{t('page.colName')}</th> and add the key to localization.ts");
+  assert.match('<th className="run-col-secondary">Last run</th>', literal, 'the guard sees a literal header');
+  assert.doesNotMatch("<th>{t('operations.colStatus')}</th>", literal, 'a message key is allowed');
+});
+
+test('a status shown as text goes through statusLabel, never the raw server value', () => {
+  // `value={run.status}` (an attribute) is fine: Status and statusLabel turn it into words. Text, `{x.status}`, is not.
+  const raw = /(?<![=\w$])\{[A-Za-z_][\w.?]*\.status\}/;
+  assert.deepEqual(code.filter(path => raw.test(source(path))).map(rel), [],
+    'show statusLabel(x.status) as text, or the Status component; the raw value is a code such as NotReturned');
+  assert.match('<option>{r.revisionNumber} · {r.status}</option>', raw, 'the guard sees raw status text');
+  assert.doesNotMatch('<Status value={run.status} />', raw, 'an attribute is allowed');
+  assert.doesNotMatch('{statusLabel(r.status)}', raw, 'the shared label is allowed');
+});
+
+test('dates and times are formatted by format.ts, which always carries the time zone', () => {
+  // executionDetail.ts adds the zone itself; auditPresentation.ts only builds the day labels that group a feed.
+  const allowed = ['format.ts', 'views/executionDetail.ts', 'views/auditPresentation.ts'];
+  // Number.toLocaleString() (byte counts, totals) is not a date and is fine; only date and time formatting is shared.
+  const direct = /\.toLocale(?:Date|Time)String\(|new Date\([^)]*\)\.toLocaleString\(/;
+  assert.deepEqual(code.filter(path => !allowed.includes(rel(path)) && direct.test(source(path))).map(rel), [],
+    'use formatTimestamp (or formatTime) from format.ts so every time shows its zone; do not add to the allow list');
+  assert.match('new Date(x).toLocaleDateString()', direct, 'the guard sees a zone-less date');
+  assert.match('new Date(x).toLocaleString()', direct, 'and a zone-less date and time');
+  assert.doesNotMatch('{limits?.maximumValueBytes?.toLocaleString()} bytes', direct, 'a grouped number is not a date');
+});
+
+test('no time zone is named in screen code: the choices come from the browser', () => {
+  const named = /['"`](?:Africa|America|Antarctica|Arctic|Asia|Atlantic|Australia|Europe|Indian|Pacific)\/[A-Za-z_]+/;
+  const stripped = path => source(path).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+  assert.deepEqual(code.filter(path => named.test(stripped(path))).map(rel), [],
+    'offer zones with timeZoneChoices() in views/assignmentSchedule.ts instead of naming one');
+  assert.match("['UTC', 'America/Chicago']", named, 'the guard sees a named zone');
+});

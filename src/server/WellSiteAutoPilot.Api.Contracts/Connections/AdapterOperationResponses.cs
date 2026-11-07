@@ -14,3 +14,8 @@ public sealed record AdapterOperationResponse(string Key, string DisplayName, st
 /// <summary>Connection readiness only. It does not authorize asset reads or assert that an individual point exists.</summary>
 public sealed record ConnectionOperationsResponse(Guid ConnectionId, int ConnectionRevision, string AdapterKey,
     string State, string Reason, IReadOnlyList<string> OperationKeys);
+
+/// <summary>Metadata eligibility only. This response authorizes no execution and contains no source IDs/settings/values.</summary>
+public sealed record AssetOperationsResponse(Guid ConnectionId, int ConnectionRevision, Guid AssetId, string AdapterKey,
+    string ConnectionState, IReadOnlyList<AssetOperationEligibilityResponse> Operations);
+public sealed record AssetOperationEligibilityResponse(string Key, string ContractVersion, AssetOperationEligibilityState State, string Reason);

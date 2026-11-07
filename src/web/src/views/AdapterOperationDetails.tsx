@@ -2,6 +2,7 @@ import { DataTable } from '../components/DataTable';
 import { useState } from 'react';
 import type { AdapterOperationResponse, AdapterOperationSchemaResponse } from '../api/generated/v1/types.gen';
 import { SectionTabs } from '../components/SectionTabs';
+import { t } from '../localization';
 
 /** Reusable read contract inspector, independent of provider and connection selection. */
 export function AdapterOperationDetails({ operation }: { operation: AdapterOperationResponse }) {
@@ -45,7 +46,7 @@ function Contract({ title, schema }: { title: string; schema: AdapterOperationSc
   return <>
     <h4>{title}</h4><code>{schema.id}</code><p>{schema.dataType}</p>
     <DataTable label={`${title} contract`}>
-      <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr></thead>
+      <thead><tr><th>{t('adapterOperations.colField')}</th><th>{t('adapterOperations.colType')}</th><th>{t('adapterOperations.colRequired')}</th><th>{t('adapterOperations.colMeaning')}</th></tr></thead>
       <tbody>{schema.fields?.map(field => <tr key={field.name}><th scope="row">{field.name}</th><td>{field.dataType}</td>
         <td>{field.required ? 'Yes' : 'No'}</td><td>{field.description}</td></tr>)}</tbody>
     </DataTable>

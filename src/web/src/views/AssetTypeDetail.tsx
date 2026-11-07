@@ -2,6 +2,7 @@ import { DataTable } from '../components/DataTable';
 import { ActionButton } from '../components/ActionButton';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { CloseButton } from '../components/CloseButton';
+import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import { Status } from '../components/Status';
 import { AssetTypeActions } from './AssetTypeActions';
@@ -56,7 +57,7 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
       </header>
       <p className="split-note">{type.key} · v{type.schemaVersion}</p>
       {!type.isActive && type.hiddenAtUtc && <p className="split-note">
-        {t('assetTypes.hiddenBy', { by: type.hiddenBy ?? '', when: new Date(type.hiddenAtUtc).toLocaleDateString() })}
+        {t('assetTypes.hiddenBy', { by: type.hiddenBy ?? '', when: formatTimestamp(type.hiddenAtUtc) })}
         {type.hiddenNote ? ` · ${t('assetTypes.hiddenNote', { note: type.hiddenNote })}` : ''}</p>}
       {onChanged && <AssetTypeActions type={type} count={count} countKnown={countKnown}
         canHide={canHide} canManage={canManage} onChanged={onChanged} />}

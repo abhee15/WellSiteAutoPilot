@@ -149,9 +149,9 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
           <h4>{t('assetViews.selectedCount', { count: selected.size })}</h4>
           <ActionButton label={t('assetViews.clearSelection')} onClick={() => setSelected(new Set())} />
           <ul className="well-selection-list">{selectedIds.slice(0, reviewLimit).map(id => <li key={id}>
-            <span>{known.get(id)?.name ?? id}{unavailableIds.has(id) ? ' · ' + t('assetViews.unavailableWell') : ''}</span><button type="button" className="asset-select"
+            <span>{known.get(id)?.name ?? id}{unavailableIds.has(id) ? ' · ' + t('assetViews.unavailableWell') : ''}</span><ActionButton variant="quiet" label={t('assetViews.remove')}
               aria-label={t('assetViews.removeWell', { name: known.get(id)?.name ?? id })}
-              onClick={() => setSelected(current => new Set([...current].filter(item => item !== id)))}>{t('assetViews.remove')}</button>
+              onClick={() => setSelected(current => new Set([...current].filter(item => item !== id)))} />
           </li>)}</ul>
           {selected.size > reviewLimit && <ActionButton label={t('assetBrowse.more')} onClick={() => setReviewLimit(limit => limit + 100)} />}
         </section>

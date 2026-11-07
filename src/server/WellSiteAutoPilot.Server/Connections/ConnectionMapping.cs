@@ -8,6 +8,11 @@ namespace WellSiteAutoPilot.Server.Connections;
 
 internal static class ConnectionMapping
 {
+    public static AssetOperationsResponse ToResponse(AssetOperationsSnapshot snapshot) => new(
+        snapshot.ConnectionId, snapshot.ConnectionRevision, snapshot.AssetId, snapshot.AdapterKey, snapshot.ConnectionState,
+        snapshot.Operations.Select(operation => new AssetOperationEligibilityResponse(operation.Key, operation.ContractVersion,
+            WellSiteAutoPilot.Server.Contracts.ContractEnumMapping.ToContract(operation.State), operation.Reason)).ToArray());
+
     public static AdapterOperationsResponse ToOperations(AdapterDescriptor adapter) => new(
         adapter.Key, adapter.DisplayName, adapter.Description,
         adapter.ReadOperations().Select(operation => new AdapterOperationResponse(

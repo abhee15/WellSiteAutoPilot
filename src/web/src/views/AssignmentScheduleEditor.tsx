@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { t } from '../localization';
-import { SCHEDULE_UNITS, buildAssignmentSchedule, scheduleErrorKeys, scheduleUnitKeys } from './assignmentSchedule';
+import { SCHEDULE_UNITS, buildAssignmentSchedule, scheduleErrorKeys, scheduleUnitKeys, timeZoneChoices } from './assignmentSchedule';
 import type { ScheduleDraft } from './assignmentSchedule';
 import { setupResponse } from './configuredLogicSetup';
 
@@ -35,8 +35,7 @@ export function AssignmentScheduleEditor({ value, onChange }: {
         <label>{t('assignment.startDate')}<input type="date" required value={value.date} onChange={event => change({ date: event.target.value })} /></label>
         <label>{t('assignment.startTime')}<input type="time" step="1" required value={value.time} onChange={event => change({ time: event.target.value })} /></label>
         <label>{t('assignment.timeZone')}<select value={value.timeZone} onChange={event => change({ timeZone: event.target.value })}>
-          {[...new Set([value.timeZone, Intl.DateTimeFormat().resolvedOptions().timeZone, 'UTC', 'America/Chicago'])].filter(Boolean)
-            .map(zone => <option key={zone} value={zone}>{zone}</option>)}
+          {timeZoneChoices(value.timeZone).map(zone => <option key={zone} value={zone}>{zone}</option>)}
         </select></label>
         <label>{t('assignment.repeatEvery')}<span className="assignment-frequency">
           <input type="number" min="1" max="999" step="1" required value={value.every}

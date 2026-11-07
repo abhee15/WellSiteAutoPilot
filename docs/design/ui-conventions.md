@@ -29,6 +29,12 @@ Material guidance on dense data applications.
 with a tooltip and accessible name. Text for primary and commit actions (Save, Approve, Configure Logic), anything with a
 consequence, and anything whose icon is ambiguous.
 
+**Actions versus record names.** Retry, Show more, Remove and Select wells are actions: `ActionButton` (`quiet` for a
+low-emphasis action repeated inside a row or notice, `secondary` for a standalone one). A record's name that selects it in a
+master-detail list is the one raw button, `asset-select` or `row-link`, because `ContextLink` is only for hash destinations.
+`tests/consistency.test.mjs` pins how many of those each file may hold; the count can only shrink. A shared record-name button
+would retire the list.
+
 ## Tab and page-section navigation (migration contract)
 
 See [Tab navigation design-system inventory and contract — Phase 1](tab-navigation-design-system-phase1.md) for the source audit, proposed component APIs, behavioral preservation matrix, responsive decisions, and future CI guard requirements. **Phase 3 implementation:** `TabStrip`, `PageTabNav`, and `SectionTabs` are shared throughout Logic, Assets, Administration, and Configured Logic details. URL-addressable sections are links; local detail panels are manual-activation tabs. The old `DetailTabs` component and page-specific tab CSS have been removed. The global consistency guard rejects duplicate tab markup and legacy tab CSS.
@@ -97,6 +103,22 @@ that opens in place, a chip per applied filter, Clear filters and a result count
 the panel. The toolbar adapts to its own width (container query), so a narrow list pane stacks like a phone.
 
 Asset hierarchy controls opt into `FilterToolbar`'s `sticky` behavior above the split-pane breakpoint. The compact search/filter toolbar stays at the top of its own scroll pane. Opening Filters returns the toolbar to normal flow and resets only that pane to the top, keeping tall filter and saved-view forms reachable without nested scroll regions. Escape closes the panel and returns keyboard focus to Filters. On smaller screens controls stay in normal page flow; the existing container-responsive layout remains in use.
+
+## Words, dates and time zones
+
+Wording and formatting have one owner each, so the same value reads the same on every screen:
+
+- **Table column headers** are message keys, `<th>{t('page.colName')}</th>`, never literal text. Keys are scoped to the page
+  that owns the table (`operations.colStatus`), not borrowed from a form label that happens to read the same.
+- **A status shown as text** goes through `statusLabel` in `words.ts` (`NotReturned` reads "Not returned"). A status badge
+  is the `Status` component. The raw server value is never printed; keep it in a tooltip or disclosure if support needs it.
+- **Dates and times** are formatted by `formatTimestamp` in `format.ts`, which always carries the time zone. Screens do not
+  call `toLocaleDateString`, `toLocaleTimeString` or `toLocaleString` themselves.
+- **Time zone choices** come from `timeZoneChoices()` in `views/assignmentSchedule.ts`: the saved zone first, the browser's
+  zone, UTC, then every zone the browser lists. No screen names a zone.
+
+Guards in `tests/consistency.test.mjs` fail on a literal `<th>`, a raw `{x.status}`, a direct `toLocale*String` call outside
+the formatters, and a named time zone; `tests/schedule-time-zones.test.mjs` covers the zone list.
 
 ## Breakpoints
 
