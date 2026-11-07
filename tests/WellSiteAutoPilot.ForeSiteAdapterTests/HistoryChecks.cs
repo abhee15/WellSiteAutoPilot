@@ -17,7 +17,7 @@ internal static class HistoryChecks
         Check(result.Truncated && result.Samples.Count == 1 && result.Samples[0].TimestampUtc == start &&
             result.Samples[0].Value == 80 && result.Samples[0].Quality == "Unknown" && result.Samples[0].Unit == "%" &&
             result.SourcePoint == "RRLPFILCUR" && result.Aggregation == "Raw", "History lost source semantics, ordering or truncation.");
-        Check(handler.Path!.Contains("/prefix/Surveillance/CygNetTrends/42/2026-11-01T06:00:00", StringComparison.Ordinal) &&
+        Check(handler.Path == "/prefix/Surveillance/CygNetTrends/42/2026-11-01T06:00:00Z/2026-11-01T08:00:00Z" &&
             handler.Body == "[\"CurrentPumpFillage\"]", "History route or logical quantity mapping drifted.");
         result = await provider.ReadHistoryAsync(request with { MaximumSamples = 1000 });
         Check(!result.Truncated && result.Samples.Count == 2 && result.Samples[1].TimestampUtc == start.AddHours(1),
@@ -28,6 +28,9 @@ internal static class HistoryChecks
             try { await provider.ReadHistoryAsync(bad); throw new InvalidOperationException("Invalid history bounds accepted."); }
             catch (ArgumentException) { }
         }
+        try { await provider.ReadHistoryAsync(request with { StartUtc = start.AddMilliseconds(1) });
+            throw new InvalidOperationException("Source bounds were silently rounded."); }
+        catch (ForeSiteMeasurementException error) when (error.Code == "FORESITE_HISTORY_PRECISION_UNSUPPORTED") { }
         foreach (var (payload, code) in new[] {
             ("[]", "FORESITE_RESPONSE_INVALID"),
             ("[{\"ErrorMessage\":\"Success\",\"ErrorMessage\":\"Success\"}]", "FORESITE_RESPONSE_INVALID"),

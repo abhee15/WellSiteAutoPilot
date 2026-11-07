@@ -11,6 +11,10 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
     {
         HistoricalReadLimits.Validate(request);
         cancellationToken.ThrowIfCancellationRequested();
+        // Keep the whole-second route format established by the time-range POC. Refuse unsupported
+        // precision rather than silently rounding requested bounds or guessing a new ForeSite route format.
+        if (request.StartUtc.Ticks % TimeSpan.TicksPerSecond != 0 || request.EndUtc.Ticks % TimeSpan.TicksPerSecond != 0)
+            throw new ForeSiteMeasurementException("FORESITE_HISTORY_PRECISION_UNSUPPORTED");
         if (!long.TryParse(request.AssetExternalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
         var sourceQuantity = request.Quantity switch
@@ -18,7 +22,7 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
             "PumpFillage" => "CurrentPumpFillage",
             _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
         };
-        static string Iso(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", CultureInfo.InvariantCulture);
+        static string Iso(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
         using var response = await session.PostAsync(
             $"Surveillance/CygNetTrends/{wellId}/{Iso(request.StartUtc)}/{Iso(request.EndUtc)}", new[] { sourceQuantity }, cancellationToken, HttpCompletionOption.ResponseHeadersRead);
         if (!response.IsSuccessStatusCode) throw new ForeSiteMeasurementException("FORESITE_READ_FAILED");

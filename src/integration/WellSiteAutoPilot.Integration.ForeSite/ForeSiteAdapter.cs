@@ -74,7 +74,7 @@ public static class ForeSiteAdapter
                 ], "array (maximum 16 cards)")
             },
             HistoricalReadLimits.Operation("history.pump-fillage", "PumpFillage", WellResourceKind, 6,
-                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants.",
+                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants with whole-second request bounds; fractional bounds are refused.",
                 "Trend responses do not supply quality; returned quality is Unknown.")
         ]);
 
