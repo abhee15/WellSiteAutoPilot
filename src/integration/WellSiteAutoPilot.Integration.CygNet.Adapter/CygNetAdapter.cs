@@ -46,7 +46,11 @@ public static class CygNetAdapter
         [
             new DiscoveryField("category", "Category", "Uncategorised"),
             new DiscoveryField("facilityType", "Facility type", "Unspecified type")
-        ]);
+        ], Operations: AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity =>
+            EngineeringOperationSchemas.Current("current." + quantity.ToLowerInvariant(), quantity,
+                "Current value of the mapped CygNet point.", quantity, AdapterReadRules.CygNetResourceKind, null,
+                "Point source timestamp in UTC; retrieval time is separate. Never substitute the current time for missing source time.",
+                "Preserves point reliability; missing values are refused. Units follow the configured point mapping.", 10)).ToArray());
 
     /// <summary>Reads and checks the settings. Returns null with a plain-words reason when they cannot be used.</summary>
     public static CygNetConnection? ReadConnection(IReadOnlyDictionary<string, string?> settings, out string? problem)

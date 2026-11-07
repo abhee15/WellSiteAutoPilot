@@ -40,7 +40,8 @@ public static class ForeSiteAdapter
             AdapterSettingKind.Url, true)],
         [
             new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Wells"),
-            new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current well values")
+            new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current well values"),
+            new ProviderCapability(ProviderCapabilityKind.HistoricalData, "Time-range well history")
         ],
         [
             new DiscoveryField("assetName", "ForeSite asset", "Unassigned", AsAttribute: false, IdentityMetadataKey: "assetId"),
@@ -48,6 +49,23 @@ public static class ForeSiteAdapter
             new DiscoveryField("deviceType", "Device type", "Unspecified device"),
             new DiscoveryField("field", "Field", "Unspecified field"),
             new DiscoveryField("lease", "Lease", "Unspecified lease")
+        ], Operations:
+        [
+            EngineeringOperationSchemas.Current("current.pump-fillage", "Pump fillage", "Current controller pump fillage.",
+                "PumpFillage", WellResourceKind, "%", "LastGoodScanTime: successful controller scan, never the latest attempted scan.",
+                "Good indicates successful acquisition of a valid controller value, not independent sensor validation.", 6),
+            EngineeringOperationSchemas.Current("current.average-pump-fillage", "Average pump fillage", "Controller average pump fillage.",
+                "AveragePumpFillage", WellResourceKind, "%", "LastGoodScanTime from the controller scan.",
+                "Good indicates successful acquisition of a valid controller value.", 6),
+            EngineeringOperationSchemas.Current("current.surface-cards", "Surface cards", "Paired position and load arrays from a surface card.",
+                "SurfaceCards", WellResourceKind, null, "Card acquisition time; retrieval time is recorded separately.",
+                "Invalid, mismatched or oversized card arrays are refused.", 6, "foresite.surface-cards/v1"),
+            HistoricalReadLimits.Operation("history.pump-fillage", "PumpFillage", WellResourceKind, 6,
+                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants.",
+                "Trend responses do not supply quality; returned quality is Unknown."),
+            HistoricalReadLimits.Operation("history.average-pump-fillage", "AveragePumpFillage", WellResourceKind, 6,
+                "Source timestamps require an explicit UTC offset. Reads use [start, end) UTC instants.",
+                "Trend responses do not supply quality; returned quality is Unknown.")
         ]);
 
     // ForeSite's WellTypeId enum: stable numeric ids on the wire, abbreviations for people.

@@ -34,8 +34,15 @@ public sealed record AdapterDescriptor(
     IReadOnlyList<ProviderCapability> Capabilities,
     IReadOnlyList<DiscoveryField>? GroupingFields = null,
     int MinimumScheduleSeconds = 0,
-    IReadOnlyList<AdapterCommandDefinition>? Commands = null)
+    IReadOnlyList<AdapterCommandDefinition>? Commands = null,
+    IReadOnlyList<AdapterOperationDescriptor>? Operations = null)
 {
+    /// <summary>Explicit read declarations only. Import and control capabilities are never Operations rows.</summary>
+    public IReadOnlyList<AdapterOperationDescriptor> ReadOperations() => (Operations ?? [])
+        .Where(operation => (operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData) &&
+            Capabilities.Any(capability => capability.Kind == operation.Capability))
+        .ToArray();
+
     /// <summary>True when the adapter can list what the provider holds.</summary>
     public bool CanDiscover => Capabilities.Any(item => item.Kind == ProviderCapabilityKind.AssetDiscovery);
 }

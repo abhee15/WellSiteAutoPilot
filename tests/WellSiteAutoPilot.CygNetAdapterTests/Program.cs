@@ -4,6 +4,7 @@ using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.IntegrationGateway.Adapters;
 using WellSiteAutoPilot.ModuleSdk;
 
+await HistoryChecks.RunAsync();
 const string Account = @"CORP\svc-wsa";
 var clock = new FixedClock(new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero));
 var sim = new SimulatedCygNetClient(clock);

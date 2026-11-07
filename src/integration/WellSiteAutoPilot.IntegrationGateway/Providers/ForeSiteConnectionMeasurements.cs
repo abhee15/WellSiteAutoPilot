@@ -13,7 +13,22 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
     private readonly Dictionary<Guid, Entry> _sessions = [];
     private bool _disposed;
 
-    public async Task<EngineeringValue> ReadAsync(ConnectionMeasurementRequest request, CancellationToken cancellationToken)
+    public Task<EngineeringValue> ReadAsync(ConnectionMeasurementRequest request, CancellationToken cancellationToken) =>
+        WithSessionAsync(request, session => request.Quantity == ForeSiteCards.Quantity
+            ? ForeSiteCards.ReadAsync(session.Session, request.ExternalId, session.Token)
+            : ForeSiteMeasurements.ReadAsync(session.Session, request.ExternalId, request.Quantity, session.Token), cancellationToken);
+
+    public Task<HistoricalReadResult> ReadHistoryAsync(ConnectionHistoryRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        HistoricalReadLimits.Validate(request.Read);
+        return WithSessionAsync(new(request.ConnectionId, request.ConnectionRevision, request.Settings,
+            request.Read.AssetExternalId, request.Read.Quantity),
+            async session => await new ForeSiteHistoricalDataProvider(session.Session).ReadHistoryAsync(request.Read, session.Token), cancellationToken);
+    }
+
+    private async Task<T> WithSessionAsync<T>(ConnectionMeasurementRequest request,
+        Func<(ForeSiteSession Session, CancellationToken Token), Task<T>> read, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.ConnectionId == Guid.Empty || request.ConnectionRevision < 1 || request.Settings is null ||
@@ -27,9 +42,7 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
             await entry.Gate.WaitAsync(budget.Token);
             try
             {
-                return request.Quantity == ForeSiteCards.Quantity
-                    ? await ForeSiteCards.ReadAsync(entry.Session, request.ExternalId, budget.Token)
-                    : await ForeSiteMeasurements.ReadAsync(entry.Session, request.ExternalId, request.Quantity, budget.Token);
+                return await read((entry.Session, budget.Token));
             }
             finally { entry.Gate.Release(); }
         }
