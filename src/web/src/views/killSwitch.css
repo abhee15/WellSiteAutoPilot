@@ -19,6 +19,8 @@
 }
 
 .kill-switch-form {
+  display: grid;
+  gap: var(--space-12);
   padding: var(--space-12) var(--space-18);
   border-top: var(--border-width-thin) solid var(--color-border-subtle);
 }
