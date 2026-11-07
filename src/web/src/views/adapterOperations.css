@@ -7,3 +7,6 @@
 .adapter-operations .split-type-detail p { margin: 0; }
 .adapter-operations .split-results li { padding: 0; }
 .adapter-operations .split-type-detail code { overflow-wrap: anywhere; }
+
+/* Keep contract columns readable; the shared table wrapper owns horizontal scrolling on narrow screens. */
+.adapter-operations .activity-table { min-width: calc(var(--layout-column-min) * 2); }

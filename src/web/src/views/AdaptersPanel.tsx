@@ -11,6 +11,7 @@ import { AdapterOperationDetails } from './AdapterOperationDetails';
 import { loadAdapterOperations, loadConnectionOperations } from './adapterOperations';
 import { ConnectionsError, loadConnections } from './connections';
 import type { Connection } from './connections';
+import './connections.css';
 import './splitLayout.css';
 import './adapterOperations.css';
 

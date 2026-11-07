@@ -58,6 +58,8 @@ window.setInterval(() => {
     mode: listOnly ? 'list' : 'selected', viewport: window.innerWidth, viewportClient: document.documentElement.clientWidth,
     documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth,
     pageBodyClient: document.querySelector('.page-body')!.clientWidth, pageBodyScroll: document.querySelector('.page-body')!.scrollWidth,
+    rowDisplay: getComputedStyle(rows[0].querySelector('button')!).display,
+    contractWidth: inspector.querySelector('table')?.getBoundingClientRect().width ?? 0,
     container: layout.getBoundingClientRect().width, browseVisible: visible(browse), inspectorVisible: visible(inspector),
     detailVisible: visible(inspector.querySelector('.split-type-detail')), selectedOperation: inspector.querySelector('h2')?.textContent,
     backVisible: visible(inspector.querySelector('.split-back')), selectedRowVisible: visible(selected),

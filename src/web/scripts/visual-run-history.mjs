@@ -150,6 +150,8 @@ try {
     issue(result.pageBodyScroll > result.pageBodyClient + 2,
       `page content has horizontal scrolling (${result.pageBodyScroll} > ${result.pageBodyClient})`);
     issue(result.container < 170, `content region too narrow (${result.container}px)`);
+    if (adapters) issue(result.rowDisplay !== 'grid', 'operation list styling is missing');
+    if (adapters && mode === 'selected') issue(result.contractWidth < 479, 'contract columns are compressed below a readable width');
     if (mode === 'selected') {
       issue(!result.inspectorVisible || !result.detailVisible, 'selected run inspector is not visible');
       issue(!(adapters ? result.selectedOperation : result.selectedRun), 'selected identity is missing');
