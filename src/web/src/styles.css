@@ -924,22 +924,6 @@ button:disabled {
   padding: var(--space-12) var(--space-18);
   max-width: var(--layout-readable);
 }
-.role-fields > label:not(.access-confirm) {
-  display: grid;
-  gap: var(--space-6);
-}
-.role-fields input:not([type="checkbox"]),
-.role-fields textarea {
-  color: var(--color-text-primary);
-  background: var(--color-surface-input);
-  padding: var(--space-8) var(--space-10);
-  border-radius: var(--radius-6);
-  border: var(--border-width-thin) solid var(--color-border-control);
-  font: inherit;
-  width: 100%;
-  box-sizing: border-box;
-}
-.role-fields input:not([type="checkbox"]) { min-height: var(--size-control); }
 .role-permissions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-column-min)), 1fr));
@@ -959,20 +943,7 @@ button:disabled {
   border: var(--border-width-thin) solid var(--color-border-permission-group);
   border-radius: var(--radius-6);
 }
-.role-permission-group h4 { margin: 0 0 var(--space-12); }
-.role-permission-group label {
-  padding: var(--space-6) 0;
-  align-items: flex-start;
-}
-.role-permission-group small {
-  display: block;
-  margin-top: var(--space-4);
-  color: var(--color-text-permission-hint);
-  overflow-wrap: anywhere;
-}
-.role-editor > .access-review,
-.role-editor > .access-confirm { margin-inline: var(--space-18); }
-.role-editor > .primary-button { margin: 0 var(--space-18) var(--space-20); }
+.role-editor > .access-review { margin-inline: var(--space-18); }
 
 .skip-link {
   position: absolute;
@@ -1083,7 +1054,7 @@ button:disabled {
 }
 
 /* Form field captions: one size and weight above every control in the forms (filters keep their compact captions). */
-.connection-form label, .connection-field, .asset-create-form label, .setup-form label, .role-fields > label:not(.access-confirm) {
+.connection-form label, .connection-field, .asset-create-form label, .setup-form label {
   font-size: var(--font-size-body-small);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);

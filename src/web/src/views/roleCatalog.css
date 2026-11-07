@@ -1,0 +1,7 @@
+.roles-layout .split-browse > .ui-notice { margin: var(--space-12) var(--space-18); }
+.role-editor > :is(.ui-notice, .ui-field, .ui-form-actions) { margin-inline: var(--space-18); }
+.role-editor > .ui-field { margin-block: var(--space-14); }
+.role-editor > .ui-form-actions { margin-block: var(--space-16) var(--space-20); }
+.role-permission-group { display: grid; gap: var(--space-8); align-content: start; }
+.role-permission-group > h4 { margin: 0 0 var(--space-4); }
+.role-permission-group .ui-field-message { margin-inline-start: calc(var(--size-icon) + var(--space-10)); }

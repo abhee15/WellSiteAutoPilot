@@ -1,5 +1,8 @@
 import { DataTable } from '../components/DataTable';
 import { ActionButton } from '../components/ActionButton';
+import { CheckboxField, FormActions, TextAreaField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
+import './roleCatalog.css';
 import { EmptyRow, PanelHeader } from '../components/common';
 import { RefreshCw } from 'lucide-react';
 import { FilterToolbar } from '../components/FilterToolbar';
@@ -129,25 +132,17 @@ export function RoleDefinitionEditor({
 
   return (
     <section className="panel role-editor" role="region" aria-label={t('roles.editor')}>
-      <PanelHeader level={3} title={original ? t('roles.editHeading') : t('roles.createHeading')}
-        actions={<ActionButton label={t('roles.cancel')} onClick={onCancel} disabled={busy} />} />
+      <PanelHeader level={3} title={original ? t('roles.editHeading') : t('roles.createHeading')} />
       <p className="access-note access-intro">{t('roles.inactiveUntilGrants')}</p>
       {original && !original.isSystem &&
         <p className="access-note access-intro">{t('roles.assignedRoleWarning')}</p>}
       <div className="role-fields">
-        <label><span>{t('roles.name')}</span>
-          <input value={name} maxLength={80} disabled={busy} placeholder={t('roles.namePlaceholder')}
-            onChange={event => { setName(event.target.value); setAcknowledged(false); }} />
-        </label>
-        <label><span>{t('roles.description')}</span>
-          <textarea value={description} maxLength={500} rows={3} disabled={busy} placeholder={t('roles.descriptionPlaceholder')}
-            onChange={event => { setDescription(event.target.value); setAcknowledged(false); }} />
-        </label>
-        {original && <label className="access-confirm">
-          <input type="checkbox" checked={enabled} disabled={busy}
-            onChange={event => { setEnabled(event.target.checked); setAcknowledged(false); }} />
-          {t('roles.enabled')}
-        </label>}
+        <TextField label={t('roles.name')} value={name} maxLength={80} disabled={busy} placeholder={t('roles.namePlaceholder')}
+          onChange={event => { setName(event.target.value); setAcknowledged(false); }} />
+        <TextAreaField label={t('roles.description')} value={description} maxLength={500} rows={3} disabled={busy} placeholder={t('roles.descriptionPlaceholder')}
+          onChange={event => { setDescription(event.target.value); setAcknowledged(false); }} />
+        {original && <CheckboxField label={t('roles.enabled')} checked={enabled} disabled={busy}
+          onChange={event => { setEnabled(event.target.checked); setAcknowledged(false); }} />}
       </div>
 
       <fieldset className="role-permissions" disabled={busy}>
@@ -156,22 +151,15 @@ export function RoleDefinitionEditor({
           <div className="role-permission-group" key={category}>
             <h4>{categories[category] ? t(categories[category]) : category}</h4>
             {choices.map(permission => (
-              <label key={permission.key} className="access-confirm">
-                <input type="checkbox" checked={selected.has(permission.key)}
-                  onChange={event => toggle(permission.key, event.target.checked)} />
-                <span><strong>{labels[permission.key] ?
-                  t(labels[permission.key]) : permission.key}</strong>
-                  <small>{permission.key} · {permission.scopeKind === 'DeploymentWide'
-                    ? t('roles.deploymentWide') : t('roles.assetBound')}</small>
-                </span>
-              </label>
+              <CheckboxField key={permission.key} checked={selected.has(permission.key)}
+                label={labels[permission.key] ? t(labels[permission.key]) : permission.key}
+                helper={`${permission.key} · ${permission.scopeKind === 'DeploymentWide' ? t('roles.deploymentWide') : t('roles.assetBound')}`}
+                onChange={event => toggle(permission.key, event.target.checked)} />
             ))}
           </div>
         ))}
       </fieldset>
-      {elevated && <p className="access-warning" role="note">
-        {t('roles.privilegedWarning')}
-      </p>}
+      {elevated && <Notice tone="warning" announce={false}>{t('roles.privilegedWarning')}</Notice>}
       <div className="access-review">
         <strong>{t('roles.reviewHeading')}</strong>
         <p>{t('roles.reviewName', { name: name.trim() || '—' })}</p>
@@ -179,12 +167,12 @@ export function RoleDefinitionEditor({
         <p>{original ? t('roles.reviewRevision', { revision: original.revision })
           : t('roles.reviewNew')}</p>
       </div>
-      <label className="access-confirm">
-        <input type="checkbox" checked={acknowledged} disabled={busy}
-          onChange={event => setAcknowledged(event.target.checked)} />
-        {t('roles.confirm')}
-      </label>
-      <ActionButton label={busy ? t('roles.saving') : t('roles.save')} variant="primary" disabled={!canSave} onClick={() => void submit()} />
+      <CheckboxField label={t('roles.confirm')} checked={acknowledged} disabled={busy}
+        onChange={event => setAcknowledged(event.target.checked)} />
+      <FormActions>
+        <ActionButton label={t('roles.cancel')} onClick={onCancel} disabled={busy} />
+        <ActionButton label={busy ? t('roles.saving') : t('roles.save')} variant="primary" disabled={!canSave} onClick={() => void submit()} />
+      </FormActions>
     </section>
   );
 }
@@ -255,9 +243,8 @@ export function RoleCatalogPage() {
             onClick={() => { setEditor({ kind: 'new', template: null }); setNotice(null); }} />
         </>} />
         <p className="access-note access-intro">{t('roles.intro')}</p>
-        {error && <p role="alert" className="execution-detail-error access-intro">
-          {errorLabel(error)}</p>}
-        {notice && <p role="status" className="access-intro">{notice}</p>}
+        {error && <Notice tone="error">{errorLabel(error)}</Notice>}
+        {notice && <Notice>{notice}</Notice>}
         {loading ? <LoadingIndicator label={t('roles.loading')} /> : !error && (
           <>
             <FilterToolbar label={t('roles.controls')}
