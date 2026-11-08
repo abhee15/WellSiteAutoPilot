@@ -15,6 +15,7 @@ import type {
   AutonomyLimitDraft, AutonomyPolicy, AutonomyPolicyDraft, AutonomyPolicyErrorKind, PolicyIssue,
 } from './autonomyPolicy';
 import './autonomyPolicy.css';
+import { useUnsavedChangesGuard } from '../navigationGuard';
 
 type Props = {
   configuredLogicId: string;
@@ -44,6 +45,8 @@ export function AutonomyPolicyPanel({ configuredLogicId, canManage, disabled = f
   const [saved, setSaved] = useState(false);
   const refreshRef = useRef<AbortController | null>(null);
   const saveRef = useRef<AbortController | null>(null);
+  // The open editor only counts as unsaved when it differs from the stored policy it was opened from.
+  const markSaved = useUnsavedChangesGuard(draft !== null && JSON.stringify(draft) !== JSON.stringify(draftFromPolicy(policy)));
 
   const refresh = useCallback(async () => {
     refreshRef.current?.abort();
@@ -115,6 +118,7 @@ export function AutonomyPolicyPanel({ configuredLogicId, canManage, disabled = f
       setPolicy(next);
       setLoaded(true);
       setSaved(true);
+      markSaved();
       close();
     } catch (failure) {
       if (controller.signal.aborted) return;

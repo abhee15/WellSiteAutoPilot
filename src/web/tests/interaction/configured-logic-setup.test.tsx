@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import { ConfiguredLogicSetupPanel } from '../../src/views/ConfiguredLogicSetupPanel';
 import { App } from '../../src/App';
 import { ConfiguredLogicWorkspace } from '../../src/views/ConfiguredLogicWorkspace';
@@ -327,4 +328,29 @@ describe('Configured logic setup journey', () => {
     window.location.hash = '';
   });
 
+});
+
+describe('Unsaved-changes guard', () => {
+  const goTo = async (hash: string) => { await act(async () => { window.location.hash = hash; await new Promise(resolve => setTimeout(resolve, 20)); }); };
+  const leaveQuestion = () => screen.queryByRole('heading', { name: 'Leave without saving?' });
+  const open = () => {
+    window.location.hash = '#logic';
+    vi.stubGlobal('fetch', vi.fn(async () => response([])));
+    render(<><UnsavedChangesPrompt /><ConfiguredLogicSetupPanel {...props} /></>);
+  };
+
+  it('does not ask after only choosing a module, which fills in defaults rather than entering work', async () => {
+    open();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Approved module version' }), JSON.stringify(['sample', '1.0.0']));
+    await goTo('#assets');
+    expect(leaveQuestion()).toBeNull();
+  });
+
+  it('asks once a field has been changed and puts the address back', async () => {
+    open();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Configuration name' }), 'Observer');
+    await goTo('#assets');
+    expect(leaveQuestion()).toBeTruthy();
+    expect(window.location.hash).toBe('#logic');
+  });
 });

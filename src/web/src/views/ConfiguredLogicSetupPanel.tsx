@@ -25,6 +25,10 @@ import './configuredLogicSetup.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import type { OwnerGroup } from './assetHierarchy';
 import { assetIdentityLabel } from './runContext';
+import { useUnsavedChangesGuard } from '../navigationGuard';
+
+/** The module picker is excluded from the unsaved-changes signal: picking one fills in defaults rather than entering work. */
+const MODULE_FIELD_ID = 'setup-module';
 
 type Props = {
   modules: LogicModuleResponse[]; assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; owners?: readonly OwnerGroup[];
@@ -120,6 +124,11 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
   const mappingError = !hasPreservedBindings && bindingResolution?.key === bindingKey ? bindingResolution.error : null;
   const [scheduleDraft, setScheduleDraft] = useState(() => initialScheduleDraft(revision?.schedule));
   const scheduleResult = buildAssignmentSchedule(scheduleDraft);
+  // This form's state is also changed by the form itself (choosing a module fills the name and bindings, choosing a
+  // view fills the assets), so "differs from a snapshot" would prompt on a form nobody has touched. Unsaved here means
+  // the person has changed a field: a real change event from inside the form, other than the module picker.
+  const [edited, setEdited] = useState(false);
+  const markSaved = useUnsavedChangesGuard(edited);
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,7 +219,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
         found.moduleVersion !== manifest.version || saved.name !== name.trim() ||
         !matchesSetupRevision(found, body))
         throw new SetupApiError('uncertain');
-      if (!request.signal.aborted) { if (editDraft) onSaved(saved, found.id); else onSaved(saved); }
+      if (!request.signal.aborted) { markSaved(); if (editDraft) onSaved(saved, found.id); else onSaved(saved); }
     } catch (reason) {
       if (request.signal.aborted) return;
       const e = reason instanceof SetupApiError ? reason : new SetupApiError('uncertain');
@@ -229,11 +238,12 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
     {initialViewId && !configuration && <Notice announce={false}>{t('assignment.selectedView', { name: views.find(view => view.id === initialViewId)?.name ?? initialViewId })}</Notice>}
     {initialAssetId && !configuration && <Notice announce={false}>{t('setup.startingFromAsset', { name: allAssets.find(a => a.id === initialAssetId)?.name ?? initialAssetId })}</Notice>}
     {approved.length === 0 && <Notice tone="warning">{t('setup.noModules')}</Notice>}
-    <form className={configuration ? 'setup-form revision-editor' : 'setup-form'} onSubmit={e => void submit(e)}>
+    <form className={configuration ? 'setup-form revision-editor' : 'setup-form'} onSubmit={e => void submit(e)}
+      onChange={event => { if ((event.target as HTMLElement).id !== MODULE_FIELD_ID) setEdited(true); }}>
       <fieldset disabled={busy || blocked}>
         <h4 className="setup-step">{t('setupStep.logic')}</h4>
         <p className="setup-step-hint">{t('setupStep.logicHint')}</p>
-        <SelectField label={t('setup.module')} required value={moduleKey} onChange={e => {
+        <SelectField id={MODULE_FIELD_ID} label={t('setup.module')} required value={moduleKey} onChange={e => {
           const chosen = approved.find(m => JSON.stringify([m.moduleId, m.version]) === e.target.value);
           const chosenManifest = chosen ? setupManifest(chosen) : null;
           viewController.current.abort(); setViewRef(null); setViewAssets([]); setViewLoading(false); setViewError(false);

@@ -1,6 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { act } from '@testing-library/react';
+import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import { AutonomyPolicyPanel } from '../../src/views/AutonomyPolicyPanel';
 
 const id = '11111111-1111-4111-8111-111111111111';
@@ -96,4 +98,45 @@ it('never shows a policy it cannot confirm', async () => {
   expect(await screen.findByRole('alert')).toBeTruthy();
   expect(screen.queryByText('SET_CHOKE')).toBeNull();
   expect(screen.queryByRole('button')).toBeNull();
+});
+
+const goTo = async (hash: string) => { await act(async () => { window.location.hash = hash; await new Promise(resolve => setTimeout(resolve, 20)); }); };
+const leaveQuestion = () => screen.queryByRole('heading', { name: 'Leave without saving?' });
+
+const CHECK = 'Allow a person to execute approved recommendations';
+async function openEditor() {
+  window.location.hash = '#logic';
+  server(stored);
+  const user = userEvent.setup();
+  render(<><UnsavedChangesPrompt /><AutonomyPolicyPanel configuredLogicId={id} canManage /></>);
+  await user.click(await screen.findByRole('button', { name: 'Edit autonomy policy' }));
+  return user;
+}
+
+it('does not ask before leaving a policy editor that was opened but not changed', async () => {
+  await openEditor();
+  await goTo('#assets');
+  expect(leaveQuestion()).toBeNull();
+});
+
+it('asks before leaving a changed policy, keeps the edit on Stay, and is clean again when reverted', async () => {
+  const user = await openEditor();
+  await user.click(screen.getByRole('checkbox', { name: CHECK }));
+  await goTo('#assets');
+  expect(leaveQuestion()).toBeTruthy();
+  expect(window.location.hash).toBe('#logic');
+  await user.click(screen.getByRole('button', { name: 'Stay and keep editing' }));
+  expect((screen.getByRole('checkbox', { name: CHECK }) as HTMLInputElement).checked).toBe(true);
+  await user.click(screen.getByRole('checkbox', { name: CHECK }));
+  await goTo('#assets');
+  expect(leaveQuestion()).toBeNull();
+});
+
+it('does not ask after the changed policy was saved', async () => {
+  const user = await openEditor();
+  await user.click(screen.getByRole('checkbox', { name: CHECK }));
+  await user.click(screen.getByRole('button', { name: 'Save autonomy policy' }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Save autonomy policy' })).toBeNull());
+  await goTo('#assets');
+  expect(leaveQuestion()).toBeNull();
 });
