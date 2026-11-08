@@ -10,6 +10,7 @@ import type { MessageKey } from '../localization';
 import { checkAssetTypeDraft, jsonSyntaxProblem, problemCode } from './assetTypeDefinition';
 import type { AssetTypeDraftProblem } from './assetTypeDefinition';
 import { CodeBlock } from '../components/CodeBlock';
+import { useUnsavedChangesGuard } from '../navigationGuard';
 
 const PROBLEM_KEYS: Record<AssetTypeDraftProblem, MessageKey> = {
   key: 'assetTypes.keyInvalid',
@@ -28,6 +29,8 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Nothing to lose until the person has typed something (the schema starts as the empty object).
+  const markSaved = useUnsavedChangesGuard(key !== '' || displayName !== '' || schemaJson !== '{}');
   const active = useRef(true);
   const pending = useRef(false);
   const request = useRef<AbortController | null>(null);
@@ -83,6 +86,7 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
       }
       if (!active.current) return;
       setNotice(t('assetTypes.created', { name: trimmedName }));
+      markSaved();
       setKey(''); setDisplayName(''); setSchemaJson('{}');
       await onCreated(echoed as AssetTypeResponse);
     } catch {

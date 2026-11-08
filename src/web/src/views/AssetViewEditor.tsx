@@ -14,6 +14,7 @@ import type { BrowseNode } from './assetBrowseApi';
 import { wellsUnder } from './wellSelection';
 import './assetViews.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { useUnsavedChangesGuard } from '../navigationGuard';
 
 const errors: Record<string, MessageKey> = { accessDenied: 'assetViews.errDenied', notFound: 'assetViews.errNotFound',
   nameTaken: 'assetViews.errNameTaken', referenced: 'assetViews.errReferenced', stale: 'assetViews.errStale', invalid: 'assetViews.errInvalid' };
@@ -47,6 +48,11 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
   const pending = useRef(false);
   const searchController = useRef(new AbortController());
   const readOnly = !!view && !view.canEdit;
+  // What was loaded or last saved. The member list arrives asynchronously, so the baseline is filled in when it does.
+  const baseline = useRef({ name: view?.name ?? '', members: '' });
+  const membersKey = (ids: Iterable<string>) => [...ids].sort().join(',');
+  const markSaved = useUnsavedChangesGuard(!readOnly && !loading && selectionReady &&
+    (name.trim() !== baseline.current.name.trim() || membersKey(selected) !== baseline.current.members));
   const wellTypeIds = useMemo(() => new Set(assetTypes.filter(type => type.key === 'well').map(type => type.id)), [assetTypes]);
   const remember = useCallback((nodes: BrowseNode[]) => setKnown(current => new Map([...current, ...nodes.map(node => [node.id, node] as const)])), []);
 
@@ -55,6 +61,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
     if (view?.canEdit) {
       Promise.all([loadViewSelectionDetails(view, request.signal), loadViewMembers(view.id, 0, request.signal)]).then(([ids, members]) => {
         if (request.signal.aborted) return;
+        baseline.current.members = membersKey(ids.assetIds);
         setSelected(new Set(ids.assetIds));
         setUnavailableIds(new Set(ids.unavailableMembers.map(member => member.id)));
         remember([...members.map(member => ({ ...member, childCount: 0 })), ...ids.unavailableMembers.map(member => ({
@@ -120,7 +127,9 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
 
   return <form className="asset-view-editor panel" aria-label={t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}
     onSubmit={event => { event.preventDefault(); if (!readOnly && selectionReady) void run(async () => {
-      onSaved(view ? await updateView(view, name.trim(), [...selected]) : await createView(name.trim(), connectionId, [...selected]));
+      const saved = view ? await updateView(view, name.trim(), [...selected]) : await createView(name.trim(), connectionId, [...selected]);
+      markSaved();
+      onSaved(saved);
     }); }}>
     <h3>{t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}</h3>
     <p className="connection-help">{t('assetViews.intro')}</p>
@@ -173,7 +182,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
       <p>{t('assetViews.deleteConfirm', { name: view.name })}</p>
       <FormActions>
         <ActionButton label={t('assetViews.deleteNo')} disabled={busy} onClick={cancelDelete} />
-        <ActionButton label={t('assetViews.deleteYes')} disabled={busy} onClick={() => void run(async () => { await deleteView(view); onDeleted(); })} />
+        <ActionButton label={t('assetViews.deleteYes')} disabled={busy} onClick={() => void run(async () => { await deleteView(view); markSaved(); onDeleted(); })} />
       </FormActions>
     </ConfirmPanel>}
   </form>;
