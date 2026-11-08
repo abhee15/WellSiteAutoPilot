@@ -9,6 +9,7 @@ import type { PermissionDefinition, RoleRecord } from './roleCatalog';
 import { GrantValidationError, previewGrant } from './scopedAccessGrants';
 import type { AssetChoice, GrantDraft, ScopeKind } from './scopedAccessGrants';
 import { grantAssetLabels } from './scopedAccessGrants';
+import { useUnsavedChangesGuard } from '../navigationGuard';
 
 type Props = {
   user: { userId: string; identityName: string; groupId?: string; directoryId?: string };
@@ -25,6 +26,8 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
   const [assetIds, setAssetIds] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
+  // A grant is blank until a role is chosen, the scope is changed or assets are picked.
+  useUnsavedChangesGuard(roleId !== '' || scopeKind !== 'ExactAssets' || assetIds.length > 0);
   const role = roles.find(item => item.roleId === roleId) ?? null;
   const reviewedRoleRevision = role?.revision ?? 0;
   const draft = useMemo<GrantDraft>(() => ({ subjectKind: user.groupId ? 'Group' : 'User', userId: user.userId,

@@ -15,6 +15,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import './splitLayout.css';
+import { useUnsavedChangesGuard } from '../navigationGuard';
 
 const labels: Record<string, MessageKey> = {
   'assets.read': 'roles.permissionAssetsRead',
@@ -99,6 +100,11 @@ export function RoleDefinitionEditor({
 
   const mutation: RoleMutation = { name, description, isActive: enabled, permissions: keys };
   const dirty = original ? roleChanged(original, mutation) : true;
+  // What the editor opened with (the role, a copy of a template, or blank). Reverting an edit makes it clean again.
+  const snapshot = (value: RoleMutation) => JSON.stringify([value.name, value.description, value.isActive, [...value.permissions].sort()]);
+  const opened = useRef<string | null>(null);
+  if (opened.current === null) opened.current = snapshot(mutation);
+  const markSaved = useUnsavedChangesGuard(snapshot(mutation) !== opened.current);
   const canSave = !busy && name.trim().length >= 2 &&
     name.trim().length <= 80 && description.length <= 500 &&
     acknowledged && dirty && !original?.isSystem;
@@ -118,7 +124,7 @@ export function RoleDefinitionEditor({
     try {
       const saved = await saveRole(
         original, mutation, permissions.map(p => p.key), acknowledged, controller.signal);
-      if (!controller.signal.aborted) onSaved(saved);
+      if (!controller.signal.aborted) { markSaved(); onSaved(saved); }
     } catch (error) {
       if (!controller.signal.aborted) onFailure(
         error instanceof RoleCatalogError ? error.kind : 'unavailable');

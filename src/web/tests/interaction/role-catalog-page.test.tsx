@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { act } from '@testing-library/react';
+import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import { RoleCatalogPage } from '../../src/views/RoleCatalogPage';
 import * as catalog from '../../src/views/roleCatalog';
 import { accessibilityViolations } from './axe';
@@ -185,5 +187,49 @@ describe('Role catalog page', () => {
     await ready();
     expect([...container.querySelectorAll('thead th.run-col-secondary')].map(th => th.textContent))
       .toEqual(['Type', 'Permissions']);
+  });
+});
+
+describe('Role editor unsaved-changes guard', () => {
+  const goTo = async (hash: string) => { await act(async () => { window.location.hash = hash; await new Promise(resolve => setTimeout(resolve, 20)); }); };
+  const leaveQuestion = () => screen.queryByRole('heading', { name: 'Leave without saving?' });
+  const openEdit = async () => {
+    window.location.hash = '#access';
+    const user = userEvent.setup();
+    render(<><UnsavedChangesPrompt /><RoleCatalogPage /></>);
+    await ready();
+    await user.click(within(rowOf('Field operator')).getByRole('button', { name: 'Edit' }));
+    return user;
+  };
+
+  it('does not ask when the editor is opened and left unchanged, or when a new role is still blank', async () => {
+    await openEdit();
+    await goTo('#logic');
+    expect(leaveQuestion()).toBeNull();
+  });
+
+  it('asks after a change, keeps it on Stay, and is clean again when the change is undone', async () => {
+    const user = await openEdit();
+    const name = within(editor()!).getByRole('textbox', { name: /^Role name/ });
+    await user.type(name, 'X');
+    await goTo('#logic');
+    expect(leaveQuestion()).toBeTruthy();
+    expect(window.location.hash).toBe('#access');
+    await user.click(screen.getByRole('button', { name: 'Stay and keep editing' }));
+    expect((within(editor()!).getByRole('textbox', { name: /^Role name/ }) as HTMLInputElement).value).toBe('Field operatorX');
+    await user.type(within(editor()!).getByRole('textbox', { name: /^Role name/ }), '{Backspace}');
+    await goTo('#logic');
+    expect(leaveQuestion()).toBeNull();
+  });
+
+  it('does not ask after the role was saved', async () => {
+    const user = await openEdit();
+    vi.mocked(catalog.saveRole).mockResolvedValue(role(2, { name: 'Field operatorX' }));
+    await user.type(within(editor()!).getByRole('textbox', { name: /^Role name/ }), 'X');
+    await user.click(within(editor()!).getByRole('checkbox', { name: /reviewed|confirm|understand/i }));
+    await user.click(within(editor()!).getByRole('button', { name: 'Save role definition' }));
+    await waitFor(() => expect(catalog.saveRole).toHaveBeenCalledTimes(1));
+    await goTo('#logic');
+    expect(leaveQuestion()).toBeNull();
   });
 });
