@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
+import { TextAreaField } from '../components/FormFields';
 import { t } from '../localization';
 import { buildParameters, parameterFields, parameterValues } from './moduleParameterForm';
 import type { AttributeValues } from './assetAttributeForm';
@@ -15,8 +16,8 @@ export function ParameterOverridesEditor({ schema, value, label, context, idPref
   const [values, setValues] = useState<AttributeValues | null>(null);
   const [json, setJson] = useState(false);
   const built = fields && values ? buildParameters(fields, values) : null;
-  if (!fields || initial === null || json) return <label>{label}<textarea rows={2} maxLength={65536}
-    value={value} onChange={event => { onValidity(true); onChange(event.target.value); }} /></label>;
+  if (!fields || initial === null || json) return <TextAreaField label={label} rows={2} maxLength={65536}
+    value={value} onChange={event => { onValidity(true); onChange(event.target.value); }} />;
   return <div>
     <p className="setup-step-hint">{t('draftEditor.inheritance')}</p>
     <AttributeFieldsEditor jsonLabel={t('draftEditor.editJson')} optionalBooleans fields={fields.map(field => ({ ...field, label: field.label + ' · ' + (context ?? label) }))} values={values ?? initial} errors={built?.errors ?? {}}
