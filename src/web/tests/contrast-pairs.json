@@ -1,0 +1,534 @@
+{
+  "comment": "Foreground/background token pairs that really occur together, with the WCAG 2.2 minimum ratio (4.5 text, 3 for control boundaries and focus). Add a pair here whenever a colour token is used on a new surface.",
+  "pairs": [
+    {
+      "foreground": "--color-text-primary",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "body text"
+    },
+    {
+      "foreground": "--color-text-primary",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "body text"
+    },
+    {
+      "foreground": "--color-text-primary",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "body text"
+    },
+    {
+      "foreground": "--color-text-primary",
+      "background": "--color-surface-table-head",
+      "minimum": 4.5,
+      "context": "body text"
+    },
+    {
+      "foreground": "--color-text-primary",
+      "background": "--color-surface-row-hover",
+      "minimum": 4.5,
+      "context": "body text"
+    },
+    {
+      "foreground": "--color-text-primary",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "body text"
+    },
+    {
+      "foreground": "--color-text-primary",
+      "background": "--color-surface-input",
+      "minimum": 4.5,
+      "context": "body text"
+    },
+    {
+      "foreground": "--color-text-primary",
+      "background": "--color-surface-code",
+      "minimum": 4.5,
+      "context": "body text"
+    },
+    {
+      "foreground": "--color-text-secondary",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "secondary text"
+    },
+    {
+      "foreground": "--color-text-secondary",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "secondary text"
+    },
+    {
+      "foreground": "--color-text-secondary",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "secondary text"
+    },
+    {
+      "foreground": "--color-text-secondary",
+      "background": "--color-surface-table-head",
+      "minimum": 4.5,
+      "context": "secondary text"
+    },
+    {
+      "foreground": "--color-text-secondary",
+      "background": "--color-surface-row-hover",
+      "minimum": 4.5,
+      "context": "secondary text"
+    },
+    {
+      "foreground": "--color-text-secondary",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "secondary text"
+    },
+    {
+      "foreground": "--color-text-muted",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "muted text"
+    },
+    {
+      "foreground": "--color-text-muted",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "muted text"
+    },
+    {
+      "foreground": "--color-text-muted",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "muted text"
+    },
+    {
+      "foreground": "--color-text-muted",
+      "background": "--color-surface-table-head",
+      "minimum": 4.5,
+      "context": "muted text"
+    },
+    {
+      "foreground": "--color-text-muted",
+      "background": "--color-surface-row-hover",
+      "minimum": 4.5,
+      "context": "muted text"
+    },
+    {
+      "foreground": "--color-text-muted",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "muted text"
+    },
+    {
+      "foreground": "--color-text-subtle",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "subtle text"
+    },
+    {
+      "foreground": "--color-text-subtle",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "subtle text"
+    },
+    {
+      "foreground": "--color-text-subtle",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "subtle text"
+    },
+    {
+      "foreground": "--color-text-subtle",
+      "background": "--color-surface-table-head",
+      "minimum": 4.5,
+      "context": "subtle text"
+    },
+    {
+      "foreground": "--color-text-subtle",
+      "background": "--color-surface-row-hover",
+      "minimum": 4.5,
+      "context": "subtle text"
+    },
+    {
+      "foreground": "--color-text-subtle",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "subtle text"
+    },
+    {
+      "foreground": "--color-text-tertiary",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "tertiary text"
+    },
+    {
+      "foreground": "--color-text-tertiary",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "tertiary text"
+    },
+    {
+      "foreground": "--color-text-tertiary",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "tertiary text"
+    },
+    {
+      "foreground": "--color-text-tertiary",
+      "background": "--color-surface-table-head",
+      "minimum": 4.5,
+      "context": "tertiary text"
+    },
+    {
+      "foreground": "--color-text-tertiary",
+      "background": "--color-surface-row-hover",
+      "minimum": 4.5,
+      "context": "tertiary text"
+    },
+    {
+      "foreground": "--color-text-tertiary",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "tertiary text"
+    },
+    {
+      "foreground": "--color-text-detail-label",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "detail label"
+    },
+    {
+      "foreground": "--color-text-detail-label",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "detail label"
+    },
+    {
+      "foreground": "--color-text-detail-label",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "detail label"
+    },
+    {
+      "foreground": "--color-text-detail-label",
+      "background": "--color-surface-table-head",
+      "minimum": 4.5,
+      "context": "detail label"
+    },
+    {
+      "foreground": "--color-text-detail-label",
+      "background": "--color-surface-row-hover",
+      "minimum": 4.5,
+      "context": "detail label"
+    },
+    {
+      "foreground": "--color-text-detail-label",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "detail label"
+    },
+    {
+      "foreground": "--color-text-permission-hint",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "permission hint"
+    },
+    {
+      "foreground": "--color-text-permission-hint",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "permission hint"
+    },
+    {
+      "foreground": "--color-text-permission-hint",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "permission hint"
+    },
+    {
+      "foreground": "--color-text-permission-hint",
+      "background": "--color-surface-table-head",
+      "minimum": 4.5,
+      "context": "permission hint"
+    },
+    {
+      "foreground": "--color-text-permission-hint",
+      "background": "--color-surface-row-hover",
+      "minimum": 4.5,
+      "context": "permission hint"
+    },
+    {
+      "foreground": "--color-text-permission-hint",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "permission hint"
+    },
+    {
+      "foreground": "--color-text-navigation",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "navigation item"
+    },
+    {
+      "foreground": "--color-text-navigation",
+      "background": "--color-surface-navigation-active",
+      "minimum": 4.5,
+      "context": "navigation item"
+    },
+    {
+      "foreground": "--color-text-navigation",
+      "background": "--color-surface-secondary-hover",
+      "minimum": 4.5,
+      "context": "navigation item"
+    },
+    {
+      "foreground": "--color-text-control",
+      "background": "--color-surface-input",
+      "minimum": 4.5,
+      "context": "control text"
+    },
+    {
+      "foreground": "--color-text-control",
+      "background": "--color-surface-control-hover",
+      "minimum": 4.5,
+      "context": "control text"
+    },
+    {
+      "foreground": "--color-text-control",
+      "background": "--color-surface-secondary-hover",
+      "minimum": 4.5,
+      "context": "control text"
+    },
+    {
+      "foreground": "--color-text-control",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "control text"
+    },
+    {
+      "foreground": "--color-text-placeholder",
+      "background": "--color-surface-input",
+      "minimum": 4.5,
+      "context": "placeholder"
+    },
+    {
+      "foreground": "--color-text-placeholder",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "placeholder"
+    },
+    {
+      "foreground": "--color-text-disabled",
+      "background": "--color-surface-disabled",
+      "minimum": 4.5,
+      "context": "disabled field text"
+    },
+    {
+      "foreground": "--color-text-link",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "link"
+    },
+    {
+      "foreground": "--color-text-link",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "link"
+    },
+    {
+      "foreground": "--color-text-link",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "link"
+    },
+    {
+      "foreground": "--color-text-link",
+      "background": "--color-surface-table-head",
+      "minimum": 4.5,
+      "context": "link"
+    },
+    {
+      "foreground": "--color-text-link",
+      "background": "--color-surface-row-hover",
+      "minimum": 4.5,
+      "context": "link"
+    },
+    {
+      "foreground": "--color-text-link",
+      "background": "--color-surface-input-readonly",
+      "minimum": 4.5,
+      "context": "link"
+    },
+    {
+      "foreground": "--color-text-selected",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "selected item text"
+    },
+    {
+      "foreground": "--color-text-selected",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "selected item text"
+    },
+    {
+      "foreground": "--color-text-selected",
+      "background": "--color-surface-navigation-active",
+      "minimum": 4.5,
+      "context": "selected item text"
+    },
+    {
+      "foreground": "--color-text-warning",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "warning text"
+    },
+    {
+      "foreground": "--color-text-warning",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "warning text"
+    },
+    {
+      "foreground": "--color-text-warning",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "warning text"
+    },
+    {
+      "foreground": "--color-text-warning-strong",
+      "background": "--color-surface-canvas",
+      "minimum": 4.5,
+      "context": "strong warning text"
+    },
+    {
+      "foreground": "--color-text-warning-strong",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "strong warning text"
+    },
+    {
+      "foreground": "--color-text-warning-strong",
+      "background": "--color-surface-detail",
+      "minimum": 4.5,
+      "context": "strong warning text"
+    },
+    {
+      "foreground": "--color-text-status-success",
+      "background": "--color-surface-status-success",
+      "minimum": 4.5,
+      "context": "success status"
+    },
+    {
+      "foreground": "--color-text-status-success",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "success status"
+    },
+    {
+      "foreground": "--color-text-status-error",
+      "background": "--color-surface-status-error",
+      "minimum": 4.5,
+      "context": "error status"
+    },
+    {
+      "foreground": "--color-text-status-error",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "error status"
+    },
+    {
+      "foreground": "--color-text-status-warning",
+      "background": "--color-surface-status-warning",
+      "minimum": 4.5,
+      "context": "warning status"
+    },
+    {
+      "foreground": "--color-text-status-warning",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "warning status"
+    },
+    {
+      "foreground": "--color-text-status-info",
+      "background": "--color-surface-status-info",
+      "minimum": 4.5,
+      "context": "info status"
+    },
+    {
+      "foreground": "--color-text-status-info",
+      "background": "--color-surface-panel",
+      "minimum": 4.5,
+      "context": "info status"
+    },
+    {
+      "foreground": "--color-text-on-accent",
+      "background": "--color-surface-accent",
+      "minimum": 4.5,
+      "context": "primary action label"
+    },
+    {
+      "foreground": "--color-text-on-accent",
+      "background": "--color-surface-accent-hover",
+      "minimum": 4.5,
+      "context": "primary action label"
+    },
+    {
+      "foreground": "--color-border-control",
+      "background": "--color-surface-panel",
+      "minimum": 3.0,
+      "context": "control boundary (1.4.11)"
+    },
+    {
+      "foreground": "--color-border-control",
+      "background": "--color-surface-input",
+      "minimum": 3.0,
+      "context": "control boundary (1.4.11)"
+    },
+    {
+      "foreground": "--color-border-control",
+      "background": "--color-surface-canvas",
+      "minimum": 3.0,
+      "context": "control boundary (1.4.11)"
+    },
+    {
+      "foreground": "--color-focus-ring",
+      "background": "--color-surface-panel",
+      "minimum": 3.0,
+      "context": "focus indicator (2.4.11)"
+    },
+    {
+      "foreground": "--color-focus-ring",
+      "background": "--color-surface-canvas",
+      "minimum": 3.0,
+      "context": "focus indicator (2.4.11)"
+    },
+    {
+      "foreground": "--color-focus-ring",
+      "background": "--color-surface-input",
+      "minimum": 3.0,
+      "context": "focus indicator (2.4.11)"
+    },
+    {
+      "foreground": "--color-focus-ring",
+      "background": "--color-surface-navigation-active",
+      "minimum": 3.0,
+      "context": "focus indicator (2.4.11)"
+    },
+    {
+      "foreground": "--color-border-selected",
+      "background": "--color-surface-panel",
+      "minimum": 3.0,
+      "context": "selected state"
+    },
+    {
+      "foreground": "--color-border-selected",
+      "background": "--color-surface-canvas",
+      "minimum": 3.0,
+      "context": "selected state"
+    }
+  ],
+  "exempt": {}
+}
