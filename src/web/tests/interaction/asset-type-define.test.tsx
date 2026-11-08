@@ -28,8 +28,8 @@ it('an asset type manager defines a type and the list is refreshed', async () =>
   window.location.hash = '#assets/types';
   render(<App />);
   fireEvent.click(await screen.findByText('Define an asset type'));
-  fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: ' well ' } });
-  fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Well' } });
+  fireEvent.change(screen.getByLabelText(/^Key \(short, unique\)/), { target: { value: ' well ' } });
+  fireEvent.change(screen.getByLabelText(/^Display name/), { target: { value: 'Well' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create asset type' }));
   expect(await screen.findByText('Asset type Well created.')).toBeTruthy();
   expect(posts).toEqual([{ key: 'well', displayName: 'Well', attributeSchemaJson: '{}' }]);
@@ -40,8 +40,8 @@ it('bad JSON is caught before any request and a duplicate key is explained', asy
   window.location.hash = '#assets/types';
   render(<App />);
   fireEvent.click(await screen.findByText('Define an asset type'));
-  fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: 'well' } });
-  fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Well' } });
+  fireEvent.change(screen.getByLabelText(/^Key \(short, unique\)/), { target: { value: 'well' } });
+  fireEvent.change(screen.getByLabelText(/^Display name/), { target: { value: 'Well' } });
   fireEvent.change(screen.getByLabelText('Attribute schema (JSON)'), { target: { value: '{' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create asset type' }));
   const form = () => document.querySelector('.asset-type-define') as HTMLElement;
@@ -74,8 +74,8 @@ it('invalid JSON says where it goes wrong, and the example can be used as a star
   window.location.hash = '#assets/types';
   render(<App />);
   fireEvent.click(await screen.findByText('Define an asset type'));
-  fireEvent.change(screen.getByLabelText('Key (short, unique)'), { target: { value: 'well' } });
-  fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Well' } });
+  fireEvent.change(screen.getByLabelText(/^Key \(short, unique\)/), { target: { value: 'well' } });
+  fireEvent.change(screen.getByLabelText(/^Display name/), { target: { value: 'Well' } });
   fireEvent.change(screen.getByLabelText('Attribute schema (JSON)'), {
     target: { value: '{\n  "type": "object",\n  "properties": {\n    "a": { "type": "string" },\n  }\n}' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create asset type' }));

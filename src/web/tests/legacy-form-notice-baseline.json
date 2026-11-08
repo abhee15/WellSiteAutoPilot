@@ -27,10 +27,6 @@
     "controls": 1,
     "notices": 1
   },
-  "views/AssetTypeDefinitionPanel.tsx": {
-    "controls": 3,
-    "notices": 2
-  },
   "views/AssetViewBrowser.tsx": {
     "controls": 0,
     "notices": 1

@@ -1041,7 +1041,7 @@ button:disabled {
 
 /* Messages: one look for every error box. A bare role="alert" gets the same box as .status-error, and inside a
    panel both sit inset from the edges instead of touching them. */
-:where([role='alert']:not([class]), .asset-create-error) {
+:where([role='alert']:not([class])) {
   border: var(--border-width-thin) solid var(--color-border-error);
   background: var(--color-surface-error);
   padding: var(--space-10) var(--space-14);

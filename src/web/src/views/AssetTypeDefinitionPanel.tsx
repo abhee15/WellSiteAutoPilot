@@ -1,6 +1,8 @@
 import './assetCreation.css';
 import { useEffect, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { TextAreaField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import type { FormEvent } from 'react';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
@@ -97,29 +99,22 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
       <summary>{t('assetTypes.defineTitle')}</summary>
       <form className="asset-create-form" onSubmit={event => void submit(event)}>
         <p className="asset-create-hint">{t('assetTypes.defineHelp')}</p>
-        <label>
-          <span>{t('assetTypes.key')}</span>
-          <input type="text" value={key} maxLength={128} required disabled={isSubmitting}
-            onChange={event => { setKey(event.target.value); setError(null); }} />
-        </label>
-        <label>
-          <span>{t('assetTypes.displayName')}</span>
-          <input type="text" value={displayName} maxLength={256} required disabled={isSubmitting}
-            onChange={event => { setDisplayName(event.target.value); setError(null); }} />
-        </label>
-        <label className="asset-create-attributes">
-          <span>{t('assetTypes.schema')}</span>
-          <textarea value={schemaJson} rows={8} spellCheck={false} disabled={isSubmitting}
+        <TextField label={t('assetTypes.key')} value={key} maxLength={128} required disabled={isSubmitting}
+          onChange={event => { setKey(event.target.value); setError(null); }} />
+        <TextField label={t('assetTypes.displayName')} value={displayName} maxLength={256} required disabled={isSubmitting}
+          onChange={event => { setDisplayName(event.target.value); setError(null); }} />
+        <div className="asset-create-attributes">
+          <TextAreaField label={t('assetTypes.schema')} value={schemaJson} rows={8} spellCheck={false} disabled={isSubmitting}
             onChange={event => { setSchemaJson(event.target.value); setError(null); }} />
-        </label>
+        </div>
         <details className="asset-create-schema">
           <summary>{t('assetTypes.example')}</summary>
           <pre>{EXAMPLE_SCHEMA}</pre>
           <ActionButton label={t('assetTypes.useExample')} disabled={isSubmitting} onClick={() => { setSchemaJson(EXAMPLE_SCHEMA); setError(null); }} />
         </details>
         <p className="asset-create-hint">{t('assetTypes.immutableNote')}</p>
-        {error && <p className="asset-create-error" role="alert">{error}</p>}
-        {notice && <p className="asset-create-success" role="status">{notice}</p>}
+        {error && <Notice tone="error">{error}</Notice>}
+        {notice && <Notice tone="success">{notice}</Notice>}
         <ActionButton label={isSubmitting ? t('assetTypes.creating') : t('assetTypes.submit')} type="submit" disabled={isSubmitting || !key.trim() || !displayName.trim()} />
       </form>
     </details>
