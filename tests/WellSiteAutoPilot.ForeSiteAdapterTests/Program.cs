@@ -8,6 +8,7 @@ ShippedAdapterCommandChecks.Run();
 AdapterOperationChecks.Run();
 await SimulatorCommandProviderChecks.RunAsync();
 await MeasurementChecks.RunAsync();
+await ApplicableQuantityChecks.RunAsync();
 await HistoryChecks.RunAsync();
 await ConfigurationChecks.RunAsync();
 await CardChecks.RunAsync();
