@@ -99,10 +99,6 @@
     "controls": 1,
     "notices": 0
   },
-  "views/OperationsViewControls.tsx": {
-    "controls": 3,
-    "notices": 1
-  },
   "views/OverviewPage.tsx": {
     "controls": 0,
     "notices": 1
