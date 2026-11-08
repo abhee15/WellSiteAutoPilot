@@ -17,6 +17,7 @@ import { fetchAssetSource } from './assetBrowseApi';
 import type { AssetSource } from './assetBrowseApi';
 import './assetPage.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { Notice } from '../components/Notice';
 
 import { AssetLogicCard, AssetRunPreview } from './AssetLogicCard';
 import { fetchAssetLogic, fetchAssetRecommendations, LOGIC_PAGE_SIZE } from './assetActivity';
@@ -117,7 +118,7 @@ export function AssetDetail({
       </section>}
 
       {logic.loading && <LoadingIndicator label={t('assetPage.loading')} />}
-      {logic.failed && <p role="status" className="asset-page-empty">{t('assetDetail.logicUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={logic.refresh} /></p>}
+      {logic.failed && <Notice tone="warning">{t('assetDetail.logicUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={logic.refresh} /></Notice>}
       {operational && canReadLogic && <section aria-label={t('assetPage.logicHere')}>
         <h4>{t('assetDetail.logicAndRuns')}</h4>
         {logic.data?.items?.length === 0 && <p className="asset-page-empty">{t('assetPage.noLogic')}</p>}
@@ -135,7 +136,7 @@ export function AssetDetail({
       {canReadRecommendations && operational && <section aria-label={t('assetPage.recommendations')}>
         <h4>{t('assetPage.recommendations')}</h4>
         {recommendations.loading && <LoadingIndicator label={t('assetPage.loading')} />}
-        {recommendations.failed && <p role="status" className="asset-page-empty">{t('assetDetail.recommendationsUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={recommendations.refresh} /></p>}
+        {recommendations.failed && <Notice tone="warning">{t('assetDetail.recommendationsUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={recommendations.refresh} /></Notice>}
         {recommendations.data && (recommendations.data.length === 0
           ? <p className="asset-page-empty">{t('assetPage.noRecommendations')}</p>
           : <ul className="asset-page-list">
