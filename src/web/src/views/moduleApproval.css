@@ -19,18 +19,3 @@
 .module-approval-review h4 {
   margin: 0;
 }
-
-.module-approval-review textarea {
-  width: 100%;
-  font: inherit;
-}
-
-.module-approval-hint {
-  min-height: var(--size-line);
-}
-
-.module-approval-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
-}

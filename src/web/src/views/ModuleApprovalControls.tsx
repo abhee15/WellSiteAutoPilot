@@ -1,5 +1,7 @@
-import { useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { FormActions, TextAreaField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import type { LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
 import { SetupApiError, setupResponse } from './configuredLogicSetup';
@@ -27,7 +29,6 @@ export function ModuleApprovalControls({ module, canManage, onChanged }: {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
-  const reasonId = useId();
   const name = module.displayName ?? '—';
   const problem = reasonProblem(reason);
 
@@ -59,8 +60,8 @@ export function ModuleApprovalControls({ module, canManage, onChanged }: {
   return (
     <div className="module-approval" role="group" aria-label={t('moduleApproval.group', { name })}>
       <p>{t(`moduleApproval.${state}`)}</p>
-      {notice && <p role="status">{notice}</p>}
-      {error && <p role="alert">{error}</p>}
+      {notice && <Notice tone="success">{notice}</Notice>}
+      {error && <Notice tone="error">{error}</Notice>}
       {canManage && action && !reviewing && (
         <ActionButton label={t(action === 'approve' ? 'moduleApproval.approve' : 'moduleApproval.retire')} disabled={busy} onClick={() => { setReviewing(action); setReason(''); setError(null); setNotice(null); }} />
       )}
@@ -71,18 +72,15 @@ export function ModuleApprovalControls({ module, canManage, onChanged }: {
           <h4>{t(reviewing === 'approve' ? 'moduleApproval.approveHeading' : 'moduleApproval.retireHeading',
             { name, version: module.version ?? '—' })}</h4>
           <p>{t(reviewing === 'approve' ? 'moduleApproval.approveText' : 'moduleApproval.retireText')}</p>
-          <label htmlFor={reasonId}>{t('moduleApproval.reason')}</label>
-          <textarea id={reasonId} rows={2} maxLength={MAXIMUM_REASON_LENGTH + 100} value={reason} disabled={busy}
-            aria-describedby={`${reasonId}-hint`} aria-invalid={problem !== null && problem !== 'empty'}
-            onChange={event => setReason(event.target.value)} />
-          <p id={`${reasonId}-hint`} className="module-approval-hint">
-            {problem ? t(REASON_TEXT[problem]) : ''}
-          </p>
-          <div className="module-approval-actions">
+          <TextAreaField label={t('moduleApproval.reason')} rows={2} maxLength={MAXIMUM_REASON_LENGTH + 100}
+            value={reason} disabled={busy} onChange={event => setReason(event.target.value)}
+            helper={problem === 'empty' ? t(REASON_TEXT.empty) : undefined}
+            error={problem && problem !== 'empty' ? t(REASON_TEXT[problem]) : undefined} />
+          <FormActions>
+            <ActionButton label={t('moduleApproval.cancel')} disabled={busy} onClick={() => setReviewing(null)} />
             <ActionButton variant="primary" label={busy ? t('moduleApproval.working')
                 : t(reviewing === 'approve' ? 'moduleApproval.confirmApprove' : 'moduleApproval.confirmRetire')} disabled={busy || problem !== null} onClick={() => void submit(reviewing)} />
-            <ActionButton label={t('moduleApproval.cancel')} disabled={busy} onClick={() => setReviewing(null)} />
-          </div>
+          </FormActions>
         </div>
       )}
     </div>
