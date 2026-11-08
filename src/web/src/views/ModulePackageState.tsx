@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getLogicModulePackageState } from '../api/generated/v1/sdk.gen';
 import type { LogicModuleResponse, LogicModulePackageStateResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { formatDetailTimestamp } from './executionDetail';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 
@@ -36,9 +37,9 @@ export function ModulePackageState({ module }: { module: LogicModuleResponse }) 
   return <section aria-label={t('packageState.heading')}>
     <h4>{t('packageState.heading')}</h4>
     {!state && !failed && <LoadingIndicator label={t('packageState.loading')} />}
-    {failed && <p role="alert">{t('packageState.failed')}</p>}
+    {failed && <Notice tone="error">{t('packageState.failed')}</Notice>}
     {state && <>
-      <p role="status">{t(state.preflightReady ? 'packageState.ready' : 'packageState.notReady')}</p>
+      <Notice tone={state.preflightReady ? 'success' : 'warning'}>{t(state.preflightReady ? 'packageState.ready' : 'packageState.notReady')}</Notice>
       <dl className="execution-detail-grid">
         {[[t('packageState.stored'), yesNo(state.isStored)], [t('packageState.published'), yesNo(state.publicationRecorded)],
           [t('packageState.available'), yesNo(state.objectAvailable)], [t('packageState.worker'), yesNo(state.workerHealthy)],

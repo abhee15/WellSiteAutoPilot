@@ -23,14 +23,6 @@
     "controls": 1,
     "notices": 0
   },
-  "views/ConfiguredShadowPanel.tsx": {
-    "controls": 0,
-    "notices": 2
-  },
-  "views/ConnectionSourceChanges.tsx": {
-    "controls": 0,
-    "notices": 2
-  },
   "views/CopyButton.tsx": {
     "controls": 0,
     "notices": 1
@@ -42,10 +34,6 @@
   "views/ExecutionHistory.tsx": {
     "controls": 0,
     "notices": 1
-  },
-  "views/ModulePackageState.tsx": {
-    "controls": 0,
-    "notices": 2
   },
   "views/ModulePanel.tsx": {
     "controls": 1,

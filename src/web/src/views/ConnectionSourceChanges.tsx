@@ -5,6 +5,7 @@ import { ActionButton } from '../components/ActionButton';
 import { formatTimestamp } from '../format';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import type { MessageKey } from '../localization';
 import { statusLabel } from '../words';
 const factLabels: Record<string, MessageKey> = { sourceName: 'sourceChanges.sourceName', wellType: 'sourceChanges.wellType',
@@ -55,8 +56,8 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
       <ActionButton label={t('sourceChanges.review')} disabled={blocked} onClick={() => void run(0, '')} />
     </div>
     {busy && <LoadingIndicator label={t('sourceChanges.loading')} size="small" />}
-    {error && <p role="alert" className="status-error">{error}</p>}
-    {check && <div className="connection-source-summary" role="status">
+    {error && <Notice tone="error">{error}</Notice>}
+    {check && <Notice><div className="connection-source-summary">
       <p>{t('sourceChanges.latest', { status: check.status, time: formatTimestamp(check.completedAtUtc ?? check.startedAtUtc), account: check.actingAs ?? t('sourceChanges.unknown') })}</p>
       {check.connectionRevision !== connectionRevision && <p>{t('sourceChanges.stale')}</p>}
       <p>{t('sourceChanges.counts', { found: check.found, changed: check.changed, added: check.new, missing: check.notReturned, unknown: check.comparisonUnavailable })}</p>
@@ -64,7 +65,7 @@ export function ConnectionSourceChanges({ connectionId, connectionRevision, canC
         : check.unavailableFields.length > 0 && <p>{t('sourceChanges.unavailable', { fields: check.unavailableFields.map(factLabel).join(', ') })}</p>}
       <p>{t('sourceChanges.scope', { count: check.sourceScopeCount ?? t('sourceChanges.scopeUnknown') })}</p>
       {check.warnings.map((warning, i) => <p key={i}>{warning}</p>)}
-    </div>}
+    </div></Notice>}
     {page && <>
       <p>{t('sourceChanges.lastComplete', { time: page.lastSuccessfulCheck ? formatTimestamp(page.lastSuccessfulCheck.completedAtUtc!) : t('sourceChanges.never') })}</p>
       <p className="connection-help">{t('sourceChanges.retained')}</p>
