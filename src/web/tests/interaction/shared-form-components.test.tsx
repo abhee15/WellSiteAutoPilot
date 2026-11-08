@@ -85,3 +85,15 @@ it('confirmation stays in-page and leaves unrelated navigation available', async
   expect(screen.getByRole('checkbox')).toHaveProperty('checked', true);
   expect(screen.getByRole('link', { name: 'Assets' }).getAttribute('href')).toBe('#assets');
 });
+
+it('focusOnOpen moves focus to the confirmation heading so the question is announced and the next Tab reaches its actions', async () => {
+  render(<ConfirmPanel title="Delete this view?" level={3} focusOnOpen><button type="button">Keep</button></ConfirmPanel>);
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Delete this view?' }));
+  await userEvent.setup().tab();
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep' }));
+});
+
+it('does not take focus unless asked to', () => {
+  render(<ConfirmPanel title="Confirm command execution"><button type="button">Run</button></ConfirmPanel>);
+  expect(document.activeElement).toBe(document.body);
+});

@@ -3,7 +3,7 @@ import { AdaptersPanel } from './AdaptersPanel';
 import './connections.css';
 import { ConnectionInventory } from './ConnectionInventory';
 import { ActionButton } from '../components/ActionButton';
-import { FormActions, SelectField, TextField } from '../components/FormFields';
+import { ConfirmPanel, FormActions, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
 import { ConnectionImport } from './ConnectionImport';
@@ -175,6 +175,9 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
   const [selection, setSelection] = useState<{ value: ImportSelection; count: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  /** The Delete button is replaced by the question while it is open; Keep hands focus back to it. */
+  const cancelDelete = () => { setConfirmDelete(false); requestAnimationFrame(() => deleteButton.current?.focus()); };
   const adapter = adapters.find(item => item.key === adapterKey) ?? null;
   const disabled = !canManage || busy !== null || importBusy;
   const dirty = connection && adapter ? isDirty(connection, adapter, draft) : true;
@@ -284,16 +287,16 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
           <h3>{t('connections.manageHeading')}</h3>
           <div className="connection-actions">
             <ActionButton label={connection.isEnabled ? t('connections.disable') : t('connections.enable')} disabled={disabled} onClick={() => void run('toggle', async () => onSaved(await setConnectionEnabled(connection, !connection.isEnabled)))} />
-            {!confirmDelete && <ActionButton label={t('connections.delete')} disabled={disabled} onClick={() => setConfirmDelete(true)} />}
+            {!confirmDelete && <ActionButton ref={deleteButton} label={t('connections.delete')} disabled={disabled} onClick={() => setConfirmDelete(true)} />}
           </div>
           {confirmDelete && (
-            <div className="connection-delete-confirm" role="alertdialog" aria-label={t('connections.delete')}>
-              <span>{t('connections.deleteConfirm', { name: connection.name })}</span>
+            <ConfirmPanel title={t('connections.deleteTitle')} level={3} focusOnOpen>
+              <p>{t('connections.deleteConfirm', { name: connection.name })}</p>
               <FormActions>
-                <ActionButton label={t('connections.deleteNo')} disabled={disabled} onClick={() => setConfirmDelete(false)} />
+                <ActionButton label={t('connections.deleteNo')} disabled={disabled} onClick={cancelDelete} />
                 <ActionButton label={t('connections.deleteYes')} disabled={disabled} onClick={() => void run('delete', async () => { await deleteConnection(connection); onGone(); })} />
               </FormActions>
-            </div>
+            </ConfirmPanel>
           )}
         </section>
       )}

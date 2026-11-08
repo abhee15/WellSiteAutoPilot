@@ -1,6 +1,6 @@
 import { SearchInput } from '../components/SearchInput';
 import { ActionButton } from '../components/ActionButton';
-import { CheckboxField, FormActions, SelectField, TextField } from '../components/FormFields';
+import { CheckboxField, ConfirmPanel, FormActions, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
@@ -34,6 +34,8 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
   const [selectionReady, setSelectionReady] = useState(!view);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const cancelDelete = () => { setConfirmDelete(false); requestAnimationFrame(() => deleteButton.current?.focus()); };
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<BrowseNode[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -163,16 +165,16 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
     {busy && <Notice>{t('assetViews.working')}</Notice>}
     {error && <Notice tone="error">{error}</Notice>}
     <FormActions leading={view?.canDelete && !confirmDelete
-      ? <ActionButton label={t('assetViews.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} /> : undefined}>
+      ? <ActionButton ref={deleteButton} label={t('assetViews.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} /> : undefined}>
       <ActionButton label={t('assetViews.cancel')} disabled={busy} onClick={onCancel} />
       {!readOnly && <ActionButton label={t('assetViews.save')} variant="primary" type="submit" disabled={busy || loading || !selectionReady || !name.trim() || !connectionId || selected.size === 0 || selected.size > 50_000 || [...unavailableIds].some(id => selected.has(id))} />}
     </FormActions>
-    {view?.canDelete && confirmDelete && <div role="alertdialog" aria-label={t('assetViews.delete')}>
+    {view?.canDelete && confirmDelete && <ConfirmPanel title={t('assetViews.deleteTitle')} level={3} focusOnOpen>
       <p>{t('assetViews.deleteConfirm', { name: view.name })}</p>
       <FormActions>
-        <ActionButton label={t('assetViews.deleteNo')} disabled={busy} onClick={() => setConfirmDelete(false)} />
+        <ActionButton label={t('assetViews.deleteNo')} disabled={busy} onClick={cancelDelete} />
         <ActionButton label={t('assetViews.deleteYes')} disabled={busy} onClick={() => void run(async () => { await deleteView(view); onDeleted(); })} />
       </FormActions>
-    </div>}
+    </ConfirmPanel>}
   </form>;
 }

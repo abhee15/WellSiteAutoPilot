@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 import { t } from '../localization';
 import './forms.css';
@@ -94,13 +94,20 @@ export function FormActions({ children, leading }: { children: ReactNode; leadin
 }
 
 /** Existing consequential controls stay in-page; this component adds no dialog or extra workflow step. */
-export function ConfirmPanel({ title, level = 4, children }: {
+export function ConfirmPanel({ title, level = 4, focusOnOpen = false, children }: {
   title: string;
   /** Heading level under the surrounding panel's heading (h2 panel: 3; nested editor under an h3: 4) so levels never skip. */
   level?: 3 | 4;
+  /** Moves keyboard and screen-reader focus to the heading when the panel appears. Use when the person's own action
+   *  opens it (Delete -> "Delete this view?"), so the question is announced and the next Tab reaches its buttons. */
+  focusOnOpen?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
+  const heading = useRef<HTMLHeadingElement>(null);
   const Heading = level === 3 ? 'h3' : 'h4';
-  return <section className="ui-confirm-panel" aria-labelledby={id}><Heading id={id}>{title}</Heading>{children}</section>;
+  useEffect(() => { if (focusOnOpen) heading.current?.focus(); }, [focusOnOpen]);
+  return <section className="ui-confirm-panel" aria-labelledby={id}>
+    <Heading id={id} ref={heading} tabIndex={focusOnOpen ? -1 : undefined}>{title}</Heading>{children}
+  </section>;
 }

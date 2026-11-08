@@ -134,6 +134,18 @@ describe('Connections page', () => {
     await waitFor(() => expect(api.deleteConnection).toHaveBeenCalledTimes(1));
   });
 
+  it('moves focus to the delete question, and back to Delete when kept', async () => {
+    vi.mocked(api.loadConnections).mockResolvedValue([saved()]);
+    render(<ConnectionsPage canManage />);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Delete this connection?' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(screen.queryByRole('heading', { name: 'Delete this connection?' })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delete' })));
+  });
+
   it('is read only without the manage permission', async () => {
     vi.mocked(api.loadConnections).mockResolvedValue([saved()]);
     render(<ConnectionsPage canManage={false} />);
