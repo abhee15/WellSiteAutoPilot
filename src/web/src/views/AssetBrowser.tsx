@@ -8,6 +8,7 @@ import { AssetNodeIcon, assetNodeKind } from './AssetNodeIcon';
 import type { BrowseNode, SearchHit } from './assetBrowseApi';
 import './assetTree.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { Notice } from '../components/Notice';
 import { ChevronMark, Disclosure } from '../components/Chevron';
 
 const ROOT = '__root__';
@@ -236,7 +237,7 @@ export function AssetSearchResults({
         })}
       </ul>
       {state.loading && <LoadingIndicator label={t('views.loading')} />}
-      {state.failed && <p className="split-note" role="alert">{t('assetBrowse.failed')}</p>}
+      {state.failed && <Notice tone="error">{t('assetBrowse.failed')}</Notice>}
       {!state.loading && !state.failed && state.hits.length === 0 && <p className="split-note">{t('assets.noMatches')}</p>}
       {state.hasMore && !state.loading && <p className="split-note">
         <ActionButton label={t('assetBrowse.more')} onClick={more} /></p>}

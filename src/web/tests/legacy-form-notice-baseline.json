@@ -5,7 +5,7 @@
   },
   "views/AssetBrowser.tsx": {
     "controls": 1,
-    "notices": 1
+    "notices": 0
   },
   "views/AssetDetail.tsx": {
     "controls": 0,
@@ -13,10 +13,6 @@
   },
   "views/AssetLogicCard.tsx": {
     "controls": 0,
-    "notices": 1
-  },
-  "views/AssetTypeActions.tsx": {
-    "controls": 1,
     "notices": 1
   },
   "views/AssetViewBrowser.tsx": {
