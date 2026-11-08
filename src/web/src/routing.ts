@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Section } from './components/NavigationLink';
 import type { CurrentUserResponse } from './api/generated/v1/types.gen';
 import { canOpenSection } from './security/sessionAccess';
+import { allowHash, requestNavigation } from './navigationGuard';
 
 /** Sections in landing priority order. */
 export const SECTION_ORDER: readonly Section[] = ['overview', 'operations', 'recommendations', 'assets', 'logic', 'connections', 'access', 'status'];
@@ -62,8 +63,13 @@ export function useHashDetail(section: Section): [string | null, (next: DetailUp
     const current = read();
     const value = typeof next === 'function' ? next(current) : next;
     if (value === current) return;
-    window.location.hash = hashFor(section, value);
-    setDetailState(value);
+    // Selecting another record can throw away an edit in progress, so it goes through the unsaved-changes guard.
+    requestNavigation(() => {
+      const next = hashFor(section, value);
+      allowHash(next);
+      window.location.hash = next;
+      setDetailState(value);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
   return [detail, setDetail];

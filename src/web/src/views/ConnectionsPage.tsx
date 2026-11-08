@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { formatTimestamp } from '../format';
+import { useUnsavedChangesGuard } from '../navigationGuard';
 import { useHashDetail } from '../routing';
 import {
   ConnectionsError, connectionStatus, createConnection, deleteConnection, discoverConnection, isDirty, loadAdapters, loadConnections,
@@ -181,6 +182,11 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
   const adapter = adapters.find(item => item.key === adapterKey) ?? null;
   const disabled = !canManage || busy !== null || importBusy;
   const dirty = connection && adapter ? isDirty(connection, adapter, draft) : true;
+  // "Unsaved" is narrower than "can be saved": a new, untouched form is saveable-looking but has nothing to lose.
+  const initial = useRef(JSON.stringify({ adapterKey, draft }));
+  const hasUnsaved = connection ? Boolean(adapter) && isDirty(connection, adapter!, draft)
+    : JSON.stringify({ adapterKey, draft }) !== initial.current;
+  const markSaved = useUnsavedChangesGuard(hasUnsaved);
   // The Server's rule: once assets were imported, the required settings (which say which system this is) cannot change.
   const sourceLocked = connection !== null && connection.hasImports && (adapter?.fields.some(field => field.required) ?? false);
 
@@ -194,7 +200,9 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
 
   const save = () => run('save', async () => {
     if (!adapter) return;
-    onSaved(connection ? await updateConnection(connection, adapter, draft) : await createConnection(adapter, draft));
+    const saved = connection ? await updateConnection(connection, adapter, draft) : await createConnection(adapter, draft);
+    markSaved();
+    onSaved(saved);
   });
 
   const setValue = (key: string, value: string) =>

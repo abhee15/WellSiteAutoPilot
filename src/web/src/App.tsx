@@ -34,6 +34,7 @@ import { keepIfSame } from './keepIfSame';
 export { UserMenu, NavigationLink };
 import { RecommendationsPage } from './views/RecommendationsPage';
 import { AdministrationWorkspace } from './views/AdministrationWorkspace';
+import { UnsavedChangesPrompt } from './components/UnsavedChangesPrompt';
 import { OperationsPage } from './views/OperationsPage';
 import { OverviewPage } from './views/OverviewPage';
 import { AssetsPage } from './views/AssetsPage';
@@ -227,6 +228,7 @@ export function App() {
 
         <ErrorBoundary scope="page" key={section}>
         <div className="page-body">
+          <UnsavedChangesPrompt />
           {error && (
             <Notice tone="error">{error}</Notice>
           )}
