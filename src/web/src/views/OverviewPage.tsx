@@ -8,6 +8,7 @@ import type {
   SystemHealthResponse,
 } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { PanelHeader, SummaryCard } from '../components/common';
 import { hashFor } from '../routing';
@@ -171,7 +172,7 @@ export function OverviewPage({
         <PanelHeader title={t('overview.attention')} />
         <div className="overview-attention-body">
         {!attentionReady ? <LoadingIndicator label={t('overview.loading')} /> : <>
-          {attentionUnavailable && <p role="status">{t('overview.attentionUnavailable')}</p>}
+          {attentionUnavailable && <Notice tone="warning">{t('overview.attentionUnavailable')}</Notice>}
           {!action && !pendingShown.length && !failedShown.length && !attentionUnavailable && setup.length === 0 && <p>{t('overview.allClear')}</p>}
           <ul className="operator-items">
             {action && <li>

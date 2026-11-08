@@ -3,6 +3,7 @@ import { ContextLink } from '../components/ContextLink';
 import { useCallback } from 'react';
 import type { AssetLogicSummaryResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { formatTimestamp, shortId } from '../format';
 import { statusLabel } from '../words';
 import { hashFor } from '../routing';
@@ -44,7 +45,7 @@ export function AssetRunPreview({ assetId, logicId, logicName }: { assetId: stri
     <div className="asset-logic-runs-heading"><Heading>{t('assetDetail.latestRuns')}</Heading>
       {logicId && <ContextLink href={runHistoryHash(assetId, logicId)} aria-label={t('assetDetail.historyFor', { name: logicName ?? logicId })} label={t('assetDetail.history')} />}</div>
     {runs.loading && <LoadingIndicator label={t('assetPage.loading')} />}
-    {runs.failed && <p role="status" className="asset-page-empty">{t('assetDetail.runsUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={runs.refresh} /></p>}
+    {runs.failed && <Notice tone="warning">{t('assetDetail.runsUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={runs.refresh} /></Notice>}
     {runs.data?.length === 0 && <p className="asset-page-empty">{t('assetPage.noRuns')}</p>}
     {runs.data && runs.data.length > 0 && <ul className="asset-page-list">
       {runs.data.map(run => <li key={run.executionId}>

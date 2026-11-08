@@ -6,6 +6,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { formatTimestamp, shortId } from '../format';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { fetchRunHistory } from './executionHistoryApi';
 import { useLiveResource } from './useLiveResource';
@@ -80,9 +81,9 @@ export function ExecutionHistory({ assetId, logicId, runId = null, assets, confi
           <h4>{t('assetDetail.historyTitle')}</h4>
         </header>}
         {history.loading && <LoadingIndicator label={t('assetPage.loading')} />}
-        {history.failed && <p role="status">{t('assetDetail.runsUnavailable')}{' '}
+        {history.failed && <Notice tone="warning">{t('assetDetail.runsUnavailable')}{' '}
           <ActionButton variant="quiet" onClick={history.refresh} label={t('assetDetail.retry')} />
-        </p>}
+        </Notice>}
         {history.data?.items?.length === 0 && <p>{t('assetPage.noRuns')}</p>}
         <ul className={focused ? 'asset-page-list execution-history-results' : 'asset-page-list'}>
           {page.map(run => <li key={run.executionId} data-selected={selected === run.executionId}

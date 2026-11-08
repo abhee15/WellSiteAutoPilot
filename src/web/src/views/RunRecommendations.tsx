@@ -6,6 +6,7 @@ import { StatusIndicator, Status } from '../components/Status';
 import { useChangeRefresh, usePollingRefresh } from '../live/LiveUpdates';
 import { shortId } from '../format';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { formatDetailTimestamp } from './executionDetail';
 import { fetchRecommendationInbox, recommendationIsAwaiting, recommendationIsExpired, recommendationProposal } from './recommendationInbox';
 import { assetIdentityLabel } from './runContext';
@@ -37,7 +38,7 @@ export function RunRecommendations({ executionId, assets, canReadAssets, userId 
   const ids = items.flatMap(item => item.assetId ? [item.assetId] : []);
   const directory = useAssetIdentityDirectory(ids, assets, canReadAssets, userId);
   if (status === 'loading') return null;
-  if (status === 'unavailable') return <p role="status">{t('operations.recommendationsUnavailable')}</p>;
+  if (status === 'unavailable') return <Notice tone="warning">{t('operations.recommendationsUnavailable')}</Notice>;
   if (!items.length) return null;
   return <section className="execution-recommendations" aria-label={t('operations.recommendations')}>
     <h4>{t('operations.recommendations')}</h4>

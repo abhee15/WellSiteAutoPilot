@@ -9,6 +9,7 @@ import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { assetIdentityLabel } from './runContext';
 import { RefreshCw } from 'lucide-react';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { AuditActivityError, appendAuditEvents, loadAuditPage } from './auditActivity';
 import type { AuditErrorKind, AuditEvent, AuditFilters } from './auditActivity';
@@ -142,7 +143,7 @@ export function ActivityPage({ selectedId = null, onSelect, userId, assets = [],
         </FilterToolbar>
       </div>
       {loading && <LoadingIndicator label={t('activity.loading')} />}
-      {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
+      {error && <Notice tone="error">{error}</Notice>}
       {!loading && !error && chosenId && !selected && events.length > 0 && <p className="access-note access-intro">{t('activity.notLoaded')}</p>}
       {!loading && !error && events.length === 0 && <p className="access-note access-intro">{t('activity.empty')}</p>}
       {events.length > 0 && (

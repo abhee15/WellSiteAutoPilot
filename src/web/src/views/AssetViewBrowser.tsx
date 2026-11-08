@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { VIEW_PAGE_SIZE, loadViewMembers } from './assetViewsApi';
 import type { ViewAsset } from './assetViewsApi';
 import './assetTree.css';
@@ -33,7 +34,7 @@ export function AssetViewBrowser({ viewId, selectedId, onSelect, query = '' }: {
         aria-label={t('assetTree.open', { name: asset.name })} onClick={() => onSelect(asset.id)}>{asset.name}</button>
     </li>)}</ul>
     {loading && <LoadingIndicator label={t('views.loading')} />}
-    {failed && <p role="alert">{t('assetBrowse.failed')} <ActionButton label={t('assetBrowse.retry')} onClick={() => setRetry(value => value + 1)} /></p>}
+    {failed && <Notice tone="error">{t('assetBrowse.failed')} <ActionButton label={t('assetBrowse.retry')} onClick={() => setRetry(value => value + 1)} /></Notice>}
     {hasMore && !failed && <ActionButton label={t('assetBrowse.more')} disabled={loading} onClick={() => setOffset(value => value + VIEW_PAGE_SIZE)} />}
     {!loading && !failed && assets.length === 0 && <p>{t('assetViews.empty')}</p>}
   </nav>;

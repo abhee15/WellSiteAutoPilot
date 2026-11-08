@@ -13,6 +13,7 @@ import { CopyButton } from './CopyButton';
 import { describeRunContext, assetIdentityLabel } from './runContext';
 import type { OwnerGroup } from './assetHierarchy';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import {
   ExecutionDetailError,
   fetchExecutionDetail,
@@ -129,7 +130,7 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
         </div>
       </div>
       {isLoading && !detail && <LoadingIndicator label={t('execution.loading')} />}
-      {error && <p role="alert" className="execution-detail-error">{errorMessages[error]}</p>}
+      {error && <Notice tone="error">{errorMessages[error]}</Notice>}
       {detail && context}
       {detail && <ExecutionDetailContent detail={detail} configuredLogic={configuredLogic} assets={assets}
         assetOwners={assetOwners} connectionNames={connectionNames} />}

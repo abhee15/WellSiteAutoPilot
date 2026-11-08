@@ -1,6 +1,7 @@
 import { ContextLink } from '../components/ContextLink';
 import type { AssetResponse, ConfiguredLogicActivityResponse, ConfiguredLogicResponse } from '../api/generated/v1/types.gen';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import type { OwnerGroup } from './assetHierarchy';
 import { assetIdentityLabel } from './runContext';
@@ -45,7 +46,7 @@ export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, 
       ? formatTimestamp(activity.nextScheduledAtUtc) : t('logicDetail.notAvailable')}</p>}
     {shown.view && <p className="logic-detail-note">{t('assetDetail.viewSchedule')}</p>}
     {loading && <LoadingIndicator label={t('assetPage.loading')} />}
-    {failed && <p role="status">{t('logicDetail.activityUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={onRetry} /></p>}
+    {failed && <Notice tone="warning">{t('logicDetail.activityUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={onRetry} /></Notice>}
     {canReadRuns && <section className="logic-detail-section">
       <div className="logic-detail-row"><h4>{t('assetDetail.latestRuns')}</h4><ActionButton variant="quiet" label={t('assetDetail.history')} onClick={onHistory} /></div>
       {activity?.recentRuns?.length === 0 && <p>{t('logicSummary.noRuns')}</p>}
