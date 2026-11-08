@@ -20,7 +20,12 @@ public sealed record AssetOperationsResponse(Guid ConnectionId, int ConnectionRe
     string ConnectionState, IReadOnlyList<AssetOperationEligibilityResponse> Operations);
 public sealed record AssetOperationEligibilityResponse(string Key, string ContractVersion, AssetOperationEligibilityState State, string Reason);
 
+public sealed record AdapterWorkflowStepResponse(string Key, string Description, string? ProviderApi,
+    string? Requirement, string? OnFailure);
+public sealed record AdapterWorkflowGuideResponse(string Key, string DisplayName, string Purpose, string Readiness,
+    IReadOnlyList<string> OperationKeys, IReadOnlyList<AdapterWorkflowStepResponse> Steps, string ContractVersion);
 public sealed record AdapterCapabilityGroupResponse(string Key, string DisplayName, string Description,
-    string ContractVersion, IReadOnlyList<string> OperationKeys);
+    string ContractVersion, IReadOnlyList<string> OperationKeys,
+    IReadOnlyList<AdapterWorkflowGuideResponse>? Workflows = null);
 public sealed record AdapterOperationDocumentationResponse(string Invocation, string ExecutionBoundary,
     string RequestExampleJson, string ResponseExampleJson, string? ProviderReference = null);

@@ -26,7 +26,12 @@ internal static class ConnectionMapping
             operation.Documentation is not { } docs ? null : new(docs.Invocation, docs.ExecutionBoundary,
                 docs.RequestExampleJson, docs.ResponseExampleJson, docs.ProviderReference))).ToArray(),
         adapter.ReadCapabilityGroups().Select(group => new AdapterCapabilityGroupResponse(group.Key, group.DisplayName,
-            group.Description, group.ContractVersion, group.OperationKeys)).ToArray());
+            group.Description, group.ContractVersion, group.OperationKeys,
+            group.Workflows?.Select(workflow => new AdapterWorkflowGuideResponse(
+                workflow.Key, workflow.DisplayName, workflow.Purpose, workflow.Readiness,
+                workflow.OperationKeys, workflow.Steps.Select(step => new AdapterWorkflowStepResponse(
+                    step.Key, step.Description, step.ProviderApi, step.Requirement, step.OnFailure)).ToArray(),
+                workflow.ContractVersion)).ToArray())).ToArray());
 
     private static AdapterOperationSchemaResponse ToSchema(AdapterOperationSchema schema) => new(schema.Id,
         schema.Fields.Select(field => new AdapterOperationFieldResponse(field.Name, field.DataType, field.Required, field.Description)).ToArray(), schema.DataType);

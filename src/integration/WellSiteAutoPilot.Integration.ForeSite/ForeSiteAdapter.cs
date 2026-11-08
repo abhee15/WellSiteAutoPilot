@@ -86,7 +86,23 @@ public static class ForeSiteAdapter
         ], OperationGroups:
         [
             new("surveillance", "Surveillance data", "Current controller surveillance measurements. This adapter currently exposes the supported quantities listed here, not the entire ForeSite surveillance DTO.", "1.0",
-                ["current.pump-fillage", "current.average-pump-fillage"]),
+                ["current.pump-fillage", "current.average-pump-fillage"],
+                [new AdapterWorkflowGuide("applicable-surveillance", "Read an applicable surveillance quantity",
+                    "Recommended ForeSite sequence; the installed current-value reader does not yet perform the AvailableQuantities precheck.",
+                    "ReferenceOnly", ["current.pump-fillage", "current.average-pump-fillage"],
+                    [
+                        new("applicable", "Discover the WellQuantity enum identifiers applicable to the exact well.",
+                            "GET Surveillance/AvailableQuantities/{wellId}",
+                            "Resolve numeric IDs using the verified provider WellQuantity enum before checking the requested quantity.",
+                            "If the quantity is not applicable, stop; do not fetch a value."),
+                        new("status", "Fetch one well-status document and extract the supported quantity and source unit.",
+                            "GET Surveillance/well/{wellId}",
+                            "The current reader supports PumpFillage and AveragePumpFillage only; a populated field is not itself proof of applicability.",
+                            "Missing, null or out-of-range values fail validation."),
+                        new("timestamp", "Use LastGoodScanTime to determine the age of successfully scanned controller data.",
+                            Requirement: "LastScanTime is only the last scan attempt, and retrieval time is not acquisition time.",
+                            OnFailure: "Reject invalid, future or stale required readings according to the reviewed module policy.")
+                    ])]),
             new("well-configuration", "Well configuration data", "Well identity and classification details read from ForeSite. Engineering model files, configuration writes and well-test data are outside this operation.", "1.0", ["configuration.well-details"]),
             new("well-trends", "Well trend data", "Bounded raw historical samples over an explicit UTC time range. Only declared series are exposed; there is no implicit daily averaging.", "1.0", ["history.pump-fillage"]),
             new("cards", "Card data", "Structured CURRENT and FULL surface cards, preserving paired position/load arrays, source units and capture timestamps. Downhole cards are not exposed.", "1.0", ["current.surface-cards"])

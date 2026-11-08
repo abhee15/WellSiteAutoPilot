@@ -22,6 +22,35 @@ function documentation(value: unknown): boolean {
     typeof value.executionBoundary === 'string' && value.executionBoundary.length > 0 &&
     example(value.requestExampleJson) && example(value.responseExampleJson);
 }
+function workflows(value: unknown, operationKeys: string[]): boolean {
+  if (value == null) return true; // Legacy groups have no workflow metadata.
+  if (!Array.isArray(value) || value.length < 1 || value.length > 8) return false;
+  const ids = new Set<string>();
+  return value.every(workflow => {
+    if (!object(workflow) || typeof workflow.key !== 'string' || workflow.key.length < 1 ||
+      workflow.key.length > 64 || ids.has(workflow.key) || typeof workflow.displayName !== 'string' ||
+      workflow.displayName.length < 1 || workflow.displayName.length > 128 ||
+      typeof workflow.purpose !== 'string' || workflow.purpose.length < 1 || workflow.purpose.length > 1024 ||
+      !['ReferenceOnly', 'Implemented'].includes(String(workflow.readiness)) ||
+      !supportedVersion(workflow.contractVersion) || !Array.isArray(workflow.operationKeys) ||
+      workflow.operationKeys.length < 1 || workflow.operationKeys.length > 32 ||
+      new Set(workflow.operationKeys).size !== workflow.operationKeys.length ||
+      !workflow.operationKeys.every(key => typeof key === 'string' && operationKeys.includes(key)) ||
+      !Array.isArray(workflow.steps) || workflow.steps.length < 1 || workflow.steps.length > 12) return false;
+    ids.add(workflow.key);
+    const stepIds = new Set<string>();
+    return workflow.steps.every(step => {
+      if (!object(step) || typeof step.key !== 'string' || step.key.length < 1 ||
+        step.key.length > 64 || stepIds.has(step.key) ||
+        typeof step.description !== 'string' || step.description.length < 1 ||
+        step.description.length > 1024 ||
+        !['providerApi', 'requirement', 'onFailure'].every(field =>
+          step[field] == null || (typeof step[field] === 'string' &&
+          step[field].length <= (field === 'providerApi' ? 256 : 1024)))) return false;
+      stepIds.add(step.key); return true;
+    });
+  });
+}
 function validGroups(adapter: Record<string, unknown>): boolean {
   if (!Array.isArray(adapter.operations) || !Array.isArray(adapter.capabilities)) return false;
   const keys = adapter.operations.flatMap(item => object(item) && typeof item.key === 'string' ? [item.key] : []);
@@ -32,7 +61,8 @@ function validGroups(adapter: Record<string, unknown>): boolean {
     typeof group.key === 'string' && group.key.length > 0 && typeof group.displayName === 'string' &&
     typeof group.description === 'string' && supportedVersion(group.contractVersion) &&
     Array.isArray(group.operationKeys) && group.operationKeys.length > 0 &&
-    new Set(group.operationKeys).size === group.operationKeys.length && group.operationKeys.every(key => keys.includes(key)));
+    new Set(group.operationKeys).size === group.operationKeys.length &&
+    group.operationKeys.every(key => keys.includes(key)) && workflows(group.workflows, group.operationKeys));
 }
 
 export async function loadAdapterOperations(signal: AbortSignal): Promise<AdapterOperationsResponse[]> {
