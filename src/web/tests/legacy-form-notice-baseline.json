@@ -18,17 +18,5 @@
   "views/ParameterOverridesEditor.tsx": {
     "controls": 1,
     "notices": 0
-  },
-  "views/RecommendationsPage.tsx": {
-    "controls": 0,
-    "notices": 2
-  },
-  "views/StatusPage.tsx": {
-    "controls": 0,
-    "notices": 2
-  },
-  "views/UserAccessDetailsPanel.tsx": {
-    "controls": 0,
-    "notices": 2
   }
 }
