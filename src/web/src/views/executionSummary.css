@@ -1,7 +1,7 @@
 /* Run summary at the top of the run details: semantic tokens only. */
 .execution-summary { margin: var(--space-12) 0; display: grid; gap: var(--space-6); }
 .execution-summary-lead { margin: 0; }
-.execution-summary-list { margin: 0; padding-left: var(--space-18); color: var(--color-text-subtle); }
+.execution-summary-list { margin: 0; padding-inline-start: var(--space-18); color: var(--color-text-subtle); }
 
 /* Run details: grouped as what happened, what it read, what it produced, then technical detail. Semantic tokens only. */
 .run-summary { margin: var(--space-12) 0; display: grid; gap: var(--space-10); }
@@ -12,7 +12,7 @@
 .run-facts small, .run-input-facts small { display: block; color: var(--color-text-subtle); }
 .run-section { margin-top: var(--space-16); display: grid; gap: var(--space-8); }
 .run-section h4, .run-technical h4 { margin: 0; }
-.run-section ul { margin: 0; padding-left: var(--space-18); }
+.run-section ul { margin: 0; padding-inline-start: var(--space-18); }
 .run-section ul.run-inputs { list-style: none; padding: 0; display: grid; gap: var(--space-10); }
 .run-input { padding: var(--space-12) var(--space-14); border: var(--border-width-thin) solid var(--color-border-subtle);
   border-radius: var(--radius-8); background: var(--color-surface-detail); display: grid; gap: var(--space-8); }

@@ -10,7 +10,7 @@
 .multi-select > details > summary::-webkit-details-marker { display: none; }
 .multi-select > details[open] > summary { border-color: var(--color-focus-ring); }
 .multi-select-menu {
-  position: absolute; z-index: 10; top: calc(100% + var(--space-4)); left: 0; min-width: 100%; box-sizing: border-box;
+  position: absolute; z-index: 10; top: calc(100% + var(--space-4)); inset-inline-start: 0; min-width: 100%; box-sizing: border-box;
   display: grid; gap: var(--space-4); padding: var(--space-6); background: var(--color-surface-panel);
   border: var(--border-width-thin) solid var(--color-border-control); border-radius: var(--radius-8);
   box-shadow: var(--shadow-popover);

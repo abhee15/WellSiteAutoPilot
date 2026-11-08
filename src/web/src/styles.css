@@ -45,7 +45,7 @@ button:disabled {
   height: 100dvh;
   min-height: 0;
   padding: var(--space-24) var(--space-16) var(--space-16);
-  border-right: var(--border-width-thin) solid var(--color-border-shell);
+  border-inline-end: var(--border-width-thin) solid var(--color-border-shell);
   background: var(--color-surface-panel);
   display: flex;
   flex-direction: column;
@@ -82,7 +82,7 @@ button:disabled {
   background: transparent;
   border-radius: var(--radius-6);
   padding: var(--space-10) var(--space-12);
-  text-align: left;
+  text-align: start;
 }
 
 .navigation nav a:hover,
@@ -181,7 +181,7 @@ button:disabled {
   position: absolute;
   z-index: 20;
   bottom: calc(100% + var(--space-10));
-  left: 0;
+  inset-inline-start: 0;
   /* As wide as the side panel it belongs to: it never spills into the page. */
   width: 100%;
   box-sizing: border-box;
@@ -311,14 +311,6 @@ button:disabled {
 
 .panel > .primary-button {
   margin: var(--space-12) var(--space-18) 0;
-}
-
-.status-error {
-  border: var(--border-width-thin) solid var(--color-border-error);
-  background: var(--color-surface-error);
-  padding: var(--space-14) var(--space-16);
-  border-radius: var(--radius-8);
-  margin-bottom: var(--space-18);
 }
 
 .summary-grid {
@@ -458,7 +450,7 @@ button:disabled {
 
 .activity-table th,
 .activity-table td {
-  text-align: left;
+  text-align: start;
   padding: var(--space-12) var(--space-14);
   border-bottom: var(--border-width-thin) solid var(--color-border-row);
   vertical-align: top;
@@ -796,7 +788,7 @@ button:disabled {
 .nav-collapsed .user-panel {
   position: fixed;
   bottom: var(--space-12);
-  left: var(--layout-nav-panel-offset);
+  inset-inline-start: var(--layout-nav-panel-offset);
   width: min(var(--layout-popover-width), calc(100vw - var(--layout-nav-panel-offset) - var(--space-18)));
 }
 
@@ -943,7 +935,7 @@ button:disabled {
 
 .skip-link {
   position: absolute;
-  left: var(--space-8);
+  inset-inline-start: var(--space-8);
   top: var(--space-8);
   z-index: 10;
   padding: var(--space-8) var(--space-12);
@@ -1035,20 +1027,6 @@ button:disabled {
   margin: 0;
 }
 
-/* Messages: one look for every error box. A bare role="alert" gets the same box as .status-error, and inside a
-   panel both sit inset from the edges instead of touching them. */
-:where([role='alert']:not([class])) {
-  border: var(--border-width-thin) solid var(--color-border-error);
-  background: var(--color-surface-error);
-  padding: var(--space-10) var(--space-14);
-  border-radius: var(--radius-8);
-}
-
-.panel > .status-error,
-.panel > [role='alert']:not([class]) {
-  margin: var(--space-12) var(--space-18);
-}
-
 /* Form field captions: one size and weight above every control in the forms (filters keep their compact captions). */
 .connection-form label, .connection-field, .asset-create-form label, .setup-form label {
   font-size: var(--font-size-body-small);
@@ -1107,7 +1085,7 @@ select:not([multiple], [size]) {
   background-repeat: no-repeat;
   background-position: right var(--space-10) center;
   background-size: var(--size-icon);
-  padding-right: var(--space-28);
+  padding-inline-end: var(--space-28);
 }
 
 
