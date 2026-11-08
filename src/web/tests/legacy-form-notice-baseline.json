@@ -43,10 +43,6 @@
     "controls": 1,
     "notices": 0
   },
-  "views/ConfiguredLogicWorkspace.tsx": {
-    "controls": 1,
-    "notices": 4
-  },
   "views/ConfiguredShadowPanel.tsx": {
     "controls": 0,
     "notices": 2
