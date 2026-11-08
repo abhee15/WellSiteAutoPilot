@@ -1,8 +1,4 @@
 {
-  "App.tsx": {
-    "controls": 0,
-    "notices": 3
-  },
   "views/ActivityPage.tsx": {
     "controls": 0,
     "notices": 1

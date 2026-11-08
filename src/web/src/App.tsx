@@ -1,6 +1,7 @@
 import { canOpenSection, hasPermission, isAwaitingAccess, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
 import { AwaitingAccessNotice } from './components/AwaitingAccessNotice';
 import { LoadingIndicator } from './components/LoadingIndicator';
+import { Notice } from './components/Notice';
 import { loadWorkspaceSnapshot, SNAPSHOT_KEYS_BY_AREA } from './views/workspaceSnapshot';
 import type { SnapshotKey } from './views/workspaceSnapshot';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -225,16 +226,14 @@ export function App() {
 
         <div className="page-body" key={section}>
           {error && (
-            <div className="status-error" role="alert">
-              {error}
-            </div>
+            <Notice tone="error">{error}</Notice>
           )}
 
           {/* Until the session is read there is nothing else to show, so say so instead of leaving the page blank. */}
           {!currentUser && !error && <LoadingIndicator size="large" label={t('session.opening')} />}
           {isAwaitingAccess(currentUser) && currentUser && <AwaitingAccessNotice user={currentUser} />}
           {currentUser && !isAwaitingAccess(currentUser) && section !== 'access' && !canOpenSection(currentUser, section) && (
-            <div className="status-error" role="alert">{t('session.sectionDenied')}</div>
+            <Notice tone="error">{t('session.sectionDenied')}</Notice>
           )}
           {section === 'overview' && canOpenSection(currentUser, section) && (
             <OverviewPage
@@ -283,7 +282,7 @@ export function App() {
             currentUser?.userId && canOpenSection(currentUser, 'access')
               ? <AdministrationWorkspace key={currentUser.userId} currentUserId={currentUser.userId}
                 assets={assets} canReadAssets={hasPermission(currentUser, 'assets.read')} />
-              : <div className="status-error" role="alert">{t('access.denied')}</div>
+              : <Notice tone="error">{t('access.denied')}</Notice>
           )}
           {section === 'assets' && canOpenSection(currentUser, section) && (
             <AssetsPage
