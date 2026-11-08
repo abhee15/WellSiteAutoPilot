@@ -1,5 +1,7 @@
 import { ActionButton } from '../components/ActionButton';
 import { PanelHeader } from '../components/common';
+import { CheckboxField, SelectField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { RefreshCw } from 'lucide-react';
 import { groupSubjectKey } from '../security/directoryGroup';
 import { DirectoryGroupPicker } from './DirectoryGroupPicker';
@@ -208,16 +210,16 @@ export function GrantAdministrationPage(
             disabled={isLoading || saving} onClick={() => void load()} />} />
         <div className="grant-selection">
         {isLoading && <LoadingIndicator label={t('access.loading')} />}
-        {error && <p role="alert" className="execution-detail-error access-intro">{error}</p>}
-        {notice && <p role="status" className="access-intro">{notice}</p>}
+        {error && <Notice tone="error">{error}</Notice>}
+        {notice && <Notice tone="success">{notice}</Notice>}
         {!isLoading && !error && (
-          <label className="grant-user-picker grant-subject-picker">{t('grants.subjectKind')}
-            <select value={subjectKind} disabled={saving}
+          <div className="grant-subject-picker">
+            <SelectField label={t('grants.subjectKind')} value={subjectKind} disabled={saving}
               onChange={event => { setSubjectKind(event.target.value as 'User' | 'Group'); void pickUser(''); }}>
               <option value="User">{t('grants.userSubject')}</option>
               <option value="Group">{t('grants.groupSubject')}</option>
-            </select>
-          </label>
+            </SelectField>
+          </div>
         )}
         {!isLoading && !error && subjectKind === 'Group' && (
           <DirectoryGroupPicker disabled={saving} onSelect={group => {
@@ -226,9 +228,8 @@ export function GrantAdministrationPage(
           }} />
         )}
         {!isLoading && !error && subjectKind === 'User' && (
-          <label className="grant-user-picker grant-person-picker">
-            {t('grants.chooseUser')}
-            <select value={selectedUserId} disabled={saving}
+          <div className="grant-person-picker">
+            <SelectField label={t('grants.chooseUser')} value={selectedUserId} disabled={saving}
               onChange={event => void pickUser(event.target.value)}>
               <option value="">{t('grants.selectUser')}</option>
               {users.filter(user => user.isActive &&
@@ -236,8 +237,8 @@ export function GrantAdministrationPage(
                 .map(user => <option key={user.userId} value={user.userId}>
                   {user.displayName || user.identityName}
                 </option>)}
-            </select>
-          </label>
+            </SelectField>
+          </div>
         )}
         </div>
         {selectedUser && !pending && !error && (
@@ -274,11 +275,10 @@ export function GrantAdministrationPage(
           {retiring.assetIds.length > 0 && <p>{retiring.assetIds.map(id =>
             assetLabels.get(id.toLowerCase()) ?? id).join(', ')}</p>}
           <p className="access-warning">{t('grants.retireWarning')}</p>
-          <label className="access-confirm grant-confirm">
-            <input type="checkbox" checked={retireConfirmed} disabled={saving}
+          <div className="grant-confirm">
+            <CheckboxField label={t('grants.retireConfirm')} checked={retireConfirmed} disabled={saving}
               onChange={event => setRetireConfirmed(event.target.checked)} />
-            {t('grants.retireConfirm')}
-          </label>
+          </div>
           <div className="execution-detail-actions">
             <ActionButton label={t('access.cancel')} disabled={saving} onClick={() => { setRetiring(null); setRetireConfirmed(false); }} />
             <ActionButton label={saving ? t('access.saving') : t('grants.retireAction')} disabled={saving || !retireConfirmed} onClick={() => void deactivate()} />

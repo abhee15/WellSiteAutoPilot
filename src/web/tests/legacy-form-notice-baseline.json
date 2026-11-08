@@ -63,10 +63,6 @@
     "controls": 0,
     "notices": 1
   },
-  "views/GrantAdministrationPage.tsx": {
-    "controls": 3,
-    "notices": 2
-  },
   "views/ModuleApprovalControls.tsx": {
     "controls": 1,
     "notices": 2
@@ -97,10 +93,6 @@
   },
   "views/RunRecommendations.tsx": {
     "controls": 0,
-    "notices": 1
-  },
-  "views/ScopedGrantEditor.tsx": {
-    "controls": 4,
     "notices": 1
   },
   "views/StatusPage.tsx": {

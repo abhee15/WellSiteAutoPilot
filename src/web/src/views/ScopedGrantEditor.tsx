@@ -1,6 +1,8 @@
 import { ActionButton } from '../components/ActionButton';
 import { ArrowRight } from 'lucide-react';
 import { SearchInput } from '../components/SearchInput';
+import { CheckboxField, SelectField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { useMemo, useState } from 'react';
 import { t } from '../localization';
 import type { PermissionDefinition, RoleRecord } from './roleCatalog';
@@ -53,25 +55,21 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
       </div>
       <p className="access-note access-intro">{t(user.groupId ? 'grants.forGroup' : 'grants.forUser', { name: user.identityName })}</p>
       <div className="grant-fields">
-        <label>{t('grants.role')}
-          <select value={roleId} onChange={event => {
-            setRoleId(event.target.value); setAcknowledged(false);
-          }}>
-            <option value="">{t('grants.chooseRole')}</option>
-            {roles.filter(r => r.isActive).map(r =>
-              <option key={r.roleId} value={r.roleId}>{r.name}</option>)}
-          </select>
-        </label>
-        <label>{t('grants.scope')}
-          <select value={scopeKind} onChange={event => {
-            setScopeKind(event.target.value as ScopeKind);
-            setAssetIds([]); setAcknowledged(false);
-          }}>
-            <option value="ExactAssets">{t('grants.exact')}</option>
-            <option value="DeploymentWide">{t('grants.deployment')}</option>
-            {allowAllAssets && <option value="AllAssets">{t('grants.allAssets')}</option>}
-          </select>
-        </label>
+        <SelectField label={t('grants.role')} value={roleId} onChange={event => {
+          setRoleId(event.target.value); setAcknowledged(false);
+        }}>
+          <option value="">{t('grants.chooseRole')}</option>
+          {roles.filter(r => r.isActive).map(r =>
+            <option key={r.roleId} value={r.roleId}>{r.name}</option>)}
+        </SelectField>
+        <SelectField label={t('grants.scope')} value={scopeKind} onChange={event => {
+          setScopeKind(event.target.value as ScopeKind);
+          setAssetIds([]); setAcknowledged(false);
+        }}>
+          <option value="ExactAssets">{t('grants.exact')}</option>
+          <option value="DeploymentWide">{t('grants.deployment')}</option>
+          {allowAllAssets && <option value="AllAssets">{t('grants.allAssets')}</option>}
+        </SelectField>
       </div>
       {scopeKind === 'ExactAssets' && (
         <fieldset className="grant-assets">
@@ -85,21 +83,22 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
               { count: matching.length })}</p>}
           <div className="grant-asset-list">
             {visible.map(asset => (
-              <label className="access-confirm" key={asset.id}>
-                <input type="checkbox" checked={assetIds.includes(asset.id)}
+              <div className="grant-asset-row" key={asset.id}>
+                <CheckboxField label={assetLabels.get(asset.id.toLowerCase()) ?? asset.name}
+                  aria-describedby={'grant-asset-' + asset.id} checked={assetIds.includes(asset.id)}
                   onChange={event => {
                     setAssetIds(prev => event.target.checked ?
                       [...new Set([...prev, asset.id])] : prev.filter(id => id !== asset.id));
                     setAcknowledged(false);
                   }} />
-                <span>{assetLabels.get(asset.id.toLowerCase()) ?? asset.name}<small>{asset.id}</small></span>
-              </label>
+                <small id={'grant-asset-' + asset.id}>{asset.id}</small>
+              </div>
             ))}
             {visible.length === 0 && <p>{t('grants.none')}</p>}
           </div>
         </fieldset>
       )}
-      <div className="access-review" role="status" aria-live="polite">
+      <Notice><div className="grant-preview">
         <strong>{t('grants.preview')}</strong>
         {preview ? (
           <>
@@ -113,13 +112,12 @@ export function ScopedGrantEditor({ user, roles, permissions, assets,
               <p className="access-warning">{t('grants.privileged')}</p>}
           </>
         ) : <p>{t('grants.incomplete')}</p>}
-      </div>
+      </div></Notice>
       <p className="access-note access-intro">{t('grants.noSave')}</p>
-      <label className="access-confirm grant-confirm">
-        <input type="checkbox" checked={acknowledged} disabled={!preview}
+      <div className="grant-confirm">
+        <CheckboxField label={t('grants.confirm')} checked={acknowledged} disabled={!preview}
           onChange={event => setAcknowledged(event.target.checked)} />
-        {t('grants.confirm')}
-      </label>
+      </div>
       <div className="execution-detail-actions grant-actions">
         <ActionButton label={t('grants.continue')} icon={ArrowRight} variant="primary" controlSize="large"
           disabled={!preview || !acknowledged} onClick={() => onContinue(draft)} />
