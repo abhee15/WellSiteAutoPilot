@@ -257,6 +257,9 @@ test('refresh and reload actions are always the shared icon-only button', () => 
       const path = join(folder, entry.name);
       if (entry.isDirectory()) { walk(path); continue; }
       if (!entry.name.endsWith('.tsx')) continue;
+      // The failure screen's recovery action reloads the whole page and must say so in words; an unlabelled icon is a
+      // poor way to recover from an error. It is the one place a reload is not the data-refresh icon.
+      if (entry.name === 'ErrorBoundary.tsx') continue;
       const code = readFileSync(path, 'utf8');
       for (const match of code.matchAll(/<ActionButton\b[^>]*label=\{[^}]*\b(?:refresh|reload)[A-Za-z]*'[^}]*\}[^>]*>/g)) {
         if (!/iconOnly/.test(match[0])) offenders.push(`${relative(root, path)}: ${match[0].slice(0, 80)}`);
