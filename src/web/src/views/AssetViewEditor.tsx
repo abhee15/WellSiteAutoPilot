@@ -1,6 +1,7 @@
 import { SearchInput } from '../components/SearchInput';
 import { ActionButton } from '../components/ActionButton';
-import { FormActions } from '../components/FormFields';
+import { CheckboxField, FormActions, SelectField, TextField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
@@ -122,24 +123,24 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
     <h3>{t(view ? 'assetViews.editTitle' : 'assetViews.createTitle')}</h3>
     <p className="connection-help">{t('assetViews.intro')}</p>
     <fieldset disabled={busy || loading || readOnly}>
-      <label><span>{t('assetViews.name')}</span><input value={name} maxLength={MAX_VIEW_NAME} onChange={event => setName(event.target.value)} /></label>
-      <label><span>{t('assetViews.connection')}</span><select value={connectionId} disabled={!!view}
+      <TextField label={t('assetViews.name')} value={name} maxLength={MAX_VIEW_NAME} onChange={event => setName(event.target.value)} />
+      <SelectField label={t('assetViews.connection')} value={connectionId} disabled={!!view}
         onChange={event => { setConnectionId(event.target.value); setSelected(new Set()); setKnown(new Map()); setQuery(''); }}>
         <option value="">{t('assetViews.chooseConnection')}</option>
         {owners.filter(owner => owner.connectionId !== null).map(owner =>
           <option key={owner.connectionId} value={owner.connectionId ?? ''}>{owner.name}</option>)}
-      </select></label>
+      </SelectField>
       {!view && <p className="connection-help">{t('assetViews.connectionHelp')}</p>}
       {connectionId && <div className="well-selection-layout">
         <section aria-label={t('assetViews.availableWells')}>
-          <label><span>{t('assetViews.findWells')}</span><SearchInput value={query} maxLength={120} placeholder={t('assetViews.findWellsPlaceholder')} onChange={event => setQuery(event.target.value)} /></label>
+          <label className="asset-view-find"><span>{t('assetViews.findWells')}</span><SearchInput value={query} maxLength={120} placeholder={t('assetViews.findWellsPlaceholder')} onChange={event => setQuery(event.target.value)} /></label>
           <ActionButton label={t('assetViews.selectAllWells')} onClick={() => void selectBranch(null)} />
           {query.trim() ? <div>
             {hits.filter(node => node.isActive && wellTypeIds.has(node.assetTypeId)).map(node =>
-              <label key={node.id} className="asset-view-check"><input type="checkbox" checked={selected.has(node.id)}
-                aria-label={t('assetViews.selectWell', { name: node.name })} onChange={() => toggle(node)} />{node.name}</label>)}
+              <CheckboxField key={node.id} label={node.name} checked={selected.has(node.id)}
+                aria-label={t('assetViews.selectWell', { name: node.name })} onChange={() => toggle(node)} />)}
             {searchLoading && <LoadingIndicator label={t('views.loading')} />}
-            {searchError && <p role="alert">{t('assetBrowse.failed')}</p>}
+            {searchError && <Notice tone="error">{t('assetBrowse.failed')}</Notice>}
             {hasMore && <ActionButton label={t('assetBrowse.more')} disabled={searchLoading} onClick={() => void moreSearch()} />}
           </div> : <AssetBrowser key={connectionId} selectedId={null} ancestorIds={[]} refreshKey={connectionId} onSelect={() => undefined}
             typeNames={new Map(assetTypes.map(type => [type.id, type.name]))}
@@ -159,8 +160,8 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
       </div>}
     </fieldset>
     {loading && <LoadingIndicator label={t('views.loading')} />}
-    {busy && <p role="status">{t('assetViews.working')}</p>}
-    {error && <p role="alert" className="status-error">{error}</p>}
+    {busy && <Notice>{t('assetViews.working')}</Notice>}
+    {error && <Notice tone="error">{error}</Notice>}
     <FormActions leading={view?.canDelete && !confirmDelete
       ? <ActionButton label={t('assetViews.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} /> : undefined}>
       <ActionButton label={t('assetViews.cancel')} disabled={busy} onClick={onCancel} />
