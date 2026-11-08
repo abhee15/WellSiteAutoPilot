@@ -28,6 +28,11 @@ export function TextField({ label, helper, error, id, required, type = 'text', '
     <input {...props} {...state} type={type} required={required} className="ui-field-control" />}</FieldShell>;
 }
 
+export function FileField({ label, helper, error, id, required, 'aria-describedby': description, 'aria-invalid': invalid, ...props }: NativeInput & Description) {
+  return <FieldShell {...{ label, helper, error, id, required, description, invalid }}>{state =>
+    <input {...props} {...state} type="file" required={required} className="ui-field-control" />}</FieldShell>;
+}
+
 export function NumberField({ label, helper, error, id, required, 'aria-describedby': description, 'aria-invalid': invalid, ...props }: NativeInput & Description) {
   return <FieldShell {...{ label, helper, error, id, required, description, invalid }}>{state =>
     <input {...props} {...state} type="number" required={required} className="ui-field-control" />}</FieldShell>;
