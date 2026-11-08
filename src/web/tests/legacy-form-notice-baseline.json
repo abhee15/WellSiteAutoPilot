@@ -10,13 +10,5 @@
   "views/CopyButton.tsx": {
     "controls": 0,
     "notices": 1
-  },
-  "views/ModulePanel.tsx": {
-    "controls": 1,
-    "notices": 0
-  },
-  "views/ParameterOverridesEditor.tsx": {
-    "controls": 1,
-    "notices": 0
   }
 }
