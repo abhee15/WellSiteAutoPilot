@@ -13,6 +13,8 @@ import type {
 import { t } from '../localization';
 import { EmptyRow } from '../components/common';
 import { Status } from '../components/Status';
+import { CheckboxField, SelectField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { AssetDetail } from './AssetDetail';
 import { AssetCreationPanel } from './AssetCreationPanel';
 import { AssetTypeDefinitionPanel } from './AssetTypeDefinitionPanel';
@@ -185,9 +187,9 @@ export function AssetsPage({
             await onRefresh();
             setOpenTypeId(created.id ?? null);
           }} />}
-          {(canManageTypes || canHideTypes) && <label className="split-note">
-            <input type="checkbox" checked={showHidden} onChange={event => setShowHidden(event.target.checked)} />
-            {' '}{t('assetTypes.showHidden')}</label>}
+          {(canManageTypes || canHideTypes) && <div className="split-note">
+            <CheckboxField label={t('assetTypes.showHidden')} checked={showHidden} onChange={event => setShowHidden(event.target.checked)} />
+          </div>}
           <DataTable label={t('assetTypes.tableLabel')}>
               <thead>
                 <tr>
@@ -266,17 +268,16 @@ export function AssetsPage({
             }}
             onCancel={() => { setEditingView(null); setInitialViewConnection(null); }} />}
           {viewAccess && <div className="asset-view-bar">
-            <label><span>{t('assetViews.selector')}</span>{' '}
-              <select value={activeView?.id ?? ''} onChange={event => { setActiveViewId(event.target.value); setFocus(null); setCriteria(DEFAULT_ASSET_INVENTORY_CRITERIA); }}>
-                <option value="">{t('assetViews.default')}</option>
-                {views.map(view => <option key={view.id} value={view.id}>{view.name} · {owners.find(owner => owner.connectionId === view.connectionId)?.name ?? view.connectionId}</option>)}
-              </select>
-            </label>
+            <SelectField label={t('assetViews.selector')} value={activeView?.id ?? ''}
+              onChange={event => { setActiveViewId(event.target.value); setFocus(null); setCriteria(DEFAULT_ASSET_INVENTORY_CRITERIA); }}>
+              <option value="">{t('assetViews.default')}</option>
+              {views.map(view => <option key={view.id} value={view.id}>{view.name} · {owners.find(owner => owner.connectionId === view.connectionId)?.name ?? view.connectionId}</option>)}
+            </SelectField>
             {permissions.includes('asset-views.create') && <ActionButton label={t('assetViews.create')} onClick={() => { setInitialViewConnection(null); setEditingView('new'); }} />}
             {activeView && permissions.includes('configured-logic.manage') && permissions.includes('configured-logic.read') &&
               permissions.includes('logic.read') && <ActionLink href={`#logic/new-view:${activeView.id}`} label={t('assignment.assign')} />}
             {activeView && (activeView.canEdit || activeView.canDelete) && <ActionButton label={t('assetViews.edit')} onClick={() => setEditingView(activeView)} />}
-            {activeView?.hasUnavailableMembers && <span role="note" className="connection-help">{t('assetViews.unavailableMembers')}</span>}
+            {activeView?.hasUnavailableMembers && <Notice announce={false}>{t('assetViews.unavailableMembers')}</Notice>}
           </div>}
           <div className="split-panes">
             <section className="panel split-browse" aria-label={t('assets.browse')}>
