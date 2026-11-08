@@ -177,3 +177,16 @@ it('shows Assign logic only after selecting a saved view and preserves its ident
   await userEvent.setup().selectOptions(selector, '');
   expect(screen.queryByRole('link', { name: 'Assign logic' })).toBeNull();
 });
+it('asks before deleting a view, focuses the question, and returns focus to Delete when kept', async () => {
+  const requests: Request[] = []; host(requests, [saved]); window.location.hash = '#assets';
+  const user = userEvent.setup(); render(<App />);
+  const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
+  await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
+  const form = await screen.findByRole('form', { name: 'Edit view' });
+  await user.click(await within(form).findByRole('button', { name: 'Delete view' }));
+  expect(within(form).queryByRole('alertdialog')).toBeNull();
+  expect(document.activeElement).toBe(within(form).getByRole('heading', { name: 'Delete this view?' }));
+  expect(requests.some(request => request.init?.method === 'DELETE')).toBe(false);
+  await user.click(within(form).getByRole('button', { name: 'Keep' }));
+  await waitFor(() => expect(document.activeElement).toBe(within(form).getByRole('button', { name: 'Delete view' })));
+});
