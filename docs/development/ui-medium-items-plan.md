@@ -104,19 +104,31 @@ that needs the most care and its own tests.
 
 ## 4. Prettier baseline
 
-**Facts (measured).** `npm run format:check` exists but CI does not run it, and there is no Prettier config.
-With defaults it reports 197 files. Setting `--print-width` to 120, 160 or 200 still reports 196 files, so
-the mismatch is quote, wrapping and layout style, not line length. `.editorconfig` asks for 4-space
-indentation while the code uses 2. Adopting it means reformatting about 196 files in one change, which also
-buries `git blame`.
+**Decision (owner chose option B, refined after measuring).** Every Prettier-formatted file stays formatted, new
+files must be formatted, and the list of unformatted legacy files can only shrink. Formatting is not forced on a
+file just because a change touches it.
 
-**Recommendation (needs an owner decision).** Do not do a whole-repo reformat now. Options:
-- A. Leave formatting to ESLint plus review, and remove the misleading `format:check` script.
-- B. Adopt a Prettier config that matches the dominant style, then enforce `prettier --check` only on files a
-  PR changes (no mass reformat; files converge as they are touched).
-- C. Whole-repo reformat as one isolated commit listed in `.git-blame-ignore-revs`.
+**Facts (measured).**
+- `format:check` existed but CI did not run it and there was no Prettier config. Defaults reported 197 files.
+- Prettier cannot reproduce the existing layout under any setting. It always breaks a JSX element that has an
+  expression child onto several lines, and the code keeps those inline, so with the best matching options
+  (`singleQuote`, widths 120 to 200, trailing commas, arrow parens) about 20,400 to 21,900 of the 21,000 source
+  lines still change in 190 or more files.
+- Correction to an earlier draft of this plan: `.editorconfig` asks for 2-space indentation for `ts`, `tsx` and
+  `css` (4 spaces only for C#), which matches the code. Indentation is not part of the mismatch.
 
-B is the safest way to get consistency. It is deliberately last in the order because it changes no behavior.
+**Why not "enforce on files a PR touches".** With the numbers above, every PR would rewrite every file it
+touches, burying the real change in review and in `git blame`. The baseline pattern avoids that and is the one
+the repo already uses (`legacy-form-notice-baseline.json`).
+
+**Implementation.**
+- `src/web/.prettierrc.json`: `singleQuote`, `printWidth` 120, `endOfLine: auto` (the Windows CI checkout has CRLF line endings, which the default `lf` rejects; `auto` keeps whichever ending the file has). Everything else is the Prettier default.
+- `tests/format-guard.test.mjs`: every `src/**/*.{ts,tsx,css}` file (generated client excluded) not listed in
+  `tests/prettier-baseline.json` must pass `prettier --check`; a listed file that is now formatted, or no longer
+  exists, fails until it is removed from the list.
+- `npm run format -- <files>` formats named files; `npm run format:check` runs the guard. It also runs in the
+  normal `test:ui` step, so CI needs no new step.
+- Converting a legacy file is a deliberate, separate change: format it, delete it from the baseline.
 
 ## Suggested order and effort
 
@@ -125,10 +137,10 @@ B is the safest way to get consistency. It is deliberately last in the order bec
 | 1 | Contrast and browser axe gate | 2 | none; blocks theming |
 | 3 | Unsaved-changes guard | 2 to 3 | none |
 | 2 | Sticky headers | 1 after audit | benefits from 1b (real-browser checks) |
-| 4 | Prettier | 0 to 1 | owner decision |
+| 4 | Prettier | 1 (done) | owner decision (option B) |
 
 ## Open questions
 
-1. Prettier: A, B or C?
+1. ~~Prettier: A, B or C?~~ Decided: B, refined as above.
 2. Unsaved-changes: is "Stay / Leave" with no draft saving acceptable, or are drafts a requirement?
 3. Which are the longest lists operators actually scroll (Runs, Activity, Assets)? That sets sticky-header priority.
