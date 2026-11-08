@@ -665,10 +665,6 @@ button:disabled {
   font-size: var(--font-size-control);
 }
 
-.inbox-error {
-  padding: var(--space-14) var(--space-18);
-}
-
 .execution-detail-output {
   border-top: var(--border-width-thin) solid var(--color-border-subtle);
   padding-top: var(--space-14);

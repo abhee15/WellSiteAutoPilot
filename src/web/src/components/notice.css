@@ -9,3 +9,4 @@
 .ui-notice[data-tone='error'] > .ui-notice-icon { color: var(--color-text-status-error); }
 .ui-notice[data-tone='success'] { background: var(--color-surface-status-success); border-color: var(--color-border-status-success); }
 .ui-notice[data-tone='success'] > .ui-notice-icon { color: var(--color-text-status-success); }
+.panel > .ui-notice { margin: var(--space-12) var(--space-18); }
