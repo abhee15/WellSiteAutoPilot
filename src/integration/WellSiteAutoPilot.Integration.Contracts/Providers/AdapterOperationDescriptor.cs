@@ -54,7 +54,15 @@ public static class EngineeringOperationSchemas
 
 /// <summary>A provider-owned semantic family. Quantities/fields are details of its referenced typed operations.</summary>
 public sealed record AdapterCapabilityGroup(string Key, string DisplayName, string Description, string ContractVersion,
-    IReadOnlyList<string> OperationKeys);
+    IReadOnlyList<string> OperationKeys, IReadOnlyList<AdapterWorkflowGuide>? Workflows = null);
+
+/// <summary>Versioned, non-executable provider workflow reference; never confers authority.</summary>
+public sealed record AdapterWorkflowGuide(string Key, string DisplayName, string Purpose, string Readiness,
+    IReadOnlyList<string> OperationKeys, IReadOnlyList<AdapterWorkflowStep> Steps, string ContractVersion = "1.0");
+
+/// <summary>One provider-native instruction shown to authors, not interpreted as an executable request.</summary>
+public sealed record AdapterWorkflowStep(string Key, string Description, string? ProviderApi = null,
+    string? Requirement = null, string? OnFailure = null);
 
 /// <summary>Reference-only, synthetic examples of a typed API. This is never an execution request or authority token.</summary>
 public sealed record AdapterOperationDocumentation(string Invocation, string ExecutionBoundary,

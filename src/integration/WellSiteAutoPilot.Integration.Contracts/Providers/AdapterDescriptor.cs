@@ -56,7 +56,32 @@ public sealed record AdapterDescriptor(
         return groups.Where(group => !duplicateKeys.Contains(group.Key) && !string.IsNullOrWhiteSpace(group.Key) &&
             !string.IsNullOrWhiteSpace(group.DisplayName) && Version.TryParse(group.ContractVersion, out var version) && version.Major == 1 &&
             group.OperationKeys.Count > 0 && group.OperationKeys.Distinct(StringComparer.Ordinal).Count() == group.OperationKeys.Count &&
-            group.OperationKeys.All(keys.Contains)).ToArray();
+            group.OperationKeys.All(keys.Contains) && ValidWorkflows(group)).ToArray();
+    }
+
+    /// <summary>Reject ambiguous, unsupported or unbounded workflow metadata.</summary>
+    private static bool ValidWorkflows(AdapterCapabilityGroup group)
+    {
+        if (group.Workflows is null) return true; // Existing groups retain their wire shape.
+        if (group.Workflows.Count is < 1 or > 8 || group.Workflows.Any(workflow => workflow is null) ||
+            group.Workflows.Select(workflow => workflow.Key).Distinct(StringComparer.Ordinal).Count() != group.Workflows.Count)
+            return false;
+        return group.Workflows.All(workflow =>
+            workflow.Key is { Length: > 0 and <= 64 } && !string.IsNullOrWhiteSpace(workflow.DisplayName) &&
+            workflow.DisplayName.Length <= 128 && !string.IsNullOrWhiteSpace(workflow.Purpose) &&
+            workflow.Purpose.Length <= 1024 && workflow.Readiness is ("ReferenceOnly" or "Implemented") &&
+            Version.TryParse(workflow.ContractVersion, out var version) && version.Major == 1 &&
+            workflow.OperationKeys is { Count: >= 1 and <= 32 } &&
+            workflow.OperationKeys.Distinct(StringComparer.Ordinal).Count() == workflow.OperationKeys.Count &&
+            workflow.OperationKeys.All(key => group.OperationKeys.Contains(key, StringComparer.Ordinal)) &&
+            workflow.Steps is { Count: >= 1 and <= 12 } &&
+            workflow.Steps.All(step => step is not null) &&
+            workflow.Steps.Select(step => step.Key).Distinct(StringComparer.Ordinal).Count() == workflow.Steps.Count &&
+            workflow.Steps.All(step => step.Key is { Length: > 0 and <= 64 } &&
+                !string.IsNullOrWhiteSpace(step.Description) && step.Description.Length <= 1024 &&
+                (step.ProviderApi is null || step.ProviderApi.Length <= 256) &&
+                (step.Requirement is null || step.Requirement.Length <= 1024) &&
+                (step.OnFailure is null || step.OnFailure.Length <= 1024)));
     }
 
     /// <summary>True when the adapter can list what the provider holds.</summary>

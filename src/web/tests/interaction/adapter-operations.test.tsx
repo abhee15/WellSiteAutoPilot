@@ -22,7 +22,12 @@ const operation = (key: string, name: string): AdapterOperationResponse => ({
 const profiles: AdapterOperationsResponse[] = [
   { adapterKey: 'foresite', displayName: 'ForeSite', description: 'ForeSite adapter reference', operations: [operation('pump', 'PumpFillage'), operation('average', 'AveragePumpFillage'),
     operation('cards', 'SurfaceCards'), operation('well', 'Well details'), operation('trend', 'PumpFillage history')], capabilities: [
-    { key: 'surveillance', displayName: 'Surveillance data', description: 'Supported current surveillance fields.', contractVersion: '1.0', operationKeys: ['pump', 'average'] },
+    { key: 'surveillance', displayName: 'Surveillance data', description: 'Supported current surveillance fields.', contractVersion: '1.0', operationKeys: ['pump', 'average'],
+      workflows: [{ key: 'applicable', displayName: 'Read an applicable point', purpose: 'Discover then read.', readiness: 'ReferenceOnly',
+        contractVersion: '1.0', operationKeys: ['pump', 'average'],
+        steps: [{ key: 'discover', description: 'Check applicable quantities', providerApi: 'GET Surveillance/AvailableQuantities/{wellId}',
+          requirement: 'Map WellQuantity ids', onFailure: 'Stop when not applicable' },
+          { key: 'read', description: 'Fetch well status', providerApi: 'GET Surveillance/well/{wellId}' }] }] },
     { key: 'configuration', displayName: 'Well configuration data', description: 'Supported well details.', contractVersion: '1.0', operationKeys: ['well'] },
     { key: 'trends', displayName: 'Well trend data', description: 'Bounded time-range reads.', contractVersion: '1.0', operationKeys: ['trend'] },
     { key: 'cards', displayName: 'Card data', description: 'Structured surface cards.', contractVersion: '1.0', operationKeys: ['cards'] },
@@ -47,6 +52,10 @@ describe('Adapter capability reference', () => {
     expect(screen.getByText('PumpFillage')).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'API and examples' }));
     expect(screen.getByText(/ICurrentDataProvider.GetCurrentAsync/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Recommended provider workflow' })).toBeTruthy();
+    expect(screen.getByText('GET Surveillance/AvailableQuantities/{wellId}')).toBeTruthy();
+    expect(screen.getByText('GET Surveillance/well/{wellId}')).toBeTruthy();
+    expect(screen.getByText(/not all steps are implemented/)).toBeTruthy();
     expect(screen.getByText(/Synthetic example only/)).toBeTruthy();
     await user.selectOptions(screen.getByRole('combobox', { name: 'Supported data example' }), 'average');
     await user.click(screen.getByRole('tab', { name: 'Contracts' }));

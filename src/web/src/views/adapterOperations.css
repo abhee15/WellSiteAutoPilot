@@ -10,3 +10,11 @@
 
 /* Keep contract columns readable; the shared table wrapper owns horizontal scrolling on narrow screens. */
 .adapter-operations .activity-table { min-width: calc(var(--layout-column-min) * 2); }
+
+/* Adapter-owned provider workflows are descriptive and never executable. */
+.adapter-workflow { margin-block: var(--space-16); }
+.adapter-workflow h5 { margin-block: var(--space-6); }
+.adapter-workflow-steps { padding-inline-start: var(--space-24); }
+.adapter-workflow-steps li { padding-inline-start: var(--space-4); margin-block: var(--space-12); overflow-wrap: anywhere; }
+.adapter-workflow-steps li p { margin-block: var(--space-6); }
+.adapter-workflow-steps code { white-space: pre-wrap; overflow-wrap: anywhere; }

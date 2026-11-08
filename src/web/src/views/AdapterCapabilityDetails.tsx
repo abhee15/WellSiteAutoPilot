@@ -36,6 +36,22 @@ export function AdapterCapabilityDetails({ capability, operations }: {
           {operations.map(item => <option key={item.key} value={item.key ?? ''}>{item.quantity ?? item.displayName}</option>)}
         </SelectField>}
         {tab === 'api' && (operation.documentation ? <>
+          {capability.workflows?.filter(workflow => workflow.operationKeys?.includes(operation.key ?? '')).map(workflow =>
+            <section className="adapter-workflow" key={workflow.key ?? ''} aria-label={workflow.displayName ?? undefined}>
+              <h4>{t('adapterReference.workflow')}</h4>
+              <h5>{workflow.displayName}</h5>
+              <p>{workflow.purpose}</p>
+              <Notice announce={false}>{t(workflow.readiness === 'Implemented' ?
+                'adapterReference.workflowImplemented' : 'adapterReference.workflowReferenceOnly')}</Notice>
+              <ol className="adapter-workflow-steps">{workflow.steps?.map(step =>
+                <li key={step.key}>
+                  <strong>{step.description}</strong>
+                  {step.providerApi && <p><code>{step.providerApi}</code></p>}
+                  {step.requirement && <p><strong>{t('adapterReference.workflowRequires')}:</strong> {step.requirement}</p>}
+                  {step.onFailure && <p><strong>{t('adapterReference.workflowOnFailure')}:</strong> {step.onFailure}</p>}
+                </li>)}</ol>
+            </section>)}
+
           {operation.documentation.providerReference && <><h4>{t('adapterReference.providerMapping')}</h4><p>{operation.documentation.providerReference}</p></>}
           <h4>{t('adapterReference.invocation')}</h4><pre><code>{operation.documentation.invocation}</code></pre>
           <Notice announce={false}>{operation.documentation.executionBoundary}</Notice>

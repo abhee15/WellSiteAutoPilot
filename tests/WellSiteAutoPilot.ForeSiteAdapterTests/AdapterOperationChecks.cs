@@ -52,6 +52,23 @@ internal static class AdapterOperationChecks
             validGroup with { OperationKeys = [validGroup.OperationKeys[0], validGroup.OperationKeys[0]] } })
             Check((catalogAdapter with { OperationGroups = [group] }).ReadCapabilityGroups().Count == 0, "Invalid group was advertised");
         Check((catalogAdapter with { OperationGroups = [validGroup, validGroup] }).ReadCapabilityGroups().Count == 0, "Duplicate group keys were advertised");
+        var guide = validGroup.Workflows!.Single();
+        Check(guide.Readiness == "ReferenceOnly" && guide.Steps.Count == 3,
+            "ForeSite applicability precheck must not be presented as implemented.");
+        foreach (var invalid in new[]
+        {
+            guide with { Readiness = "Unsupported" },
+            guide with { ContractVersion = "2.0" },
+            guide with { OperationKeys = ["missing-operation"] },
+            guide with { Steps = [guide.Steps[0], guide.Steps[0]] },
+            guide with { Steps = [] }
+        })
+            Check((catalogAdapter with { OperationGroups = [validGroup with { Workflows = [invalid] }] })
+                .ReadCapabilityGroups().Count == 0, "Invalid workflow guide was advertised");
+        Check((catalogAdapter with { OperationGroups = [validGroup with { Workflows = [guide, guide] }] })
+            .ReadCapabilityGroups().Count == 0, "Duplicate workflow keys were advertised");
+        Check((catalogAdapter with { OperationGroups = [validGroup with { Workflows = null }] })
+            .ReadCapabilityGroups().Count == 1, "Existing capabilities without workflows remain supported");
         var broad = new AdapterDescriptor("test", "Test", "Test", 1, [], [
             new(ProviderCapabilityKind.CurrentData, "Current"), new(ProviderCapabilityKind.AssetDiscovery, "Discovery"),
             new(ProviderCapabilityKind.Command, "Control"), new(ProviderCapabilityKind.Calculation, "Calculation")]);
