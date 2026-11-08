@@ -55,10 +55,6 @@
     "controls": 0,
     "notices": 1
   },
-  "views/DirectoryGroupPicker.tsx": {
-    "controls": 2,
-    "notices": 3
-  },
   "views/ExecutionDetailPanel.tsx": {
     "controls": 0,
     "notices": 1
