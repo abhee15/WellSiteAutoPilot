@@ -5,6 +5,7 @@ import type {
 } from '../api/generated/v1/types.gen';
 import { isSecurityId } from '../security/identifiers';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { fetchExecutionDetail, ExecutionDetailError, IN_FLIGHT_EXECUTION_STATUSES } from './executionDetail';
 import { ExecutionDetailPanel } from './ExecutionDetailPanel';
 import { setupResponse, SetupApiError } from './configuredLogicSetup';
@@ -108,8 +109,8 @@ export function ConfiguredShadowPanel({ userId, configurationId, revision, canRe
       <p>{t('shadow.recoveryHint')}</p><code>{requestId}</code>
       <ActionButton label={t('shadow.recover')} disabled={disabled || busy || denied || !canRequest} onClick={() => void submit()} />
     </div>}
-    {busy && <p role="status">{t('shadow.submitting')}</p>}
-    {error && <p role="alert">{error}</p>}
+    {busy && <Notice>{t('shadow.submitting')}</Notice>}
+    {error && <Notice tone="error">{error}</Notice>}
     {execution && <>
       <ExecutionDetailPanel key={execution.executionId} executionId={execution.executionId} poll
         onObserved={value => { if (receipt(value, configurationId, revisionId)) setExecution(value); }}
