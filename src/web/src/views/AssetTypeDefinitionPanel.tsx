@@ -9,6 +9,7 @@ import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { checkAssetTypeDraft, jsonSyntaxProblem, problemCode } from './assetTypeDefinition';
 import type { AssetTypeDraftProblem } from './assetTypeDefinition';
+import { CodeBlock } from '../components/CodeBlock';
 
 const PROBLEM_KEYS: Record<AssetTypeDraftProblem, MessageKey> = {
   key: 'assetTypes.keyInvalid',
@@ -109,7 +110,7 @@ export function AssetTypeDefinitionPanel({ onCreated }: {
         </div>
         <details className="asset-create-schema">
           <summary>{t('assetTypes.example')}</summary>
-          <pre>{EXAMPLE_SCHEMA}</pre>
+          <CodeBlock label={t('assetTypes.example')}>{EXAMPLE_SCHEMA}</CodeBlock>
           <ActionButton label={t('assetTypes.useExample')} disabled={isSubmitting} onClick={() => { setSchemaJson(EXAMPLE_SCHEMA); setError(null); }} />
         </details>
         <p className="asset-create-hint">{t('assetTypes.immutableNote')}</p>

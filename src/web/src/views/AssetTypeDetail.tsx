@@ -6,6 +6,7 @@ import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import { Status } from '../components/Status';
 import { AssetTypeActions } from './AssetTypeActions';
+import { CodeBlock } from '../components/CodeBlock';
 
 interface SchemaField { name: string; type: string; rules: string; required: boolean }
 
@@ -81,7 +82,7 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
       )}
       <details>
         <summary>{t('assetTypes.rawSchema')}</summary>
-        <pre>{type.attributeSchemaJson}</pre>
+        <CodeBlock label={t('assetTypes.rawSchema')}>{type.attributeSchemaJson}</CodeBlock>
       </details>
     </section>
   );

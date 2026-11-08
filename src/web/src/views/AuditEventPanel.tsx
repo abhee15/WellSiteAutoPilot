@@ -7,6 +7,7 @@ import {
 } from './auditPresentation';
 import { AuditSentence } from './AuditSentence';
 import { Status } from '../components/Status';
+import { CodeBlock } from '../components/CodeBlock';
 
 function Fact({ label, value, copyable = false }: { label: string; value: string | null | undefined; copyable?: boolean }) {
   if (!value) return null;
@@ -69,7 +70,7 @@ export function AuditEventPanel({ event, assetLabel }: { event: AuditEvent; asse
       </section>
       <details className="activity-raw">
         <summary>{t('activity.field.rawRecord')}</summary>
-        <pre>{recordedJson(event.detailsJson)}</pre>
+        <CodeBlock label={t('activity.field.rawRecord')}>{recordedJson(event.detailsJson)}</CodeBlock>
         <CopyButton value={recordedJson(event.detailsJson)} label={t('activity.field.rawRecord')} />
       </details>
     </article>

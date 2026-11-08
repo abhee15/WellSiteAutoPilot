@@ -5,6 +5,7 @@ import { SelectField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { SectionTabs } from '../components/SectionTabs';
 import { t } from '../localization';
+import { CodeBlock } from '../components/CodeBlock';
 
 /** Capability-level reference; field variants remain inside their declared family and never issue a data read. */
 export function AdapterCapabilityDetails({ capability, operations }: {
@@ -53,11 +54,11 @@ export function AdapterCapabilityDetails({ capability, operations }: {
             </section>)}
 
           {operation.documentation.providerReference && <><h4>{t('adapterReference.providerMapping')}</h4><p>{operation.documentation.providerReference}</p></>}
-          <h4>{t('adapterReference.invocation')}</h4><pre><code>{operation.documentation.invocation}</code></pre>
+          <h4>{t('adapterReference.invocation')}</h4><CodeBlock label={t('adapterReference.invocation')}><code>{operation.documentation.invocation}</code></CodeBlock>
           <Notice announce={false}>{operation.documentation.executionBoundary}</Notice>
           <p>{t('adapterReference.synthetic')}</p>
-          <h4>{t('adapterReference.requestExample')}</h4><pre><code>{operation.documentation.requestExampleJson}</code></pre>
-          <h4>{t('adapterReference.responseExample')}</h4><pre><code>{operation.documentation.responseExampleJson}</code></pre>
+          <h4>{t('adapterReference.requestExample')}</h4><CodeBlock label={t('adapterReference.requestExample')}><code>{operation.documentation.requestExampleJson}</code></CodeBlock>
+          <h4>{t('adapterReference.responseExample')}</h4><CodeBlock label={t('adapterReference.responseExample')}><code>{operation.documentation.responseExampleJson}</code></CodeBlock>
         </> : <Notice announce={false}>{t('adapterReference.noExample')}</Notice>)}
         {tab === 'contracts' && <>
           <dl className="operation-facts"><dt>{t('adapterReference.contractVersion')}</dt><dd>{operation.contractVersion}</dd>
