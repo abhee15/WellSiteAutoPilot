@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConnectionsPage } from '../../src/views/ConnectionsPage';
+import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import * as api from '../../src/views/connections';
 import type { Adapter, Connection } from '../../src/views/connections';
 
@@ -132,6 +133,18 @@ describe('Connections page', () => {
     expect(api.deleteConnection).not.toHaveBeenCalled();
     await userEvent.click(screen.getByText('Yes, delete'));
     await waitFor(() => expect(api.deleteConnection).toHaveBeenCalledTimes(1));
+  });
+
+  it('asks before another connection replaces an edit in progress, and not for a clean form', async () => {
+    vi.mocked(api.loadConnections).mockResolvedValue([saved(), saved({ id: 'other', name: 'Second simulator' })]);
+    render(<><UnsavedChangesPrompt /><ConnectionsPage canManage /></>);
+    await userEvent.click(await screen.findByText('Field simulator'));
+    await userEvent.click(await screen.findByText('Second simulator'));
+    expect((await screen.findByLabelText('Name') as HTMLInputElement).value).toBe('Second simulator');
+    await userEvent.type(screen.getByLabelText('Name'), ' edited');
+    await userEvent.click(screen.getByText('Field simulator'));
+    expect(screen.getByRole('heading', { name: 'Leave without saving?' }).textContent).toBeTruthy();
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Second simulator edited');
   });
 
   it('moves focus to the delete question, and back to Delete when kept', async () => {
