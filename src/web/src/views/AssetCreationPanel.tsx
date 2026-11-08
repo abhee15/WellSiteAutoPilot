@@ -15,6 +15,7 @@ import { attributeFields, buildAttributes } from './assetAttributeForm';
 import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
 import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
 import { CodeBlock } from '../components/CodeBlock';
+import { useUnsavedChangesGuard } from '../navigationGuard';
 
 type Props = {
   userId: string | null | undefined;
@@ -64,6 +65,8 @@ export function AssetCreationPanel({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const hasUnsaved = name.trim() !== '' || attributes !== '{}' || Object.values(values).some(value => String(value ?? '') !== '');
+  const markSaved = useUnsavedChangesGuard(hasUnsaved);
   const active = useRef(true);
   const pending = useRef(false);
   const request = useRef<AbortController | null>(null);
@@ -196,6 +199,7 @@ export function AssetCreationPanel({
         return;
       }
       if (!active.current) return;
+      markSaved();
       setNotice(t('assets.createSuccess', { name: trimmed }));
       setName('');
       setAttributes('{}'); setValues({}); setJsonMode(false);

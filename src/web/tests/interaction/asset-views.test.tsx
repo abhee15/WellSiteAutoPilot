@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../../src/App';
 
@@ -189,4 +189,30 @@ it('asks before deleting a view, focuses the question, and returns focus to Dele
   expect(requests.some(request => request.init?.method === 'DELETE')).toBe(false);
   await user.click(within(form).getByRole('button', { name: 'Keep' }));
   await waitFor(() => expect(document.activeElement).toBe(within(form).getByRole('button', { name: 'Delete view' })));
+});
+async function openEditForm() {
+  const requests: Request[] = []; host(requests, [saved]); window.location.hash = '#assets';
+  const user = userEvent.setup(); render(<App />);
+  const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
+  await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
+  const form = await screen.findByRole('form', { name: 'Edit view' });
+  await within(form).findByText('Selected wells (1)');
+  return { user, form };
+}
+const leaveQuestion = () => screen.queryByRole('heading', { name: 'Leave without saving?' });
+const goTo = async (hash: string) => { await act(async () => { window.location.hash = hash; await new Promise(resolve => setTimeout(resolve, 20)); }); };
+it('does not ask before leaving an edit form that has no changes', async () => {
+  await openEditForm();
+  await goTo('#logic');
+  expect(leaveQuestion()).toBeNull();
+});
+it('asks before leaving a view whose wells were changed, and stays on Stay', async () => {
+  const { user, form } = await openEditForm();
+  await user.click(await openBranch(form));
+  await user.click(within(form).getByRole('checkbox', { name: 'Select South Well' }));
+  await goTo('#logic');
+  expect(leaveQuestion()).toBeTruthy();
+  expect(window.location.hash.startsWith('#assets')).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Stay and keep editing' }));
+  expect(within(form).getByText('Selected wells (1)')).toBeTruthy();
 });
