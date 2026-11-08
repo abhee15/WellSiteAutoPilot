@@ -7,7 +7,8 @@ import {
 import type { UserDirectoryFilters, VerifiedSecurityUser } from './accessManagement';
 import { t } from '../localization';
 import { formatDetailTimestamp } from './executionDetail';
-import { FilterToolbar, FilterField } from '../components/FilterToolbar';
+import { FilterToolbar, FilterSelect } from '../components/FilterToolbar';
+import { Notice } from '../components/Notice';
 import { LoadingIndicator, PanelLoading } from '../components/LoadingIndicator';
 import { ActionButton } from '../components/ActionButton';
 import { Status } from '../components/Status';
@@ -118,28 +119,24 @@ export function AccessManagementPage({ currentUserId, onAssignRole }: AccessMana
       chips={chips} isFiltered={isFiltered} onClear={clearFilters}
       note={!loading && !failed ? t(nextCursor ? 'access.moreUsersAvailable' : 'access.showingUsers',
         { count: users.length }) : undefined}>
-      <FilterField label={t('access.statusFilter')}>
-        <select value={filters.accountStatus} onChange={event =>
+      <FilterSelect label={t('access.statusFilter')} value={filters.accountStatus} onChange={event =>
           updateFilters({ accountStatus: event.target.value as UserDirectoryFilters['accountStatus'] })}>
           <option value="all">{t('access.allStatuses')}</option>
           <option value="active">{t('access.activeFilter')}</option>
           <option value="inactive">{t('access.inactiveFilter')}</option>
-        </select>
-      </FilterField>
-      <FilterField label={t('access.assignmentFilter')}>
-        <select value={filters.directAssignments} onChange={event =>
+      </FilterSelect>
+      <FilterSelect label={t('access.assignmentFilter')} value={filters.directAssignments} onChange={event =>
           updateFilters({ directAssignments: event.target.value as UserDirectoryFilters['directAssignments'] })}>
           <option value="all">{t('access.allAssignments')}</option>
           <option value="with">{t('access.withAssignments')}</option>
           <option value="without">{t('access.withoutAssignments')}</option>
-        </select>
-      </FilterField>
+      </FilterSelect>
       <p className="access-filter-help">{t('access.groupNote')}</p>
     </FilterToolbar>
     {loading && <PanelLoading label={t('access.loading')} />}
-    {failed && <p role="alert" className="access-intro">{t('access.denied')}</p>}
+    {failed && <Notice tone="error">{t('access.denied')}</Notice>}
     {!loading && !failed && users.length === 0 &&
-      <p role="status" className="access-intro">{t(isFiltered ? 'access.noMatches' : 'access.noUsers')}</p>}
+      <Notice>{t(isFiltered ? 'access.noMatches' : 'access.noUsers')}</Notice>}
     {!loading && !failed && users.length > 0 && <DataTable label={t('access.tableLabel')}>
         <thead><tr><th>{t('access.identity')}</th><th>{t('access.directAssignments')}</th>
           <th>{t('session.account')}</th><th className="user-col-secondary">{t('access.lastSeen')}</th>
