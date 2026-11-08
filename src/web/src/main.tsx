@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LiveUpdatesProvider } from './live/LiveUpdates';
 import '@fontsource/roboto/latin-400.css';
 import '@fontsource/roboto/latin-500.css';
@@ -16,8 +17,10 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <LiveUpdatesProvider>
-      <App />
-    </LiveUpdatesProvider>
+    <ErrorBoundary scope="app">
+      <LiveUpdatesProvider>
+        <App />
+      </LiveUpdatesProvider>
+    </ErrorBoundary>
   </StrictMode>
 );

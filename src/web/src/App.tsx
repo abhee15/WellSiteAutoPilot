@@ -1,6 +1,7 @@
 import { canOpenSection, hasPermission, isAwaitingAccess, isSignInRequired, loadSession, sessionAccessKey } from './security/sessionAccess';
 import { AwaitingAccessNotice } from './components/AwaitingAccessNotice';
 import { LoadingIndicator } from './components/LoadingIndicator';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Notice } from './components/Notice';
 import { loadWorkspaceSnapshot, SNAPSHOT_KEYS_BY_AREA } from './views/workspaceSnapshot';
 import type { SnapshotKey } from './views/workspaceSnapshot';
@@ -224,7 +225,8 @@ export function App() {
           onRefresh={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? undefined : () => void refresh()}
         />
 
-        <div className="page-body" key={section}>
+        <ErrorBoundary scope="page" key={section}>
+        <div className="page-body">
           {error && (
             <Notice tone="error">{error}</Notice>
           )}
@@ -311,6 +313,7 @@ export function App() {
             />
           )}
         </div>
+        </ErrorBoundary>
       </main>
     </div>
   );
