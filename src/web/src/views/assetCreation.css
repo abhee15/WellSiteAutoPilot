@@ -17,7 +17,7 @@
 .asset-create-schema pre { overflow-x: auto; white-space: pre-wrap;
   overflow-wrap: anywhere; padding: var(--space-12);
   background: var(--color-surface-code); }
-.asset-select { background: transparent; border: 0; text-align: left;
+.asset-select { background: transparent; border: 0; text-align: start;
   text-decoration: underline; color: var(--color-text-link);
   font: inherit; cursor: pointer; padding: 0; }
 .asset-selected { padding: var(--space-16) var(--space-18);

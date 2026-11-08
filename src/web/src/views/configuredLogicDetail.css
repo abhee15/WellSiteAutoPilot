@@ -9,7 +9,7 @@
 .logic-detail-section { border-top: var(--border-width-thin) solid var(--color-border-subtle); padding-top: var(--space-12); margin-top: var(--space-16); }
 .logic-revision-select { display: grid; gap: var(--space-6); }
 .logic-revision-select select { width: 100%; min-width: 0; }
-.configured-binding-list { padding-left: var(--space-18); display: grid; gap: var(--space-8); }
+.configured-binding-list { padding-inline-start: var(--space-18); display: grid; gap: var(--space-8); }
 .parameter-value { white-space: pre-wrap; overflow-wrap: anywhere; margin: var(--space-4) 0; }
 .configured-revision-details details { margin: var(--space-12) 0; }
 .configured-revision-details summary { color: var(--color-text-link); }

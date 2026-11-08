@@ -1,7 +1,7 @@
 /* Asset hierarchy: semantic tokens only. */
 .asset-tree { padding: var(--space-12) var(--space-panel-inline); }
 .asset-tree ul { list-style: none; margin: 0; padding: 0 0 0 var(--space-16); }
-.asset-tree > ul { padding-left: 0; }
+.asset-tree > ul { padding-inline-start: 0; }
 .asset-tree-row { display: flex; align-items: center; gap: var(--space-4) var(--space-6);
   min-height: var(--size-row); padding: var(--space-4) var(--space-4); border-radius: var(--radius-6); }
 .asset-tree-row:hover { background: var(--color-surface-row-hover); }
@@ -24,8 +24,8 @@ span.asset-tree-toggle { inline-size: var(--space-20); flex: none; }
 .asset-owner-row { flex-wrap: wrap; font-weight: var(--font-weight-medium); }
 /* Count and link sit on their own line under the name, aligned with it, so a long Connection name never squeezes them. */
 .asset-owner-meta { flex-basis: 100%; display: flex; gap: var(--space-12); align-items: baseline;
-  padding-left: calc(var(--space-20) + var(--space-6)); font-weight: var(--font-weight-regular); }
-.asset-node-icon { flex: none; color: var(--color-text-subtle); vertical-align: middle; margin-right: var(--space-4); }
+  padding-inline-start: calc(var(--space-20) + var(--space-6)); font-weight: var(--font-weight-regular); }
+.asset-node-icon { flex: none; color: var(--color-text-subtle); vertical-align: middle; margin-inline-end: var(--space-4); }
 
 /* How many assets sit below a group: a down chevron and the number, with the full words for hover and screen readers. */
 .asset-tree-count { display: inline-flex; align-items: center; gap: var(--space-4); }
