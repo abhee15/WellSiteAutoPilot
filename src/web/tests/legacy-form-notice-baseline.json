@@ -67,10 +67,6 @@
     "controls": 0,
     "notices": 2
   },
-  "views/ModulePackageUpload.tsx": {
-    "controls": 1,
-    "notices": 3
-  },
   "views/ModulePanel.tsx": {
     "controls": 1,
     "notices": 0

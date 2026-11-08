@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { uploadLogicModulePackage } from '../api/generated/v1/sdk.gen';
 import { ActionButton } from '../components/ActionButton';
+import { FileField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import type { LogicModuleResponse } from '../api/generated/v1/types.gen';
 import { isSecurityId } from '../security/identifiers';
 import { t } from '../localization';
@@ -56,11 +58,11 @@ export function ModulePackageUpload({ canManage, onUploaded }: {
   return <details className="module-upload">
     <summary>{t('moduleUpload.heading')}</summary>
     <p>{t('moduleUpload.hint')}</p>
-    <label>{t('moduleUpload.file')}<input type="file" accept=".wsamodule,.zip" disabled={busy}
-      onChange={event => { setFile(event.target.files?.[0] ?? null); setError(null); setNotice(null); }} /></label>
-    {tooLarge && <p role="alert">{t('moduleUpload.tooLarge')}</p>}
-    {error && <p role="alert">{error}</p>}
-    {notice && <p role="status">{notice}</p>}
+    <FileField label={t('moduleUpload.file')} accept=".wsamodule,.zip" disabled={busy}
+      onChange={event => { setFile(event.target.files?.[0] ?? null); setError(null); setNotice(null); }} />
+    {tooLarge && <Notice tone="error">{t('moduleUpload.tooLarge')}</Notice>}
+    {error && <Notice tone="error">{error}</Notice>}
+    {notice && <Notice tone="success">{notice}</Notice>}
     <ActionButton label={t(busy ? 'moduleUpload.working' : 'moduleUpload.upload')} disabled={busy || !file || file.size === 0 || tooLarge} onClick={() => void upload()} />
   </details>;
 }
