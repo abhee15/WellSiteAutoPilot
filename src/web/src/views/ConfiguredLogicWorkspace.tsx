@@ -1,4 +1,6 @@
 import { ActionButton } from '../components/ActionButton';
+import { FormActions, SelectField } from '../components/FormFields';
+import { Notice } from '../components/Notice';
 import { RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { AssetResponse, AssetTypeResponse, ConfiguredLogicRevisionResponse, ExecutionResponse,
@@ -181,11 +183,11 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
         <CloseButton label={t('configured.close')} onClick={onClose} />
       </div>
     </header>
-    {notice && <p role="status">{notice}</p>}
-    {error && <p role="alert">{error}</p>}
+    {notice && <Notice tone="success">{notice}</Notice>}
+    {error && <Notice tone="error">{error}</Notice>}
     {!detail && selectedId && !error && <PanelLoading label={t('setup.loading')} />}
     {detail && <>
-      {changedElsewhere && <p role="status">{t('logicDetail.changedElsewhere')}</p>}
+      {changedElsewhere && <Notice tone="warning">{t('logicDetail.changedElsewhere')}</Notice>}
       <div className="setup-actions">
         {mayManage && (active ?? ordered[0])?.mode === 'Shadow' && <ActionButton label={t('logicDetail.createRevision')}
           disabled={mutationBlocked || editing} onClick={() => copyRevision((active ?? ordered[0])!)} />}
@@ -211,10 +213,10 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       </div>
       <div id={`${prefix}-configuration`} role="tabpanel" aria-labelledby={`${prefix}-tab-configuration`} hidden={tab !== 'configuration'}>
         <p className="logic-detail-note">{t('setup.immutable')}</p>
-        {editing && <p role="status">{t('logicDetail.editingNotice')}</p>}
+        {editing && <Notice>{t('logicDetail.editingNotice')}</Notice>}
         {!editing && selected && <>
-          <label className="logic-revision-select">{t('logicDetail.selectRevision')}
-            <select value={selected.id} disabled={busy} onChange={event => { setRevisionId(event.target.value); setConfirmId(null); }}>
+          <div className="logic-revision-select">
+            <SelectField label={t('logicDetail.selectRevision')} value={selected.id} disabled={busy} onChange={event => { setRevisionId(event.target.value); setConfirmId(null); }}>
               <optgroup label={t('logicDetail.activeAndDrafts')}>
                 {active && <option value={active.id}>{t('setup.revision', { number: active.revisionNumber ?? '—' })} · {statusLabel(active.status)}</option>}
                 {waiting.map(r => <option key={r.id} value={r.id}>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {statusLabel(r.status)}</option>)}
@@ -222,8 +224,8 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
               {earlier.length > 0 && <optgroup label={t('configured.earlier', { count: earlier.length })}>
                 {earlier.map(r => <option key={r.id} value={r.id}>{t('setup.revision', { number: r.revisionNumber ?? '—' })} · {statusLabel(r.status)}</option>)}
               </optgroup>}
-            </select>
-          </label>
+            </SelectField>
+          </div>
           <section className="logic-detail-section" aria-label={t('logicDetail.selectedRevision')}>
             <div className="logic-detail-row"><h4>{t('setup.revision', { number: selected.revisionNumber ?? '—' })} · {statusLabel(selected.status)}</h4>
               <Status value={selected.status} /></div>
@@ -240,8 +242,10 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
                 disabled={mutationBlocked} onClick={() => setConfirmId(selected.id)} />}
               {confirmId === selected.id && <div role="group" aria-label={t('setup.confirmHeading')}>
                 <p>{t('setup.confirmText', { number: selected.revisionNumber ?? '—' })}</p>
-                <ActionButton label={t('setup.confirm')} disabled={mutationBlocked} onClick={() => void transition(selected, 'activate')} />
-                <ActionButton label={t('setup.cancelActivation')} disabled={busy} onClick={() => setConfirmId(null)} />
+                <FormActions>
+                  <ActionButton label={t('setup.cancelActivation')} disabled={busy} onClick={() => setConfirmId(null)} />
+                  <ActionButton label={t('setup.confirm')} variant="primary" disabled={mutationBlocked} onClick={() => void transition(selected, 'activate')} />
+                </FormActions>
               </div>}
             </div>}
           </section>
