@@ -1,23 +1,7 @@
 {
-  "views/ActivityPage.tsx": {
-    "controls": 0,
-    "notices": 1
-  },
   "views/AssetBrowser.tsx": {
     "controls": 1,
     "notices": 0
-  },
-  "views/AssetLogicCard.tsx": {
-    "controls": 0,
-    "notices": 1
-  },
-  "views/AssetViewBrowser.tsx": {
-    "controls": 0,
-    "notices": 1
-  },
-  "views/ConfiguredLogicRevisionOverview.tsx": {
-    "controls": 0,
-    "notices": 1
   },
   "views/ConfiguredLogicSetupPanel.tsx": {
     "controls": 1,
@@ -27,28 +11,12 @@
     "controls": 0,
     "notices": 1
   },
-  "views/ExecutionDetailPanel.tsx": {
-    "controls": 0,
-    "notices": 1
-  },
-  "views/ExecutionHistory.tsx": {
-    "controls": 0,
-    "notices": 1
-  },
   "views/ModulePanel.tsx": {
     "controls": 1,
     "notices": 0
   },
-  "views/OverviewPage.tsx": {
-    "controls": 0,
-    "notices": 1
-  },
   "views/ParameterOverridesEditor.tsx": {
     "controls": 1,
     "notices": 0
-  },
-  "views/RunRecommendations.tsx": {
-    "controls": 0,
-    "notices": 1
   }
 }
