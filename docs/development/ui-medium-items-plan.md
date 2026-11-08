@@ -122,7 +122,7 @@ touches, burying the real change in review and in `git blame`. The baseline patt
 the repo already uses (`legacy-form-notice-baseline.json`).
 
 **Implementation.**
-- `src/web/.prettierrc.json`: `singleQuote`, `printWidth` 120. Everything else is the Prettier default.
+- `src/web/.prettierrc.json`: `singleQuote`, `printWidth` 120, `endOfLine: auto` (the Windows CI checkout has CRLF line endings, which the default `lf` rejects; `auto` keeps whichever ending the file has). Everything else is the Prettier default.
 - `tests/format-guard.test.mjs`: every `src/**/*.{ts,tsx,css}` file (generated client excluded) not listed in
   `tests/prettier-baseline.json` must pass `prettier --check`; a listed file that is now formatted, or no longer
   exists, fails until it is removed from the list.
