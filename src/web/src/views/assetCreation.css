@@ -11,14 +11,12 @@
 .asset-create-form :is(input,select,textarea,button):focus-visible,
 .asset-select:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus-ring); outline-offset: var(--focus-ring-offset); }
 .asset-create-attributes, .asset-create-schema, .asset-create-hint, .asset-create-fields,
-.asset-create-error, .asset-create-success, .asset-create-form > .ui-notice, .asset-create-actions { grid-column: 1 / -1; }
+.asset-create-form > .ui-notice, .asset-create-actions { grid-column: 1 / -1; }
 .asset-create-hint { margin: 0; padding: var(--space-8) 0; }
 .asset-create-form .asset-create-hint { padding: 0; }
 .asset-create-schema pre { overflow-x: auto; white-space: pre-wrap;
   overflow-wrap: anywhere; padding: var(--space-12);
   background: var(--color-surface-code); }
-.asset-create-error { color: var(--color-text-warning-strong); }
-.asset-create-success { color: var(--color-text-selected); }
 .asset-select { background: transparent; border: 0; text-align: left;
   text-decoration: underline; color: var(--color-text-link);
   font: inherit; cursor: pointer; padding: 0; }
@@ -31,6 +29,6 @@
 @media (width < 48em) {
   .asset-create-form { grid-template-columns: minmax(0, 1fr); }
   .asset-create-attributes, .asset-create-schema, .asset-create-hint, .asset-create-fields,
-  .asset-create-error, .asset-create-success, .asset-create-form > .ui-notice, .asset-create-actions { grid-column: auto; }
+  .asset-create-form > .ui-notice, .asset-create-actions { grid-column: auto; }
 }
 .asset-type-define > summary { padding: var(--space-12) var(--space-18); cursor: pointer; }
