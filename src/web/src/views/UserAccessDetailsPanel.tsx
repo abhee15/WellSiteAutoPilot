@@ -5,6 +5,7 @@ import { CloseButton } from '../components/CloseButton';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { t } from '../localization';
+import { Notice } from '../components/Notice';
 import { formatDetailTimestamp } from './executionDetail';
 import { loadGrants, GrantApiError } from './grantAdministration';
 import type { PersistedGrant } from './grantAdministration';
@@ -117,9 +118,8 @@ export function UserAccessDetailsPanel({ user, canManage, onManage, onClose, onA
         <h4>{t('access.directAssignments')}</h4>
         {data && <p className="access-user-note">{t('access.assignmentRecordCount', { count: ordered.length })}</p>}
         {loading && <LoadingIndicator label={t('access.loadingDetails')} />}
-        {error && <p role="alert">{t('access.detailsUnavailable')}</p>}
-        {data && data.namesIncomplete && <p className="access-user-note" role="note">
-          {t('access.namesIncomplete')}</p>}
+        {error && <Notice tone="error">{t('access.detailsUnavailable')}</Notice>}
+        {data && data.namesIncomplete && <Notice announce={false}>{t('access.namesIncomplete')}</Notice>}
         {data && ordered.length === 0 && <p className="access-user-note">{t('access.noDirectAssignments')}</p>}
         {data && ordered.length > 0 && <ul className="access-user-grants">
           {ordered.map(grant => {

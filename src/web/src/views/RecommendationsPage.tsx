@@ -350,9 +350,7 @@ export function RecommendationsPage({
           <Notice>{reviewNotice}</Notice>
         </div>}
         {isLoading && !lastUpdated && <PanelLoading label={t('inbox.loading')} />}
-        {error && <p role="alert" className="execution-detail-error inbox-error">
-          {errorMessages[error]}
-        </p>}
+        {error && <Notice tone="error">{errorMessages[error]}</Notice>}
         {(!isLoading || lastUpdated) && !error && <>
           <div className="recommendation-run-picker">
             <SelectField label={t('inbox.runSelection')} value={selectedRun ?? ''}
@@ -375,7 +373,7 @@ export function RecommendationsPage({
           {!runs.length && !linkedRun && <p>{t('inbox.noRuns')}</p>}
           {linkedRun && !selectedGroup && <h3>{t('overview.runReference', { id: shortId(linkedRun) })}</h3>}
           {runLoading && <PanelLoading label={t('inbox.loading')} />}
-          {runFailed && <p role="alert">{t('operations.recommendationsUnavailable')}</p>}
+          {runFailed && <Notice tone="error">{t('operations.recommendationsUnavailable')}</Notice>}
           {!runLoading && !runFailed && <RecommendationInboxTable items={proposals} nowUtc={nowUtc} assetNames={assetNames}
             onClearFilters={items.length > 0 ? () => setCriteria(DEFAULT_RECOMMENDATION_INBOX_CRITERIA) : undefined}
             selectedId={reviewOpen ? selectedRecommendation?.id : null}
