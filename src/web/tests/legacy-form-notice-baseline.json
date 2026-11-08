@@ -7,10 +7,6 @@
     "controls": 1,
     "notices": 0
   },
-  "views/AssetDetail.tsx": {
-    "controls": 0,
-    "notices": 2
-  },
   "views/AssetLogicCard.tsx": {
     "controls": 0,
     "notices": 1
