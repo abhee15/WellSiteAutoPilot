@@ -23,10 +23,6 @@
     "controls": 0,
     "notices": 1
   },
-  "views/AssetsPage.tsx": {
-    "controls": 2,
-    "notices": 1
-  },
   "views/ConfiguredLogicRevisionOverview.tsx": {
     "controls": 0,
     "notices": 1
