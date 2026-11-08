@@ -2,6 +2,7 @@ import { createRef } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { CodeBlock } from '../../src/components/CodeBlock';
 import { CheckboxField, ConfirmPanel, NumberField, RadioGroup, SelectField, TextAreaField, TextField } from '../../src/components/FormFields';
 import { Notice } from '../../src/components/Notice';
 import { accessibilityViolations } from './axe';
@@ -96,4 +97,15 @@ it('focusOnOpen moves focus to the confirmation heading so the question is annou
 it('does not take focus unless asked to', () => {
   render(<ConfirmPanel title="Confirm command execution"><button type="button">Run</button></ConfirmPanel>);
   expect(document.activeElement).toBe(document.body);
+});
+
+it('CodeBlock is a named region that Tab reaches, so scrolling technical text works without a mouse', async () => {
+  render(<><button type="button">Before</button><CodeBlock label="Example request">{'{ "a": 1 }'}</CodeBlock></>);
+  const block = screen.getByRole('region', { name: 'Example request' });
+  expect(block.tagName).toBe('PRE');
+  const user = userEvent.setup();
+  await user.tab();
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Before' }));
+  await user.tab();
+  expect(document.activeElement).toBe(block);
 });

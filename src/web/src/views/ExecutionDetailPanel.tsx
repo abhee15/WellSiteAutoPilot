@@ -33,6 +33,7 @@ import {
 import type { ExecutionDetailErrorKind } from './executionDetail';
 import './executionSummary.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { CodeBlock } from '../components/CodeBlock';
 
 type Props = {
   executionId: string;
@@ -212,7 +213,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
         <h4>{t('execution.structured')}</h4>
         {structuredValues.map((value, index) => <details key={index}>
           <summary>{t(value.kind === 'Input' ? 'execution.structuredInput' : 'execution.structuredResult')}: {humanizeName(value.label)} · {value.schemaId}</summary>
-          <pre>{value.json}</pre>
+          <CodeBlock label={humanizeName(value.label)}>{value.json}</CodeBlock>
         </details>)}
       </section>}
       {observations.length > 0 && <section className="run-section" aria-label={t('shadow.observations')}>
@@ -263,7 +264,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
         </dl>
         {raw.text && <>
           <h4>{t('execution.rawOutput')}</h4>
-          <pre className="execution-detail-output">{raw.text}</pre>
+          <CodeBlock className="execution-detail-output" label={t('execution.rawOutput')}>{raw.text}</CodeBlock>
           {raw.truncated && <p>{t('execution.truncated')}</p>}
         </>}
       </details>

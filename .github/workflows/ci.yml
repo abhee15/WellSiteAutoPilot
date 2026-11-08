@@ -342,6 +342,10 @@ jobs:
         working-directory: src/web
         run: npm run test:visual:adapter-operations
 
+      - name: Check accessibility (colour contrast, keyboard access) in a real browser
+        working-directory: src/web
+        run: npm run test:visual:accessibility
+
       - name: Upload run-history responsive screenshots
         if: always()
         uses: actions/upload-artifact@v4

@@ -14,6 +14,7 @@ import { isSecurityId } from '../security/identifiers';
 import { attributeFields, buildAttributes } from './assetAttributeForm';
 import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
 import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
+import { CodeBlock } from '../components/CodeBlock';
 
 type Props = {
   userId: string | null | undefined;
@@ -279,7 +280,7 @@ export function AssetCreationPanel({
           {selectedType && (
             <details className="asset-create-schema">
               <summary>{t('assets.createSchemaInfo')}</summary>
-              <pre>{selectedType.attributeSchemaJson}</pre>
+              <CodeBlock label={t('assets.createSchemaInfo')}>{selectedType.attributeSchemaJson}</CodeBlock>
             </details>
           )}
           <p className="asset-create-hint">{t('assets.createValidationNote')}</p>
