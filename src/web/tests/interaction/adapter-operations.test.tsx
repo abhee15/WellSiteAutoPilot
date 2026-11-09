@@ -48,7 +48,8 @@ describe('Adapter capability reference', () => {
     const picker = screen.getByRole('combobox', { name: 'Adapter' }) as HTMLSelectElement;
     await waitFor(() => expect(picker.value).toBe('foresite'));
     expect(Array.from(picker.options, option => option.value)).toEqual(['foresite', 'petrovisor', 'simulator']);
-    expect(screen.getByRole('button', { name: /Surveillance data/ }).getAttribute('aria-current')).toBe('true');
+    const initialCapability = await screen.findByRole('button', { name: /Surveillance data/ });
+    expect(initialCapability.getAttribute('aria-current')).toBe('true');
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeTruthy();
     expect(screen.getByText('PumpFillage')).toBeTruthy();
     expect(container.querySelector('.operation-controls.panel')).toBeTruthy();
@@ -67,10 +68,12 @@ describe('Adapter capability reference', () => {
     render(<AdaptersPanel />);
     const picker = screen.getByRole('combobox', { name: 'Adapter' }) as HTMLSelectElement;
     await waitFor(() => expect(picker.value).toBe('petrovisor'));
+    await screen.findByText('This adapter has no implemented data capabilities to display.');
     await user.selectOptions(picker, 'simulator');
     await user.click(screen.getByRole('button', { name: 'Refresh capabilities' }));
-    await waitFor(() => expect(picker.value).toBe('simulator'));
-    expect(screen.getByText('This adapter has no implemented data capabilities to display.')).toBeTruthy();
+    await waitFor(() => expect(loadAdapterOperations).toHaveBeenCalledTimes(2));
+    expect(picker.value).toBe('simulator');
+    expect(await screen.findByText('This adapter has no implemented data capabilities to display.')).toBeTruthy();
   });
 
   it('presents capability families and keeps supported quantities inside details, without loading Connections or live data', async () => {
