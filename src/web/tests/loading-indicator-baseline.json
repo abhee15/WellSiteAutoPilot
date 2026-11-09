@@ -1,0 +1,17 @@
+{
+  "AssetBrowser": 1,
+  "AssetDetail": 2,
+  "AssetLogicCard": 1,
+  "AssetViewBrowser": 1,
+  "AssetViewEditor": 2,
+  "ConfiguredLogicRevisionOverview": 1,
+  "ConfiguredLogicSchedulePanel": 1,
+  "ConfiguredLogicSetupPanel": 2,
+  "ConnectionInventory": 1,
+  "ExecutionDetailPanel": 1,
+  "ExecutionHistory": 1,
+  "KillSwitchPanel": 1,
+  "ModulePackageState": 1,
+  "OverviewPage": 1,
+  "UserAccessDetailsPanel": 1
+}

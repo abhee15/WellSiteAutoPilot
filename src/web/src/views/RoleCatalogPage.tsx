@@ -11,7 +11,7 @@ import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { loadRoleCatalog, RoleCatalogError, roleChanged, saveRole } from './roleCatalog';
 import type { PermissionDefinition, RoleErrorKind, RoleMutation, RoleRecord } from './roleCatalog';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import './splitLayout.css';
@@ -251,7 +251,7 @@ export function RoleCatalogPage() {
         <p className="access-note access-intro">{t('roles.intro')}</p>
         {error && <Notice tone="error">{errorLabel(error)}</Notice>}
         {notice && <Notice>{notice}</Notice>}
-        {loading ? <LoadingIndicator label={t('roles.loading')} /> : !error && (
+        {loading ? <PanelLoading label={t('roles.loading')} /> : !error && (
           <>
             <FilterToolbar label={t('roles.controls')}
               search={{ value: query, label: t('roles.search'), placeholder: t('roles.searchPlaceholder'), onChange: setQuery }}

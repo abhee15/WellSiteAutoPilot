@@ -149,8 +149,9 @@ See [visual hierarchy and task-flow review](visual-flow-review.md) for page orde
 
 Shared forms and notices migrate under [#467](https://github.com/abhee15/WellSiteAutoPilot/issues/467); see [component contract and first recommendation migration](shared-form-notices.md). Recommendation decision and explicit execution are migrated first. The explicit legacy field/notice inventory in tests can only shrink; a migrated screen cannot reintroduce raw controls or notices. Specialized search/filter/multi-select components keep their existing ownership.
 
-Initial content loaders on primary list/status pages use `PanelLoading`; paginated append progress stays
-small and inline. The adoption guard rejects a bare block spinner at those content boundaries. Existing
-padded contextual reads, such as Overview attention, retain their local treatment. See
-[initial panel loading adoption](panel-loading-adoption.md) for the reproduced gutter mismatch and
-rendered delayed-read/terminal-state checks; the wider indentation audit remains tracked in #482.
+Where and how a loading indicator appears follows one contract: [loading states](loading-states.md). Initial
+content of a panel, pane or detail uses `PanelLoading`; a read inside a section is small and left-aligned in the
+section; append progress is small and inline. The guard rejects a new default-size block spinner in any view, and
+the views that still have one are on a shrinking baseline. See also
+[initial panel loading adoption](panel-loading-adoption.md) for the reproduced gutter mismatch and rendered
+delayed-read/terminal-state checks.
