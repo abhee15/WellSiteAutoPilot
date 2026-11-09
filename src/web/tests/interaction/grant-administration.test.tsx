@@ -64,6 +64,17 @@ async function prepareGrant() {
   return user;
 }
 
+it('uses the neutral Access Refresh control and retains its reload behavior', async () => {
+  const view = render(<GrantAdministrationPage currentUserId={adminId} />);
+  const refresh = screen.getByRole('button', { name: 'Reload users' });
+  expect(refresh.className).toContain('secondary-button');
+  expect(refresh.className).not.toContain('primary-button');
+  expect(view.container.querySelector('.grant-management-panel')).toBeTruthy();
+  await screen.findByRole('combobox', { name: 'User to administer' });
+  await userEvent.click(refresh);
+  expect(loadSecurityUsers).toHaveBeenCalledTimes(2);
+});
+
 describe('audited grant administration interaction', () => {
   it('requires review and a matching server read before reporting one successful write', async () => {
     vi.mocked(loadGrants).mockResolvedValueOnce([]).mockResolvedValueOnce([row]);
