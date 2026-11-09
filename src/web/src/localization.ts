@@ -9,7 +9,6 @@ export const englishMessages = {
   'adapterReference.missingOption': '{adapter} (unavailable)',
   'adapterReference.adapter': 'Adapter',
   'adapterReference.refresh': 'Refresh capabilities',
-  'adapterReference.intro': 'Explore the APIs and data capabilities implemented by each adapter. Examples are reference data; no provider connection is used.',
   'adapterReference.denied': 'You do not have access to adapter metadata.',
   'adapterReference.failed': 'Adapter capabilities could not be loaded. Refresh to try again.',
   'adapterReference.loading': 'Loading adapter capabilities',
