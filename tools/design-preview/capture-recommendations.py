@@ -115,9 +115,11 @@ with sync_playwright() as playwright:
                         detail = page.locator('.split-selected')
                         if width <= 900:
                             assert detail.evaluate("element => element === document.activeElement"), (width, "missing detail focus")
-                        assert not page.locator('.decision-metadata').evaluate("element => element.open")
+                        proposal_details = page.locator("details").filter(
+                            has=page.get_by_text("Proposal details and timestamps", exact=True))
+                        assert not proposal_details.evaluate("element => element.open")
                         page.get_by_text("Proposal details and timestamps", exact=True).click()
-                        assert page.locator('.decision-metadata').evaluate("element => element.open")
+                        assert proposal_details.evaluate("element => element.open")
                         page.get_by_text("Proposal details and timestamps", exact=True).click()
                     if state == "queue":
                         assert page.get_by_role("button", name="Engage kill switch", exact=True).count() == 0
