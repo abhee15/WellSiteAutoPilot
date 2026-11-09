@@ -3,8 +3,10 @@ import type { AdapterCapabilityGroupResponse, AdapterOperationResponse, AdapterO
 import { DataTable } from '../components/DataTable';
 import { SelectField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
+import { StatusIndicator } from '../components/Status';
 import { SectionTabs } from '../components/SectionTabs';
 import { t } from '../localization';
+import { AdapterWorkflowReference } from './AdapterWorkflowReference';
 import { CodeBlock } from '../components/CodeBlock';
 
 /** Capability-level reference; field variants remain inside their declared family and never issue a data read. */
@@ -24,6 +26,16 @@ export function AdapterCapabilityDetails({ capability, operations }: {
         <p>{capability.description}</p>
         {[...new Set(operations.map(item => item.documentation?.executionBoundary).filter((boundary): boundary is string => !!boundary))]
           .map(boundary => <Notice key={boundary} announce={false}>{boundary}</Notice>)}
+        {!!capability.workflows?.length && <section className="adapter-readiness-summary" aria-label={t('adapterReference.workflowReadiness')}>
+          <h4>{t('adapterReference.workflowReadiness')}</h4>
+          <ul>{capability.workflows.map(workflow => <li key={workflow.key ?? ''}>
+            <span>{workflow.displayName}</span>
+            <StatusIndicator tone={workflow.readiness === 'Implemented' ? 'success' : 'neutral'}
+              label={t(workflow.readiness === 'Implemented' ?
+                'adapterReference.workflowImplemented' : 'adapterReference.workflowReferenceOnly')} />
+          </li>)}</ul>
+          <p>{t('adapterReference.moduleAvailabilityUnverified')}</p>
+        </section>}
         <h4>{t('adapterReference.supported')}</h4>
         <DataTable label={t('adapterReference.supported')}>
           <thead><tr><th>{t('adapterReference.data')}</th><th>{t('adapterReference.shape')}</th><th>{t('adapterOperations.colMeaning')}</th></tr></thead>
@@ -37,21 +49,7 @@ export function AdapterCapabilityDetails({ capability, operations }: {
           {operations.map(item => <option key={item.key} value={item.key ?? ''}>{item.quantity ?? item.displayName}</option>)}
         </SelectField>}
         {tab === 'api' && (operation.documentation ? <>
-          {capability.workflows?.filter(workflow => workflow.operationKeys?.includes(operation.key ?? '')).map(workflow =>
-            <section className="adapter-workflow" key={workflow.key ?? ''} aria-label={workflow.displayName ?? undefined}>
-              <h4>{t('adapterReference.workflow')}</h4>
-              <h5>{workflow.displayName}</h5>
-              <p>{workflow.purpose}</p>
-              <Notice announce={false}>{t(workflow.readiness === 'Implemented' ?
-                'adapterReference.workflowImplemented' : 'adapterReference.workflowReferenceOnly')}</Notice>
-              <ol className="adapter-workflow-steps">{workflow.steps?.map(step =>
-                <li key={step.key}>
-                  <strong>{step.description}</strong>
-                  {step.providerApi && <p><code>{step.providerApi}</code></p>}
-                  {step.requirement && <p><strong>{t('adapterReference.workflowRequires')}:</strong> {step.requirement}</p>}
-                  {step.onFailure && <p><strong>{t('adapterReference.workflowOnFailure')}:</strong> {step.onFailure}</p>}
-                </li>)}</ol>
-            </section>)}
+          <AdapterWorkflowReference capability={capability} operation={operation} />
 
           {operation.documentation.providerReference && <><h4>{t('adapterReference.providerMapping')}</h4><p>{operation.documentation.providerReference}</p></>}
           <h4>{t('adapterReference.invocation')}</h4><CodeBlock label={t('adapterReference.invocation')}><code>{operation.documentation.invocation}</code></CodeBlock>
@@ -66,8 +64,14 @@ export function AdapterCapabilityDetails({ capability, operations }: {
           {operation.request && <Contract title={t('adapterReference.request')} schema={operation.request} />}
           {operation.response && <Contract title={t('adapterReference.response')} schema={operation.response} />}
           {operation.structuredResponse && <Contract title={t('adapterReference.payload')} schema={operation.structuredResponse} />}
-          <h4>{t('adapterReference.timestamps')}</h4><p>{operation.timestampSemantics}</p>
-          <h4>{t('adapterReference.quality')}</h4><p>{operation.qualitySemantics}</p>
+          <section aria-label={t('adapterReference.dataTrust')}>
+            <h4>{t('adapterReference.dataTrust')}</h4>
+            <dl className="adapter-trust-facts">
+              <dt>{t('adapterReference.timestamps')}</dt><dd>{operation.timestampSemantics}</dd>
+              <dt>{t('adapterReference.quality')}</dt><dd>{operation.qualitySemantics}</dd>
+            </dl>
+            <p>{t('adapterReference.trustPolicy')}</p>
+          </section>
         </>}
         {tab === 'limits' && <>
           <dl className="operation-facts">
