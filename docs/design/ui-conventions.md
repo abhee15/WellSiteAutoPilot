@@ -21,6 +21,7 @@ Material guidance on dense data applications.
 | Status | `Status` |
 | Native labelled fields | `TextField`, `NumberField`, `TextAreaField`, `SelectField` from `FormFields`; helper/error IDs, required, disabled and read-only state belong to the component |
 | Choices | `CheckboxField` and `RadioGroup`; native keyboard behavior, visible labels and a fieldset/legend for the group |
+| Titled part of a form or detail view, collapsible or not | `Section` and `CollapsibleSection` (`components/Section.tsx`). One heading size, one divider, one chevron marker; a collapsible one is a native `<details>`, so the browser owns keyboard and find-in-page. `quiet` is for technical detail most people never open. Never put a bare `<details>` or a raw `<h4>` step in a form |
 | Form actions / existing consequential confirmation | `FormActions` and non-modal `ConfirmPanel`. One row, Cancel or Discard first and the primary action last (guarded). A destructive action goes in `FormActions leading`, apart from the primary one. A yes/no confirmation is also Cancel (No) then the action (Yes) |
 | Context / progress / outcomes | `Notice`; static guidance uses `announce={false}`, runtime error uses error tone/alert, progress/success uses status |
 | Summary metric / filter | `SummaryCard`: linked cards have a chevron; filter cards have a filter/check cue; optional semantic tone is reserved for meaningful nonzero attention counts |

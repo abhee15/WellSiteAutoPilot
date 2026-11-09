@@ -21,6 +21,7 @@ import { parameterFields, parameterValues, buildParameters } from './moduleParam
 import type { AttributeFieldError, AttributeValues } from './assetAttributeForm';
 import { ParameterOverridesEditor } from './ParameterOverridesEditor';
 import { AttributeFieldsEditor } from '../components/AttributeFieldsEditor';
+import { CollapsibleSection, Section } from '../components/Section';
 import './configuredLogicSetup.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import type { OwnerGroup } from './assetHierarchy';
@@ -241,8 +242,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
     <form className={configuration ? 'setup-form revision-editor' : 'setup-form'} onSubmit={e => void submit(e)}
       onChange={event => { if ((event.target as HTMLElement).id !== MODULE_FIELD_ID) setEdited(true); }}>
       <fieldset disabled={busy || blocked}>
-        <h4 className="setup-step">{t('setupStep.logic')}</h4>
-        <p className="setup-step-hint">{t('setupStep.logicHint')}</p>
+        <Section title={t('setupStep.logic')} hint={t('setupStep.logicHint')}>
         <SelectField id={MODULE_FIELD_ID} label={t('setup.module')} required value={moduleKey} onChange={e => {
           const chosen = approved.find(m => JSON.stringify([m.moduleId, m.version]) === e.target.value);
           const chosenManifest = chosen ? setupManifest(chosen) : null;
@@ -262,14 +262,14 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           return <option key={m.id} value={JSON.stringify([m.moduleId, m.version])} disabled={mismatch}>
             {m.displayName} · {m.version}{mismatch ? ' · ' + t('assignment.requiresAdapter', { adapter: candidate?.requiredAdapterKey ?? '' }) : ''}</option>;
         })}</SelectField>
-        <h4 className="setup-step">{t('setupStep.name')}</h4>
-        <p className="setup-step-hint">{t('setupStep.nameHint')}</p>
+        </Section>
+        <Section title={t('setupStep.name')} hint={t('setupStep.nameHint')}>
         <TextField label={t('setup.name')} required maxLength={256} value={name}
           disabled={!!configuration} onChange={e => setName(e.target.value)} />
-        <details className="revision-editor-section" open={Boolean(manifest?.parameterSchema || (revision?.parametersJson && revision.parametersJson !== '{}'))}><summary>{t('draftEditor.settings')}</summary>
-
+        </Section>
+        <CollapsibleSection title={t('draftEditor.settings')} hint={t(settingsForm ? 'setupStep.settingsFormHint' : 'setupStep.settingsHint')}
+          open={Boolean(manifest?.parameterSchema || (revision?.parametersJson && revision.parametersJson !== '{}'))}>
         {manifest?.description && <p>{t('setup.moduleDescription')}: {manifest.description}</p>}
-        <p className="setup-step-hint">{t(settingsForm ? 'setupStep.settingsFormHint' : 'setupStep.settingsHint')}</p>
         {settingsForm && paramFields ? <AttributeFieldsEditor jsonLabel={t('draftEditor.editJson')} fields={paramFields} values={formValues}
           errors={paramErrors} idPrefix="setup-param-" legend={t('setup.settingsLegend')}
           onChange={(key, value) => {
@@ -283,10 +283,8 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
         <p>{t(manifest?.parameterSchema ? 'setup.parametersHintSchema' : 'setup.parametersHint')}</p>
         {paramFields && parameterValues(paramFields, parameters) !== null && <ActionButton label={t('draftEditor.useFields')}
           onClick={() => { setParamValues(parameterValues(paramFields, parameters)); setParamJson(false); setParamErrors({}); }} />}</>}
-        </details>
-        <details className="revision-editor-section" open><summary>{t('draftEditor.targets')}</summary>
-        {manifest && !viewRef && <>
-        <p className="setup-step-hint">{t('setupStep.assetsHint')}</p></>}
+        </CollapsibleSection>
+        <CollapsibleSection title={t('draftEditor.targets')} hint={manifest && !viewRef ? t('setupStep.assetsHint') : undefined} open>
         {manifest?.assetRequirements.map(r => <fieldset key={r.role}>
           <legend>{t('setup.assetRole', { role: r.role, min: r.minimumCount, max: r.maximumCount })}</legend>
           {canReadViews && <SelectField label={t('setup.targetView')} value={viewRef?.role === r.role ? viewRef.viewId : ''} disabled={viewLoading}
@@ -317,16 +315,16 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
             return owner ? <p key={id} className="connection-help">{t('setup.selectedConnection', {
               connection: connections.find(connection => connection.id === owner)?.name ?? owner })}</p> : null;
           })}
-          {viewRef?.role === r.role ? <details><summary>{t('setup.assetsFor', { role: r.role })} ({bindings[r.role]?.length ?? 0})</summary>
+          {viewRef?.role === r.role ? <CollapsibleSection title={t('setup.assetsFor', { role: r.role })} meta={bindings[r.role]?.length ?? 0}>
             <ul>{(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <li key={id}>{labelAsset(id)}</li>)}</ul>
             <p className="connection-help">{t('setup.viewTargets')}</p>
-          </details> : <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewLoading}
+          </CollapsibleSection> : <label>{t('setup.assetsFor', { role: r.role })}<select multiple disabled={viewLoading}
             value={bindings[r.role] ?? []} onChange={e => setBindings({ ...bindings,
               [r.role]: Array.from(e.target.selectedOptions, o => o.value) })}>
             {eligibleAssets(r, allAssets, assetTypes).filter(a => !manifest.requiredAdapterKey || !!a.ownerConnectionId)
               .map(a => <option key={a.id} value={a.id}>{labelAsset(a.id)}</option>)}
           </select></label>}
-          {(bindings[r.role]?.length ?? 0) > 0 && <details><summary>{t('assignment.overrides')}</summary>
+          {(bindings[r.role]?.length ?? 0) > 0 && <CollapsibleSection title={t('assignment.overrides')}>
           {(bindings[r.role] ?? []).slice(0, detailLimit).map(id => <ParameterOverridesEditor
             key={moduleKey + JSON.stringify([r.role, id])} schema={manifest.parameterSchema}
             context={labelAsset(id)}
@@ -334,17 +332,17 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
             idPrefix={'override-' + r.role + '-' + id + '-'} value={overrides[JSON.stringify([r.role, id])] ?? '{}'}
             onValidity={valid => setOverrideValidity(current => ({ ...current, [JSON.stringify([r.role, id])]: valid }))}
             onChange={value => setOverrides(current => ({ ...current, [JSON.stringify([r.role, id])]: value }))} />)}
-          </details>}
+          </CollapsibleSection>}
         </fieldset>)}
-        </details>
+        </CollapsibleSection>
         {mappingPending && <LoadingIndicator label={t('assignment.resolving')} />}
         {mappingError && <Notice tone="error">{mappingError}</Notice>}
-        <details className="revision-editor-section"><summary>{t('assignment.dataSources')}</summary>
+        <CollapsibleSection title={t('assignment.dataSources')}>
           <p>{t('assignment.derived')}</p>
           {manifest?.dataRequirements.map(input => <p key={input.id}>
             {input.quantity} · {(bindings[input.assetRole] ?? []).length} {t('assignment.wells')}
           </p>)}
-        </details>
+        </CollapsibleSection>
         {manifest?.executionProfile === 'ScheduledOneShot' && <AssignmentScheduleEditor value={scheduleDraft} onChange={setScheduleDraft} />}
         {Object.values(bindings).some(ids => ids.length > detailLimit) && <ActionButton label={t('setup.moreTargets')} onClick={() => setDetailLimit(limit => limit + 20)} />}
         {manifest && !mappingPending && !mappingError && <section className="assignment-review" aria-label={t('assignment.review')}>

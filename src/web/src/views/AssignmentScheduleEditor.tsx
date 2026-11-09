@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { CheckboxField, NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
+import { CollapsibleSection, Section } from '../components/Section';
 import { t } from '../localization';
 import { SCHEDULE_UNITS, buildAssignmentSchedule, scheduleErrorKeys, scheduleUnitKeys, timeZoneChoices } from './assignmentSchedule';
 import type { ScheduleDraft } from './assignmentSchedule';
@@ -27,8 +28,7 @@ export function AssignmentScheduleEditor({ value, onChange }: {
     return () => { window.clearTimeout(timer); request.abort(); };
   }, [key]);
   const change = (patch: Partial<ScheduleDraft>) => onChange({ ...value, ...patch });
-  return <section className="assignment-schedule" aria-label={t('setupStep.schedule')}>
-    <h4>{t('setupStep.schedule')}</h4>
+  return <Section title={t('setupStep.schedule')}><div className="assignment-schedule">
     <SelectField label={t('assignment.runWhen')} value={value.scheduled ? 'scheduled' : 'manual'}
       onChange={event => change({ scheduled: event.target.value === 'scheduled' })}>
       <option value="manual">{t('assignment.onDemand')}</option><option value="scheduled">{t('assignment.scheduled')}</option>
@@ -60,14 +60,14 @@ export function AssignmentScheduleEditor({ value, onChange }: {
       </SelectField>}
       <p className="setup-step-hint">{t(['Days', 'Weeks', 'Months'].includes(value.unit) ? 'assignment.calendarHint' : 'assignment.intervalHint')}</p>
       {built.error && <Notice tone="error">{t(scheduleErrorKeys[built.error])}</Notice>}
-      {!built.error && <details open><summary>{t('assignment.nextStarts')}</summary>
+      {!built.error && <CollapsibleSection title={t('assignment.nextStarts')} open>
         {preview?.key === key && !preview.error
           ? preview.times.length ? <ul>{preview.times.map(time => <li key={time}>{new Intl.DateTimeFormat(undefined, {
             timeZone: value.timeZone, dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(time))}</li>)}</ul>
             : <p>{t('assignment.noStarts')}</p>
           : <p>{t(preview?.key === key && preview.error ? 'assignment.previewError' : 'assignment.previewLoading')}</p>}
         <small>{value.timeZone}</small>
-      </details>}
+      </CollapsibleSection>}
     </>}
-  </section>;
+  </div></Section>;
 }

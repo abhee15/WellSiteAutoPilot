@@ -1,0 +1,111 @@
+/* Sections inside a form or detail view: one rhythm, one divider, one chevron. */
+.ui-section {
+  min-width: 0;
+  padding-block: var(--space-12);
+}
+.ui-section + .ui-section {
+  border-block-start: var(--border-width-thin) solid var(--color-border-subtle);
+}
+.ui-section-title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+.ui-section-hint {
+  margin: var(--space-4) 0 var(--space-12);
+  color: var(--color-text-subtle);
+}
+.ui-section > .ui-section-title + .ui-section-hint {
+  margin-block-end: var(--space-12);
+}
+.ui-section > .ui-section-title:not(:has(+ .ui-section-hint)) {
+  margin-block-end: var(--space-8);
+}
+
+.ui-section-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--size-touch-target);
+  margin-block: calc(-1 * var(--space-12));
+  padding-block: var(--space-12);
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--radius-6);
+}
+.ui-section-summary::-webkit-details-marker {
+  display: none;
+}
+.ui-section-summary:hover .ui-section-title {
+  color: var(--color-text-link);
+}
+.ui-section-summary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+.ui-section-marker {
+  flex: none;
+  color: var(--color-text-subtle);
+  transition: transform var(--duration-appear) ease;
+}
+.ui-section-collapsible[open] > .ui-section-summary > .ui-section-marker {
+  transform: rotate(90deg);
+}
+.ui-section-meta {
+  margin-inline-start: auto;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-label);
+}
+.ui-section-body {
+  display: grid;
+  gap: var(--space-12);
+  padding-block-start: var(--space-16);
+  padding-inline-start: var(--space-24);
+  min-width: 0;
+}
+.ui-section-body > :is(p, h4, fieldset, ul, dl) {
+  margin-block: 0;
+}
+.ui-section-body > .ui-section-hint {
+  margin: 0;
+}
+
+/* Technical detail reads as secondary: smaller, quieter title. */
+.ui-section-quiet .ui-section-title {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-subtle);
+}
+
+/* Inside another section a fold is a lighter step, without its own divider or padding. */
+.ui-section .ui-section {
+  padding-block: var(--space-4);
+}
+.ui-section .ui-section + .ui-section {
+  border-block-start: 0;
+}
+.ui-section .ui-section .ui-section-summary {
+  margin-block: calc(-1 * var(--space-4));
+  padding-block: var(--space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-section-marker {
+    transition: none;
+  }
+}
+
+/* A group of fields inside a section is already framed by the section; no second box. */
+.ui-section-body > fieldset {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: var(--space-12);
+}
+.ui-section-body > fieldset > legend {
+  padding: 0;
+  margin-block-end: var(--space-8);
+  font-weight: var(--font-weight-medium);
+}
