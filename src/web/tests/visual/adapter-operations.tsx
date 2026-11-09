@@ -79,5 +79,7 @@ window.setInterval(() => {
     adapterSelected: layout.querySelector<HTMLSelectElement>('.operation-controls select')?.value,
     adapterSelectorBackground: getComputedStyle(layout.querySelector<HTMLSelectElement>('.operation-controls select')!).backgroundColor,
     adapterSelectorText: getComputedStyle(layout.querySelector<HTMLSelectElement>('.operation-controls select')!).color,
+    adapterSelectorBottom: layout.querySelector<HTMLSelectElement>('.operation-controls select')!.getBoundingClientRect().bottom,
+    adapterRefreshBottom: layout.querySelector<HTMLButtonElement>('.operation-controls button')!.getBoundingClientRect().bottom,
   }) + ':END';
 }, 120);
