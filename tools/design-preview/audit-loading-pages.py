@@ -41,7 +41,9 @@ GUTTER_MIN = 12  # the panel gutter is 18px; anything below 12px is flush agains
 
 MEASURE = """() => {
   const rect = e => { const r = e.getBoundingClientRect(); return {x: r.x, y: r.y, width: r.width, height: r.height, cx: r.x + r.width / 2, cy: r.y + r.height / 2}; };
-  return Array.from(document.querySelectorAll('.loading-indicator, .loading-skeleton')).map(el => {
+  // Only indicators a person can see: a pane that the responsive layout hides (display: none) has no boxes.
+  const shown = el => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  return Array.from(document.querySelectorAll('.loading-indicator, .loading-skeleton')).filter(shown).map(el => {
     const panel = el.closest('.panel');
     const state = el.closest('.panel-loading-state');
     const spinner = el.querySelector('.loading-spinner') ?? el;
@@ -102,6 +104,11 @@ with sync_playwright() as p:
                         failures.append(f'{name} @{width}px: horizontal overflow while loading')
                     if writes:
                         failures.append(f'{name} @{width}px: unexpected write requests {writes}')
+                # Cancel the unanswered handlers first so closing the page does not leave pending tasks.
+                try:
+                    page.unroute_all(behavior='ignoreErrors')
+                except Exception:
+                    pass
                 page.close()
     browser.close()
 (output / 'loading-pages.json').write_text(json.dumps(report, indent=2) + '\n')
