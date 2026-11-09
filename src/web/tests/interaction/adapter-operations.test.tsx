@@ -38,11 +38,48 @@ beforeEach(() => { vi.mocked(loadAdapterOperations).mockResolvedValue(profiles);
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('Adapter capability reference', () => {
+  it('prefers ForeSite, puts the simulator last, and opens the first capability without extra clicks', async () => {
+    const simulator: AdapterOperationsResponse = {
+      adapterKey: 'simulator', displayName: 'Provider Simulator', description: 'A built-in simulated provider for development and demonstration.',
+      operations: [], capabilities: [],
+    };
+    vi.mocked(loadAdapterOperations).mockResolvedValue([simulator, profiles[1], profiles[0]]);
+    const { container } = render(<AdaptersPanel />);
+    const picker = screen.getByRole('combobox', { name: 'Adapter' }) as HTMLSelectElement;
+    await waitFor(() => expect(picker.value).toBe('foresite'));
+    expect(Array.from(picker.options, option => option.value)).toEqual(['foresite', 'petrovisor', 'simulator']);
+    expect(screen.getByRole('button', { name: /Surveillance data/ }).getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeTruthy();
+    expect(screen.getByText('PumpFillage')).toBeTruthy();
+    expect(container.querySelector('.operation-controls.panel')).toBeTruthy();
+    expect(container.querySelector('.adapter-operations')?.getAttribute('data-has-selection')).toBe('false');
+    expect(screen.queryByText(/Explore the APIs and data capabilities/)).toBeNull();
+    expect(screen.queryByText('ForeSite adapter reference')).toBeNull();
+    expect(screen.queryByText(simulator.description)).toBeNull();
+  });
+
+  it('prefers a non-simulator fallback and retains a deliberate simulator selection on refresh', async () => {
+    const user = userEvent.setup();
+    const simulator: AdapterOperationsResponse = {
+      adapterKey: 'simulator', displayName: 'Provider Simulator', description: 'Development fixture', operations: [], capabilities: [],
+    };
+    vi.mocked(loadAdapterOperations).mockResolvedValue([simulator, profiles[1]]);
+    render(<AdaptersPanel />);
+    const picker = screen.getByRole('combobox', { name: 'Adapter' }) as HTMLSelectElement;
+    await waitFor(() => expect(picker.value).toBe('petrovisor'));
+    await user.selectOptions(picker, 'simulator');
+    await user.click(screen.getByRole('button', { name: 'Refresh capabilities' }));
+    await waitFor(() => expect(picker.value).toBe('simulator'));
+    expect(screen.getByText('This adapter has no implemented data capabilities to display.')).toBeTruthy();
+  });
+
   it('presents capability families and keeps supported quantities inside details, without loading Connections or live data', async () => {
     const user = userEvent.setup();
     const fetch = vi.spyOn(globalThis, 'fetch');
     const { container } = render(<AdaptersPanel />);
     const surveillance = await screen.findByRole('button', { name: /Surveillance data/ });
+    expect(surveillance.getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: 'Connection' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^PumpFillage/ })).toBeNull();
     expect(screen.getByRole('button', { name: /Well configuration data/ })).toBeTruthy();
@@ -82,9 +119,12 @@ describe('Adapter capability reference', () => {
     expect(screen.getByRole('button', { name: /Surveillance data/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Well trend data/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Card data/ })).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'Limits' })).toBeNull();
+    expect(screen.getByRole('button', { name: /Surveillance data/ }).getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('tab', { name: 'Limits' })).toBeTruthy();
     await user.clear(screen.getByRole('searchbox', { name: 'Search capabilities' }));
+    expect(screen.getByRole('button', { name: /Card data/ }).getAttribute('aria-current')).toBe('true');
     await user.type(screen.getByRole('searchbox', { name: 'Search capabilities' }), 'no match');
+    expect(screen.queryByRole('tab', { name: 'Limits' })).toBeNull();
     expect(screen.getByText('No capabilities match your search.')).toBeTruthy();
     await user.selectOptions(screen.getByRole('combobox', { name: 'Adapter' }), 'petrovisor');
     expect(screen.getByText('This adapter has no implemented data capabilities to display.')).toBeTruthy();
