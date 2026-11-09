@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { LogicPage } from '../../src/views/LogicPage';
 
 const assetA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -52,4 +53,36 @@ it('uses shortened IDs without making unauthorized asset directory requests', ()
   render(<LogicPage {...(props as never)} permissions={['configured-logic.read']} />);
   expect(screen.getByText('aaaaaaaa…, bbbbbbbb…')).toBeTruthy();
   expect(http).not.toHaveBeenCalled();
+});
+
+it('keeps existing grid names visible while a selection-only historical asset is unresolved', async () => {
+  window.location.hash = '#logic';
+  let resolveHistorical: ((value: Response) => void) | undefined;
+  const http = vi.fn(async (url: string) => {
+    if (url === '/api/v1/assets/owners') return response([
+      { connectionId: ownerA, connectionName: 'ForeSite Production', assetCount: 1500 },
+      { connectionId: ownerB, connectionName: 'CygNet Test', assetCount: 50 },
+    ]);
+    if (url === '/api/v1/assets/' + assetA) return response({ id: assetA, name: 'Well A', ownerConnectionId: ownerA });
+    if (url === '/api/v1/assets/' + assetB) return response({ id: assetB, name: 'Well B', ownerConnectionId: ownerB });
+    if (url === '/api/v1/assets/' + oldAsset) return new Promise<Response>(resolve => { resolveHistorical = resolve; });
+    if (url.startsWith('/api/v1/configured-logic/')) return new Response('', { status: 503 });
+    return response([]);
+  });
+  vi.stubGlobal('fetch', http);
+  const view = render(<LogicPage {...(props as never)} />);
+  const label = 'Well A (ForeSite Production), Well B (CygNet Test)';
+  expect(await screen.findByText(label)).toBeTruthy();
+
+  // The selected configuration has a historical target that is not in either grid label.
+  await userEvent.click(screen.getByRole('button', { name: /Two-source observer/ }));
+  await waitFor(() => expect(http.mock.calls.some(([url]) => url === '/api/v1/assets/' + oldAsset)).toBe(true));
+  expect(screen.getByText(label)).toBeTruthy();
+  expect(screen.queryByText('aaaaaaaa…, bbbbbbbb…')).toBeNull();
+
+  // Revoking asset read access must still remove authorized labels immediately.
+  view.rerender(<LogicPage {...(props as never)} permissions={['configured-logic.read']} />);
+  expect(screen.getByText('aaaaaaaa…, bbbbbbbb…')).toBeTruthy();
+  resolveHistorical?.(response({ id: oldAsset, name: 'Historical Well', ownerConnectionId: ownerA }));
+  expect(screen.queryByText(label)).toBeNull();
 });

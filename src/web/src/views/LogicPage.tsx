@@ -89,16 +89,27 @@ export function LogicPage({
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
   );
-  // The grid shows two names per row. Resolve more for an open revision, without issuing
-  // unbounded per-asset requests for a selection containing thousands of wells.
-  const visibleTargetIds = useMemo(() => {
+  // Resolve the grid's visible target names independently from the selected detail.
+  // Changing selection must not invalidate names already shown in unrelated table rows.
+  const gridTargetIds = useMemo(() => {
     if (showModules) return [];
-    const selectedTargets = (selectedConfiguration?.revisions ?? []).flatMap(revision =>
-      (revision.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : [])).slice(0, 40);
-    const gridTargets = visibleConfigurations.flatMap(item => (contextRevision(item)?.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []).slice(0, 2));
-    return [...new Set([...selectedTargets, ...gridTargets])].slice(0, 100);
-  }, [showModules, selectedConfiguration, visibleConfigurations]);
-  const assetDirectory = useAssetIdentityDirectory(visibleTargetIds, assets, permissions.includes('assets.read'), userId);
+    const targets = visibleConfigurations.flatMap(item => (contextRevision(item)?.assetBindings ?? [])
+      .flatMap(binding => binding.assetId ? [binding.assetId] : []).slice(0, 2));
+    return [...new Set(targets)].slice(0, 100);
+  }, [showModules, visibleConfigurations]);
+  const canReadAssets = permissions.includes('assets.read');
+  const gridAssetDirectory = useAssetIdentityDirectory(gridTargetIds, assets, canReadAssets, userId);
+  // A selected configuration may reference historical assets not shown in the grid.
+  // Keep the lookup bounded and scoped to the detail, reusing already resolved grid names.
+  const detailTargetIds = useMemo(() => {
+    if (showModules) return [];
+    const targets = (selectedConfiguration?.revisions ?? []).flatMap(revision =>
+      (revision.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []));
+    return [...new Set(targets)].slice(0, 40);
+  }, [showModules, selectedConfiguration]);
+  const detailAssetDirectory = useAssetIdentityDirectory(
+    detailTargetIds, gridAssetDirectory.assets, canReadAssets, userId,
+  );
   const visibleModules = useMemo(
     () => filterLogicCatalog(modules, catalogCriteria),
     [modules, catalogCriteria],
@@ -132,7 +143,7 @@ export function LogicPage({
           : undefined} />
 
       {showSchedules ? (
-        <SchedulesOverview configuredLogic={configuredLogic} assets={assetDirectory.assets} owners={assetDirectory.owners}
+        <SchedulesOverview configuredLogic={configuredLogic} assets={gridAssetDirectory.assets} owners={gridAssetDirectory.owners}
           executions={canReadRuns ? executions : undefined} isLoaded={isLoaded} />
       ) : showModules ? (
         <div className="split-panes">
@@ -241,7 +252,7 @@ export function LogicPage({
                             current === item.id ? null : item.id ?? null); }}>
                           {item.name}
                         </button>
-                        <small>{configuredTargetLabel((contextRevision(item)?.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []), assetDirectory.assets, assetDirectory.owners)}</small>
+                        <small>{configuredTargetLabel((contextRevision(item)?.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []), gridAssetDirectory.assets, gridAssetDirectory.owners)}</small>
                         <small>{contextRevision(item)?.moduleId} · v{contextRevision(item)?.moduleVersion}</small>
                         {(item.revisions ?? []).some(revision => revision.status === 'Draft') && <small>{t('logic.rowDrafts', { count: (item.revisions ?? []).filter(revision => revision.status === 'Draft').length })}</small>}
                       </td>
@@ -270,7 +281,7 @@ export function LogicPage({
                 canReadViews={permissions.includes('connections.read')}
                 canReadControl={permissions.includes('recommendations.read')}
                 canManageControl={permissions.includes(CONTROL_MANAGE_PERMISSION)}
-                modules={modules} assets={assetDirectory.assets} owners={assetDirectory.owners} assetTypes={assetTypes}
+                modules={modules} assets={detailAssetDirectory.assets} owners={detailAssetDirectory.owners} assetTypes={assetTypes}
                 executions={canReadRuns ? executions : undefined}
                 onChanged={onRefresh} onActivityFocusedChange={setActivityFocused}
                 onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
