@@ -8,6 +8,7 @@ import {
 import { AuditSentence } from './AuditSentence';
 import { Status } from '../components/Status';
 import { CodeBlock } from '../components/CodeBlock';
+import { CollapsibleSection } from '../components/Section';
 
 function Fact({ label, value, copyable = false }: { label: string; value: string | null | undefined; copyable?: boolean }) {
   if (!value) return null;
@@ -68,11 +69,10 @@ export function AuditEventPanel({ event, assetLabel }: { event: AuditEvent; asse
             </dl>
           )}
       </section>
-      <details className="activity-raw">
-        <summary>{t('activity.field.rawRecord')}</summary>
+      <CollapsibleSection title={t('activity.field.rawRecord')} quiet className="activity-raw">
         <CodeBlock label={t('activity.field.rawRecord')}>{recordedJson(event.detailsJson)}</CodeBlock>
         <CopyButton value={recordedJson(event.detailsJson)} label={t('activity.field.rawRecord')} />
-      </details>
+      </CollapsibleSection>
     </article>
   );
 }

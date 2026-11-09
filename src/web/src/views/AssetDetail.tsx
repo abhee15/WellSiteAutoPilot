@@ -22,6 +22,7 @@ import { Notice } from '../components/Notice';
 import { AssetLogicCard, AssetRunPreview } from './AssetLogicCard';
 import { fetchAssetLogic, fetchAssetRecommendations, LOGIC_PAGE_SIZE } from './assetActivity';
 import { useLiveResource } from './useLiveResource';
+import { CollapsibleSection } from '../components/Section';
 
 /** One asset explained in words: where it sits, what is on it, what it has done. */
 export function AssetDetail({
@@ -94,14 +95,13 @@ export function AssetDetail({
         <ActionLink href={hashFor('logic', 'new:' + assetId)} label={t('assetPage.putLogic')} />
       </div>}
 
-      <details className="asset-technical">
-        <summary>{t('assetDetail.technical')}</summary>
+      <CollapsibleSection title={t('assetDetail.technical')} quiet>
         <p className="asset-page-meta">{t('assetDetail.id')}: <code>{assetId}</code></p>
         {source && <p className="asset-page-meta">
           {t('assetPage.source', { kind: source.resourceKind })} <code>{source.externalId}</code>
           {source.importedAtUtc && <> · {t('assetPage.importedAt', { time: formatTimestamp(source.importedAtUtc) })}</>}
         </p>}
-      </details>
+      </CollapsibleSection>
 
       {(children.length > 0 || logic.data?.isGroupingNode) && <section aria-label={t('assetPage.contains')}>
         <h4>{t('assetPage.contains')}</h4>
