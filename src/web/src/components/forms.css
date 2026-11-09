@@ -8,8 +8,9 @@
   font: inherit; font-size: var(--font-size-control); font-weight: var(--font-weight-regular); line-height: var(--line-height-control);
 }
 .ui-field > textarea.ui-field-control { min-height: var(--size-textarea-min); resize: vertical; line-height: var(--line-height-body); }
-.ui-field > .ui-field-control:read-only { background-color: var(--color-surface-input-readonly); color: var(--color-text-secondary); }
+.ui-field > :is(input, textarea).ui-field-control[readonly] { background-color: var(--color-surface-input-readonly); color: var(--color-text-secondary); }
 .ui-field > select.ui-field-control { background-color: var(--color-surface-input); color: var(--color-text-control); padding-inline-end: var(--space-28); }
+.ui-field > select.ui-field-control > option { background-color: var(--color-surface-input); color: var(--color-text-control); }
 .ui-field > .ui-field-control:disabled { background-color: var(--color-surface-disabled); color: var(--color-text-disabled); cursor: not-allowed; }
 .ui-field > .ui-field-control[aria-invalid='true'] { border-color: var(--color-text-status-error); }
 .ui-field-message { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); font-weight: var(--font-weight-regular); overflow-wrap: anywhere; }

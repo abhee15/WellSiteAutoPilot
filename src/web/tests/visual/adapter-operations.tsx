@@ -50,7 +50,7 @@ window.setInterval(() => {
   const inspector = document.querySelector<HTMLElement>('.split-selected');
   const rows = [...document.querySelectorAll<HTMLElement>('.split-results li')];
   if (!layout || !browse || !inspector || rows.length === 0) return;
-  if (!listOnly && !inspector.querySelector('.split-type-detail')) { rows[0].querySelector('button')?.click(); return; }
+  if (!listOnly && (layout.dataset.hasSelection !== 'true' || !inspector.querySelector('.split-type-detail'))) { rows[0].querySelector('button')?.click(); return; }
   const tabLabel = mode === 'examples' ? 'API and examples' : 'Contracts';
   const tab = [...inspector.querySelectorAll('button[role="tab"]')].find(button => button.textContent === tabLabel);
   if (!listOnly && tab?.getAttribute('aria-selected') !== 'true') {
@@ -59,7 +59,7 @@ window.setInterval(() => {
   const visible = (element: HTMLElement | null) => !!element && getComputedStyle(element).display !== 'none' && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
   const rect = (element: HTMLElement) => {
     const box = element.getBoundingClientRect();
-    return { left: box.left, right: box.right };
+    return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
   };
   const selected = browse.querySelector<HTMLElement>('[data-selected="true"]');
   const other = browse.querySelector<HTMLElement>('[data-selected="false"]');
@@ -76,5 +76,10 @@ window.setInterval(() => {
     selectedRowColor: selected ? getComputedStyle(selected).backgroundColor : '', otherRowColor: other ? getComputedStyle(other).backgroundColor : '',
     detailOverflow: getComputedStyle(inspector).overflowY, browseOverflow: getComputedStyle(browse).overflowY,
     browseRect: rect(browse), inspectorRect: rect(inspector),
+    adapterSelected: layout.querySelector<HTMLSelectElement>('.operation-controls select')?.value,
+    adapterSelectorBackground: getComputedStyle(layout.querySelector<HTMLSelectElement>('.operation-controls select')!).backgroundColor,
+    adapterSelectorText: getComputedStyle(layout.querySelector<HTMLSelectElement>('.operation-controls select')!).color,
+    adapterSelectorBottom: layout.querySelector<HTMLSelectElement>('.operation-controls select')!.getBoundingClientRect().bottom,
+    adapterRefreshBottom: layout.querySelector<HTMLButtonElement>('.operation-controls button')!.getBoundingClientRect().bottom,
   }) + ':END';
 }, 120);

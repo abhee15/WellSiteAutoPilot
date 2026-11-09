@@ -50,7 +50,12 @@ try {
     issue(result.pageBodyScroll > result.pageBodyClient + 2,
       `page content has horizontal scrolling (${result.pageBodyScroll} > ${result.pageBodyClient})`);
     issue(result.container < 170, `content region too narrow (${result.container}px)`);
-    if (adapters) issue(result.rowDisplay !== 'grid', 'operation list styling is missing');
+    if (adapters) {
+      issue(result.rowDisplay !== 'grid', 'operation list styling is missing');
+      issue(!result.adapterSelectorBackground || result.adapterSelectorBackground === 'rgba(0, 0, 0, 0)', 'adapter select lacks a surface background');
+      issue(result.adapterSelectorBackground === result.adapterSelectorText, 'adapter select has identical background/text colors');
+      if (result.viewport >= 390) issue(Math.abs(result.adapterSelectorBottom - result.adapterRefreshBottom) > 2, 'adapter select and Refresh must share a row at supported widths');
+    }
     if (adapters && mode === 'selected') {
       issue(result.contractWidth < 479, 'contract columns are compressed below a readable width');
       issue(result.fieldNameCase !== 'none', 'API field identifiers must retain their declared casing');
@@ -64,6 +69,10 @@ try {
         issue(!result.selectedRowVisible, 'selected history row must be highlighted on wide screens');
         issue(result.selectedRowColor === result.otherRowColor, 'selected row lacks visible highlighting');
         issue(result.browseRect?.right > result.inspectorRect?.left + 1, 'history and inspector overlap');
+        if (adapters) {
+          issue(Math.abs(result.browseRect?.top - result.inspectorRect?.top) > 2, 'adapter panes start at different heights');
+          issue(Math.abs(result.browseRect?.bottom - result.inspectorRect?.bottom) > 2, 'adapter panes end at different heights');
+        }
         issue(result.detailOverflow !== 'auto', 'inspector body must own its desktop scrolling');
       } else {
         issue(result.browseVisible, 'history pane must yield to details at narrow content widths');
