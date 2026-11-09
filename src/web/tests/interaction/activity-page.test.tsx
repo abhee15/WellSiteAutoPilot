@@ -71,6 +71,30 @@ describe('Activity page', () => {
     expect(screen.queryByRole('article')).toBeNull();
   });
 
+  it('closes and reopens details from the standard header control', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({
+      items: [event(1, { targetName: 'Gas lift module v1' })], nextCursor: null });
+    render(<ActivityPage />);
+    const user = userEvent.setup();
+    const open = await screen.findByRole('button', { name: /Open event/ });
+    await user.click(open);
+    expect(await screen.findByRole('article')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Close.*details/i }));
+    expect(screen.queryByRole('article')).toBeNull();
+    await user.click(open);
+    expect(await screen.findByRole('article')).toBeTruthy();
+  });
+
+  it('clears URL-controlled event selection through Close Details', async () => {
+    vi.mocked(loadAuditPage).mockResolvedValue({
+      items: [event(1, { targetName: 'Gas lift module v1' })], nextCursor: null });
+    const onSelect = vi.fn();
+    render(<ActivityPage selectedId={id(1)} onSelect={onSelect} />);
+    await screen.findByRole('article');
+    await userEvent.click(screen.getByRole('button', { name: /Close.*details/i }));
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
   it('loads older events with the server cursor and keeps what is already shown', async () => {
     vi.mocked(loadAuditPage)
       .mockResolvedValueOnce({ items: [event(1)], nextCursor: 'cursor-1' })
