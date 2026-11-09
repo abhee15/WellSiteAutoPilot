@@ -31,6 +31,7 @@ type Props = {
   selectedId: string | null; canManage: boolean; userId?: string | null; canRequestShadow?: boolean; modules: LogicModuleResponse[];
   assets: AssetResponse[]; assetTypes: AssetTypeResponse[]; owners?: readonly OwnerGroup[]; executions?: readonly ExecutionResponse[];
   onClose: () => void; onChanged: () => Promise<void>;
+  onActivityFocusedChange?: (focused: boolean) => void;
   initialAssetId?: string | null; initialViewId?: string | null; canReadViews?: boolean;
   /** recommendations.read: may see the autonomy policy. control.manage: may change it. */
   canReadControl?: boolean; canManageControl?: boolean;
@@ -39,7 +40,7 @@ type Props = {
  * cannot silently replace the revision a user is reviewing. */
 export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canRequestShadow, modules,
   assets, assetTypes, owners = [], executions, onClose, onChanged, initialAssetId, initialViewId, canReadViews = false, canReadControl = false,
-  canManageControl = false }: Props) {
+  canManageControl = false, onActivityFocusedChange }: Props) {
   const [detail, setDetail] = useState<VerifiedConfiguration | null>(null);
   const [editing, setEditing] = useState(!selectedId);
   const [tab, setTab] = useState<'overview' | 'configuration' | 'activity'>('overview');
@@ -88,6 +89,10 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
     ? activeAssetCount === 1 ? 'logicDetail.reviewedContextOne' : 'logicDetail.reviewedContext'
     : activeAssetCount === 1 ? 'logicDetail.activeContextOne' : 'logicDetail.activeContext';
   const canReadRuns = executions !== undefined;
+  useEffect(() => {
+    onActivityFocusedChange?.(tab === 'activity' && !editing && !denied && canReadRuns);
+    return () => onActivityFocusedChange?.(false);
+  }, [tab, editing, denied, canReadRuns, onActivityFocusedChange]);
   useEffect(() => {
     if (!activity.denied) return;
     request.current?.abort(); setDetail(null); setDenied(true); setEditing(false); setSource(undefined);
@@ -256,7 +261,8 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
       </div>
       {canReadRuns && <div id={`${prefix}-activity`} role="tabpanel" aria-labelledby={`${prefix}-tab-activity`} hidden={tab !== 'activity'}>
         <h4>{t('logicDetail.historyHeading')}</h4>
-        {activityOpened && <ExecutionHistory logicId={detail.id} assets={assets} configuredLogic={[detail]} enabled={tab === 'activity'} />}
+        {activityOpened && <ExecutionHistory logicId={detail.id} assets={assets} configuredLogic={[detail]}
+          enabled={tab === 'activity'} focused />}
       </div>}
     </>}
     {!detail && editor}

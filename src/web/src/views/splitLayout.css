@@ -105,3 +105,18 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 /* A panel that holds a split layout clips instead of hiding, so the details pane can stick to the window as the page scrolls. */
 .panel:has(.runs-layout) { overflow: clip; display: flow-root; }
 
+
+
+/* Logic Activity borrows the main workspace rather than nesting history inside a narrow inspector.
+   The selected configuration and its Overview/Configuration tabs remain mounted above the shared history. */
+.logic-layout.logic-history-focused[data-has-selection='true'] > .split-panes {
+  grid-template-columns: minmax(0, 1fr);
+}
+.logic-layout.logic-history-focused > .split-panes > .split-browse { display: none; }
+.logic-layout.logic-history-focused > .split-panes > .split-selected { min-width: 0; }
+
+/* The outer Logic selection must not hide the inner run-history list on narrow viewports. */
+@media (width <= 56.25em) {
+  .logic-layout.logic-history-focused .execution-history-focus[data-has-selection='false']
+    > .execution-history-panes > .split-browse { display: block; }
+}
