@@ -7,6 +7,7 @@ import { t } from '../localization';
 import { Status } from '../components/Status';
 import { AssetTypeActions } from './AssetTypeActions';
 import { CodeBlock } from '../components/CodeBlock';
+import { CollapsibleSection } from '../components/Section';
 
 interface SchemaField { name: string; type: string; rules: string; required: boolean }
 
@@ -80,10 +81,9 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
             </tbody>
           </DataTable>
       )}
-      <details>
-        <summary>{t('assetTypes.rawSchema')}</summary>
+      <CollapsibleSection title={t('assetTypes.rawSchema')} quiet>
         <CodeBlock label={t('assetTypes.rawSchema')}>{type.attributeSchemaJson}</CodeBlock>
-      </details>
+      </CollapsibleSection>
     </section>
   );
 }

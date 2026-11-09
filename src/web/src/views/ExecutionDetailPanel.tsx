@@ -34,6 +34,7 @@ import type { ExecutionDetailErrorKind } from './executionDetail';
 import './executionSummary.css';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { CodeBlock } from '../components/CodeBlock';
+import { CollapsibleSection } from '../components/Section';
 
 type Props = {
   executionId: string;
@@ -254,8 +255,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
         <h4>{t('execution.result.heading')}</h4>
         <dl className="run-facts">{resultRows.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
       </section>}
-      <details className="run-technical">
-        <summary>{t('execution.technical')}</summary>
+      <CollapsibleSection title={t('execution.technical')} quiet className="run-technical">
         <dl className="execution-detail-grid">
           {technical.map(([label, value, copyable]) => <div key={label}>
             <dt>{label}</dt>
@@ -267,7 +267,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
           <CodeBlock className="execution-detail-output" label={t('execution.rawOutput')}>{raw.text}</CodeBlock>
           {raw.truncated && <p>{t('execution.truncated')}</p>}
         </>}
-      </details>
+      </CollapsibleSection>
     </>
   );
 }

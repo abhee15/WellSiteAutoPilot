@@ -18,6 +18,7 @@ import type {
   RecommendationDecision,
   RecommendationDecisionErrorKind,
 } from './recommendationDecision';
+import { CollapsibleSection } from '../components/Section';
 
 type Props = {
   item: RecommendationSummaryResponse;
@@ -116,8 +117,7 @@ export function RecommendationDecisionReviewPanel({
         </ul>
         {item.reasonCode && <p>{t('inbox.reason')}: {humanize(item.reasonCode)}</p>}
       </div>
-      <details className="decision-metadata">
-      <summary>{t('workspace.proposalDetails')}</summary>
+      <CollapsibleSection title={t('workspace.proposalDetails')} quiet>
       <dl className="execution-detail-grid">
         <div><dt>{t('decision.asset')}</dt><dd title={item.assetId ?? undefined}>{assetName ?? item.assetId ?? '—'}</dd></div>
         <div><dt>{t('decision.command')}</dt><dd>{item.command ?? item.code ?? '—'}</dd></div>
@@ -130,7 +130,7 @@ export function RecommendationDecisionReviewPanel({
         <div><dt>{t('decision.reasonCode')}</dt>
           <dd title={item.reasonCode ?? undefined}>{item.reasonCode ? humanize(item.reasonCode) : '—'}</dd></div>
       </dl>
-      </details>
+      </CollapsibleSection>
       <div className="decision-form">
         <Notice announce={false}>{t('decision.recordedNotice')}</Notice>
         <RadioGroup label={t('decision.chooseAction')} required

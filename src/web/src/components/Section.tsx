@@ -30,16 +30,20 @@ interface CollapsibleSectionProps extends SectionProps {
   meta?: ReactNode;
   /** A quiet section holds technical detail that most people never need; it reads as secondary. */
   quiet?: boolean;
+  /** Extra class for the screen's own layout inside the section; never for the section's look. */
+  className?: string;
 }
 
 /**
  * A section people can fold away. It is a native `<details>`, so keyboard, screen reader and find-in-page
  * behaviour come from the browser; only the marker is ours, so it matches the chevrons used elsewhere.
  */
-export function CollapsibleSection({ title, hint, meta, open, quiet, children }: CollapsibleSectionProps) {
+export function CollapsibleSection({ title, hint, meta, open, quiet, className, children }: CollapsibleSectionProps) {
   return (
     <details
-      className={quiet ? 'ui-section ui-section-collapsible ui-section-quiet' : 'ui-section ui-section-collapsible'}
+      className={['ui-section ui-section-collapsible', quiet && 'ui-section-quiet', className]
+        .filter(Boolean)
+        .join(' ')}
       open={open}
     >
       <summary className="ui-section-summary">

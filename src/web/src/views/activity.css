@@ -35,8 +35,6 @@
 .activity-fact { display: grid; grid-template-columns: minmax(var(--layout-fact-narrow), max-content) minmax(0, 1fr); gap: var(--space-2) var(--space-12); }
 .activity-fact dt { color: var(--color-text-subtle); }
 .activity-fact dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
-.activity-raw > summary { cursor: pointer; color: var(--color-text-subtle); }
-.activity-raw pre { overflow-x: auto; user-select: text; margin: var(--space-8) 0; padding: var(--space-12); background: var(--color-surface-code); border-radius: var(--radius-6); }
 
 /* While an event is open on a narrow screen, it gets the whole panel: the intro and filters wait behind "Back". */
 @media (width <= 56.25em) {
@@ -68,3 +66,4 @@
   .activity-table.activity-feed tr.activity-day { padding: 0; }
   .activity-table.activity-feed .activity-day th { display: block; width: 100%; }
 }
+.activity-raw pre { overflow-x: auto; user-select: text; margin: var(--space-8) 0; padding: var(--space-12); background: var(--color-surface-code); border-radius: var(--radius-6); }
