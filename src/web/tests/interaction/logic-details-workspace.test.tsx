@@ -92,6 +92,21 @@ it('moves focus across detail tabs without fetching Activity until keyboard acti
   expect(activity.getAttribute('aria-selected')).toBe('true');
 });
 
+it('uses the shared focused run history beside run details and restores the normal workspace', async () => {
+  fixture();
+  const onActivityFocusedChange = vi.fn();
+  const view = render(<ConfiguredLogicWorkspace {...props} onActivityFocusedChange={onActivityFocusedChange} />);
+  await screen.findByText('Running');
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('tab', { name: 'Activity', exact: true }));
+  await screen.findAllByRole('button', { name: /Inspect run/ });
+  expect(view.container.querySelector('.execution-history-focus')).toBeTruthy();
+  expect(onActivityFocusedChange).toHaveBeenCalledWith(true);
+  await user.click(screen.getByRole('tab', { name: 'Overview', exact: true }));
+  expect(onActivityFocusedChange).toHaveBeenLastCalledWith(false);
+  expect(view.container.querySelector('.configured-detail')).toBeTruthy();
+});
+
 it('copies the chosen immutable revision into the existing editor and protects it from tab navigation', async () => {
   fixture(); render(<ConfiguredLogicWorkspace {...props} />); const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Create revision', exact: true }));
