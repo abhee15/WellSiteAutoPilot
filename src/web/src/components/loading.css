@@ -56,6 +56,9 @@
 .loading-skeleton-row:nth-of-type(4) { width: 91%; }
 .loading-skeleton-row:nth-of-type(5) { width: 64%; }
 
+/* A loading indicator placed directly in a panel takes the panel's gutter, as notices do (`.panel > .ui-notice`).
+   Elsewhere the container supplies its own padding; `data-inset` is for the rest. */
+.panel > .loading-indicator:not([data-inline]), .panel > .loading-skeleton,
 .loading-indicator[data-inset]:not([data-inline]), .loading-skeleton[data-inset] { padding-inline: var(--space-panel-inline); }
 .panel-loading-state { display: grid; place-items: center; flex: 1; min-width: 0;
   min-block-size: var(--layout-pane-height-min); padding: var(--space-18) var(--space-panel-inline); }
