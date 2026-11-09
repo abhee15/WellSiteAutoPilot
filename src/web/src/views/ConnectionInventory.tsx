@@ -138,7 +138,7 @@ export function ConnectionInventory({ connection, found, stale, disabled = false
           </nav>
         </>}
       </fieldset>
-      {searching && <LoadingIndicator label={t('views.loading')} />}
+      {searching && <LoadingIndicator size="small" label={t('views.loading')} />}
       {capacityError && <Notice tone="error">{t('inventory.tooMany')}</Notice>}
       {problem && <Notice tone="error">{problem}</Notice>}
     </>}

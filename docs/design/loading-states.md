@@ -26,35 +26,24 @@ drift above. The skeleton variant is for list placeholders, not a replacement fo
 
 ## Enforcement
 
-`tests/presentation-ownership.test.mjs` fails when a view adds a default-size, non-inline `LoadingIndicator`.
-Views that still have one are listed in `tests/loading-indicator-baseline.json` with a count; the list can only
-shrink (a view that drops below its count fails until the baseline is lowered). `loading.css` also gives any
-indicator placed directly in a `.panel` the panel gutter, as notices get, so a missed one is never flush against
-the edge.
+`tests/presentation-ownership.test.mjs` fails when any view uses a default-size, non-inline `LoadingIndicator`.
+There is no exception list: a view either uses `PanelLoading`, or a small or inline indicator. `loading.css` also
+gives any indicator placed directly in a `.panel` the panel gutter, as notices get, so a missed one is never flush
+against the edge.
 
-## App-wide review: remaining sites
+## How the existing sites were sorted
 
-Each is to be moved to the kind the table says, with a rendered check, and then removed from the baseline. The
-treatment below is the proposed one; confirm it when the site is rendered.
+Every view that had a default-size loader was checked in context:
 
-| View | What loads | Proposed kind |
+| View | Where it loads | Kind used |
 | --- | --- | --- |
-| `ExecutionDetailPanel` | Run detail, first read | Initial region: `PanelLoading` |
-| `KillSwitchPanel` | Kill switch state, first read | Initial region: `PanelLoading` |
-| `AssetViewEditor` (editor) | Saved view being opened | Initial region: `PanelLoading` |
-| `AssetViewBrowser` | Saved views list | Initial region: `PanelLoading` |
-| `AssetBrowser` (search) | Search results | Initial region: `PanelLoading` |
-| `ExecutionHistory` | Run history list | Initial region when focused; section read when embedded |
-| `ConnectionInventory` | Inventory search | Initial region of the results |
-| `AssetDetail` (2) | Logic, recommendations | Section read: small |
-| `AssetLogicCard` | Latest runs | Section read: small |
-| `ConfiguredLogicRevisionOverview` | Revision overview | Section read: small |
-| `ConfiguredLogicSchedulePanel` | Schedule | Section read: small |
-| `ConfiguredLogicSetupPanel` (2) | Saved view, target mapping | Section read: small |
-| `ModulePackageState` | Package state | Section read: small |
-| `UserAccessDetailsPanel` | User access details | Section read: small |
-| `AssetViewEditor` (search) | Asset search inside the editor | Section read: small |
-| `OverviewPage` | Attention list | Section read: small (already in a padded body) |
+| Roles, Activity, Scoped grants, User assignments | First content of the panel | `PanelLoading` |
+| Run detail (`ExecutionDetailPanel`) | First read of the detail pane | `PanelLoading` |
+| Run history, focused | First rows of the list pane | `PanelLoading` |
+| Run history, embedded in an asset page | Section of the asset page | Small |
+| Asset detail (logic, recommendations), latest runs, revision overview, schedule, package state, user access details, view editor (assets, search), logic setup (view, mapping) | A read inside an already-rendered section | Small |
+| Asset tree, saved-view tree, asset search, connection inventory | Rows being added below an existing list | Small |
+| Kill switch strip, Overview attention | A compact strip that already has its own padding | Small |
 
-The real-browser loading audit (`tools/design-preview/audit-loading.py`) covers Connections, the user directory
-and Status. Extending it to every page above, with measured geometry, is part of the same work.
+The real-browser loading audit (`tools/design-preview/audit-loading.py`) still covers only Connections, the user
+directory and Status. Extending it to measure every page is the remaining part of this work.

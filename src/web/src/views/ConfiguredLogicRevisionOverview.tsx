@@ -45,7 +45,7 @@ export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, 
     {active?.schedule?.enabled && <p>{t('logicDetail.nextScheduled')}: {matching && activity.nextScheduledAtUtc
       ? formatTimestamp(activity.nextScheduledAtUtc) : t('logicDetail.notAvailable')}</p>}
     {shown.view && <p className="logic-detail-note">{t('assetDetail.viewSchedule')}</p>}
-    {loading && <LoadingIndicator label={t('assetPage.loading')} />}
+    {loading && <LoadingIndicator size="small" label={t('assetPage.loading')} />}
     {failed && <Notice tone="warning">{t('logicDetail.activityUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={onRetry} /></Notice>}
     {canReadRuns && <section className="logic-detail-section">
       <div className="logic-detail-row"><h4>{t('assetDetail.latestRuns')}</h4><ActionButton variant="quiet" label={t('assetDetail.history')} onClick={onHistory} /></div>

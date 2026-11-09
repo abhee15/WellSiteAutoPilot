@@ -95,7 +95,7 @@ export function ConfiguredLogicSchedulePanel({ configuredLogicId, activeRevision
   if (!control) {
     return <section className="logic-detail-section" aria-label={t('scheduleControl.heading')}>
       {heading}
-      {live.loading && <LoadingIndicator label={t('scheduleControl.loading')} />}
+      {live.loading && <LoadingIndicator size="small" label={t('scheduleControl.loading')} />}
       {live.failed && <Notice tone="error">{t('scheduleControl.unavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={live.refresh} /></Notice>}
     </section>;
   }

@@ -151,7 +151,6 @@ Shared forms and notices migrate under [#467](https://github.com/abhee15/WellSit
 
 Where and how a loading indicator appears follows one contract: [loading states](loading-states.md). Initial
 content of a panel, pane or detail uses `PanelLoading`; a read inside a section is small and left-aligned in the
-section; append progress is small and inline. The guard rejects a new default-size block spinner in any view, and
-the views that still have one are on a shrinking baseline. See also
+section; append progress is small and inline. The guard rejects a default-size block spinner in any view. See also
 [initial panel loading adoption](panel-loading-adoption.md) for the reproduced gutter mismatch and rendered
 delayed-read/terminal-state checks.

@@ -117,7 +117,7 @@ export function AssetDetail({
         )}
       </section>}
 
-      {logic.loading && <LoadingIndicator label={t('assetPage.loading')} />}
+      {logic.loading && <LoadingIndicator size="small" label={t('assetPage.loading')} />}
       {logic.failed && <Notice tone="warning">{t('assetDetail.logicUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={logic.refresh} /></Notice>}
       {operational && canReadLogic && <section aria-label={t('assetPage.logicHere')}>
         <h4>{t('assetDetail.logicAndRuns')}</h4>
@@ -135,7 +135,7 @@ export function AssetDetail({
 
       {canReadRecommendations && operational && <section aria-label={t('assetPage.recommendations')}>
         <h4>{t('assetPage.recommendations')}</h4>
-        {recommendations.loading && <LoadingIndicator label={t('assetPage.loading')} />}
+        {recommendations.loading && <LoadingIndicator size="small" label={t('assetPage.loading')} />}
         {recommendations.failed && <Notice tone="warning">{t('assetDetail.recommendationsUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={recommendations.refresh} /></Notice>}
         {recommendations.data && (recommendations.data.length === 0
           ? <p className="asset-page-empty">{t('assetPage.noRecommendations')}</p>

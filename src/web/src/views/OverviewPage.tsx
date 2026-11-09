@@ -171,7 +171,7 @@ export function OverviewPage({
       <section className="panel overview-attention" aria-label={t('overview.attention')}>
         <PanelHeader title={t('overview.attention')} />
         <div className="overview-attention-body">
-        {!attentionReady ? <LoadingIndicator label={t('overview.loading')} /> : <>
+        {!attentionReady ? <LoadingIndicator size="small" label={t('overview.loading')} /> : <>
           {attentionUnavailable && <Notice tone="warning">{t('overview.attentionUnavailable')}</Notice>}
           {!action && !pendingShown.length && !failedShown.length && !attentionUnavailable && setup.length === 0 && <p>{t('overview.allClear')}</p>}
           <ul className="operator-items">

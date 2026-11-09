@@ -150,7 +150,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
             {hits.filter(node => node.isActive && wellTypeIds.has(node.assetTypeId)).map(node =>
               <CheckboxField key={node.id} label={node.name} checked={selected.has(node.id)}
                 aria-label={t('assetViews.selectWell', { name: node.name })} onChange={() => toggle(node)} />)}
-            {searchLoading && <LoadingIndicator label={t('views.loading')} />}
+            {searchLoading && <LoadingIndicator size="small" label={t('views.loading')} />}
             {searchError && <Notice tone="error">{t('assetBrowse.failed')}</Notice>}
             {hasMore && <ActionButton label={t('assetBrowse.more')} disabled={searchLoading} onClick={() => void moreSearch()} />}
           </div> : <AssetBrowser key={connectionId} selectedId={null} ancestorIds={[]} refreshKey={connectionId} onSelect={() => undefined}
@@ -170,7 +170,7 @@ export function AssetViewEditor({ view, owners, assetTypes, initialConnectionId,
         </section>
       </div>}
     </fieldset>
-    {loading && <LoadingIndicator label={t('views.loading')} />}
+    {loading && <LoadingIndicator size="small" label={t('views.loading')} />}
     {busy && <Notice>{t('assetViews.working')}</Notice>}
     {error && <Notice tone="error">{error}</Notice>}
     <FormActions leading={view?.canDelete && !confirmDelete

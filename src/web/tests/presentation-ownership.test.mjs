@@ -79,20 +79,16 @@ test('record and standalone destinations use ContextLink; native prose and secti
 });
 
 
-test('every view uses PanelLoading for initial content; remaining block loaders can only shrink', () => {
+test('every view uses PanelLoading, or a small or inline indicator, never a default-size block loader', () => {
   // A default-size block LoadingIndicator sits wherever its parent puts it, which is how Roles and Activity ended up
-  // flush left while User assignments was centered. Initial content in a panel, pane or detail uses PanelLoading; a read inside a section uses a small or inline one.
-  // `loading-indicator-baseline.json` lists the views still to be reviewed, with how many block loaders each has.
-  const baseline = JSON.parse(readFileSync(join(import.meta.dirname, 'loading-indicator-baseline.json'), 'utf8'));
-  const counts = {};
+  // flush left while User assignments was centered. Initial content in a panel, pane or detail uses PanelLoading; a
+  // read inside a section, or more rows of a list, uses a small or inline indicator (docs/design/loading-states.md).
+  const found = [];
   for (const path of walk(join(root, 'views')).filter(path => path.endsWith('.tsx'))) {
-    const name = relative(join(root, 'views'), path).replaceAll('\\', '/').replace(/\.tsx$/, '');
-    const blocks = [...readFileSync(path, 'utf8').matchAll(/<LoadingIndicator\b[^>]*>/g)].filter(([tag]) => !/\binline\b|size="small"/.test(tag));
-    if (blocks.length > 0) counts[name] = blocks.length;
+    const name = relative(root, path).replaceAll('\\', '/');
+    for (const [tag] of readFileSync(path, 'utf8').matchAll(/<LoadingIndicator\b[^>]*>/g)) {
+      if (!/\binline\b|size="small"/.test(tag)) found.push(name + ': use PanelLoading, or size="small" inside a section');
+    }
   }
-  const grew = Object.keys(counts).filter(name => counts[name] > (baseline[name] ?? 0))
-    .map(name => name + ': ' + counts[name] + ' block loader(s), allowed ' + (baseline[name] ?? 0) + '; use PanelLoading');
-  const shrank = Object.keys(baseline).filter(name => (counts[name] ?? 0) < baseline[name])
-    .map(name => name + ': now ' + (counts[name] ?? 0) + ', lower the baseline to match');
-  assert.deepEqual([...grew, ...shrank], []);
+  assert.deepEqual(found, []);
 });
