@@ -37,3 +37,13 @@ The method is **not wired into the hosted module read path or advertised as an e
 ## Explicit exclusions
 
 No new module manifest schema; no arbitrary provider-native enum access from authored modules; no direct client credentials; no new Gateway web endpoint or browser read; no new command/writes. Live customer confirmation must remain a separate acceptance gate.
+
+## Shared surveillance snapshot increment
+
+The two **already-reviewed** current scalar operations (`PumpFillage`, `AveragePumpFillage`) now share one ForeSite status parser. An internal `ForeSiteSurveillanceSnapshot.ReadAsync` can acquire both together from **one** `GET Surveillance/well/{wellId}` response with one `LastGoodScanTime` and one `RetrievedAtUtc`. It validates every requested quantity before I/O, refuses duplicate/unsupported/oversized requests and fails the whole snapshot if a required value or timestamp is invalid. The prior scalar `ForeSiteMeasurements.ReadAsync` delegates to the same parser and retains its public contract.
+
+`ForeSiteConnectionMeasurements.ReadSnapshotAsync` keeps the existing saved connection/revision session, authentication, per-session read gate, six-second budget and Gateway failure mapping. There is **no cross-execution cache**: separate executions cannot accidentally inherit each other's acquisition time or asset context.
+
+This is a foundational **internal method only**. It is not a new hosted module binding, not a dynamic-quantity allowlist, and not proof that ForeSite's `AvailableQuantities` enum IDs have been verified. The static UI workflow must stay `ReferenceOnly`. Readiness requires a verified native enum map, applicable/available/valid/fresh authoring contract, explicit authorized source bindings, and a reviewed execution/read plan before module use. The controller-scan `Good` quality remains an acquisition indication, **not** independent sensor validation or proof that the scan age satisfies a module's maximum age.
+
+Deterministic CI tests prove a single well-status fetch for two values, zero-value preservation, shared acquisition and retrieval timestamps, connection revision isolation, failure on partial/bad results, no HTTP writes, and cancellation. Customer ForeSite acceptance remains pending.
