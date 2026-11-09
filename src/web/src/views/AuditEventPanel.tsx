@@ -8,6 +8,7 @@ import {
 import { AuditSentence } from './AuditSentence';
 import { Status } from '../components/Status';
 import { CodeBlock } from '../components/CodeBlock';
+import { CloseButton } from '../components/CloseButton';
 import { CollapsibleSection } from '../components/Section';
 
 function Fact({ label, value, copyable = false }: { label: string; value: string | null | undefined; copyable?: boolean }) {
@@ -21,7 +22,7 @@ function Fact({ label, value, copyable = false }: { label: string; value: string
 }
 
 /** Everything recorded about one event, in words first and the exact record last. */
-export function AuditEventPanel({ event, assetLabel }: { event: AuditEvent; assetLabel?: string | null }) {
+export function AuditEventPanel({ event, assetLabel, onClose }: { event: AuditEvent; assetLabel?: string | null; onClose?: () => void }) {
   const summary = describeAuditEvent(event);
   const actor = describeActor(event);
   const details = readableDetails(event.detailsJson);
@@ -31,8 +32,13 @@ export function AuditEventPanel({ event, assetLabel }: { event: AuditEvent; asse
   return (
     <article className="activity-detail" id="activity-detail" aria-labelledby="activity-detail-title">
       <header>
-        <p className="eyebrow">{t('activity.detailHeading')}</p>
-        <h3 id="activity-detail-title"><AuditSentence summary={summary} /></h3>
+        <div className="activity-detail-headline">
+          <div>
+            <p className="eyebrow">{t('activity.detailHeading')}</p>
+            <h3 id="activity-detail-title"><AuditSentence summary={summary} /></h3>
+          </div>
+          {onClose && <CloseButton className="activity-detail-close" label={t('access.closeDetails')} onClick={onClose} />}
+        </div>
         <div className="activity-detail-meta">
           {summary.outcome && <Status value={summary.outcome.state} label={summary.outcome.label} />}
           {summary.note && <span className="activity-note">{summary.note}</span>}

@@ -28,6 +28,10 @@
 .activity-layout[data-has-selection='true'] .split-panes { align-items: stretch; }
 .activity-layout[data-has-selection='true'] .split-browse { border-inline-end: var(--border-width-thin) solid var(--color-border-subtle); }
 .activity-detail header { display: grid; gap: var(--space-6); }
+.activity-detail-headline { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-12); }
+.activity-detail-headline > div { flex: 1; min-width: 0; }
+.activity-detail-headline .eyebrow { margin-top: 0; }
+.activity-detail-close { flex: none; }
 .activity-detail h3 { margin: 0; font-size: var(--font-size-body); font-weight: var(--font-weight-regular); overflow-wrap: anywhere; }
 .activity-detail h4 { margin: 0 0 var(--space-8); font-size: var(--font-size-body-small); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); }
 .activity-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
@@ -39,6 +43,8 @@
 /* While an event is open on a narrow screen, it gets the whole panel: the intro and filters wait behind "Back". */
 @media (width <= 56.25em) {
   .activity-panel[data-has-selection='true'] .activity-toolbar { display: none; }
+  /* On narrow layouts the existing Back action replaces the desktop Close control. */
+  .activity-detail-close { display: none; }
 }
 
 /* Narrow windows: a fact stacks its label over its value, and the list becomes one card per event. */

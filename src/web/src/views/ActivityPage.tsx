@@ -209,7 +209,8 @@ export function ActivityPage({ selectedId = null, onSelect, userId, assets = [],
             </div>
             <section className="split-selected" tabIndex={-1} aria-label={t('activity.detailHeading')}>
               <ActionButton label={t('activity.backToList')} className="split-back" onClick={() => setSelectedId(null)} />
-              {selected && <AuditEventPanel event={selected} assetLabel={shownAsset} />}
+              {selected && <AuditEventPanel event={selected} assetLabel={shownAsset}
+                onClose={() => setSelectedId(null)} />}
             </section>
           </div>
         </div>
