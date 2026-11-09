@@ -1,6 +1,6 @@
 .operation-controls { display: flex; flex-wrap: wrap; gap: var(--space-12); align-items: end; padding: var(--space-12) var(--space-18); }
 .operation-controls.panel { margin-bottom: 0; }
-.operation-controls .ui-field { flex: 1 1 var(--layout-column-min); max-width: var(--layout-form-wide); min-width: 0; }
+.operation-controls .ui-field { flex: 1 1 0; max-width: var(--layout-form-wide); min-width: min(100%, var(--layout-field-min)); }
 .operation-search, .operation-availability { padding: var(--space-12) var(--space-18); }
 .operation-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-8) var(--space-12); margin: 0; }
 .operation-facts dt { font-weight: var(--font-weight-medium); }
