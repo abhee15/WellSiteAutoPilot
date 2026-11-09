@@ -45,5 +45,12 @@ Every view that had a default-size loader was checked in context:
 | Asset tree, saved-view tree, asset search, connection inventory | Rows being added below an existing list | Small |
 | Kill switch strip, Overview attention | A compact strip that already has its own padding | Small |
 
-The real-browser loading audit (`tools/design-preview/audit-loading.py`) still covers only Connections, the user
-directory and Status. Extending it to measure every page is the remaining part of this work.
+## Automated checks
+
+- `tests/presentation-ownership.test.mjs` rejects a default-size block loader in any view.
+- `tools/design-preview/audit-loading.py` exercises delayed reads and terminal states on Connections, the user
+  directory and Status.
+- `tools/design-preview/audit-loading-pages.py` holds every data read on every route (all sections, the four
+  Access tabs, asset and logic details) at desktop and phone widths and measures each indicator: inside a panel it
+  must be inset by at least 12px, a first-content loader must be centered in a region of at least 160px, and nothing
+  may overflow horizontally. It runs in the tab visual review workflow and keeps its measurements as JSON.
