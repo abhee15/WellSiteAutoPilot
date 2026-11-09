@@ -117,7 +117,7 @@ export function UserAccessDetailsPanel({ user, canManage, onManage, onClose, onA
       <section className="access-user-detail-section" aria-label={t('access.directAssignments')}>
         <h4>{t('access.directAssignments')}</h4>
         {data && <p className="access-user-note">{t('access.assignmentRecordCount', { count: ordered.length })}</p>}
-        {loading && <LoadingIndicator label={t('access.loadingDetails')} />}
+        {loading && <LoadingIndicator size="small" label={t('access.loadingDetails')} />}
         {error && <Notice tone="error">{t('access.detailsUnavailable')}</Notice>}
         {data && data.namesIncomplete && <Notice announce={false}>{t('access.namesIncomplete')}</Notice>}
         {data && ordered.length === 0 && <p className="access-user-note">{t('access.noDirectAssignments')}</p>}

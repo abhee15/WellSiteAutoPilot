@@ -117,7 +117,7 @@ export function KillSwitchPanel({ userId, canManage, compact = false }: Props) {
           : state.engaged ? t('workspace.commandsBlocked') : t('workspace.gatesApply')}</span>
       </div>
     </> : loadError ? <Notice tone="error">{errors[loadError]}</Notice>
-      : <LoadingIndicator label={t('killSwitch.loading')} />}
+      : <LoadingIndicator size="small" label={t('killSwitch.loading')} />}
   </section>;
   if (!state) {
     return (

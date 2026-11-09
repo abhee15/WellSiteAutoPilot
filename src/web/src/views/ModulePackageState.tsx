@@ -36,7 +36,7 @@ export function ModulePackageState({ module }: { module: LogicModuleResponse }) 
   const yesNo = (value: boolean | undefined) => t(value ? 'packageState.yes' : 'packageState.no');
   return <section aria-label={t('packageState.heading')}>
     <h4>{t('packageState.heading')}</h4>
-    {!state && !failed && <LoadingIndicator label={t('packageState.loading')} />}
+    {!state && !failed && <LoadingIndicator size="small" label={t('packageState.loading')} />}
     {failed && <Notice tone="error">{t('packageState.failed')}</Notice>}
     {state && <>
       <Notice tone={state.preflightReady ? 'success' : 'warning'}>{t(state.preflightReady ? 'packageState.ready' : 'packageState.notReady')}</Notice>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AssetResponse, ConfiguredLogicResponse } from '../api/generated/v1/types.gen';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { ActionButton } from '../components/ActionButton';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { LoadingIndicator, PanelLoading } from '../components/LoadingIndicator';
 import { Status } from '../components/Status';
 import { formatTimestamp, shortId } from '../format';
 import { t } from '../localization';
@@ -80,7 +80,9 @@ export function ExecutionHistory({ assetId, logicId, runId = null, assets, confi
         {focused && <header className="execution-history-browse-header">
           <h4>{t('assetDetail.historyTitle')}</h4>
         </header>}
-        {history.loading && <LoadingIndicator label={t('assetPage.loading')} />}
+        {history.loading && (focused && page.length === 0
+          ? <PanelLoading label={t('assetPage.loading')} />
+          : <LoadingIndicator size="small" label={t('assetPage.loading')} />)}
         {history.failed && <Notice tone="warning">{t('assetDetail.runsUnavailable')}{' '}
           <ActionButton variant="quiet" onClick={history.refresh} label={t('assetDetail.retry')} />
         </Notice>}

@@ -44,7 +44,7 @@ export function AssetRunPreview({ assetId, logicId, logicName }: { assetId: stri
   return <div className="asset-logic-runs">
     <div className="asset-logic-runs-heading"><Heading>{t('assetDetail.latestRuns')}</Heading>
       {logicId && <ContextLink href={runHistoryHash(assetId, logicId)} aria-label={t('assetDetail.historyFor', { name: logicName ?? logicId })} label={t('assetDetail.history')} />}</div>
-    {runs.loading && <LoadingIndicator label={t('assetPage.loading')} />}
+    {runs.loading && <LoadingIndicator size="small" label={t('assetPage.loading')} />}
     {runs.failed && <Notice tone="warning">{t('assetDetail.runsUnavailable')} <ActionButton variant="quiet" label={t('assetDetail.retry')} onClick={runs.refresh} /></Notice>}
     {runs.data?.length === 0 && <p className="asset-page-empty">{t('assetPage.noRuns')}</p>}
     {runs.data && runs.data.length > 0 && <ul className="asset-page-list">

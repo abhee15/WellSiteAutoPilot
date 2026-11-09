@@ -32,7 +32,7 @@ import {
 } from './executionDetail';
 import type { ExecutionDetailErrorKind } from './executionDetail';
 import './executionSummary.css';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { CodeBlock } from '../components/CodeBlock';
 import { CollapsibleSection } from '../components/Section';
 
@@ -131,7 +131,7 @@ export function ExecutionDetailPanel({ executionId, onClose, poll, onObserved, o
           <CloseButton onClick={onClose} />
         </div>
       </div>
-      {isLoading && !detail && <LoadingIndicator label={t('execution.loading')} />}
+      {isLoading && !detail && <PanelLoading label={t('execution.loading')} />}
       {error && <Notice tone="error">{errorMessages[error]}</Notice>}
       {detail && context}
       {detail && <ExecutionDetailContent detail={detail} configuredLogic={configuredLogic} assets={assets}

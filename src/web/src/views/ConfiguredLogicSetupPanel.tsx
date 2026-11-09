@@ -306,7 +306,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           {canReadViews && !viewRef && <p className="connection-help">{t('setup.viewCompatibility')}</p>}
           {viewRef?.role === r.role && <p className="connection-help">{t('setup.viewSnapshot', { revision: viewRef.expectedRevision, count: bindings[r.role]?.length ?? 0 })}
             {canReadViews && <ActionButton icon={RefreshCw} iconOnly label={t('setup.refreshView')} disabled={viewLoading} onClick={() => void chooseView(viewRef.viewId, r.role)} />}</p>}
-          {viewLoading && <LoadingIndicator label={t('views.loading')} />}
+          {viewLoading && <LoadingIndicator size="small" label={t('views.loading')} />}
           {viewError && <Notice tone="error">{t('setup.viewUnavailable')}</Notice>}
           {viewRef?.role !== r.role && <p>{t('setup.loadedAssets')}</p>}
           {manifest.requiredAdapterKey === 'foresite' && !viewRef && <p className="connection-help">{t('setup.directWellHint')}</p>}
@@ -335,7 +335,7 @@ export function ConfiguredLogicSetupPanel({ modules, assets, assetTypes, owners 
           </CollapsibleSection>}
         </fieldset>)}
         </CollapsibleSection>
-        {mappingPending && <LoadingIndicator label={t('assignment.resolving')} />}
+        {mappingPending && <LoadingIndicator size="small" label={t('assignment.resolving')} />}
         {mappingError && <Notice tone="error">{mappingError}</Notice>}
         <CollapsibleSection title={t('assignment.dataSources')}>
           <p>{t('assignment.derived')}</p>

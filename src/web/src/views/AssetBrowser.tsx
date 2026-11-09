@@ -236,7 +236,7 @@ export function AssetSearchResults({
           );
         })}
       </ul>
-      {state.loading && <LoadingIndicator label={t('views.loading')} />}
+      {state.loading && <LoadingIndicator size="small" label={t('views.loading')} />}
       {state.failed && <Notice tone="error">{t('assetBrowse.failed')}</Notice>}
       {!state.loading && !state.failed && state.hits.length === 0 && <p className="split-note">{t('assets.noMatches')}</p>}
       {state.hasMore && !state.loading && <p className="split-note">

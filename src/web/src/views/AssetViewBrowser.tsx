@@ -33,7 +33,7 @@ export function AssetViewBrowser({ viewId, selectedId, onSelect, query = '' }: {
       <button type="button" className="asset-select" aria-current={asset.id === selectedId ? 'true' : undefined}
         aria-label={t('assetTree.open', { name: asset.name })} onClick={() => onSelect(asset.id)}>{asset.name}</button>
     </li>)}</ul>
-    {loading && <LoadingIndicator label={t('views.loading')} />}
+    {loading && <LoadingIndicator size="small" label={t('views.loading')} />}
     {failed && <Notice tone="error">{t('assetBrowse.failed')} <ActionButton label={t('assetBrowse.retry')} onClick={() => setRetry(value => value + 1)} /></Notice>}
     {hasMore && !failed && <ActionButton label={t('assetBrowse.more')} disabled={loading} onClick={() => setOffset(value => value + VIEW_PAGE_SIZE)} />}
     {!loading && !failed && assets.length === 0 && <p>{t('assetViews.empty')}</p>}
