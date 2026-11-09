@@ -19,9 +19,9 @@ import './adapterOperations.css';
 /** Sort the reference picker without changing provider registration or execution order. */
 function orderAdapters(adapters: AdapterOperationsResponse[]): AdapterOperationsResponse[] {
   return [...adapters].sort((left, right) =>
-    Number(left.adapterKey === 'simulator') - Number(right.adapterKey === 'simulator') ||
-    left.displayName.localeCompare(right.displayName, undefined, { sensitivity: 'base' }) ||
-    left.adapterKey.localeCompare(right.adapterKey));
+    Number((left.adapterKey ?? '').toLowerCase() === 'simulator') - Number((right.adapterKey ?? '').toLowerCase() === 'simulator') ||
+    (left.displayName ?? '').localeCompare(right.displayName ?? '', undefined, { sensitivity: 'base' }) ||
+    (left.adapterKey ?? '').localeCompare(right.adapterKey ?? ''));
 }
 
 /** Static adapter reference. No saved Connection, Asset or provider data is loaded by this screen. */
@@ -42,7 +42,7 @@ export function AdaptersPanel() {
       if (abort.signal.aborted) return;
       const ordered = orderAdapters(adapters);
       setProfiles(ordered);
-      setAdapterKey(current => current || ordered.find(item => item.adapterKey.toLowerCase() === 'foresite')?.adapterKey || ordered[0]?.adapterKey || '');
+      setAdapterKey(current => current || ordered.find(item => item.adapterKey?.toLowerCase() === 'foresite')?.adapterKey || ordered[0]?.adapterKey || '');
     }).catch((caught: unknown) => {
       if (!abort.signal.aborted) {
         setProfiles([]);
