@@ -11,10 +11,44 @@
 /* Keep contract columns readable; the shared table wrapper owns horizontal scrolling on narrow screens. */
 .adapter-operations .activity-table { min-width: calc(var(--layout-column-min) * 2); }
 
-/* Adapter-owned provider workflows are descriptive and never executable. */
-.adapter-workflow { margin-block: var(--space-16); }
-.adapter-workflow h5 { margin-block: var(--space-6); }
-.adapter-workflow-steps { padding-inline-start: var(--space-24); }
-.adapter-workflow-steps li { padding-inline-start: var(--space-4); margin-block: var(--space-12); overflow-wrap: anywhere; }
-.adapter-workflow-steps li p { margin-block: var(--space-6); }
-.adapter-workflow-steps code { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Read-only adapter reference: all values come from the shared design system. */
+.adapter-readiness-summary { display: grid; gap: var(--space-8); }
+.adapter-readiness-summary h4 { margin: 0; }
+.adapter-readiness-summary ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-8); }
+.adapter-readiness-summary li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.adapter-readiness-summary p { color: var(--color-text-subtle); font-size: var(--font-size-body-small); }
+.adapter-workflows { display: grid; gap: var(--space-12); min-width: 0; }
+.adapter-workflows > h4 { margin: 0; }
+.adapter-workflow { display: grid; gap: var(--space-12); min-width: 0; container-type: inline-size; }
+.adapter-workflow-header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: var(--space-12); }
+.adapter-workflow-header > div { flex: 1 1 var(--layout-column-min); min-width: 0; }
+.adapter-workflow h5 { margin: 0 0 var(--space-6); font-size: var(--font-size-body); }
+.adapter-workflow-body { display: grid; gap: var(--space-16); min-width: 0; }
+.adapter-workflow-steps {
+  counter-reset: adapter-step; list-style: none; display: grid; gap: var(--space-14);
+  margin: 0; padding: 0; min-width: 0;
+}
+.adapter-workflow-steps li { position: relative; min-width: 0; padding-inline-start: var(--space-28); overflow-wrap: anywhere; }
+.adapter-workflow-steps li::before {
+  counter-increment: adapter-step; content: counter(adapter-step);
+  position: absolute; inset-inline-start: 0; inset-block-start: 0;
+  display: grid; place-items: center; width: var(--space-24); height: var(--space-24);
+  background: var(--color-surface-navigation-active); color: var(--color-text-primary);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-pill); font-weight: var(--font-weight-medium);
+}
+.adapter-workflow-steps li p { margin-block: var(--space-6) 0; color: var(--color-text-secondary); }
+.adapter-workflow-steps li strong, .adapter-workflow-steps li b { color: var(--color-text-primary); }
+.adapter-workflow-api { margin-block-start: var(--space-8); padding: var(--space-10); min-width: 0;
+  background: var(--color-surface-code); border-radius: var(--radius-6); }
+.adapter-workflow-api code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.adapter-workflow-guidance { align-self: start; min-width: 0; display: grid; gap: var(--space-10);
+  padding: var(--space-12); background: var(--color-surface-detail);
+  border: var(--border-width-thin) solid var(--color-border-subtle); border-radius: var(--radius-8); }
+.adapter-workflow-guidance p { margin: 0; }
+.adapter-trust-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-8); margin: 0; }
+.adapter-trust-facts dt { font-weight: var(--font-weight-medium); }
+.adapter-trust-facts dd { margin: 0; overflow-wrap: anywhere; }
+@container (width >= 48rem) {
+  .adapter-workflow-body { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}

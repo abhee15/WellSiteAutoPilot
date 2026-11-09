@@ -48,6 +48,8 @@ describe('Adapter capability reference', () => {
     expect(screen.getByRole('button', { name: /Well configuration data/ })).toBeTruthy();
     await user.click(surveillance);
     expect(surveillance.getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('region', { name: 'Workflow readiness' })).toBeTruthy();
+    expect(screen.getByText(/An adapter operation is not automatically available to a hosted logic module/)).toBeTruthy();
     expect(screen.getByRole('table', { name: 'Supported data and operations' })).toBeTruthy();
     expect(screen.getByText('PumpFillage')).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'API and examples' }));
@@ -55,12 +57,16 @@ describe('Adapter capability reference', () => {
     expect(screen.getByRole('heading', { name: 'Recommended provider workflow' })).toBeTruthy();
     expect(screen.getByText('GET Surveillance/AvailableQuantities/{wellId}')).toBeTruthy();
     expect(screen.getByText('GET Surveillance/well/{wellId}')).toBeTruthy();
-    expect(screen.getByText(/not all steps are implemented/)).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: 'For logic module authors' })).toBeTruthy();
+    expect(screen.getByText(/Do not call provider URLs from a module/)).toBeTruthy();
+    expect(screen.getByText(/some provider checks are not yet connected/)).toBeTruthy();
     expect(screen.getByText(/Synthetic example only/)).toBeTruthy();
     await user.selectOptions(screen.getByRole('combobox', { name: 'Supported data example' }), 'average');
     await user.click(screen.getByRole('tab', { name: 'Contracts' }));
     expect(screen.getByRole('table', { name: 'Request contract' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Data validity and provenance' })).toBeTruthy();
     expect(screen.getByText('Source timestamp in UTC')).toBeTruthy();
+    expect(screen.getByText(/Retrieval time must not replace/)).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'Limits' }));
     expect(screen.getByText('6 seconds')).toBeTruthy();
     expect(await accessibilityViolations(container)).toEqual([]);
