@@ -74,6 +74,7 @@ export function LogicPage({
   const showSchedules = canReadConfigurations && schedulesRequested;
   const showModules = !showSchedules && canReadCatalog && (modulesRequested || !canReadConfigurations);
   const [creating, setCreating] = useState(Boolean(startAssetId || startViewId));
+  const [activityFocused, setActivityFocused] = useState(false);
   useEffect(() => { if (startAssetId || startViewId) setCreating(true); }, [startAssetId, startViewId]);
   const prefillAssetId = startAssetId && assets.some(asset => asset.id === startAssetId && asset.isActive)
     ? startAssetId : null;
@@ -110,9 +111,11 @@ export function LogicPage({
   const splitFocus = useSplitPaneFocus(showModules ? aboutModule?.id ?? null
     : selectedConfiguredId ?? (creating && canCreate ? 'new' : null));
   const hasConfigurationDetail = selectedConfiguredId !== null || (creating && canCreate);
+  const isActivityFocused = activityFocused && selectedConfiguredId !== null && !showSchedules && !showModules;
 
   return (
-    <div {...splitFocus} className="split-layout runs-layout logic-layout" data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
+    <div {...splitFocus} className={`split-layout runs-layout logic-layout${isActivityFocused ? ' logic-history-focused' : ''}`}
+      data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
       <PageTabNav label={t('logic.tabs')}
         tabs={[
           ...(canReadConfigurations ? [
@@ -269,7 +272,7 @@ export function LogicPage({
                 canManageControl={permissions.includes(CONTROL_MANAGE_PERMISSION)}
                 modules={modules} assets={assetDirectory.assets} owners={assetDirectory.owners} assetTypes={assetTypes}
                 executions={canReadRuns ? executions : undefined}
-                onChanged={onRefresh}
+                onChanged={onRefresh} onActivityFocusedChange={setActivityFocused}
                 onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
               />
             ) : <p className="split-note">{t('logic.pickConfigured')}</p>}
