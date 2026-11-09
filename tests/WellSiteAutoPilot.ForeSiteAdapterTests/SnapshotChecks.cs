@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.IntegrationGateway.Providers;
 
 internal static class SnapshotChecks
