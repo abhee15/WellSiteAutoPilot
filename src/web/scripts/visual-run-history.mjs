@@ -54,6 +54,7 @@ try {
       issue(result.rowDisplay !== 'grid', 'operation list styling is missing');
       issue(!result.adapterSelectorBackground || result.adapterSelectorBackground === 'rgba(0, 0, 0, 0)', 'adapter select lacks a surface background');
       issue(result.adapterSelectorBackground === result.adapterSelectorText, 'adapter select has identical background/text colors');
+      if (result.viewport >= 390) issue(Math.abs(result.adapterSelectorBottom - result.adapterRefreshBottom) > 2, 'adapter select and Refresh must share a row at supported widths');
     }
     if (adapters && mode === 'selected') {
       issue(result.contractWidth < 479, 'contract columns are compressed below a readable width');
