@@ -26,11 +26,9 @@
 .setup-form > .ui-notice, .setup-form > .ui-form-actions { margin-block-start: var(--space-12); }
 @media (width >= 48em) {
   .setup-form > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .setup-form > fieldset > :is(fieldset,details,p,h4,section) { grid-column: 1 / -1; }
+  .setup-form > fieldset > :is(fieldset,details,p,h4,section,.ui-section) { grid-column: 1 / -1; }
 }
 
-/* Numbered steps inside the setup form. */
-.setup-step { margin: var(--space-16) 0 var(--space-4); font-size: var(--font-size-body); }
 .setup-step-hint { margin: 0 0 var(--space-8); color: var(--color-text-subtle); }
 
 /* Saved settings of a revision, as label and value pairs. */
@@ -45,24 +43,16 @@
 .revision-history > summary { cursor: pointer; color: var(--color-text-subtle); padding: var(--space-4) 0; }
 .revision-history > .setup-revisions { margin-top: var(--space-8); }
 
-/* Group the existing editor controls without adding scroll containers or replacing primitives. */
-.revision-editor-section > summary { font-weight: var(--font-weight-medium); padding-block: var(--space-8); }
-.revision-editor-section > :not(summary) { margin-top: var(--space-12); }
-.revision-editor-section > fieldset { margin-block: var(--space-12); }
-.revision-editor-section .setup-step-hint { margin-top: var(--space-8); }
-
 .setup-form .attribute-fields { border: 0; padding: 0; }
 
 /* Existing logic already supplies the editor frame; avoid repeated inset frames on phones. */
 .revision-editor > fieldset { padding: 0; border: 0; }
-.revision-editor-section > fieldset { padding-inline: 0; border: 0; }
 
 .assignment-schedule-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-12); }
 .assignment-repeat { display: grid; gap: var(--space-6); min-width: 0; align-content: start; }
 .assignment-frequency .ui-field-label { position: absolute; width: var(--border-width-thin); height: var(--border-width-thin); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .assignment-frequency { display: grid; align-items: end; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-8); }
 .assignment-schedule { display: grid; gap: var(--space-12); }
-.assignment-schedule > h4 { margin: 0; }
 .assignment-schedule small { color: var(--color-text-muted); }
 @media (width <= 40em) { .assignment-schedule-fields { grid-template-columns: 1fr; } }
 
