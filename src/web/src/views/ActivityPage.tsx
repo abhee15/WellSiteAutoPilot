@@ -13,7 +13,7 @@ import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { AuditActivityError, appendAuditEvents, loadAuditPage } from './auditActivity';
 import type { AuditErrorKind, AuditEvent, AuditFilters } from './auditActivity';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { describeActor, describeAuditEvent, relativeTime, dayKey, dayLabel } from './auditPresentation';
 import { AuditEventPanel } from './AuditEventPanel';
 import { AuditSentence } from './AuditSentence';
@@ -142,7 +142,7 @@ export function ActivityPage({ selectedId = null, onSelect, userId, assets = [],
           </FilterField>
         </FilterToolbar>
       </div>
-      {loading && <LoadingIndicator label={t('activity.loading')} />}
+      {loading && <PanelLoading label={t('activity.loading')} />}
       {error && <Notice tone="error">{error}</Notice>}
       {!loading && !error && chosenId && !selected && events.length > 0 && <p className="access-note access-intro">{t('activity.notLoaded')}</p>}
       {!loading && !error && events.length === 0 && <p className="access-note access-intro">{t('activity.empty')}</p>}

@@ -20,7 +20,7 @@ import type { AssetChoice, GrantDraft } from './scopedAccessGrants';
 import { grantAssetLabels } from './scopedAccessGrants';
 import { ScopedGrantEditor } from './ScopedGrantEditor';
 import { GrantAssetDirectoryError, loadGrantAssetDirectory } from './grantAssetDirectory';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { LoadingIndicator, PanelLoading } from '../components/LoadingIndicator';
 
 function scopeLabel(scope: GrantDraft['scopeKind']): string {
   return t(scope === 'ExactAssets' ? 'grants.exact'
@@ -208,8 +208,8 @@ export function GrantAdministrationPage(
         <PanelHeader title={t('grants.manage')}
           actions={<ActionButton variant="primary" icon={RefreshCw} iconOnly label={t('access.refresh')}
             disabled={isLoading || saving} onClick={() => void load()} />} />
-        <div className="grant-selection">
-        {isLoading && <LoadingIndicator label={t('access.loading')} />}
+        {isLoading && <PanelLoading label={t('access.loading')} />}
+        {!isLoading && <div className="grant-selection">
         {error && <Notice tone="error">{error}</Notice>}
         {notice && <Notice tone="success">{notice}</Notice>}
         {!isLoading && !error && (
@@ -240,12 +240,12 @@ export function GrantAdministrationPage(
             </SelectField>
           </div>
         )}
-        </div>
+        </div>}
         {selectedUser && !pending && !error && (
           <div className="grant-current-list">
             <h3>{t('grants.existing')}</h3>
             {grantsLoading
-              ? <LoadingIndicator label={t('access.loading')} />
+              ? <LoadingIndicator label={t('access.loading')} size="small" inline />
               : grants.length === 0
               ? <p>{t('grants.noExisting')}</p>
               : <ul>{grants.map(grant => {
