@@ -43,7 +43,7 @@ describe('Adapter capability reference', () => {
       adapterKey: 'simulator', displayName: 'Provider Simulator', description: 'A built-in simulated provider for development and demonstration.',
       operations: [], capabilities: [],
     };
-    vi.mocked(loadAdapterOperations).mockResolvedValue([simulator, profiles[1], profiles[0]]);
+    vi.mocked(loadAdapterOperations).mockResolvedValue([simulator, profiles[1]!, profiles[0]!]);
     const { container } = render(<AdaptersPanel />);
     const picker = screen.getByRole('combobox', { name: 'Adapter' }) as HTMLSelectElement;
     await waitFor(() => expect(picker.value).toBe('foresite'));
@@ -55,7 +55,7 @@ describe('Adapter capability reference', () => {
     expect(container.querySelector('.adapter-operations')?.getAttribute('data-has-selection')).toBe('false');
     expect(screen.queryByText(/Explore the APIs and data capabilities/)).toBeNull();
     expect(screen.queryByText('ForeSite adapter reference')).toBeNull();
-    expect(screen.queryByText(simulator.description)).toBeNull();
+    expect(screen.queryByText('A built-in simulated provider for development and demonstration.')).toBeNull();
   });
 
   it('prefers a non-simulator fallback and retains a deliberate simulator selection on refresh', async () => {
@@ -63,7 +63,7 @@ describe('Adapter capability reference', () => {
     const simulator: AdapterOperationsResponse = {
       adapterKey: 'simulator', displayName: 'Provider Simulator', description: 'Development fixture', operations: [], capabilities: [],
     };
-    vi.mocked(loadAdapterOperations).mockResolvedValue([simulator, profiles[1]]);
+    vi.mocked(loadAdapterOperations).mockResolvedValue([simulator, profiles[1]!]);
     render(<AdaptersPanel />);
     const picker = screen.getByRole('combobox', { name: 'Adapter' }) as HTMLSelectElement;
     await waitFor(() => expect(picker.value).toBe('petrovisor'));
