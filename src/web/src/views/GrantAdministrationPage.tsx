@@ -206,7 +206,7 @@ export function GrantAdministrationPage(
     <>
       <section className="panel grant-management-panel">
         <PanelHeader title={t('grants.manage')}
-          actions={<ActionButton variant="primary" icon={RefreshCw} iconOnly label={t('access.refresh')}
+          actions={<ActionButton icon={RefreshCw} iconOnly label={t('access.refresh')}
             disabled={isLoading || saving} onClick={() => void load()} />} />
         {isLoading && <PanelLoading label={t('access.loading')} />}
         {!isLoading && <div className="grant-selection">
