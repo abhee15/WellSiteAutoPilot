@@ -7,7 +7,7 @@ internal static class HistoryChecks
 {
     public static async Task RunAsync()
     {
-        var client = new SimulatedCygNetClient();
+        var client = new StubCygNetClient();
         var connection = new CygNetConnection(1, "SITE", "UIS");
         var provider = new CygNetHistoricalDataProvider(client, connection);
         var start = new DateTimeOffset(2026, 11, 1, 6, 0, 0, TimeSpan.Zero);

@@ -45,7 +45,12 @@ public interface ICygNetClient
 }
 
 /// <summary>A reason the connection cannot be used that is already worded for a person.</summary>
-public sealed class CygNetUnavailableException(string message) : Exception(message);
+public class CygNetUnavailableException(string message) : Exception(message);
+
+/// <summary>The CygNet system could not be reached from this Gateway (network, timeout or no answer).</summary>
+public sealed class CygNetConnectionException(int domain) : CygNetUnavailableException(
+    $"Connection error: a connection to CygNet domain {domain} cannot be established from this Integration Gateway. " +
+    "Check that the CygNet server is running and reachable from this machine.");
 
 /// <summary>A failed read with a stable code and a fixed safe sentence.</summary>
 public sealed class CygNetReadException(string code, string message, bool retryable = false, Exception? inner = null)
@@ -59,8 +64,8 @@ public sealed class CygNetReadException(string code, string message, bool retrya
 public sealed class CygNetUnconfiguredClient : ICygNetClient
 {
     public const string Message =
-        "This Integration Gateway has no CygNet backend. Set Providers:CygNet:Backend to \"simulated\" for the built-in " +
-        "simulated CygNet, or use a Gateway built on a CygNet machine (CYGNET_LIBRARY_PATH) with Backend \"live\".";
+        "This Integration Gateway was not built with CygNet support. Build it on a CygNet machine with CYGNET_LIBRARY_PATH set " +
+        "so each connection can reach its own CygNet domain.";
 
     public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
         Task.FromException<IReadOnlyList<string>>(new CygNetUnavailableException(Message));

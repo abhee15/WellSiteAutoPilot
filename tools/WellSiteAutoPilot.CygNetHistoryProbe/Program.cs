@@ -22,7 +22,7 @@ try
         CygNetAdapter.ReadConnection(request.Settings, out _) is not { } connection)
         throw new ArgumentException("Invalid saved-connection test request.");
     var defaults = CygNetProviderOptions.DefaultQuantities;
-    var native = new CygNetApiClient(new((ushort)connection.Domain, defaults));
+    var native = new CygNetApiClient();
     // The probe-only wrapper exercises the shared history scope/reply validator without enabling the live Gateway capability.
     var result = await new CygNetHistoricalDataProvider(new ProbeClient(native), connection).ReadHistoryAsync(request.Read, budget.Token);
     if (args.Length == 4) await File.WriteAllTextAsync(args[3], JsonSerializer.Serialize(result, json), budget.Token);

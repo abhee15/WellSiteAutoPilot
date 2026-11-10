@@ -8,7 +8,7 @@ Owner branch is where the work is happening.
 |---|---|---|---|---|---|
 | 1 | P0 | UI | Runs/recommendations do not update in real time although SignalR exists. Only result consumers, scheduler dispatch and the connection monitor notify; intermediate states, control actions and kill switch do not. A connection admitted to no areas silently falls back to slow polling | Trace live under Windows auth; add notifications for the full execution lifecycle, recommendations, control actions, kill switch; new control ChangeArea (done: `control`, raised by the kill switch, policy, execute/verify/resolve endpoints and the gate); views refetch on it; connection-state indicator; tests | `feature/poc-integration` (e2e agent) |
 | 2 | P0 | CygNet | RPOC_00003 fails `CYGNET_VALUE_NOT_NUMERIC` | Probe the point live; handle point/status types or return a clear reason | `feature/poc-cygnet-adapter` |
-| 3 | P0 | CygNet | Demo data is from 2020, so modules need a ~10 year maximum age | Report point timestamp age in test/discovery; optional simulated-live backend with current timestamps; document the pattern | `feature/poc-cygnet-adapter` |
+| 3 | P0 | CygNet | Demo data is from 2020, so modules need a ~10 year maximum age | Report point timestamp age in test/discovery; document the pattern | `feature/poc-cygnet-adapter` |
 | 4 | P1 | Scheduling | Scheduled reads act as one configured user (`Scheduler:ReadAuthorityUserId`) | Service-principal / delegated authority: who a schedule acts as, grant re-check, revocation, audit | `feature/poc-recommendation-modes` |
 | 5 | P1 | Modes | Approved Recommendation -> policy gate -> simulator sink is built (opt-in per configuration, idempotent, expiry, staleness limit, audit); the Execute action on approved recommendations is built in the inbox (confirmation panel, `control.manage` plus decide scope, every gate refusal explained); the kill switch is shown on the inbox with engage/release for `control.manage`; the autonomy policy is shown and edited per configured logic (client rules mirror the server's, a saved answer must match the request); commands awaiting a decision are listed on the inbox with Verify and Resolve (operator attestation with a required note) for `control.manage` | Web: full control-action history view; real sink still refuses | `feature/poc-recommendation-modes` |
 | 6 | P1 | Modes | Autonomy policy editing is API-only. The dedicated `control.manage` permission has landed (policy and kill-switch writes no longer use `security.manage`) | Policy editing UI | `feature/poc-recommendation-modes` |
@@ -51,7 +51,7 @@ Repo: https://github.com/abhee15/WellSiteAutoPilot. All branches are pushed to o
 |---|---|---|
 | `origin/probe/authoring-build-package`, `origin/docs/console-web-authoring-plan` | Original probes and authoring plan (inputs) | `docs/design/console-web-authoring-plan.md`, `modules/authoring/probes/` |
 | `feature/authoring-build-package` | Probes re-run on Windows, AppContainer/Job isolation probe, CI step | `modules/authoring/probes/CONFIDENCE-REVIEW.md` |
-| `feature/poc-cygnet-adapter` | CygNet adapter (live/simulated), discovery, sample modules, freshness diagnostics | `docs/implementation/cygnet-adapter.md` |
+| `feature/poc-cygnet-adapter` | CygNet adapter (live only, one system per connection), discovery, sample modules, freshness diagnostics | `docs/implementation/cygnet-adapter.md` |
 | `feature/poc-authoring-local` | Local authoring API/UI, Job-object build isolation | `docs/design/authoring-local-poc.md` |
 | `feature/poc-recommendation-modes` | Shadow/Recommendation/Autonomous modes, policy gate, kill switch, readback | `docs/architecture/execution-modes.md` |
 | `feature/poc-wami-provider` | WAMI provider design, WCF client, multi-provider coordinator, WAMI sample module | `docs/design/wami-provider-and-multi-provider-logic.md` |
@@ -64,7 +64,7 @@ Repo: https://github.com/abhee15/WellSiteAutoPilot. All branches are pushed to o
 
 | Step | PR | Why this order | Gate before merge |
 |---|---|---|---|
-| 1 | CygNet adapter (`feature/poc-cygnet-adapter`) | Adapter-declared read rules and clear failure codes are the base every other change reads through; off by default (`Providers:CygNet:Backend`) | Offline tests, build with `CYGNET_LIBRARY_PATH` unset; live check on CYG_DEMO |
+| 1 | CygNet adapter (`feature/poc-cygnet-adapter`) | Adapter-declared read rules and clear failure codes are the base every other change reads through; live only, no simulated CygNet | Offline tests, build with `CYGNET_LIBRARY_PATH` unset; live check on CYG_DEMO |
 | 2 | Execution modes + control (`feature/poc-recommendation-modes`) | Recommendation/Autonomous behaviour, gate, kill switch, `control.manage`; real sink still refuses | `ExecutionModeSafetyTests`, `ExecutionDispatchTests` with NATS, permission catalog guard (#355) |
 | 3 | Real-time `control` change area + e2e fixes (integration) | Small, fixes the visible UI complaint | `ChangeSignalChecks`, web tests |
 | 4 | Schedules UI (gap 19) | Needs step 2 scheduler identity | New work, not started |

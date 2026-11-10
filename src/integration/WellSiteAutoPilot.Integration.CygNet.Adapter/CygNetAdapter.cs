@@ -64,11 +64,11 @@ public static class CygNetAdapter
             Operations = (Descriptor.Operations ?? []).Concat(AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity =>
                 HistoricalReadLimits.Operation("history." + quantity.ToLowerInvariant(), quantity, AdapterReadRules.CygNetResourceKind, 10,
                     "Source historian timestamps in UTC; [start, end) instant interval.",
-                    "Preserves source reliability. Simulated history is explicitly marked. Units come from the point mapping.") with
-                    { Documentation = AdapterReferenceExamples.History("SITE.UIS::EXAMPLE_WELL", quantity, "site-unit", "cygnet-simulated:example", "Uncertain") with
-                        { ProviderReference = "Installed ICygNetHistoryClient backend. Simulated results identify their source; the native candidate is not activated by this declaration." } })).ToArray(),
+                    "Preserves source reliability. Units come from the point mapping.") with
+                    { Documentation = AdapterReferenceExamples.History("SITE.UIS::EXAMPLE_WELL", quantity, "site-unit", "cygnet:example", "Uncertain") with
+                        { ProviderReference = "Installed ICygNetHistoryClient backend. The native candidate is not activated by this declaration." } })).ToArray(),
             OperationGroups = (Descriptor.OperationGroups ?? []).Append(new("well-trends", "Well trend data",
-                "Bounded raw historian reads supported by this installed backend. Simulated sources identify themselves; this declaration is not live native validation.", "1.0",
+                "Bounded raw historian reads supported by this installed backend. This declaration is not live native validation.", "1.0",
                 AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity => "history." + quantity.ToLowerInvariant()).ToArray())).ToArray()
         } : Descriptor;
 
@@ -81,9 +81,9 @@ public static class CygNetAdapter
         settings.TryGetValue(SiteServiceSetting, out var rawSiteService);
         settings.TryGetValue(FacilityFilterSetting, out var rawFilter);
         settings.TryGetValue(PointMapSetting, out var rawPointMap);
-        if (!int.TryParse(rawDomain?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var domain) || domain is < 0 or > 65535)
+        if (!int.TryParse(rawDomain?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var domain) || domain is < 1 or > 65534)
         {
-            problem = "The domain must be a whole number from 0 to 65535.";
+            problem = "The domain must be a whole number from 1 to 65534.";
             return null;
         }
         var parts = (rawSiteService ?? string.Empty).Trim().Split('.');
@@ -160,7 +160,11 @@ public static class CygNetAdapter
         }
         catch (OperationCanceledException)
         {
-            return new(AdapterTestOutcomes.Unreachable, "CygNet did not answer in time.", actingAs);
+            return new(AdapterTestOutcomes.Unreachable, new CygNetConnectionException(connection.Domain).Message, actingAs);
+        }
+        catch (CygNetConnectionException exception)
+        {
+            return new(AdapterTestOutcomes.Unreachable, exception.Message, actingAs);
         }
         catch (CygNetUnavailableException exception)
         {
@@ -172,7 +176,7 @@ public static class CygNetAdapter
         }
         catch (HttpRequestException)
         {
-            return new(AdapterTestOutcomes.Unreachable, "CygNet could not be reached.", actingAs);
+            return new(AdapterTestOutcomes.Unreachable, new CygNetConnectionException(connection.Domain).Message, actingAs);
         }
         catch (Exception)
         {

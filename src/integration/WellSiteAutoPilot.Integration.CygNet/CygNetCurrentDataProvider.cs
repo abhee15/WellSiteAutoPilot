@@ -11,15 +11,15 @@ namespace WellSiteAutoPilot.Integration.CygNet;
 /// <summary>Maps a logical quantity to a CygNet UDC on the facility, plus its engineering unit.</summary>
 public sealed record CygNetQuantityMapping(string Udc, string Unit);
 
-/// <summary>Gateway-wide settings. <see cref="Domain"/> null means the host's ambient CygNet domain.
+/// <summary>The domain and quantity-to-point map of one read, built from the connection. <see cref="Domain"/> null means the host's ambient CygNet domain.
 /// Only quantities listed in <see cref="Quantities"/> can be read.</summary>
 public sealed record CygNetProviderOptions(
     ushort? Domain,
     IReadOnlyDictionary<string, CygNetQuantityMapping> Quantities)
 {
     /// <summary>
-    /// Starting map using the rod-lift controller UDCs of the CygNet demo and typical RPOC wells. Configuration entries
-    /// replace or add to it; sites whose points differ must override it. MotorAmps has no common UDC, so it is unmapped
+    /// Starting map using the rod-lift controller UDCs of the CygNet demo and typical RPOC wells. A connection's point map
+    /// replaces or adds to it; sites whose points differ must set one. MotorAmps has no common UDC, so it is unmapped
     /// until configured and reads of it fail with CYGNET_QUANTITY_UNSUPPORTED.
     /// </summary>
     public static IReadOnlyDictionary<string, CygNetQuantityMapping> DefaultQuantities { get; } =
@@ -40,8 +40,7 @@ public sealed record CygNetProviderOptions(
 /// said stays in the inner exception inside the Gateway.
 /// </summary>
 /// <remarks>
-/// This is a development provider on the Gateway's <c>data/current</c> route. Execution reads of saved connections do
-/// not use it: the worker refuses any non-simulator provider on that route.
+/// Used by <see cref="CygNetApiClient"/> for each read of a saved connection; it is not on the Gateway's <c>data/current</c> route.
 /// </remarks>
 public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : ICurrentDataProvider
 {

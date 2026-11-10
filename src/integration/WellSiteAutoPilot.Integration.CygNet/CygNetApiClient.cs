@@ -10,11 +10,10 @@ namespace WellSiteAutoPilot.Integration.CygNet;
 /// <summary>
 /// CygNet.API-backed <see cref="ICygNetClient"/> for the opt-in build. The connection names the owning facility service
 /// (for example UIS); the facility records live in the FAC service associated with it. Current values come from the
-/// realtime client through <see cref="CygNetCurrentDataProvider"/>, with the domain taken from the connection and the
-/// quantity-to-point map from the Gateway's configuration.
+/// realtime client through <see cref="CygNetCurrentDataProvider"/>, with the domain and the point map taken from the connection.
 /// </summary>
 /// <remarks>Compiled only where the CygNet libraries exist; ported from a proof of concept that ran against a live domain.</remarks>
-public sealed partial class CygNetApiClient(CygNetProviderOptions options) : ICygNetClient
+public sealed partial class CygNetApiClient : ICygNetClient
 {
     /// <summary>Facilities read in one discovery. A larger service is reported as truncated, never as complete.</summary>
     private const int MaximumFacilities = 5000;
@@ -59,7 +58,7 @@ public sealed partial class CygNetApiClient(CygNetProviderOptions options) : ICy
     public async Task<EngineeringValue> ReadCurrentAsync(
         CygNetConnection connection, string facilityId, string quantity, CancellationToken cancellationToken)
     {
-        var quantities = new Dictionary<string, CygNetQuantityMapping>(options.Quantities, StringComparer.OrdinalIgnoreCase);
+        var quantities = new Dictionary<string, CygNetQuantityMapping>(CygNetProviderOptions.DefaultQuantities, StringComparer.OrdinalIgnoreCase);
         foreach (var (name, mapping) in connection.PointMap ?? new Dictionary<string, CygNetPointMapping>())
             quantities[name] = new CygNetQuantityMapping(mapping.Udc, mapping.Unit);
         return await new CygNetCurrentDataProvider(new CygNetProviderOptions((ushort)connection.Domain, quantities))
@@ -89,11 +88,15 @@ public sealed partial class CygNetApiClient(CygNetProviderOptions options) : ICy
         }
         catch (TimeoutException)
         {
-            throw new CygNetUnavailableException("CygNet did not answer in time.");
+            throw new CygNetConnectionException(connection.Domain);
         }
         catch (CygNetBusyException)
         {
-            throw new CygNetUnavailableException("CygNet is not answering and earlier calls are still waiting. Try again shortly.");
+            throw new CygNetConnectionException(connection.Domain);
+        }
+        catch (Exception error) when (error is System.Net.Sockets.SocketException or System.IO.IOException)
+        {
+            throw new CygNetConnectionException(connection.Domain);
         }
     }
 }

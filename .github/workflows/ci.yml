@@ -150,7 +150,7 @@ jobs:
       - name: Verify ForeSite adapter
         run: dotnet run --project tests/WellSiteAutoPilot.ForeSiteAdapterTests/WellSiteAutoPilot.ForeSiteAdapterTests.csproj --configuration Release --no-build
 
-      - name: Verify CygNet adapter (simulated backend, no CygNet libraries)
+      - name: Verify CygNet adapter (offline test double, no CygNet libraries)
         run: dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests/WellSiteAutoPilot.CygNetAdapterTests.csproj --configuration Release --no-build
 
       - name: Parse the licensed-host CygNet history runner (no native read)
@@ -1294,7 +1294,7 @@ jobs:
           dotnet run --project src/simulators/WellSiteAutoPilot.ProviderSimulator/WellSiteAutoPilot.ProviderSimulator.csproj --configuration Release --no-build --urls http://127.0.0.1:5091 > simulator.log 2>&1 &
           echo $! > simulator.pid
 
-          Providers__CygNet__Backend=simulated Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
+          Providers__Simulator__BaseUrl=http://127.0.0.1:5091             dotnet run --project src/integration/WellSiteAutoPilot.IntegrationGateway/WellSiteAutoPilot.IntegrationGateway.csproj --configuration Release --no-build --urls http://127.0.0.1:5081 > gateway.log 2>&1 &
           echo $! > gateway.pid
 
           for attempt in {1..30}; do

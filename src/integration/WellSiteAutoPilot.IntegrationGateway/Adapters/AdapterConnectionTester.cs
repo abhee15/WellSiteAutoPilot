@@ -85,7 +85,11 @@ public sealed class AdapterConnectionTester(IHttpClientFactory clients, IPetroVi
         if (connection is null) return new(AdapterTestOutcomes.NeedsAttention, problem!, actingAs);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Timeout);
-        return await CygNetAdapter.CheckAsync(cygNet, connection, actingAs, timeout.Token);
+        try { return await CygNetAdapter.CheckAsync(cygNet, connection, actingAs, timeout.Token); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new(AdapterTestOutcomes.Unreachable, new CygNetConnectionException(connection.Domain).Message, actingAs);
+        }
     }
 
     public const string WindowsClientName = "adapter-test-windows";

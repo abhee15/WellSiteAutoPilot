@@ -1,4 +1,4 @@
-"""Synthetic provider -> authenticated Gateway history checks, never live provider validation."""
+"""Provider Simulator -> authenticated Gateway history checks. CygNet has no simulator: without a CygNet build it must report unavailable."""
 import json
 import os
 import urllib.error
@@ -37,12 +37,9 @@ call("foresite", request | {"read": read | {"endUtc": read["startUtc"]}}, status
 call("foresite", request | {"read": read | {"quantity": "NotSupported"}}, status=503)
 cygnet = request | {"settings": {"domain": "1", "siteService": "SITE.UIS"},
                     "read": read | {"assetExternalId": "SITE.UIS::WELL_005"}}
-result = call("cygnet", cygnet)
-assert result["truncated"] and result["source"].startswith("cygnet-simulated"), result
-assert result["samples"][0]["quality"] == "Uncertain", result
-call("cygnet", cygnet | {"read": cygnet["read"] | {"assetExternalId": "OTHER.UIS::WELL_005"}}, status=400)
-call("cygnet", cygnet | {"read": cygnet["read"] | {"maximumSamples": 0}}, status=400)
-print("Gateway bounded history: server/worker/anonymous authorization, explicit provider, scope, UTC/DST, units, quality, truncation and bounds passed (simulated sources).")
+call("cygnet", cygnet, status=503)
+# Scope and bound checks for CygNet history need a live backend and are covered by the CygNet adapter tests.
+print("Gateway bounded history: server/worker/anonymous authorization, explicit provider, scope, UTC/DST, units, quality, truncation and bounds passed (Provider Simulator source; CygNet unavailable without a CygNet build).")
 
 # Service-only configuration contract: no browser preview or discovery operation.
 configuration = request | {"read": {"assetExternalId": "101"}}

@@ -1,4 +1,4 @@
-# WellSiteAutoPilot.Integration.CygNet (opt-in development provider)
+# WellSiteAutoPilot.Integration.CygNet (live CygNet backend)
 
 Reads current CygNet point values through the managed `CygNet.API.*` assemblies already installed on a CygNet-licensed
 host. No COM registration and no CygNet install step. The host must hold a CygNet CAL and be able to reach the domain's
@@ -6,8 +6,6 @@ directory service.
 
 ## What it is, and what it is not
 
-- A `cygnet` provider on the Integration Gateway's `GET /api/internal/v1/data/current` route, for trying CygNet reads
-  on a development machine.
 - The live backend of the `cygnet` connection adapter (`src\integration\WellSiteAutoPilot.Integration.CygNet.Adapter`):
   connection test, facility discovery and current reads through authorized read plans. See `docs/implementation/cygnet-adapter.md`.
 - Not in `WellSiteAutoPilot.slnx`, so CI and a normal build never need the CygNet libraries. The Gateway compiles the
@@ -23,27 +21,13 @@ then build the Gateway (Windows, x64):
 
 With the variable set the Gateway targets `net10.0-windows`. Unset it again before building the rest of the solution.
 
-## Configure (Gateway)
+## Configure
 
-    Providers__CygNet__Domain = 22567
-    Providers__CygNet__Quantities__PumpFillage__Udc = <UDC>
-    Providers__CygNet__Quantities__PumpFillage__Unit = %
-
-- `Domain` is optional; without it the host's ambient CygNet domain is used. A value that is not a whole number from
-  0 to 65535 stops the Gateway at startup.
-- Only quantities listed under `Quantities` can be read, and each needs both `Udc` and `Unit`. Anything else is
-  refused with `CYGNET_QUANTITY_UNSUPPORTED`; a quantity name is never used as a UDC.
-
-## Use
-
-Data-binding provider id `cygnet`. The asset external id is a facility tag, `SITE.SERVICE::FACILITYID`
-(for example `WSANET.UIS::WELL_001`).
-
-    GET /api/internal/v1/data/current?providerId=cygnet&assetExternalId=WSANET.UIS::WELL_001&quantity=PumpFillage
-    Authorization: WSA-Service server:<key>
-
-The Gateway needs a verifier for each internal caller (`Security__Callers__server__Verifier` and
-`Security__Callers__worker__Verifier`, the base64 SHA-256 of the key), as for any local Gateway run.
+Nothing is configured on the Gateway. Each CygNet connection (Adapters page) sets its own `domain`, `siteService`, optional`r
+`facilityFilter` and `pointMap`. The Gateway's Windows account needs a CygNet CAL and access to that domain. Only quantities
+with a UDC mapping (the built-in defaults or the connection's `pointMap`) can be read; anything else is refused with
+`CYGNET_QUANTITY_UNSUPPORTED` and a quantity name is never used as a UDC. The asset external id is a facility tag,
+`SITE.SERVICE::FACILITYID` (for example `WSANET.UIS::WELL_001`).
 
 ## Value rules
 
