@@ -53,6 +53,8 @@ var unconfigured = await CygNetAdapter.CheckAsync(new CygNetUnconfiguredClient()
 Expect(unconfigured.Outcome == AdapterTestOutcomes.NeedsAttention, "unconfigured backend needs attention");
 var leaky = await CygNetAdapter.CheckAsync(new FailingClient(new InvalidOperationException("SECRET-TEXT")), connection, Account);
 Expect(leaky.Outcome == AdapterTestOutcomes.NeedsAttention && !leaky.Message.Contains("SECRET", StringComparison.Ordinal), "vendor text is not shown");
+var noRoute = await CygNetAdapter.CheckAsync(new FailingClient(new CygNetConnectionException(27212)), connection, Account);
+Expect(noRoute.Outcome == AdapterTestOutcomes.Unreachable && noRoute.Message.StartsWith("Connection error", StringComparison.Ordinal), "unreachable CygNet reports a connection error");
 var refused = await CygNetAdapter.CheckAsync(new FailingClient(new UnauthorizedAccessException("SECRET")), connection, Account);
 Expect(refused.Message.Contains("licence", StringComparison.Ordinal) && !refused.Message.Contains("SECRET", StringComparison.Ordinal), "refused account");
 var tester = new AdapterConnectionTester(null!, null!, sim);

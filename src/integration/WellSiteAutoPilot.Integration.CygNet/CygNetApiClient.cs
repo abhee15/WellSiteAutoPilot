@@ -89,11 +89,15 @@ public sealed partial class CygNetApiClient(CygNetProviderOptions options) : ICy
         }
         catch (TimeoutException)
         {
-            throw new CygNetUnavailableException("CygNet did not answer in time.");
+            throw new CygNetConnectionException(connection.Domain);
         }
         catch (CygNetBusyException)
         {
-            throw new CygNetUnavailableException("CygNet is not answering and earlier calls are still waiting. Try again shortly.");
+            throw new CygNetConnectionException(connection.Domain);
+        }
+        catch (Exception error) when (error is System.Net.Sockets.SocketException or System.IO.IOException)
+        {
+            throw new CygNetConnectionException(connection.Domain);
         }
     }
 }

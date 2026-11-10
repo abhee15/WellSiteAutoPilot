@@ -160,7 +160,11 @@ public static class CygNetAdapter
         }
         catch (OperationCanceledException)
         {
-            return new(AdapterTestOutcomes.Unreachable, "CygNet did not answer in time.", actingAs);
+            return new(AdapterTestOutcomes.Unreachable, new CygNetConnectionException(connection.Domain).Message, actingAs);
+        }
+        catch (CygNetConnectionException exception)
+        {
+            return new(AdapterTestOutcomes.Unreachable, exception.Message, actingAs);
         }
         catch (CygNetUnavailableException exception)
         {
@@ -172,7 +176,7 @@ public static class CygNetAdapter
         }
         catch (HttpRequestException)
         {
-            return new(AdapterTestOutcomes.Unreachable, "CygNet could not be reached.", actingAs);
+            return new(AdapterTestOutcomes.Unreachable, new CygNetConnectionException(connection.Domain).Message, actingAs);
         }
         catch (Exception)
         {
