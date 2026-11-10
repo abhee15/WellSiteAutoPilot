@@ -33,6 +33,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Connections page', () => {
+  it('restores the Adapters tab from the URL after a refresh and supports browser navigation', async () => {
+    vi.mocked(api.loadConnections).mockResolvedValue([]);
+    window.location.hash = '#connections/adapters';
+    const page = render(<ConnectionsPage canManage />);
+    expect(screen.getByRole('tab', { name: 'Adapters' }).getAttribute('aria-selected')).toBe('true');
+    page.unmount();
+    render(<ConnectionsPage canManage />);
+    expect(screen.getByRole('tab', { name: 'Adapters' }).getAttribute('aria-selected')).toBe('true');
+    await userEvent.click(screen.getByRole('tab', { name: 'Connections' }));
+    await waitFor(() => expect(window.location.hash).toBe('#connections'));
+    expect(screen.getByRole('tab', { name: 'Connections' }).getAttribute('aria-selected')).toBe('true');
+    window.location.hash = '#connections/adapters';
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Adapters' }).getAttribute('aria-selected')).toBe('true'));
+  });
+
   it('lists connections with their state and opens one', async () => {
     vi.mocked(api.loadConnections).mockResolvedValue([saved()]);
     render(<ConnectionsPage canManage />);

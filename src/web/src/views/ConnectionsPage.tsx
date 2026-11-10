@@ -56,7 +56,11 @@ function errorMessage(error: unknown): string {
 
 /** Saved ways to reach outside systems. The server and the adapter decide what is valid; this only collects it. */
 export function ConnectionsPage({ canManage }: { canManage: boolean }) {
-  const [tab, setTab] = useState<'connections' | 'adapters'>('connections');
+  // Keep the tab in the section URL, consistent with other page tabs. Connection
+  // record IDs continue to occupy the detail segment when Connections is active.
+  const [detail, setDetail] = useHashDetail('connections');
+  const tab = detail === 'adapters' ? 'adapters' : 'connections';
+  const setTab = (next: 'connections' | 'adapters') => setDetail(next === 'adapters' ? 'adapters' : null);
   return <div className="split-layout">
     <SectionTabs prefix="connections" label="Connections" selected={tab} onSelect={setTab}
       tabs={[{ id: 'connections', label: 'Connections' }, { id: 'adapters', label: 'Adapters' }]} />
