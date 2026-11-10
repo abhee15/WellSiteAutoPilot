@@ -43,6 +43,16 @@ and packs them with the CLI.
 - Not verified: Server import and shadow run of a CygNet module. The Aspire AppHost stalled at DCP start on this
   machine (the POC needed a local DCP pin) and the worker on this branch only resolves built-in modules.
 
+## Connection failures (verified live)
+
+CygNet.API raises one `MessagingException` ("Failed to retrieve associated FAC service for [domain]site.service") for an unknown
+domain, an unknown site.service and an unreachable directory service, so the adapter cannot tell them apart and reports all three
+as `Unreachable` with one message naming the site.service and the checks to make (server running and reachable, domain registered
+on the Gateway machine, site.service correct). Seen on this host: an unknown site fails in 0.1 s; an unregistered or unreachable
+domain takes 10 to 21 s, longer than the 10 s test limit, so the test reports the domain-level connection error. The vendor text
+stays in the inner exception. An account that CygNet refuses is still reported separately (`UnauthorizedAccessException`); that
+case has not been reproduced live yet.
+
 ## Known limits
 
 - All connections use the Gateway's Windows account, which needs a CygNet CAL.

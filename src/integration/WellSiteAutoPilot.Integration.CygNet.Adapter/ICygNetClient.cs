@@ -45,12 +45,16 @@ public interface ICygNetClient
 }
 
 /// <summary>A reason the connection cannot be used that is already worded for a person.</summary>
-public class CygNetUnavailableException(string message) : Exception(message);
+public class CygNetUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
 /// <summary>The CygNet system could not be reached from this Gateway (network, timeout or no answer).</summary>
-public sealed class CygNetConnectionException(int domain) : CygNetUnavailableException(
-    $"Connection error: a connection to CygNet domain {domain} cannot be established from this Integration Gateway. " +
-    "Check that the CygNet server is running and reachable from this machine.");
+public sealed class CygNetConnectionException(int domain, string? siteService = null, Exception? inner = null) : CygNetUnavailableException(
+    siteService is null
+        ? $"Connection error: a connection to CygNet domain {domain} cannot be established from this Integration Gateway. " +
+          "Check that the CygNet server is running and reachable from this machine."
+        : $"Connection error: a connection to {siteService} in CygNet domain {domain} cannot be established from this Integration Gateway. " +
+          $"Check that the CygNet server is running and reachable from this machine, that domain {domain} is registered on this machine, " +
+          "and that the site.service name is correct.", inner);
 
 /// <summary>A failed read with a stable code and a fixed safe sentence.</summary>
 public sealed class CygNetReadException(string code, string message, bool retryable = false, Exception? inner = null)
