@@ -1,5 +1,6 @@
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
+using WellSiteAutoPilot.Integration.CygNet;
 using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.IntegrationGateway.Adapters;
 using WellSiteAutoPilot.ModuleSdk;
@@ -61,6 +62,22 @@ Expect(unresolved.Outcome == AdapterTestOutcomes.Unreachable && unresolved.Messa
     "an unresolved facility service names the site.service and the checks to make, without vendor text");
 var refused = await CygNetAdapter.CheckAsync(new FailingClient(new UnauthorizedAccessException("SECRET")), connection, Account);
 Expect(refused.Message.Contains("licence", StringComparison.Ordinal) && !refused.Message.Contains("SECRET", StringComparison.Ordinal), "refused account");
+var notInstalled = await CygNetAdapter.CheckAsync(new FailingClient(new CygNetNotInstalledException()), connection, Account);
+Expect(notInstalled.Outcome == AdapterTestOutcomes.NeedsAttention && notInstalled.Message.Contains("not installed", StringComparison.Ordinal) &&
+    notInstalled.Message.Contains("does not install CygNet", StringComparison.Ordinal), "a server without CygNet says so and that WSA does not install it");
+
+// Finding the CygNet install already on the machine
+static string? Locate(string? env, string? com, params string[] foldersWithApi) => CygNetInstallLocator.Locate(
+    name => name == CygNetInstallLocator.LibraryPathVariable ? env : null, () => com,
+    path => foldersWithApi.Any(folder => string.Equals(Path.Combine(folder, CygNetInstallLocator.MarkerAssembly), path, StringComparison.OrdinalIgnoreCase)));
+Expect(Locate(@"D:\Cyg", @"C:\Registered", @"D:\Cyg", @"C:\Registered") == @"D:\Cyg", "an explicit CYGNET_LIBRARY_PATH wins");
+Expect(Locate(null, @"C:\Registered", @"C:\Registered") == @"C:\Registered", "the folder CygNet registered is used when nothing is set");
+Expect(Locate(@"""D:\Cyg"" ", null, @"D:\Cyg") == @"D:\Cyg", "a quoted path with spaces is accepted");
+Expect(Locate(@"D:\Wrong", @"C:\Registered", @"C:\Registered") == @"C:\Registered", "a path without the CygNet API falls back to the registered folder");
+Expect(CygNetInstallLocator.Locate(_ => null, () => null, path => path == @"C:\CygNet\Support64\" + CygNetInstallLocator.MarkerAssembly,
+    [@"C:\CygNet\Support64", @"C:\CygNet\Support"]) == @"C:\CygNet\Support64", "the default CygNet install folder is used as a last resort");
+Expect(CygNetInstallLocator.Locate(_ => @"D:\Cyg", () => @"C:\Registered", _ => true, null, @"E:\Custom") == @"E:\Custom", "the Gateway's configured path wins over everything");
+Expect(Locate(@"D:\Wrong", @"C:\Registered") is null && Locate(null, null) is null, "no CygNet API found means not installed");
 var tester = new AdapterConnectionTester(null!, null!, sim);
 Expect((await tester.TestAsync(descriptor, settings, CancellationToken.None)).Outcome == AdapterTestOutcomes.Healthy, "gateway tester routes cygnet");
 

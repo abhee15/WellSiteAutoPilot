@@ -33,7 +33,8 @@ try
         actingAs = identity.Name,
         liveHistoryAdvertised = CygNetAdapter.Describe(native).ReadOperations().Any(operation => operation.Capability == ProviderCapabilityKind.HistoricalData),
         sampleCount = result.Samples.Count, result.Truncated, result.Aggregation, result.Diagnostics,
-        firstUtc = result.Samples.FirstOrDefault()?.TimestampUtc, lastUtc = result.Samples.LastOrDefault()?.TimestampUtc,
+        firstUtc = result.Samples.Count > 0 ? result.Samples[0].TimestampUtc : (DateTimeOffset?)null,
+        lastUtc = result.Samples.Count > 0 ? result.Samples[^1].TimestampUtc : (DateTimeOffset?)null,
         qualityCounts = result.Samples.GroupBy(value => value.Quality).ToDictionary(group => group.Key, group => group.Count()),
         units = result.Samples.Select(value => value.Unit).Distinct().ToArray(),
         historianAssemblies = AppDomain.CurrentDomain.GetAssemblies().Select(assembly => assembly.GetName())

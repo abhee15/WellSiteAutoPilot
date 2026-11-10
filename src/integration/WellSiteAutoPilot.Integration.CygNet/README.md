@@ -1,25 +1,21 @@
 # WellSiteAutoPilot.Integration.CygNet (live CygNet backend)
 
-Reads current CygNet point values through the managed `CygNet.API.*` assemblies already installed on a CygNet-licensed
-host. No COM registration and no CygNet install step. The host must hold a CygNet CAL and be able to reach the domain's
-directory service.
+Reads current CygNet point values through the managed `CygNet.API.*` assemblies already installed on the Gateway's server.
+WSA never installs, registers or ships CygNet. The assemblies are loaded at run time from the existing install, so no special
+build is needed. The host must hold a CygNet CAL and be able to reach the domain's directory service.
 
 ## What it is, and what it is not
 
 - The live backend of the `cygnet` connection adapter (`src\integration\WellSiteAutoPilot.Integration.CygNet.Adapter`):
   connection test, facility discovery and current reads through authorized read plans. See `docs/implementation/cygnet-adapter.md`.
-- Not in `WellSiteAutoPilot.slnx`, so CI and a normal build never need the CygNet libraries. The Gateway compiles the
-  provider in only when `CYGNET_LIBRARY_PATH` is set; without it the Gateway builds exactly as before.
+- Builds everywhere with no CygNet files (CygNet types are bound late). A server without CygNet reports
+  `CygNetNotInstalledException` / `CYGNET_NOT_INSTALLED` on each CygNet connection.
 
-## Build
+## Finding CygNet
 
-Set `CYGNET_LIBRARY_PATH` to the folder holding `CygNet.API.*.dll`, `CygNet.Data.*.dll` and the native `Cx*64.dll` files,
-then build the Gateway (Windows, x64):
-
-    $env:CYGNET_LIBRARY_PATH = '<libs>'
-    dotnet build src\integration\WellSiteAutoPilot.IntegrationGateway -c Release
-
-With the variable set the Gateway targets `net10.0-windows`. Unset it again before building the rest of the solution.
+The first folder holding `CygNet.API.Facilities.dll` wins: the Gateway setting `CygNet:LibraryPath` (appsettings or the
+`CygNet__LibraryPath` environment variable), then `CYGNET_LIBRARY_PATH`, then the folder of the registered COM server
+`CxCvsLib.CvsClient`, then `C:\CygNet\Support64` and `C:\CygNet\Support`. Set `CygNet:LibraryPath` only for a non-standard install.
 
 ## Configure
 
