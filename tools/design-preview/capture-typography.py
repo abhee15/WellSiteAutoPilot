@@ -78,10 +78,8 @@ with sync_playwright() as playwright:
                     for item in audit['support']:
                         assert item['size'] == audit['expected']['support'], (section, item, audit)
                     if section == 'overview':
-                        if width == 1440:
-                            assert len(audit['topColumns'].split()) == 2, ('wide layout', audit)
-                        else:
-                            assert len(audit['topColumns'].split()) == 1, ('stacked layout', audit)
+                        # KPIs occupy the full width above Attention at every viewport.
+                        assert len(audit['topColumns'].split()) == 1, ('full-width overview layout', audit)
                         if state == 'clear':
                             assert page.get_by_text('Nothing needs your attention right now.', exact=True).is_visible()
                         if state == 'unavailable':
