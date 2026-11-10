@@ -21,6 +21,10 @@ Before working an item, re-check it against `origin/develop`, because later PRs 
 | G6 | #488 | CygNet | DST boundary, denied access, timeout and dense range beyond the cap untested | P2 | OPEN |
 | G10 | #491 | ForeSite | `PrincipalDeviceType` is null on both test wells; `ClassificationCode` is a raw number | P2 | OPEN |
 | G11 | #491 | CygNet | CygNet connection data provider and capability reference not exercised live in that review | P2 | OPEN |
+| G17 | Adapters page | ForeSite, CygNet | The capability reference lists no error codes or refusal reasons | P2 | OPEN |
+| G18 | Adapters page | ForeSite | The reference omits the shipped snapshot read and applicable quantities reader | P2 | OPEN |
+| G19 | Adapters page | CygNet | CygNet operation names, keys and units are inconsistent with ForeSite | P2 | OPEN |
+| G20 | Adapters page | PetroVisor, Simulator | Two adapters are selectable but have no capabilities and no explanation | P3 | OPEN |
 | G13 | #519 | ForeSite, CygNet | Only ForeSite surveillance has a workflow guide | P3 | OPEN |
 | G3 | #488 | CygNet | `CygNetHistoryProbe` fails to build with CA1826 | P3 | OPEN |
 | G4 | #488 | CygNet | Assembly version reported as 18.0.0.0 against file version 9.9.1000 | P3 | OPEN |
@@ -77,9 +81,22 @@ The guide tells authors to resolve `AvailableQuantities` IDs with the provider `
 ### G16 Snapshot read and unknown wells (#544)
 Verified live: on well 776 `PumpFillage` is 99.6 and `AveragePumpFillage` is 99.67, with one acquisition time and one source, and the scalar read is unchanged. Well 1596 fails closed with `FORESITE_MEASUREMENT_MISSING`. A duplicate quantity gives `FORESITE_SNAPSHOT_QUANTITY_DUPLICATE` and an unknown quantity `FORESITE_QUANTITY_UNSUPPORTED`. Unknown well 999999 gives `FORESITE_READ_FAILED` here, while the applicable quantities read returns an empty set for the same well (G15). The two readers should agree.
 
+### G17 No error codes in the reference (Adapters page)
+Checked against `/api/v1/connections/adapter-operations` on the running app. No operation carries an error or refusal list, yet live reads return distinct codes: `FORESITE_MEASUREMENT_MISSING` (well 1596 has null fillage), `FORESITE_WELL_ID_INVALID`, `FORESITE_QUANTITY_UNSUPPORTED`, `FORESITE_SNAPSHOT_QUANTITY_DUPLICATE`, `FORESITE_READ_FAILED` and `FORESITE_TREND_FAILED` (G7). Authors cannot learn what to handle from the page. Add a per operation error list to the catalog metadata and render it.
+
+### G18 Shipped ForeSite reads missing from the reference (Adapters page)
+Every ForeSite current operation declares `maximumQuantities` 1 and the catalog has no entry for the shared snapshot read (#544, several quantities, one acquisition time) or the applicable quantities reader (#531). Both were verified live. Well 776 has 32 applicable IDs but the page names only `PumpFillage` and `AveragePumpFillage`, with nothing saying which quantities a given well supports (G14).
+
+### G19 CygNet naming and units differ from ForeSite (Adapters page)
+CygNet keys have no separator (`current.pumpfillage`, `current.motoramps`) while ForeSite uses `current.pump-fillage`. CygNet display names are raw quantity names (`CasingPressure`), ForeSite uses readable ones (`Pump fillage`), and ForeSite history reads `PumpFillage history`. Every CygNet operation has an empty `unit`, and its example shows `site-unit` and `timestampKind` null, while ForeSite shows `%` and a timestamp kind. CygNet has one capability group (`Surveillance data`) and no history or configuration entry. Agree one naming and unit rule in the catalog.
+
+### G20 Adapters without capabilities (Adapters page)
+PetroVisor and Provider Simulator return zero capabilities and zero operations. They are still selectable, so the page shows an empty list with no reason. Either hide them, or say that no reference is published.
+
 ## Suggested order
 1. Agree one unknown well rule for ForeSite (G9, G15, G16).
 2. Decide the CygNet quality mapping (G1).
 3. Verify and record the quantity ID mapping (G14), then wire the applicability check into reads.
 4. Add workflow guides for the other capability groups and document the history scope (G13, G7).
-5. CygNet robustness and live tests (G2, G5, G6), then tooling items (G3, G4, G8, G10, G11).
+5. Adapters page catalog fixes: error lists, missing reads, CygNet naming and units, empty adapters (G17 to G20).
+6. CygNet robustness and live tests (G2, G5, G6), then tooling items (G3, G4, G8, G10, G11).
