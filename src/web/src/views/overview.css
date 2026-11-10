@@ -1,6 +1,9 @@
 /* Overview home: semantic tokens only. */
 .overview-workspace { container-type: inline-size; }
-.overview-top { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-18); align-items: start; }
+.overview-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-16); align-items: start; }
+/* Put the navigable KPI overview first, spanning the content width rather than a narrow sidebar. */
+.overview-top > .overview-metrics { grid-row: 1; }
+.overview-top > .overview-attention { grid-row: 2; }
 .overview-top > .overview-attention, .overview-top > .overview-metrics { margin: 0; }
 .overview-attention-body { padding: 0 var(--space-panel-inline) var(--space-12); }
 .overview-attention-body > p { margin-block: var(--space-12); }
@@ -19,8 +22,8 @@
   .overview-runs time { grid-row: 1; grid-column: 2; }
 }
 
-.overview-workspace .overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@container (width < 60em) { .overview-top { grid-template-columns: minmax(0, 1fr); } }
+.overview-workspace .overview-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@container (width < 60em) { .overview-workspace .overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container (width <= 25em) { .overview-workspace .overview-metrics { grid-template-columns: minmax(0, 1fr); } }
 .overview-attention-links, .overview-setup { display: flex; flex-wrap: wrap; gap: var(--space-12); }
 .overview-attention-links:not(:empty) { margin-block-start: var(--space-10); }
