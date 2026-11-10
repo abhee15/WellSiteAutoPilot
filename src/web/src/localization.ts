@@ -15,7 +15,7 @@ export const englishMessages = {
   'adapterReference.capabilities': 'Capabilities',
   'adapterReference.search': 'Search capabilities',
   'adapterReference.noMatches': 'No capabilities match your search.',
-  'adapterReference.empty': 'This adapter has no implemented data capabilities to display.',
+  'adapterReference.empty': 'No operations are published in this adapter reference yet. This does not indicate whether the provider can be connected or used elsewhere.',
   'adapterReference.version': 'Contract v{version}',
   'adapterReference.selected': 'Selected capability',
   'adapterReference.back': 'Back to capabilities',
