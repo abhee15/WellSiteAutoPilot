@@ -86,3 +86,26 @@
   .content:has(.execution-history-focus) { padding-inline: var(--space-10); }
   .asset-page:has(> .execution-history-focus) { padding-inline: var(--space-8); }
 }
+
+/* Logic Activity already lives inside the workspace's scrollable selected pane.
+   Do not give its nested history another viewport-sized pane or scroll owner. */
+@media (width > 56.25em) {
+  .logic-history-focused .execution-history-focus .execution-history-panes {
+    height: auto;
+    max-height: none;
+  }
+  .logic-history-focused .execution-history-focus .execution-history-panes > .split-browse,
+  .logic-history-focused .execution-history-focus .execution-history-panes > .split-selected {
+    max-height: none;
+    overflow: visible;
+  }
+  .logic-history-focused .execution-history-focus .execution-history-inspector-content {
+    overflow: visible;
+  }
+}
+
+/* The Logic workspace removes padding from embedded execution details. Restore
+   the shared inspector gutter here, including its summary and input cards. */
+.logic-history-focused .execution-history-focus .execution-history-inspector-content > .execution-detail {
+  padding: var(--space-16) var(--space-18);
+}
