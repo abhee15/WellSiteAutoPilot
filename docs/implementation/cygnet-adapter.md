@@ -15,7 +15,7 @@ category and facility type. Reads use the standard authorized read plan via Gate
 ## Backend
 
 CygNet connections work like ForeSite connections: each one names its own domain and site.service, and a Gateway built with
-`CYGNET_LIBRARY_PATH` talks to real CygNet by default, with no backend setting. A Gateway built without it reports
+`CYGNET_LIBRARY_PATH` talks to real CygNet by default, with no backend setting (only `simulated` is recognised). A Gateway built without it reports
 `unavailable` on every CygNet connection; no data is ever invented. `Providers:CygNet:Backend=simulated` (deterministic
 wells) exists for automated tests and CI only, not for development or deployment. See
 `src/integration/WellSiteAutoPilot.Integration.CygNet/README.md` for the build.

@@ -341,14 +341,14 @@ static bool ReadbackAdapter(AdapterCatalog catalog, string adapterKey, string? q
     string.Equals(adapterKey, "simulator", StringComparison.Ordinal) &&
     (catalog.Find(adapterKey)?.Commands?.Any(item => string.Equals(item.ReadbackQuantity, quantity, StringComparison.Ordinal)) ?? false);
 
-// An unset backend means live where the CygNet libraries were built in, and unconfigured elsewhere.
+// Only the test simulator is chosen by setting. Otherwise a CygNet-built Gateway is live and any other build is unconfigured.
 static string? CygNetBackend(string? configured) =>
-    string.IsNullOrWhiteSpace(configured)
+    string.Equals(configured?.Trim(), "simulated", StringComparison.OrdinalIgnoreCase)
+        ? "simulated"
 #if CYGNET
-        ? "live"
+        : "live";
 #else
-        ? null
+        : null;
 #endif
-        : configured.Trim().ToLowerInvariant();
 
 public partial class Program;
