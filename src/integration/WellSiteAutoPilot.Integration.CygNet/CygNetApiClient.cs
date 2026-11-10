@@ -94,6 +94,11 @@ public sealed partial class CygNetApiClient : ICygNetClient
         {
             throw new CygNetConnectionException(connection.Domain);
         }
+        // CygNet reports an unknown domain, an unknown site.service and an unreachable server alike: it cannot resolve the facility service.
+        catch (global::CygNet.Data.Core.MessagingException error)
+        {
+            throw new CygNetConnectionException(connection.Domain, connection.SiteService, error);
+        }
         catch (Exception error) when (error is System.Net.Sockets.SocketException or System.IO.IOException)
         {
             throw new CygNetConnectionException(connection.Domain);

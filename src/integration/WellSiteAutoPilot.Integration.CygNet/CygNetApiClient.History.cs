@@ -15,6 +15,7 @@ public sealed partial class CygNetApiClient
             new(StringComparer.OrdinalIgnoreCase);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "Instance method kept so the client can implement ICygNetHistoryClient once history is validated live.")]
     public async Task<HistoricalReadResult> ReadHistoryAsync(CygNetConnection connection, string facilityId,
         HistoricalReadRequest request, CancellationToken cancellationToken)
     {
@@ -27,7 +28,7 @@ public sealed partial class CygNetApiClient
             connection.FacilityFilter is { } filter && !CygNetAdapter.Matches(filter, facilityId))
             throw new CygNetReadException("CYGNET_HISTORY_SCOPE_INVALID", "The history request does not match this connection and facility.");
         var mapping = connection.PointMap?.TryGetValue(request.Quantity, out var local) == true
-            ? local : options.Quantities.TryGetValue(request.Quantity, out var configured)
+            ? local : CygNetProviderOptions.DefaultQuantities.TryGetValue(request.Quantity, out var configured)
                 ? new CygNetPointMapping(configured.Udc, configured.Unit) : null;
         if (mapping is null || mapping.Udc.Length is 0 or > 32 ||
             mapping.Udc.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not '_' and not '-'))

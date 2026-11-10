@@ -112,6 +112,11 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
         {
             throw;
         }
+        catch (global::CygNet.Data.Core.MessagingException error)
+        {
+            throw Failure("CYGNET_CONNECTION_ERROR", FailureKind.DependencyUnavailable,
+                "Connection error: a connection to CygNet cannot be established from this Integration Gateway.", error);
+        }
         catch (Exception error)
         {
             throw Failure("CYGNET_READ_FAILED", FailureKind.DependencyUnavailable,

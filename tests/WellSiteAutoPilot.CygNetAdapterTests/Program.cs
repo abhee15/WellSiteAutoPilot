@@ -55,6 +55,10 @@ var leaky = await CygNetAdapter.CheckAsync(new FailingClient(new InvalidOperatio
 Expect(leaky.Outcome == AdapterTestOutcomes.NeedsAttention && !leaky.Message.Contains("SECRET", StringComparison.Ordinal), "vendor text is not shown");
 var noRoute = await CygNetAdapter.CheckAsync(new FailingClient(new CygNetConnectionException(27212)), connection, Account);
 Expect(noRoute.Outcome == AdapterTestOutcomes.Unreachable && noRoute.Message.StartsWith("Connection error", StringComparison.Ordinal), "unreachable CygNet reports a connection error");
+var unresolved = await CygNetAdapter.CheckAsync(new FailingClient(new CygNetConnectionException(27212, "NOSUCH.UIS", new InvalidOperationException("SECRET"))), connection, Account);
+Expect(unresolved.Outcome == AdapterTestOutcomes.Unreachable && unresolved.Message.Contains("NOSUCH.UIS", StringComparison.Ordinal) &&
+    unresolved.Message.Contains("registered on this machine", StringComparison.Ordinal) && !unresolved.Message.Contains("SECRET", StringComparison.Ordinal),
+    "an unresolved facility service names the site.service and the checks to make, without vendor text");
 var refused = await CygNetAdapter.CheckAsync(new FailingClient(new UnauthorizedAccessException("SECRET")), connection, Account);
 Expect(refused.Message.Contains("licence", StringComparison.Ordinal) && !refused.Message.Contains("SECRET", StringComparison.Ordinal), "refused account");
 var tester = new AdapterConnectionTester(null!, null!, sim);
