@@ -23,3 +23,12 @@
 .asset-detail-actions { justify-content: flex-start; margin-top: var(--space-12); }
 
 .asset-page > .asset-detail-actions { margin-top: 0; }
+
+/* An asset type's details: the same card padding and header as an asset's, beside the types list. */
+.asset-type-page { padding: var(--space-16) var(--space-18); min-width: 0; overflow-wrap: anywhere; }
+.asset-type-header { display: flex; justify-content: space-between; gap: var(--space-12); align-items: flex-start; }
+.asset-type-header > div { min-width: 0; }
+.asset-type-header h3 { margin: 0; }
+.asset-type-meta { margin: var(--space-4) 0 0; color: var(--color-text-subtle); }
+.asset-type-header { padding-block-end: var(--space-4); }
+.asset-type-actions { display: grid; gap: var(--space-12); }

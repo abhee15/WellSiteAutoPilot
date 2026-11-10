@@ -7,7 +7,7 @@ import { t } from '../localization';
 import { Status } from '../components/Status';
 import { AssetTypeActions } from './AssetTypeActions';
 import { CodeBlock } from '../components/CodeBlock';
-import { CollapsibleSection } from '../components/Section';
+import { CollapsibleSection, Section } from '../components/Section';
 
 interface SchemaField { name: string; type: string; rules: string; required: boolean }
 
@@ -51,22 +51,25 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
   const fields = schemaFields(type.attributeSchemaJson);
   const name = type.displayName ?? type.key ?? '';
   return (
-    <section className="split-type-detail" aria-label={t('assetTypes.details')}>
-      <header>
-        <h3>{name}</h3>
-        <Status value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} />
+    <div className="asset-type-page">
+      <header className="asset-type-header">
+        <div>
+          <h3>{name}</h3>
+          <p className="asset-type-meta">
+            {type.key} · v{type.schemaVersion} · <Status value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} />
+          </p>
+          {!type.isActive && type.hiddenAtUtc && <p className="asset-type-meta">
+            {t('assetTypes.hiddenBy', { by: type.hiddenBy ?? '', when: formatTimestamp(type.hiddenAtUtc) })}
+            {type.hiddenNote ? ` · ${t('assetTypes.hiddenNote', { note: type.hiddenNote })}` : ''}</p>}
+        </div>
         <CloseButton label={t('assetTypes.closeDetails')} onClick={onClose} />
       </header>
-      <p className="split-note">{type.key} · v{type.schemaVersion}</p>
-      {!type.isActive && type.hiddenAtUtc && <p className="split-note">
-        {t('assetTypes.hiddenBy', { by: type.hiddenBy ?? '', when: formatTimestamp(type.hiddenAtUtc) })}
-        {type.hiddenNote ? ` · ${t('assetTypes.hiddenNote', { note: type.hiddenNote })}` : ''}</p>}
-      {onChanged && <AssetTypeActions type={type} count={count} countKnown={countKnown}
-        canHide={canHide} canManage={canManage} onChanged={onChanged} />}
-      {count > 0 && <ActionButton onClick={() => onShowAssets(name)} label={t('assets.showOfType', { count, name })} />}
-      <h4>{t('assetTypes.fields')}</h4>
-      {fields.length === 0 ? <p className="split-note">{t('assetTypes.noFields')}</p> : (
-        <DataTable label={t('assetTypes.fields')}>
+      {count > 0 && <Section title={t('assetTypes.assetsTitle')}>
+        <ActionButton onClick={() => onShowAssets(name)} label={t('assets.showOfType', { count, name })} />
+      </Section>}
+      <Section title={t('assetTypes.fields')}>
+        {fields.length === 0 ? <p className="asset-type-meta">{t('assetTypes.noFields')}</p> : (
+          <DataTable label={t('assetTypes.fields')}>
             <thead><tr>
               <th>{t('assetTypes.fieldName')}</th><th>{t('assetTypes.fieldType')}</th>
               <th>{t('assetTypes.fieldRule')}</th><th>{t('assetTypes.required')}</th>
@@ -80,10 +83,13 @@ export function AssetTypeDetail({ type, count, countKnown = true, canHide = fals
               ))}
             </tbody>
           </DataTable>
-      )}
+        )}
+      </Section>
+      {onChanged && <AssetTypeActions type={type} count={count} countKnown={countKnown}
+        canHide={canHide} canManage={canManage} onChanged={onChanged} />}
       <CollapsibleSection title={t('assetTypes.rawSchema')} quiet>
         <CodeBlock label={t('assetTypes.rawSchema')}>{type.attributeSchemaJson}</CodeBlock>
       </CollapsibleSection>
-    </section>
+    </div>
   );
 }

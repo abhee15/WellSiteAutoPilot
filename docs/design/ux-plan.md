@@ -161,7 +161,10 @@ The page has two tabs, **Assets** and **Asset types** (`#assets` and `#assets/ty
 view: browse and search on the left (the hierarchy when nothing is filtered, a flat list with each asset's
 location when searching), the selected asset on the right; on narrow screens the two take turns. The add
 button reads "Add asset under <selected>" and pre-fills the parent. Asset types lists each type with how many
-assets hold it and a link to those assets. When the first page of assets is full (100), the flat list may be
+assets hold it and a link to those assets. Like Runs, the list fills the page until a type is opened (`#assets/types:<id>`);
+the type then opens in a bordered details card beside the list (on narrow screens the two take turns, with a "Browse
+asset types" button back). The card uses the shared sections: Assets, Attributes, Availability (hide or restore with an
+optional note; Delete is set apart and asks first) and a quiet Raw schema. When the first page of assets is full (100), the flat list may be
 incomplete, so the Assets tab browses on the server instead: top-level and children are read when a level is
 opened (`GET /assets/children`), search runs on the server and shows each match's location
 (`GET /assets/search`), and the selected asset's ancestors and children are read on demand. Still to come: asset
