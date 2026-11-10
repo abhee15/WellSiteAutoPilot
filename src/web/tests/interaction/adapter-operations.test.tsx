@@ -68,12 +68,12 @@ describe('Adapter capability reference', () => {
     render(<AdaptersPanel />);
     const picker = screen.getByRole('combobox', { name: 'Adapter' }) as HTMLSelectElement;
     await waitFor(() => expect(picker.value).toBe('petrovisor'));
-    await screen.findByText('This adapter has no implemented data capabilities to display.');
+    await screen.findByText('No operations are published in this adapter reference yet. This does not indicate whether the provider can be connected or used elsewhere.');
     await user.selectOptions(picker, 'simulator');
     await user.click(screen.getByRole('button', { name: 'Refresh capabilities' }));
     await waitFor(() => expect(loadAdapterOperations).toHaveBeenCalledTimes(2));
     expect(picker.value).toBe('simulator');
-    expect(await screen.findByText('This adapter has no implemented data capabilities to display.')).toBeTruthy();
+    expect(await screen.findByText('No operations are published in this adapter reference yet. This does not indicate whether the provider can be connected or used elsewhere.')).toBeTruthy();
   });
 
   it('presents capability families and keeps supported quantities inside details, without loading Connections or live data', async () => {
@@ -130,7 +130,7 @@ describe('Adapter capability reference', () => {
     expect(screen.queryByRole('tab', { name: 'Limits' })).toBeNull();
     expect(screen.getByText('No capabilities match your search.')).toBeTruthy();
     await user.selectOptions(screen.getByRole('combobox', { name: 'Adapter' }), 'petrovisor');
-    expect(screen.getByText('This adapter has no implemented data capabilities to display.')).toBeTruthy();
+    expect(screen.getByText('No operations are published in this adapter reference yet. This does not indicate whether the provider can be connected or used elsewhere.')).toBeTruthy();
   });
 
   it('renders a new adapter-defined capability without application-specific inventory changes', async () => {
