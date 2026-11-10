@@ -2,18 +2,18 @@ using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Integration.CygNet.Adapter;
 
-/// <summary>Which timestamps the simulator serves: fresh ones, or years-old ones like the idle CYG_DEMO domain.</summary>
-public enum SimulatedCygNetProfile { Current, DemoStale }
+/// <summary>Which timestamps the stub serves: fresh ones, or years-old ones like the idle CYG_DEMO domain.</summary>
+public enum StubCygNetProfile { Current, DemoStale }
 
 /// <summary>
-/// A deterministic stand-in for a CygNet facility service, for development, demonstration and tests. It serves the same
+/// TEST ONLY. Scripted answers that exercise adapter and module logic offline. It is not a provider, is never shipped or registered in the Gateway, and proves nothing about a live system; live behaviour is checked against real CygNet. It serves the same
 /// facilities and points for any domain, site and service, never touches the network, and stamps values relative to the
 /// supplied clock so freshness rules behave. Values are fixed per well so module outcomes are repeatable:
 /// WELL_001 healthy, WELL_002 low fillage, WELL_003 high casing-tubing differential, WELL_004 high motor current,
 /// WELL_005 uncertain and stale, WELL_006 has points that never received a value.
-/// With <see cref="SimulatedCygNetProfile.DemoStale"/> every value is years old, like an idle demo domain.
+/// With <see cref="StubCygNetProfile.DemoStale"/> every value is years old, like an idle demo domain.
 /// </summary>
-public sealed class SimulatedCygNetClient(TimeProvider? clock = null, SimulatedCygNetProfile profile = SimulatedCygNetProfile.Current) : ICygNetClient, ICygNetHistoryClient
+public sealed class StubCygNetClient(TimeProvider? clock = null, StubCygNetProfile profile = StubCygNetProfile.Current) : ICygNetClient, ICygNetHistoryClient
 {
     public const string Source = "cygnet-simulated";
     private const string NoValueWell = "WELL_006";
@@ -103,6 +103,6 @@ public sealed class SimulatedCygNetClient(TimeProvider? clock = null, SimulatedC
             throw new CygNetReadException("CYGNET_POINT_NOT_FOUND", "CygNet returned no value for the point.", retryable: true);
         var now = _clock.GetUtcNow();
         return Task.FromResult(new EngineeringValue(
-            quantity, point.Value, point.Unit, now.AddSeconds(-point.AgeSeconds - (profile == SimulatedCygNetProfile.DemoStale ? DemoStaleSeconds : 0)), point.Quality, Source, now));
+            quantity, point.Value, point.Unit, now.AddSeconds(-point.AgeSeconds - (profile == StubCygNetProfile.DemoStale ? DemoStaleSeconds : 0)), point.Quality, Source, now));
     }
 }

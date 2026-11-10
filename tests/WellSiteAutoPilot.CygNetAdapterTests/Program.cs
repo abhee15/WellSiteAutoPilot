@@ -8,7 +8,7 @@ HistoryValueChecks.Run();
 await HistoryChecks.RunAsync();
 const string Account = @"CORP\svc-wsa";
 var clock = new FixedClock(new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero));
-var sim = new SimulatedCygNetClient(clock);
+var sim = new StubCygNetClient(clock);
 var settings = new Dictionary<string, string?> { ["domain"] = "27212", ["siteService"] = "CYG_DEMO.UIS" };
 
 // Descriptor and registration
@@ -85,7 +85,7 @@ Expect(!down.Complete && down.Items.Count == 0 && down.Warnings.Count > 0, "a fa
 // Reads
 var tag = "CYG_DEMO.UIS::WELL_001";
 var fillage = await CygNetAdapter.ReadCurrentAsync(sim, connection, tag, "PumpFillage");
-Expect(fillage.Value == 82.5m && fillage.Unit == "%" && fillage.Quality == "Good" && fillage.Source == SimulatedCygNetClient.Source &&
+Expect(fillage.Value == 82.5m && fillage.Unit == "%" && fillage.Quality == "Good" && fillage.Source == StubCygNetClient.Source &&
        fillage.TimestampUtc == clock.GetUtcNow().AddSeconds(-5), "healthy fillage read");
 foreach (var quantity in AdapterReadRules.CygNetQuantities)
     Expect((await CygNetAdapter.ReadCurrentAsync(sim, connection, tag, quantity)).Value is not null, "every declared quantity reads: " + quantity);
@@ -157,7 +157,7 @@ var fresh = await CygNetAdapter.CheckAsync(sim, connection, Account, clock, Canc
 Expect(fresh.Outcome == AdapterTestOutcomes.Healthy && fresh.Message.Contains("Sampled 3 facility", StringComparison.Ordinal) &&
        fresh.Message.Contains("PumpFillage 5 s to 10 min old", StringComparison.Ordinal) && !fresh.Message.Contains("maximum data age", StringComparison.Ordinal),
     "fresh data reports its age and needs no advice: " + fresh.Message);
-var staleSim = new SimulatedCygNetClient(clock, SimulatedCygNetProfile.DemoStale);
+var staleSim = new StubCygNetClient(clock, StubCygNetProfile.DemoStale);
 var old = await CygNetAdapter.CheckAsync(staleSim, connection, Account, clock, CancellationToken.None);
 Expect(old.Outcome == AdapterTestOutcomes.Healthy && old.Message.Contains("6.0 years old", StringComparison.Ordinal) &&
        old.Message.Contains("maximum data age must be at least", StringComparison.Ordinal), "stale data is reported with guidance: " + old.Message);

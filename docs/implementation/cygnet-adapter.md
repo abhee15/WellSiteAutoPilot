@@ -14,15 +14,16 @@ category and facility type. Reads use the standard authorized read plan via Gate
 
 ## Backend
 
-CygNet connections work like ForeSite connections: each one names its own domain and site.service, and a Gateway built with
-`CYGNET_LIBRARY_PATH` talks to real CygNet by default, with no backend setting (only `simulated` is recognised). A Gateway built without it reports
-`unavailable` on every CygNet connection; no data is ever invented. `Providers:CygNet:Backend=simulated` (deterministic
-wells) exists for automated tests and CI only, not for development or deployment. See
-`src/integration/WellSiteAutoPilot.Integration.CygNet/README.md` for the build.
+CygNet connections work like ForeSite connections: each one names its own domain and site.service, and the Gateway connects
+to that real CygNet system. There is no simulated CygNet and no backend setting. The Gateway must be built with
+`CYGNET_LIBRARY_PATH` (see `src/integration/WellSiteAutoPilot.Integration.CygNet/README.md`); a build without it reports that
+it has no CygNet support on every CygNet connection, and no data is ever invented. If the CygNet server cannot be reached
+the connection reports `Connection error: a connection to CygNet domain N cannot be established`. The only simulator is
+the Provider Simulator; the CygNet offline tests use a test double that lives in the test project.
 
 Default quantity to UDC map: PumpFillage `RRLPFILAVG` %, CasingPressure `PRCASXIN` psi, TubingPressure `PRTUBXIN` psi,
 RodLoad `RRLMXLDDLY` lbf. MotorAmps is unmapped by default (`CYGNET_QUANTITY_UNSUPPORTED`) and needs a `pointMap` entry.
-Gateway overrides: `Providers__CygNet__Quantities__<Quantity>__Udc` / `__Unit`.
+A connection's `pointMap` replaces or adds to the defaults; there is no Gateway-wide override.
 
 Server read-source checks use the adapter-declared rules in `AdapterReadRules` rather than hard-coded ForeSite checks.
 
@@ -59,8 +60,6 @@ and packs them with the CLI.
 - **Recommended pattern for stale data:** read the age from the connection test, then set the module's
   `maximumAgeSeconds` just above it. Do not use years-long ages in production; point the connection at live points
   instead. On CYG_DEMO, RPOC_0001 has current fillage/rod load but 2023 pressures; RPOC_00001..3 are from 2020.
-- Offline stale demo: `Providers__CygNet__Simulated__Profile=DemoStale` (default `Current`). WELL_006 simulates a
-  point with no value.
 - CYG_DEMO has no motor-current point (only `RRLSPMAVG`, strokes per minute), so MotorAmps stays unmapped there.
 - Bounded calls: one cached FAC and realtime client per domain/service; at most 4 concurrent CygNet calls per service,
   and a timed-out call keeps its slot until it returns, so a hung service cannot pile up threads.
