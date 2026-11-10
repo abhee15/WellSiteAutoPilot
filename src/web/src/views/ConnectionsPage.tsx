@@ -228,7 +228,6 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
         <div>
           <strong>{t('connections.system')}</strong>: {adapter?.displayName ?? connection.adapterKey}
           <p className="connection-help">{t('connections.systemFixed')}</p>
-          {sourceLocked && <p className="connection-help" id="connection-source-locked">{t('connections.sourceLocked')}</p>}
         </div>
       )}
       {adapter && <p className="connection-help">{adapter.description}</p>}
@@ -237,10 +236,9 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
         const value = draft.settings[field.key] ?? '';
         const id = `connection-setting-${field.key}`;
         const locked = sourceLocked && field.required;
-        const lockedReason = locked ? 'connection-source-locked' : undefined;
         return field.kind === 'YesNo' ? (
           <SelectField key={field.key} id={id} label={label} helper={field.helpText} value={value} disabled={disabled || locked}
-            aria-describedby={lockedReason} onChange={event => setValue(field.key, event.target.value)}>
+            onChange={event => setValue(field.key, event.target.value)}>
             <option value="">{t('connections.notSet')}</option>
             <option value="yes">{t('connections.yes')}</option>
             <option value="no">{t('connections.no')}</option>
@@ -248,7 +246,7 @@ function ConnectionForm({ connection, adapters, canManage, onSaved, onGone }: {
         ) : (
           <TextField key={field.key} id={id} label={label} helper={field.helpText}
             inputMode={field.kind === 'WholeNumber' ? 'numeric' : field.kind === 'Url' ? 'url' : 'text'}
-            value={value} maxLength={field.maxLength} disabled={disabled} readOnly={locked} aria-describedby={lockedReason}
+            value={value} maxLength={field.maxLength} disabled={disabled} readOnly={locked}
             onChange={event => setValue(field.key, event.target.value)} />
         );
       })}

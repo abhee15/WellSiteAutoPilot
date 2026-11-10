@@ -192,7 +192,7 @@ describe('Connections page', () => {
         { key: 'filter', label: 'Facility filter', helpText: 'Optional.', kind: 'Text', required: false, maxLength: 64 }],
     };
 
-    it('are locked, with the reason, once assets were imported', async () => {
+    it('are locked once assets were imported', async () => {
       vi.mocked(api.loadAdapters).mockResolvedValue([withOptional]);
       vi.mocked(api.loadConnections).mockResolvedValue([saved({ hasImports: true })]);
       render(<ConnectionsPage canManage />);
@@ -200,21 +200,19 @@ describe('Connections page', () => {
       const address = await screen.findByLabelText('Simulator address (required)') as HTMLInputElement;
       expect(address.readOnly).toBe(true);
       expect(address.value).toBe('http://127.0.0.1:5091');
-      const reason = screen.getByText('Settings marked required are locked because assets were imported from this connection.');
-      expect(address.getAttribute('aria-describedby')).toContain(reason.id);
+      expect(screen.queryByText(/locked because assets were imported/)).toBeNull();
       await userEvent.type(address, 'x');
       expect(address.value).toBe('http://127.0.0.1:5091');
       expect((screen.getByText('Save').closest('button') as HTMLButtonElement).disabled).toBe(true);
     });
 
-    it('stay editable, with no lock message, before anything is imported', async () => {
+    it('stay editable before anything is imported', async () => {
       vi.mocked(api.loadAdapters).mockResolvedValue([withOptional]);
       vi.mocked(api.loadConnections).mockResolvedValue([saved({ hasImports: false })]);
       render(<ConnectionsPage canManage />);
       await userEvent.click(await screen.findByText('Field simulator'));
       const address = await screen.findByLabelText('Simulator address (required)') as HTMLInputElement;
       expect(address.readOnly).toBe(false);
-      expect(screen.queryByText(/locked because assets were imported/)).toBeNull();
       await userEvent.type(address, '/x');
       expect(address.value).toBe('http://127.0.0.1:5091/x');
     });

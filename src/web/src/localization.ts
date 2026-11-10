@@ -1423,7 +1423,6 @@ export const englishMessages = {
   'connections.system': 'System',
   'connections.chooseSystem': 'Choose a system',
   'connections.systemFixed': 'The system cannot be changed. Create a new connection to use a different system.',
-  'connections.sourceLocked': 'Settings marked required are locked because assets were imported from this connection.',
   'connections.requiredLabel': '{label} (required)',
   'connections.notSet': 'Not set',
   'connections.yes': 'Yes',
