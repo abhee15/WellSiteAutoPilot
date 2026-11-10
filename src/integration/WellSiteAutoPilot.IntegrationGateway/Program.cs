@@ -17,9 +17,9 @@ builder.Services.AddServiceCallerAuthentication(builder.Configuration);
 builder.Services.AddSingleton<AdapterCatalog>();
 builder.Services.AddSingleton<ForeSiteConnectionMeasurements>();
 builder.Services.AddSingleton<CygNetConnectionMeasurements>();
-// "simulated" serves a built-in deterministic CygNet; "live" needs a Gateway built with CYGNET_LIBRARY_PATH.
+// A Gateway built with CYGNET_LIBRARY_PATH talks to real CygNet systems by default, one per connection (like ForeSite), with no\r\n// setting needed. "simulated" exists for automated tests and CI only. A Gateway built without CygNet reports that on each connection.
 builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.Adapter.ICygNetClient>(services =>
-    builder.Configuration["Providers:CygNet:Backend"]?.Trim().ToLowerInvariant() switch
+    CygNetBackend(builder.Configuration["Providers:CygNet:Backend"]) switch
     {
         "simulated" => new WellSiteAutoPilot.Integration.CygNet.Adapter.SimulatedCygNetClient(
             services.GetRequiredService<TimeProvider>(),
@@ -340,5 +340,15 @@ static AdapterCommandDefinition? CommandAdapter(AdapterCatalog catalog, string a
 static bool ReadbackAdapter(AdapterCatalog catalog, string adapterKey, string? quantity) =>
     string.Equals(adapterKey, "simulator", StringComparison.Ordinal) &&
     (catalog.Find(adapterKey)?.Commands?.Any(item => string.Equals(item.ReadbackQuantity, quantity, StringComparison.Ordinal)) ?? false);
+
+// An unset backend means live where the CygNet libraries were built in, and unconfigured elsewhere.
+static string? CygNetBackend(string? configured) =>
+    string.IsNullOrWhiteSpace(configured)
+#if CYGNET
+        ? "live"
+#else
+        ? null
+#endif
+        : configured.Trim().ToLowerInvariant();
 
 public partial class Program;

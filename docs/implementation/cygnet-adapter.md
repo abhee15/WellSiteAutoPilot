@@ -12,12 +12,13 @@ category and facility type. Reads use the standard authorized read plan via Gate
 | `facilityFilter` | optional wildcard on facility id (e.g. `RPOC_00*`) |
 | `pointMap` | optional per-connection override: `Quantity=UDC\|unit;...` |
 
-## Backends (`Providers:CygNet:Backend`)
+## Backend
 
-- `unconfigured` (default): the adapter reports unavailable; no data is ever invented.
-- `simulated`: deterministic wells (`WELL_001..005`, a battery, a tank) for offline work and CI.
-- `live`: CygNet.API-backed, opt-in. Set `CYGNET_LIBRARY_PATH` to the CygNet library folder before building the
-  Gateway (see `src/integration/WellSiteAutoPilot.Integration.CygNet/README.md`). The main solution builds without it.
+CygNet connections work like ForeSite connections: each one names its own domain and site.service, and a Gateway built with
+`CYGNET_LIBRARY_PATH` talks to real CygNet by default, with no backend setting. A Gateway built without it reports
+`unavailable` on every CygNet connection; no data is ever invented. `Providers:CygNet:Backend=simulated` (deterministic
+wells) exists for automated tests and CI only, not for development or deployment. See
+`src/integration/WellSiteAutoPilot.Integration.CygNet/README.md` for the build.
 
 Default quantity to UDC map: PumpFillage `RRLPFILAVG` %, CasingPressure `PRCASXIN` psi, TubingPressure `PRTUBXIN` psi,
 RodLoad `RRLMXLDDLY` lbf. MotorAmps is unmapped by default (`CYGNET_QUANTITY_UNSUPPORTED`) and needs a `pointMap` entry.

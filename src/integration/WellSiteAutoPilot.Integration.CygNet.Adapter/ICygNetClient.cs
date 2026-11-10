@@ -59,8 +59,8 @@ public sealed class CygNetReadException(string code, string message, bool retrya
 public sealed class CygNetUnconfiguredClient : ICygNetClient
 {
     public const string Message =
-        "This Integration Gateway has no CygNet backend. Set Providers:CygNet:Backend to \"simulated\" for the built-in " +
-        "simulated CygNet, or use a Gateway built on a CygNet machine (CYGNET_LIBRARY_PATH) with Backend \"live\".";
+        "This Integration Gateway was not built with CygNet support. Build it on a CygNet machine with CYGNET_LIBRARY_PATH set " +
+        "so each connection can reach its own CygNet domain.";
 
     public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
         Task.FromException<IReadOnlyList<string>>(new CygNetUnavailableException(Message));
