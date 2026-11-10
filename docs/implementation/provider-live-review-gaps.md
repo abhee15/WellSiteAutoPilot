@@ -21,6 +21,11 @@ Before working an item, re-check it against `origin/develop`, because later PRs 
 | G6 | #488 | CygNet | DST boundary, denied access, timeout and dense range beyond the cap untested | P2 | OPEN |
 | G10 | #491 | ForeSite | `PrincipalDeviceType` is null on both test wells; `ClassificationCode` is a raw number | P2 | OPEN |
 | G11 | #491 | CygNet | CygNet connection data provider and capability reference not exercised live in that review | P2 | OPEN |
+| G21 | CygNet | CygNet | The simulated, live or unconfigured backend is one Gateway-wide setting, so connections cannot mix | P1 | OPEN |
+| G22 | CygNet | CygNet | A live CygNet Gateway is an opt-in separate build with no packaging or deployment path | P1 | OPEN |
+| G23 | CygNet | CygNet | Every CygNet connection uses the Gateway account, and each domain must be registered on the Gateway host | P1 | OPEN |
+| G24 | CygNet | CygNet | Gateway-wide domain, quantity map and `data/current` route still sit beside the per-connection path | P2 | OPEN |
+| G25 | CygNet | CygNet | The simulated client serves the same facilities for every connection | P2 | OPEN |
 | G17 | Adapters page | ForeSite, CygNet | The capability reference lists no error codes or refusal reasons | P2 | OPEN |
 | G18 | Adapters page | ForeSite | The reference omits the shipped snapshot read and applicable quantities reader | P2 | OPEN |
 | G19 | Adapters page | CygNet | CygNet operation names, keys and units are inconsistent with ForeSite | P2 | OPEN |
@@ -92,6 +97,34 @@ CygNet keys have no separator (`current.pumpfillage`, `current.motoramps`) while
 
 ### G20 Adapters without capabilities (Adapters page)
 PetroVisor and Provider Simulator return zero capabilities and zero operations. They are still selectable, so the page shows an empty list with no reason. Either hide them, or say that no reference is published.
+
+## CygNet: several systems on a deployed Gateway
+Reviewed against `develop` (`bf24e458`). The user need: configure several CygNet systems as connections, as is done for ForeSite, on a deployed system.
+
+### What already works per connection
+A connection carries `domain`, `siteService`, `facilityFilter` and `pointMap`. Asset ids are `SITE.SERVICE::FACILITY`, bindings are per connection, the facility and realtime client caches are keyed `domain/site.service`, and the call gate allows 4 concurrent calls per service. So two connections to different domains or services do not collide in the adapter. The gaps below are around it.
+
+### G21 Backend is Gateway-wide
+`Providers:CygNet:Backend` (`unconfigured`, `simulated` or `live`) picks one `ICygNetClient` for the whole Gateway (`Program.cs`). Every CygNet connection, test and discovery uses it. The default is `unconfigured`, which refuses every call with a Gateway configuration message, and the local dev AppHost sets none. ForeSite has no such switch: its simulator is a separate adapter key. Decide between: (a) a per-connection `mode` setting (Live or Simulated), with simulated allowed only when the Gateway enables it; (b) a separate `cygnet-simulated` adapter key, matching the Provider Simulator pattern. Recommended: (b) for production safety, backed by a client router that chooses by adapter key, so a simulated connection can never read real data and the reverse. The descriptor has no choice-type setting today (`AdapterSettingKind`), so (a) also needs a new setting kind.
+
+### G22 Live build and deployment
+`live` is compiled only when `CYGNET_LIBRARY_PATH` is set (`#if CYGNET`), the Gateway then targets `net10.0-windows`, and the project is outside `WellSiteAutoPilot.slnx`. CI, the installer and the normal build never produce it, so a deployed Gateway cannot be CygNet-capable unless someone builds it by hand on a CygNet host. Needed: a defined build and packaging step (a second Gateway artifact or a CygNet sidecar service), how the licensed libraries reach it, and a startup check that reports "live backend not built in" clearly.
+
+### G23 Identity and domain registration
+All connections read as the Gateway's Windows account, which needs a CygNet licence and access in every domain. There is no per-connection credential. The CygNet client also finds a domain through the host's own CygNet configuration; on the dev laptop domains had to be registered in the registry for the probes to resolve them. So a new CygNet system needs both a connection and host-level domain setup, and the connection test cannot say which is missing. Needed: a documented per-system onboarding checklist, a test message that separates "domain unknown to this host" from "account refused", and a decision on whether per-connection credentials are in scope.
+
+### G24 Legacy Gateway-wide settings
+`Providers:CygNet:Domain` (ambient domain when absent), the `Quantities` map and the `CygNetCurrentDataProvider` on the `data/current` route predate connections. `CygNetApiClient.ReadCurrentAsync` still builds a provider per read from the connection domain, over a Gateway-wide default map of demo rod-lift UDCs (`RRLPFILAVG` and others) that is silently wrong on other systems. `pointMap` overrides are free text capped at 400 characters, with no UI help. Needed: make the per-connection map the only path for saved connections, keep the legacy route for development only, and show the effective map in the test result.
+
+### G25 Simulated client is one fixed system
+`SimulatedCygNetClient` serves the same eight facilities for any domain, site and service, so two simulated connections look identical apart from the tag prefix. That is good for tests but cannot rehearse two systems with different wells, point maps or stale data. Needed: simulated profiles chosen per connection, for example by site name, and a second fixture system.
+
+### Proposed order
+1. Decide G21 (adapter key or mode) and G23 (credentials in or out of scope).
+2. Build the client router and per-connection backend choice, with tests for two connections on different backends.
+3. Define the live Gateway build, packaging and startup check (G22).
+4. Add per-connection simulated profiles (G25) and move the point map fully per connection (G24).
+5. Live test on this laptop with two real domains once step 2 is in.
 
 ## Suggested order
 1. Agree one unknown well rule for ForeSite (G9, G15, G16).
