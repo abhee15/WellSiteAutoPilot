@@ -56,6 +56,15 @@ public sealed class CygNetConnectionException(int domain, string? siteService = 
           $"Check that the CygNet server is running and reachable from this machine, that domain {domain} is registered on this machine, " +
           "and that the site.service name is correct.", inner);
 
+/// <summary>CygNet is not installed on the machine running this Gateway, so no CygNet domain can be reached from it.</summary>
+public sealed class CygNetNotInstalledException(string? folder = null, Exception? inner = null) : CygNetUnavailableException(
+    folder is null
+        ? "CygNet is not installed on the server running this Integration Gateway, so it cannot connect to a CygNet domain. " +
+          "Install the CygNet client components on that server (WSA does not install CygNet). If CygNet is installed in a non-standard folder, " +
+          "set CygNet:LibraryPath for the Gateway (or CYGNET_LIBRARY_PATH) to the folder that holds the CygNet API."
+        : $"The CygNet API found in {folder} on the server running this Integration Gateway could not be loaded, so it cannot connect to a CygNet domain. " +
+          "Check that the CygNet client components are installed completely and are 64-bit.", inner);
+
 /// <summary>A failed read with a stable code and a fixed safe sentence.</summary>
 public sealed class CygNetReadException(string code, string message, bool retryable = false, Exception? inner = null)
     : Exception(message, inner)
@@ -64,12 +73,12 @@ public sealed class CygNetReadException(string code, string message, bool retrya
     public bool Retryable { get; } = retryable;
 }
 
-/// <summary>Used when the Gateway has no CygNet backend configured: every call says so, plainly.</summary>
+/// <summary>Used where CygNet cannot run at all (a non-Windows Gateway): every call says so, plainly.</summary>
 public sealed class CygNetUnconfiguredClient : ICygNetClient
 {
     public const string Message =
-        "This Integration Gateway was not built with CygNet support. Build it on a CygNet machine with CYGNET_LIBRARY_PATH set " +
-        "so each connection can reach its own CygNet domain.";
+        "CygNet connections need an Integration Gateway running on Windows on a server that has CygNet installed. " +
+        "This Gateway cannot reach a CygNet domain.";
 
     public Task<IReadOnlyList<string>> CheckAsync(CygNetConnection connection, CancellationToken cancellationToken) =>
         Task.FromException<IReadOnlyList<string>>(new CygNetUnavailableException(Message));

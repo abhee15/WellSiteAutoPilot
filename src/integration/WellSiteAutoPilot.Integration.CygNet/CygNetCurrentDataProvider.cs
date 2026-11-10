@@ -1,7 +1,3 @@
-using System.Reflection;
-using CygNet.API.Core;
-using CygNet.API.Points;
-using CygNet.Data.Core;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.CygNet.Adapter;
@@ -48,10 +44,8 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
     private static readonly TimeSpan ReadBudget = TimeSpan.FromSeconds(10);
 
     // One realtime client per service for the life of the Gateway, not one per read.
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, RealtimeClient> RealtimeClients =
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> RealtimeClients =
         new(StringComparer.OrdinalIgnoreCase);
-
-    static CygNetCurrentDataProvider() => CygNetAssemblyResolver.Register();
 
     public async ValueTask<EngineeringValue> GetCurrentAsync(
         string assetExternalId, string quantity, CancellationToken cancellationToken = default)
@@ -87,40 +81,47 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
     {
         try
         {
-            var facility = new FacilityTag(assetExternalId);
-            var domain = options.Domain ?? new ServiceInformation().GetAmbientDomain();
-            var uis = new DomainSiteService(domain, facility.SiteService);
-            var pointTag = new PointTag(facility, mapping.Udc);
+            var runtime = CygNetRuntime.Require();
+            var facility = runtime.FacilityTag(assetExternalId);
+            var domain = options.Domain ?? runtime.AmbientDomain();
+            var uis = runtime.ServiceOf(domain, facility);
+            var pointTag = runtime.PointTag(facility, mapping.Udc);
 
-            var record = RealtimeClients.GetOrAdd(uis.ToString(), _ => new RealtimeClient(uis)).GetPointValueRecord(pointTag)
+            dynamic client = RealtimeClients.GetOrAdd(uis.ToString()!, _ => runtime.RealtimeClient(uis));
+            dynamic? record = client.GetPointValueRecord((dynamic)pointTag)
                 ?? throw Failure("CYGNET_POINT_NOT_FOUND", FailureKind.DependencyUnavailable,
                     "CygNet has no such point on the facility. Check the UDC in the connection's point mapping.");
 
-            var number = CygNetValues.ParseNumber(Convert.ToString(record.Value, System.Globalization.CultureInfo.InvariantCulture));
-            if (record.Timestamp == default)
+            var number = CygNetValues.ParseNumber(Convert.ToString((object?)record.Value, System.Globalization.CultureInfo.InvariantCulture));
+            DateTime timestamp = record.Timestamp;
+            if (timestamp == default)
                 throw Failure("CYGNET_TIMESTAMP_INVALID", FailureKind.DependencyUnavailable,
                     "CygNet returned a value with no timestamp.");
 
             // Never let a flagged value read as Good: Unreliable is Bad; any other status flag is Uncertain, which a
             // module accepts only when it declares that it allows uncertain quality. Timestamp age is checked by the host.
-            var quality = CygNetValues.Quality(record.Status.ToString());
+            var quality = CygNetValues.Quality((string)record.Status.ToString());
             return new EngineeringValue(
-                quantity, number, mapping.Unit, new DateTimeOffset(record.Timestamp.ToUniversalTime()), quality, "cygnet",
+                quantity, number, mapping.Unit, new DateTimeOffset(timestamp.ToUniversalTime()), quality, "cygnet",
                 DateTimeOffset.UtcNow);
         }
         catch (WellSiteAutoPilotException)
         {
             throw;
         }
-        catch (global::CygNet.Data.Core.MessagingException error)
+        catch (CygNetNotInstalledException error)
+        {
+            throw Failure("CYGNET_NOT_INSTALLED", FailureKind.DependencyUnavailable, error.Message, error);
+        }
+        catch (Exception error) when (CygNetRuntime.IsMessagingFailure(error))
         {
             throw Failure("CYGNET_CONNECTION_ERROR", FailureKind.DependencyUnavailable,
-                "Connection error: a connection to CygNet cannot be established from this Integration Gateway.", error);
+                "Connection error: a connection to CygNet cannot be established from this Integration Gateway.", CygNetRuntime.Unwrap(error));
         }
         catch (Exception error)
         {
             throw Failure("CYGNET_READ_FAILED", FailureKind.DependencyUnavailable,
-                "CygNet could not provide the value.", error);
+                "CygNet could not provide the value.", CygNetRuntime.Unwrap(error));
         }
     }
 
@@ -132,15 +133,4 @@ public sealed class CygNetCurrentDataProvider(CygNetProviderOptions options) : I
         new(code, kind, detail,
             retryable: kind is FailureKind.DependencyUnavailable or FailureKind.DependencyTimeout,
             innerException: inner);
-}
-
-/// <summary>CygNet loads its "*64" assemblies by name; they are not in deps.json, so resolve them from the app folder.</summary>
-internal static class CygNetAssemblyResolver
-{
-    internal static void Register() =>
-        AppDomain.CurrentDomain.AssemblyResolve += (_, e) =>
-        {
-            var path = Path.Combine(AppContext.BaseDirectory, new AssemblyName(e.Name).Name + ".dll");
-            return File.Exists(path) ? Assembly.LoadFrom(path) : null;
-        };
 }

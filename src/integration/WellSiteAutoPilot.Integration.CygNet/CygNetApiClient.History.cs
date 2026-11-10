@@ -1,5 +1,3 @@
-using CygNet.API.Core;
-using CygNet.Data.Core;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Integration.CygNet.Adapter;
 
@@ -11,7 +9,7 @@ public sealed partial class CygNetApiClient
     // while Gateway metadata and execution keep live history unsupported until native validation passes.
     private static class Historians
     {
-        public static readonly System.Collections.Concurrent.ConcurrentDictionary<string, global::CygNet.API.Historian.Client> Clients =
+        public static readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> Clients =
             new(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -37,22 +35,23 @@ public sealed partial class CygNetApiClient
         {
             return await Run(connection, () =>
             {
-                var historian = Historians.Clients.GetOrAdd($"{connection.Domain}/{connection.SiteService}", _ =>
-                    new global::CygNet.API.Historian.Client(new ServiceInformation().GetAssociatedService(Service(connection), ServiceType.VHS)));
-                var name = new global::CygNet.Data.Historian.Name { ID = $"{connection.SiteService}:{facilityId}_{mapping.Udc}" };
+                var runtime = CygNetRuntime.Require();
+                dynamic historian = Historians.Clients.GetOrAdd($"{connection.Domain}/{connection.SiteService}", _ =>
+                    runtime.HistorianClient(runtime.AssociatedService(Service(runtime, connection), "VHS")));
+                var name = runtime.HistorianName($"{connection.SiteService}:{facilityId}_{mapping.Udc}");
                 IEnumerable<CygNetHistoryEntry> Entries()
                 {
-                    foreach (var entry in historian.GetHistoricalEntriesReverse(name, request.StartUtc.UtcDateTime, request.EndUtc.UtcDateTime, false))
+                    foreach (dynamic entry in historian.GetHistoricalEntriesReverse(name, request.StartUtc.UtcDateTime, request.EndUtc.UtcDateTime, false))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        var kind = entry.ValueType switch
+                        var kind = (string)entry.ValueType.ToString() switch
                         {
-                            global::CygNet.Data.Historian.HistoricalEntryValueType.Double => CygNetHistoryValueKind.FloatingPoint,
-                            global::CygNet.Data.Historian.HistoricalEntryValueType.Int64 => CygNetHistoryValueKind.SignedInteger,
-                            global::CygNet.Data.Historian.HistoricalEntryValueType.UTF8 => CygNetHistoryValueKind.Text,
+                            "Double" => CygNetHistoryValueKind.FloatingPoint,
+                            "Int64" => CygNetHistoryValueKind.SignedInteger,
+                            "UTF8" => CygNetHistoryValueKind.Text,
                             _ => throw new CygNetReadException("CYGNET_HISTORY_TYPE_UNSUPPORTED", "The historian entry is not a supported numeric type.")
                         };
-                        yield return new(entry.Timestamp, kind, entry.Value, entry.BaseStatus.ToString());
+                        yield return new((DateTime)entry.Timestamp, kind, (byte[])entry.Value, (string)entry.BaseStatus.ToString());
                     }
                 }
                 return CygNetHistoryValues.ProjectReverse(request, mapping.Unit, mapping.Udc, Entries(), cancellationToken: cancellationToken);

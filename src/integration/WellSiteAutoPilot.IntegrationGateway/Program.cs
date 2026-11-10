@@ -17,14 +17,16 @@ builder.Services.AddServiceCallerAuthentication(builder.Configuration);
 builder.Services.AddSingleton<AdapterCatalog>();
 builder.Services.AddSingleton<ForeSiteConnectionMeasurements>();
 builder.Services.AddSingleton<CygNetConnectionMeasurements>();
-// CygNet connections reach real CygNet systems, one per connection like ForeSite; there is no simulated CygNet. A Gateway built
-// without CYGNET_LIBRARY_PATH reports on each CygNet connection that it has no CygNet support.
+// CygNet connections reach real CygNet systems, one per connection like ForeSite; there is no simulated CygNet. The Gateway uses the
+// CygNet API already installed on its server; a server without CygNet reports that on each CygNet connection.
 builder.Services.AddSingleton<WellSiteAutoPilot.Integration.CygNet.Adapter.ICygNetClient>(_ =>
-#if CYGNET
-    new WellSiteAutoPilot.Integration.CygNet.CygNetApiClient());
-#else
-    new WellSiteAutoPilot.Integration.CygNet.Adapter.CygNetUnconfiguredClient());
-#endif
+{
+    // Optional override when CygNet is installed somewhere unusual: "CygNet:LibraryPath" in appsettings or CygNet__LibraryPath.
+    WellSiteAutoPilot.Integration.CygNet.CygNetInstallLocator.ConfiguredFolder = builder.Configuration["CygNet:LibraryPath"];
+    return OperatingSystem.IsWindows()
+        ? new WellSiteAutoPilot.Integration.CygNet.CygNetApiClient()
+        : new WellSiteAutoPilot.Integration.CygNet.Adapter.CygNetUnconfiguredClient();
+});
 builder.Services.AddHttpClient("adapter-test");
 builder.Services.AddHttpClient(AdapterConnectionTester.WindowsClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { UseDefaultCredentials = true, UseCookies = false });

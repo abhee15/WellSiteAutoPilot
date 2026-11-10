@@ -15,9 +15,12 @@ category and facility type. Reads use the standard authorized read plan via Gate
 ## Backend
 
 CygNet connections work like ForeSite connections: each one names its own domain and site.service, and the Gateway connects
-to that real CygNet system. There is no simulated CygNet and no backend setting. The Gateway must be built with
-`CYGNET_LIBRARY_PATH` (see `src/integration/WellSiteAutoPilot.Integration.CygNet/README.md`); a build without it reports that
-it has no CygNet support on every CygNet connection, and no data is ever invented. If the CygNet server cannot be reached
+to that real CygNet system. There is no simulated CygNet and no backend setting. The Gateway uses the CygNet client components already installed on its server (CygConn, CExplorer or a CygNet server install);
+WSA never installs, registers or ships CygNet, and no special build is needed. It finds the CygNet API folder, in order, from:
+the Gateway setting `CygNet:LibraryPath` (appsettings or `CygNet__LibraryPath`), the `CYGNET_LIBRARY_PATH` environment variable,
+the folder of the registered CygNet COM server (`CxCvsLib.CvsClient`), then `C:\CygNet\Support64` and `C:\CygNet\Support`. A folder
+counts only if it holds `CygNet.API.Facilities.dll`. A laptop without CygNet can still add a connection: the test runs on the
+Gateway server, and a server without CygNet reports that CygNet is not installed there. If the CygNet server cannot be reached
 the connection reports `Connection error: a connection to CygNet domain N cannot be established`. The only simulator is
 the Provider Simulator; the CygNet offline tests use a test double that lives in the test project.
 
