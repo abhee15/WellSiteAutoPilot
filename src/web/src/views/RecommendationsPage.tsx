@@ -332,7 +332,6 @@ export function RecommendationsPage({
         {RECOMMENDATION_INBOX_FILTERS.map(kind => (
           <SummaryCard density="compact" key={kind} label={t(cardLabels[kind])} value={String(counts[kind])}
             detail=""
-            tone={counts[kind] > 0 && kind !== 'decided' ? 'warning' : undefined}
             selected={criteria.filters.length === 1 && criteria.filters[0] === kind}
             onSelect={() => setCriteria(current => ({ ...current,
               filters: current.filters.length === 1 && current.filters[0] === kind ? [] : [kind] }))} />
