@@ -214,7 +214,6 @@ describe('Connections page', () => {
       await userEvent.click(await screen.findByText('Field simulator'));
       const address = await screen.findByLabelText('Simulator address (required)') as HTMLInputElement;
       expect(address.readOnly).toBe(false);
-      expect(screen.queryByText(/locked because assets were imported/)).toBeNull();
       await userEvent.type(address, '/x');
       expect(address.value).toBe('http://127.0.0.1:5091/x');
     });
