@@ -229,9 +229,9 @@ public static class CygNetAdapter
         {
             return Incomplete("CygNet could not be reached.", actingAs);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            return Incomplete("CygNet facility discovery failed. See the Gateway log for what CygNet said.", actingAs);
+            return Incomplete("CygNet facility discovery failed. " + exception.GetType().Name + ": " + exception.Message, actingAs);
         }
     }
 
