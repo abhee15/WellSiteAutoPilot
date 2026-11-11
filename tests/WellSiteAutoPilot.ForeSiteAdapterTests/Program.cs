@@ -13,6 +13,7 @@ await ApplicableQuantityChecks.RunAsync();
 await HistoryChecks.RunAsync();
 await ConfigurationChecks.RunAsync();
 await CardChecks.RunAsync();
+await ResolveChecks.RunAsync();
 await MeasurementProbeChecks.RunAsync();
 
 const string Account = @"CORP\svc-wsa";
