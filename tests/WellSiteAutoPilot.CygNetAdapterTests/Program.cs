@@ -7,6 +7,26 @@ using WellSiteAutoPilot.ModuleSdk;
 
 HistoryValueChecks.Run();
 await HistoryChecks.RunAsync();
+{
+    var q = CygNetProviderOptions.DefaultQuantities;
+    var withFillage = new[] { "RRLPFILAVG", "RRLMXLDDLY", "QTLIQT" };
+    var noFillage = new[] { "QTLIQT" };
+    Expect(CygNetResolver.Resolve("PumpFillage", q, withFillage).Outcome == ResolveOutcome.Compatible, "resolve: fillage point present");
+    var missing = CygNetResolver.Resolve("PumpFillage", q, noFillage);
+    Expect(missing.Outcome == ResolveOutcome.NotApplicable && missing.Reasons[0].Contains("RRLPFILAVG"), "resolve: no fillage point is not applicable");
+    var typo = CygNetResolver.Resolve("PumpFilage", q, withFillage);
+    Expect(typo.Outcome == ResolveOutcome.Misconfigured && typo.Reasons[0].Contains("PumpFillage"), "resolve: unmapped input is misconfigured and lists mapped inputs");
+}
+if (Environment.GetEnvironmentVariable("WSA_LIVE_CYGNET") == "1")
+{
+    var live = new CygNetResolveProvider(new CygNetProviderOptions(27212, CygNetProviderOptions.DefaultQuantities));
+    foreach (var facility in new[] { "CYG_DEMO.UIS::RPOC_0001", "CYG_DEMO.UIS::8800_0001" })
+    {
+        var catalog = await live.GetCatalogAsync(facility);
+        var result = await live.ResolveAsync(facility, "PumpFillage");
+        Console.WriteLine($"LIVE {facility}: {catalog.Count} points, PumpFillage -> {result.Outcome} {string.Join("; ", result.Reasons)}");
+    }
+}
 const string Account = @"CORP\svc-wsa";
 var clock = new FixedClock(new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero));
 var sim = new StubCygNetClient(clock);

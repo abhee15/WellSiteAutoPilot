@@ -23,6 +23,7 @@ internal sealed class CygNetRuntime
     private readonly Type pointTag = Find("CygNet.Data.Core.PointTag", "CygNet.Data.Core");
     private readonly Type facilityClient = Find("CygNet.API.Facilities.Client", "CygNet.API.Facilities");
     private readonly Type realtimeClient = Find("CygNet.API.Points.RealtimeClient", "CygNet.API.Points");
+    private readonly Type configClient = Find("CygNet.API.Points.ConfigClient", "CygNet.API.Points");
     private readonly Type historianClient = Find("CygNet.API.Historian.Client", "CygNet.API.Historian");
     private readonly Type historianName = Find("CygNet.Data.Historian.Name", "CygNet.Data.Historian");
 
@@ -107,6 +108,18 @@ internal sealed class CygNetRuntime
         Activator.CreateInstance(domainSiteService, domain, (object)((dynamic)facility).SiteService)!;
 
     public object PointTag(object facility, string udc) => Activator.CreateInstance(pointTag, facility, udc)!;
+
+    /// <summary>The UDCs of every point CygNet's point service holds for a facility.</summary>
+    public IReadOnlyList<string> PointUdcs(ushort domain, string facilityTagText)
+    {
+        var facility = FacilityTag(facilityTagText);
+        var site = (object)((dynamic)facility).SiteService;
+        var pnt = AssociatedService(ServiceOf(domain, facility), "PNT");
+        var config = Activator.CreateInstance(configClient, pnt)!;
+        var filter = $"siteservice = '{site}' AND facilityid = '{((dynamic)facility).FacilityId}'";
+        var tags = (IEnumerable)((dynamic)config).GetPointTagList((dynamic)filter, default(CancellationToken));
+        return tags.Cast<dynamic>().Select(t => (string)t.UDC).OrderBy(u => u, StringComparer.Ordinal).ToList();
+    }
 
     public dynamic HistorianName(string id)
     {

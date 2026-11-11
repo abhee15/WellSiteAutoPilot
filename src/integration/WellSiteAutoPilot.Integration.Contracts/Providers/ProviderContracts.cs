@@ -130,6 +130,56 @@ public sealed record ProviderVerificationResult(
     EngineeringValue? Readback,
     string? Detail = null);
 
+/// <summary>Whether a provider can supply an input for one asset.</summary>
+public enum ResolveOutcome
+{
+    Compatible,
+    NotApplicable,
+    Misconfigured,
+    NeedsSelection,
+    CannotDetermine
+}
+
+/// <summary>How a candidate value relates to time; freshness is judged per basis.</summary>
+public enum ResolveBasis
+{
+    Current,
+    DailyAverage,
+    TestSample,
+    History
+}
+
+/// <summary>One way a provider could supply an input: a read plan the provider can execute later.</summary>
+public sealed record ResolveCandidate(string Source, ResolveBasis Basis, string Description, string? ReadPlan = null);
+
+/// <summary>The provider's answer for one input on one asset. Reasons list every problem found, not only the first.</summary>
+public sealed record ResolveResult(
+    ResolveOutcome Outcome,
+    IReadOnlyList<ResolveCandidate> Candidates,
+    IReadOnlyList<string> Reasons)
+{
+    public static ResolveResult Compatible(ResolveCandidate candidate) => new(ResolveOutcome.Compatible, [candidate], []);
+    public static ResolveResult Failed(ResolveOutcome outcome, params string[] reasons) => new(outcome, [], reasons);
+}
+
+/// <summary>What a provider actually offers on one asset right now (a point list, a module list).</summary>
+public sealed record AssetCatalogEntry(string Name, string? Description, string? Unit);
+
+public interface IAssetCatalogProvider
+{
+    ValueTask<IReadOnlyList<AssetCatalogEntry>> GetCatalogAsync(
+        string assetExternalId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IResolveProvider
+{
+    ValueTask<ResolveResult> ResolveAsync(
+        string assetExternalId,
+        string input,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IProviderHealthProvider
 {
     ValueTask<ProviderHealth> GetHealthAsync(
