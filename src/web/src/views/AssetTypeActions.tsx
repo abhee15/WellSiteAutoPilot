@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { AssetTypeResponse } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
-import { FormActions, TextField } from '../components/FormFields';
+import { ConfirmPanel, FormActions, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
+import { Section } from '../components/Section';
 import { t } from '../localization';
 import type { MessageKey } from '../localization';
 import { problemCode } from './assetTypeDefinition';
@@ -56,25 +57,32 @@ export function AssetTypeActions({ type, count, countKnown, canHide, canManage, 
 
   const canDelete = canManage && countKnown && count === 0;
   if (!(hidden ? canManage : canHide) && !canDelete) return null;
+  const name = type.displayName ?? type.key ?? '';
+  const hideOrRestore = hidden
+    ? canManage && <ActionButton label={t('assetTypes.unhide')} disabled={busy} onClick={() => void send('/unhide', 'PUT')} />
+    : canHide && <ActionButton label={t('assetTypes.hide')} disabled={busy}
+      onClick={() => void send('/hide', 'PUT', { note: note.trim() || null })} />;
   return (
-    <div className="asset-create-form" aria-label={t('assetTypes.actions')}>
-      {hidden && canManage && <ActionButton label={t('assetTypes.unhide')} disabled={busy} onClick={() => void send('/unhide', 'PUT')} />}
-      {!hidden && canHide && <>
-        <p className="asset-create-hint">{t('assetTypes.hideHelp')}</p>
-        <TextField label={t('assetTypes.hideNote')} value={note} maxLength={NOTE_LIMIT} disabled={busy}
-          onChange={event => setNote(event.target.value)} />
-        <ActionButton label={t('assetTypes.hide')} disabled={busy} onClick={() => void send('/hide', 'PUT', { note: note.trim() || null })} />
-      </>}
-      {canDelete && (confirmDelete
-        ? <>
-          <p className="asset-create-hint">{t('assetTypes.deleteConfirm', { name: type.displayName ?? type.key ?? '' })}</p>
-          <div className="asset-create-actions"><FormActions>
-            <ActionButton label={t('assetTypes.deleteNo')} disabled={busy} onClick={() => setConfirmDelete(false)} />
-            <ActionButton variant="primary" label={t('assetTypes.deleteYes')} disabled={busy} onClick={() => void send('', 'DELETE')} />
-          </FormActions></div>
-        </>
-        : <ActionButton label={t('assetTypes.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} />)}
-      {error && <Notice tone="error">{t(error)}</Notice>}
-    </div>
+    <Section title={t('assetTypes.availability')} hint={!hidden && canHide ? t('assetTypes.hideHelp') : undefined}>
+      <div className="asset-type-actions" aria-label={t('assetTypes.actions')}>
+        {confirmDelete ? (
+          <ConfirmPanel title={t('assetTypes.deleteTitle', { name })} focusOnOpen>
+            <p className="ui-section-hint">{t('assetTypes.deleteConfirm')}</p>
+            <FormActions>
+              <ActionButton label={t('assetTypes.deleteNo')} disabled={busy} onClick={() => setConfirmDelete(false)} />
+              <ActionButton variant="primary" label={t('assetTypes.deleteYes')} disabled={busy} onClick={() => void send('', 'DELETE')} />
+            </FormActions>
+          </ConfirmPanel>
+        ) : <>
+          {!hidden && canHide && <TextField label={t('assetTypes.hideNote')} value={note} maxLength={NOTE_LIMIT} disabled={busy}
+            onChange={event => setNote(event.target.value)} />}
+          <FormActions leading={canDelete
+            ? <ActionButton label={t('assetTypes.delete')} disabled={busy} onClick={() => setConfirmDelete(true)} /> : undefined}>
+            {hideOrRestore}
+          </FormActions>
+        </>}
+        {error && <Notice tone="error">{t(error)}</Notice>}
+      </div>
+    </Section>
   );
 }

@@ -40,8 +40,9 @@ import { isSecurityId } from '../security/identifiers';
 import './splitLayout.css';
 import { PanelLoading } from '../components/LoadingIndicator';
 
-/** The address `#assets/types` opens the Asset types tab; any other detail is an asset id. */
+/** The address `#assets/types` opens the Asset types tab and `#assets/types:<id>` one type; any other detail is an asset id. */
 const TYPES_TAB = 'types';
+const TYPE_PREFIX = 'types:';
 const RESULT_LIMIT = 200;
 
 export function AssetsPage({
@@ -62,7 +63,8 @@ export function AssetsPage({
   permissions?: readonly string[];
 }) {
   const [detail, setDetail] = useHashDetail('assets');
-  const onTypesTab = detail === TYPES_TAB;
+  const typeDetail = detail?.startsWith(TYPE_PREFIX) ? detail.slice(TYPE_PREFIX.length) : null;
+  const onTypesTab = detail === TYPES_TAB || typeDetail !== null;
   const viewIntent = detail?.startsWith('new-view:') ? detail.slice('new-view:'.length) : null;
   const selectedId = onTypesTab || viewIntent ? null : detail;
   // A full snapshot means the flat list may be incomplete: browse and search on the server instead.
@@ -106,7 +108,6 @@ export function AssetsPage({
   const context = useAssetContext(selectedId, assets, lazy, refreshKey, contextCache);
   const selectedAuthorized = lazy ? context.asset ?? undefined : assets.find(asset => asset.id === selectedId);
   useForgetVanishedSelection(selectedId, Boolean(selectedAuthorized), () => setDetail(null));
-  const splitFocus = useSplitPaneFocus(selectedAuthorized?.id ?? null);
   // What the asset page and the add form need to know about around the selection.
   const nearby = useMemo(() => {
     if (!lazy || !context.asset) return assets;
@@ -141,7 +142,6 @@ export function AssetsPage({
   const [focus, setFocus] = useState<{ id: string; name: string } | null>(null);
   const focusId = focus?.id ?? null;
   const canFocus = lazy || assets.some(asset => asset.parentAssetId === selectedAuthorized?.id);
-  const [openTypeId, setOpenTypeId] = useState<string | null>(null);
   const visibleAssets = useMemo(
     () => filterAssetInventory(assets, typeNames, criteria),
     [assets, typeNames, criteria],
@@ -158,6 +158,11 @@ export function AssetsPage({
     [assetTypes, showHidden],
   );
   const activeTypes = useMemo(() => assetTypes.filter(type => type.isActive !== false), [assetTypes]);
+  const selectedType = isSecurityId(typeDetail) ? listedTypes.find(type => type.id === typeDetail) : undefined;
+  const selectedTypeId = selectedType?.id ?? null;
+  useForgetVanishedSelection(isSecurityId(typeDetail) ? typeDetail : null, Boolean(selectedType), () => setDetail(TYPES_TAB));
+  const splitFocus = useSplitPaneFocus(onTypesTab ? selectedTypeId : selectedAuthorized?.id ?? null);
+  const selectType = (id: string | null) => setDetail(id ? TYPE_PREFIX + id : TYPES_TAB);
   // Stable between renders, so the tree's rows are not redrawn just because the page was.
   const select = useCallback((id: string | null) => { setDetail(id); setAdding(false); }, [setDetail]);
   const treeAssets = useMemo(() => focusId ? descendantsOf(assets, focusId) : assets, [assets, focusId]);
@@ -167,7 +172,8 @@ export function AssetsPage({
   };
 
   return (
-    <div {...splitFocus} className="split-layout" data-has-selection={Boolean(selectedAuthorized)}>
+    <div {...splitFocus} className={onTypesTab ? 'split-layout runs-layout asset-types-layout' : 'split-layout'}
+      data-has-selection={onTypesTab ? Boolean(selectedType) : Boolean(selectedAuthorized)}>
       <PageTabNav label={t('assets.tabs')}
         tabs={[
           { id: 'assets', label: t('assets.tabAssets'), href: hashFor('assets'), count: lazy ? `${assets.length}+` : assets.length },
@@ -182,21 +188,22 @@ export function AssetsPage({
           : undefined} />
 
       {onTypesTab ? (
-        <section className="panel" aria-label={t('assets.tabTypes')}>
-          {canManageTypes && <AssetTypeDefinitionPanel onCreated={async created => {
-            await onRefresh();
-            setOpenTypeId(created.id ?? null);
-          }} />}
-          {(canManageTypes || canHideTypes) && <div className="split-note">
-            <CheckboxField label={t('assetTypes.showHidden')} checked={showHidden} onChange={event => setShowHidden(event.target.checked)} />
-          </div>}
-          <DataTable label={t('assetTypes.tableLabel')}>
+        <div className="split-panes">
+          <section className="panel split-browse" aria-label={t('assets.tabTypes')}>
+            {canManageTypes && <AssetTypeDefinitionPanel onCreated={async created => {
+              await onRefresh();
+              selectType(created.id ?? null);
+            }} />}
+            {(canManageTypes || canHideTypes) && <div className="split-note">
+              <CheckboxField label={t('assetTypes.showHidden')} checked={showHidden} onChange={event => setShowHidden(event.target.checked)} />
+            </div>}
+            <DataTable label={t('assetTypes.tableLabel')}>
               <thead>
                 <tr>
                   <th>{t('assetTypes.colDisplayName')}</th>
                   <th>{t('assetTypes.colKey')}</th>
                   <th>{t('assets.typeCount')}</th>
-                  <th>{t('assetTypes.colSchemaVersion')}</th>
+                  <th className="run-col-secondary">{t('assetTypes.colSchemaVersion')}</th>
                   <th>{t('assetTypes.colStatus')}</th>
                 </tr>
               </thead>
@@ -204,11 +211,19 @@ export function AssetsPage({
                 {listedTypes.map(type => {
                   const count = typeCounts.get(type.id ?? '') ?? 0;
                   const typeName = type.displayName ?? type.key ?? '';
+                  const open = selectedTypeId !== null && selectedTypeId === type.id;
                   return (
-                    <tr key={type.id}>
-                      <td><button type="button" className="asset-select" aria-expanded={openTypeId === type.id}
+                    <tr key={type.id} data-selected={open}
+                      onClick={event => {
+                        // The row is a convenience; the name button stays the keyboard and screen-reader route.
+                        if ((event.target as HTMLElement).closest('button, a')) return;
+                        if (type.id) selectType(type.id);
+                      }}>
+                      <td><button type="button" className="asset-select" data-split-focus-key={type.id}
+                        aria-expanded={open} aria-current={open ? 'true' : undefined}
+                        aria-controls={open ? 'asset-type-details' : undefined}
                         aria-label={t('assetTypes.openDetails', { name: typeName })}
-                        onClick={() => setOpenTypeId(openTypeId === type.id ? null : type.id ?? null)}>
+                        onClick={() => selectType(open ? null : type.id ?? null)}>
                         {type.displayName}</button></td>
                       <td>{type.key}</td>
                       <td>{lazy ? '—' : count > 0
@@ -216,7 +231,7 @@ export function AssetsPage({
                           aria-label={t('assets.showOfType', { count, name: typeName })}
                           onClick={() => showTypeAssets(typeName)}>{count}</button>
                         : 0}</td>
-                      <td>{type.schemaVersion}</td>
+                      <td className="run-col-secondary">{type.schemaVersion}</td>
                       <td><Status value={type.isActive ? 'Active' : 'Hidden'} label={type.isActive ? undefined : t('assetTypes.hidden')} /></td>
                     </tr>
                   );
@@ -224,13 +239,16 @@ export function AssetsPage({
                 {listedTypes.length === 0 && <EmptyRow columns={5}>{t('assets.noTypes')}</EmptyRow>}
               </tbody>
             </DataTable>
-          {listedTypes.filter(type => type.id === openTypeId).map(type => (
-            <AssetTypeDetail key={type.id} type={type} count={typeCounts.get(type.id ?? '') ?? 0}
+          </section>
+          <section className="split-selected" id="asset-type-details" tabIndex={-1} aria-label={t('assetTypes.selected')}>
+            <ActionButton label={t('assetTypes.browse')} className="split-back" onClick={() => selectType(null)} />
+            {selectedType && <AssetTypeDetail key={selectedType.id} type={selectedType}
+              count={typeCounts.get(selectedType.id ?? '') ?? 0}
               countKnown={!lazy} canHide={canHideTypes} canManage={canManageTypes}
-              onChanged={async () => { setOpenTypeId(null); await onRefresh(); }}
-              onShowAssets={showTypeAssets} onClose={() => setOpenTypeId(null)} />
-          ))}
-        </section>
+              onChanged={async () => { selectType(null); await onRefresh(); }}
+              onShowAssets={showTypeAssets} onClose={() => selectType(null)} />}
+          </section>
+        </div>
       ) : (
         <>
           {adding && canAdd && <AssetCreationPanel
