@@ -259,12 +259,11 @@ export function LogicPage({
                     return <tbody key={group.key}>
                       <tr>
                         <td colSpan={canReadRuns ? 4 : 3}>
-                          <button type="button" className="asset-select"
+                          <ActionButton variant="quiet" className="asset-select"
+                            label={`${group.name} · ${group.items.length} configuration${group.items.length === 1 ? '' : 's'}`}
                             aria-expanded={!collapsed || containsSelection}
                             onClick={() => setCollapsedModules(current => current.includes(group.key)
-                              ? current.filter(key => key !== group.key) : [...current, group.key])}>
-                            {group.name} · {group.items.length} configuration{group.items.length === 1 ? '' : 's'}
-                          </button>
+                              ? current.filter(key => key !== group.key) : [...current, group.key])} />
                         </td>
                       </tr>
                       {(!collapsed || containsSelection) && <>
