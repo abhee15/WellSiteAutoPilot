@@ -538,7 +538,7 @@ export const englishMessages = {
   'assets.importFromConnection': 'Import from a connection',
   'assets.noneHint': 'Assets are the wells and equipment logic runs on. Use Add asset if you have permission, or ask an administrator.',
   'logic.tabs': 'Logic section',
-  'logic.tabConfigured': 'Your logic',
+  'logic.tabConfigured': 'Configurations',
   'logic.tabSchedules': 'Schedules',
   'logic.tabModules': 'Modules',
   'moduleGroup.version': 'Module version',
