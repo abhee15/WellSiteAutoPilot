@@ -75,6 +75,7 @@ export function LogicPage({
   const showModules = !showSchedules && canReadCatalog && (modulesRequested || !canReadConfigurations);
   const [creating, setCreating] = useState(Boolean(startAssetId || startViewId));
   const [activityFocused, setActivityFocused] = useState(false);
+  const [collapsedModules, setCollapsedModules] = useState<string[]>([]);
   useEffect(() => { if (startAssetId || startViewId) setCreating(true); }, [startAssetId, startViewId]);
   const prefillAssetId = startAssetId && assets.some(asset => asset.id === startAssetId && asset.isActive)
     ? startAssetId : null;
@@ -89,6 +90,20 @@ export function LogicPage({
     () => filterConfiguredLogic(configuredLogic, configuredCriteria),
     [configuredLogic, configuredCriteria],
   );
+  // Group by the exact referenced module identity, never the display name.
+  // Preserve configuration-level revision, schedule, and run semantics inside each group.
+  const configurationGroups = useMemo(() => {
+    const groups = new Map<string, ConfiguredLogicResponse[]>();
+    for (const configuration of visibleConfigurations) {
+      const key = contextRevision(configuration)?.moduleId || configuration.id || 'unknown';
+      const items = groups.get(key) ?? [];
+      items.push(configuration);
+      groups.set(key, items);
+    }
+    return [...groups].map(([key, items]) => ({
+      key, items, name: modules.find(module => module.moduleId === key)?.displayName || key,
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [visibleConfigurations, modules]);
   // Resolve the grid's visible target names independently from the selected detail.
   // Changing selection must not invalidate names already shown in unrelated table rows.
   const gridTargetIds = useMemo(() => {
@@ -131,10 +146,13 @@ export function LogicPage({
         tabs={[
           ...(canReadConfigurations ? [
             { id: 'configured', label: t('logic.tabConfigured'), href: hashFor('logic'), count: configuredLogic.length },
-            { id: SCHEDULES_TAB, label: t('logic.tabSchedules'), href: hashFor('logic', SCHEDULES_TAB) },
+
           ] : []),
           ...(canReadCatalog ? [
             { id: MODULES_TAB, label: t('logic.tabModules'), href: hashFor('logic', MODULES_TAB), count: moduleGroups.length },
+          ] : []), 
+          ...(canReadConfigurations ? [
+            { id: SCHEDULES_TAB, label: t('logic.tabSchedules'), href: hashFor('logic', SCHEDULES_TAB) },
           ] : []),
         ]}
         activeId={showSchedules ? SCHEDULES_TAB : showModules ? MODULES_TAB : 'configured'}
@@ -218,7 +236,7 @@ export function LogicPage({
       ) : (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabConfigured')}>
-            <PanelHeader title="Configured logic"
+            <PanelHeader title="Configurations"
               count={visibleConfigurations.length} />
             <ConfiguredLogicControls
               criteria={configuredCriteria}
@@ -235,8 +253,22 @@ export function LogicPage({
                     {canReadRuns && <th className="run-col-secondary">{t('configured.colLastRun')}</th>}
                   </tr>
                 </thead>
-                <tbody>
-                  {visibleConfigurations.map(item => (
+                  {configurationGroups.map(group => {
+                    const collapsed = collapsedModules.includes(group.key);
+                    const containsSelection = group.items.some(item => item.id === selectedConfiguredId);
+                    return <tbody key={group.key}>
+                      <tr>
+                        <td colSpan={canReadRuns ? 4 : 3}>
+                          <button type="button" className="asset-select"
+                            aria-expanded={!collapsed || containsSelection}
+                            onClick={() => setCollapsedModules(current => current.includes(group.key)
+                              ? current.filter(key => key !== group.key) : [...current, group.key])}>
+                            {group.name} · {group.items.length} configuration{group.items.length === 1 ? '' : 's'}
+                          </button>
+                        </td>
+                      </tr>
+                      {(!collapsed || containsSelection) && <>
+                    {group.items.map(item => (
                     <tr key={item.id} data-selected={selectedConfiguredId === item.id}
                       onClick={event => {
                         if ((event.target as HTMLElement).closest('button, a')) return;
@@ -259,15 +291,17 @@ export function LogicPage({
                       <td className="run-col-secondary">{activeRevisionLabel(item)}</td>
                       {canReadRuns && <td className="run-col-secondary">{lastRunText(lastRuns.get(item.id ?? ''))}</td>}
                     </tr>
-                  ))}
-                  {visibleConfigurations.length === 0 && (
+                    ))}
+                      </>}
+                    </tbody>;
+                  })}
+                  <tbody>{visibleConfigurations.length === 0 && (
                     <EmptyRow columns={canReadRuns ? 4 : 3} loading={!isLoaded}
                       hint={isLoaded && configuredLogic.length === 0 ? t('configured.noneHint') : undefined}
                       action={isLoaded && configuredLogic.length > 0 ? <ActionButton label={t('views.clearFilters')} onClick={() => setConfiguredCriteria(DEFAULT_CONFIGURED_LOGIC_CRITERIA)} /> : undefined}>
                       {!isLoaded ? t('views.loading') : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
                     </EmptyRow>
-                  )}
-                </tbody>
+                  )}</tbody>
               </DataTable>}
           </section>
           <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabConfigured')}>
