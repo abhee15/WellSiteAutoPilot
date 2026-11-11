@@ -31,6 +31,13 @@ internal static class ResolveChecks
         Check(ForeSiteResolver.ResolveCommand("CasingPressure", ["POLoadSP", "VFDMaxSPM"]).Outcome == ResolveOutcome.NotApplicable, "casing pressure is not writable");
         Check(ForeSiteResolver.ResolveCommand("setpoint:POLoadSP", ["POLoadSP"]).Outcome == ResolveOutcome.Compatible, "a writable set point resolves");
 
+        const string setPoints = """[{"SetPointsList":[{"ElementId":"IdealPF","Description":"Ideal Pump Fillage","UnitKey":"%","OriginalValue":"80","RangeLow":0,"RangeHigh":100,"IsReadOnly":false},{"ElementId":"Locked","OriginalValue":"1","IsReadOnly":true}]}]""";
+        var plan = ForeSiteSetPoints.Plan("776", setPoints, "IdealPF", 1);
+        Check(plan.Allowed && plan.Current == 80 && plan.Proposed == 81, "set point plan adds the delta");
+        Check(!ForeSiteSetPoints.Plan("776", setPoints, "IdealPF", 21).Allowed, "a value beyond the range is refused");
+        Check(!ForeSiteSetPoints.Plan("776", setPoints, "Locked", 1).Allowed, "a read-only set point is refused");
+        Check(!ForeSiteSetPoints.Plan("776", setPoints, "CasingPressure", 1).Allowed, "casing pressure is not a set point");
+
         var url = Environment.GetEnvironmentVariable("FORESITE_BASE_URL");
         if (string.IsNullOrWhiteSpace(url) || Environment.GetEnvironmentVariable("WSA_LIVE_RESOLVE") != "1")
             return;
@@ -39,6 +46,12 @@ internal static class ResolveChecks
         var provider = new ForeSiteResolveProvider(new ForeSiteSession(client));
         foreach (var well in new[] { "776", "1596" })
         {
+            try
+            {
+                var live = await provider.PlanSetPointChangeAsync(well, "IdealPF", 1);
+                Console.WriteLine($"LIVE   DRY-RUN {live.SetPoint}: {live.Current} -> {live.Proposed} {live.Unit} allowed={live.Allowed} {live.Refusal}");
+            }
+            catch (Exception ex) { Console.WriteLine($"LIVE   DRY-RUN failed: {ex.Message}"); }
             Console.WriteLine($"LIVE well {well}: {(await provider.GetCatalogAsync(well)).Count} surveillance points with values");
             foreach (var input in new[] { "Latitude", "Longitude", "CasingPressure", "TubingPressure", "PumpFillage" })
             {

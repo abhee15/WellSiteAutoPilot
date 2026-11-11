@@ -113,6 +113,56 @@ public static class ForeSiteResolver
     }
 }
 
+/// <summary>A dry-run write: what would be sent to the controller, with the before and after values. Nothing is sent.</summary>
+public sealed record SetPointWritePlan(
+    string WellId, string SetPoint, string Description, string Unit, decimal Current, decimal Proposed,
+    decimal? RangeLow, decimal? RangeHigh, bool Allowed, string? Refusal);
+
+public static class ForeSiteSetPoints
+{
+    /// <summary>Writable set points (not read-only, not hidden) from an AllSavedSetPointParams response.</summary>
+    public static IReadOnlyList<(string Id, string Description, string Unit, string Value, decimal? Low, decimal? High)> Parse(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var list = new List<(string, string, string, string, decimal?, decimal?)>();
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            return list;
+        foreach (var group in document.RootElement.EnumerateArray())
+        {
+            if (!group.TryGetProperty("SetPointsList", out var points) || points.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var p in points.EnumerateArray())
+            {
+                if (Flag(p, "IsReadOnly") || Flag(p, "IsHidden"))
+                    continue;
+                list.Add((Text(p, "ElementId"), Text(p, "Description"), Text(p, "UnitKey"), Text(p, "OriginalValue"),
+                    Number(p, "RangeLow"), Number(p, "RangeHigh")));
+            }
+        }
+        return list;
+    }
+
+    public static SetPointWritePlan Plan(string wellId, string json, string setPoint, decimal delta)
+    {
+        var found = Parse(json).Where(p => string.Equals(p.Id, setPoint, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (found.Count == 0)
+            return new SetPointWritePlan(wellId, setPoint, "", "", 0, 0, null, null, false, $"'{setPoint}' is not a writable set point on this well.");
+        var p = found[0];
+        if (!decimal.TryParse(p.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var current))
+            return new SetPointWritePlan(wellId, p.Id, p.Description, p.Unit, 0, 0, p.Low, p.High, false, $"'{p.Id}' is not numeric ('{p.Value}').");
+        var proposed = current + delta;
+        var inRange = (p.Low is null || proposed >= p.Low) && (p.High is null || proposed <= p.High);
+        return new SetPointWritePlan(wellId, p.Id, p.Description, p.Unit, current, proposed, p.Low, p.High, inRange,
+            inRange ? null : $"{proposed} is outside the allowed range {p.Low}..{p.High}.");
+    }
+
+    private static bool Flag(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+    private static string Text(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var v) ? (v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : v.ToString()) : "";
+    private static decimal? Number(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetDecimal(out var d) ? d : null;
+}
+
 /// <summary>Catalog, Resolve and Read over live ForeSite wells.</summary>
 public sealed class ForeSiteResolveProvider(ForeSiteSession session) : IAssetCatalogProvider, IResolveProvider
 {
@@ -159,6 +209,19 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session) : IAssetCat
     public async ValueTask<ResolveResult> ResolveAsync(
         string assetExternalId, string input, ResolveBasis? basis = null, CancellationToken cancellationToken = default) =>
         ForeSiteResolver.Resolve(input, await LoadAsync(assetExternalId, cancellationToken), basis);
+
+    /// <summary>Dry-run only: reads the saved set point and plans the change. Sending is a separate, approved step.</summary>
+    public async Task<SetPointWritePlan> PlanSetPointChangeAsync(
+        string wellId, string setPoint, decimal delta, CancellationToken cancellationToken = default)
+    {
+        if (!long.TryParse(wellId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
+            throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
+        using var response = await session.GetAsync(
+            $"Surveillance/Well/AllSavedSetPointParams?WellId={id}&scanOption=0", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new ForeSiteMeasurementException("FORESITE_SETPOINTS_UNAVAILABLE");
+        return ForeSiteSetPoints.Plan(wellId, await response.Content.ReadAsStringAsync(cancellationToken), setPoint, delta);
+    }
 
     public async ValueTask<EngineeringValue> ReadAsync(
         string assetExternalId, ResolveCandidate candidate, CancellationToken cancellationToken = default)
