@@ -44,8 +44,10 @@ def probe(target):
     }""")
 
 def wheel_to_end(page, target):
-    context = page.locator('.recommendations-control-context')
-    # Hover actual visible content; hovering the entire tall container can scroll it programmatically.
+    # Wheel over the inner list when it owns scrolling, otherwise the surrounding context.
+    # A wheel over the header cannot scroll the independently scrollable commands list.
+    inner = page.locator('.control-actions-list')
+    context = inner if inner.count() and inner.evaluate('e => e.scrollHeight > e.clientHeight + 1') else page.locator('.recommendations-control-context')
     box = context.bounding_box()
     page.mouse.move(box['x'] + min(80, box['width'] / 2), max(100, min(box['y'] + 80, page.viewport_size['height'] - 80)))
     for _ in range(3):
