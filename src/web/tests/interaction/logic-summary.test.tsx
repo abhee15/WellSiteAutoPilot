@@ -63,10 +63,10 @@ it('a module explains what it does, what it needs and what uses it', async () =>
   expect(panel.textContent).toContain('Pressure watch');
 });
 
-it('Your logic and Modules are addressable navigation links beside the selection pane', async () => {
+it('Configurations and Modules are addressable navigation links beside the selection pane', async () => {
   fixture(['configured-logic.read', 'logic.read']);
   render(<App />);
-  const configured = await screen.findByRole('link', { name: /Your logic/ });
+  const configured = await screen.findByRole('link', { name: /Configurations/ });
   expect(configured.getAttribute('aria-current')).toBe('page');
   expect(configured.getAttribute('href')).toBe('#logic');
   expect(screen.getByText('Choose logic to see where it stands, or configure new logic for your assets.')).toBeTruthy();
