@@ -49,9 +49,18 @@ public sealed class CygNetResolveProvider(CygNetProviderOptions options) : IAsse
     }
 
     public async ValueTask<ResolveResult> ResolveAsync(
-        string assetExternalId, string input, CancellationToken cancellationToken = default)
+        string assetExternalId, string input, ResolveBasis? basis = null, CancellationToken cancellationToken = default)
     {
         var catalog = await GetCatalogAsync(assetExternalId, cancellationToken);
-        return CygNetResolver.Resolve(input, options.Quantities, catalog.Select(c => c.Name).ToList());
+        var result = CygNetResolver.Resolve(input, options.Quantities, catalog.Select(c => c.Name).ToList());
+        return basis is null || result.Candidates.Any(c => c.Basis == basis) ? result
+            : ResolveResult.Failed(ResolveOutcome.NotApplicable, $"CygNet offers '{input}' only as a current value, not '{basis}'.");
     }
+
+    public async ValueTask<EngineeringValue> ReadAsync(
+        string assetExternalId, ResolveCandidate candidate, CancellationToken cancellationToken = default) =>
+        await new CygNetCurrentDataProvider(options).GetCurrentAsync(
+            assetExternalId,
+            options.Quantities.First(q => string.Equals(q.Value.Udc, candidate.ReadPlan, StringComparison.OrdinalIgnoreCase)).Key,
+            cancellationToken);
 }

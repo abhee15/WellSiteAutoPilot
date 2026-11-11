@@ -143,6 +143,7 @@ public enum ResolveOutcome
 /// <summary>How a candidate value relates to time; freshness is judged per basis.</summary>
 public enum ResolveBasis
 {
+    Static,
     Current,
     DailyAverage,
     TestSample,
@@ -174,9 +175,16 @@ public interface IAssetCatalogProvider
 
 public interface IResolveProvider
 {
+    /// <param name="basis">The basis the services team approved, or null to let the provider list every candidate.</param>
     ValueTask<ResolveResult> ResolveAsync(
         string assetExternalId,
         string input,
+        ResolveBasis? basis = null,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<EngineeringValue> ReadAsync(
+        string assetExternalId,
+        ResolveCandidate candidate,
         CancellationToken cancellationToken = default);
 }
 
