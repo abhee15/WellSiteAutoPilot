@@ -44,11 +44,29 @@ def probe(target):
     }""")
 
 def wheel_to_end(page, target):
-    context = page.locator('.recommendations-control-context')
-    # Hover actual visible content; hovering the entire tall container can scroll it programmatically.
-    box = context.bounding_box()
-    page.mouse.move(box['x'] + min(80, box['width'] / 2), max(100, min(box['y'] + 80, page.viewport_size['height'] - 80)))
-    for _ in range(3):
+    # The command queue and its containing workspace can both scroll. Wheel the
+    # outer context first to reveal the list's lower edge, then wheel the inner
+    # list to reach its last row. Neither scroll is a programmatic workaround.
+    outer = page.locator('.recommendations-control-context')
+    inner = page.locator('.control-actions-list')
+    nested = inner.count() and inner.evaluate('e => e.scrollHeight > e.clientHeight + 1')
+    if nested:
+        box = outer.bounding_box()
+        page.mouse.move(box['x'] + min(40, box['width'] / 2),
+                        max(box['y'] + 10, min(box['y'] + 40, page.viewport_size['height'] - 40)))
+        page.mouse.wheel(0, 100000)
+        page.wait_for_timeout(150)
+    context = inner if nested else outer
+    for _ in range(5):
+        box = context.bounding_box()
+        # Aim inside the visible intersection with the viewport and the outer
+        # scrollport, not at a potentially clipped part of the inner list.
+        outer_box = outer.bounding_box()
+        top = max(box['y'], outer_box['y'], 0)
+        bottom = min(box['y'] + box['height'], outer_box['y'] + outer_box['height'],
+                     page.viewport_size['height'])
+        assert bottom > top + 2, ('scroll target clipped', top, bottom)
+        page.mouse.move(box['x'] + min(80, box['width'] / 2), (top + bottom) / 2)
         page.mouse.wheel(0, 100000)
         page.wait_for_timeout(150)
         state = probe(target)
