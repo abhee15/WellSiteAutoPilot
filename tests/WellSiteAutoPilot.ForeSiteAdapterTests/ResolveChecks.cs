@@ -60,6 +60,9 @@ internal static class ResolveChecks
         Check(ForeSiteSetPoints.TryNumber("04-Idle Time", out var code) && code == 4 && ForeSiteSetPoints.TryNumber("1-Fixed", out code) && code == 1
             && ForeSiteSetPoints.TryNumber("-5", out code) && code == -5 && !ForeSiteSetPoints.TryNumber("Auto", out _) && !ForeSiteSetPoints.TryNumber("-Auto", out _),
             "an enumerated set point reads as its code, and plain text is still refused");
+        Check(ForeSiteResolver.CountActiveAlarms("""[{"AlarmType":{"IsActive":true,"IsAlarmManuallySuppressed":null}},{"AlarmType":{"IsActive":true,"IsAlarmManuallySuppressed":true}},{"AlarmType":{"IsActive":false}},{"Id":3}]""") == 1
+            && ForeSiteResolver.CountActiveAlarms("[]") == 0 && ForeSiteResolver.CountActiveAlarms("{}") is null && ForeSiteResolver.CountActiveAlarms("nope") is null,
+            "active alarms are counted unless cleared or manually suppressed, and an unreadable answer is not zero");
         const string vsdJson = """[{"SetPointsList":[{"ElementId":"SloSpeed","UnitKey":"Hz","OriginalValue":"25","IsReadOnly":false}]}]""";
         Check(ForeSiteResolver.IsSetPointInput("VfdMinFrequency") && ForeSiteResolver.ResolveSetPoint("VfdMinFrequency", vsdJson).Candidates[0].ReadPlan == "setpoint|SloSpeed|Hz",
             "a portable quantity finds whichever ForeSite element id the controller family uses");

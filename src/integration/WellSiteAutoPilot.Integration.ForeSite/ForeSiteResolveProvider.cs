@@ -63,6 +63,34 @@ public static class ForeSiteResolver
         ]
     };
 
+    public const string ActiveAlarmCount = "ActiveAlarmCount";
+
+    /// <summary>Counts the alarms ForeSite reports as active and not manually suppressed, from an Alarms/CurrentAlarms response.</summary>
+    public static int? CountActiveAlarms(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                return null;
+            var count = 0;
+            foreach (var alarm in document.RootElement.EnumerateArray())
+            {
+                if (alarm.ValueKind != JsonValueKind.Object || !alarm.TryGetProperty("AlarmType", out var type) || type.ValueKind != JsonValueKind.Object)
+                    continue;
+                var active = !type.TryGetProperty("IsActive", out var a) || a.ValueKind != JsonValueKind.False;
+                var suppressed = type.TryGetProperty("IsAlarmManuallySuppressed", out var s) && s.ValueKind == JsonValueKind.True;
+                if (active && !suppressed)
+                    count++;
+            }
+            return count;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public const string SurveillancePrefix = "surveillance:";
     public const string SetPointPrefix = "setpoint:";
 
@@ -384,7 +412,11 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
 
     public async ValueTask<ResolveResult> ResolveAsync(
         string assetExternalId, string input, ResolveBasis? basis = null, CancellationToken cancellationToken = default) =>
-        ForeSiteResolver.IsSetPointInput(input)
+        string.Equals(input, ForeSiteResolver.ActiveAlarmCount, StringComparison.OrdinalIgnoreCase)
+            ? (basis is null or ResolveBasis.Current
+                ? ResolveResult.Compatible(new ResolveCandidate("foresite:alarms.active", ResolveBasis.Current, "count of active alarms (Alarms/CurrentAlarms)", "alarms|count|"))
+                : ResolveResult.Failed(ResolveOutcome.NotApplicable, $"ForeSite only reports the alarms active now, not a {basis} reading."))
+        : ForeSiteResolver.IsSetPointInput(input)
             ? (basis is null or ResolveBasis.Saved
                 ? ForeSiteResolver.ResolveSetPoint(input, await SavedSetPointsAsync(assetExternalId, cancellationToken))
                 : ResolveResult.Failed(ResolveOutcome.NotApplicable, $"ForeSite only holds saved values for set point {input}, not a {basis} reading."))
@@ -425,6 +457,18 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
         string assetExternalId, ResolveCandidate candidate, CancellationToken cancellationToken = default)
     {
         var parts = candidate.ReadPlan?.Split('|') ?? throw new ForeSiteMeasurementException("FORESITE_READ_PLAN_INVALID");
+        if (parts[0] == "alarms")
+        {
+            if (!long.TryParse(assetExternalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
+                throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
+            using var alarms = await Retry(() => session.GetAsync($"Alarms/CurrentAlarms/{wellId}", cancellationToken));
+            if (!alarms.IsSuccessStatusCode)
+                throw new ForeSiteMeasurementException("FORESITE_ALARMS_UNAVAILABLE");
+            var count = ForeSiteResolver.CountActiveAlarms(await alarms.Content.ReadAsStringAsync(cancellationToken))
+                ?? throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_INVALID");
+            var at = DateTimeOffset.UtcNow;
+            return new EngineeringValue("ActiveAlarmCount", count, "", at, "Good", candidate.Source, at, "Retrieved");
+        }
         if (parts[0] == "setpoint")
         {
             var saved = ForeSiteSetPoints.Parse(await SavedSetPointsAsync(assetExternalId, cancellationToken), includeReadOnly: true)
