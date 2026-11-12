@@ -50,7 +50,10 @@ public static class AuthoringService
 
         var traces = new List<InputTrace>();
         foreach (var input in draft.Inputs)
-            traces.Add(live ? await ResolveInputAsync(input, bindings, inputs!, externalId!, now, parameterValues, site ?? TimeZoneInfo.Utc, cancellationToken) : FromSample(input, samples));
+            traces.Add(!live ? FromSample(input, samples)
+                : samples is not null && samples.TryGetValue(input.Name, out var pin) && !string.IsNullOrWhiteSpace(pin)
+                    ? PinnedFromSample(input, samples)
+                    : await ResolveInputAsync(input, bindings, inputs!, externalId!, now, parameterValues, site ?? TimeZoneInfo.Utc, cancellationToken));
 
         var run = DraftEvaluator.Evaluate(draft, traces, parameters, now) with { Mode = live ? "live" : "sample", ExternalId = live ? externalId : null };
         if (!live)
@@ -58,13 +61,17 @@ public static class AuthoringService
         if (run.Outcome != ModuleOutcome.Runs)
             return run;
 
+        var pinned = run.Inputs.Where(i => i.Resolution == "Pinned").Select(i => i.Name).ToList();
         var outputs = new List<OutputResult>();
         foreach (var output in run.Outputs)
         {
             var spec = draft.Outputs.First(o => o.Name == output.Name);
-            outputs.Add(output.Kind == "setpoint" && output.Proposed == true
+            var result = output.Kind == "setpoint" && output.Proposed == true
                 ? await PlanAsync(output, spec, bindings, inputs!, externalId!, cancellationToken)
-                : output);
+                : output;
+            outputs.Add(pinned.Count > 0 && result.Kind == "setpoint"
+                ? result with { Checks = [.. result.Checks ?? [], new ProposalCheck("Pinned inputs", "Info", $"What-if only: {string.Join(", ", pinned)} use typed values, not live reads. A real change needs live reads.")] }
+                : result);
         }
         return run with { Outputs = outputs };
     }
@@ -108,6 +115,12 @@ public static class AuthoringService
                 Checks = [.. output.Checks ?? [], new ProposalCheck("Controller", "Fail", "The set point could not be checked against the controller: " + error.Message)]
             };
         }
+    }
+
+    private static InputTrace PinnedFromSample(DraftInput input, IReadOnlyDictionary<string, string>? samples)
+    {
+        var trace = FromSample(input, samples);
+        return trace.Resolution == "Sample" ? trace with { Resolution = "Pinned", Source = "pinned" } : trace;
     }
 
     internal static InputTrace FromSample(DraftInput input, IReadOnlyDictionary<string, string>? samples)

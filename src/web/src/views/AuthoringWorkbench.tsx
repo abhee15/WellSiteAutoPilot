@@ -63,9 +63,10 @@ export function AuthoringWorkbench() {
 
   const connection = connections?.find(item => item.id === connectionId) ?? null;
   const live = connection !== null && assetId !== '';
+  const pins = useMemo(() => Object.fromEntries(Object.entries(samples).filter(([, value]) => value.trim() !== '')), [samples]);
   const target = useMemo<EvaluateTarget>(() => live
-    ? { connectionId: connection.id, externalId: assetId, parameters: overrides, bindings }
-    : { samples, parameters: overrides, bindings }, [live, connection, assetId, overrides, samples, bindings]);
+    ? { connectionId: connection.id, externalId: assetId, samples: pins, parameters: overrides, bindings }
+    : { samples, parameters: overrides, bindings }, [live, connection, assetId, overrides, samples, pins, bindings]);
   const currentKey = useMemo(() => requestKey(draft, target), [draft, target]);
 
   useEffect(() => {
@@ -303,7 +304,8 @@ export function AuthoringWorkbench() {
               {shownAssets.map(item => <option key={item.externalId} value={item.externalId}>{item.displayName} [{item.externalId}]</option>)}
             </SelectField>
           </>}
-          {!live && draft.inputs.map(input => <TextField key={input.name} label={`Value for ${input.name}`} value={samples[input.name] ?? ''}
+          {Object.keys(pins).length > 0 && live && <p className="authoring-pinned" role="status"><strong>Pinned:</strong> {Object.keys(pins).join(", ")} use typed values, not live reads. Clear a value to read it live again.</p>}
+          {draft.inputs.map(input => <TextField key={input.name} label={live ? `Pin ${input.name} (optional)` : `Value for ${input.name}`} value={samples[input.name] ?? ''}
             helper={input.unit ? `A number in ${input.unit}, or with its own unit, such as 20 kPa.` : undefined}
             onChange={event => setSamples({ ...samples, [input.name]: event.target.value })} />)}
           {draft.parameters.map(parameter => <TextField key={parameter.name} label={`Try ${parameter.name} (saved: ${parameter.value}${parameter.unit ? ` ${parameter.unit}` : ''})`}

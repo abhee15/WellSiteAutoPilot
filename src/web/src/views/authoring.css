@@ -38,3 +38,4 @@
 .authoring-rows { margin: 4px 0 0; padding-left: 1.4em; font-size: 0.85em; }
 .authoring-rows li[data-state='Fail'] code { opacity: 0.7; }
 .authoring-read { display: inline-block; margin-right: 12px; }
+.authoring-pinned { border-left: 4px solid currentColor; padding: 4px 8px; margin: 4px 0; }

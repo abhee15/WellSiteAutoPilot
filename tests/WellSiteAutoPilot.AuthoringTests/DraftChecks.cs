@@ -57,6 +57,10 @@ internal static class DraftChecks
         var proposal = run.Outputs.Single(o => o.Name == "IdleTime_proposal");
         Check.That(proposal.Proposed == false && proposal.Checks!.Any(c => c.Name == "Evidence quality" && c.Status == "Fail"), "a proposal resting on saved or uncertain readings is refused: writing needs a live read");
 
+        var pinnedRun = await AuthoringService.EvaluateAsync(draft, fake, "1596", new Dictionary<string, string> { ["Cycles"] = "5" }, null, null, new FixedClock(FakeInputs.Now));
+        Check.That(pinnedRun.Inputs.First(i => i.Name == "Cycles") is { Resolution: "Pinned" } pin && pin.Value.Number == 5m, "a typed value pins one input on a live run");
+        Check.That(pinnedRun.Outputs.Where(o => o.Kind == "setpoint").All(o => o.Checks!.Any(c => c.Name == "Pinned inputs")), "a what-if with a pinned input says it is not a live read");
+
         var gap = new FakeInputs(answers) { History = (q, end) => q == "InferredProductionYesterday" && end.Day == 10 ? FakeInputs.Samples(q, "bbl/d", false) : Day(q, end) };
         var missing = await AuthoringService.EvaluateAsync(draft, gap, "1596", null, null, null, new FixedClock(FakeInputs.Now));
         Check.That(missing.Outcome != ModuleOutcome.Runs && !missing.Outputs[0].Value.Available, "no history for the day before stops the run instead of counting as zero");
