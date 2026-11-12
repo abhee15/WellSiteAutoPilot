@@ -1,12 +1,15 @@
 import { ConnectionsError, json, send } from './connections';
 import type { SetPointPlan } from './connections';
 
+export type InputHistory = { daysBack: number; atLocal: string; windowMinutes?: number; reduce?: string };
 export type DraftInput = {
+  history?: InputHistory | null;
   name: string; quantity: string; unit?: string | null; basis?: string | null; maxAgeSeconds?: number | null;
   allowUncertain?: boolean; required: boolean; role?: string | null; label?: string | null; validMin?: number | null; validMax?: number | null;
 };
 export type DraftParameter = { name: string; value: string; unit?: string | null; label?: string | null; min?: number | null; max?: number | null };
-export type DraftStep = { name: string; expression: string; label?: string | null };
+export type DraftRule = { when: string; then: string; reason?: string | null };
+export type DraftStep = { name: string; expression: string; label?: string | null; rules?: DraftRule[] | null };
 export type OutputLimits = { min?: number | null; max?: number | null; maxStep?: number | null };
 export type DraftOutput = {
   name: string; expression: string; kind: 'value' | 'setpoint' | 'recommendation'; unit?: string | null; target?: string | null;
@@ -35,7 +38,7 @@ export type InputTrace = {
   reasons: string[]; candidates: { source: string; basis: string; description: string }[]; required: boolean;
   ageSeconds?: number | null; maxAgeSeconds?: number | null; timestampKind?: string | null; quantity?: string | null;
 };
-export type NodeResult = { name: string; value: Val; expression: string | null; dependsOn: string[] };
+export type NodeResult = { name: string; value: Val; expression: string | null; dependsOn: string[]; matched?: string | null };
 export type ProposalCheck = { name: string; status: 'Pass' | 'Fail' | 'Hold' | 'Info'; detail: string };
 export type OutputResult = {
   name: string; kind: string; value: Val; unit: string | null; target: string | null; expression: string; plan: SetPointPlan | null;

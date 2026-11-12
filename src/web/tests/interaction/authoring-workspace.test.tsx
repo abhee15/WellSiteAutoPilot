@@ -67,3 +67,28 @@ it('tests a module against typed values and marks the evidence stale after an ed
   await screen.findByText(/results are out of date/);
   await waitFor(() => expect(vi.mocked(api.validateDraft).mock.calls.some(call => call[0].steps[0].expression === 'Casing >= Limit')).toBe(true));
 });
+
+it('edits a rule table row and a history window, and shows which rule decided', async () => {
+  const gated: ModuleDraft = {
+    ...draft,
+    inputs: [{ ...draft.inputs[0], history: { daysBack: 0, atLocal: 'now', windowMinutes: 240, reduce: 'avg' } }],
+    steps: [{ name: 'IsHigh', expression: 'false', rules: [{ when: 'Casing > Limit', then: 'true', reason: 'Above the limit' }] }],
+  };
+  vi.mocked(api.loadStarters).mockResolvedValue([{ id: 'gated', title: 'Gated', summary: '', draft: gated }]);
+  vi.mocked(connections.loadConnections).mockResolvedValue([]);
+  vi.mocked(api.validateDraft).mockResolvedValue(analysis('one'));
+  vi.mocked(api.evaluateDraft).mockResolvedValue({ ...run, steps: [{ ...run.steps[0], matched: 'Rule 1: Above the limit' }] });
+  render(<AuthoringWorkbench />); const user = userEvent.setup();
+
+  await screen.findByText('The module is valid. Calculation order: IsHigh.');
+  await user.click(screen.getAllByRole('button', { name: /Casing/ })[0]);
+  expect((screen.getByLabelText(/^Ends at/) as HTMLInputElement).value).toBe('now');
+  fireEvent.change(screen.getByLabelText('Window (minutes)'), { target: { value: '120' } });
+  await waitFor(() => expect(vi.mocked(api.validateDraft).mock.calls.some(call => call[0].inputs[0].history?.windowMinutes === 120)).toBe(true));
+
+  await user.click(screen.getAllByRole('button', { name: /IsHigh/ })[0]);
+  fireEvent.change(screen.getByLabelText('Row 1: when'), { target: { value: 'Casing >= Limit' } });
+  await waitFor(() => expect(vi.mocked(api.validateDraft).mock.calls.some(call => call[0].steps[0].rules?.[0].when === 'Casing >= Limit')).toBe(true));
+  await user.click(screen.getByRole('button', { name: 'Run test' }));
+  await screen.findByText('Rule 1: Above the limit');
+});

@@ -1,17 +1,25 @@
 import { ActionButton } from '../components/ActionButton';
 import { CheckboxField, SelectField, TextAreaField, TextField } from '../components/FormFields';
 import type { CatalogPoint } from './connections';
-import type { Analysis, BindingSource, ModuleDraft, ModuleRun, OutputLimits } from './authoring';
+import type { Analysis, BindingSource, DraftRule, InputHistory, ModuleDraft, ModuleRun, OutputLimits } from './authoring';
 import { showAge, showVal } from './authoring';
 import { kindLabel, nodeKindOf, type NodeKind } from './authoringDraft';
 
-const bases = ['', 'Static', 'Current', 'DailyAverage', 'TestSample', 'History'];
+const bases = ['', 'Static', 'Current', 'DailyAverage', 'TestSample', 'History', 'Saved'];
+const reductions = ['last', 'first', 'avg', 'min', 'max'];
 const quantities = ['Latitude', 'Longitude', 'CasingPressure', 'TubingPressure', 'PumpSpm', 'PumpFillage'];
 
 type Props = {
   draft: ModuleDraft; kind: NodeKind; name: string; analysis: Analysis | null; run: ModuleRun | null;
   points: CatalogPoint[] | null; sources: BindingSource[]; onSources: (sources: BindingSource[]) => void;
   onChange: (patch: Record<string, unknown>) => void; onRemove: () => void; onSelect: (name: string) => void;
+};
+
+const move = <T,>(items: T[], from: number, to: number): T[] => {
+  const next = [...items];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
 };
 
 const number = (text: string): number | null => text.trim() === '' || Number.isNaN(Number(text)) ? null : Number(text);
@@ -57,6 +65,9 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
         onChange={event => onChange({ required: event.target.checked })} />
       <CheckboxField label="Accept readings of uncertain quality" checked={input.allowUncertain === true}
         onChange={event => onChange({ allowUncertain: event.target.checked })} />
+      <CheckboxField label="Read from history instead of the current value (a day, a time of day, or the last few hours)" checked={!!input.history}
+        onChange={event => onChange({ history: event.target.checked ? { daysBack: 0, atLocal: 'now', windowMinutes: 60, reduce: 'last' } : null })} />
+      {input.history && <HistoryFields history={input.history} error={fieldProblem(/history|window|time of day|days back/i)} onChange={history => onChange({ history })} />}
       <fieldset className="authoring-limits">
         <legend>Readings this input trusts</legend>
         <TextField label="Smallest valid value" value={input.validMin?.toString() ?? ''} onChange={event => onChange({ validMin: number(event.target.value) })} />
@@ -101,9 +112,11 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
       </fieldset>
     </>}
 
-    {(kind === 'step' || kind === 'output') && <TextAreaField label={output?.kind === 'setpoint' ? 'New set point value (expression)' : output?.kind === 'recommendation' ? 'Recommend a review when (expression)' : 'Expression'}
+    {(kind === 'step' || kind === 'output') && <TextAreaField label={kind === 'step' && (node as { rules?: DraftRule[] | null }).rules?.length ? 'Otherwise (expression)' : output?.kind === 'setpoint' ? 'New set point value (expression)' : output?.kind === 'recommendation' ? 'Recommend a review when (expression)' : 'Expression'}
       value={(node as { expression: string }).expression} rows={3} onChange={event => onChange({ expression: event.target.value })}
       helper="Use input, parameter and calculation names. + - * / % comparisons && || !, and if(), min(), max(), abs(), round(), avg(), clamp(), coalesce(), has()." />}
+
+    {kind === 'step' && <RuleRows rules={(node as { rules?: DraftRule[] | null }).rules ?? []} onChange={rules => onChange({ rules: rules.length > 0 ? rules : null })} />}
 
     {output && <>
       <SelectField label="What it does" value={output.kind} onChange={event => onChange({ kind: event.target.value })}>
@@ -145,4 +158,41 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
     </dl>
     <div className="connection-actions"><ActionButton label={`Remove ${kindLabel[kind].toLowerCase()}`} variant="quiet" onClick={onRemove} /></div>
   </div>;
+}
+
+function HistoryFields({ history, error, onChange }: { history: InputHistory; error?: string; onChange: (history: InputHistory) => void }) {
+  const set = (patch: Partial<InputHistory>) => onChange({ ...history, ...patch });
+  return <fieldset className="authoring-limits">
+    <legend>History window</legend>
+    <TextField label="Ends at (HH:mm site time, a parameter name, or now)" value={history.atLocal} error={error}
+      onChange={event => set({ atLocal: event.target.value })}
+      helper="Use now for the last few hours. A time of day or a parameter such as GaugeOff is read in the site's time zone, never the server's." />
+    <TextField label="Days back" value={String(history.daysBack)} onChange={event => set({ daysBack: number(event.target.value) ?? 0 })}
+      helper="0 is today, 1 is yesterday. Not used when the window ends now." />
+    <TextField label="Window (minutes)" value={String(history.windowMinutes ?? 10)} onChange={event => set({ windowMinutes: number(event.target.value) ?? 10 })}
+      helper="Longer than the sampling interval, or the window can come back empty. An empty or cut-off window stops the module rather than counting as zero." />
+    <SelectField label="Reduce the window to one value by" value={history.reduce ?? 'last'} onChange={event => set({ reduce: event.target.value })}>
+      {reductions.map(item => <option key={item} value={item}>{item}</option>)}
+    </SelectField>
+  </fieldset>;
+}
+
+/** A rule table: rows are tried top to bottom and the first true row decides; the expression is what applies when none match. */
+function RuleRows({ rules, onChange }: { rules: DraftRule[]; onChange: (rules: DraftRule[]) => void }) {
+  const set = (index: number, patch: Partial<DraftRule>) => onChange(rules.map((rule, at) => at === index ? { ...rule, ...patch } : rule));
+  return <fieldset className="authoring-limits authoring-rules">
+    <legend>Rules (first true row decides)</legend>
+    {rules.map((rule, index) => <div key={index} className="authoring-rule">
+      <TextField label={`Row ${index + 1}: when`} value={rule.when} onChange={event => set(index, { when: event.target.value })} />
+      <TextField label={`Row ${index + 1}: then`} value={rule.then} onChange={event => set(index, { then: event.target.value })} />
+      <TextField label={`Row ${index + 1}: why`} value={rule.reason ?? ''} onChange={event => set(index, { reason: event.target.value || null })}
+        helper="Shown with the result so a person can see why." />
+      <div className="connection-actions">
+        <ActionButton label="Up" variant="quiet" aria-label={`Move row ${index + 1} up`} disabled={index === 0} onClick={() => onChange(move(rules, index, index - 1))} />
+        <ActionButton label="Down" variant="quiet" aria-label={`Move row ${index + 1} down`} disabled={index === rules.length - 1} onClick={() => onChange(move(rules, index, index + 1))} />
+        <ActionButton label="Remove" variant="quiet" aria-label={`Remove row ${index + 1}`} onClick={() => onChange(rules.filter((_, at) => at !== index))} />
+      </div>
+    </div>)}
+    <div className="connection-actions"><ActionButton label="Add rule" variant="secondary" onClick={() => onChange([...rules, { when: '', then: '', reason: null }])} /></div>
+  </fieldset>;
 }

@@ -58,7 +58,7 @@ export function AuthoringResults({ run, stale, onSelect }: { run: ModuleRun; sta
       <table className="authoring-table">
         <thead><tr><th scope="col">Step</th><th scope="col">Expression</th><th scope="col">Value</th></tr></thead>
         <tbody>{run.steps.map(step => <tr key={step.name}>
-          <th scope="row">{pick(step.name)}</th><td><code>{step.expression}</code></td><td>{showVal(step.value)}</td>
+          <th scope="row">{pick(step.name)}</th><td><code>{step.expression}</code></td><td>{showVal(step.value)}{step.matched && <small className="authoring-why"> {step.matched}</small>}</td>
         </tr>)}</tbody>
       </table>
     </>}
