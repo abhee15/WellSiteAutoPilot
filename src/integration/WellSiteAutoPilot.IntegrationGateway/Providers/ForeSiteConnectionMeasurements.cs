@@ -39,7 +39,7 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
                 return new ResolvePreview(result, null, null);
             try { return new ResolvePreview(result, await provider.ReadAsync(request.ExternalId, result.Candidates[0], session.Token), null); }
             catch (ForeSiteMeasurementException error) { return new ResolvePreview(result, null, error.Code); }
-        }, cancellationToken);
+        }, cancellationToken, budgetSeconds: ForeSiteResolver.IsSetPointInput(request.Input) ? 60 : 6);
     }
 
     public Task<IReadOnlyList<CatalogPoint>> PointsAsync(ResolveRequest request, CancellationToken cancellationToken)
