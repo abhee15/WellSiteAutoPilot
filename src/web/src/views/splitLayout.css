@@ -136,10 +136,21 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
   text-align: start;
 }
 
+.configuration-list .status-indicator {
+  overflow-wrap: normal;
+}
+
 .configuration-list .configuration-group .ui-action-button svg {
   flex-shrink: 0;
 }
 
 @media (width <= 40em) {
   .configuration-list .run-col-secondary { display: none; }
+  .logic-layout > .tab-bar { flex-wrap: wrap; }
+  .logic-layout > .tab-bar > .tab-strip { flex-basis: 100%; }
+  .logic-layout > .tab-bar .tab-strip-item { padding-inline: var(--space-12); }
+  .logic-layout > .tab-bar > .tab-bar-action {
+    margin-inline-start: auto;
+    padding-bottom: var(--space-4);
+  }
 }

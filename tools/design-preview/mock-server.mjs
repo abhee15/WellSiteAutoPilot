@@ -291,7 +291,8 @@ http.createServer(async (req, res) => {
   if (config && configResource[2] === 'activity' && req.method === 'GET') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ activeRevisionId: config.activeRevisionId, observedAtUtc: new Date(now).toISOString(), nextScheduledAtUtc: config.nextRunAtUtc,
-      recentRuns: executions.filter(item => item.logicInstanceId === config.id) })); return;
+      recentRuns: executions.filter(item => item.logicInstanceId === config.id)
+        .sort((a, b) => b.requestedAtUtc.localeCompare(a.requestedAtUtc)).slice(0, 2) })); return;
   }
   if (granted && url.pathname.startsWith('/api/v1/configured-logic') && req.method === 'GET') {
     const manage = granted.includes('configured-logic.manage'), request = granted.includes('executions.request');

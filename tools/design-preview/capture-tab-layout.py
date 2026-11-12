@@ -61,6 +61,7 @@ with sync_playwright() as p:
                         page.get_by_role("tab", name="Overview", exact=True).wait_for()
                         page.go_back()
                         deployment.wait_for()
+                        page.mouse.move(0, 0)
                     page.evaluate("document.fonts.ready")
                     page.wait_for_timeout(400)
                     filename = OUT / f"{revision}-{width}-{state}.png"
