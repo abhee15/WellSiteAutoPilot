@@ -138,7 +138,7 @@ export function LogicPage({
   return (
     <div {...splitFocus} className={`split-layout runs-layout logic-layout${isActivityFocused ? ' logic-history-focused' : ''}`}
       data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModuleId) : hasConfigurationDetail}>
-      <PageTabNav label={t('logic.tabs')}
+      <PageTabNav label={t('logic.tabs')} compactOnNarrow
         tabs={[
           ...(canReadConfigurations ? [
             { id: 'configured', label: t('logic.tabConfigured'), href: hashFor('logic'), count: configuredLogic.length },
