@@ -20,6 +20,7 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
         var sourceQuantity = request.Quantity switch
         {
             "PumpFillage" => "CurrentPumpFillage",
+            "InferredProductionYesterday" or "CyclesYesterday" or "RunTimeYesterday" or "StrokesYesterday" or "IdleTimeYesterday" => request.Quantity,
             _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
         };
         static string Iso(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
@@ -52,7 +53,9 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
                 !string.Equals(status, "Success", StringComparison.OrdinalIgnoreCase))
                 throw new ForeSiteMeasurementException("FORESITE_TREND_FAILED");
             var unit = Text(item, "Units");
-            if (string.IsNullOrWhiteSpace(unit) || unit.Length > 64) throw new ForeSiteMeasurementException("FORESITE_UNIT_MISSING");
+            // A count (cycles, strokes) has no unit. Any other quantity without one is refused rather than guessed.
+            if (string.IsNullOrWhiteSpace(unit) && request.Quantity is "CyclesYesterday" or "StrokesYesterday") unit = "";
+            else if (string.IsNullOrWhiteSpace(unit) || unit.Length > 64) throw new ForeSiteMeasurementException("FORESITE_UNIT_MISSING");
             if (!item.TryGetProperty("PointValues", out var points) || points.ValueKind != JsonValueKind.Array)
                 throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID");
             var samples = new List<EngineeringValue>();

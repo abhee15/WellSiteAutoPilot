@@ -9,6 +9,7 @@ public interface IGatewayResolver
     Task<ResolvePreview?> ResolveAsync(string adapterKey, ResolveRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CatalogPoint>?> PointsAsync(string adapterKey, ResolveRequest request, CancellationToken cancellationToken = default);
     Task<SetPointWritePlan?> PlanSetPointAsync(string adapterKey, SetPointPlanRequest request, CancellationToken cancellationToken = default);
+    Task<HistoricalReadResult?> HistoryAsync(string adapterKey, ConnectionHistoryRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -45,6 +46,17 @@ public sealed class ConnectionResolveService(ConnectionService connections, IGat
         return await gateway.PlanSetPointAsync(connection.AdapterKey, request, cancellationToken)
             ?? throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryUnsupported, FailureKind.Conflict,
                 "This connection's adapter has no set points to plan against.");
+    }
+
+    public async Task<HistoricalReadResult> HistoryAsync(
+        Guid connectionId, string externalId, string quantity, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken = default)
+    {
+        var connection = await Enabled(connectionId, cancellationToken);
+        var request = new ConnectionHistoryRequest(connection.Id, connection.Revision, Settings(connection),
+            new HistoricalReadRequest(externalId, quantity, startUtc, endUtc));
+        return await gateway.HistoryAsync(connection.AdapterKey, request, cancellationToken)
+            ?? throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryUnsupported, FailureKind.Conflict,
+                "This connection's adapter cannot read history yet.");
     }
 
     private async Task<ConnectionRecord> Enabled(Guid id, CancellationToken cancellationToken)

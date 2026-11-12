@@ -5,13 +5,15 @@ namespace WellSiteAutoPilot.Application.Authoring;
 /// <summary>Test a draft: against a connection and asset (live), or against typed sample values.</summary>
 public sealed record EvaluateDraftRequest(
     ModuleDraft Draft, Guid? ConnectionId = null, string? ExternalId = null,
-    Dictionary<string, string>? Samples = null, Dictionary<string, string>? Parameters = null, ModuleBindings? Bindings = null);
+    Dictionary<string, string>? Samples = null, Dictionary<string, string>? Parameters = null, ModuleBindings? Bindings = null,
+    string? TimeZoneId = null);
 
 /// <summary>What authoring needs from a connection: resolve one input on one asset, and dry-run a set point change.</summary>
 public interface IAuthoringInputs
 {
     Task<ResolvePreview> ResolveAsync(string externalId, string input, ResolveBasis? basis, CancellationToken cancellationToken);
     Task<SetPointWritePlan> PlanSetPointAsync(string externalId, string setPoint, decimal proposed, CancellationToken cancellationToken);
+    Task<HistoricalReadResult> ReadHistoryAsync(string externalId, string quantity, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken);
 }
 
 /// <summary>Reads through a saved connection. Read-only: set point changes are planned, never sent.</summary>
@@ -22,6 +24,9 @@ public sealed class ConnectionAuthoringInputs(Connections.ConnectionResolveServi
 
     public Task<SetPointWritePlan> PlanSetPointAsync(string externalId, string setPoint, decimal proposed, CancellationToken cancellationToken) =>
         resolver.PlanSetPointAsync(connectionId, externalId, setPoint, 0m, proposed, cancellationToken);
+
+    public Task<HistoricalReadResult> ReadHistoryAsync(string externalId, string quantity, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
+        resolver.HistoryAsync(connectionId, externalId, quantity, startUtc, endUtc, cancellationToken);
 }
 
 /// <summary>
@@ -34,9 +39,10 @@ public static class AuthoringService
     public static async Task<ModuleRun> EvaluateAsync(
         ModuleDraft draft, IAuthoringInputs? inputs, string? externalId,
         IReadOnlyDictionary<string, string>? samples, IReadOnlyDictionary<string, string>? parameters,
-        ModuleBindings? bindings = null, TimeProvider? clock = null, CancellationToken cancellationToken = default)
+        ModuleBindings? bindings = null, TimeProvider? clock = null, TimeZoneInfo? site = null, CancellationToken cancellationToken = default)
     {
         var now = (clock ?? TimeProvider.System).GetUtcNow();
+        var parameterValues = (draft.Parameters ?? []).ToDictionary(p => p.Name, p => parameters is not null && parameters.TryGetValue(p.Name, out var over) ? over : p.Value, StringComparer.Ordinal);
         var live = inputs is not null && !string.IsNullOrWhiteSpace(externalId);
         var analysis = DraftAnalyzer.Analyze(draft);
         if (!analysis.Valid)
@@ -44,7 +50,7 @@ public static class AuthoringService
 
         var traces = new List<InputTrace>();
         foreach (var input in draft.Inputs)
-            traces.Add(live ? await ResolveInputAsync(input, bindings, inputs!, externalId!, now, cancellationToken) : FromSample(input, samples));
+            traces.Add(live ? await ResolveInputAsync(input, bindings, inputs!, externalId!, now, parameterValues, site ?? TimeZoneInfo.Utc, cancellationToken) : FromSample(input, samples));
 
         var run = DraftEvaluator.Evaluate(draft, traces, parameters, now) with { Mode = live ? "live" : "sample", ExternalId = live ? externalId : null };
         if (!live)
@@ -123,7 +129,8 @@ public static class AuthoringService
     }
 
     private static async Task<InputTrace> ResolveInputAsync(
-        DraftInput input, ModuleBindings? bindings, IAuthoringInputs inputs, string externalId, DateTimeOffset now, CancellationToken cancellationToken)
+        DraftInput input, ModuleBindings? bindings, IAuthoringInputs inputs, string externalId, DateTimeOffset now,
+        IReadOnlyDictionary<string, string> parameterValues, TimeZoneInfo site, CancellationToken cancellationToken)
     {
         var sources = bindings?.Inputs is { } map && map.TryGetValue(input.Name, out var bound) && bound.Count > 0
             ? bound : [new BindingSource(input.Quantity, input.Basis)];
@@ -135,6 +142,8 @@ public static class AuthoringService
 
         foreach (var source in sources)
         {
+            if (input.History is { } history)
+                return await ResolveHistoryAsync(input, history, source, inputs, externalId, parameterValues, site, now, cancellationToken);
             ResolveBasis? basis = Enum.TryParse<ResolveBasis>(source.Basis, out var parsed) ? parsed : null;
             ResolvePreview preview;
             try
@@ -177,5 +186,50 @@ public static class AuthoringService
                 accepted.AgeSeconds, input.MaxAgeSeconds, reading.TimestampKind, input.Quantity);
         }
         return Stop("NotApplicable");
+    }
+
+    /// <summary>
+    /// Reads a bounded window from history and reduces it to one value. It fails closed: no data, a truncated window or any
+    /// reading the input would refuse stops the input, so a gap is never turned into zero.
+    /// </summary>
+    private static async Task<InputTrace> ResolveHistoryAsync(
+        DraftInput input, InputHistory history, BindingSource source, IAuthoringInputs inputs, string externalId,
+        IReadOnlyDictionary<string, string> parameterValues, TimeZoneInfo site, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        InputTrace Stop(string resolution, string reason) =>
+            new(input.Name, resolution, Val.Missing(reason), null, null, null, source.Input, [reason], [], input.Required, Quantity: input.Quantity);
+
+        if (InputHistoryWindow.Resolve(history, parameterValues, now, site, out var problem) is not { } window)
+            return Stop("Misconfigured", problem!);
+        HistoricalReadResult read;
+        try
+        {
+            read = await inputs.ReadHistoryAsync(externalId, source.Input, window.Start, window.End, cancellationToken);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return Stop("CannotDetermine", $"{source.Input}: {error.Message}");
+        }
+
+        var span = $"{window.Start:yyyy-MM-dd HH:mm}Z to {window.End:yyyy-MM-dd HH:mm}Z";
+        if (read.Truncated) return Stop("CannotDetermine", $"{source.Input}: the history for {span} was cut short, so it is not used.");
+        var numbers = new List<decimal>();
+        string? unit = null;
+        DateTimeOffset? last = null;
+        foreach (var sample in read.Samples.Where(s => s.Value is not null).OrderBy(s => s.TimestampUtc))
+        {
+            var accepted = InputAcceptance.Accept(input, sample.Value!.Value, sample.Unit, sample.TimestampUtc, sample.Quality, sample.TimestampUtc);
+            if (accepted.Value.Number is not { } number)
+                return Stop(accepted.Resolution, $"{source.Input}: {accepted.Reason}");
+            numbers.Add(number);
+            unit = accepted.Value.Unit;
+            last = sample.TimestampUtc;
+        }
+        if (InputHistoryWindow.Reduce(history.Reduce, numbers) is not { } reduced)
+            return Stop("CannotDetermine", $"{source.Input}: no history was recorded for {span}.");
+        var value = Val.Of(reduced, unit) with { AsOf = last, Quality = InputAcceptance.QualityOf(read.Samples.Count > 0 ? read.Samples[0].Quality : null) };
+        var note = $"{history.Reduce} of {numbers.Count} reading(s) for {span}";
+        return new InputTrace(input.Name, "Resolved", value, unit, read.Source, "History", source.Input, [note], [], input.Required,
+            Quantity: input.Quantity);
     }
 }

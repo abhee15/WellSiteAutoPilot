@@ -25,10 +25,47 @@ internal static class DraftChecks
         Starters();
         Recommendations();
         RuleTables();
+        await IdleTimeHistoryAsync();
         Evaluation();
         await Acceptance();
         await ServiceAsync();
         await SetPointsAsync();
+    }
+
+    private static async Task IdleTimeHistoryAsync()
+    {
+        var draft = AuthoringStarters.All.Single(s => s.Id == "idle-time").Draft;
+        Check.That(DraftAnalyzer.Analyze(draft).Valid, "the idle time starter is valid with history inputs");
+        var today = new DateTimeOffset(2026, 5, 11, 7, 0, 0, TimeSpan.Zero);
+        var bad = draft with { Inputs = [.. draft.Inputs.Take(1), draft.Inputs[1] with { History = new(0, "NoSuchParameter") }, .. draft.Inputs.Skip(2)] };
+        Check.That(Reports(bad, "ProdBefore", "Time of day") || Reports(bad, "Prod", "Time of day") || Reports(bad, "ProdBefore", "HH:mm"), "an unreadable history time of day is reported");
+
+        HistoricalReadResult Day(string quantity, DateTimeOffset end) => quantity switch
+        {
+            "InferredProductionYesterday" => FakeInputs.Samples(quantity, "bbl/d", false, (end.AddMinutes(-5), end.Day == 11 ? 80 : 100)),
+            "CyclesYesterday" => FakeInputs.Samples(quantity, "", false, (end.AddMinutes(-9), 19), (end.AddMinutes(-1), 20)),
+            _ => throw new InvalidOperationException(quantity)
+        };
+        var answers = new Dictionary<string, ResolvePreview> { ["IdleTime"] = FakeInputs.Value("IdleTime", 3600, unit: "s") };
+        var fake = new FakeInputs(answers) { History = Day };
+        var run = await AuthoringService.EvaluateAsync(draft, fake, "1596", null, null, null, new FixedClock(FakeInputs.Now));
+        Check.That(run.Outcome == ModuleOutcome.Runs, "idle time runs from history: " + string.Join("; ", run.Inputs.Select(i => i.Name + "=" + i.Resolution)));
+        Check.That(run.Outputs.Single().Value.Number == 30m, "idle time falls 60 -> 30 min when production fell; the controller's seconds were converted to minutes");
+        Check.That(fake.HistoryAsked.Any(a => a.End == today && a.Start == today.AddMinutes(-60)) && fake.HistoryAsked.Any(a => a.End == today.AddDays(-1)),
+            "today's and the day before's gauge-off windows are read in site time");
+        Check.That(run.Inputs.First(i => i.Name == "Cycles").Value.Number == 20m, "the last reading in the window is used");
+
+        var gap = new FakeInputs(answers) { History = (q, end) => q == "InferredProductionYesterday" && end.Day == 10 ? FakeInputs.Samples(q, "bbl/d", false) : Day(q, end) };
+        var missing = await AuthoringService.EvaluateAsync(draft, gap, "1596", null, null, null, new FixedClock(FakeInputs.Now));
+        Check.That(missing.Outcome != ModuleOutcome.Runs && !missing.Outputs.Single().Value.Available, "no history for the day before stops the run instead of counting as zero");
+        var cut = new FakeInputs(answers) { History = (q, end) => q == "CyclesYesterday" ? FakeInputs.Samples(q, "", true, (end.AddMinutes(-1), 20)) : Day(q, end) };
+        var truncated = await AuthoringService.EvaluateAsync(draft, cut, "1596", null, null, null, new FixedClock(FakeInputs.Now));
+        Check.That(truncated.Outcome != ModuleOutcome.Runs, "a truncated window is never treated as complete");
+
+        var zone = TimeZoneInfo.CreateCustomTimeZone("site", TimeSpan.FromHours(-5), "site", "site");
+        var shifted = new FakeInputs(answers) { History = Day };
+        await AuthoringService.EvaluateAsync(draft, shifted, "1596", null, null, null, new FixedClock(FakeInputs.Now), zone);
+        Check.That(shifted.HistoryAsked.Any(a => a.End == new DateTimeOffset(2026, 5, 11, 12, 0, 0, TimeSpan.Zero)), "07:00 site time at UTC-5 is 12:00 UTC");
     }
 
     private static void RuleTables()

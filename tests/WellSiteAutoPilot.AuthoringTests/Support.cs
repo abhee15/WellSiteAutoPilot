@@ -39,6 +39,19 @@ internal sealed class FakeInputs(Dictionary<string, ResolvePreview> answers) : I
     public decimal RangeLow { get; init; }
     public decimal RangeHigh { get; init; } = 100;
 
+    public Func<string, DateTimeOffset, HistoricalReadResult>? History { get; init; }
+    public List<(string Quantity, DateTimeOffset Start, DateTimeOffset End)> HistoryAsked { get; } = [];
+
+    public Task<HistoricalReadResult> ReadHistoryAsync(string externalId, string quantity, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken)
+    {
+        HistoryAsked.Add((quantity, startUtc, endUtc));
+        return Task.FromResult(History?.Invoke(quantity, endUtc) ?? throw new InvalidOperationException("No history was set up."));
+    }
+
+    public static HistoricalReadResult Samples(string quantity, string unit, bool truncated, params (DateTimeOffset At, decimal Value)[] samples) =>
+        new(quantity, "fake", null, "Raw", default, default,
+            samples.Select(s => new EngineeringValue(quantity, s.Value, unit, s.At, "Unknown", "fake")).ToList(), truncated, []);
+
     public Task<ResolvePreview> ResolveAsync(string externalId, string input, ResolveBasis? basis, CancellationToken cancellationToken)
     {
         Asked.Add(input);

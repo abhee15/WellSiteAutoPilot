@@ -77,6 +77,18 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
             ? null : await response.Content.ReadFromJsonAsync<SetPointWritePlan>(cancellationToken);
     }
 
+    public async Task<HistoricalReadResult?> HistoryAsync(
+        string adapterKey, ConnectionHistoryRequest request, CancellationToken cancellationToken = default)
+    {
+        if (adapterKey is not ("foresite" or "cygnet"))
+            return null;
+        using var message = Authorized(HttpMethod.Post, $"{Base}/{adapterKey}/history");
+        message.Content = JsonContent.Create(request);
+        using var response = await SendAsync(message, cancellationToken, allowNotFound: true);
+        return response.StatusCode == HttpStatusCode.NotFound
+            ? null : await response.Content.ReadFromJsonAsync<HistoricalReadResult>(cancellationToken);
+    }
+
     public async Task<DiscoveryResult?> DiscoverAsync(
         string adapterKey, IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken = default)
     {

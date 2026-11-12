@@ -1857,7 +1857,9 @@ v1.MapPost("/authoring/evaluate",
         Results.Ok(await WellSiteAutoPilot.Application.Authoring.AuthoringService.EvaluateAsync(
             request.Draft,
             request.ConnectionId is { } id ? new WellSiteAutoPilot.Application.Authoring.ConnectionAuthoringInputs(resolver, id) : null,
-            request.ExternalId, request.Samples, request.Parameters, request.Bindings, null, cancellationToken)))
+            request.ExternalId, request.Samples, request.Parameters, request.Bindings, null,
+            !string.IsNullOrWhiteSpace(request.TimeZoneId) && TimeZoneInfo.TryFindSystemTimeZoneById(request.TimeZoneId, out var site) ? site : null,
+            cancellationToken)))
     .WithName("EvaluateModuleDraft")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<WellSiteAutoPilot.Application.Authoring.ModuleRun>(StatusCodes.Status200OK)

@@ -13,7 +13,7 @@ namespace WellSiteAutoPilot.Application.Authoring;
 public sealed record DraftInput(
     string Name, string Quantity, string? Unit = null, string? Basis = null, int? MaxAgeSeconds = null,
     bool AllowUncertain = false, bool Required = true, string? Role = null, string? Label = null,
-    decimal? ValidMin = null, decimal? ValidMax = null);
+    decimal? ValidMin = null, decimal? ValidMax = null, InputHistory? History = null);
 
 /// <summary>A tunable value. Min and Max bound what an author or a per-asset override may set it to.</summary>
 public sealed record DraftParameter(string Name, string Value, string? Unit = null, string? Label = null, decimal? Min = null, decimal? Max = null);
@@ -116,7 +116,7 @@ public static partial class DraftAnalyzer
         var canonical = new
         {
             draft.SchemaVersion, draft.LanguageVersion,
-            Inputs = draft.Inputs?.Select(i => new { i.Name, Role = i.Role ?? "well", i.Quantity, Unit = Units.Normalize(i.Unit), i.Basis, i.MaxAgeSeconds, i.AllowUncertain, i.Required, i.ValidMin, i.ValidMax }),
+            Inputs = draft.Inputs?.Select(i => new { i.Name, Role = i.Role ?? "well", i.Quantity, Unit = Units.Normalize(i.Unit), i.Basis, i.MaxAgeSeconds, i.AllowUncertain, i.Required, i.ValidMin, i.ValidMax, i.History }),
             Parameters = draft.Parameters?.Select(p => new { p.Name, p.Value, Unit = Units.Normalize(p.Unit), p.Min, p.Max }),
             Steps = draft.Steps?.Select(s => new { s.Name, Expression = s.Expression?.Trim(), Rules = s.Rules?.Select(r => new { When = r.When?.Trim(), Then = r.Then?.Trim(), r.Reason }) }),
             Outputs = draft.Outputs?.Select(o => new { o.Name, o.Kind, Expression = o.Expression?.Trim(), Unit = Units.Normalize(o.Unit), o.Target, o.Limits, When = o.When?.Trim(), o.Code, o.Title, o.Detail })
@@ -183,6 +183,8 @@ public static partial class DraftAnalyzer
                 Error(input.Name, "The maximum age must be greater than zero seconds.");
             if (input.ValidMin is { } low && input.ValidMax is { } high && low > high)
                 Error(input.Name, "The valid minimum is above the valid maximum.");
+            if (input.History is { } history && InputHistoryWindow.Validate(history, parameters) is { } historyProblem)
+                Error(input.Name, historyProblem);
             CheckUnit(input.Name, input.Unit);
         }
         foreach (var parameter in parameters)
@@ -284,6 +286,9 @@ public static partial class DraftAnalyzer
         foreach (var (node, list) in depends)
             foreach (var dependency in list)
                 (usedBy.TryGetValue(dependency, out var users) ? users : usedBy[dependency] = []).Add(node);
+        foreach (var input in inputs)
+            if (input.History is { } timed && !string.IsNullOrEmpty(input.Name))
+                (usedBy.TryGetValue(timed.AtLocal, out var timedUsers) ? timedUsers : usedBy[timed.AtLocal] = []).Add(input.Name);
         foreach (var step in steps)
             if (kinds.ContainsKey(step.Name ?? "") && !usedBy.ContainsKey(step.Name!)) Warn(step.Name!, "Nothing uses this calculation.");
         foreach (var input in inputs)
