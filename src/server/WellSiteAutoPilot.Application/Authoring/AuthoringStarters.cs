@@ -131,7 +131,7 @@ public static class AuthoringStarters
         new("idle-time", "Idle time adjustment (fixed speed)",
             "Modelled on the Idle Time Adjustment edge logic. Compares yesterday with the day before: production fell, so idle time goes down; production held but cycles exceeded the target, so it goes up; otherwise no change. Missing data stops the run instead of counting as zero.",
             new ModuleDraft("Idle time adjustment", "Proposes a new idle time from the last two days of production and cycles.",
-                [new("Idle", "IdleTime", "min", Role: "setpoint", MaxAgeSeconds: 3600, ValidMin: 0),
+                [new("Idle", "IdleTime", "min", "Saved", Role: "setpoint", AllowUncertain: true, ValidMin: 0),
                  new("Prod", "InferredProductionYesterday", "bbl/d", ValidMin: 0, AllowUncertain: true, History: new(0, "GaugeOff", 60)),
                  new("ProdBefore", "InferredProductionYesterday", "bbl/d", ValidMin: 0, AllowUncertain: true, History: new(1, "GaugeOff", 60)),
                  new("Cycles", "CyclesYesterday", ValidMin: 0, AllowUncertain: true, History: new(0, "GaugeOff", 60))],

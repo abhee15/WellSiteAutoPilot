@@ -64,6 +64,27 @@ public static class ForeSiteResolver
     };
 
     public const string SurveillancePrefix = "surveillance:";
+    public const string SetPointPrefix = "setpoint:";
+
+    /// <summary>Logical inputs that are controller set points. ForeSite keeps only saved values for these.</summary>
+    public static bool IsSetPointInput(string input) =>
+        input.StartsWith(SetPointPrefix, StringComparison.OrdinalIgnoreCase) || input.Equals("IdleTime", StringComparison.OrdinalIgnoreCase);
+
+    public static string SetPointName(string input) =>
+        input.StartsWith(SetPointPrefix, StringComparison.OrdinalIgnoreCase) ? input[SetPointPrefix.Length..] : input;
+
+    /// <summary>Decides whether a saved set point can answer an input. Pure, so it tests without ForeSite.</summary>
+    public static ResolveResult ResolveSetPoint(string input, string json)
+    {
+        var name = SetPointName(input);
+        var found = ForeSiteSetPoints.Parse(json, includeReadOnly: true).FirstOrDefault(p => string.Equals(p.Id, name, StringComparison.OrdinalIgnoreCase));
+        if (found.Id is null)
+            return ResolveResult.Failed(ResolveOutcome.NotApplicable, $"This well has no saved set point named {name}.");
+        if (!decimal.TryParse(found.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
+            return ResolveResult.Failed(ResolveOutcome.Misconfigured, $"Set point {found.Id} is not numeric (\"{found.Value}\").");
+        return ResolveResult.Compatible(new ResolveCandidate($"foresite:setpoint.{found.Id}", ResolveBasis.Saved,
+            $"saved set point {found.Id}" + (found.Unit.Length > 0 ? $" ({found.Unit})" : ""), $"setpoint|{found.Id}|{found.Unit}"));
+    }
 
     public const string WellTestPrefix = "welltest:";
     public const string WellPrefix = "well:";
@@ -190,7 +211,7 @@ public static class ForeSiteResolver
 public static class ForeSiteSetPoints
 {
     /// <summary>Writable set points (not read-only, not hidden) from an AllSavedSetPointParams response.</summary>
-    public static IReadOnlyList<(string Id, string Description, string Unit, string Value, decimal? Low, decimal? High)> Parse(string json)
+    public static IReadOnlyList<(string Id, string Description, string Unit, string Value, decimal? Low, decimal? High)> Parse(string json, bool includeReadOnly = false)
     {
         using var document = JsonDocument.Parse(json);
         var list = new List<(string, string, string, string, decimal?, decimal?)>();
@@ -202,7 +223,7 @@ public static class ForeSiteSetPoints
                 continue;
             foreach (var p in points.EnumerateArray())
             {
-                if (Flag(p, "IsReadOnly") || Flag(p, "IsHidden"))
+                if (!includeReadOnly && Flag(p, "IsReadOnly") || Flag(p, "IsHidden"))
                     continue;
                 list.Add((Text(p, "ElementId"), Text(p, "Description"), Text(p, "UnitKey"), Text(p, "OriginalValue"),
                     Number(p, "RangeLow"), Number(p, "RangeHigh")));
@@ -331,7 +352,29 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
 
     public async ValueTask<ResolveResult> ResolveAsync(
         string assetExternalId, string input, ResolveBasis? basis = null, CancellationToken cancellationToken = default) =>
-        ForeSiteResolver.Resolve(input, await LoadAsync(assetExternalId, cancellationToken), basis);
+        ForeSiteResolver.IsSetPointInput(input)
+            ? (basis is null or ResolveBasis.Saved
+                ? ForeSiteResolver.ResolveSetPoint(input, await SavedSetPointsAsync(assetExternalId, cancellationToken))
+                : ResolveResult.Failed(ResolveOutcome.NotApplicable, $"ForeSite only holds saved values for set point {input}, not a {basis} reading."))
+            : ForeSiteResolver.Resolve(input, await LoadAsync(assetExternalId, cancellationToken), basis);
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTimeOffset At, string Json)> SetPointJson = new();
+
+    /// <summary>The slow set point read is kept for a minute so a resolve followed by a read asks ForeSite once.</summary>
+    private async Task<string> SavedSetPointsAsync(string wellId, CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(wellId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
+            throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
+        var key = cacheScope + "|" + id;
+        if (SetPointJson.TryGetValue(key, out var kept) && DateTimeOffset.UtcNow - kept.At < TimeSpan.FromSeconds(60))
+            return kept.Json;
+        using var response = await Retry(() => session.GetAsync($"Surveillance/Well/AllSavedSetPointParams?WellId={id}&scanOption=0", cancellationToken));
+        if (!response.IsSuccessStatusCode)
+            throw new ForeSiteMeasurementException("FORESITE_SETPOINTS_UNAVAILABLE");
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        SetPointJson[key] = (DateTimeOffset.UtcNow, json);
+        return json;
+    }
 
     /// <summary>Dry-run only: reads the saved set point and plans the change. Sending is a separate, approved step.</summary>
     public async Task<SetPointWritePlan> PlanSetPointChangeAsync(
@@ -350,6 +393,16 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
         string assetExternalId, ResolveCandidate candidate, CancellationToken cancellationToken = default)
     {
         var parts = candidate.ReadPlan?.Split('|') ?? throw new ForeSiteMeasurementException("FORESITE_READ_PLAN_INVALID");
+        if (parts[0] == "setpoint")
+        {
+            var saved = ForeSiteSetPoints.Parse(await SavedSetPointsAsync(assetExternalId, cancellationToken), includeReadOnly: true)
+                .FirstOrDefault(p => string.Equals(p.Id, parts[1], StringComparison.OrdinalIgnoreCase));
+            if (saved.Id is null || !decimal.TryParse(saved.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var stored))
+                throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_MISSING");
+            var now = DateTimeOffset.UtcNow;
+            // The saved value has no observation time and may differ from the controller, so it is never reported as Good.
+            return new EngineeringValue(saved.Id, stored, parts[2], now, "Uncertain", candidate.Source, now, "SavedValue");
+        }
         var snapshot = await LoadAsync(assetExternalId, cancellationToken);
         if (!snapshot.Source(parts[0]).TryGetValue(parts[1], out var raw) || string.IsNullOrWhiteSpace(raw))
             throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_MISSING");

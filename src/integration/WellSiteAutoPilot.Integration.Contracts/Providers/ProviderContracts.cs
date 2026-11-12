@@ -149,7 +149,9 @@ public enum ResolveBasis
     Current,
     DailyAverage,
     TestSample,
-    History
+    History,
+    /// <summary>A value stored in the system (a saved set point), not read live from the device.</summary>
+    Saved
 }
 
 /// <summary>One way a provider could supply an input: a read plan the provider can execute later.</summary>

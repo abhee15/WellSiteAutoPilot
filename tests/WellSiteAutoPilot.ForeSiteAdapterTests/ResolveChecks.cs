@@ -50,6 +50,14 @@ internal static class ResolveChecks
         Check(absolute.Allowed && absolute.Proposed == 40, "an absolute value replaces the delta");
         Check(!ForeSiteSetPoints.Plan("776", setPoints, "IdealPF", 0, 140).Allowed, "an absolute value beyond the range is refused");
 
+        const string idleJson = """[{"SetPointsList":[{"ElementId":"IdleTime","UnitKey":"s","Value":"00:01:00","OriginalValue":"60","IsReadOnly":false},{"ElementId":"Mode","UnitKey":"","OriginalValue":"abc","IsReadOnly":true}]}]""";
+        var idle = ForeSiteResolver.ResolveSetPoint("IdleTime", idleJson);
+        Check(idle.Outcome == ResolveOutcome.Compatible && idle.Candidates[0].Basis == ResolveBasis.Saved && idle.Candidates[0].ReadPlan == "setpoint|IdleTime|s",
+            "a saved set point resolves with the Saved basis and its own unit, using the numeric value and not the HH:mm:ss display text");
+        Check(ForeSiteResolver.IsSetPointInput("setpoint:IdleTime") && ForeSiteResolver.ResolveSetPoint("setpoint:Mode", idleJson).Outcome == ResolveOutcome.Misconfigured,
+            "a non-numeric set point is misconfigured, and read-only set points can still be read");
+        Check(ForeSiteResolver.ResolveSetPoint("setpoint:Nope", idleJson).Outcome == ResolveOutcome.NotApplicable, "an unknown set point is not applicable");
+
         var timed = Snapshot("{}", """{"Value":{"CasingPressure":5,"LastGoodScanTime":"2026-05-11T11:58:00-05:00"}}""", """{"SampleDate":"2026-05-01T00:00:00Z","TestEndDate":"2026-05-02T05:00:00.0000000Z"}""");
         var (scanned, scanKind) = ForeSiteResolver.ObservedAt("surveillance", timed);
         Check(scanned == DateTimeOffset.Parse("2026-05-11T16:58:00Z", System.Globalization.CultureInfo.InvariantCulture) && scanKind == "ControllerScan", "surveillance time is the last good scan");

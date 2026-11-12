@@ -84,7 +84,7 @@ public static partial class DraftAnalyzer
     public const int MaxNodes = 100;
     public const int MaxTests = 50;
     public const int SchemaVersion = 1;
-    public static readonly IReadOnlyCollection<string> Bases = ["Static", "Current", "DailyAverage", "TestSample", "History"];
+    public static readonly IReadOnlyCollection<string> Bases = ["Static", "Current", "DailyAverage", "TestSample", "History", "Saved"];
     public static readonly IReadOnlyCollection<string> OutputKinds = ["value", "setpoint", "recommendation"];
     private static readonly string[] ProviderPrefixes = ["surveillance:", "welltest:", "well:", "setpoint:"];
 
