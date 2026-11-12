@@ -9,7 +9,7 @@ public sealed record ResolveRequest(
 public sealed record ResolvePreview(ResolveResult Result, EngineeringValue? Value, string? ReadProblem);
 
 public sealed record SetPointPlanRequest(
-    Guid ConnectionId, int ConnectionRevision, Dictionary<string, string?> Settings, string ExternalId, string SetPoint, decimal Delta);
+    Guid ConnectionId, int ConnectionRevision, Dictionary<string, string?> Settings, string ExternalId, string SetPoint, decimal Delta, decimal? Absolute = null);
 
 /// <summary>A dry-run write: what would be sent to the controller, with the before and after values. Nothing is sent.</summary>
 public sealed record SetPointWritePlan(

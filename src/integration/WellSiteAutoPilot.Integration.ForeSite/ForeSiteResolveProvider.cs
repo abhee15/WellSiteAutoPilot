@@ -45,6 +45,7 @@ public static class ForeSiteResolver
             new("surveillance", "TubingPressure", ResolveBasis.Current, "psi"),
             new("welltest", "AverageTubingPressure", ResolveBasis.TestSample, "psi")
         ],
+        ["PumpSpm"] = [new("surveillance", "CurrentSPM", ResolveBasis.Current, "spm")],
         ["PumpFillage"] =
         [
             new("surveillance", "CurrentPumpFillage", ResolveBasis.Current, "%"),
@@ -122,6 +123,25 @@ public static class ForeSiteResolver
             $"'{input}' is not a writable set point on this well, so it cannot be sent to the controller. Writable: {string.Join(", ", writableSetPoints.Order())}.");
     }
 
+    /// <summary>
+    /// When ForeSite says a value was observed: the controller's last good scan for surveillance values, the latest valid
+    /// well test date for test samples. Only timestamps with an explicit UTC offset are trusted, as in the production
+    /// adapter; anything else is unknown, and the caller must not present retrieval time as observation time.
+    /// </summary>
+    public static (DateTimeOffset? At, string Kind) ObservedAt(string endpoint, ForeSiteWellSnapshot snapshot)
+    {
+        var (field, kind) = endpoint switch
+        {
+            "surveillance" => ("LastGoodScanTime", "ControllerScan"),
+            "welltest" => ("LatestValidWellTestDate", "WellTestDate"),
+            _ => ("", "Static")
+        };
+        if (field.Length == 0)
+            return (null, kind);
+        return snapshot.Surveillance.TryGetValue(field, out var text) && ForeSiteSurveillanceSnapshot.TryOffsetTime(text, out var at)
+            ? (at, kind) : (null, "Unknown");
+    }
+
     /// <summary>The unit ForeSite reports per surveillance field, from the "Units" block that comes with the values.</summary>
     public static IReadOnlyDictionary<string, string> Units(JsonElement root)
     {
@@ -174,7 +194,8 @@ public static class ForeSiteSetPoints
         return list;
     }
 
-    public static SetPointWritePlan Plan(string wellId, string json, string setPoint, decimal delta)
+    /// <param name="absolute">When given, the proposed value is exactly this and <paramref name="delta"/> is ignored.</param>
+    public static SetPointWritePlan Plan(string wellId, string json, string setPoint, decimal delta, decimal? absolute = null)
     {
         var found = Parse(json).Where(p => string.Equals(p.Id, setPoint, StringComparison.OrdinalIgnoreCase)).ToList();
         if (found.Count == 0)
@@ -182,7 +203,7 @@ public static class ForeSiteSetPoints
         var p = found[0];
         if (!decimal.TryParse(p.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var current))
             return new SetPointWritePlan(wellId, p.Id, p.Description, p.Unit, 0, 0, p.Low, p.High, false, $"'{p.Id}' is not numeric ('{p.Value}').");
-        var proposed = current + delta;
+        var proposed = absolute ?? current + delta;
         var inRange = (p.Low is null || proposed >= p.Low) && (p.High is null || proposed <= p.High);
         return new SetPointWritePlan(wellId, p.Id, p.Description, p.Unit, current, proposed, p.Low, p.High, inRange,
             inRange ? null : $"{proposed} is outside the allowed range {p.Low}..{p.High}.");
@@ -293,7 +314,7 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
 
     /// <summary>Dry-run only: reads the saved set point and plans the change. Sending is a separate, approved step.</summary>
     public async Task<SetPointWritePlan> PlanSetPointChangeAsync(
-        string wellId, string setPoint, decimal delta, CancellationToken cancellationToken = default)
+        string wellId, string setPoint, decimal delta, decimal? absolute = null, CancellationToken cancellationToken = default)
     {
         if (!long.TryParse(wellId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
@@ -301,7 +322,7 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
             $"Surveillance/Well/AllSavedSetPointParams?WellId={id}&scanOption=0", cancellationToken));
         if (!response.IsSuccessStatusCode)
             throw new ForeSiteMeasurementException("FORESITE_SETPOINTS_UNAVAILABLE");
-        return ForeSiteSetPoints.Plan(wellId, await response.Content.ReadAsStringAsync(cancellationToken), setPoint, delta);
+        return ForeSiteSetPoints.Plan(wellId, await response.Content.ReadAsStringAsync(cancellationToken), setPoint, delta, absolute);
     }
 
     public async ValueTask<EngineeringValue> ReadAsync(
@@ -313,7 +334,11 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
             throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_MISSING");
         if (!decimal.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
             throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_INVALID");
-        return new EngineeringValue(parts[1], number, parts[2], DateTimeOffset.UtcNow, "Good",
-            candidate.Source, DateTimeOffset.UtcNow, candidate.Basis.ToString());
+        var (observed, kind) = ForeSiteResolver.ObservedAt(parts[0], snapshot);
+        var retrieved = DateTimeOffset.UtcNow;
+        // Without a trustworthy observation time the value is Uncertain, never Good, so a freshness rule cannot pass on it.
+        var quality = observed is null && parts[0] != "well" ? "Uncertain" : "Good";
+        return new EngineeringValue(parts[1], number, parts[2], observed ?? retrieved, quality,
+            candidate.Source, retrieved, kind);
     }
 }

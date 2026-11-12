@@ -1834,7 +1834,7 @@ v1.MapPost(
 v1.MapPost(
     "/connections/{connectionId:guid}/setpoint-plan",
     async (Guid connectionId, SetPointPlanInput request, ConnectionResolveService resolver, CancellationToken cancellationToken) =>
-        Results.Ok(await resolver.PlanSetPointAsync(connectionId, request.ExternalId, request.SetPoint, request.Delta, cancellationToken)))
+        Results.Ok(await resolver.PlanSetPointAsync(connectionId, request.ExternalId, request.SetPoint, request.Delta, null, cancellationToken)))
     .WithName("PlanConnectionSetPoint")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<SetPointWritePlan>(StatusCodes.Status200OK)
@@ -1857,11 +1857,24 @@ v1.MapPost("/authoring/evaluate",
         Results.Ok(await WellSiteAutoPilot.Application.Authoring.AuthoringService.EvaluateAsync(
             request.Draft,
             request.ConnectionId is { } id ? new WellSiteAutoPilot.Application.Authoring.ConnectionAuthoringInputs(resolver, id) : null,
-            request.ExternalId, request.Samples, request.Parameters, cancellationToken)))
+            request.ExternalId, request.Samples, request.Parameters, request.Bindings, null, cancellationToken)))
     .WithName("EvaluateModuleDraft")
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<WellSiteAutoPilot.Application.Authoring.ModuleRun>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost("/authoring/verify",
+    (WellSiteAutoPilot.Application.Authoring.ModuleDraft draft) =>
+    {
+        string? manifestError = null;
+        try { WellSiteAutoPilot.Application.Authoring.ManifestMapper.Validate(draft); }
+        catch (WellSiteAutoPilotException error) { manifestError = error.Message; }
+        return Results.Ok(new WellSiteAutoPilot.Application.Authoring.VerifyResult(
+            WellSiteAutoPilot.Application.Authoring.DraftTests.Run(draft), manifestError is null, manifestError));
+    })
+    .WithName("VerifyModuleDraft")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<WellSiteAutoPilot.Application.Authoring.VerifyResult>(StatusCodes.Status200OK);
 
 v1.MapPost("/connections/{connectionId:guid}/source-checks",
     async (Guid connectionId, SourceChangeService changes, RequestAccessContext access,

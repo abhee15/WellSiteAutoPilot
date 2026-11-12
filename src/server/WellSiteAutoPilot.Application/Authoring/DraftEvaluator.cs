@@ -10,9 +10,9 @@ public enum ModuleOutcome
     Runs,
     /// <summary>A required input does not exist for this asset, so the module does not apply. Not a failure.</summary>
     Skipped,
-    /// <summary>A required input has several possible sources and the author must choose a basis.</summary>
+    /// <summary>A required input needs a decision from the author (a basis, a unit, a binding) before it can run.</summary>
     NeedsSetup,
-    /// <summary>A provider could not be reached or could not decide, so the inputs are unknown.</summary>
+    /// <summary>A provider could not be reached, could not decide, or gave a reading too old or too doubtful to use.</summary>
     Unavailable,
     /// <summary>The draft has errors and was not evaluated.</summary>
     Invalid
@@ -20,21 +20,69 @@ public enum ModuleOutcome
 
 public sealed record CandidateInfo(string Source, string Basis, string Description);
 
-/// <summary>What happened to one input: which source answered, or why none did.</summary>
+/// <summary>What happened to one input: which source answered, how fresh and trustworthy that answer was, or why none did.</summary>
 public sealed record InputTrace(
     string Name, string Resolution, Val Value, string? Unit, string? Source, string? Basis, string? UsedInput,
-    IReadOnlyList<string> Reasons, IReadOnlyList<CandidateInfo> Candidates, bool Required);
+    IReadOnlyList<string> Reasons, IReadOnlyList<CandidateInfo> Candidates, bool Required,
+    long? AgeSeconds = null, int? MaxAgeSeconds = null, string? TimestampKind = null, string? Quantity = null);
 
 public sealed record NodeResult(string Name, Val Value, string? Expression, IReadOnlyList<string> DependsOn);
 
-public sealed record OutputResult(string Name, string Kind, Val Value, string? Unit, string? Target, string Expression, SetPointWritePlan? Plan, string? Note = null);
+/// <summary>One reason a set point proposal is or is not allowed. Status is Pass, Fail, Hold (condition not met) or Info.</summary>
+public sealed record ProposalCheck(string Name, string Status, string Detail);
+
+public sealed record OutputResult(
+    string Name, string Kind, Val Value, string? Unit, string? Target, string Expression, SetPointWritePlan? Plan,
+    string? Note = null, IReadOnlyList<ProposalCheck>? Checks = null, bool? Proposed = null);
 
 public sealed record ModuleRun(
     ModuleOutcome Outcome, IReadOnlyList<string> Reasons, string Fingerprint,
     IReadOnlyList<InputTrace> Inputs, IReadOnlyList<NodeResult> Parameters, IReadOnlyList<NodeResult> Steps, IReadOnlyList<OutputResult> Outputs,
-    IReadOnlyList<DraftProblem> Problems);
+    IReadOnlyList<DraftProblem> Problems, DateTimeOffset? EvaluatedAtUtc = null, string Mode = "sample", string? ExternalId = null);
 
-/// <summary>Evaluates a checked draft against already-resolved inputs. Pure: it reads nothing and writes nothing.</summary>
+/// <summary>
+/// The rules for letting a provider reading into a module: usable quality, not too old, in the unit the module
+/// expects. Shared by authoring tests and (later) production runs, so a reading is accepted or refused the same way in both.
+/// </summary>
+public static class InputAcceptance
+{
+    public sealed record Accepted(Val Value, string Resolution, string? Reason, long? AgeSeconds);
+
+    public static DataQuality QualityOf(string? quality) => quality?.Trim().ToLowerInvariant() switch
+    {
+        "good" => DataQuality.Good,
+        "uncertain" or "unknown" => DataQuality.Uncertain,
+        _ => DataQuality.Bad
+    };
+
+    public static Accepted Accept(DraftInput input, decimal number, string? reportedUnit, DateTimeOffset observedAt, string? quality, DateTimeOffset now)
+    {
+        var age = (long)Math.Max(0, (now - observedAt).TotalSeconds);
+        var grade = QualityOf(quality);
+        if (grade == DataQuality.Bad || grade == DataQuality.Uncertain && !input.AllowUncertain)
+            return Refuse("BadQuality", $"The reading's quality is {quality ?? "unknown"}, and this input does not accept that.", age);
+        if (observedAt - now > TimeSpan.FromMinutes(5))
+            return Refuse("Stale", "The reading is time-stamped in the future, so its age cannot be trusted.", age);
+        if (input.MaxAgeSeconds is { } limit && age > limit)
+            return Refuse("Stale", $"The reading is {Span(age)} old; this input allows {Span(limit)}.", age);
+
+        var declared = Units.Normalize(input.Unit);
+        var reported = Units.Normalize(reportedUnit);
+        var value = number;
+        var unit = reported ?? declared;
+        if (declared is not null && reported is not null && !Units.TryConvert(number, reported, declared, out value, out var why))
+            return Refuse("UnitMismatch", $"The provider reports {reported} but this input expects {declared}: {why}", age);
+        if (declared is not null) unit = declared;
+        return new Accepted(Val.Of(value, unit) with { AsOf = observedAt, Quality = grade }, "Resolved", null, age);
+    }
+
+    private static Accepted Refuse(string resolution, string reason, long age) => new(Val.Missing(reason), resolution, reason, age);
+
+    public static string Span(long seconds) =>
+        seconds < 120 ? $"{seconds} s" : seconds < 7200 ? $"{seconds / 60} min" : seconds < 172800 ? $"{seconds / 3600} h" : $"{seconds / 86400} d";
+}
+
+/// <summary>Evaluates a checked draft against already-accepted inputs. Pure: it reads nothing and writes nothing.</summary>
 public static class DraftEvaluator
 {
     private static int Rank(ModuleOutcome outcome) => outcome switch
@@ -42,12 +90,14 @@ public static class DraftEvaluator
         ModuleOutcome.Runs => 0, ModuleOutcome.Unavailable => 1, ModuleOutcome.NeedsSetup => 2, _ => 3
     };
 
-    public static ModuleRun Evaluate(ModuleDraft draft, IReadOnlyList<InputTrace> inputs, IReadOnlyDictionary<string, string>? parameterOverrides = null)
+    public static ModuleRun Evaluate(
+        ModuleDraft draft, IReadOnlyList<InputTrace> inputs, IReadOnlyDictionary<string, string>? parameterOverrides = null, DateTimeOffset? now = null)
     {
+        var at = now ?? DateTimeOffset.UtcNow;
         var analysis = DraftAnalyzer.Analyze(draft);
         if (!analysis.Valid)
             return new ModuleRun(ModuleOutcome.Invalid, ["Fix the problems in the module before testing it."], analysis.Fingerprint,
-                inputs, [], [], [], analysis.Problems);
+                inputs, [], [], [], analysis.Problems, at);
 
         var values = new Dictionary<string, Val>(StringComparer.Ordinal);
         foreach (var input in inputs) values[input.Name] = input.Value;
@@ -55,7 +105,7 @@ public static class DraftEvaluator
         foreach (var parameter in draft.Parameters)
         {
             var text = parameterOverrides is not null && parameterOverrides.TryGetValue(parameter.Name, out var overridden) ? overridden : parameter.Value;
-            var value = Val.Parse(text);
+            var value = Val.Parse(text, parameter.Unit);
             values[parameter.Name] = value;
             parameterResults.Add(new NodeResult(parameter.Name, value, null, []));
         }
@@ -73,9 +123,7 @@ public static class DraftEvaluator
             stepResults.Add(new NodeResult(name, value, step.Expression, graph[name].DependsOn));
         }
 
-        var outputResults = draft.Outputs
-            .Select(o => new OutputResult(o.Name, o.Kind, ModuleExpression.Parse(o.Expression).Evaluate(Lookup), o.Unit, o.Target, o.Expression, null))
-            .ToList();
+        var outputResults = draft.Outputs.Select(o => EvaluateOutput(o, Lookup, at)).ToList();
 
         var reasons = new List<string>();
         var outcome = ModuleOutcome.Runs;
@@ -84,13 +132,115 @@ public static class DraftEvaluator
             reasons.Add($"{input.Name}: {string.Join(" ", input.Reasons.DefaultIfEmpty(input.Value.Reason ?? "no value"))}");
             var next = input.Resolution switch
             {
-                "NeedsSelection" => ModuleOutcome.NeedsSetup,
-                "CannotDetermine" => ModuleOutcome.Unavailable,
+                "NeedsSelection" or "Misconfigured" or "UnitMismatch" => ModuleOutcome.NeedsSetup,
+                "CannotDetermine" or "Stale" or "BadQuality" => ModuleOutcome.Unavailable,
                 _ => ModuleOutcome.Skipped
             };
-            // A definite "does not apply" wins, then a choice the author must make, then an unreachable provider.
+            // A definite "does not apply" wins, then a choice the author must make, then an unreachable or untrustworthy source.
             if (Rank(next) > Rank(outcome)) outcome = next;
         }
-        return new ModuleRun(outcome, reasons, analysis.Fingerprint, inputs, parameterResults, stepResults, outputResults, analysis.Problems);
+        return new ModuleRun(outcome, reasons, analysis.Fingerprint, inputs, parameterResults, stepResults, outputResults, analysis.Problems, at);
+    }
+
+    private static OutputResult EvaluateOutput(DraftOutput output, Func<string, Val> lookup, DateTimeOffset now)
+    {
+        var value = Finalize(ModuleExpression.Parse(output.Expression).Evaluate(lookup), output.Unit);
+        if (output.Kind != "setpoint")
+            return new OutputResult(output.Name, output.Kind, value, Units.Normalize(output.Unit), output.Target, output.Expression, null);
+
+        var checks = new List<ProposalCheck>();
+        var proceed = true;
+        var evidence = value;
+        if (value.Kind != ValueKind.Number)
+        {
+            checks.Add(new("Calculation", "Fail", value.Available ? "A set point needs a number." : value.Reason ?? "The calculation has no value."));
+            proceed = false;
+        }
+        else
+            checks.Add(new("Calculation", "Pass", $"Proposes {value.Display()}."));
+
+        if (proceed && !string.IsNullOrWhiteSpace(output.When))
+        {
+            var condition = ModuleExpression.Parse(output.When).Evaluate(lookup);
+            evidence = value.Derived(condition);
+            if (!condition.Available)
+            {
+                checks.Add(new("Condition", "Fail", $"Cannot decide whether to act: {condition.Reason}"));
+                proceed = false;
+            }
+            else if (condition.Kind != ValueKind.Flag)
+            {
+                checks.Add(new("Condition", "Fail", "The condition must be true or false."));
+                proceed = false;
+            }
+            else if (condition.Flag == false)
+            {
+                checks.Add(new("Condition", "Hold", "The condition is not met, so nothing is proposed."));
+                proceed = false;
+            }
+            else
+                checks.Add(new("Condition", "Pass", "The condition is met."));
+        }
+
+        if (proceed)
+        {
+            var number = value.Number!.Value;
+            if (output.Limits is { } limits && (limits.Min is not null || limits.Max is not null))
+            {
+                var inside = (limits.Min is null || number >= limits.Min) && (limits.Max is null || number <= limits.Max);
+                checks.Add(new("Module limits", inside ? "Pass" : "Fail",
+                    inside ? $"Inside {Bound(limits.Min)} to {Bound(limits.Max)}." : $"{Units.Format(number)} is outside the module's limits {Bound(limits.Min)} to {Bound(limits.Max)}."));
+                proceed = inside;
+            }
+            if (evidence.Quality != DataQuality.Good)
+            {
+                checks.Add(new("Evidence quality", "Fail", $"The proposal rests on a reading of {evidence.Quality} quality."));
+                proceed = false;
+            }
+            else if (evidence.AsOf is { } observed)
+                checks.Add(new("Evidence age", "Info", $"The oldest reading behind this was observed {InputAcceptance.Span((long)Math.Max(0, (now - observed).TotalSeconds))} ago."));
+        }
+        checks.Add(new("Minimum interval", "Info", "Rate limits and cool-downs are enforced where the module runs, not in this test."));
+        return new OutputResult(output.Name, output.Kind, value, Units.Normalize(output.Unit), output.Target, output.Expression, null,
+            null, checks, proceed);
+    }
+
+    private static string Bound(decimal? value) => value is null ? "no limit" : Units.Format(value.Value);
+
+    /// <summary>Holds an output to its declared unit: converts when the unit is compatible, refuses when it is not.</summary>
+    private static Val Finalize(Val value, string? declaredUnit)
+    {
+        var declared = Units.Normalize(declaredUnit);
+        if (value.Kind != ValueKind.Number || declared is null || value.Unit == declared)
+            return value;
+        if (value.Unit is null)
+            return value with { Unit = declared };
+        if (Units.DimensionOf(declared) == "pressure" && Units.WithoutReference(value.Unit) is { } plain)
+            return Units.TryConvert(value.Number!.Value, plain, declared, out var relative, out _)
+                ? value with { Number = relative, Unit = declared } : Val.Missing($"The result is in {value.Unit} but the output is declared in {declared}.");
+        return Units.TryConvert(value.Number!.Value, value.Unit, declared, out var converted, out var why)
+            ? value with { Number = converted, Unit = declared }
+            : Val.Missing($"The result is in {value.Unit} but the output is declared in {declared}: {why}");
+    }
+
+    /// <summary>Completes a set point proposal once the controller has been asked: its range, the step size and the current value.</summary>
+    public static OutputResult AfterPlan(OutputResult output, DraftOutput draft, SetPointWritePlan plan)
+    {
+        var checks = (output.Checks ?? []).ToList();
+        var proposed = output.Proposed == true;
+        checks.Add(new("Controller range", plan.Allowed ? "Pass" : "Fail",
+            plan.Allowed ? $"Inside the controller's range {Bound(plan.RangeLow)} to {Bound(plan.RangeHigh)}." : plan.Refusal ?? "The controller refused the value."));
+        if (!plan.Allowed) proposed = false;
+        if (draft.Limits?.MaxStep is { } step)
+        {
+            var change = Math.Abs(plan.Proposed - plan.Current);
+            var ok = change <= step;
+            checks.Add(new("Maximum step", ok ? "Pass" : "Fail",
+                ok ? $"A change of {Units.Format(change)} is within the {Units.Format(step)} step limit." : $"A change of {Units.Format(change)} is more than the {Units.Format(step)} step limit."));
+            if (!ok) proposed = false;
+        }
+        checks.Add(new("Current value", "Info", "Taken from the controller's saved set point. Confirm it with a live readback before applying."));
+        return output with { Plan = plan, Checks = checks, Proposed = proposed,
+            Note = proposed ? "Dry run only. Nothing was sent." : "Not proposed. Nothing was sent." };
     }
 }

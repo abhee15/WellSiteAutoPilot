@@ -28,6 +28,8 @@ internal static class LiveChecks
 
         var starters = (await Get(http, "authoring/starters")).EnumerateArray().ToDictionary(s => s.GetProperty("id").GetString()!);
         JsonElement Draft(string id) => starters[id].GetProperty("draft");
+        JsonElement? Bindings(string id) => starters[id].TryGetProperty("bindings", out var b) && b.ValueKind == JsonValueKind.Object ? b : null;
+        Task<JsonElement> Run(string id, Guid connection, string asset) => Evaluate(http, Draft(id), connection, asset, Bindings(id));
 
         var invalid = await Post(http, "authoring/validate", new { name = "x", inputs = Array.Empty<object>(), parameters = Array.Empty<object>(), steps = Array.Empty<object>(), outputs = Array.Empty<object>() });
         Check.That(!invalid.GetProperty("valid").GetBoolean(), "the server validates an empty draft as invalid");
@@ -36,65 +38,70 @@ internal static class LiveChecks
         var wellTest = await ForeSiteDirect.GetAsync("WellTests/GetLatestWellTestData/1596");
         var expectedCasing = ForeSiteDirect.Number(wellTest, "AverageCasingPressure");
         var expectedTubing = ForeSiteDirect.Number(wellTest, "AverageTubingPressure");
-        var casing1596 = await Evaluate(http, Draft("fallback"), ForeSite, "1596");
+        var casing1596 = await Run("fallback", ForeSite, "1596");
         Check.That(Outcome(casing1596) == "Runs", "1596 casing fallback runs");
         var casingInput = casing1596.GetProperty("inputs")[0];
         Check.That(casingInput.GetProperty("basis").GetString() == "TestSample", "1596 casing comes from the well test, not surveillance");
+        Check.That(casingInput.GetProperty("timestampKind").GetString() == "WellTestDate", "a well test value is stamped with the well test date, not the retrieval time");
         Check.That(Math.Abs(Out(casing1596, "Casing_out") - expectedCasing) < 0.001, $"1596 casing {Out(casing1596, "Casing_out")} equals ForeSite's well test {expectedCasing}");
         Check.That(casingInput.GetProperty("reasons").GetArrayLength() >= 1, "the trace explains why surveillance did not answer");
 
-        var diff1596 = await Evaluate(http, Draft("differential"), ForeSite, "1596");
+        var diff1596 = await Run("differential", ForeSite, "1596");
         Check.That(Outcome(diff1596) == "Runs" && Math.Abs(Out(diff1596, "Differential_out") - (expectedCasing - expectedTubing)) < 0.001,
             "1596 differential equals casing minus tubing from the well test");
 
-        var snapshot1596 = await Evaluate(http, Draft("snapshot"), ForeSite, "1596");
+        var snapshot1596 = await Run("snapshot", ForeSite, "1596");
         Check.That(Outcome(snapshot1596) == "Skipped", "1596 has no surveillance casing, so the surveillance-only snapshot is skipped, not zero");
 
-        var location1596 = await Evaluate(http, Draft("location"), ForeSite, "1596");
+        var location1596 = await Run("location", ForeSite, "1596");
         var well1596 = await ForeSiteDirect.GetAsync("Wells/Well/1596");
         Check.That(Outcome(location1596) == "Runs" && Math.Abs(Out(location1596, "Latitude_out") - ForeSiteDirect.Number(well1596, "SurfaceLatitude")) < 1e-6
             && Math.Abs(Out(location1596, "Longitude_out") - ForeSiteDirect.Number(well1596, "SurfaceLongitude")) < 1e-6, "1596 location equals ForeSite's well record");
 
         // Well 776 (RPOC): live surveillance has casing, tubing and fillage; there is no well test.
         var surveillance = await ForeSiteDirect.GetAsync("Surveillance/well/776");
-        var snapshot776 = await Evaluate(http, Draft("snapshot"), ForeSite, "776");
+        var snapshot776 = await Run("snapshot", ForeSite, "776");
         Check.That(Outcome(snapshot776) == "Runs", "776 snapshot runs");
         var casing776 = Out(snapshot776, "Casing_out");
         var directCasing = ForeSiteDirect.Number(surveillance, "CasingPressure");
         Check.That(casing776 is >= 0 and <= 3000, $"776 casing {casing776} is a plausible pressure");
         Check.That(Math.Abs(casing776 - directCasing) <= Math.Max(5, directCasing * 0.1), $"776 casing {casing776} agrees with ForeSite read directly ({directCasing})");
         var directUnit = ForeSiteDirect.Unit(surveillance, "CasingPressure");
-        Check.That(snapshot776.GetProperty("inputs")[0].GetProperty("unit").GetString() == directUnit && directUnit.Length > 0,
+        Check.That(string.Equals(snapshot776.GetProperty("inputs")[0].GetProperty("unit").GetString(), directUnit, StringComparison.OrdinalIgnoreCase) && directUnit.Length > 0,
             $"776 casing carries the unit ForeSite reports ({directUnit})");
 
-        var threshold776 = await Evaluate(http, Draft("threshold"), ForeSite, "776");
+        var threshold776 = await Run("threshold", ForeSite, "776");
         Check.That(Outcome(threshold776) == "Runs", "776 threshold falls back to a source and runs");
         var status = threshold776.GetProperty("outputs").EnumerateArray().Single(o => o.GetProperty("name").GetString() == "Status_out").GetProperty("value").GetProperty("text").GetString();
         Check.That(status == (casing776 > 250 ? "High" : "Normal") || Math.Abs(casing776 - 250) < 25, "776 status follows the live casing and the 250 psi limit");
 
-        var plan776 = await Evaluate(http, Draft("setpoint"), ForeSite, "776");
-        Check.That(Outcome(plan776) == "Runs", "776 set point module runs");
+        var survInput = snapshot776.GetProperty("inputs")[0];
+        Check.That(survInput.GetProperty("timestampKind").GetString() is "ControllerScan" or "Unknown",
+            "776 surveillance is stamped with the controller scan time, never the retrieval time");
+
+        var plan776 = await Run("setpoint", ForeSite, "776");
+        Check.That(Outcome(plan776) == "Runs", $"776 set point module runs: {plan776.GetProperty("reasons")}");
         var change = plan776.GetProperty("outputs")[0];
-        if (change.GetProperty("value").GetProperty("number").GetDouble() > 0)
+        var running = change.GetProperty("checks").EnumerateArray().Any(c => c.GetProperty("name").GetString() == "Condition" && c.GetProperty("status").GetString() == "Pass");
+        if (running)
         {
             var plan = change.GetProperty("plan");
-            Check.That(plan.GetProperty("allowed").GetBoolean() && plan.GetProperty("setPoint").GetString() == "IdealPF", "776 IdealPF change is allowed");
-            Check.That(Math.Abs(plan.GetProperty("proposed").GetDouble() - plan.GetProperty("current").GetDouble() - 1) < 1e-9, "the plan proposes current + 1");
+            Check.That(plan.GetProperty("setPoint").GetString() == "IdealPF" && plan.GetProperty("proposed").GetDecimal() == 40, "776 plans IdealPF at the absolute target");
             Check.That(change.GetProperty("note").GetString()!.Contains("Nothing was sent", StringComparison.Ordinal), "the live plan is a dry run");
+            Check.That(change.GetProperty("checks").EnumerateArray().Any(c => c.GetProperty("name").GetString() == "Controller range"), "the controller's range is part of the proposal checks");
         }
-
-        var location776 = await Evaluate(http, Draft("location"), ForeSite, "776");
+        var location776 = await Run("location", ForeSite, "776");
         Check.That(Outcome(location776) == "Runs" && Out(location776, "Latitude_out") is >= -90 and <= 90, "776 latitude is a valid coordinate");
 
         // CygNet demo: pump fillage exists on RPOC_0001 only.
         var fillage = new
         {
-            name = "Fillage", inputs = new[] { new { name = "Fillage", sources = new[] { new { input = "PumpFillage", basis = (string?)null } }, required = true } },
+            name = "Fillage", inputs = new[] { new { name = "Fillage", quantity = "PumpFillage", unit = "%", required = true } },
             parameters = Array.Empty<object>(), steps = Array.Empty<object>(), outputs = new[] { new { name = "Fillage_out", kind = "value", expression = "Fillage", unit = "%" } }
         };
-        var rpoc = await Evaluate(http, JsonSerializer.SerializeToElement(fillage, Web), CygNet, "RPOC_0001");
+        var rpoc = await Evaluate(http, JsonSerializer.SerializeToElement(fillage, Web), CygNet, "RPOC_0001", null);
         Check.That(Outcome(rpoc) == "Runs" && Out(rpoc, "Fillage_out") is >= 0 and <= 100, "CygNet RPOC_0001 pump fillage is a percentage");
-        var plain = await Evaluate(http, JsonSerializer.SerializeToElement(fillage, Web), CygNet, "8800_0001");
+        var plain = await Evaluate(http, JsonSerializer.SerializeToElement(fillage, Web), CygNet, "8800_0001", null);
         Check.That(Outcome(plain) == "Skipped", "CygNet 8800_0001 has no pump fillage, so the module is skipped");
 
         Console.WriteLine("Live authoring checks passed (ForeSite 776 and 1596, CygNet RPOC_0001 and 8800_0001).");
@@ -109,8 +116,8 @@ internal static class LiveChecks
         return value.GetProperty("number").GetDouble();
     }
 
-    private static Task<JsonElement> Evaluate(HttpClient http, JsonElement draft, Guid connection, string asset) =>
-        Post(http, "authoring/evaluate", new { draft, connectionId = connection, externalId = asset });
+    private static Task<JsonElement> Evaluate(HttpClient http, JsonElement draft, Guid connection, string asset, JsonElement? bindings) =>
+        Post(http, "authoring/evaluate", new { draft, connectionId = connection, externalId = asset, bindings });
 
     private static async Task<JsonElement> Get(HttpClient http, string path)
     {

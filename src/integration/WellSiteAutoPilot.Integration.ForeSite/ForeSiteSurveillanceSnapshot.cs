@@ -75,7 +75,7 @@ public static class ForeSiteSurveillanceSnapshot
         catch (JsonException) { throw new ForeSiteMeasurementException("FORESITE_RESPONSE_INVALID"); }
     }
 
-    private static bool TryOffsetTime(string? text, out DateTimeOffset timestamp)
+    internal static bool TryOffsetTime(string? text, out DateTimeOffset timestamp)
     {
         timestamp = default;
         return text is { Length: >= 20 } &&

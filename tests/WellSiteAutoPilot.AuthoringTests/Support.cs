@@ -23,29 +23,44 @@ internal static class Check
     }
 }
 
+internal sealed class FixedClock(DateTimeOffset now) : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => now;
+}
+
 /// <summary>A provider double that answers per input name, so draft behaviour is tested without a live system.</summary>
 internal sealed class FakeInputs(Dictionary<string, ResolvePreview> answers) : IAuthoringInputs
 {
+    public static readonly DateTimeOffset Now = new(2026, 5, 11, 12, 0, 0, TimeSpan.Zero);
+
     public List<string> Asked { get; } = [];
-    public (string SetPoint, decimal Delta)? Planned { get; private set; }
+    public (string SetPoint, decimal Proposed)? Planned { get; private set; }
+    public decimal Current { get; init; } = 30;
+    public decimal RangeLow { get; init; }
+    public decimal RangeHigh { get; init; } = 100;
 
     public Task<ResolvePreview> ResolveAsync(string externalId, string input, ResolveBasis? basis, CancellationToken cancellationToken)
     {
         Asked.Add(input);
-        if (answers.TryGetValue(input, out var answer)) return Task.FromResult(answer);
+        if (answers.TryGetValue($"{input}|{basis}", out var answer) || answers.TryGetValue(input, out answer)) return Task.FromResult(answer);
         return Task.FromResult(new ResolvePreview(ResolveResult.Failed(ResolveOutcome.NotApplicable, $"{input} is not offered on this asset."), null, null));
     }
 
-    public Task<SetPointWritePlan> PlanSetPointAsync(string externalId, string setPoint, decimal delta, CancellationToken cancellationToken)
+    public Task<SetPointWritePlan> PlanSetPointAsync(string externalId, string setPoint, decimal proposed, CancellationToken cancellationToken)
     {
-        Planned = (setPoint, delta);
-        return Task.FromResult(new SetPointWritePlan(externalId, setPoint, "Ideal PF", "%", 0, delta, 0, 100, true, null));
+        Planned = (setPoint, proposed);
+        var allowed = proposed >= RangeLow && proposed <= RangeHigh;
+        return Task.FromResult(new SetPointWritePlan(externalId, setPoint, "Ideal PF", "%", Current, proposed, RangeLow, RangeHigh, allowed,
+            allowed ? null : "Outside the controller's range."));
     }
 
-    public static ResolvePreview Value(string source, decimal value, ResolveBasis basis = ResolveBasis.Current) =>
+    public static ResolvePreview Value(
+        string source, decimal value, ResolveBasis basis = ResolveBasis.Current, string unit = "psia", int ageSeconds = 30, string quality = "Good") =>
         new(ResolveResult.Compatible(new ResolveCandidate(source, basis, source)),
-            new EngineeringValue("x", value, "psi", DateTimeOffset.UtcNow, "Good", "fake"), null);
+            new EngineeringValue("x", value, unit, Now.AddSeconds(-ageSeconds), quality, "fake"), null);
 
     public static ResolvePreview Choose(params string[] sources) =>
         new(new ResolveResult(ResolveOutcome.NeedsSelection, sources.Select(s => new ResolveCandidate(s, ResolveBasis.Current, s)).ToList(), []), null, null);
+
+    public static ResolvePreview Fail(ResolveOutcome outcome, string reason) => new(ResolveResult.Failed(outcome, reason), null, null);
 }

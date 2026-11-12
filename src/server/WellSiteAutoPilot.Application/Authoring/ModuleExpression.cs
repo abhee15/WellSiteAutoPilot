@@ -1,46 +1,6 @@
 using System.Globalization;
-using System.Text.Json.Serialization;
 
 namespace WellSiteAutoPilot.Application.Authoring;
-
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum ValueKind { Number, Flag, Text, Unavailable }
-
-/// <summary>
-/// A calculated or read value. "Unavailable" is a first-class state and is never a zero: a missing input must not
-/// look like a valid calculated zero, and it carries the reason it is missing.
-/// </summary>
-public sealed record Val(ValueKind Kind, double? Number = null, bool? Flag = null, string? Text = null, string? Reason = null)
-{
-    [JsonIgnore]
-    public bool Available => Kind != ValueKind.Unavailable;
-
-    public static Val Of(double number) => new(ValueKind.Number, Number: number);
-    public static Val Of(bool flag) => new(ValueKind.Flag, Flag: flag);
-    public static Val OfText(string text) => new(ValueKind.Text, Text: text);
-    public static Val Missing(string reason) => new(ValueKind.Unavailable, Reason: reason);
-
-    /// <summary>Numbers and flags written as text become typed values, so parameters and samples can be plain strings.</summary>
-    public static Val Parse(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-            return Missing("no value");
-        var text = raw.Trim();
-        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number))
-            return Of(number);
-        if (bool.TryParse(text, out var flag))
-            return Of(flag);
-        return OfText(text);
-    }
-
-    public string Display() => Kind switch
-    {
-        ValueKind.Number => Number!.Value.ToString("0.#####", CultureInfo.InvariantCulture),
-        ValueKind.Flag => Flag!.Value ? "true" : "false",
-        ValueKind.Text => Text ?? "",
-        _ => "unavailable: " + Reason
-    };
-}
 
 public sealed class ExpressionException(string message, int position) : Exception(message)
 {
@@ -48,7 +8,7 @@ public sealed class ExpressionException(string message, int position) : Exceptio
 }
 
 internal abstract record Node;
-internal sealed record NumberNode(double Value) : Node;
+internal sealed record NumberNode(decimal Value) : Node;
 internal sealed record TextNode(string Value) : Node;
 internal sealed record FlagNode(bool Value) : Node;
 internal sealed record RefNode(string Name, int Position) : Node;
@@ -59,10 +19,14 @@ internal sealed record CallNode(string Function, IReadOnlyList<Node> Arguments) 
 /// <summary>
 /// A deliberately small, side-effect-free expression language for logic module calculations: arithmetic,
 /// comparison, and, or, not, and a fixed set of functions. There is no loop, no assignment and no host access, so
-/// an expression can be validated, traced and evaluated safely on the server or in tests.
+/// an expression can be validated, traced and evaluated safely on the server or in tests. Values are decimal, the
+/// same type the module SDK uses, and carry units: quantities with different units are converted when they measure
+/// the same thing and refused when they do not. This is language version <see cref="LanguageVersion"/>; a change to
+/// what an expression means must bump it, so an older module is never silently reinterpreted.
 /// </summary>
 public sealed class ModuleExpression
 {
+    public const int LanguageVersion = 1;
     public const int MaxLength = 500;
     public static readonly IReadOnlyCollection<string> Functions =
         ["if", "min", "max", "abs", "round", "avg", "clamp", "coalesce", "has"];
@@ -89,7 +53,17 @@ public sealed class ModuleExpression
         return new ModuleExpression(root, parser.References);
     }
 
-    public Val Evaluate(Func<string, Val> lookup) => Eval(_root, lookup);
+    public Val Evaluate(Func<string, Val> lookup)
+    {
+        try
+        {
+            return Eval(_root, lookup);
+        }
+        catch (OverflowException)
+        {
+            return Val.Missing("the result is out of range");
+        }
+    }
 
     private static Val Eval(Node node, Func<string, Val> lookup) => node switch
     {
@@ -109,8 +83,29 @@ public sealed class ModuleExpression
         if (!value.Available)
             return value;
         if (node.Op == "-")
-            return value.Kind == ValueKind.Number ? Val.Of(-value.Number!.Value) : Val.Missing("'-' needs a number");
-        return value.Kind == ValueKind.Flag ? Val.Of(!value.Flag!.Value) : Val.Missing("'!' needs a true or false value");
+            return value.Kind == ValueKind.Number ? value with { Number = -value.Number!.Value } : Val.Missing("'-' needs a number");
+        return value.Kind == ValueKind.Flag ? Val.Of(!value.Flag!.Value).Derived(value) : Val.Missing("'!' needs a true or false value");
+    }
+
+    /// <summary>
+    /// Brings two numbers to one unit so they can be added or compared. A plain number takes the other side's unit;
+    /// two units convert when they measure the same thing and fail, with the reason, when they do not.
+    /// </summary>
+    private static bool Unify(string op, Val left, Val right, out decimal a, out decimal b, out string? unit, out string? problem)
+    {
+        a = left.Number!.Value;
+        b = right.Number!.Value;
+        unit = left.Unit ?? right.Unit;
+        problem = null;
+        if (left.Unit is null || right.Unit is null || left.Unit == right.Unit)
+            return true;
+        if (Units.TryConvert(b, right.Unit, left.Unit, out var converted, out var why))
+        {
+            b = converted;
+            return true;
+        }
+        problem = $"'{op}' cannot combine {left.Unit} and {right.Unit}: {why}";
+        return false;
     }
 
     private static Val Binary(BinaryNode node, Func<string, Val> lookup)
@@ -124,35 +119,63 @@ public sealed class ModuleExpression
         if (!right.Available) return right;
         if (node.Op is "==" or "!=")
         {
-            var same = left.Kind == right.Kind && left.Kind switch
+            bool same;
+            if (left.Kind == ValueKind.Number && right.Kind == ValueKind.Number)
             {
-                ValueKind.Number => left.Number == right.Number,
-                ValueKind.Flag => left.Flag == right.Flag,
-                _ => string.Equals(left.Text, right.Text, StringComparison.Ordinal)
-            };
-            return Val.Of(node.Op == "==" ? same : !same);
+                if (!Unify(node.Op, left, right, out var x, out var y, out _, out var mismatch))
+                    return Val.Missing(mismatch!);
+                same = x == y;
+            }
+            else
+            {
+                same = left.Kind == right.Kind && left.Kind switch
+                {
+                    ValueKind.Flag => left.Flag == right.Flag,
+                    _ => string.Equals(left.Text, right.Text, StringComparison.Ordinal)
+                };
+            }
+            return Val.Of(node.Op == "==" ? same : !same).Derived(left, right);
         }
         if (node.Op == "+" && left.Kind == ValueKind.Text && right.Kind == ValueKind.Text)
-            return Val.OfText(left.Text + right.Text);
+            return Val.OfText(left.Text + right.Text).Derived(left, right);
         if (left.Kind != ValueKind.Number || right.Kind != ValueKind.Number)
             return Val.Missing($"'{node.Op}' needs numbers");
-        double a = left.Number!.Value, b = right.Number!.Value;
-        return node.Op switch
+
+        decimal p, q;
+        string? unit;
+        switch (node.Op)
         {
-            "+" => Finite(a + b),
-            "-" => Finite(a - b),
-            "*" => Finite(a * b),
-            "/" => b == 0 ? Val.Missing("division by zero") : Finite(a / b),
-            "%" => b == 0 ? Val.Missing("division by zero") : Finite(a % b),
-            "<" => Val.Of(a < b),
-            "<=" => Val.Of(a <= b),
-            ">" => Val.Of(a > b),
-            ">=" => Val.Of(a >= b),
+            case "*":
+                if (left.Unit is not null && right.Unit is not null)
+                    return Val.Missing($"'*' cannot multiply {left.Unit} by {right.Unit}: this version does not combine two quantities that have units.");
+                return Val.Of(left.Number!.Value * right.Number!.Value, left.Unit ?? right.Unit).Derived(left, right);
+            case "/":
+                if (right.Number == 0) return Val.Missing("division by zero");
+                if (left.Unit is null && right.Unit is not null)
+                    return Val.Missing($"'/' cannot divide a plain number by {right.Unit}: this version does not produce inverse units.");
+                if (left.Unit is not null && right.Unit is not null)
+                {
+                    if (!Unify("/", left, right, out p, out q, out _, out var problem)) return Val.Missing(problem!);
+                    return (q == 0 ? Val.Missing("division by zero") : Val.Of(p / q)).Derived(left, right);
+                }
+                return Val.Of(left.Number!.Value / right.Number!.Value, left.Unit).Derived(left, right);
+        }
+
+        if (!Unify(node.Op, left, right, out p, out q, out unit, out var mismatchProblem))
+            return Val.Missing(mismatchProblem!);
+        Val result = node.Op switch
+        {
+            "+" => Val.Of(p + q, unit),
+            "-" => Val.Of(p - q, unit),
+            "%" => q == 0 ? Val.Missing("division by zero") : Val.Of(p % q, unit),
+            "<" => Val.Of(p < q),
+            "<=" => Val.Of(p <= q),
+            ">" => Val.Of(p > q),
+            ">=" => Val.Of(p >= q),
             _ => Val.Missing("unsupported operator")
         };
+        return result.Available ? result.Derived(left, right) : result;
     }
-
-    private static Val Finite(double value) => double.IsFinite(value) ? Val.Of(value) : Val.Missing("the result is out of range");
 
     private static Val Logical(BinaryNode node, Func<string, Val> lookup)
     {
@@ -167,7 +190,7 @@ public sealed class ModuleExpression
         if (!right.Available) return right;
         if (left.Kind != ValueKind.Flag || right.Kind != ValueKind.Flag)
             return Val.Missing($"'{node.Op}' needs true or false values");
-        return Val.Of(and ? left.Flag!.Value && right.Flag!.Value : left.Flag!.Value || right.Flag!.Value);
+        return Val.Of(and ? left.Flag!.Value && right.Flag!.Value : left.Flag!.Value || right.Flag!.Value).Derived(left, right);
     }
 
     private static Val Call(CallNode call, Func<string, Val> lookup)
@@ -181,7 +204,8 @@ public sealed class ModuleExpression
                 var condition = Eval(args[0], lookup);
                 if (!condition.Available) return condition;
                 if (condition.Kind != ValueKind.Flag) return Val.Missing("if() needs a true or false condition");
-                return Eval(condition.Flag!.Value ? args[1] : args[2], lookup);
+                var chosen = Eval(condition.Flag!.Value ? args[1] : args[2], lookup);
+                return chosen.Available ? chosen.Derived(condition) : chosen;
             }
             case "coalesce":
             {
@@ -196,24 +220,41 @@ public sealed class ModuleExpression
                 return args.Count == 1 ? Val.Of(Eval(args[0], lookup).Available) : Val.Missing("has(value) takes 1 value");
         }
 
-        var numbers = new List<double>();
+        var values = new List<Val>();
         foreach (var arg in args)
         {
             var value = Eval(arg, lookup);
             if (!value.Available) return value;
             if (value.Kind != ValueKind.Number) return Val.Missing($"{call.Function}() needs numbers");
-            numbers.Add(value.Number!.Value);
+            values.Add(value);
         }
-        return call.Function switch
+
+        // round(value, digits) has a plain count for the second argument; every other argument is one quantity.
+        var quantities = call.Function == "round" ? values.Take(1).ToList() : values;
+        if (quantities.Count == 0) return Val.Missing($"{call.Function}() was given the wrong number of values");
+        var unit = quantities.Select(v => v.Unit).FirstOrDefault(u => u is not null);
+        var numbers = new List<decimal>();
+        foreach (var quantity in quantities)
         {
-            "abs" when numbers.Count == 1 => Val.Of(Math.Abs(numbers[0])),
-            "round" when numbers.Count is 1 or 2 => Val.Of(Math.Round(numbers[0], numbers.Count == 2 ? (int)Math.Clamp(numbers[1], 0, 10) : 0, MidpointRounding.AwayFromZero)),
-            "min" when numbers.Count >= 1 => Val.Of(numbers.Min()),
-            "max" when numbers.Count >= 1 => Val.Of(numbers.Max()),
-            "avg" when numbers.Count >= 1 => Val.Of(numbers.Average()),
-            "clamp" when numbers.Count == 3 => Val.Of(Math.Clamp(numbers[0], Math.Min(numbers[1], numbers[2]), Math.Max(numbers[1], numbers[2]))),
+            var number = quantity.Number!.Value;
+            if (quantity.Unit is not null && unit is not null && quantity.Unit != unit)
+            {
+                if (!Units.TryConvert(number, quantity.Unit, unit, out number, out var why))
+                    return Val.Missing($"{call.Function}() cannot combine {unit} and {quantity.Unit}: {why}");
+            }
+            numbers.Add(number);
+        }
+        var result = call.Function switch
+        {
+            "abs" when values.Count == 1 => Val.Of(Math.Abs(numbers[0]), unit),
+            "round" when values.Count is 1 or 2 => Val.Of(Math.Round(numbers[0], values.Count == 2 ? (int)Math.Clamp(values[1].Number!.Value, 0, 10) : 0, MidpointRounding.AwayFromZero), unit),
+            "min" => Val.Of(numbers.Min(), unit),
+            "max" => Val.Of(numbers.Max(), unit),
+            "avg" => Val.Of(numbers.Average(), unit),
+            "clamp" when values.Count == 3 => Val.Of(Math.Clamp(numbers[0], Math.Min(numbers[1], numbers[2]), Math.Max(numbers[1], numbers[2])), unit),
             _ => Val.Missing($"{call.Function}() was given the wrong number of values")
         };
+        return result.Available ? result.Derived([.. values]) : result;
     }
 
     private sealed class Parser(string text)
@@ -339,7 +380,7 @@ public sealed class ModuleExpression
         {
             var start = _at;
             while (_at < text.Length && (char.IsAsciiDigit(text[_at]) || text[_at] == '.')) _at++;
-            if (!double.TryParse(text.AsSpan(start, _at - start), NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            if (!decimal.TryParse(text.AsSpan(start, _at - start), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var value))
                 throw new ExpressionException("That is not a valid number.", start);
             return new NumberNode(value);
         }

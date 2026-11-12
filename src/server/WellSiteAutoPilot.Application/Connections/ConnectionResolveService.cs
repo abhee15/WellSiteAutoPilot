@@ -38,10 +38,10 @@ public sealed class ConnectionResolveService(ConnectionService connections, IGat
     }
 
     public async Task<SetPointWritePlan> PlanSetPointAsync(
-        Guid connectionId, string externalId, string setPoint, decimal delta, CancellationToken cancellationToken = default)
+        Guid connectionId, string externalId, string setPoint, decimal delta, decimal? absolute = null, CancellationToken cancellationToken = default)
     {
         var connection = await Enabled(connectionId, cancellationToken);
-        var request = new SetPointPlanRequest(connection.Id, connection.Revision, Settings(connection), externalId, setPoint, delta);
+        var request = new SetPointPlanRequest(connection.Id, connection.Revision, Settings(connection), externalId, setPoint, delta, absolute);
         return await gateway.PlanSetPointAsync(connection.AdapterKey, request, cancellationToken)
             ?? throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryUnsupported, FailureKind.Conflict,
                 "This connection's adapter has no set points to plan against.");

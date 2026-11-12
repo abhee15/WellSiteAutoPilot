@@ -5,13 +5,13 @@ namespace WellSiteAutoPilot.Application.Authoring;
 /// <summary>Test a draft: against a connection and asset (live), or against typed sample values.</summary>
 public sealed record EvaluateDraftRequest(
     ModuleDraft Draft, Guid? ConnectionId = null, string? ExternalId = null,
-    Dictionary<string, string>? Samples = null, Dictionary<string, string>? Parameters = null);
+    Dictionary<string, string>? Samples = null, Dictionary<string, string>? Parameters = null, ModuleBindings? Bindings = null);
 
 /// <summary>What authoring needs from a connection: resolve one input on one asset, and dry-run a set point change.</summary>
 public interface IAuthoringInputs
 {
     Task<ResolvePreview> ResolveAsync(string externalId, string input, ResolveBasis? basis, CancellationToken cancellationToken);
-    Task<SetPointWritePlan> PlanSetPointAsync(string externalId, string setPoint, decimal delta, CancellationToken cancellationToken);
+    Task<SetPointWritePlan> PlanSetPointAsync(string externalId, string setPoint, decimal proposed, CancellationToken cancellationToken);
 }
 
 /// <summary>Reads through a saved connection. Read-only: set point changes are planned, never sent.</summary>
@@ -20,74 +20,111 @@ public sealed class ConnectionAuthoringInputs(Connections.ConnectionResolveServi
     public Task<ResolvePreview> ResolveAsync(string externalId, string input, ResolveBasis? basis, CancellationToken cancellationToken) =>
         resolver.ResolveAsync(connectionId, externalId, input, basis, true, cancellationToken);
 
-    public Task<SetPointWritePlan> PlanSetPointAsync(string externalId, string setPoint, decimal delta, CancellationToken cancellationToken) =>
-        resolver.PlanSetPointAsync(connectionId, externalId, setPoint, delta, cancellationToken);
+    public Task<SetPointWritePlan> PlanSetPointAsync(string externalId, string setPoint, decimal proposed, CancellationToken cancellationToken) =>
+        resolver.PlanSetPointAsync(connectionId, externalId, setPoint, 0m, proposed, cancellationToken);
 }
 
 /// <summary>
 /// Tests a draft. Inputs come from the connection's live provider for one asset, or from typed sample values when
-/// there is no connection. Either way the result carries a trace from each output back to the inputs that fed it.
+/// there is no connection. A source that is not applicable passes the input on to the next binding; a failure, a
+/// choice the author must make, or a reading that is too old stops the input, so a broken primary is never hidden.
 /// </summary>
 public static class AuthoringService
 {
     public static async Task<ModuleRun> EvaluateAsync(
         ModuleDraft draft, IAuthoringInputs? inputs, string? externalId,
         IReadOnlyDictionary<string, string>? samples, IReadOnlyDictionary<string, string>? parameters,
-        CancellationToken cancellationToken = default)
+        ModuleBindings? bindings = null, TimeProvider? clock = null, CancellationToken cancellationToken = default)
     {
+        var now = (clock ?? TimeProvider.System).GetUtcNow();
+        var live = inputs is not null && !string.IsNullOrWhiteSpace(externalId);
         var analysis = DraftAnalyzer.Analyze(draft);
         if (!analysis.Valid)
-            return DraftEvaluator.Evaluate(draft, [], parameters);
+            return DraftEvaluator.Evaluate(draft, [], parameters, now);
 
         var traces = new List<InputTrace>();
         foreach (var input in draft.Inputs)
-        {
-            if (inputs is not null && !string.IsNullOrWhiteSpace(externalId))
-                traces.Add(await ResolveInputAsync(input, inputs, externalId, cancellationToken));
-            else
-                traces.Add(FromSample(input, samples));
-        }
+            traces.Add(live ? await ResolveInputAsync(input, bindings, inputs!, externalId!, now, cancellationToken) : FromSample(input, samples));
 
-        var run = DraftEvaluator.Evaluate(draft, traces, parameters);
-        if (inputs is null || string.IsNullOrWhiteSpace(externalId) || run.Outcome != ModuleOutcome.Runs)
+        var run = DraftEvaluator.Evaluate(draft, traces, parameters, now) with { Mode = live ? "live" : "sample", ExternalId = live ? externalId : null };
+        if (!live)
+            return run with { Outputs = run.Outputs.Select(NoController).ToList() };
+        if (run.Outcome != ModuleOutcome.Runs)
             return run;
 
         var outputs = new List<OutputResult>();
         foreach (var output in run.Outputs)
         {
-            if (output.Kind != "setpoint" || output.Value.Kind != ValueKind.Number)
-            {
-                outputs.Add(output);
-                continue;
-            }
-            try
-            {
-                var plan = await inputs.PlanSetPointAsync(externalId, output.Target!, (decimal)output.Value.Number!.Value, cancellationToken);
-                outputs.Add(output with { Plan = plan, Note = plan.Allowed ? "Dry run only. Nothing was sent." : plan.Refusal });
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                outputs.Add(output with { Note = "The set point change could not be planned: " + error.Message });
-            }
+            var spec = draft.Outputs.First(o => o.Name == output.Name);
+            outputs.Add(output.Kind == "setpoint" && output.Proposed == true
+                ? await PlanAsync(output, spec, bindings, inputs!, externalId!, cancellationToken)
+                : output);
         }
         return run with { Outputs = outputs };
     }
 
-    private static InputTrace FromSample(DraftInput input, IReadOnlyDictionary<string, string>? samples)
+    private static OutputResult NoController(OutputResult output) =>
+        output.Kind != "setpoint" ? output
+            : output with { Checks = [.. output.Checks ?? [], new ProposalCheck("Controller", "Info", "No controller is connected, so its range and step limit were not checked.")] };
+
+    private static async Task<OutputResult> PlanAsync(
+        OutputResult output, DraftOutput spec, ModuleBindings? bindings, IAuthoringInputs inputs, string externalId, CancellationToken cancellationToken)
     {
-        if (samples is not null && samples.TryGetValue(input.Name, out var text) && !string.IsNullOrWhiteSpace(text))
-            return new InputTrace(input.Name, "Sample", Val.Parse(text), null, "sample", null, null, [], [], input.Required);
-        var reason = "No sample value was given. Type one, or choose a connection and an asset.";
-        return new InputTrace(input.Name, "CannotDetermine", Val.Missing(reason), null, null, null, null, [reason], [], input.Required);
+        var target = bindings?.Targets is { } map && map.TryGetValue(spec.Name, out var bound) && !string.IsNullOrWhiteSpace(bound) ? bound : spec.Target!;
+        try
+        {
+            var number = output.Value.Number!.Value;
+            var plan = await inputs.PlanSetPointAsync(externalId, target, number, cancellationToken);
+            var module = Units.Normalize(spec.Unit);
+            var controller = Units.Normalize(plan.Unit);
+            var notes = new List<ProposalCheck>();
+            if (module is not null && controller is not null && module != controller)
+            {
+                if (!Units.TryConvert(number, module, controller, out var converted, out var why))
+                    return output with
+                    {
+                        Proposed = false, Note = "Not proposed. Nothing was sent.",
+                        Checks = [.. output.Checks ?? [], new ProposalCheck("Unit", "Fail", $"The module proposes {module} but the controller uses {controller}: {why}")]
+                    };
+                plan = await inputs.PlanSetPointAsync(externalId, target, converted, cancellationToken);
+                notes.Add(new("Unit", "Info", $"Converted from {module} to the controller's {controller}."));
+            }
+            else if (module is null && controller is not null)
+                notes.Add(new("Unit", "Info", $"The output declares no unit, so the value was taken to be in the controller's {controller}."));
+            var completed = DraftEvaluator.AfterPlan(output, spec, plan);
+            return completed with { Checks = [.. completed.Checks!, .. notes] };
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return output with
+            {
+                Proposed = false, Note = "Not proposed. Nothing was sent.",
+                Checks = [.. output.Checks ?? [], new ProposalCheck("Controller", "Fail", "The set point could not be checked against the controller: " + error.Message)]
+            };
+        }
     }
 
-    private static async Task<InputTrace> ResolveInputAsync(DraftInput input, IAuthoringInputs inputs, string externalId, CancellationToken cancellationToken)
+    internal static InputTrace FromSample(DraftInput input, IReadOnlyDictionary<string, string>? samples)
     {
+        if (samples is not null && samples.TryGetValue(input.Name, out var text) && !string.IsNullOrWhiteSpace(text))
+            return new InputTrace(input.Name, "Sample", Val.Parse(text, input.Unit), Units.Normalize(input.Unit), "sample", null, null, [], [], input.Required,
+                Quantity: input.Quantity);
+        var reason = "No sample value was given. Type one, or choose a connection and an asset.";
+        return new InputTrace(input.Name, "CannotDetermine", Val.Missing(reason), null, null, null, null, [reason], [], input.Required, Quantity: input.Quantity);
+    }
+
+    private static async Task<InputTrace> ResolveInputAsync(
+        DraftInput input, ModuleBindings? bindings, IAuthoringInputs inputs, string externalId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var sources = bindings?.Inputs is { } map && map.TryGetValue(input.Name, out var bound) && bound.Count > 0
+            ? bound : [new BindingSource(input.Quantity, input.Basis)];
         var reasons = new List<string>();
-        var candidates = new List<CandidateInfo>();
-        var worst = "NotApplicable";
-        var needsSelection = false;
-        foreach (var source in input.Sources)
+
+        InputTrace Stop(string resolution, string? usedInput = null, IReadOnlyList<CandidateInfo>? candidates = null) =>
+            new(input.Name, resolution, Val.Missing(reasons.FirstOrDefault() ?? "no source answered"), null, null, null, usedInput,
+                reasons, candidates ?? [], input.Required, MaxAgeSeconds: input.MaxAgeSeconds, Quantity: input.Quantity);
+
+        foreach (var source in sources)
         {
             ResolveBasis? basis = Enum.TryParse<ResolveBasis>(source.Basis, out var parsed) ? parsed : null;
             ResolvePreview preview;
@@ -98,34 +135,38 @@ public static class AuthoringService
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 reasons.Add($"{source.Input}: {error.Message}");
-                if (!needsSelection) worst = "CannotDetermine";
-                continue;
+                return Stop("CannotDetermine", source.Input);
             }
 
             var result = preview.Result;
-            if (result.Outcome == ResolveOutcome.Compatible)
+            switch (result.Outcome)
             {
-                var candidate = result.Candidates.Count > 0 ? result.Candidates[0] : null;
-                if (preview.Value?.Value is { } number)
-                    return new InputTrace(input.Name, "Resolved", Val.Of((double)number), preview.Value.Unit, preview.Value.Source,
-                        candidate?.Basis.ToString(), candidate?.Source ?? source.Input, reasons, [], input.Required);
+                case ResolveOutcome.NotApplicable:
+                    reasons.AddRange(result.Reasons.Select(r => $"{source.Input}: {r}"));
+                    continue;
+                case ResolveOutcome.NeedsSelection:
+                    reasons.Add($"{source.Input}: choose which value to use.");
+                    return Stop("NeedsSelection", source.Input, result.Candidates.Select(c => new CandidateInfo(c.Source, c.Basis.ToString(), c.Description)).ToList());
+                case ResolveOutcome.Compatible:
+                    break;
+                default:
+                    reasons.AddRange(result.Reasons.Select(r => $"{source.Input}: {r}"));
+                    return Stop(result.Outcome == ResolveOutcome.Misconfigured ? "Misconfigured" : "CannotDetermine", source.Input);
+            }
+
+            var candidate = result.Candidates.Count > 0 ? result.Candidates[0] : null;
+            if (preview.Value is not { Value: { } number } reading)
+            {
                 reasons.Add($"{source.Input}: {preview.ReadProblem ?? "resolved but returned no value"}");
-                if (!needsSelection) worst = "CannotDetermine";
-                continue;
+                return Stop("CannotDetermine", source.Input);
             }
-            if (result.Outcome == ResolveOutcome.NeedsSelection)
-            {
-                needsSelection = true;
-                worst = "NeedsSelection";
-                candidates.AddRange(result.Candidates.Select(c => new CandidateInfo(c.Source, c.Basis.ToString(), c.Description)));
-                reasons.Add($"{source.Input}: choose which value to use.");
-                continue;
-            }
-            reasons.AddRange(result.Reasons.Select(r => $"{source.Input}: {r}"));
-            if (!needsSelection && worst != "CannotDetermine")
-                worst = result.Outcome == ResolveOutcome.CannotDetermine ? "CannotDetermine" : result.Outcome.ToString();
+
+            var accepted = InputAcceptance.Accept(input, number, reading.Unit, reading.TimestampUtc, reading.Quality, now);
+            if (accepted.Reason is not null) reasons.Add($"{source.Input}: {accepted.Reason}");
+            return new InputTrace(input.Name, accepted.Resolution, accepted.Value, accepted.Value.Unit, reading.Source,
+                candidate?.Basis.ToString(), candidate?.Source ?? source.Input, reasons, [], input.Required,
+                accepted.AgeSeconds, input.MaxAgeSeconds, reading.TimestampKind, input.Quantity);
         }
-        return new InputTrace(input.Name, worst, Val.Missing(reasons.FirstOrDefault() ?? "no source answered"),
-            null, null, null, null, reasons, candidates, input.Required);
+        return Stop("NotApplicable");
     }
 }

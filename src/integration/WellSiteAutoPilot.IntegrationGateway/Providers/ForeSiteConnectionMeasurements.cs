@@ -55,7 +55,7 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         ArgumentNullException.ThrowIfNull(request);
         return WithSessionAsync(new(request.ConnectionId, request.ConnectionRevision, request.Settings, request.ExternalId, request.SetPoint), async session =>
             await new ForeSiteResolveProvider(session.Session)
-                .PlanSetPointChangeAsync(request.ExternalId, request.SetPoint, request.Delta, session.Token), cancellationToken, budgetSeconds: 60);
+                .PlanSetPointChangeAsync(request.ExternalId, request.SetPoint, request.Delta, request.Absolute, session.Token), cancellationToken, budgetSeconds: 60);
     }
 
     public Task<HistoricalReadResult> ReadHistoryAsync(ConnectionHistoryRequest request, CancellationToken cancellationToken)
