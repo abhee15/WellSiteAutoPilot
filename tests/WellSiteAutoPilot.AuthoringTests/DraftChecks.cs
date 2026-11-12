@@ -23,6 +23,7 @@ internal static class DraftChecks
     public static async Task RunAsync()
     {
         Starters();
+        Recommendations();
         Analyzer();
         Evaluation();
         await Acceptance();
@@ -49,6 +50,44 @@ internal static class DraftChecks
         Check.That(AuthoringStarters.All.Select(s => s.Id).Distinct().Count() == AuthoringStarters.All.Count, "starter ids are unique");
         Check.That(AuthoringStarters.All.SelectMany(s => s.Draft.Inputs).All(i => !i.Quantity.Contains(':', StringComparison.Ordinal)),
             "starters ask for quantities, never provider points, so they travel between systems");
+    }
+
+    private static ModuleRun RunSample(string starter, Dictionary<string, string> inputs, Dictionary<string, string>? parameters = null)
+    {
+        var draft = AuthoringStarters.All.Single(s => s.Id == starter).Draft;
+        return AuthoringService.EvaluateAsync(draft, null, null, inputs, parameters).GetAwaiter().GetResult();
+    }
+
+    // The wording and outcome codes of the shipped CygNet sample modules (modules\samples\cygnet), so an authored module can replace them.
+    private static void Recommendations()
+    {
+        var low = RunSample("fillage-alert", new() { ["Fillage"] = "25" }).Outputs.Single(o => o.Name == "Low_fillage");
+        Check.That(low.Advice is { Code: "PUMP_FILLAGE_LOW", Title: "Pump fillage is low" }, "a low fillage recommends a review with the sample's outcome code");
+        Check.That(low.Advice!.Detail == "Pump fillage is 25 %, below the 40 % threshold. Review the well for pump-off or a gas-locked pump.",
+            "the recommendation text is filled from the calculation: " + low.Advice.Detail);
+        Check.That(RunSample("fillage-alert", new() { ["Fillage"] = "72" }).Outputs.Single(o => o.Name == "Low_fillage").Advice is null, "a healthy fillage recommends nothing");
+
+        var loaded = RunSample("load-alert", new() { ["Amps"] = "75", ["Rod"] = "18000" }).Outputs.Single();
+        Check.That(loaded.Advice!.Detail.Contains("motor current 75 A (limit 60 A)", StringComparison.Ordinal), "a load recommendation names the limit that was exceeded");
+
+        var refused = RunSample("fillage-alert", new() { ["Fillage"] = "140" });
+        Check.That(refused.Outcome == ModuleOutcome.Unavailable && refused.Outputs.Single(o => o.Name == "Low_fillage").Advice is null,
+            "a reading outside the input's valid range is distrusted and never judged");
+
+        var tooStrict = RunSample("fillage-alert", new() { ["Fillage"] = "50" }, new() { ["LowFillage"] = "250" });
+        Check.That(tooStrict.Outcome == ModuleOutcome.Invalid, "an override outside the parameter's limits is refused");
+        Check.That(RunSample("fillage-alert", new() { ["Fillage"] = "50" }, new() { ["LowFillage"] = "60" }).Outputs.Single(o => o.Name == "Low_fillage").Advice is not null,
+            "an override inside the limits applies");
+
+        var draft = AuthoringStarters.All.Single(s => s.Id == "fillage-alert").Draft;
+        var typo = draft with { Outputs = [.. draft.Outputs.Where(o => o.Kind != "recommendation"),
+            new DraftOutput("R", "IsLow", "recommendation", Title: "Low", Detail: "Fillage is {Fillge}.")] };
+        Check.That(Reports(typo, "R", "{Fillge}"), "a placeholder that names nothing is reported");
+        var badDefault = draft with { Parameters = [new("LowFillage", "150", "%", Min: 0, Max: 100)] };
+        Check.That(Reports(badDefault, "LowFillage", "above the maximum"), "a default outside its own limits is reported");
+        Check.That(Reports(draft with { Outputs = [new DraftOutput("R", "IsLow", "recommendation", Code: "low-fillage", Title: "Low")] }, "R", "capital letters"),
+            "an outcome code must be capitals, digits and underscores");
+        Check.That(Units.TryConvert(1m, "kN", "lbf", out var pounds, out _) && Math.Abs(pounds - 224.808943m) < 0.001m && Units.Normalize("lb") == "lbf", "force units convert and lb means lbf");
     }
 
     private static void Analyzer()

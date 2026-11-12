@@ -33,7 +33,10 @@ public sealed record ProposalCheck(string Name, string Status, string Detail);
 
 public sealed record OutputResult(
     string Name, string Kind, Val Value, string? Unit, string? Target, string Expression, SetPointWritePlan? Plan,
-    string? Note = null, IReadOnlyList<ProposalCheck>? Checks = null, bool? Proposed = null);
+    string? Note = null, IReadOnlyList<ProposalCheck>? Checks = null, bool? Proposed = null, Advice? Advice = null);
+
+/// <summary>A recommendation that fired: the outcome code, and the words shown to the person who reviews it.</summary>
+public sealed record Advice(string Code, string Title, string Detail);
 
 public sealed record ModuleRun(
     ModuleOutcome Outcome, IReadOnlyList<string> Reasons, string Fingerprint,
@@ -75,6 +78,8 @@ public static class InputAcceptance
         if (declared is not null && source is not null && !Units.TryConvert(number, source, declared, out value, out var why))
             return Refuse("UnitMismatch", $"The provider reports {reported} but this input expects {declared}: {why}", age);
         if (declared is not null) unit = declared;
+        if (input.ValidMin is { } floor && value < floor || input.ValidMax is { } ceiling && value > ceiling)
+            return Refuse("InvalidValue", $"The reading {Units.Format(value)} {unit} is outside the range this input accepts ({Units.Format(input.ValidMin, "no minimum")} to {Units.Format(input.ValidMax, "no maximum")}), so it is not trusted.", age);
         return new Accepted(Val.Of(value, unit) with { AsOf = observedAt, Quality = grade }, "Resolved", null, age);
     }
 
@@ -107,6 +112,9 @@ public static class DraftEvaluator
         foreach (var parameter in draft.Parameters)
         {
             var text = parameterOverrides is not null && parameterOverrides.TryGetValue(parameter.Name, out var overridden) ? overridden : parameter.Value;
+            if (ParameterRange.Violation(parameter, text) is { } outOfRange)
+                return new ModuleRun(ModuleOutcome.Invalid, [$"{parameter.Name} {outOfRange}"], analysis.Fingerprint, inputs, [], [], [],
+                    [new DraftProblem("Error", parameter.Name, $"The value {outOfRange}")], at);
             var value = Val.Parse(text, parameter.Unit);
             values[parameter.Name] = value;
             parameterResults.Add(new NodeResult(parameter.Name, value, null, []));
@@ -135,7 +143,7 @@ public static class DraftEvaluator
             var next = input.Resolution switch
             {
                 "NeedsSelection" or "Misconfigured" or "UnitMismatch" => ModuleOutcome.NeedsSetup,
-                "CannotDetermine" or "Stale" or "BadQuality" => ModuleOutcome.Unavailable,
+                "CannotDetermine" or "Stale" or "BadQuality" or "InvalidValue" => ModuleOutcome.Unavailable,
                 _ => ModuleOutcome.Skipped
             };
             // A definite "does not apply" wins, then a choice the author must make, then an unreachable or untrustworthy source.
@@ -147,6 +155,8 @@ public static class DraftEvaluator
     private static OutputResult EvaluateOutput(DraftOutput output, Func<string, Val> lookup, DateTimeOffset now)
     {
         var value = Finalize(ModuleExpression.Parse(output.Expression).Evaluate(lookup), output.Unit);
+        if (output.Kind == "recommendation")
+            return Recommend(output, value, lookup);
         if (output.Kind != "setpoint")
             return new OutputResult(output.Name, output.Kind, value, Units.Normalize(output.Unit), output.Target, output.Expression, null);
 
@@ -208,6 +218,24 @@ public static class DraftEvaluator
     }
 
     private static string Bound(decimal? value) => value is null ? "no limit" : Units.Format(value.Value);
+
+    /// <summary>A recommendation fires only when its condition is definitely true; an undecidable condition never fires.</summary>
+    private static OutputResult Recommend(DraftOutput output, Val condition, Func<string, Val> lookup)
+    {
+        var name = string.IsNullOrWhiteSpace(output.Code) ? DraftAnalyzer.DefaultCode(output.Name) : output.Code!;
+        if (condition.Kind != ValueKind.Flag)
+        {
+            var why = condition.Available ? "The condition must be true or false." : condition.Reason ?? "The condition has no value.";
+            return new OutputResult(output.Name, output.Kind, Val.Missing(why), null, null, output.Expression, null,
+                "Cannot decide whether to recommend a review.", [new ProposalCheck("Condition", "Fail", why)], false);
+        }
+        if (condition.Flag != true)
+            return new OutputResult(output.Name, output.Kind, condition, null, null, output.Expression, null,
+                "Not recommended: the condition is not met.", [new ProposalCheck("Condition", "Hold", "The condition is not met, so nothing is recommended.")], false);
+        var advice = new Advice(name, RecommendationText.Render(output.Title, lookup), RecommendationText.Render(output.Detail, lookup));
+        return new OutputResult(output.Name, output.Kind, condition, null, null, output.Expression, null,
+            "Recommends a review. Nothing is sent to a controller.", [new ProposalCheck("Condition", "Pass", "The condition is met.")], true, advice);
+    }
 
     /// <summary>Holds an output to its declared unit: converts when the unit is compatible, refuses when it is not.</summary>
     private static Val Finalize(Val value, string? declaredUnit)

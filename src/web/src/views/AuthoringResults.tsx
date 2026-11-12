@@ -69,7 +69,7 @@ export function AuthoringResults({ run, stale, onSelect }: { run: ModuleRun; sta
       <tbody>{run.outputs.map(output => <tr key={output.name}>
         <th scope="row">{pick(output.name)}</th>
         <td>{showVal(output.value, output.unit)}</td>
-        <td>{output.kind === 'setpoint' ? <SetPointPanel output={output} /> : ''}</td>
+        <td>{output.kind === 'setpoint' ? <SetPointPanel output={output} /> : output.advice ? <div className="authoring-advice"><strong>{output.advice.code}</strong>: {output.advice.title}<p>{output.advice.detail}</p></div> : output.kind === 'recommendation' ? (output.note ?? '') : ''}</td>
       </tr>)}</tbody>
     </table>
   </div>;

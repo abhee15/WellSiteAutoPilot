@@ -107,8 +107,17 @@ public static class AuthoringService
     internal static InputTrace FromSample(DraftInput input, IReadOnlyDictionary<string, string>? samples)
     {
         if (samples is not null && samples.TryGetValue(input.Name, out var text) && !string.IsNullOrWhiteSpace(text))
-            return new InputTrace(input.Name, "Sample", Val.Parse(text, input.Unit), Units.Normalize(input.Unit), "sample", null, null, [], [], input.Required,
+        {
+            var typed = Val.Parse(text, input.Unit);
+            if (typed.Kind == ValueKind.Number && (input.ValidMin is { } low && typed.Number < low || input.ValidMax is { } high && typed.Number > high))
+            {
+                var outside = $"The value {Units.Format(typed.Number!.Value)} is outside the range this input accepts ({Units.Format(input.ValidMin, "no minimum")} to {Units.Format(input.ValidMax, "no maximum")}), so it is not trusted.";
+                return new InputTrace(input.Name, "InvalidValue", Val.Missing(outside), Units.Normalize(input.Unit), "sample", null, null, [outside], [], input.Required,
+                    Quantity: input.Quantity);
+            }
+            return new InputTrace(input.Name, "Sample", typed, Units.Normalize(input.Unit), "sample", null, null, [], [], input.Required,
                 Quantity: input.Quantity);
+        }
         var reason = "No sample value was given. Type one, or choose a connection and an asset.";
         return new InputTrace(input.Name, "CannotDetermine", Val.Missing(reason), null, null, null, null, [reason], [], input.Required, Quantity: input.Quantity);
     }

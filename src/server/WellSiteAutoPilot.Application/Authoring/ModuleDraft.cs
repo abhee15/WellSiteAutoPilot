@@ -12,9 +12,11 @@ namespace WellSiteAutoPilot.Application.Authoring;
 /// </summary>
 public sealed record DraftInput(
     string Name, string Quantity, string? Unit = null, string? Basis = null, int? MaxAgeSeconds = null,
-    bool AllowUncertain = false, bool Required = true, string? Role = null, string? Label = null);
+    bool AllowUncertain = false, bool Required = true, string? Role = null, string? Label = null,
+    decimal? ValidMin = null, decimal? ValidMax = null);
 
-public sealed record DraftParameter(string Name, string Value, string? Unit = null, string? Label = null);
+/// <summary>A tunable value. Min and Max bound what an author or a per-asset override may set it to.</summary>
+public sealed record DraftParameter(string Name, string Value, string? Unit = null, string? Label = null, decimal? Min = null, decimal? Max = null);
 
 public sealed record DraftStep(string Name, string Expression, string? Label = null);
 
@@ -24,10 +26,13 @@ public sealed record OutputLimits(decimal? Min = null, decimal? Max = null, deci
 /// <summary>
 /// Kind "value" publishes a result. Kind "setpoint" proposes setting a controller set point to the calculated
 /// value (an absolute value, never a change), but only when <c>When</c> is true and the proposal stays inside the limits.
+/// Kind "recommendation" asks a person to review the asset: the expression is the condition, <c>Code</c> names the outcome
+/// (for example PUMP_FILLAGE_LOW) and <c>Title</c> and <c>Detail</c> are text with {Name} or {Name:0.#} placeholders filled from the calculation.
 /// </summary>
 public sealed record DraftOutput(
     string Name, string Expression, string Kind = "value", string? Unit = null, string? Target = null,
-    OutputLimits? Limits = null, string? When = null, string? Label = null);
+    OutputLimits? Limits = null, string? When = null, string? Label = null,
+    string? Code = null, string? Title = null, string? Detail = null);
 
 /// <summary>A worked example stored with the module: typed input values and the outputs they must produce.</summary>
 public sealed record TestCase(
@@ -73,7 +78,7 @@ public static partial class DraftAnalyzer
     public const int MaxTests = 50;
     public const int SchemaVersion = 1;
     public static readonly IReadOnlyCollection<string> Bases = ["Static", "Current", "DailyAverage", "TestSample", "History"];
-    public static readonly IReadOnlyCollection<string> OutputKinds = ["value", "setpoint"];
+    public static readonly IReadOnlyCollection<string> OutputKinds = ["value", "setpoint", "recommendation"];
     private static readonly string[] ProviderPrefixes = ["surveillance:", "welltest:", "well:", "setpoint:"];
 
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,39}$")]
@@ -82,10 +87,21 @@ public static partial class DraftAnalyzer
     [GeneratedRegex(@"^[a-z][a-z0-9]*([.\-][a-z0-9]+)*$")]
     private static partial Regex ModuleIdPattern();
 
+    [GeneratedRegex("^[A-Z][A-Z0-9_]{0,63}$")]
+    private static partial Regex OutcomeCodePattern();
+
     [GeneratedRegex(@"^\d+\.\d+\.\d+(-[0-9A-Za-z.\-]+)?$")]
     private static partial Regex SemanticVersionPattern();
 
     private static readonly JsonSerializerOptions FingerprintOptions = new(JsonSerializerDefaults.Web);
+
+    /// <summary>The outcome code a recommendation gets when its author names none: the output name in capitals.</summary>
+    public static string DefaultCode(string name)
+    {
+        var chars = (name ?? "").Select(c => char.IsAsciiLetterOrDigit(c) ? char.ToUpperInvariant(c) : '_').ToArray();
+        var code = new string(chars).Trim('_');
+        return code.Length == 0 || !char.IsAsciiLetterUpper(code[0]) ? "RECOMMENDATION" : code;
+    }
 
     /// <summary>Hash of what the module means. Labels, descriptions, examples, name and version are not meaning.</summary>
     public static string Fingerprint(ModuleDraft draft)
@@ -93,10 +109,10 @@ public static partial class DraftAnalyzer
         var canonical = new
         {
             draft.SchemaVersion, draft.LanguageVersion,
-            Inputs = draft.Inputs?.Select(i => new { i.Name, Role = i.Role ?? "well", i.Quantity, Unit = Units.Normalize(i.Unit), i.Basis, i.MaxAgeSeconds, i.AllowUncertain, i.Required }),
-            Parameters = draft.Parameters?.Select(p => new { p.Name, p.Value, Unit = Units.Normalize(p.Unit) }),
+            Inputs = draft.Inputs?.Select(i => new { i.Name, Role = i.Role ?? "well", i.Quantity, Unit = Units.Normalize(i.Unit), i.Basis, i.MaxAgeSeconds, i.AllowUncertain, i.Required, i.ValidMin, i.ValidMax }),
+            Parameters = draft.Parameters?.Select(p => new { p.Name, p.Value, Unit = Units.Normalize(p.Unit), p.Min, p.Max }),
             Steps = draft.Steps?.Select(s => new { s.Name, Expression = s.Expression?.Trim() }),
-            Outputs = draft.Outputs?.Select(o => new { o.Name, o.Kind, Expression = o.Expression?.Trim(), Unit = Units.Normalize(o.Unit), o.Target, o.Limits, When = o.When?.Trim() })
+            Outputs = draft.Outputs?.Select(o => new { o.Name, o.Kind, Expression = o.Expression?.Trim(), Unit = Units.Normalize(o.Unit), o.Target, o.Limits, When = o.When?.Trim(), o.Code, o.Title, o.Detail })
         };
         return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(canonical, FingerprintOptions))).ToLowerInvariant();
     }
@@ -158,11 +174,15 @@ public static partial class DraftAnalyzer
                 Error(input.Name, $"Unknown basis '{input.Basis}'. Use one of {string.Join(", ", Bases)}.");
             if (input.MaxAgeSeconds is <= 0)
                 Error(input.Name, "The maximum age must be greater than zero seconds.");
+            if (input.ValidMin is { } low && input.ValidMax is { } high && low > high)
+                Error(input.Name, "The valid minimum is above the valid maximum.");
             CheckUnit(input.Name, input.Unit);
         }
         foreach (var parameter in parameters)
         {
             if (string.IsNullOrWhiteSpace(parameter.Value)) Error(parameter.Name, "A parameter needs a value.");
+            else if (parameter.Min is { } floor && parameter.Max is { } ceiling && floor > ceiling) Error(parameter.Name, "The minimum is above the maximum.");
+            else if (ParameterRange.Violation(parameter, parameter.Value) is { } bad) Error(parameter.Name, "The default " + bad);
             CheckUnit(parameter.Name, parameter.Unit);
         }
 
@@ -203,6 +223,20 @@ public static partial class DraftAnalyzer
                 if (!string.IsNullOrWhiteSpace(output.When))
                     foreach (var extra in Reads(name, output.When, "Condition"))
                         if (!reads.Contains(extra, StringComparer.Ordinal)) reads.Add(extra);
+            }
+            else if (output.Kind == "recommendation")
+            {
+                if (string.IsNullOrWhiteSpace(output.Title)) Error(name, "Give the recommendation a title.");
+                if (output.Code is { Length: > 0 } code && !OutcomeCodePattern().IsMatch(code))
+                    Error(name, "The outcome code uses capital letters, digits and underscores (for example PUMP_FILLAGE_LOW).");
+                foreach (var text in new[] { output.Title, output.Detail })
+                    foreach (var extra in RecommendationText.References(text))
+                    {
+                        if (!kinds.TryGetValue(extra, out var kind) || kind == "output") Error(name, $"The text uses {{{extra}}}, which is not an input, parameter or calculation.");
+                        else if (!reads.Contains(extra, StringComparer.Ordinal)) reads.Add(extra);
+                    }
+                if (output.Limits is not null || !string.IsNullOrWhiteSpace(output.When))
+                    Warn(name, "Limits and conditions only apply to set point outputs; put the condition in the expression.");
             }
             else if (output.Limits is not null || !string.IsNullOrWhiteSpace(output.When))
                 Warn(name, "Limits and conditions only apply to set point outputs.");

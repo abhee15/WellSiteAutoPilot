@@ -57,6 +57,12 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
         onChange={event => onChange({ required: event.target.checked })} />
       <CheckboxField label="Accept readings of uncertain quality" checked={input.allowUncertain === true}
         onChange={event => onChange({ allowUncertain: event.target.checked })} />
+      <fieldset className="authoring-limits">
+        <legend>Readings this input trusts</legend>
+        <TextField label="Smallest valid value" value={input.validMin?.toString() ?? ''} onChange={event => onChange({ validMin: number(event.target.value) })} />
+        <TextField label="Largest valid value" value={input.validMax?.toString() ?? ''} onChange={event => onChange({ validMax: number(event.target.value) })}
+          helper="A reading outside this range is distrusted and never judged, for example a pump fillage of 140 %." />
+      </fieldset>
 
       <h4>Bindings on this system</h4>
       <p className="connection-help">Optional. Sources are tried in order; the first that answers is used. With none, the platform picks by quantity and basis.</p>
@@ -87,9 +93,15 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
         helper="A number, true or false, or text. Test runs can try other values without changing the module." />
       <TextField label="Unit" value={(node as { unit?: string | null }).unit ?? ''} onChange={event => onChange({ unit: event.target.value || null })}
         helper="A parameter with a unit is compared and combined as a quantity, so 250 psia is never mixed up with 250 psig." />
+      <fieldset className="authoring-limits">
+        <legend>Allowed range</legend>
+        <TextField label="Minimum" value={(node as { min?: number | null }).min?.toString() ?? ''} onChange={event => onChange({ min: number(event.target.value) })} />
+        <TextField label="Maximum" value={(node as { max?: number | null }).max?.toString() ?? ''} onChange={event => onChange({ max: number(event.target.value) })}
+          helper="Optional. Neither the default nor a per-asset override may go outside it." />
+      </fieldset>
     </>}
 
-    {(kind === 'step' || kind === 'output') && <TextAreaField label={output?.kind === 'setpoint' ? 'New set point value (expression)' : 'Expression'}
+    {(kind === 'step' || kind === 'output') && <TextAreaField label={output?.kind === 'setpoint' ? 'New set point value (expression)' : output?.kind === 'recommendation' ? 'Recommend a review when (expression)' : 'Expression'}
       value={(node as { expression: string }).expression} rows={3} onChange={event => onChange({ expression: event.target.value })}
       helper="Use input, parameter and calculation names. + - * / % comparisons && || !, and if(), min(), max(), abs(), round(), avg(), clamp(), coalesce(), has()." />}
 
@@ -97,9 +109,17 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
       <SelectField label="What it does" value={output.kind} onChange={event => onChange({ kind: event.target.value })}>
         <option value="value">Publish a value</option>
         <option value="setpoint">Propose a set point value</option>
+        <option value="recommendation">Recommend a review</option>
       </SelectField>
-      <TextField label="Unit" value={output.unit ?? ''} onChange={event => onChange({ unit: event.target.value || null })}
-        helper="The result is converted to this unit. Pressure differences can be published as psi." />
+      {output.kind === 'recommendation' && <>
+        <TextField label="Outcome code" value={output.code ?? ''} onChange={event => onChange({ code: event.target.value || null })}
+          error={fieldProblem(/outcome code/)} helper="Capital letters, digits and underscores, for example PUMP_FILLAGE_LOW. Empty uses the output name." />
+        <TextField label="Title" value={output.title ?? ''} onChange={event => onChange({ title: event.target.value })} error={fieldProblem(/title/)} />
+        <TextAreaField label="Detail" value={output.detail ?? ''} rows={4} onChange={event => onChange({ detail: event.target.value || null })}
+          error={fieldProblem(/text uses/)} helper="Write {Name} for a value with its unit, or {Name:0.#} for the number alone. Nothing is sent to a controller." />
+      </>}
+      {output.kind !== 'recommendation' && <TextField label="Unit" value={output.unit ?? ''} onChange={event => onChange({ unit: event.target.value || null })}
+        helper="The result is converted to this unit. Pressure differences can be published as psi." />}
       {output.kind === 'setpoint' && <>
         <TextField label="Set point to change" value={output.target ?? ''} onChange={event => onChange({ target: event.target.value })}
           helper="Binding for this system. The proposal is an absolute value, checked and shown as a dry run. Nothing is sent to the controller." />

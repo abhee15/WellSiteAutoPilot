@@ -26,12 +26,12 @@ public static class Units
         new("s", "time", 1m), new("min", "time", 60m), new("h", "time", 3600m), new("d", "time", 86400m),
         new("spm", "stroke-rate", 1m), new("Hz", "frequency", 1m),
         new("A", "current", 1m), new("V", "voltage", 1m), new("kW", "power", 1m), new("hp", "power", 0.745699872m),
-        new("deg", "angle", 1m)
+        new("deg", "angle", 1m), new("lbf", "force", 1m), new("N", "force", 0.224808943m), new("kN", "force", 224.808943m)
     ];
 
     private static readonly Dictionary<string, string> Aliases = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["°F"] = "degF", ["F"] = "degF", ["°C"] = "degC", ["C"] = "degC", ["pct"] = "%", ["percent"] = "%",
+        ["°F"] = "degF", ["F"] = "degF", ["°C"] = "degC", ["C"] = "degC", ["pct"] = "%", ["percent"] = "%", ["lb"] = "lbf",
         ["m³/d"] = "m3/d", ["bpd"] = "bbl/d", ["BPD"] = "bbl/d", ["bblpd"] = "bbl/d", ["MCF/D"] = "mcf/d", ["kPa(a)"] = "kPaa"
     };
 
@@ -91,4 +91,6 @@ public static class Units
         Normalize(unit) is { } key && ByKey.TryGetValue(key, out var u) && u.Dimension is "pressure-absolute" or "pressure-gauge" ? key[..^1] : null;
 
     public static string Format(decimal value) => value.ToString("0.#####", CultureInfo.InvariantCulture);
+
+    public static string Format(decimal? value, string whenMissing) => value is null ? whenMissing : Format(value.Value);
 }

@@ -3,14 +3,14 @@ import type { SetPointPlan } from './connections';
 
 export type DraftInput = {
   name: string; quantity: string; unit?: string | null; basis?: string | null; maxAgeSeconds?: number | null;
-  allowUncertain?: boolean; required: boolean; role?: string | null; label?: string | null;
+  allowUncertain?: boolean; required: boolean; role?: string | null; label?: string | null; validMin?: number | null; validMax?: number | null;
 };
-export type DraftParameter = { name: string; value: string; unit?: string | null; label?: string | null };
+export type DraftParameter = { name: string; value: string; unit?: string | null; label?: string | null; min?: number | null; max?: number | null };
 export type DraftStep = { name: string; expression: string; label?: string | null };
 export type OutputLimits = { min?: number | null; max?: number | null; maxStep?: number | null };
 export type DraftOutput = {
-  name: string; expression: string; kind: 'value' | 'setpoint'; unit?: string | null; target?: string | null;
-  limits?: OutputLimits | null; when?: string | null; label?: string | null;
+  name: string; expression: string; kind: 'value' | 'setpoint' | 'recommendation'; unit?: string | null; target?: string | null;
+  limits?: OutputLimits | null; when?: string | null; label?: string | null; code?: string | null; title?: string | null; detail?: string | null;
 };
 export type TestCase = { name: string; inputs: Record<string, string>; expect: Record<string, string>; parameters?: Record<string, string> | null; tolerance?: number | null };
 export type ModuleDraft = {
@@ -39,7 +39,7 @@ export type NodeResult = { name: string; value: Val; expression: string | null; 
 export type ProposalCheck = { name: string; status: 'Pass' | 'Fail' | 'Hold' | 'Info'; detail: string };
 export type OutputResult = {
   name: string; kind: string; value: Val; unit: string | null; target: string | null; expression: string; plan: SetPointPlan | null;
-  note: string | null; checks?: ProposalCheck[] | null; proposed?: boolean | null;
+  note: string | null; checks?: ProposalCheck[] | null; proposed?: boolean | null; advice?: { code: string; title: string; detail: string } | null;
 };
 export type ModuleOutcome = 'Runs' | 'Skipped' | 'NeedsSetup' | 'Unavailable' | 'Invalid';
 export type ModuleRun = {
@@ -85,7 +85,7 @@ export function parseDraft(text: string): ModuleDraft {
   return {
     ...body, description: body.description ?? null,
     inputs: body.inputs.map(input => ({ ...input, quantity: input.quantity ?? '', required: input.required !== false })),
-    outputs: body.outputs.map(output => ({ ...output, kind: output.kind === 'setpoint' ? 'setpoint' : 'value' })),
+    outputs: body.outputs.map(output => ({ ...output, kind: output.kind === 'setpoint' || output.kind === 'recommendation' ? output.kind : 'value' })),
   };
 }
 
