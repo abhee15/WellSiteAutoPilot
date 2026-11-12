@@ -7,7 +7,7 @@ import { PanelLoading } from '../components/LoadingIndicator';
 import { AdapterGuide } from './AdapterGuide';
 import { AuthoringNodeEditor } from './AuthoringNodeEditor';
 import { AuthoringResults } from './AuthoringResults';
-import { evaluateDraft, loadStarters, parseDraft, requestKey, showVal, validateDraft, verifyDraft } from './authoring';
+import { evaluateDraft, exampleFromRun, loadStarters, parseDraft, requestKey, showVal, validateDraft, verifyDraft } from './authoring';
 import type { Analysis, BindingSource, EvaluateTarget, ModuleBindings, ModuleDraft, ModuleRun, Starter, VerifyResult } from './authoring';
 import { addNode, emptyDraft, kindLabel, moveBindings, nodeKindOf, removeNode, updateNode } from './authoringDraft';
 import type { NodeKind, Selection } from './authoringDraft';
@@ -316,6 +316,10 @@ export function AuthoringWorkbench() {
         </div>
       </div>
     </div>
-    {run && <AuthoringResults run={run.result} stale={stale} onSelect={select} />}
+    {run && <AuthoringResults run={run.result} stale={stale} onSelect={select}
+      onSaveExample={stale || !exampleFromRun(run.result, 'x') ? undefined : () => {
+        const saved = exampleFromRun(run.result, `Example ${examples.length + 1}${run.result.externalId ? ` from ${run.result.externalId}` : ''}`);
+        if (saved) change({ ...draft, tests: [...examples, saved] });
+      }} />}
   </section>;
 }

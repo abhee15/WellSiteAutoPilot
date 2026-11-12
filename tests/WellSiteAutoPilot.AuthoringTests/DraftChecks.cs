@@ -97,6 +97,11 @@ internal static class DraftChecks
         Check.That(Run("60", "3", out var second) == "lower" && second == "Rule 2: Fillage is below target", "a later row decides when earlier rows do not match");
         Check.That(Run("85", "3", out var none) == "hold" && none!.StartsWith("No rule matched", StringComparison.Ordinal), "no match gives the otherwise value, and says so");
 
+        var traced = AuthoringService.EvaluateAsync(draft, null, null, new Dictionary<string, string> { ["Fillage"] = "60", ["Cycles"] = "3" }, null).GetAwaiter().GetResult().Steps.Single().Rows!;
+        Check.That(traced.Select(r => r.State).SequenceEqual(["Fail", "Pass"]) && !traced[0].Decided && traced[1].Decided, "every row is traced with its own pass or fail, and the deciding row is marked");
+        var untraced = AuthoringService.EvaluateAsync(draft, null, null, new Dictionary<string, string> { ["Fillage"] = "60", ["Cycles"] = "12" }, null).GetAwaiter().GetResult().Steps.Single().Rows!;
+        Check.That(untraced.Select(r => r.State).SequenceEqual(["Pass", "Pass"]) && untraced[0].Decided && !untraced[1].Decided, "a later row that also passes is shown, but only the first decides");
+
         var unknown = draft with { Inputs = [In("Fillage", "PumpFillage", "%", maxAge: 600), In("Cycles", "CyclesYesterday", null, required: false)] };
         var undecided = AuthoringService.EvaluateAsync(unknown, null, null, new Dictionary<string, string> { ["Fillage"] = "60" }, null).GetAwaiter().GetResult().Steps.Single();
         Check.That(!undecided.Value.Available && undecided.Matched!.Contains("could not be decided", StringComparison.Ordinal),

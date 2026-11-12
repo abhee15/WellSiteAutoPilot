@@ -1,7 +1,7 @@
 import { ActionButton } from '../components/ActionButton';
 import { CheckboxField, SelectField, TextAreaField, TextField } from '../components/FormFields';
 import type { CatalogPoint } from './connections';
-import type { Analysis, BindingSource, DraftRule, InputHistory, ModuleDraft, ModuleRun, OutputLimits } from './authoring';
+import type { Analysis, BindingSource, DraftRule, InputHistory, ModuleDraft, ModuleRun, OutputLimits, RowTrace } from './authoring';
 import { showAge, showVal } from './authoring';
 import { kindLabel, nodeKindOf, type NodeKind } from './authoringDraft';
 
@@ -37,6 +37,13 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
   const outputResult = run?.outputs.find(item => item.name === name);
   const limit = (key: keyof OutputLimits, text: string) => onChange({ limits: { ...output?.limits, [key]: number(text) } });
   const fieldProblem = (needle: RegExp) => problems.find(problem => needle.test(problem.message))?.message;
+
+  const lastValue = (target: string) => {
+    const read = run?.inputs.find(item => item.name === target);
+    if (read) return showVal(read.value, read.unit ?? undefined);
+    const other = run?.parameters.find(item => item.name === target) ?? run?.steps.find(item => item.name === target);
+    return other ? showVal(other.value) : null;
+  };
 
   const link = (target: string) => <button key={target} type="button" className="authoring-link" onClick={() => onSelect(target)}>
     {target} <small>({nodeKindOf(draft, target) ? kindLabel[nodeKindOf(draft, target)!].toLowerCase() : '?'})</small></button>;
@@ -116,7 +123,7 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
       value={(node as { expression: string }).expression} rows={3} onChange={event => onChange({ expression: event.target.value })}
       helper="Use input, parameter and calculation names. + - * / % comparisons && || !, and if(), min(), max(), abs(), round(), avg(), clamp(), coalesce(), has()." />}
 
-    {kind === 'step' && <RuleRows rules={(node as { rules?: DraftRule[] | null }).rules ?? []} onChange={rules => onChange({ rules: rules.length > 0 ? rules : null })} />}
+    {kind === 'step' && <RuleRows rules={(node as { rules?: DraftRule[] | null }).rules ?? []} trace={traced && 'rows' in traced ? traced.rows ?? undefined : undefined} onChange={rules => onChange({ rules: rules.length > 0 ? rules : null })} />}
 
     {output && <>
       <SelectField label="What it does" value={output.kind} onChange={event => onChange({ kind: event.target.value })}>
@@ -149,7 +156,7 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
     </>}
 
     <dl className="authoring-trace">
-      {graph && graph.dependsOn.length > 0 && <><dt>Reads</dt><dd>{graph.dependsOn.map(link)}</dd></>}
+      {graph && graph.dependsOn.length > 0 && <><dt>Reads</dt><dd>{graph.dependsOn.map(target => <span key={target} className="authoring-read">{link(target)}{lastValue(target) !== null && <small> = {lastValue(target)}</small>}</span>)}</dd></>}
       {graph && graph.usedBy.length > 0 && <><dt>Used by</dt><dd>{graph.usedBy.map(link)}</dd></>}
       {inputTrace && <><dt>Last test</dt><dd>{showVal(inputTrace.value, inputTrace.unit)}{inputTrace.usedInput ? ` from ${inputTrace.usedInput}` : ''}
         {inputTrace.ageSeconds !== undefined && inputTrace.ageSeconds !== null ? `, ${showAge(inputTrace.ageSeconds)}` : ''}</dd></>}
@@ -178,11 +185,14 @@ function HistoryFields({ history, error, onChange }: { history: InputHistory; er
 }
 
 /** A rule table: rows are tried top to bottom and the first true row decides; the expression is what applies when none match. */
-function RuleRows({ rules, onChange }: { rules: DraftRule[]; onChange: (rules: DraftRule[]) => void }) {
+function RuleRows({ rules, trace, onChange }: { rules: DraftRule[]; trace?: RowTrace[]; onChange: (rules: DraftRule[]) => void }) {
   const set = (index: number, patch: Partial<DraftRule>) => onChange(rules.map((rule, at) => at === index ? { ...rule, ...patch } : rule));
   return <fieldset className="authoring-limits authoring-rules">
     <legend>Rules (first true row decides)</legend>
     {rules.map((rule, index) => <div key={index} className="authoring-rule">
+      {trace?.[index] && trace[index].when === rule.when && <p className="authoring-rowstate" data-state={trace[index].state}>
+        <strong>{trace[index].decided ? 'Decided this run' : trace[index].state === 'Pass' ? 'Passes, but an earlier row already decided' : trace[index].state === 'Fail' ? 'Does not pass' : 'Cannot tell'}</strong>
+        {trace[index].reason ? `: ${trace[index].reason}` : ''}</p>}
       <TextField label={`Row ${index + 1}: when`} value={rule.when} onChange={event => set(index, { when: event.target.value })} />
       <TextField label={`Row ${index + 1}: then`} value={rule.then} onChange={event => set(index, { then: event.target.value })} />
       <TextField label={`Row ${index + 1}: why`} value={rule.reason ?? ''} onChange={event => set(index, { reason: event.target.value || null })}

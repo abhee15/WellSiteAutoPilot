@@ -38,7 +38,8 @@ export type InputTrace = {
   reasons: string[]; candidates: { source: string; basis: string; description: string }[]; required: boolean;
   ageSeconds?: number | null; maxAgeSeconds?: number | null; timestampKind?: string | null; quantity?: string | null;
 };
-export type NodeResult = { name: string; value: Val; expression: string | null; dependsOn: string[]; matched?: string | null };
+export type RowTrace = { when: string; state: 'Pass' | 'Fail' | 'Unknown'; decided: boolean; reason?: string | null };
+export type NodeResult = { name: string; value: Val; expression: string | null; dependsOn: string[]; matched?: string | null; rows?: RowTrace[] | null };
 export type ProposalCheck = { name: string; status: 'Pass' | 'Fail' | 'Hold' | 'Info'; detail: string };
 export type OutputResult = {
   name: string; kind: string; value: Val; unit: string | null; target: string | null; expression: string; plan: SetPointPlan | null;
@@ -64,6 +65,19 @@ export function showVal(value: Val, unit?: string | null): string {
     : value.kind === 'Flag' ? (value.flag ? 'true' : 'false') : value.text ?? '';
   const shown = unit ?? value.unit;
   return shown ? `${text} ${shown}` : text;
+}
+
+const rawVal = (value: Val): string => value.kind === 'Number' ? String(Number((value.number ?? 0).toFixed(5))) : value.kind === 'Flag' ? (value.flag ? 'true' : 'false') : value.text ?? '';
+
+/** Turns a run into a stored example: the values every input had, and what each output did. Null when an input had no value to store. */
+export function exampleFromRun(run: ModuleRun, name: string): TestCase | null {
+  if (run.inputs.some(input => input.required && input.value.kind === 'Unavailable')) return null;
+  const inputs: Record<string, string> = {};
+  for (const input of run.inputs) if (input.value.kind !== 'Unavailable') inputs[input.name] = rawVal(input.value);
+  const expect: Record<string, string> = {};
+  for (const output of run.outputs)
+    expect[output.name] = output.kind === 'setpoint' && !output.proposed ? 'unavailable' : output.value.kind === 'Unavailable' ? 'unavailable' : rawVal(output.value);
+  return { name, inputs, expect };
 }
 
 /** "2 min ago" style age for evidence, so an author sees at a glance how old a reading was. */

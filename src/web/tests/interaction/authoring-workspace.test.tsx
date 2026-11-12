@@ -91,4 +91,6 @@ it('edits a rule table row and a history window, and shows which rule decided', 
   await waitFor(() => expect(vi.mocked(api.validateDraft).mock.calls.some(call => call[0].steps[0].rules?.[0].when === 'Casing >= Limit')).toBe(true));
   await user.click(screen.getByRole('button', { name: 'Run test' }));
   await screen.findByText('Rule 1: Above the limit');
+  await user.click(screen.getByRole('button', { name: 'Save this run as a stored example' }));
+  await waitFor(() => expect(vi.mocked(api.validateDraft).mock.calls.some(call => call[0].tests?.length === 1 && call[0].tests[0].inputs.Casing === '300' && call[0].tests[0].expect.High_out === 'true')).toBe(true));
 });

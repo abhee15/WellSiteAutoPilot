@@ -1,3 +1,4 @@
+import { ActionButton } from '../components/ActionButton';
 import { Notice } from '../components/Notice';
 import type { ModuleOutcome, ModuleRun, OutputResult } from './authoring';
 import { showAge, showVal } from './authoring';
@@ -26,7 +27,7 @@ function SetPointPanel({ output }: { output: OutputResult }) {
 }
 
 /** Test evidence for one run: which asset and when, what each input resolved to and how fresh it was, every calculation, and each output. */
-export function AuthoringResults({ run, stale, onSelect }: { run: ModuleRun; stale: boolean; onSelect: (name: string) => void }) {
+export function AuthoringResults({ run, stale, onSelect, onSaveExample }: { run: ModuleRun; stale: boolean; onSelect: (name: string) => void; onSaveExample?: () => void }) {
   const copy = outcomeCopy[run.outcome];
   const pick = (name: string) => <button type="button" className="authoring-link" onClick={() => onSelect(name)}>{name}</button>;
   const when = run.evaluatedAtUtc ? new Date(run.evaluatedAtUtc).toLocaleString() : null;
@@ -58,11 +59,14 @@ export function AuthoringResults({ run, stale, onSelect }: { run: ModuleRun; sta
       <table className="authoring-table">
         <thead><tr><th scope="col">Step</th><th scope="col">Expression</th><th scope="col">Value</th></tr></thead>
         <tbody>{run.steps.map(step => <tr key={step.name}>
-          <th scope="row">{pick(step.name)}</th><td><code>{step.expression}</code></td><td>{showVal(step.value)}{step.matched && <small className="authoring-why"> {step.matched}</small>}</td>
+          <th scope="row">{pick(step.name)}</th><td><code>{step.expression}</code></td><td>{showVal(step.value)}{step.matched && <small className="authoring-why"> {step.matched}</small>}
+            {step.rows && <ol className="authoring-rows">{step.rows.map((row, index) => <li key={index} data-state={row.state}>
+              <strong>{row.decided ? 'Decided' : row.state === 'Pass' ? 'Passes' : row.state === 'Fail' ? 'Fails' : 'Cannot tell'}</strong> <code>{row.when}</code>{row.reason ? ` (${row.reason})` : ''}</li>)}</ol>}</td>
         </tr>)}</tbody>
       </table>
     </>}
 
+    {onSaveExample && <div className="connection-actions"><ActionButton label="Save this run as a stored example" variant="secondary" onClick={onSaveExample} /></div>}
     <h4>Outputs</h4>
     <table className="authoring-table">
       <thead><tr><th scope="col">Output</th><th scope="col">Value</th><th scope="col">Detail</th></tr></thead>

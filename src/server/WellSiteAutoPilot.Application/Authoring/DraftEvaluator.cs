@@ -26,7 +26,10 @@ public sealed record InputTrace(
     IReadOnlyList<string> Reasons, IReadOnlyList<CandidateInfo> Candidates, bool Required,
     long? AgeSeconds = null, int? MaxAgeSeconds = null, string? TimestampKind = null, string? Quantity = null);
 
-public sealed record NodeResult(string Name, Val Value, string? Expression, IReadOnlyList<string> DependsOn, string? Matched = null);
+/// <summary>How one rule row evaluated against this run. State is Pass, Fail or Unknown; Decided marks the row that supplied the value.</summary>
+public sealed record RowTrace(string When, string State, bool Decided, string? Reason);
+
+public sealed record NodeResult(string Name, Val Value, string? Expression, IReadOnlyList<string> DependsOn, string? Matched = null, IReadOnlyList<RowTrace>? Rows = null);
 
 /// <summary>One reason a set point proposal is or is not allowed. Status is Pass, Fail, Hold (condition not met) or Info.</summary>
 public sealed record ProposalCheck(string Name, string Status, string Detail);
@@ -128,9 +131,9 @@ public static class DraftEvaluator
         foreach (var name in analysis.Order)
         {
             var step = stepsByName[name];
-            var (value, matched) = EvaluateStep(step, Lookup);
+            var (value, matched, rows) = EvaluateStep(step, Lookup);
             values[name] = value;
-            stepResults.Add(new NodeResult(name, value, step.Expression, graph[name].DependsOn, matched));
+            stepResults.Add(new NodeResult(name, value, step.Expression, graph[name].DependsOn, matched, rows));
         }
 
         var outputResults = draft.Outputs.Select(o => EvaluateOutput(o, Lookup, at)).ToList();
@@ -162,28 +165,28 @@ public static class DraftEvaluator
         return new ModuleRun(outcome, reasons, analysis.Fingerprint, inputs, parameterResults, stepResults, outputResults, analysis.Problems, at);
     }
 
-    /// <summary>Plain steps evaluate their expression. Rule tables return the first matching row's value and say which row decided.</summary>
-    private static (Val Value, string? Matched) EvaluateStep(DraftStep step, Func<string, Val> lookup)
+    /// <summary>Plain steps evaluate their expression. Rule tables return the first matching row's value and say which row decided; every row is traced so a person can see why.</summary>
+    private static (Val Value, string? Matched, IReadOnlyList<RowTrace>? Rows) EvaluateStep(DraftStep step, Func<string, Val> lookup)
     {
         if (step.Rules is not { Count: > 0 } rules)
-            return (ModuleExpression.Parse(step.Expression).Evaluate(lookup), null);
-        var row = 0;
-        foreach (var rule in rules)
+            return (ModuleExpression.Parse(step.Expression).Evaluate(lookup), null, null);
+        var conditions = rules.Select(rule => ModuleExpression.Parse(rule.When).Evaluate(lookup)).ToList();
+        string StateOf(Val v) => v.Kind != ValueKind.Flag ? "Unknown" : v.Flag == true ? "Pass" : "Fail";
+        string? ReasonOf(Val v) => v.Kind == ValueKind.Flag ? null : v.Available ? "must be true or false" : v.Reason ?? "has no value";
+        IReadOnlyList<RowTrace> Trace(int decided) => rules.Select((rule, at) => new RowTrace(rule.When, StateOf(conditions[at]), at == decided, ReasonOf(conditions[at]))).ToList();
+        for (var at = 0; at < rules.Count; at++)
         {
-            row++;
-            var condition = ModuleExpression.Parse(rule.When).Evaluate(lookup);
+            var row = at + 1;
+            var condition = conditions[at];
             if (condition.Kind != ValueKind.Flag)
-            {
-                var why = condition.Available ? "must be true or false" : condition.Reason ?? "has no value";
-                return (Val.Missing($"Rule {row} could not be decided: its condition {why}."), $"Rule {row} could not be decided");
-            }
+                return (Val.Missing($"Rule {row} could not be decided: its condition {ReasonOf(condition)}."), $"Rule {row} could not be decided", Trace(-1));
             if (condition.Flag == true)
             {
-                var result = ModuleExpression.Parse(rule.Then).Evaluate(lookup).Derived(condition);
-                return (result, $"Rule {row}" + (string.IsNullOrWhiteSpace(rule.Reason) ? "" : $": {rule.Reason}"));
+                var result = ModuleExpression.Parse(rules[at].Then).Evaluate(lookup).Derived(condition);
+                return (result, $"Rule {row}" + (string.IsNullOrWhiteSpace(rules[at].Reason) ? "" : $": {rules[at].Reason}"), Trace(at));
             }
         }
-        return (ModuleExpression.Parse(step.Expression).Evaluate(lookup), "No rule matched, so the otherwise value applies");
+        return (ModuleExpression.Parse(step.Expression).Evaluate(lookup), "No rule matched, so the otherwise value applies", Trace(-1));
     }
 
     private static OutputResult EvaluateOutput(DraftOutput output, Func<string, Val> lookup, DateTimeOffset now)
