@@ -70,7 +70,9 @@ public static class InputAcceptance
         var reported = Units.Normalize(reportedUnit);
         var value = number;
         var unit = reported ?? declared;
-        if (declared is not null && reported is not null && !Units.TryConvert(number, reported, declared, out value, out var why))
+        // A reference-agnostic input (psi) accepts a gauge or absolute reading: the module has said the reference does not matter.
+        var source = declared is not null && reported is not null && Units.DimensionOf(declared) == "pressure" && Units.WithoutReference(reported) is { } plain ? plain : reported;
+        if (declared is not null && source is not null && !Units.TryConvert(number, source, declared, out value, out var why))
             return Refuse("UnitMismatch", $"The provider reports {reported} but this input expects {declared}: {why}", age);
         if (declared is not null) unit = declared;
         return new Accepted(Val.Of(value, unit) with { AsOf = observedAt, Quality = grade }, "Resolved", null, age);

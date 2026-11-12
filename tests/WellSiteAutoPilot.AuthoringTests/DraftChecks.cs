@@ -167,6 +167,9 @@ internal static class DraftChecks
         var converted = InputAcceptance.Accept(In("A", unit: "kPaa"), 1, "bara", now, "Good", now);
         Check.That(converted.Value is { Unit: "kPaa", Number: 100 }, "a compatible unit is converted to the unit the module declared");
         Check.That(InputAcceptance.Accept(In("A", unit: "psia"), 5, "psig", now, "Good", now).Resolution == "UnitMismatch", "gauge pressure is never silently taken as absolute");
+        Check.That(InputAcceptance.Accept(In("A", unit: "psia"), 5, "psi", now, "Good", now).Resolution == "UnitMismatch", "a reading with no reference is never taken as absolute");
+        Check.That(InputAcceptance.Accept(In("A", unit: "psi"), 5, "psia", now, "Good", now) is { Resolution: "Resolved", Value.Number: 5 }, "an input that does not care about the reference accepts an absolute reading");
+        Check.That(InputAcceptance.Accept(In("A", unit: "psi"), 5, "kPag", now, "Good", now).Value.Number is > 0.72m and < 0.73m, "and converts it to the scale it expects");
         Check.That(InputAcceptance.Accept(In("A", unit: "psia"), 5, "degF", now, "Good", now).Resolution == "UnitMismatch", "a different dimension is refused");
         Check.That(InputAcceptance.Accept(In("A", unit: null), 5, "psia", now, "Good", now).Value.Unit == "psia", "an input with no declared unit adopts the provider's");
         await Task.CompletedTask;
@@ -184,7 +187,7 @@ internal static class DraftChecks
         var first = await Run(live);
         Check.That(first.Outcome == ModuleOutcome.Runs && first.Outputs[0].Value.Number == 120, "the first source that answers wins");
         Check.That(live.Asked.Count == 1, "later sources are not asked once one answered");
-        Check.That(first.Inputs[0].Unit == "psia" && first.Inputs[0].AgeSeconds == 30 && first.Inputs[0].Quantity == "CasingPressure", "the trace keeps the unit, the age and the quantity");
+        Check.That(first.Inputs[0].Unit == "psi" && first.Inputs[0].AgeSeconds == 30 && first.Inputs[0].Quantity == "CasingPressure", "the trace keeps the unit, the age and the quantity");
 
         var wellTestOnly = new FakeInputs(new() { ["CasingPressure|TestSample"] = FakeInputs.Value("welltest.AverageCasingPressure", 15, ResolveBasis.TestSample) });
         var second = await Run(wellTestOnly);
@@ -206,9 +209,9 @@ internal static class DraftChecks
 
         var stale = await Run(new FakeInputs(new() { ["CasingPressure"] = FakeInputs.Value("s", 120, ageSeconds: 7200) }), d: fallback.Draft with { Inputs = [fallback.Draft.Inputs[0] with { MaxAgeSeconds = 900 }] });
         Check.That(stale.Outcome == ModuleOutcome.Unavailable && stale.Inputs[0].Resolution == "Stale" && stale.Outputs[0].Value.Available == false, "a reading that is too old stops the module");
-        var gauge = await Run(new FakeInputs(new() { ["CasingPressure"] = FakeInputs.Value("s", 20, unit: "psig") }));
+        var gauge = await Run(new FakeInputs(new() { ["CasingPressure"] = FakeInputs.Value("s", 20, unit: "psig") }), d: fallback.Draft with { Inputs = [fallback.Draft.Inputs[0] with { Unit = "psia" }] });
         Check.That(gauge.Outcome == ModuleOutcome.NeedsSetup && gauge.Inputs[0].Resolution == "UnitMismatch", "a provider reporting gauge pressure is a unit mismatch, not a number");
-        var metric = await Run(new FakeInputs(new() { ["CasingPressure"] = FakeInputs.Value("s", 1, unit: "bara") }));
+        var metric = await Run(new FakeInputs(new() { ["CasingPressure"] = FakeInputs.Value("s", 1, unit: "bara") }), d: fallback.Draft with { Inputs = [fallback.Draft.Inputs[0] with { Unit = "psia" }] });
         Check.That(metric.Outcome == ModuleOutcome.Runs && metric.Outputs[0].Value.Number is > 14.5m and < 14.6m, "bar is converted to the module's psia");
 
         var byQuantity = new FakeInputs(new() { ["CasingPressure"] = FakeInputs.Value("s", 55) });

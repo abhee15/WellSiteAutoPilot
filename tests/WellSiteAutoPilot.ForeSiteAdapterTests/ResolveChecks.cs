@@ -33,6 +33,10 @@ internal static class ResolveChecks
         Check(ForeSiteResolver.Resolve("surveillance:CasingPressure", withUnits).Candidates[0].ReadPlan == "surveillance|CasingPressure|psia",
             "a surveillance point carries the unit ForeSite reports, not an assumed psi");
         Check(ForeSiteResolver.Resolve("CasingPresure", both).Outcome == ResolveOutcome.Misconfigured, "a typo is misconfigured");
+        var unitsAndValues = JsonDocument.Parse("""{"Units":{"AverageCasingPressure":{"UnitKey":"psia"}},"Values":[{"AverageCasingPressure":15,"TestEndDate":"2023-04-02T05:00:00.0000000Z"}]}""").RootElement;
+        var testSnapshot = new ForeSiteWellSnapshot(new Dictionary<string, string>(), new Dictionary<string, string>(), ForeSiteResolver.Flatten(unitsAndValues))
+        { WellTestUnits = ForeSiteResolver.Units(unitsAndValues) };
+        Check(ForeSiteResolver.Resolve("CasingPressure", testSnapshot).Candidates[0].ReadPlan == "welltest|AverageCasingPressure|psia", "a well test carries the unit from its Units block, read from the first row of Values");
         Check(ForeSiteResolver.ResolveCommand("CasingPressure", ["POLoadSP", "VFDMaxSPM"]).Outcome == ResolveOutcome.NotApplicable, "casing pressure is not writable");
         Check(ForeSiteResolver.ResolveCommand("setpoint:POLoadSP", ["POLoadSP"]).Outcome == ResolveOutcome.Compatible, "a writable set point resolves");
 
@@ -42,6 +46,17 @@ internal static class ResolveChecks
         Check(!ForeSiteSetPoints.Plan("776", setPoints, "IdealPF", 21).Allowed, "a value beyond the range is refused");
         Check(!ForeSiteSetPoints.Plan("776", setPoints, "Locked", 1).Allowed, "a read-only set point is refused");
         Check(!ForeSiteSetPoints.Plan("776", setPoints, "CasingPressure", 1).Allowed, "casing pressure is not a set point");
+        var absolute = ForeSiteSetPoints.Plan("776", setPoints, "IdealPF", 99, 40);
+        Check(absolute.Allowed && absolute.Proposed == 40, "an absolute value replaces the delta");
+        Check(!ForeSiteSetPoints.Plan("776", setPoints, "IdealPF", 0, 140).Allowed, "an absolute value beyond the range is refused");
+
+        var timed = Snapshot("{}", """{"Value":{"CasingPressure":5,"LastGoodScanTime":"2026-05-11T11:58:00-05:00"}}""", """{"SampleDate":"2026-05-01T00:00:00Z","TestEndDate":"2026-05-02T05:00:00.0000000Z"}""");
+        var (scanned, scanKind) = ForeSiteResolver.ObservedAt("surveillance", timed);
+        Check(scanned == DateTimeOffset.Parse("2026-05-11T16:58:00Z", System.Globalization.CultureInfo.InvariantCulture) && scanKind == "ControllerScan", "surveillance time is the last good scan");
+        var (tested, testKind) = ForeSiteResolver.ObservedAt("welltest", timed);
+        Check(tested == DateTimeOffset.Parse("2026-05-02T05:00:00Z", System.Globalization.CultureInfo.InvariantCulture) && testKind == "WellTestDate", "well test time is the end of the latest test");
+        var naive = Snapshot("{}", """{"Value":{"LastGoodScanTime":"2026-05-11T11:58:00"}}""", "{}");
+        Check(ForeSiteResolver.ObservedAt("surveillance", naive).At is null, "a time without an offset is not trusted");
 
         var url = Environment.GetEnvironmentVariable("FORESITE_BASE_URL");
         if (string.IsNullOrWhiteSpace(url) || Environment.GetEnvironmentVariable("WSA_LIVE_RESOLVE") != "1")

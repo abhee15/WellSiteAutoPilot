@@ -13,6 +13,16 @@ public sealed record ForeSiteWellSnapshot(
     /// <summary>Units ForeSite reports for surveillance fields (for example psia), keyed by field name.</summary>
     public IReadOnlyDictionary<string, string> SurveillanceUnits { get; init; } = new Dictionary<string, string>();
 
+    /// <summary>Units ForeSite reports for the well test fields (for example psia), keyed by field name.</summary>
+    public IReadOnlyDictionary<string, string> WellTestUnits { get; init; } = new Dictionary<string, string>();
+
+    public IReadOnlyDictionary<string, string> UnitsOf(string endpoint) => endpoint switch
+    {
+        "surveillance" => SurveillanceUnits,
+        "welltest" => WellTestUnits,
+        _ => new Dictionary<string, string>()
+    };
+
     public IReadOnlyDictionary<string, string> Source(string name) => name switch
     {
         "well" => Well,
@@ -93,7 +103,7 @@ public static class ForeSiteResolver
         {
             if (basis is not null && source.Basis != basis)
                 continue;
-            var unit = source.Endpoint == "surveillance" && snapshot.SurveillanceUnits.TryGetValue(source.Field, out var reported) ? reported : source.Unit;
+            var unit = snapshot.UnitsOf(source.Endpoint).TryGetValue(source.Field, out var reported) ? reported : source.Unit;
             if (snapshot.Source(source.Endpoint).TryGetValue(source.Field, out var raw) && !string.IsNullOrWhiteSpace(raw))
                 found.Add(new ResolveCandidate($"foresite:{source.Endpoint}.{source.Field}", source.Basis,
                     $"{source.Endpoint}.{source.Field}" + (unit.Length > 0 ? $" ({unit})" : ""),
@@ -124,22 +134,26 @@ public static class ForeSiteResolver
     }
 
     /// <summary>
-    /// When ForeSite says a value was observed: the controller's last good scan for surveillance values, the latest valid
-    /// well test date for test samples. Only timestamps with an explicit UTC offset are trusted, as in the production
-    /// adapter; anything else is unknown, and the caller must not present retrieval time as observation time.
+    /// When ForeSite says a value was observed: the controller's last good scan for surveillance values, the end of the
+    /// test (else the sample date) of the well test row for test samples. Only timestamps with an explicit UTC offset are
+    /// trusted, as in the production adapter; anything else is unknown, and the caller must not present retrieval time
+    /// as observation time. The surveillance LatestValidWellTestDate is a different test and is not used.
     /// </summary>
     public static (DateTimeOffset? At, string Kind) ObservedAt(string endpoint, ForeSiteWellSnapshot snapshot)
     {
-        var (field, kind) = endpoint switch
+        var (fieldNames, kind) = endpoint switch
         {
-            "surveillance" => ("LastGoodScanTime", "ControllerScan"),
-            "welltest" => ("LatestValidWellTestDate", "WellTestDate"),
-            _ => ("", "Static")
+            "surveillance" => (new[] { "LastGoodScanTime" }, "ControllerScan"),
+            "welltest" => (new[] { "TestEndDate", "SampleDate" }, "WellTestDate"),
+            _ => (Array.Empty<string>(), "Static")
         };
-        if (field.Length == 0)
+        if (fieldNames.Length == 0)
             return (null, kind);
-        return snapshot.Surveillance.TryGetValue(field, out var text) && ForeSiteSurveillanceSnapshot.TryOffsetTime(text, out var at)
-            ? (at, kind) : (null, "Unknown");
+        var fields = snapshot.Source(endpoint);
+        foreach (var field in fieldNames)
+            if (fields.TryGetValue(field, out var text) && ForeSiteSurveillanceSnapshot.TryOffsetTime(text, out var at))
+                return (at, kind);
+        return (null, "Unknown");
     }
 
     /// <summary>The unit ForeSite reports per surveillance field, from the "Units" block that comes with the values.</summary>
@@ -159,6 +173,9 @@ public static class ForeSiteResolver
     {
         if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Value", out var inner) && inner.ValueKind == JsonValueKind.Object)
             root = inner;
+        else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Values", out var rows) && rows.ValueKind == JsonValueKind.Array
+            && rows.GetArrayLength() > 0 && rows[0].ValueKind == JsonValueKind.Object)
+            root = rows[0];
         var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (root.ValueKind != JsonValueKind.Object)
             return fields;
@@ -249,8 +266,12 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
         var well = await FetchAsync(() => session.GetAsync($"Wells/Well/{id}", cancellationToken), cancellationToken);
         var units = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var surveillance = await FetchAsync(() => session.GetAsync($"Surveillance/well/{id}", cancellationToken), cancellationToken, units);
-        var welltest = await FetchAsync(() => session.GetAsync($"WellTests/GetLatestWellTestData/{id}", cancellationToken), cancellationToken);
-        return new ForeSiteWellSnapshot(well, surveillance, welltest) { SurveillanceUnits = units };
+        // The latest valid test comes with its units (psia); the latest test of any kind does not, so it is only the fallback.
+        var testUnits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var welltest = await FetchAsync(() => session.GetAsync($"WellTests/LatestValidWellTest/{id}", cancellationToken), cancellationToken, testUnits);
+        if (welltest.Count == 0)
+            welltest = await FetchAsync(() => session.GetAsync($"WellTests/GetLatestWellTestData/{id}", cancellationToken), cancellationToken);
+        return new ForeSiteWellSnapshot(well, surveillance, welltest) { SurveillanceUnits = units, WellTestUnits = testUnits };
     }
 
     // A source that is missing or fails is an empty source, so the other sources still resolve. ForeSite closes idle
