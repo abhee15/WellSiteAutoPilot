@@ -1,5 +1,6 @@
 import { SectionTabs } from '../components/SectionTabs';
 import { AdaptersPanel } from './AdaptersPanel';
+import { AuthoringWorkbench } from './AuthoringWorkbench';
 import './connections.css';
 import { ConnectionInventory } from './ConnectionInventory';
 import { ActionButton } from '../components/ActionButton';
@@ -59,13 +60,13 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
   // Keep the tab in the section URL, consistent with other page tabs. Connection
   // record IDs continue to occupy the detail segment when Connections is active.
   const [detail, setDetail] = useHashDetail('connections');
-  const tab = detail === 'adapters' ? 'adapters' : 'connections';
-  const setTab = (next: 'connections' | 'adapters') => setDetail(next === 'adapters' ? 'adapters' : null);
+  const tab = detail === 'adapters' ? 'adapters' : detail === 'authoring' ? 'authoring' : 'connections';
+  const setTab = (next: 'connections' | 'adapters' | 'authoring') => setDetail(next === 'connections' ? null : next);
   return <div className="split-layout">
     <SectionTabs prefix="connections" label="Connections" selected={tab} onSelect={setTab}
-      tabs={[{ id: 'connections', label: 'Connections' }, { id: 'adapters', label: 'Adapters' }]} />
+      tabs={[{ id: 'connections', label: 'Connections' }, { id: 'adapters', label: 'Adapters' }, { id: 'authoring', label: 'Authoring (POC)' }]} />
     <div role="tabpanel" id={'connections-' + tab} aria-labelledby={'connections-tab-' + tab}>
-      {tab === 'connections' ? <ConnectionWorkspace canManage={canManage} /> : <AdaptersPanel />}
+      {tab === 'connections' ? <ConnectionWorkspace canManage={canManage} /> : tab === 'adapters' ? <AdaptersPanel /> : <AuthoringWorkbench />}
     </div>
   </div>;
 }

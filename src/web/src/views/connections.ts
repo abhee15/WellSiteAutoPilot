@@ -404,3 +404,30 @@ export async function loadSourceChanges(connectionId: string, offset: number, qu
     throw new ConnectionsError('invalidResponse');
   return body as SourceChangePage;
 }
+
+export type ResolveOutcome = 'Compatible' | 'NotApplicable' | 'Misconfigured' | 'NeedsSelection' | 'CannotDetermine';
+export type ResolveCandidate = { source: string; basis: string; description: string; readPlan: string | null };
+export type ResolvedValue = { quantity: string; value: number | null; unit: string | null; timestampUtc: string | null; quality: string | null; source: string | null };
+export type ResolvePreview = {
+  result: { outcome: ResolveOutcome; candidates: ResolveCandidate[]; reasons: string[] };
+  value: ResolvedValue | null; readProblem: string | null;
+};
+export type SetPointPlan = {
+  wellId: string; setPoint: string; description: string; unit: string; current: number; proposed: number;
+  rangeLow: number | null; rangeHigh: number | null; allowed: boolean; refusal: string | null;
+};
+
+export async function resolveInput(connectionId: string, externalId: string, input: string, basis?: string,
+  fetcher: typeof fetch = fetch): Promise<ResolvePreview> {
+  const body = await send(`/connections/${connectionId}/resolve`, json('POST', { externalId, input, basis: basis || null, read: true }), fetcher);
+  const preview = body as ResolvePreview | null;
+  if (!preview || typeof preview !== 'object' || !preview.result || !Array.isArray(preview.result.candidates)) throw new ConnectionsError('invalidResponse');
+  return preview;
+}
+
+export async function planSetPoint(connectionId: string, externalId: string, setPoint: string, delta: number,
+  fetcher: typeof fetch = fetch): Promise<SetPointPlan> {
+  const body = await send(`/connections/${connectionId}/setpoint-plan`, json('POST', { externalId, setPoint, delta }), fetcher);
+  if (!body || typeof body !== 'object' || !('allowed' in body)) throw new ConnectionsError('invalidResponse');
+  return body as SetPointPlan;
+}

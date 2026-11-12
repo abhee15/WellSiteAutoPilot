@@ -1,0 +1,7 @@
+.authoring { display: grid; gap: var(--space-12); }
+.authoring-grid { display: grid; grid-template-columns: minmax(var(--layout-column-min), 1fr) minmax(0, 2fr); gap: var(--space-12); align-items: start; }
+@media (width < 48em) { .authoring-grid { grid-template-columns: 1fr; } }
+.authoring-table { width: 100%; border-collapse: collapse; }
+.authoring-table th, .authoring-table td { text-align: start; padding: var(--space-8); border-bottom: var(--border-width-thin) solid var(--color-border-row); vertical-align: top; }
+.authoring-table [data-outcome='Compatible'] { color: var(--color-text-success, inherit); font-weight: 600; }
+.authoring-table [data-outcome='NotApplicable'], .authoring-table [data-outcome='Misconfigured'] { color: var(--color-text-subtle); }
