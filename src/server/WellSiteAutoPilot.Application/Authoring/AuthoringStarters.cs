@@ -159,7 +159,7 @@ public static class AuthoringStarters
             new ModuleDraft("Target fillage (VSD)", "Narrows the VSD speed range from the average fillage and speed of the last few hours.",
                 [new("MinFreq", "VfdMinFrequency", "Hz", "Saved", Role: "setpoint", AllowUncertain: true, ValidMin: 0),
                  new("MaxFreq", "VfdMaxFrequency", "Hz", "Saved", Role: "setpoint", AllowUncertain: true, ValidMin: 0),
-                 new("TargetPF", "TargetFillage", "%", "Saved", Role: "setpoint", AllowUncertain: true, ValidMin: 0, ValidMax: 100),
+                 new("TargetPF", "TargetFillage", "%", "Saved", Role: "setpoint", AllowUncertain: true, ValidMin: 1, ValidMax: 100),
                  new("AvgSpm", "SPM", "spm", ValidMin: 0, AllowUncertain: true, History: new(0, "now", 240, "avg")),
                  new("AvgFillage", "PumpFillage", "%", ValidMin: 0, ValidMax: 100, AllowUncertain: true, History: new(0, "now", 240, "avg")),
                  new("Cycles", "CyclesYesterday", ValidMin: 0, AllowUncertain: true, History: new(0, "now", 1440)),
