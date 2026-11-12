@@ -18,7 +18,14 @@ public sealed record DraftInput(
 /// <summary>A tunable value. Min and Max bound what an author or a per-asset override may set it to.</summary>
 public sealed record DraftParameter(string Name, string Value, string? Unit = null, string? Label = null, decimal? Min = null, decimal? Max = null);
 
-public sealed record DraftStep(string Name, string Expression, string? Label = null);
+/// <summary>One row of a rule table: when the condition is definitely true the step takes the Then value and records the reason.</summary>
+public sealed record DraftRule(string When, string Then, string? Reason = null);
+
+/// <summary>
+/// A calculation. With rules, they are tried in order and the first row whose condition is true decides; Expression is the
+/// value when no row matches. A row whose condition cannot be decided stops the table, because skipping a gate would hide a failed check.
+/// </summary>
+public sealed record DraftStep(string Name, string Expression, string? Label = null, IReadOnlyList<DraftRule>? Rules = null);
 
 /// <summary>Bounds a set point proposal must stay inside, whatever the calculation produced.</summary>
 public sealed record OutputLimits(decimal? Min = null, decimal? Max = null, decimal? MaxStep = null);
@@ -111,7 +118,7 @@ public static partial class DraftAnalyzer
             draft.SchemaVersion, draft.LanguageVersion,
             Inputs = draft.Inputs?.Select(i => new { i.Name, Role = i.Role ?? "well", i.Quantity, Unit = Units.Normalize(i.Unit), i.Basis, i.MaxAgeSeconds, i.AllowUncertain, i.Required, i.ValidMin, i.ValidMax }),
             Parameters = draft.Parameters?.Select(p => new { p.Name, p.Value, Unit = Units.Normalize(p.Unit), p.Min, p.Max }),
-            Steps = draft.Steps?.Select(s => new { s.Name, Expression = s.Expression?.Trim() }),
+            Steps = draft.Steps?.Select(s => new { s.Name, Expression = s.Expression?.Trim(), Rules = s.Rules?.Select(r => new { When = r.When?.Trim(), Then = r.Then?.Trim(), r.Reason }) }),
             Outputs = draft.Outputs?.Select(o => new { o.Name, o.Kind, Expression = o.Expression?.Trim(), Unit = Units.Normalize(o.Unit), o.Target, o.Limits, When = o.When?.Trim(), o.Code, o.Title, o.Detail })
         };
         return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(canonical, FingerprintOptions))).ToLowerInvariant();
@@ -206,7 +213,20 @@ public static partial class DraftAnalyzer
             }
             return known;
         }
-        foreach (var step in steps) depends[step.Name ?? ""] = Reads(step.Name ?? "", step.Expression, "Expression");
+        foreach (var step in steps)
+        {
+            var stepName = step.Name ?? "";
+            var reads = Reads(stepName, step.Expression, step.Rules is { Count: > 0 } ? "Otherwise" : "Expression");
+            var row = 0;
+            foreach (var rule in step.Rules ?? [])
+            {
+                row++;
+                reads.AddRange(Reads(stepName, rule.When, $"Rule {row} condition"));
+                reads.AddRange(Reads(stepName, rule.Then, $"Rule {row} value"));
+                if (string.IsNullOrWhiteSpace(rule.Reason)) Warn(stepName, $"Rule {row} has no reason, so a reader cannot tell why it matched.");
+            }
+            depends[stepName] = reads.Distinct(StringComparer.Ordinal).ToList();
+        }
         foreach (var output in outputs)
         {
             var name = output.Name ?? "";

@@ -24,11 +24,44 @@ internal static class DraftChecks
     {
         Starters();
         Recommendations();
-        Analyzer();
+        RuleTables();
         Evaluation();
         await Acceptance();
         await ServiceAsync();
         await SetPointsAsync();
+    }
+
+    private static void RuleTables()
+    {
+        var draft = new ModuleDraft("Gates", null,
+            [In("Fillage", "PumpFillage", "%", maxAge: 600), In("Cycles", "CyclesYesterday", null)],
+            [new("FillageTarget", "70", "%", Min: 0, Max: 100), new("CyclesAllowed", "10")],
+            [new("Decision", "\"hold\"", Rules:
+            [
+                new("Cycles > CyclesAllowed", "\"reduce\"", "Too many cycles yesterday"),
+                new("Fillage < FillageTarget", "\"lower\"", "Fillage is below target")
+            ])],
+            [new("Result", "Decision")]);
+        Check.That(DraftAnalyzer.Analyze(draft).Valid, "a rule table is a valid step");
+        string Run(string fillage, string cycles, out string? why)
+        {
+            var run = AuthoringService.EvaluateAsync(draft, null, null, new Dictionary<string, string> { ["Fillage"] = fillage, ["Cycles"] = cycles }, null).GetAwaiter().GetResult();
+            why = run.Steps.Single().Matched;
+            return run.Steps.Single().Value.Text ?? run.Steps.Single().Value.Reason ?? "";
+        }
+        Check.That(Run("60", "12", out var first) == "reduce" && first == "Rule 1: Too many cycles yesterday", "the first matching row decides, even when a later row also matches");
+        Check.That(Run("60", "3", out var second) == "lower" && second == "Rule 2: Fillage is below target", "a later row decides when earlier rows do not match");
+        Check.That(Run("85", "3", out var none) == "hold" && none!.StartsWith("No rule matched", StringComparison.Ordinal), "no match gives the otherwise value, and says so");
+
+        var unknown = draft with { Inputs = [In("Fillage", "PumpFillage", "%", maxAge: 600), In("Cycles", "CyclesYesterday", null, required: false)] };
+        var undecided = AuthoringService.EvaluateAsync(unknown, null, null, new Dictionary<string, string> { ["Fillage"] = "60" }, null).GetAwaiter().GetResult().Steps.Single();
+        Check.That(!undecided.Value.Available && undecided.Matched!.Contains("could not be decided", StringComparison.Ordinal),
+            "a gate that cannot be decided stops the table instead of being skipped");
+
+        var typo = draft with { Steps = [new("Decision", "\"hold\"", Rules: [new("Cycle > CyclesAllowed", "\"x\"", "r")])] };
+        Check.That(Reports(typo, "Decision", "Rule 1 condition"), "a rule that names nothing is reported against its row");
+        var unexplained = draft with { Steps = [new("Decision", "\"hold\"", Rules: [new("Cycles > CyclesAllowed", "\"x\"")])] };
+        Check.That(Warns(unexplained, "Decision", "no reason"), "a row without a reason is flagged");
     }
 
     private static void Starters()
