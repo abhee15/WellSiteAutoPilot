@@ -7,9 +7,9 @@ import { PanelLoading } from '../components/LoadingIndicator';
 import { AdapterGuide } from './AdapterGuide';
 import { AuthoringNodeEditor } from './AuthoringNodeEditor';
 import { AuthoringResults } from './AuthoringResults';
-import { evaluateDraft, loadStarters, parseDraft, showVal, validateDraft } from './authoring';
-import type { Analysis, ModuleDraft, ModuleRun, Starter } from './authoring';
-import { addNode, emptyDraft, kindLabel, nodeKindOf, removeNode, updateNode } from './authoringDraft';
+import { evaluateDraft, loadStarters, parseDraft, requestKey, showVal, validateDraft, verifyDraft } from './authoring';
+import type { Analysis, BindingSource, EvaluateTarget, ModuleBindings, ModuleDraft, ModuleRun, Starter, VerifyResult } from './authoring';
+import { addNode, emptyDraft, kindLabel, moveBindings, nodeKindOf, removeNode, updateNode } from './authoringDraft';
 import type { NodeKind, Selection } from './authoringDraft';
 import { discoverConnection, listPoints, loadConnections } from './connections';
 import type { CatalogPoint, Connection, DiscoveredObject } from './connections';
@@ -18,21 +18,37 @@ import './authoring.css';
 
 const kinds: NodeKind[] = ['input', 'parameter', 'step', 'output'];
 const groupTitle: Record<NodeKind, string> = { input: 'Inputs', parameter: 'Parameters', step: 'Calculations', output: 'Outputs' };
+const recoveryKey = 'wsa.authoring.draft';
+
+type Recovered = { draft: ModuleDraft; bindings: ModuleBindings };
+
+function readRecovery(): Recovered | null {
+  try {
+    const stored = window.localStorage.getItem(recoveryKey);
+    const body = stored ? JSON.parse(stored) as Recovered : null;
+    return body && Array.isArray(body.draft?.inputs) ? body : null;
+  } catch { return null; }
+}
 
 /**
  * The authoring workspace: one revisitable view of a module's inputs, parameters, calculations and outputs, with
- * live checks, a dependency trace and tests against a real asset or typed sample values.
+ * live checks, a dependency trace, stored examples, and tests against a real asset or typed sample values. The module
+ * is portable; bindings (which provider points answer, which set point is changed) belong to this system.
  */
 export function AuthoringWorkbench() {
   const [starters, setStarters] = useState<Starter[]>([]);
   const [draft, setDraft] = useState<ModuleDraft>(emptyDraft);
+  const [bindings, setBindings] = useState<ModuleBindings>({});
   const [selection, setSelection] = useState<Selection>({ kind: 'module' });
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [run, setRun] = useState<ModuleRun | null>(null);
+  const [run, setRun] = useState<{ result: ModuleRun; key: string } | null>(null);
+  const [verified, setVerified] = useState<{ result: VerifyResult; key: string } | null>(null);
   const [running, setRunning] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [guide, setGuide] = useState(false);
   const [transfer, setTransfer] = useState<string | null>(null);
+  const [recovered, setRecovered] = useState<Recovered | null>(() => readRecovery());
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [connectionId, setConnectionId] = useState('');
   const [assets, setAssets] = useState<DiscoveredObject[]>([]);
@@ -42,13 +58,22 @@ export function AuthoringWorkbench() {
   const [samples, setSamples] = useState<Record<string, string>>({});
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const checking = useRef(0);
+  const testing = useRef(0);
+  const edited = useRef(false);
 
   const connection = connections?.find(item => item.id === connectionId) ?? null;
+  const live = connection !== null && assetId !== '';
+  const target = useMemo<EvaluateTarget>(() => live
+    ? { connectionId: connection.id, externalId: assetId, parameters: overrides, bindings }
+    : { samples, parameters: overrides, bindings }, [live, connection, assetId, overrides, samples, bindings]);
+  const currentKey = useMemo(() => requestKey(draft, target), [draft, target]);
 
   useEffect(() => {
     const controller = new AbortController();
-    loadStarters(controller.signal).then(items => { setStarters(items); if (items[0]) setDraft(items[0].draft); })
-      .catch(() => { if (!controller.signal.aborted) setMessage('The starter modules could not be loaded.'); });
+    loadStarters(controller.signal).then(items => {
+      setStarters(items);
+      if (items[0] && !edited.current) { setDraft(items[0].draft); setBindings(items[0].bindings ?? {}); }
+    }).catch(() => { if (!controller.signal.aborted) setMessage('The starter modules could not be loaded.'); });
     loadConnections(controller.signal).then(items => {
       const usable = items.filter(item => item.isEnabled);
       setConnections(usable);
@@ -60,10 +85,10 @@ export function AuthoringWorkbench() {
   useEffect(() => {
     setAssets([]); setAssetId(''); setPoints(null);
     if (!connection) return;
-    let live = true;
-    discoverConnection(connection).then(found => { if (live) setAssets(found.items); })
-      .catch(() => { if (live) setMessage('Assets could not be discovered on this connection.'); });
-    return () => { live = false; };
+    let current = true;
+    discoverConnection(connection).then(found => { if (current) setAssets(found.items); })
+      .catch(() => { if (current) setMessage('Assets could not be discovered on this connection.'); });
+    return () => { current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection?.id]);
 
@@ -80,15 +105,24 @@ export function AuthoringWorkbench() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [draft]);
 
-  const stale = run !== null && analysis !== null && run.fingerprint !== analysis.fingerprint;
+  // Work in progress survives a reload: only edited drafts are kept, never the untouched starter.
+  useEffect(() => {
+    if (!edited.current) return;
+    const timer = window.setTimeout(() => {
+      try { window.localStorage.setItem(recoveryKey, JSON.stringify({ draft, bindings })); } catch { /* storage may be unavailable */ }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [draft, bindings]);
+
+  const stale = run !== null && run.key !== currentKey;
   const problems = analysis?.problems ?? [];
   const errors = problems.filter(problem => problem.severity === 'Error');
   const valueOf = useMemo(() => {
     const map = new Map<string, string>();
     if (run) {
-      run.inputs.forEach(item => map.set(item.name, showVal(item.value, item.unit)));
-      run.parameters.concat(run.steps).forEach(item => map.set(item.name, showVal(item.value)));
-      run.outputs.forEach(item => map.set(item.name, showVal(item.value, item.unit)));
+      run.result.inputs.forEach(item => map.set(item.name, showVal(item.value, item.unit)));
+      run.result.parameters.concat(run.result.steps).forEach(item => map.set(item.name, showVal(item.value)));
+      run.result.outputs.forEach(item => map.set(item.name, showVal(item.value, item.unit)));
     }
     return map;
   }, [run]);
@@ -96,19 +130,32 @@ export function AuthoringWorkbench() {
     const needle = assetFilter.trim().toLowerCase();
     return (needle ? assets.filter(item => `${item.displayName} ${item.externalId}`.toLowerCase().includes(needle)) : assets).slice(0, 200);
   }, [assets, assetFilter]);
+  const draftKey = useMemo(() => JSON.stringify(draft), [draft]);
 
-  function load(next: ModuleDraft) {
-    setDraft(next); setSelection({ kind: 'module' }); setRun(null); setMessage(null); setSamples({}); setOverrides({});
+  function load(next: ModuleDraft, nextBindings: ModuleBindings = {}) {
+    edited.current = false;
+    setDraft(next); setBindings(nextBindings); setSelection({ kind: 'module' }); setRun(null); setVerified(null);
+    setMessage(null); setSamples({}); setOverrides({});
   }
 
+  function change(next: ModuleDraft) { edited.current = true; setDraft(next); }
+
   function edit(kind: NodeKind, name: string, patch: Record<string, unknown>) {
-    setDraft(current => updateNode(current, kind, name, patch));
-    if (typeof patch.name === 'string') setSelection({ kind, name: patch.name });
+    change(updateNode(draft, kind, name, patch));
+    if (typeof patch.name === 'string') {
+      setSelection({ kind, name: patch.name });
+      if (kind === 'input') setBindings(current => moveBindings(current, name, patch.name as string));
+    }
+  }
+
+  function setSources(name: string, sources: BindingSource[]) {
+    edited.current = true;
+    setBindings(current => ({ ...current, inputs: { ...(current.inputs ?? {}), [name]: sources } }));
   }
 
   function add(kind: NodeKind) {
     const added = addNode(draft, kind);
-    setDraft(added.draft); setSelection({ kind, name: added.name });
+    change(added.draft); setSelection({ kind, name: added.name });
   }
 
   function select(name: string) {
@@ -124,32 +171,48 @@ export function AuthoringWorkbench() {
   }
 
   async function test() {
+    const ticket = ++testing.current;
+    const key = currentKey;
     setRunning(true); setMessage(null);
     try {
-      setRun(await evaluateDraft(draft, connection && assetId
-        ? { connectionId: connection.id, externalId: assetId, parameters: overrides }
-        : { samples, parameters: overrides }));
-    } catch { setMessage('The test could not be completed. ForeSite can take a little while; try again.'); }
-    finally { setRunning(false); }
+      const result = await evaluateDraft(draft, target);
+      if (ticket === testing.current) setRun({ result, key });
+    } catch {
+      if (ticket === testing.current) setMessage('The test could not be completed. ForeSite can take a little while; try again.');
+    } finally { if (ticket === testing.current) setRunning(false); }
+  }
+
+  async function verify() {
+    const key = draftKey;
+    setVerifying(true); setMessage(null);
+    try { setVerified({ result: await verifyDraft(draft), key }); }
+    catch { setMessage('The stored examples could not be run.'); }
+    finally { setVerifying(false); }
   }
 
   function importDraft() {
-    try { load(parseDraft(transfer ?? '')); setTransfer(null); }
+    try { load(parseDraft(transfer ?? '')); edited.current = true; setTransfer(null); }
     catch { setMessage('That is not a module description. Paste the JSON that Export produced.'); }
   }
 
   if (!connections) return <PanelLoading label="Loading the authoring workspace" />;
 
-  const live = connection !== null && assetId !== '';
   const selected = selection.kind === 'module' ? null : selection;
+  const examples = draft.tests ?? [];
+  const exampleStale = verified !== null && verified.key !== draftKey;
 
   return <section className="authoring" aria-label="Authoring workspace">
     <PanelHeader title="Authoring workspace" />
     <Notice announce={false}>Proof of concept. Build a logic module from inputs, parameters, calculations and outputs, then test it on a real asset.
-      Nothing is saved or written to a field controller; set point changes are only planned.</Notice>
+      Nothing is saved on the server or written to a field controller; set point changes are only planned.</Notice>
     {message && <Notice tone="warning">{message}</Notice>}
+    {recovered && <Notice tone="info">You have an unsaved draft from an earlier visit.
+      <span className="connection-actions">
+        <ActionButton label="Restore it" variant="secondary" onClick={() => { load(recovered.draft, recovered.bindings ?? {}); edited.current = true; setRecovered(null); }} />
+        <ActionButton label="Discard it" variant="quiet" onClick={() => { window.localStorage.removeItem(recoveryKey); setRecovered(null); }} />
+      </span></Notice>}
     <div className="connection-actions">
-      <SelectField label="Start from" value="" onChange={event => { const found = starters.find(item => item.id === event.target.value); if (found) load(found.draft); }}>
+      <SelectField label="Start from" value="" onChange={event => { const found = starters.find(item => item.id === event.target.value); if (found) load(found.draft, found.bindings ?? {}); }}>
         <option value="">Choose a starter…</option>
         {starters.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
       </SelectField>
@@ -160,7 +223,7 @@ export function AuthoringWorkbench() {
     {guide && <AdapterGuide connections={connections} />}
     {transfer !== null && <div className="connection-form">
       <TextAreaField label="Module description (JSON)" rows={12} value={transfer} onChange={event => setTransfer(event.target.value)}
-        helper="Copy this to move the module between systems, or paste a description and choose Import. Connections are not part of it: they are bound where it is tested and run." />
+        helper="Copy this to move the module between systems, or paste a description and choose Import. Bindings are not part of it: they are set where it is tested and run." />
       <div className="connection-actions">
         <ActionButton label="Import this description" variant="primary" onClick={importDraft} />
         <ActionButton label="Close" variant="quiet" onClick={() => setTransfer(null)} />
@@ -193,17 +256,36 @@ export function AuthoringWorkbench() {
 
       <div className="authoring-center">
         {selected
-          ? <AuthoringNodeEditor draft={draft} kind={selected.kind} name={selected.name} analysis={analysis} run={run} points={points}
+          ? <AuthoringNodeEditor draft={draft} kind={selected.kind} name={selected.name} analysis={analysis} run={run?.result ?? null} points={points}
+            sources={selected.kind === 'input' ? bindings.inputs?.[selected.name] ?? [] : []} onSources={sources => setSources(selected.name, sources)}
             onChange={patch => edit(selected.kind, selected.name, patch)}
-            onRemove={() => { setDraft(removeNode(draft, selected.kind, selected.name)); setSelection({ kind: 'module' }); }}
+            onRemove={() => {
+              if (selected.kind === 'input') setBindings(current => moveBindings(current, selected.name, null));
+              change(removeNode(draft, selected.kind, selected.name)); setSelection({ kind: 'module' });
+            }}
             onSelect={select} />
           : <div className="connection-form">
             <h3>Module</h3>
-            <TextField label="Module name" value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} />
-            <TextAreaField label="What it does" rows={3} value={draft.description ?? ''} onChange={event => setDraft({ ...draft, description: event.target.value })} />
-            {problems.length > 0 && <ul className="authoring-reasons">{problems.map((problem, index) => <li key={index} data-severity={problem.severity}>
+            <TextField label="Module name" value={draft.name} onChange={event => change({ ...draft, name: event.target.value })} />
+            <TextAreaField label="What it does" rows={3} value={draft.description ?? ''} onChange={event => change({ ...draft, description: event.target.value })} />
+            {problems.length > 0 && <ul className="authoring-reasons">{problems.map((problem, index) => <li key={`${problem.node}-${index}`} data-severity={problem.severity}>
               {problem.node ? <button type="button" className="authoring-link" onClick={() => select(problem.node)}>{problem.node}</button> : null} {problem.message}</li>)}</ul>}
             {analysis?.valid && <Notice tone="success">The module is valid. {analysis.order.length > 0 ? `Calculation order: ${analysis.order.join(', ')}.` : ''}</Notice>}
+            <h4>Stored examples</h4>
+            <p className="connection-help">{examples.length === 0 ? 'This module has no stored examples. Examples are typed inputs with the outputs they must produce, so the module can be checked on any system without live data.'
+              : `${examples.length} example${examples.length === 1 ? '' : 's'} stored with the module.`}</p>
+            <div className="connection-actions">
+              <ActionButton label="Run stored examples" variant="secondary" busy={verifying} disabled={errors.length > 0 || examples.length === 0} onClick={() => void verify()} />
+            </div>
+            {verified && <div data-stale={exampleStale} aria-label="Stored example results">
+              {exampleStale && <Notice tone="warning">The module changed after these examples ran. Run them again.</Notice>}
+              <Notice tone={verified.result.tests.failed === 0 ? 'success' : 'warning'}>
+                {verified.result.tests.passed} passed, {verified.result.tests.failed} failed.
+                {verified.result.manifestValid ? ' Maps onto a valid logic module manifest.' : ` Does not map onto a valid manifest: ${verified.result.manifestError ?? 'unknown'}.`}</Notice>
+              <ul className="authoring-checks">{verified.result.tests.cases.map(item => <li key={item.name} data-status={item.passed ? 'Pass' : 'Fail'}>
+                <strong>{item.passed ? 'Pass' : 'Fail'}</strong> {item.name}{item.error ? `: ${item.error}` : ''}
+                {item.checks.filter(check => !check.passed).map(check => <small key={check.output} className="authoring-why">{check.output}: expected {check.expected}, got {check.actual}</small>)}</li>)}</ul>
+            </div>}
           </div>}
       </div>
 
@@ -222,8 +304,9 @@ export function AuthoringWorkbench() {
             </SelectField>
           </>}
           {!live && draft.inputs.map(input => <TextField key={input.name} label={`Value for ${input.name}`} value={samples[input.name] ?? ''}
+            helper={input.unit ? `A number in ${input.unit}, or with its own unit, such as 20 kPa.` : undefined}
             onChange={event => setSamples({ ...samples, [input.name]: event.target.value })} />)}
-          {draft.parameters.map(parameter => <TextField key={parameter.name} label={`Try ${parameter.name} (saved: ${parameter.value})`}
+          {draft.parameters.map(parameter => <TextField key={parameter.name} label={`Try ${parameter.name} (saved: ${parameter.value}${parameter.unit ? ` ${parameter.unit}` : ''})`}
             value={overrides[parameter.name] ?? ''} onChange={event => setOverrides({ ...overrides, [parameter.name]: event.target.value })} />)}
           <div className="connection-actions">
             <ActionButton label="Run test" variant="primary" busy={running} disabled={errors.length > 0 || draft.outputs.length === 0} onClick={() => void test()} />
@@ -233,6 +316,6 @@ export function AuthoringWorkbench() {
         </div>
       </div>
     </div>
-    {run && <AuthoringResults run={run} stale={stale} onSelect={select} />}
+    {run && <AuthoringResults run={run.result} stale={stale} onSelect={select} />}
   </section>;
 }

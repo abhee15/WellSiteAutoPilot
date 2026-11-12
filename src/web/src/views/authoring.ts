@@ -1,39 +1,75 @@
 import { ConnectionsError, json, send } from './connections';
 import type { SetPointPlan } from './connections';
 
-export type InputSource = { input: string; basis?: string | null };
-export type DraftInput = { name: string; sources: InputSource[]; required: boolean; label?: string | null };
-export type DraftParameter = { name: string; value: string; label?: string | null };
+export type DraftInput = {
+  name: string; quantity: string; unit?: string | null; basis?: string | null; maxAgeSeconds?: number | null;
+  allowUncertain?: boolean; required: boolean; role?: string | null; label?: string | null;
+};
+export type DraftParameter = { name: string; value: string; unit?: string | null; label?: string | null };
 export type DraftStep = { name: string; expression: string; label?: string | null };
-export type DraftOutput = { name: string; expression: string; kind: 'value' | 'setpoint'; unit?: string | null; target?: string | null; label?: string | null };
+export type OutputLimits = { min?: number | null; max?: number | null; maxStep?: number | null };
+export type DraftOutput = {
+  name: string; expression: string; kind: 'value' | 'setpoint'; unit?: string | null; target?: string | null;
+  limits?: OutputLimits | null; when?: string | null; label?: string | null;
+};
+export type TestCase = { name: string; inputs: Record<string, string>; expect: Record<string, string>; parameters?: Record<string, string> | null; tolerance?: number | null };
 export type ModuleDraft = {
   name: string; description: string | null;
   inputs: DraftInput[]; parameters: DraftParameter[]; steps: DraftStep[]; outputs: DraftOutput[];
+  tests?: TestCase[] | null; moduleId?: string | null; version?: string; schemaVersion?: number; languageVersion?: number;
 };
-export type Starter = { id: string; title: string; summary: string; draft: ModuleDraft };
+export type BindingSource = { input: string; basis?: string | null };
+export type ModuleBindings = { inputs?: Record<string, BindingSource[]> | null; targets?: Record<string, string> | null };
+export type Starter = { id: string; title: string; summary: string; draft: ModuleDraft; bindings?: ModuleBindings | null; teaches?: string[] | null };
 
 export type Problem = { severity: 'Error' | 'Warning'; node: string; message: string };
 export type GraphNode = { name: string; kind: 'input' | 'parameter' | 'step' | 'output'; dependsOn: string[]; usedBy: string[] };
 export type Analysis = { valid: boolean; problems: Problem[]; graph: GraphNode[]; order: string[]; fingerprint: string };
 
-export type Val = { kind: 'Number' | 'Flag' | 'Text' | 'Unavailable'; number: number | null; flag: boolean | null; text: string | null; reason: string | null };
+export type Val = {
+  kind: 'Number' | 'Flag' | 'Text' | 'Unavailable'; number: number | null; flag: boolean | null; text: string | null; reason: string | null;
+  unit?: string | null; asOf?: string | null; quality?: 'Good' | 'Uncertain' | 'Bad';
+};
 export type InputTrace = {
   name: string; resolution: string; value: Val; unit: string | null; source: string | null; basis: string | null; usedInput: string | null;
   reasons: string[]; candidates: { source: string; basis: string; description: string }[]; required: boolean;
+  ageSeconds?: number | null; maxAgeSeconds?: number | null; timestampKind?: string | null; quantity?: string | null;
 };
 export type NodeResult = { name: string; value: Val; expression: string | null; dependsOn: string[] };
-export type OutputResult = { name: string; kind: string; value: Val; unit: string | null; target: string | null; expression: string; plan: SetPointPlan | null; note: string | null };
+export type ProposalCheck = { name: string; status: 'Pass' | 'Fail' | 'Hold' | 'Info'; detail: string };
+export type OutputResult = {
+  name: string; kind: string; value: Val; unit: string | null; target: string | null; expression: string; plan: SetPointPlan | null;
+  note: string | null; checks?: ProposalCheck[] | null; proposed?: boolean | null;
+};
 export type ModuleOutcome = 'Runs' | 'Skipped' | 'NeedsSetup' | 'Unavailable' | 'Invalid';
 export type ModuleRun = {
   outcome: ModuleOutcome; reasons: string[]; fingerprint: string;
   inputs: InputTrace[]; parameters: NodeResult[]; steps: NodeResult[]; outputs: OutputResult[]; problems: Problem[];
+  evaluatedAtUtc?: string | null; mode?: string; externalId?: string | null;
+};
+
+export type TestCheck = { output: string; expected: string; actual: string; passed: boolean };
+export type TestCaseResult = { name: string; passed: boolean; checks: TestCheck[]; error?: string | null };
+export type VerifyResult = {
+  tests: { fingerprint: string; passed: number; failed: number; cases: TestCaseResult[] };
+  manifestValid: boolean; manifestError: string | null;
 };
 
 export function showVal(value: Val, unit?: string | null): string {
   if (value.kind === 'Unavailable') return `unavailable (${value.reason ?? 'no value'})`;
   const text = value.kind === 'Number' ? String(Number((value.number ?? 0).toFixed(5)))
     : value.kind === 'Flag' ? (value.flag ? 'true' : 'false') : value.text ?? '';
-  return unit ? `${text} ${unit}` : text;
+  const shown = unit ?? value.unit;
+  return shown ? `${text} ${shown}` : text;
+}
+
+/** "2 min ago" style age for evidence, so an author sees at a glance how old a reading was. */
+export function showAge(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return 'age unknown';
+  if (seconds < 90) return `${Math.max(0, Math.round(seconds))} s old`;
+  if (seconds < 5400) return `${Math.round(seconds / 60)} min old`;
+  if (seconds < 172800) return `${Math.round(seconds / 3600)} h old`;
+  return `${Math.round(seconds / 86400)} d old`;
 }
 
 function isDraft(body: unknown): body is ModuleDraft {
@@ -48,9 +84,14 @@ export function parseDraft(text: string): ModuleDraft {
   if (!isDraft(body) || typeof body.name !== 'string') throw new ConnectionsError('invalid');
   return {
     ...body, description: body.description ?? null,
-    inputs: body.inputs.map(input => ({ ...input, sources: Array.isArray(input.sources) ? input.sources : [], required: input.required !== false })),
+    inputs: body.inputs.map(input => ({ ...input, quantity: input.quantity ?? '', required: input.required !== false })),
     outputs: body.outputs.map(output => ({ ...output, kind: output.kind === 'setpoint' ? 'setpoint' : 'value' })),
   };
+}
+
+/** Identity of everything a run depends on, so a result can be matched to the request that produced it. */
+export function requestKey(draft: ModuleDraft, target: EvaluateTarget): string {
+  return JSON.stringify([draft, target.connectionId ?? null, target.externalId ?? null, target.samples ?? null, target.parameters ?? null, target.bindings ?? null]);
 }
 
 export async function loadStarters(signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<Starter[]> {
@@ -65,7 +106,15 @@ export async function validateDraft(draft: ModuleDraft, signal?: AbortSignal, fe
   return body as Analysis;
 }
 
-export type EvaluateTarget = { connectionId?: string; externalId?: string; samples?: Record<string, string>; parameters?: Record<string, string> };
+export async function verifyDraft(draft: ModuleDraft, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<VerifyResult> {
+  const body = await send('/authoring/verify', { ...json('POST', draft), signal }, fetcher);
+  if (!body || typeof body !== 'object' || !(body as VerifyResult).tests) throw new ConnectionsError('invalidResponse');
+  return body as VerifyResult;
+}
+
+export type EvaluateTarget = {
+  connectionId?: string; externalId?: string; samples?: Record<string, string>; parameters?: Record<string, string>; bindings?: ModuleBindings;
+};
 
 export async function evaluateDraft(draft: ModuleDraft, target: EvaluateTarget, fetcher: typeof fetch = fetch): Promise<ModuleRun> {
   const body = await send('/authoring/evaluate', json('POST', { draft, ...target }), fetcher);

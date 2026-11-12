@@ -1,4 +1,4 @@
-import type { DraftInput, DraftOutput, DraftParameter, DraftStep, ModuleDraft } from './authoring';
+import type { DraftInput, DraftOutput, DraftParameter, DraftStep, ModuleBindings, ModuleDraft } from './authoring';
 
 export type NodeKind = 'input' | 'parameter' | 'step' | 'output';
 export type Selection = { kind: 'module' } | { kind: NodeKind; name: string };
@@ -22,7 +22,7 @@ export function uniqueName(draft: ModuleDraft, base: string): string {
 export function addNode(draft: ModuleDraft, kind: NodeKind): { draft: ModuleDraft; name: string } {
   const name = uniqueName(draft, { input: 'Input', parameter: 'Parameter', step: 'Step', output: 'Result' }[kind]);
   switch (kind) {
-    case 'input': return { name, draft: { ...draft, inputs: [...draft.inputs, { name, sources: [], required: true }] } };
+    case 'input': return { name, draft: { ...draft, inputs: [...draft.inputs, { name, quantity: '', required: true }] } };
     case 'parameter': return { name, draft: { ...draft, parameters: [...draft.parameters, { name, value: '0' }] } };
     case 'step': return { name, draft: { ...draft, steps: [...draft.steps, { name, expression: '0' }] } };
     case 'output': return { name, draft: { ...draft, outputs: [...draft.outputs, { name, kind: 'value', expression: '0' }] } };
@@ -61,8 +61,19 @@ export function updateNode(draft: ModuleDraft, kind: NodeKind, name: string, pat
     inputs: apply(draft.inputs, kind === 'input'),
     parameters: apply(draft.parameters, kind === 'parameter'),
     steps: rewrite(apply(draft.steps, kind === 'step')),
-    outputs: rewrite(apply(draft.outputs, kind === 'output')),
+    outputs: rewrite(apply(draft.outputs, kind === 'output')).map(output => renaming && output.when && identifier.test(name) && identifier.test(next)
+      ? { ...output, when: renameInExpression(output.when, name, next) } : output),
   };
+}
+
+/** Bindings are keyed by input name, so they follow a renamed or removed input. */
+export function moveBindings(bindings: ModuleBindings, from: string, to: string | null): ModuleBindings {
+  const inputs = { ...(bindings.inputs ?? {}) };
+  if (!(from in inputs)) return bindings;
+  const moved = inputs[from];
+  delete inputs[from];
+  if (to) inputs[to] = moved;
+  return { ...bindings, inputs };
 }
 
 export function nodeKindOf(draft: ModuleDraft, name: string): NodeKind | null {

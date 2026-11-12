@@ -1,32 +1,52 @@
 import { Notice } from '../components/Notice';
-import type { ModuleOutcome, ModuleRun } from './authoring';
-import { showVal } from './authoring';
+import type { ModuleOutcome, ModuleRun, OutputResult } from './authoring';
+import { showAge, showVal } from './authoring';
 
 const outcomeCopy: Record<ModuleOutcome, { tone: 'success' | 'warning' | 'info'; text: string }> = {
   Runs: { tone: 'success', text: 'Runs on this asset. Every required input resolved.' },
   Skipped: { tone: 'info', text: 'Skipped on this asset. A required input does not exist here. That is not a failure.' },
-  NeedsSetup: { tone: 'warning', text: 'Needs a choice. An input has more than one possible source; pin a basis on the input.' },
-  Unavailable: { tone: 'warning', text: 'Could not be decided. A provider did not answer, so the inputs are unknown. Try again.' },
+  NeedsSetup: { tone: 'warning', text: 'Needs setup. An input has more than one possible source, or its unit or binding does not fit; fix it under the input.' },
+  Unavailable: { tone: 'warning', text: 'Could not be decided. A provider did not answer, or a reading was too old or of bad quality, so no result is given.' },
   Invalid: { tone: 'warning', text: 'The module has errors, so it was not run. Fix the problems listed in the outline.' },
 };
 
-/** Test evidence for one run: what each input resolved to, every calculation, and each output with its set point dry run. */
+const statusLabel = { Pass: 'Pass', Fail: 'Fail', Hold: 'Hold', Info: 'Note' } as const;
+
+function SetPointPanel({ output }: { output: OutputResult }) {
+  const plan = output.plan;
+  const verdict = output.proposed ? (plan?.allowed ? 'Proposed, within limits' : 'Refused') : 'No change proposed';
+  return <section className="authoring-safety" aria-label={`Set point proposal ${output.name}`} data-verdict={output.proposed ? (plan?.allowed ? 'ok' : 'refused') : 'none'}>
+    <p><strong className="authoring-badge">DRY RUN</strong> {verdict}. Nothing was sent to the controller.</p>
+    {plan && <p className="authoring-change">{plan.setPoint}: {plan.current} → <strong>{plan.proposed}</strong> {plan.unit}
+      <small> (controller range {plan.rangeLow}–{plan.rangeHigh})</small></p>}
+    {output.checks && output.checks.length > 0 && <ul className="authoring-checks">{output.checks.map(check => <li key={check.name} data-status={check.status}>
+      <strong>{statusLabel[check.status]}</strong> {check.name}: {check.detail}</li>)}</ul>}
+    {output.note && <p className="connection-help">{output.note}</p>}
+  </section>;
+}
+
+/** Test evidence for one run: which asset and when, what each input resolved to and how fresh it was, every calculation, and each output. */
 export function AuthoringResults({ run, stale, onSelect }: { run: ModuleRun; stale: boolean; onSelect: (name: string) => void }) {
   const copy = outcomeCopy[run.outcome];
   const pick = (name: string) => <button type="button" className="authoring-link" onClick={() => onSelect(name)}>{name}</button>;
-  return <div className="authoring-results" data-stale={stale}>
-    {stale && <Notice tone="warning">The module changed after this test. These results are out of date. Run the test again.</Notice>}
+  const when = run.evaluatedAtUtc ? new Date(run.evaluatedAtUtc).toLocaleString() : null;
+  return <div className="authoring-results" data-stale={stale} aria-label="Test evidence">
+    <p className="authoring-evidence">{run.mode === 'live' ? `Live read of ${run.externalId ?? 'the asset'}` : 'Typed sample values'}{when ? ` · ${when}` : ''}</p>
+    {stale && <Notice tone="warning">The module, bindings or test target changed after this test. These results are out of date. Run the test again.</Notice>}
     <Notice tone={copy.tone}>{copy.text}</Notice>
     {run.reasons.length > 0 && <ul className="authoring-reasons">{run.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}
 
     <h4>Inputs</h4>
     <table className="authoring-table">
-      <thead><tr><th scope="col">Input</th><th scope="col">Result</th><th scope="col">Value</th><th scope="col">From</th></tr></thead>
+      <thead><tr><th scope="col">Input</th><th scope="col">Result</th><th scope="col">Value</th><th scope="col">Evidence</th></tr></thead>
       <tbody>{run.inputs.map(input => <tr key={input.name}>
         <th scope="row">{pick(input.name)}{input.required ? '' : ' (optional)'}</th>
         <td data-outcome={input.resolution}>{input.resolution}</td>
         <td>{showVal(input.value, input.unit)}</td>
         <td>{input.usedInput ? `${input.usedInput}${input.basis ? ` · ${input.basis}` : ''}` : input.source ?? ''}
+          {input.ageSeconds !== undefined && input.ageSeconds !== null && <small className="authoring-why">
+            {showAge(input.ageSeconds)}{input.maxAgeSeconds ? ` (limit ${input.maxAgeSeconds} s)` : ''}
+            {input.timestampKind ? ` · time from ${input.timestampKind}` : ''}{input.value.quality && input.value.quality !== 'Good' ? ` · ${input.value.quality} quality` : ''}</small>}
           {input.reasons.length > 0 && <small className="authoring-why"> {input.reasons.join(' ')}</small>}
           {input.candidates.length > 0 && <small className="authoring-why"> Options: {input.candidates.map(item => `${item.basis} (${item.source})`).join(', ')}</small>}
         </td>
@@ -48,12 +68,8 @@ export function AuthoringResults({ run, stale, onSelect }: { run: ModuleRun; sta
       <thead><tr><th scope="col">Output</th><th scope="col">Value</th><th scope="col">Detail</th></tr></thead>
       <tbody>{run.outputs.map(output => <tr key={output.name}>
         <th scope="row">{pick(output.name)}</th>
-        <td>{showVal(output.value, output.kind === 'value' ? output.unit : null)}</td>
-        <td>{output.kind === 'setpoint'
-          ? output.plan
-            ? `${output.plan.allowed ? 'Dry run' : 'Refused'}: ${output.plan.setPoint} ${output.plan.current} → ${output.plan.proposed} ${output.plan.unit} (allowed ${output.plan.rangeLow}–${output.plan.rangeHigh}). ${output.note ?? ''}`
-            : output.note ?? 'No change proposed.'
-          : ''}</td>
+        <td>{showVal(output.value, output.unit)}</td>
+        <td>{output.kind === 'setpoint' ? <SetPointPanel output={output} /> : ''}</td>
       </tr>)}</tbody>
     </table>
   </div>;

@@ -14,7 +14,6 @@
 .authoring-trace { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-4) var(--space-12); margin: 0; }
 .authoring-trace dt { font-weight: 600; }
 .authoring-trace dd { margin: 0; }
-.authoring-results[data-stale='true'] .authoring-table { opacity: 0.55; }
 .authoring-why { display: block; color: var(--color-text-subtle); }
 .authoring-guide { max-width: 60rem; display: grid; gap: var(--space-8); }
 .authoring-table { width: 100%; border-collapse: collapse; }
@@ -23,3 +22,14 @@
 .authoring-table [data-outcome='NotApplicable'], .authoring-table [data-outcome='Misconfigured'] { color: var(--color-text-subtle); }
 .authoring-points { list-style: none; margin: 0; padding: 0; max-height: 18rem; overflow: auto; }
 .authoring-points li { display: flex; justify-content: space-between; gap: var(--space-8); padding: var(--space-4) 0; border-bottom: var(--border-width-thin) solid var(--color-border-row); }
+.authoring-results[data-stale='true'] { border-inline-start: var(--border-width-thick, 4px) solid var(--color-border-warning, currentcolor); padding-inline-start: var(--space-8); }
+.authoring-evidence { margin: 0; color: var(--color-text-subtle); font-weight: 600; }
+.authoring-limits { display: grid; gap: var(--space-8); border: var(--border-width-thin) solid var(--color-border-row); padding: var(--space-8); }
+.authoring-safety { display: grid; gap: var(--space-4); border: var(--border-width-thin) solid var(--color-border-row); padding: var(--space-8); }
+.authoring-safety[data-verdict='refused'] { border-color: var(--color-text-danger, currentcolor); }
+.authoring-safety p { margin: 0; }
+.authoring-badge { border: var(--border-width-thin) solid currentcolor; padding: 0 var(--space-4); letter-spacing: 0.05em; }
+.authoring-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
+.authoring-checks [data-status='Fail'] strong { color: var(--color-text-danger, inherit); }
+.authoring-checks [data-status='Pass'] strong { color: var(--color-text-success, inherit); }
+.authoring-checks [data-status='Hold'] strong { color: var(--color-text-warning, inherit); }

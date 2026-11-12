@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AuthoringWorkbench } from '../../src/views/AuthoringWorkbench';
-import { renameInExpression, updateNode } from '../../src/views/authoringDraft';
+import { moveBindings, renameInExpression, updateNode } from '../../src/views/authoringDraft';
 import * as api from '../../src/views/authoring';
 import * as connections from '../../src/views/connections';
 import type { Analysis, ModuleDraft, ModuleRun } from '../../src/views/authoring';
@@ -15,7 +15,7 @@ afterEach(() => { cleanup(); vi.resetAllMocks(); });
 
 const draft: ModuleDraft = {
   name: 'Pressure status', description: null,
-  inputs: [{ name: 'Casing', sources: [{ input: 'surveillance:CasingPressure', basis: 'Current' }], required: true }],
+  inputs: [{ name: 'Casing', quantity: 'CasingPressure', unit: 'psia', basis: 'Current', required: true }],
   parameters: [{ name: 'Limit', value: '250' }],
   steps: [{ name: 'IsHigh', expression: 'Casing > Limit' }],
   outputs: [{ name: 'High_out', kind: 'value', expression: 'IsHigh' }],
@@ -26,7 +26,7 @@ const analysis = (fingerprint: string): Analysis => ({ valid: true, problems: []
 order: ['IsHigh'], fingerprint });
 const run: ModuleRun = {
   outcome: 'Runs', reasons: [], fingerprint: 'one', problems: [],
-  inputs: [{ name: 'Casing', resolution: 'Sample', value: { kind: 'Number', number: 300, flag: null, text: null, reason: null }, unit: null, source: 'sample', basis: null, usedInput: null, reasons: [], candidates: [], required: true }],
+  inputs: [{ name: 'Casing', resolution: 'Sample', value: { kind: 'Number', number: 300, flag: null, text: null, reason: null }, unit: 'psia', source: 'sample', basis: null, usedInput: null, reasons: [], candidates: [], required: true }],
   parameters: [{ name: 'Limit', value: { kind: 'Number', number: 250, flag: null, text: null, reason: null }, expression: null, dependsOn: [] }],
   steps: [{ name: 'IsHigh', value: { kind: 'Flag', number: null, flag: true, text: null, reason: null }, expression: 'Casing > Limit', dependsOn: ['Casing', 'Limit'] }],
   outputs: [{ name: 'High_out', kind: 'value', value: { kind: 'Flag', number: null, flag: true, text: null, reason: null }, unit: null, target: null, expression: 'IsHigh', plan: null, note: null }],
@@ -41,6 +41,13 @@ it('renames a node and the calculations that use it, without touching text or fu
   expect(updateNode(draft, 'input', 'Casing', { name: '1bad' }).steps[0].expression).toBe('Casing > Limit');
 });
 
+it('moves bindings with a renamed input and drops them with a removed one', () => {
+  const bindings = { inputs: { Casing: [{ input: 'surveillance:CasingPressure', basis: 'Current' }] } };
+  expect(moveBindings(bindings, 'Casing', 'Csg').inputs).toEqual({ Csg: bindings.inputs.Casing });
+  expect(moveBindings(bindings, 'Casing', null).inputs).toEqual({});
+  expect(moveBindings(bindings, 'Other', 'X')).toBe(bindings);
+});
+
 it('tests a module against typed values and marks the evidence stale after an edit', async () => {
   vi.mocked(api.loadStarters).mockResolvedValue([{ id: 'threshold', title: 'Pressure status', summary: '', draft }]);
   vi.mocked(connections.loadConnections).mockResolvedValue([]);
@@ -52,7 +59,7 @@ it('tests a module against typed values and marks the evidence stale after an ed
   fireEvent.change(screen.getByLabelText('Value for Casing'), { target: { value: '300' } });
   await user.click(screen.getByRole('button', { name: 'Run test' }));
   await screen.findByText('Runs on this asset. Every required input resolved.');
-  expect(vi.mocked(api.evaluateDraft).mock.calls[0][1]).toEqual({ samples: { Casing: '300' }, parameters: {} });
+  expect(vi.mocked(api.evaluateDraft).mock.calls[0][1]).toEqual({ samples: { Casing: '300' }, parameters: {}, bindings: {} });
   expect(screen.queryByText(/results are out of date/)).toBeNull();
 
   await user.click(screen.getAllByRole('button', { name: /IsHigh/ })[0]);

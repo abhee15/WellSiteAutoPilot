@@ -15,11 +15,11 @@ export function AdapterGuide({ connections }: { connections: Connection[] }) {
     <ol>
       <li><strong>Catalog.</strong> What does this asset offer? Used by the point browser.</li>
       <li><strong>Resolve.</strong> Can this input be supplied for this asset, from which source, on which basis (live, daily average, well test…)? The answer is Runs, Skipped, Needs a choice, or Could not decide.</li>
-      <li><strong>Read.</strong> Get the value, with its unit, time and quality.</li>
-      <li><strong>Write.</strong> Propose a change to a set point. Authoring only ever plans it: the before and after values and the allowed range. Nothing is sent.</li>
+      <li><strong>Read.</strong> Get the value, with its unit, the time it was observed and its quality. Old or bad readings are refused, not used.</li>
+      <li><strong>Write.</strong> Propose a change to a set point. Authoring only ever plans an absolute value, checks it against the module limits and the controller range, and shows the result as a dry run. Nothing is sent.</li>
       <li><strong>Describe.</strong> Say what the adapter supports, so this page and tests can tell you.</li>
     </ol>
-    <p>In a module, an <em>input</em> is a name with ordered sources. A <em>parameter</em> is a value you can tune. A <em>calculation</em> is a
+    <p>In a module, an <em>input</em> is a name for a quantity (such as CasingPressure) with the unit, basis and oldest age it accepts; which point answers is a <em>binding</em> on each system. A <em>parameter</em> is a value you can tune. A <em>calculation</em> is a
       named result built from those. An <em>output</em> publishes a value or proposes a set point change. A missing value stays
       missing all the way to the output; it is never turned into zero.</p>
     <p>Because the same module can run on assets served by different adapters, test it on more than one asset: a module that runs on a
