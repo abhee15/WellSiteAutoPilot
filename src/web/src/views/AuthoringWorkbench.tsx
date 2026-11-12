@@ -1,194 +1,238 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
 import { PanelHeader } from '../components/common';
-import { SelectField, TextField } from '../components/FormFields';
+import { SelectField, TextAreaField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelLoading } from '../components/LoadingIndicator';
-import { discoverConnection, listPoints, loadConnections, planSetPoint, resolveInput } from './connections';
-import type { CatalogPoint, Connection, DiscoveredObject, ResolvePreview, SetPointPlan } from './connections';
+import { AdapterGuide } from './AdapterGuide';
+import { AuthoringNodeEditor } from './AuthoringNodeEditor';
+import { AuthoringResults } from './AuthoringResults';
+import { evaluateDraft, loadStarters, parseDraft, showVal, validateDraft } from './authoring';
+import type { Analysis, ModuleDraft, ModuleRun, Starter } from './authoring';
+import { addNode, emptyDraft, kindLabel, nodeKindOf, removeNode, updateNode } from './authoringDraft';
+import type { NodeKind, Selection } from './authoringDraft';
+import { discoverConnection, listPoints, loadConnections } from './connections';
+import type { CatalogPoint, Connection, DiscoveredObject } from './connections';
 import './connections.css';
 import './authoring.css';
 
-type Template = { id: string; label: string; inputs: string[]; setPoint?: { name: string; delta: number } };
+const kinds: NodeKind[] = ['input', 'parameter', 'step', 'output'];
+const groupTitle: Record<NodeKind, string> = { input: 'Inputs', parameter: 'Parameters', step: 'Calculations', output: 'Outputs' };
 
-// Starter logic modules: the author picks one, the platform decides per asset where each input comes from.
-const templates: Template[] = [
-  { id: 'location', label: 'Location (latitude and longitude)', inputs: ['Latitude', 'Longitude'] },
-  { id: 'casing', label: 'Casing pressure', inputs: ['CasingPressure'] },
-  { id: 'snapshot', label: 'Surveillance snapshot', inputs: ['CasingPressure', 'TubingPressure', 'PumpFillage'] },
-  { id: 'custom', label: 'Custom (pick points from the asset)', inputs: [] },
-  { id: 'bump', label: 'Pressures and a set point change', inputs: ['CasingPressure', 'TubingPressure'], setPoint: { name: 'IdealPF', delta: 1 } },
-];
-
-const outcomeText: Record<string, string> = {
-  Compatible: 'Runs', NotApplicable: 'Skipped', Misconfigured: 'Needs fixing', NeedsSelection: 'Pick a source', CannotDetermine: 'Unknown',
-};
-
-type Row = { input: string; busy: boolean; basis: string; preview: ResolvePreview | null; error: string | null };
-
-function format(preview: ResolvePreview): string {
-  const value = preview.value;
-  if (!value || value.value === null) return preview.readProblem ?? '';
-  return `${Number(value.value.toFixed(5))} ${value.unit ?? ''}`.trim();
-}
-
-/** POC: choose a connection, an asset and a template, then see how every input resolves for that asset before anything runs. */
+/**
+ * The authoring workspace: one revisitable view of a module's inputs, parameters, calculations and outputs, with
+ * live checks, a dependency trace and tests against a real asset or typed sample values.
+ */
 export function AuthoringWorkbench() {
+  const [starters, setStarters] = useState<Starter[]>([]);
+  const [draft, setDraft] = useState<ModuleDraft>(emptyDraft);
+  const [selection, setSelection] = useState<Selection>({ kind: 'module' });
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [run, setRun] = useState<ModuleRun | null>(null);
+  const [running, setRunning] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [guide, setGuide] = useState(false);
+  const [transfer, setTransfer] = useState<string | null>(null);
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [connectionId, setConnectionId] = useState('');
   const [assets, setAssets] = useState<DiscoveredObject[]>([]);
   const [assetId, setAssetId] = useState('');
-  const [filter, setFilter] = useState('');
-  const [templateId, setTemplateId] = useState(templates[0].id);
-  const [rows, setRows] = useState<Row[]>([]);
-  const [plan, setPlan] = useState<SetPointPlan | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [loadingAssets, setLoadingAssets] = useState(false);
-  const [planning, setPlanning] = useState(false);
+  const [assetFilter, setAssetFilter] = useState('');
   const [points, setPoints] = useState<CatalogPoint[] | null>(null);
-  const [pointFilter, setPointFilter] = useState('');
-  const [pointGroup, setPointGroup] = useState('');
-  const [extra, setExtra] = useState<string[]>([]);
-  const [loadingPoints, setLoadingPoints] = useState(false);
+  const [samples, setSamples] = useState<Record<string, string>>({});
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const checking = useRef(0);
 
-  const template = templates.find(item => item.id === templateId) ?? templates[0];
   const connection = connections?.find(item => item.id === connectionId) ?? null;
 
   useEffect(() => {
     const controller = new AbortController();
+    loadStarters(controller.signal).then(items => { setStarters(items); if (items[0]) setDraft(items[0].draft); })
+      .catch(() => { if (!controller.signal.aborted) setMessage('The starter modules could not be loaded.'); });
     loadConnections(controller.signal).then(items => {
       const usable = items.filter(item => item.isEnabled);
       setConnections(usable);
       if (usable[0]) setConnectionId(usable[0].id);
-    }).catch(() => { if (!controller.signal.aborted) { setConnections([]); setMessage('Connections could not be loaded.'); } });
+    }).catch(() => { if (!controller.signal.aborted) setConnections([]); });
     return () => controller.abort();
   }, []);
 
   useEffect(() => {
-    setAssets([]); setAssetId(''); setRows([]); setPlan(null);
+    setAssets([]); setAssetId(''); setPoints(null);
     if (!connection) return;
-    setLoadingAssets(true);
     let live = true;
     discoverConnection(connection).then(found => { if (live) setAssets(found.items); })
-      .catch(() => { if (live) setMessage('Assets could not be discovered on this connection.'); })
-      .finally(() => { if (live) setLoadingAssets(false); });
+      .catch(() => { if (live) setMessage('Assets could not be discovered on this connection.'); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection?.id]);
 
-  useEffect(() => { setRows([]); setPlan(null); setExtra([]); setPoints(null); }, [assetId, templateId]);
+  useEffect(() => { setPoints(null); }, [assetId]);
 
-  const inputs = useMemo(() => [...template.inputs, ...extra], [template, extra]);
-  const shownPoints = useMemo(() => {
-    const needle = pointFilter.trim().toLowerCase();
-    return (points ?? []).filter(point => (!pointGroup || point.group === pointGroup) && (!needle || point.name.toLowerCase().includes(needle))).slice(0, 400);
-  }, [points, pointFilter, pointGroup]);
-  const groups = useMemo(() => [...new Set((points ?? []).map(point => point.group))], [points]);
+  // The server owns the rules, so the outline always shows its latest verdict, a moment after typing stops.
+  useEffect(() => {
+    const ticket = ++checking.current;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      validateDraft(draft, controller.signal).then(result => { if (ticket === checking.current) setAnalysis(result); })
+        .catch(() => { if (!controller.signal.aborted && ticket === checking.current) setAnalysis(null); });
+    }, 350);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [draft]);
+
+  const stale = run !== null && analysis !== null && run.fingerprint !== analysis.fingerprint;
+  const problems = analysis?.problems ?? [];
+  const errors = problems.filter(problem => problem.severity === 'Error');
+  const valueOf = useMemo(() => {
+    const map = new Map<string, string>();
+    if (run) {
+      run.inputs.forEach(item => map.set(item.name, showVal(item.value, item.unit)));
+      run.parameters.concat(run.steps).forEach(item => map.set(item.name, showVal(item.value)));
+      run.outputs.forEach(item => map.set(item.name, showVal(item.value, item.unit)));
+    }
+    return map;
+  }, [run]);
+  const shownAssets = useMemo(() => {
+    const needle = assetFilter.trim().toLowerCase();
+    return (needle ? assets.filter(item => `${item.displayName} ${item.externalId}`.toLowerCase().includes(needle)) : assets).slice(0, 200);
+  }, [assets, assetFilter]);
+
+  function load(next: ModuleDraft) {
+    setDraft(next); setSelection({ kind: 'module' }); setRun(null); setMessage(null); setSamples({}); setOverrides({});
+  }
+
+  function edit(kind: NodeKind, name: string, patch: Record<string, unknown>) {
+    setDraft(current => updateNode(current, kind, name, patch));
+    if (typeof patch.name === 'string') setSelection({ kind, name: patch.name });
+  }
+
+  function add(kind: NodeKind) {
+    const added = addNode(draft, kind);
+    setDraft(added.draft); setSelection({ kind, name: added.name });
+  }
+
+  function select(name: string) {
+    const kind = nodeKindOf(draft, name);
+    if (kind) setSelection({ kind, name });
+  }
 
   async function browse() {
     if (!connection || !assetId) return;
-    setLoadingPoints(true); setMessage(null);
+    setMessage(null);
     try { setPoints(await listPoints(connection.id, assetId)); }
-    catch { setMessage('Points could not be listed for this asset. Only ForeSite connections list points today.'); }
-    finally { setLoadingPoints(false); }
+    catch { setMessage('Points could not be listed. Only ForeSite connections list points today.'); }
   }
 
-  const shown = useMemo(() => {
-    const needle = filter.trim().toLowerCase();
-    return (needle ? assets.filter(item => `${item.displayName} ${item.externalId}`.toLowerCase().includes(needle)) : assets).slice(0, 200);
-  }, [assets, filter]);
-
-  async function resolveRow(input: string, basis: string) {
-    if (!connection || !assetId) return;
-    setRows(current => current.map(row => row.input === input ? { ...row, busy: true, basis, error: null } : row));
+  async function test() {
+    setRunning(true); setMessage(null);
     try {
-      const preview = await resolveInput(connection.id, assetId, input, basis || undefined);
-      setRows(current => current.map(row => row.input === input ? { ...row, busy: false, preview } : row));
-    } catch {
-      setRows(current => current.map(row => row.input === input ? { ...row, busy: false, error: 'The connection did not answer. Try again.' } : row));
-    }
+      setRun(await evaluateDraft(draft, connection && assetId
+        ? { connectionId: connection.id, externalId: assetId, parameters: overrides }
+        : { samples, parameters: overrides }));
+    } catch { setMessage('The test could not be completed. ForeSite can take a little while; try again.'); }
+    finally { setRunning(false); }
   }
 
-  async function preview() {
-    setMessage(null); setPlan(null);
-    setRows(inputs.map(input => ({ input, busy: true, basis: '', preview: null, error: null })));
-    for (const input of inputs) await resolveRow(input, '');
+  function importDraft() {
+    try { load(parseDraft(transfer ?? '')); setTransfer(null); }
+    catch { setMessage('That is not a module description. Paste the JSON that Export produced.'); }
   }
 
-  async function runPlan() {
-    if (!connection || !template.setPoint) return;
-    setPlanning(true); setMessage(null);
-    try { setPlan(await planSetPoint(connection.id, assetId, template.setPoint.name, template.setPoint.delta)); }
-    catch { setMessage('The set point plan could not be made. ForeSite can take up to a minute; try again.'); }
-    finally { setPlanning(false); }
-  }
+  if (!connections) return <PanelLoading label="Loading the authoring workspace" />;
 
-  if (!connections) return <PanelLoading label="Loading connections" />;
-  const runnable = rows.length > 0 && rows.every(row => row.preview?.result.outcome === 'Compatible');
+  const live = connection !== null && assetId !== '';
+  const selected = selection.kind === 'module' ? null : selection;
 
-  return <section className="authoring" aria-label="Authoring workbench">
-    <PanelHeader title="Authoring workbench" />
-    <Notice announce={false}>Proof of concept. Pick a connection, an asset and a starter module. Each input is resolved against the live system for that asset, so you see what would run, what would be skipped and why. Nothing is written.</Notice>
+  return <section className="authoring" aria-label="Authoring workspace">
+    <PanelHeader title="Authoring workspace" />
+    <Notice announce={false}>Proof of concept. Build a logic module from inputs, parameters, calculations and outputs, then test it on a real asset.
+      Nothing is saved or written to a field controller; set point changes are only planned.</Notice>
     {message && <Notice tone="warning">{message}</Notice>}
-    <div className="authoring-grid">
-      <div className="connection-form">
-        <SelectField label="Connection" value={connectionId} onChange={event => setConnectionId(event.target.value)}>
-          {connections.map(item => <option key={item.id} value={item.id}>{item.name} ({item.adapterKey})</option>)}
-        </SelectField>
-        <TextField label="Find an asset" value={filter} onChange={event => setFilter(event.target.value)} />
-        <SelectField label={loadingAssets ? 'Asset (loading)' : `Asset (${assets.length})`} value={assetId} onChange={event => setAssetId(event.target.value)}>
-          <option value="">Choose an asset</option>
-          {shown.map(item => <option key={item.externalId} value={item.externalId}>{item.displayName} [{item.externalId}]</option>)}
-        </SelectField>
-        <SelectField label="Starter module" value={templateId} onChange={event => setTemplateId(event.target.value)}>
-          {templates.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-        </SelectField>
-        <p className="connection-help">Inputs: {inputs.join(', ') || 'none yet. Browse the points below.'}{template.setPoint ? `. Then ${template.setPoint.name} +${template.setPoint.delta}.` : '.'}</p>
-        <div className="connection-actions">
-          <ActionButton label="Preview on this asset" variant="primary" disabled={!assetId || inputs.length === 0} onClick={() => void preview()} />
-          <ActionButton label="Browse points" variant="secondary" busy={loadingPoints} disabled={!assetId} onClick={() => void browse()} />
-          {template.setPoint && <ActionButton label="Plan the set point change" variant="secondary" busy={planning} disabled={!assetId} onClick={() => void runPlan()} />}
+    <div className="connection-actions">
+      <SelectField label="Start from" value="" onChange={event => { const found = starters.find(item => item.id === event.target.value); if (found) load(found.draft); }}>
+        <option value="">Choose a starter…</option>
+        {starters.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
+      </SelectField>
+      <ActionButton label="New empty module" variant="secondary" onClick={() => load(emptyDraft)} />
+      <ActionButton label="Export or import" variant="secondary" onClick={() => setTransfer(transfer === null ? JSON.stringify(draft, null, 2) : null)} />
+      <ActionButton label={guide ? 'Hide the adapter guide' : 'How adapters work'} variant="quiet" onClick={() => setGuide(!guide)} />
+    </div>
+    {guide && <AdapterGuide connections={connections} />}
+    {transfer !== null && <div className="connection-form">
+      <TextAreaField label="Module description (JSON)" rows={12} value={transfer} onChange={event => setTransfer(event.target.value)}
+        helper="Copy this to move the module between systems, or paste a description and choose Import. Connections are not part of it: they are bound where it is tested and run." />
+      <div className="connection-actions">
+        <ActionButton label="Import this description" variant="primary" onClick={importDraft} />
+        <ActionButton label="Close" variant="quiet" onClick={() => setTransfer(null)} />
+      </div>
+    </div>}
+
+    <div className="authoring-workspace">
+      <nav className="connection-form authoring-outline" aria-label="Module outline">
+        <button type="button" className="authoring-node" aria-current={selection.kind === 'module'} onClick={() => setSelection({ kind: 'module' })}>
+          <strong>{draft.name || 'Untitled'}</strong>
+          <small>{errors.length === 0 ? (analysis ? 'No errors' : 'Checking…') : `${errors.length} to fix`}</small>
+        </button>
+        {kinds.map(kind => {
+          const items = { input: draft.inputs, parameter: draft.parameters, step: draft.steps, output: draft.outputs }[kind];
+          return <div key={kind}>
+            <h4>{groupTitle[kind]}</h4>
+            {items.map(item => {
+              const own = problems.filter(problem => problem.node === item.name);
+              return <button key={item.name} type="button" className="authoring-node" aria-current={selection.kind === kind && selection.name === item.name}
+                data-problem={own.some(problem => problem.severity === 'Error') ? 'error' : own.length ? 'warning' : undefined}
+                onClick={() => setSelection({ kind, name: item.name })}>
+                <span>{item.name}</span>
+                <small>{own[0]?.message ?? valueOf.get(item.name) ?? ''}</small>
+              </button>;
+            })}
+            <ActionButton label={`Add ${kindLabel[kind].toLowerCase()}`} variant="quiet" onClick={() => add(kind)} />
+          </div>;
+        })}
+      </nav>
+
+      <div className="authoring-center">
+        {selected
+          ? <AuthoringNodeEditor draft={draft} kind={selected.kind} name={selected.name} analysis={analysis} run={run} points={points}
+            onChange={patch => edit(selected.kind, selected.name, patch)}
+            onRemove={() => { setDraft(removeNode(draft, selected.kind, selected.name)); setSelection({ kind: 'module' }); }}
+            onSelect={select} />
+          : <div className="connection-form">
+            <h3>Module</h3>
+            <TextField label="Module name" value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} />
+            <TextAreaField label="What it does" rows={3} value={draft.description ?? ''} onChange={event => setDraft({ ...draft, description: event.target.value })} />
+            {problems.length > 0 && <ul className="authoring-reasons">{problems.map((problem, index) => <li key={index} data-severity={problem.severity}>
+              {problem.node ? <button type="button" className="authoring-link" onClick={() => select(problem.node)}>{problem.node}</button> : null} {problem.message}</li>)}</ul>}
+            {analysis?.valid && <Notice tone="success">The module is valid. {analysis.order.length > 0 ? `Calculation order: ${analysis.order.join(', ')}.` : ''}</Notice>}
+          </div>}
+      </div>
+
+      <div className="authoring-test">
+        <div className="connection-form">
+          <h3>Test</h3>
+          <SelectField label="Connection" value={connectionId} onChange={event => setConnectionId(event.target.value)}>
+            <option value="">No connection: use typed values</option>
+            {connections.map(item => <option key={item.id} value={item.id}>{item.name} ({item.adapterKey})</option>)}
+          </SelectField>
+          {connection && <>
+            <TextField label="Find an asset" value={assetFilter} onChange={event => setAssetFilter(event.target.value)} />
+            <SelectField label={`Asset (${assets.length})`} value={assetId} onChange={event => setAssetId(event.target.value)}>
+              <option value="">Choose an asset</option>
+              {shownAssets.map(item => <option key={item.externalId} value={item.externalId}>{item.displayName} [{item.externalId}]</option>)}
+            </SelectField>
+          </>}
+          {!live && draft.inputs.map(input => <TextField key={input.name} label={`Value for ${input.name}`} value={samples[input.name] ?? ''}
+            onChange={event => setSamples({ ...samples, [input.name]: event.target.value })} />)}
+          {draft.parameters.map(parameter => <TextField key={parameter.name} label={`Try ${parameter.name} (saved: ${parameter.value})`}
+            value={overrides[parameter.name] ?? ''} onChange={event => setOverrides({ ...overrides, [parameter.name]: event.target.value })} />)}
+          <div className="connection-actions">
+            <ActionButton label="Run test" variant="primary" busy={running} disabled={errors.length > 0 || draft.outputs.length === 0} onClick={() => void test()} />
+            <ActionButton label="Browse this asset's points" variant="secondary" disabled={!live} onClick={() => void browse()} />
+          </div>
+          {points && <p className="connection-help">{points.length} points loaded. Select an input and use "Add a source from this asset's points".</p>}
         </div>
       </div>
-      <div>
-        {points && <div className="connection-form">
-          <SelectField label="Where from" value={pointGroup} onChange={event => setPointGroup(event.target.value)}>
-            <option value="">All (surveillance, well test, well)</option>
-            {groups.map(group => <option key={group} value={group}>{group}</option>)}
-          </SelectField>
-          <TextField label={`Points on this asset (${points.length})`} value={pointFilter} onChange={event => setPointFilter(event.target.value)} />
-          <ul className="authoring-points">{shownPoints.map(point => <li key={point.name}>
-            <span>{point.name} = {point.value} <small>({point.basis}{Number.isFinite(Number(point.value)) ? '' : ', text'})</small></span>
-            <ActionButton label="Add" variant="quiet" aria-label={`Add ${point.name}`} disabled={extra.includes(point.name)}
-              onClick={() => setExtra(current => [...current, point.name])} />
-          </li>)}</ul>
-        </div>}
-        {rows.length > 0 && <table className="authoring-table">
-          <thead><tr><th scope="col">Input</th><th scope="col">Result</th><th scope="col">Source</th><th scope="col">Value</th><th scope="col">Why</th></tr></thead>
-          <tbody>{rows.map(row => {
-            const result = row.preview?.result;
-            const picked = result?.candidates[0];
-            return <tr key={row.input}>
-              <th scope="row">{row.input}</th>
-              <td data-outcome={result?.outcome}>{row.busy ? 'Checking…' : row.error ?? (result ? outcomeText[result.outcome] ?? result.outcome : '')}</td>
-              <td>{result?.outcome === 'NeedsSelection'
-                ? <SelectField label={`Source for ${row.input}`} value={row.basis} onChange={event => void resolveRow(row.input, event.target.value)}>
-                  <option value="">Choose…</option>
-                  {result.candidates.map(candidate => <option key={candidate.basis} value={candidate.basis}>{candidate.basis}: {candidate.description}</option>)}
-                </SelectField>
-                : result?.outcome === 'Compatible' ? picked?.description : ''}</td>
-              <td>{row.preview ? format(row.preview) : ''}</td>
-              <td>{result?.reasons.join(' ')}</td>
-            </tr>;
-          })}</tbody>
-        </table>}
-        {rows.length > 0 && !rows.some(row => row.busy) && (runnable
-          ? <Notice tone="success">This module would run on this asset.</Notice>
-          : <Notice tone="warning">This module would not run on this asset as it stands. Skipped inputs are explained above.</Notice>)}
-        {plan && (plan.allowed
-          ? <Notice tone="info">{`Dry run: ${plan.description || plan.setPoint} would change from ${plan.current} to ${plan.proposed} ${plan.unit} (allowed ${plan.rangeLow}–${plan.rangeHigh}). Nothing was sent.`}</Notice>
-          : <Notice tone="warning">{`Not allowed: ${plan.refusal ?? 'refused'}`}</Notice>)}
-      </div>
     </div>
+    {run && <AuthoringResults run={run} stale={stale} onSelect={select} />}
   </section>;
 }

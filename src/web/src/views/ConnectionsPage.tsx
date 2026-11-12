@@ -64,7 +64,7 @@ export function ConnectionsPage({ canManage }: { canManage: boolean }) {
   const setTab = (next: 'connections' | 'adapters' | 'authoring') => setDetail(next === 'connections' ? null : next);
   return <div className="split-layout">
     <SectionTabs prefix="connections" label="Connections" selected={tab} onSelect={setTab}
-      tabs={[{ id: 'connections', label: 'Connections' }, { id: 'adapters', label: 'Adapters' }, { id: 'authoring', label: 'Authoring (POC)' }]} />
+      tabs={[{ id: 'connections', label: 'Connections' }, { id: 'adapters', label: 'Adapters' }, { id: 'authoring', label: 'Authoring' }]} />
     <div role="tabpanel" id={'connections-' + tab} aria-labelledby={'connections-tab-' + tab}>
       {tab === 'connections' ? <ConnectionWorkspace canManage={canManage} /> : tab === 'adapters' ? <AdaptersPanel /> : <AuthoringWorkbench />}
     </div>

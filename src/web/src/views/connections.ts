@@ -154,7 +154,7 @@ async function failure(response: Response): Promise<ConnectionsError> {
   return new ConnectionsError('unavailable');
 }
 
-async function send(
+export async function send(
   path: string, init: RequestInit, fetcher: typeof fetch,
 ): Promise<unknown> {
   let response: Response;
@@ -169,7 +169,7 @@ async function send(
   try { return await response.json(); } catch { throw new ConnectionsError('invalidResponse'); }
 }
 
-const json = (method: string, body: unknown): RequestInit => ({
+export const json = (method: string, body: unknown): RequestInit => ({
   method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
 
