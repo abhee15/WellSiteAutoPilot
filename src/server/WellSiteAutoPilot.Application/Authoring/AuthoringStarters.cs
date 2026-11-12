@@ -126,6 +126,30 @@ public static class AuthoringStarters
                 [new("Within limits", D(("Amps", "45"), ("Rod", "18000")), D(("Heavily_loaded", "false"))),
                  new("Motor high", D(("Amps", "75"), ("Rod", "18000")), D(("Heavily_loaded", "true"))),
                  new("Rod high", D(("Amps", "45"), ("Rod", "30000")), D(("Heavily_loaded", "true")))]),
-            Teaches: ["recommendations", "several conditions"])
+            Teaches: ["recommendations", "several conditions"]),
+
+        new("idle-time", "Idle time adjustment (fixed speed)",
+            "Modelled on the Idle Time Adjustment edge logic. Compares yesterday with the day before: production fell, so idle time goes down; production held but cycles exceeded the target, so it goes up; otherwise no change. Missing data stops the run instead of counting as zero.",
+            new ModuleDraft("Idle time adjustment", "Proposes a new idle time from the last two days of production and cycles.",
+                [new("Idle", "IdleTime", "min", Role: "setpoint", MaxAgeSeconds: 3600, ValidMin: 0),
+                 new("Prod", "InferredProdYesterday", "bbl/d", ValidMin: 0), new("ProdBefore", "InferredProdDayBefore", "bbl/d", ValidMin: 0),
+                 new("Cycles", "CyclesYesterday", ValidMin: 0)],
+                [new("DesiredCycles", "12", Label: "Desired cycles per day", Min: 0, Max: 500),
+                 new("TargetPct", "90", Label: "Production to hold, % of the day before", Min: 1, Max: 100),
+                 new("Step", "30", "min", "Idle time change", Min: 1, Max: 240),
+                 new("MinIdle", "30", "min", "Shortest idle time", Min: 0, Max: 1440),
+                 new("MaxIdle", "240", "min", "Longest idle time", Min: 0, Max: 1440)],
+                [new("Adjusted", "Idle", "Idle time after the rules", [
+                    new("Prod < TargetPct / 100 * ProdBefore", "Idle - Step", "Production fell below the target share of the day before: shorten idle time."),
+                    new("Cycles > DesiredCycles", "Idle + Step", "Production held but cycles exceeded the target: lengthen idle time.")]),
+                 new("NewIdle", "clamp(Adjusted, MinIdle, MaxIdle)")],
+                [new("NewIdle_out", "NewIdle", "value", "min")],
+                [new("Production fell", D(("Idle", "60"), ("Prod", "80"), ("ProdBefore", "100"), ("Cycles", "20")), D(("NewIdle_out", "30"))),
+                 new("Too many cycles", D(("Idle", "60"), ("Prod", "95"), ("ProdBefore", "100"), ("Cycles", "20")), D(("NewIdle_out", "90"))),
+                 new("No change", D(("Idle", "60"), ("Prod", "95"), ("ProdBefore", "100"), ("Cycles", "10")), D(("NewIdle_out", "60"))),
+                 new("Held at the longest", D(("Idle", "230"), ("Prod", "95"), ("ProdBefore", "100"), ("Cycles", "20")), D(("NewIdle_out", "240"))),
+                 new("Held at the shortest", D(("Idle", "40"), ("Prod", "50"), ("ProdBefore", "100"), ("Cycles", "20")), D(("NewIdle_out", "30"))),
+                 new("Yesterday missing is not zero", D(("Idle", "60"), ("ProdBefore", "100"), ("Cycles", "20")), D(("NewIdle_out", "unavailable")))]),
+            Teaches: ["rule tables", "units", "clamping"])
     ];
 }
