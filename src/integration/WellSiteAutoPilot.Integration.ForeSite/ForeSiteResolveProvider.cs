@@ -79,6 +79,8 @@ public static class ForeSiteResolver
         ["TargetFillage"] = ["IdealPF", "PmpFillPer"],
         ["MinimumFillage"] = ["MinPFA"],
         ["FillageDeadband"] = ["PODeadBand"],
+        ["VfdMaxSpeed"] = ["VFDMaxSPM"],
+        ["SpeedTrimEnabled"] = ["STAEnR"],
         ["DownstrokeSpeed1"] = ["Sec4ScaSpd"],
         ["DownstrokeSpeed2"] = ["Sec5ScaSpd"]
     };
