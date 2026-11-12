@@ -57,6 +57,9 @@ internal static class ResolveChecks
         Check(ForeSiteResolver.IsSetPointInput("setpoint:IdleTime") && ForeSiteResolver.ResolveSetPoint("setpoint:Mode", idleJson).Outcome == ResolveOutcome.Misconfigured,
             "a non-numeric set point is misconfigured, and read-only set points can still be read");
         Check(ForeSiteResolver.ResolveSetPoint("setpoint:Nope", idleJson).Outcome == ResolveOutcome.NotApplicable, "an unknown set point is not applicable");
+        const string vsdJson = """[{"SetPointsList":[{"ElementId":"SloSpeed","UnitKey":"Hz","OriginalValue":"25","IsReadOnly":false}]}]""";
+        Check(ForeSiteResolver.IsSetPointInput("VfdMinFrequency") && ForeSiteResolver.ResolveSetPoint("VfdMinFrequency", vsdJson).Candidates[0].ReadPlan == "setpoint|SloSpeed|Hz",
+            "a portable quantity finds whichever ForeSite element id the controller family uses");
 
         var timed = Snapshot("{}", """{"Value":{"CasingPressure":5,"LastGoodScanTime":"2026-05-11T11:58:00-05:00"}}""", """{"SampleDate":"2026-05-01T00:00:00Z","TestEndDate":"2026-05-02T05:00:00.0000000Z"}""");
         var (scanned, scanKind) = ForeSiteResolver.ObservedAt("surveillance", timed);

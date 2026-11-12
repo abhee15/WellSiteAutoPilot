@@ -68,18 +68,32 @@ public static class ForeSiteResolver
 
     /// <summary>Logical inputs that are controller set points. ForeSite keeps only saved values for these.</summary>
     public static bool IsSetPointInput(string input) =>
-        input.StartsWith(SetPointPrefix, StringComparison.OrdinalIgnoreCase) || input.Equals("IdleTime", StringComparison.OrdinalIgnoreCase);
+        input.StartsWith(SetPointPrefix, StringComparison.OrdinalIgnoreCase) || SetPointAliases.ContainsKey(input);
 
-    public static string SetPointName(string input) =>
-        input.StartsWith(SetPointPrefix, StringComparison.OrdinalIgnoreCase) ? input[SetPointPrefix.Length..] : input;
+    /// <summary>Portable quantity names for controller set points, mapped to the ForeSite element ids that carry them (first present wins).</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> SetPointAliases = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["IdleTime"] = ["IdleTime"],
+        ["VfdMinFrequency"] = ["VFDMinFrq", "SloSpeed"],
+        ["VfdMaxFrequency"] = ["VFDMaxFrq", "PkSpeed"],
+        ["TargetFillage"] = ["IdealPF", "PmpFillPer"],
+        ["MinimumFillage"] = ["MinPFA"]
+    };
+
+    public static string[] SetPointNames(string input) =>
+        input.StartsWith(SetPointPrefix, StringComparison.OrdinalIgnoreCase) ? [input[SetPointPrefix.Length..]]
+        : SetPointAliases.TryGetValue(input, out var names) ? names : [input];
+
+    public static string SetPointName(string input) => SetPointNames(input)[0];
 
     /// <summary>Decides whether a saved set point can answer an input. Pure, so it tests without ForeSite.</summary>
     public static ResolveResult ResolveSetPoint(string input, string json)
     {
-        var name = SetPointName(input);
-        var found = ForeSiteSetPoints.Parse(json, includeReadOnly: true).FirstOrDefault(p => string.Equals(p.Id, name, StringComparison.OrdinalIgnoreCase));
+        var names = SetPointNames(input);
+        var all = ForeSiteSetPoints.Parse(json, includeReadOnly: true);
+        var found = names.Select(n => all.FirstOrDefault(p => string.Equals(p.Id, n, StringComparison.OrdinalIgnoreCase))).FirstOrDefault(p => p.Id is not null);
         if (found.Id is null)
-            return ResolveResult.Failed(ResolveOutcome.NotApplicable, $"This well has no saved set point named {name}.");
+            return ResolveResult.Failed(ResolveOutcome.NotApplicable, $"This well has no saved set point named {string.Join(" or ", names)}.");
         if (!decimal.TryParse(found.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
             return ResolveResult.Failed(ResolveOutcome.Misconfigured, $"Set point {found.Id} is not numeric (\"{found.Value}\").");
         return ResolveResult.Compatible(new ResolveCandidate($"foresite:setpoint.{found.Id}", ResolveBasis.Saved,

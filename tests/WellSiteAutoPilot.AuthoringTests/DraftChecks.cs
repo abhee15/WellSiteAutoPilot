@@ -72,6 +72,9 @@ internal static class DraftChecks
 
     private static void RuleTables()
     {
+        var trailing = InputHistoryWindow.Resolve(new(0, "now", 240, "avg"), new Dictionary<string, string>(), new DateTimeOffset(2026, 5, 11, 15, 30, 12, 345, TimeSpan.Zero), TimeZoneInfo.Utc, out _);
+        Check.That(trailing is { } t && t.End == new DateTimeOffset(2026, 5, 11, 15, 30, 12, TimeSpan.Zero) && t.Start == t.End.AddHours(-4), "a 'now' window trails the run by whole seconds");
+        Check.That(InputHistoryWindow.Validate(new(1, "now"), []) is not null, "a window that ends now cannot go days back");
         var draft = new ModuleDraft("Gates", null,
             [In("Fillage", "PumpFillage", "%", maxAge: 600), In("Cycles", "CyclesYesterday", null)],
             [new("FillageTarget", "70", "%", Min: 0, Max: 100), new("CyclesAllowed", "10")],

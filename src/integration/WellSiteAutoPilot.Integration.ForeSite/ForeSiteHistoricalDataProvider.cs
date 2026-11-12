@@ -20,6 +20,7 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
         var sourceQuantity = request.Quantity switch
         {
             "PumpFillage" => "CurrentPumpFillage",
+            "SPM" => "CurrentSPM",
             "InferredProductionYesterday" or "CyclesYesterday" or "RunTimeYesterday" or "StrokesYesterday" or "IdleTimeYesterday" => request.Quantity,
             _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
         };

@@ -5,7 +5,7 @@ namespace WellSiteAutoPilot.Application.Authoring;
 /// <summary>
 /// Reads an input from history instead of the current value: the reading in a short window that ends at a local time of day
 /// some days back (for example "yesterday at the gauge-off time"). AtLocal is "HH:mm" in the site's time zone, or the name of a
-/// parameter holding that time. Reduce picks one value from the window: last, first, avg, min or max.
+/// parameter holding that time. "now" ends the window at the moment of the run (the trailing hours, for a recent average). Reduce picks one value from the window: last, first, avg, min or max.
 /// </summary>
 public sealed record InputHistory(int DaysBack, string AtLocal, int WindowMinutes = 10, string Reduce = "last");
 
@@ -18,6 +18,7 @@ public static class InputHistoryWindow
         if (history.DaysBack is < 0 or > 30) return "Days back must be from 0 to 30.";
         if (history.WindowMinutes is < 1 or > 1440) return "The window must be from 1 minute to 24 hours.";
         if (!Reductions.Contains(history.Reduce, StringComparer.Ordinal)) return $"Unknown reduction '{history.Reduce}'. Use one of {string.Join(", ", Reductions)}.";
+        if (IsNow(history)) return history.DaysBack == 0 ? null : "A window that ends now cannot also go days back.";
         var text = history.AtLocal;
         var named = parameters.FirstOrDefault(p => p.Name == history.AtLocal);
         if (named is not null) text = named.Value;
@@ -27,10 +28,18 @@ public static class InputHistoryWindow
             ? null : $"Parameter {history.AtLocal} must hold a time written HH:mm.";
     }
 
+    public static bool IsNow(InputHistory history) => string.Equals(history.AtLocal, "now", StringComparison.Ordinal);
+
     /// <summary>The UTC interval to read, or null with a reason when the time of day cannot be understood.</summary>
     public static (DateTimeOffset Start, DateTimeOffset End)? Resolve(
         InputHistory history, IReadOnlyDictionary<string, string> parameterValues, DateTimeOffset now, TimeZoneInfo site, out string? problem)
     {
+        if (IsNow(history))
+        {
+            var stop = new DateTimeOffset(now.UtcDateTime.Ticks - now.UtcDateTime.Ticks % TimeSpan.TicksPerSecond, TimeSpan.Zero);
+            problem = null;
+            return (stop.AddMinutes(-history.WindowMinutes), stop);
+        }
         var text = parameterValues.TryGetValue(history.AtLocal, out var named) ? named : history.AtLocal;
         if (!TimeOnly.TryParseExact(text, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
         {
