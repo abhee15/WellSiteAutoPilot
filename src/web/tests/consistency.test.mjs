@@ -463,7 +463,7 @@ test('actions are ActionButton: the only raw asset-select / row-link buttons are
   const nameButtons = {
     'views/AccessManagementPage.tsx': 1, 'views/ActivityPage.tsx': 1, 'views/AssetBrowser.tsx': 2, 'views/AssetDetail.tsx': 1,
     'views/AssetOwnerRow.tsx': 1, 'views/AssetTree.tsx': 1, 'views/AssetViewBrowser.tsx': 1, 'views/AssetsPage.tsx': 3,
-    'views/ExecutionHistory.tsx': 1, 'views/LogicPage.tsx': 2, 'views/OperationsPage.tsx': 1,
+    'views/ConfigurationList.tsx': 1, 'views/ExecutionHistory.tsx': 1, 'views/LogicPage.tsx': 1, 'views/OperationsPage.tsx': 1,
   };
   const raw = /<button\b(?:=>|[^>])*?className="[^"]*\b(?:asset-select|row-link)\b/g;
   const actual = Object.fromEntries(code.map(path => [rel(path), (source(path).match(raw) ?? []).length]).filter(([, count]) => count > 0));

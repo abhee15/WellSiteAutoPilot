@@ -44,7 +44,7 @@ function fixture(status = 200, parameters = revision.parametersJson) {
 async function openEditor() {
   const user = userEvent.setup();
   const view = render(<ConfiguredLogicWorkspace {...props} />);
-  await user.click(await screen.findByRole('tab', { name: 'Configuration', exact: true }));
+  await user.click(await screen.findByRole('tab', { name: 'Revisions', exact: true }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Saved revision' }), id(4));
   await user.click(screen.getByRole('button', { name: 'Edit draft revision 4' }));
   return { user, view };

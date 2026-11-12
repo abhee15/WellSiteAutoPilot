@@ -16,7 +16,7 @@ public interface ILogicModuleCatalogRepository
     Task<IReadOnlyCollection<InstalledLogicModule>> ListAsync(
         string? moduleId,
         int limit,
-        CancellationToken cancellationToken = default);
+        int offset = 0, CancellationToken cancellationToken = default);
 
     Task AddAsync(
         InstalledLogicModule logicModule,

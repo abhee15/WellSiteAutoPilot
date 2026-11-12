@@ -5,6 +5,7 @@ database or authentication secret is used. Output is visual evidence, not a
 pixel-perfect screenshot gate: reviewers inspect the changes deliberately.
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -19,6 +20,7 @@ STATES = {
     "logic-list": "#logic",
     "logic-detail": "#logic/00000000-0000-4000-8000-000000000500",
     "logic-modules": "#logic/modules",
+    "logic-schedules": "#logic/schedules",
     "assets-list": "#assets",
     "assets-detail": "#assets/00000000-0000-4000-8000-000000000011",
     "assets-types": "#assets/types",
@@ -28,7 +30,7 @@ report = []
 failures = []
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
+    browser = p.chromium.launch(headless=True, executable_path=os.environ.get("WSA_CHROMIUM_PATH"))
     for revision, base in [("before", BEFORE), ("after", AFTER)]:
         for width, height in WIDTHS:
             context = browser.new_context(viewport={"width": width, "height": height},
@@ -42,6 +44,23 @@ with sync_playwright() as p:
                     if not response or response.status >= 400:
                         raise AssertionError(f"HTTP {response.status if response else 'none'} for {target}")
                     page.locator(".split-tabs, .tab-bar").first.wait_for(timeout=15000)
+                    if revision == "after" and state == "logic-list" and os.environ.get("LOGIC_CONFIGURATIONS_PREVIEW") == "1":
+                        group = page.get_by_role("button", name="ESP frequency optimizer", exact=True)
+                        group.wait_for()
+                        page.get_by_text("ForeSite System B (foresite)", exact=True).wait_for()
+                        group.focus()
+                        page.keyboard.press("Enter")
+                        if group.get_attribute("aria-expanded") != "false":
+                            raise AssertionError("Keyboard did not collapse the module")
+                        page.keyboard.press("Space")
+                        deployment = page.get_by_role("button", name="Inspect revisions of ESP frequency — East field")
+                        deployment.wait_for()
+                        if page.locator(".configuration-list").evaluate("(table) => table.scrollWidth > table.parentElement.clientWidth"):
+                            raise AssertionError("Configurations require horizontal scrolling")
+                        deployment.click()
+                        page.get_by_role("tab", name="Overview", exact=True).wait_for()
+                        page.go_back()
+                        deployment.wait_for()
                     page.evaluate("document.fonts.ready")
                     page.wait_for_timeout(400)
                     filename = OUT / f"{revision}-{width}-{state}.png"

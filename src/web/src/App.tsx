@@ -127,8 +127,8 @@ export function App() {
       if (fresh('assetTypes')) setAssetTypes(current => keepIfSame(current, snapshot.assetTypes));
       if (fresh('assets')) setAssets(current => keepIfSame(current, snapshot.assets));
       if (fresh('capabilities')) setAssetCapabilities(snapshot.capabilities);
-      if (fresh('modules')) setLogicModules(snapshot.modules);
-      if (fresh('configurations')) setConfiguredLogic(snapshot.configurations);
+      if (fresh('modules')) setLogicModules(current => keepIfSame(current, snapshot.modules));
+      if (fresh('configurations')) setConfiguredLogic(current => keepIfSame(current, snapshot.configurations));
       setIsLoaded(true); loadedOnce.current = true;
       setError(snapshot.deniedPermissions.length ? t('refresh.accessChanged')
         : snapshot.incomplete ? t('refresh.partial') : null);

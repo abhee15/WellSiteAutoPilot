@@ -120,3 +120,25 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
   .logic-layout.logic-history-focused .execution-history-focus[data-has-selection='false']
     > .execution-history-panes > .split-browse { display: block; }
 }
+
+.configuration-list .configuration-group {
+  cursor: default;
+  background: var(--color-surface-code);
+}
+
+.configuration-list td {
+  overflow-wrap: anywhere;
+}
+
+.configuration-list .configuration-group .ui-action-button {
+  white-space: normal;
+  text-align: start;
+}
+
+.configuration-list .configuration-group .ui-action-button svg {
+  flex-shrink: 0;
+}
+
+@media (width <= 40em) {
+  .configuration-list .run-col-secondary { display: none; }
+}

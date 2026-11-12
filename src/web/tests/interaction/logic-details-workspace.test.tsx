@@ -60,7 +60,7 @@ it('organizes read-only settings without limiting nested parameters or providers
   const user = userEvent.setup();
   const overview = screen.getByRole('tab', { name: 'Overview', exact: true });
   overview.focus(); await user.keyboard('{ArrowRight}');
-  const configurationTab = screen.getByRole('tab', { name: 'Configuration', exact: true });
+  const configurationTab = screen.getByRole('tab', { name: 'Revisions', exact: true });
   expect(document.activeElement).toBe(configurationTab);
   expect(configurationTab.getAttribute('aria-selected')).toBe('false');
   await user.keyboard('{Enter}');
@@ -154,7 +154,7 @@ it('keeps scoped Activity independent of transient overview failures and clears 
   expect(await accessibilityViolations(panel)).toEqual([]);
   state.activityStatus = 403; act(() => live.emit('configured-logic'));
   await waitFor(() => expect(screen.queryByText('Complex observer')).toBeNull());
-  expect(screen.queryByRole('tab', { name: 'Configuration' })).toBeNull();
+  expect(screen.queryByRole('tab', { name: 'Revisions' })).toBeNull();
 });
 
 it('can inspect other known execution modes without exposing a Shadow-only editor or run action', async () => {
@@ -164,7 +164,7 @@ it('can inspect other known execution modes without exposing a Shadow-only edito
   await screen.findByText('Complex observer');
   expect(screen.queryByRole('button', { name: 'Create revision', exact: true })).toBeNull();
   expect(screen.queryByRole('button', { name: /Run active revision/ })).toBeNull();
-  await userEvent.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
+  await userEvent.click(screen.getByRole('tab', { name: 'Revisions', exact: true }));
   expect(screen.getByRole('button', { name: 'Copy revision 3' })).toHaveProperty('disabled', true);
 });
 
@@ -173,7 +173,7 @@ it('hides the configuration policy while inspecting a Shadow draft', async () =>
   state.config = { ...configuration, revisions: [{ ...revision, mode: 'Recommendation' }, configuration.revisions[1]!] };
   render(<ConfiguredLogicWorkspace {...props} canReadControl canManageControl />);
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('tab', { name: 'Configuration', exact: true }));
+  await user.click(await screen.findByRole('tab', { name: 'Revisions', exact: true }));
   await screen.findByRole('heading', { name: 'Autonomy policy' });
 
   const picker = screen.getByRole('combobox', { name: 'Saved revision' });
@@ -212,7 +212,7 @@ it('shows the owning connection beside asset names in revision summary, bindings
   await screen.findByText('Complex observer');
   expect(screen.getAllByText('Well 101 (ForeSite Production)').length).toBeGreaterThan(0);
   const user = userEvent.setup();
-  await user.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
+  await user.click(screen.getByRole('tab', { name: 'Revisions', exact: true }));
   expect(screen.getAllByText(/Well 101 \(ForeSite Production\)/).length).toBeGreaterThan(0);
   await user.click(screen.getByRole('button', { name: 'Create revision', exact: true }));
   expect(screen.getByRole('option', { name: 'Well 101 (ForeSite Production)' })).toBeTruthy();

@@ -45,7 +45,7 @@ async function fill(user: ReturnType<typeof userEvent.setup>) {
 async function workspace(canManage = true) {
   const view = render(<ConfiguredLogicWorkspace selectedId={configId} canManage={canManage}
     modules={[module]} assets={assets} assetTypes={types} onClose={vi.fn()} onChanged={async () => {}} />);
-  await userEvent.click(await screen.findByRole('tab', { name: 'Configuration', exact: true }));
+  await userEvent.click(await screen.findByRole('tab', { name: 'Revisions', exact: true }));
   return view;
 }
 const schemaManifest = { ...manifest, description: 'Holds the pump near a target fillage.',
@@ -318,8 +318,8 @@ describe('Configured logic setup journey', () => {
     vi.stubGlobal('fetch', http);
     const user = userEvent.setup(); render(<App />);
     await user.click(await screen.findByRole('button', { name: 'Inspect revisions of Observer' }));
-    await screen.findByRole('tab', { name: 'Configuration', exact: true });
-    await user.click(screen.getByRole('tab', { name: 'Configuration', exact: true }));
+    await screen.findByRole('tab', { name: 'Revisions', exact: true });
+    await user.click(screen.getByRole('tab', { name: 'Revisions', exact: true }));
     expect(screen.queryByRole('button', { name: 'Copy revision 1' })).toBeNull();
     recover = true; await user.click(screen.getByRole('button', { name: 'Refresh' }));
     await user.click(screen.getByRole('button', { name: 'Reload persisted revisions' }));

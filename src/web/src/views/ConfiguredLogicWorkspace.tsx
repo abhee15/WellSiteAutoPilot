@@ -81,6 +81,9 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
   const mutationBlocked = busy || blocked || changedElsewhere;
   const ordered = detail ? orderedRevisions(detail) : [];
   const active = ordered.find(r => r.id === detail?.activeRevisionId);
+  const overviewRevision = active ?? ordered[0];
+  const overviewModuleId = modules.find(module => module.moduleId === overviewRevision?.moduleId &&
+    module.version === overviewRevision?.moduleVersion)?.id;
   const selected = ordered.find(r => r.id === revisionId) ?? active ?? ordered[0];
   const waiting = ordered.filter(r => r.id !== detail?.activeRevisionId && (r.status === 'Draft' || r.status === 'Validated'));
   const earlier = ordered.filter(r => r.id !== detail?.activeRevisionId && !waiting.includes(r));
@@ -205,7 +208,7 @@ export function ConfiguredLogicWorkspace({ selectedId, canManage, userId, canReq
           ...(canReadRuns ? [{ id: 'activity' as const, label: t('logicDetail.activity') }] : [])]}
         selected={tab} disabled={editing || busy} onSelect={selectTab} />
       <div id={`${prefix}-overview`} role="tabpanel" aria-labelledby={`${prefix}-tab-overview`} hidden={tab !== 'overview'}>
-        <ConfiguredLogicRevisionOverview logic={detail} assets={assets} owners={owners} activity={activity.data}
+        <ConfiguredLogicRevisionOverview logic={detail} moduleCatalogId={overviewModuleId} assets={assets} owners={owners} activity={activity.data}
           loading={activity.loading} failed={activity.failed} canReadRuns={canReadRuns}
           onHistory={() => selectTab('activity')} onRetry={activity.refresh} />
         <ConfiguredLogicSchedulePanel configuredLogicId={detail.id} activeRevisionId={detail.activeRevisionId}

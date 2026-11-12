@@ -132,3 +132,20 @@ test('transient read failures are reported as unavailable so callers keep their 
         ? { canCreateRoot: true, canCreateUnderAuthorizedParents: true } : []));
   assert.deepEqual(denied.unavailable, []);
 });
+
+test('configuration and module snapshots include records beyond the first page', async () => {
+  const user = { ...session, permissions: ['configured-logic.read', 'logic.read'] };
+  const first = Array.from({ length: 100 }, (_, index) => ({ id: String(index) }));
+  const only = new Set(['configurations', 'modules']);
+  const mock = async url => response(url.includes('offset=100') ? [{ id: '100' }] : first);
+  const snapshot = await workspace.loadWorkspaceSnapshot(user, signal(), mock, only);
+  assert.equal(snapshot.configurations.length, 101);
+  assert.equal(snapshot.modules.at(-1).id, '100');
+  assert.equal(snapshot.incomplete, false);
+
+  const revoked = await workspace.loadWorkspaceSnapshot(user, signal(), async url =>
+    url.includes('configured-logic') && url.includes('offset=100') ? new Response('', { status: 403 }) : mock(url), only);
+  assert.deepEqual(revoked.configurations, []);
+  assert.deepEqual(revoked.deniedPermissions, ['configured-logic.read']);
+  assert.equal(revoked.modules.length, 101);
+});

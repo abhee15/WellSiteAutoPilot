@@ -117,6 +117,34 @@ const responses = {
       moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0', reasonCode: 'intake_pressure_high', quantity: 'ChokePosition',
       createdAtUtc: iso(40), expiresAtUtc: new Date(now + 3_000_000).toISOString() }],
 };
+// Exercise multiple saved deployments and catalog versions in the Logic visual review.
+if (process.env.LOGIC_CONFIGURATIONS_PREVIEW === '1') {
+  const connectionA = responses['/api/v1/connections'][0];
+  connectionA.name = 'ForeSite System A';
+  const connectionB = { ...connectionA, id: id(951), name: 'ForeSite System B' };
+  responses['/api/v1/connections'].push(connectionB);
+  responses['/api/v1/security/me'].permissions.push('connections.read');
+  responses['/api/v1/logic-modules'][1].isEnabled = true;
+  responses['/api/v1/logic-modules'][1].trustStatus = 'CustomerApproved';
+  const view = (n, connectionId, name) => ({
+    id: id(n), connectionId, name, revision: 1, memberCount: 1, hasUnavailableMembers: false,
+    createdAtUtc: iso(4000), updatedAtUtc: iso(4000), canEdit: false, canDelete: false,
+  });
+  const viewA = view(960, connectionA.id, 'West wells');
+  const viewB = view(961, connectionB.id, 'East wells');
+  responses['/api/v1/asset-views'] = [viewA, viewB];
+  const viewRef = ({ id: viewId, connectionId, revision }) => ({ viewId, connectionId, revision, role: 'well' });
+  configuredDetail.revisions[0].view = viewRef(viewA);
+  const second = {
+    ...configuredDetail, id: id(501), name: 'ESP frequency — East field', activeRevisionId: id(301),
+    revisions: [{
+      ...configuredDetail.revisions[0], id: id(301), configuredLogicId: id(501), moduleVersion: '1.3.0', view: viewRef(viewB),
+      assetBindings: [{ role: 'well', assetId: id(12), parameterOverridesJson: '{}' }],
+    }],
+  };
+  responses['/api/v1/configured-logic'].push(second);
+  responses['/api/v1/configured-logic/' + second.id] = second;
+}
 // Optional live-update hub (MOCK_HUB=1): just enough of SignalR's long-polling transport for the
 // browser client to connect. Without it /hubs/changes is a 404 and the page falls back to polling,
 // which is also worth previewing. POST /__mock/change?area=assets pushes a change signal.

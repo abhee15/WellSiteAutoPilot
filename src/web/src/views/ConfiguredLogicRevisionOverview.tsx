@@ -15,9 +15,9 @@ import './logicSummary.css';
 
 /** Operational observations do not replace the immutable revision snapshot being reviewed. */
 export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, loading = false, failed = false,
-  canReadRuns = false, onHistory, onRetry, owners = [] }: {
+  canReadRuns = false, onHistory, onRetry, owners = [], moduleCatalogId }: {
   logic: ConfiguredLogicResponse; assets?: readonly AssetResponse[]; owners?: readonly OwnerGroup[]; activity?: ConfiguredLogicActivityResponse;
-  loading?: boolean; failed?: boolean; canReadRuns?: boolean; onHistory?: () => void; onRetry?: () => void;
+  moduleCatalogId?: string | null; loading?: boolean; failed?: boolean; canReadRuns?: boolean; onHistory?: () => void; onRetry?: () => void;
 }) {
   const revisions = orderedRevisions(logic);
   const active = revisions.find(revision => revision.id === logic.activeRevisionId);
@@ -35,12 +35,15 @@ export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, 
     {purpose && <><h4>{t('logicDetail.purpose')}</h4><p>{purpose}</p></>}
     <dl className="logic-facts">
       <div><dt>{t(activity && !matching ? 'logicDetail.reviewedRevision' : 'configured.liveRevision')}</dt><dd>{active ? t('setup.revision', { number: active.revisionNumber ?? '—' }) : t('configured.noLive')}</dd></div>
-      <div><dt>{t('configured.module')}</dt><dd>{shown.moduleId} v{shown.moduleVersion}</dd></div>
+      <div><dt>{t('configured.module')}</dt><dd>{moduleCatalogId
+        ? <ContextLink appearance="record" href={hashFor('logic', 'modules:' + moduleCatalogId)}
+            label={`${shown.moduleId} v${shown.moduleVersion}`} />
+        : <>{shown.moduleId} v{shown.moduleVersion}</>}</dd></div>
       <div><dt>{t('logicDetail.mode')}</dt><dd>{shown.mode}</dd></div>
       <div><dt>{t('logicDetail.targetLabel')}</dt><dd>{targets.slice(0, 2).map(id => assetIdentityLabel(id, assets, owners)).join(', ') || '—'}
         {targets.length > 2 && <> · {t('logicDetail.moreTargets', { count: targets.length - 2 })}</>}</dd></div>
       <div><dt>{t('logicDetail.providerLabel')}</dt><dd>{providers.join(', ') || t('logicDetail.noProviders')}</dd></div>
-      <div><dt>{t('configured.schedule')}</dt><dd>{scheduleText(active?.schedule)}</dd></div>
+      <div><dt>{t('configured.schedule')}</dt><dd>{scheduleText(active ? logic.effectiveSchedule ?? active.schedule : null)}</dd></div>
     </dl>
     {active?.schedule?.enabled && <p>{t('logicDetail.nextScheduled')}: {matching && activity.nextScheduledAtUtc
       ? formatTimestamp(activity.nextScheduledAtUtc) : t('logicDetail.notAvailable')}</p>}

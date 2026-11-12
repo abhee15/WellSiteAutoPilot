@@ -23,17 +23,17 @@ public sealed partial class ConfiguredLogicRepository
     }
 
     public async Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListAuthorizedAsync(AccessSubject subject,
-        int limit, CancellationToken cancellationToken = default)
+        int limit, int offset = 0, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
         if (limit is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(limit));
         await using var transaction = await BeginAuthorizedReadAsync(cancellationToken);
         var entities = await ScopedAccessQueries.ConfiguredLogic(dbContext, subject.UserId, WellSitePermissions.ConfiguredLogicRead,
             subject.Groups, (clock ?? TimeProvider.System).GetUtcNow())
-            .OrderBy(definition => definition.Name).ThenBy(definition => definition.Id).Take(limit).ToArrayAsync(cancellationToken);
-        var result = new List<ConfiguredLogicDefinition>(entities.Length);
-        foreach (var entity in entities)
-            result.Add(ToDomain(entity, await LoadRevisionsAsync(entity.Id, cancellationToken)));
+            .OrderBy(definition => definition.Name).ThenBy(definition => definition.Id).Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
+        if (entities.Length == 0) return [];
+        var revisions = await LoadRevisionsAsync(entities.Select(entity => entity.Id).ToArray(), cancellationToken);
+        var result = entities.Select(entity => ToDomain(entity, revisions[entity.Id].ToArray())).ToArray();
         if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         return result;
     }

@@ -1,6 +1,6 @@
 import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
 import type { OwnerGroup } from './assetHierarchy';
-import { latestRevision } from './configuredLogicViews';
+import { configurationRevision } from './configuredLogicViews';
 
 export type RunContext = {
   /** The customer's name for the logic, when the configuration is in the loaded list. */
@@ -12,7 +12,7 @@ export type RunContext = {
   assetIds: string[];
 };
 
-const shortId = (id: string) => (id.length > 12 ? `${id.slice(0, 8)}…` : id);
+export const shortId = (id: string) => (id.length > 12 ? `${id.slice(0, 8)}…` : id);
 
 /**
  * Joins a run to the names a person recognises, using the already loaded lists. A run reports only
@@ -70,9 +70,7 @@ export function configurationAssetLabels(
  * into the Logic grid: they may refer to assets that this configuration no longer uses.
  */
 export function configurationTargetAssetIds(configuration: ConfiguredLogicResponse): string[] {
-  const revision = configuration.activeRevisionId
-    ? configuration.revisions?.find(item => item.id === configuration.activeRevisionId)
-    : latestRevision(configuration);
+  const revision = configurationRevision(configuration);
   return [...new Set((revision?.assetBindings ?? []).flatMap(binding =>
     binding.assetId ? [binding.assetId] : []))];
 }
