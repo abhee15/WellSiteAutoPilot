@@ -15,3 +15,6 @@ public sealed record SetPointPlanRequest(
 public sealed record SetPointWritePlan(
     string WellId, string SetPoint, string Description, string Unit, decimal Current, decimal Proposed,
     decimal? RangeLow, decimal? RangeHigh, bool Allowed, string? Refusal);
+
+/// <summary>A point an asset offers, with its current value, so an author can browse what exists.</summary>
+public sealed record CatalogPoint(string Name, string Value, string Group, string Basis);

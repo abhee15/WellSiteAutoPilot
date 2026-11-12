@@ -5,3 +5,5 @@
 .authoring-table th, .authoring-table td { text-align: start; padding: var(--space-8); border-bottom: var(--border-width-thin) solid var(--color-border-row); vertical-align: top; }
 .authoring-table [data-outcome='Compatible'] { color: var(--color-text-success, inherit); font-weight: 600; }
 .authoring-table [data-outcome='NotApplicable'], .authoring-table [data-outcome='Misconfigured'] { color: var(--color-text-subtle); }
+.authoring-points { list-style: none; margin: 0; padding: 0; max-height: 18rem; overflow: auto; }
+.authoring-points li { display: flex; justify-content: space-between; gap: var(--space-8); padding: var(--space-4) 0; border-bottom: var(--border-width-thin) solid var(--color-border-row); }

@@ -42,6 +42,14 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         }, cancellationToken);
     }
 
+    public Task<IReadOnlyList<CatalogPoint>> PointsAsync(ResolveRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return WithSessionAsync(new(request.ConnectionId, request.ConnectionRevision, request.Settings, request.ExternalId, "points"), async session =>
+            await new ForeSiteResolveProvider(session.Session, _snapshots, $"{request.ConnectionId}/{request.ConnectionRevision}")
+                .GetPointsAsync(request.ExternalId, session.Token), cancellationToken);
+    }
+
     public Task<SetPointWritePlan> PlanSetPointAsync(SetPointPlanRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);

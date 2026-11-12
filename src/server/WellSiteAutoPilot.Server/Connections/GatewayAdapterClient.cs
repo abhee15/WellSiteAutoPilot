@@ -53,6 +53,18 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
             ? null : await response.Content.ReadFromJsonAsync<ResolvePreview>(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CatalogPoint>?> PointsAsync(
+        string adapterKey, ResolveRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!string.Equals(adapterKey, "foresite", StringComparison.Ordinal))
+            return null;
+        using var message = Authorized(HttpMethod.Post, $"{Base}/foresite/points");
+        message.Content = JsonContent.Create(request);
+        using var response = await SendAsync(message, cancellationToken, allowNotFound: true);
+        return response.StatusCode == HttpStatusCode.NotFound
+            ? null : await response.Content.ReadFromJsonAsync<List<CatalogPoint>>(cancellationToken);
+    }
+
     public async Task<SetPointWritePlan?> PlanSetPointAsync(
         string adapterKey, SetPointPlanRequest request, CancellationToken cancellationToken = default)
     {

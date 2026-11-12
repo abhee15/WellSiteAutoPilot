@@ -258,6 +258,13 @@ v1.MapPost("/adapters/{adapterKey}/resolve",
     .Produces<ResolvePreview>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status404NotFound);
 
+v1.MapPost("/adapters/foresite/points",
+    async (ResolveRequest request, ForeSiteConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.PointsAsync(request, cancellationToken)))
+    .WithName("ListForeSitePoints")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<IReadOnlyList<CatalogPoint>>(StatusCodes.Status200OK);
+
 // Dry-run only: plans a set point change and sends nothing.
 v1.MapPost("/adapters/foresite/setpoint-plan",
     async (SetPointPlanRequest request, ForeSiteConnectionMeasurements provider, CancellationToken cancellationToken) =>

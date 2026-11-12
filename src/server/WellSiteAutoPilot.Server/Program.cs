@@ -1823,6 +1823,15 @@ v1.MapPost(
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
 v1.MapPost(
+    "/connections/{connectionId:guid}/points",
+    async (Guid connectionId, PointsRequest request, ConnectionResolveService resolver, CancellationToken cancellationToken) =>
+        Results.Ok(await resolver.PointsAsync(connectionId, request.ExternalId, cancellationToken)))
+    .WithName("ListConnectionPoints")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<IReadOnlyList<CatalogPoint>>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
     "/connections/{connectionId:guid}/setpoint-plan",
     async (Guid connectionId, SetPointPlanInput request, ConnectionResolveService resolver, CancellationToken cancellationToken) =>
         Results.Ok(await resolver.PlanSetPointAsync(connectionId, request.ExternalId, request.SetPoint, request.Delta, cancellationToken)))

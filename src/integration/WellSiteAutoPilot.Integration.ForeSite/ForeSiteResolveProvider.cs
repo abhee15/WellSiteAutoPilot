@@ -51,16 +51,37 @@ public static class ForeSiteResolver
 
     public const string SurveillancePrefix = "surveillance:";
 
+    public const string WellTestPrefix = "welltest:";
+    public const string WellPrefix = "well:";
+
     public static IReadOnlyCollection<string> KnownInputs => Known.Keys;
+
+    /// <summary>The basis a raw point implies: well test values are samples, "Average" fields are daily averages, the rest are current.</summary>
+    public static ResolveBasis BasisOf(string endpoint, string field) =>
+        endpoint == "welltest" ? ResolveBasis.TestSample
+        : endpoint == "well" ? ResolveBasis.Static
+        : field.Contains("Average", StringComparison.OrdinalIgnoreCase) ? ResolveBasis.DailyAverage
+        : ResolveBasis.Current;
+
+    private static Source? PointSource(string input)
+    {
+        foreach (var (prefix, endpoint) in new[] { (SurveillancePrefix, "surveillance"), (WellTestPrefix, "welltest"), (WellPrefix, "well") })
+            if (input.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && input.Length > prefix.Length)
+            {
+                var field = input[prefix.Length..];
+                return new Source(endpoint, field, BasisOf(endpoint, field), "");
+            }
+        return null;
+    }
 
     public static ResolveResult Resolve(string input, ForeSiteWellSnapshot snapshot, ResolveBasis? basis = null)
     {
         Source[] sources;
-        if (input.StartsWith(SurveillancePrefix, StringComparison.OrdinalIgnoreCase))
-            sources = [new("surveillance", input[SurveillancePrefix.Length..], ResolveBasis.Current, "")];
+        if (PointSource(input) is { } point)
+            sources = [point];
         else if (!Known.TryGetValue(input, out sources!))
             return ResolveResult.Failed(ResolveOutcome.Misconfigured,
-                $"'{input}' is not mapped for ForeSite. Mapped inputs: {string.Join(", ", Known.Keys.Order())}, or '{SurveillancePrefix}<point>'.");
+                $"'{input}' is not mapped for ForeSite. Mapped inputs: {string.Join(", ", Known.Keys.Order())}, or '{SurveillancePrefix}<point>', 'welltest:<point>' or 'well:<point>'.");
 
         var found = new List<ResolveCandidate>();
         var reasons = new List<string>();
@@ -190,7 +211,7 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
         var well = await FetchAsync(() => session.GetAsync($"Wells/Well/{id}", cancellationToken), cancellationToken);
         var surveillance = await FetchAsync(() => session.GetAsync($"Surveillance/well/{id}", cancellationToken), cancellationToken);
-        var welltest = await FetchAsync(() => session.PostAsync($"WellTests/GetLatestWellTestData/{id}", new { }, cancellationToken), cancellationToken);
+        var welltest = await FetchAsync(() => session.GetAsync($"WellTests/GetLatestWellTestData/{id}", cancellationToken), cancellationToken);
         return new ForeSiteWellSnapshot(well, surveillance, welltest);
     }
 
@@ -232,6 +253,18 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
             .Select(p => new AssetCatalogEntry(ForeSiteResolver.SurveillancePrefix + p.Key, "surveillance point", null))
             .OrderBy(e => e.Name, StringComparer.Ordinal)
             .ToList();
+    }
+
+    /// <summary>Every point ForeSite holds a value for on this well, from surveillance, the latest well test and the well record.</summary>
+    public async Task<IReadOnlyList<CatalogPoint>> GetPointsAsync(string assetExternalId, CancellationToken cancellationToken = default)
+    {
+        var snapshot = await LoadAsync(assetExternalId, cancellationToken);
+        var points = new List<CatalogPoint>();
+        foreach (var (endpoint, prefix, group) in new[]
+            { ("surveillance", ForeSiteResolver.SurveillancePrefix, "Surveillance"), ("welltest", ForeSiteResolver.WellTestPrefix, "Well test"), ("well", ForeSiteResolver.WellPrefix, "Well") })
+            foreach (var p in snapshot.Source(endpoint).Where(p => !string.IsNullOrWhiteSpace(p.Value)).OrderBy(p => p.Key, StringComparer.Ordinal))
+                points.Add(new CatalogPoint(prefix + p.Key, p.Value.Trim(), group, ForeSiteResolver.BasisOf(endpoint, p.Key).ToString()));
+        return points;
     }
 
     public async ValueTask<ResolveResult> ResolveAsync(

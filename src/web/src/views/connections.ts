@@ -431,3 +431,11 @@ export async function planSetPoint(connectionId: string, externalId: string, set
   if (!body || typeof body !== 'object' || !('allowed' in body)) throw new ConnectionsError('invalidResponse');
   return body as SetPointPlan;
 }
+
+export type CatalogPoint = { name: string; value: string; group: string; basis: string };
+
+export async function listPoints(connectionId: string, externalId: string, fetcher: typeof fetch = fetch): Promise<CatalogPoint[]> {
+  const body = await send(`/connections/${connectionId}/points`, json('POST', { externalId }), fetcher);
+  if (!Array.isArray(body)) throw new ConnectionsError('invalidResponse');
+  return body as CatalogPoint[];
+}

@@ -4,8 +4,8 @@ import { PanelHeader } from '../components/common';
 import { SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelLoading } from '../components/LoadingIndicator';
-import { discoverConnection, loadConnections, planSetPoint, resolveInput } from './connections';
-import type { Connection, DiscoveredObject, ResolvePreview, SetPointPlan } from './connections';
+import { discoverConnection, listPoints, loadConnections, planSetPoint, resolveInput } from './connections';
+import type { CatalogPoint, Connection, DiscoveredObject, ResolvePreview, SetPointPlan } from './connections';
 import './connections.css';
 import './authoring.css';
 
@@ -16,6 +16,7 @@ const templates: Template[] = [
   { id: 'location', label: 'Location (latitude and longitude)', inputs: ['Latitude', 'Longitude'] },
   { id: 'casing', label: 'Casing pressure', inputs: ['CasingPressure'] },
   { id: 'snapshot', label: 'Surveillance snapshot', inputs: ['CasingPressure', 'TubingPressure', 'PumpFillage'] },
+  { id: 'custom', label: 'Custom (pick points from the asset)', inputs: [] },
   { id: 'bump', label: 'Pressures and a set point change', inputs: ['CasingPressure', 'TubingPressure'], setPoint: { name: 'IdealPF', delta: 1 } },
 ];
 
@@ -44,6 +45,11 @@ export function AuthoringWorkbench() {
   const [message, setMessage] = useState<string | null>(null);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [planning, setPlanning] = useState(false);
+  const [points, setPoints] = useState<CatalogPoint[] | null>(null);
+  const [pointFilter, setPointFilter] = useState('');
+  const [pointGroup, setPointGroup] = useState('');
+  const [extra, setExtra] = useState<string[]>([]);
+  const [loadingPoints, setLoadingPoints] = useState(false);
 
   const template = templates.find(item => item.id === templateId) ?? templates[0];
   const connection = connections?.find(item => item.id === connectionId) ?? null;
@@ -70,7 +76,22 @@ export function AuthoringWorkbench() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection?.id]);
 
-  useEffect(() => { setRows([]); setPlan(null); }, [assetId, templateId]);
+  useEffect(() => { setRows([]); setPlan(null); setExtra([]); setPoints(null); }, [assetId, templateId]);
+
+  const inputs = useMemo(() => [...template.inputs, ...extra], [template, extra]);
+  const shownPoints = useMemo(() => {
+    const needle = pointFilter.trim().toLowerCase();
+    return (points ?? []).filter(point => (!pointGroup || point.group === pointGroup) && (!needle || point.name.toLowerCase().includes(needle))).slice(0, 400);
+  }, [points, pointFilter, pointGroup]);
+  const groups = useMemo(() => [...new Set((points ?? []).map(point => point.group))], [points]);
+
+  async function browse() {
+    if (!connection || !assetId) return;
+    setLoadingPoints(true); setMessage(null);
+    try { setPoints(await listPoints(connection.id, assetId)); }
+    catch { setMessage('Points could not be listed for this asset. Only ForeSite connections list points today.'); }
+    finally { setLoadingPoints(false); }
+  }
 
   const shown = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -90,8 +111,8 @@ export function AuthoringWorkbench() {
 
   async function preview() {
     setMessage(null); setPlan(null);
-    setRows(template.inputs.map(input => ({ input, busy: true, basis: '', preview: null, error: null })));
-    for (const input of template.inputs) await resolveRow(input, '');
+    setRows(inputs.map(input => ({ input, busy: true, basis: '', preview: null, error: null })));
+    for (const input of inputs) await resolveRow(input, '');
   }
 
   async function runPlan() {
@@ -122,13 +143,26 @@ export function AuthoringWorkbench() {
         <SelectField label="Starter module" value={templateId} onChange={event => setTemplateId(event.target.value)}>
           {templates.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
         </SelectField>
-        <p className="connection-help">Inputs: {template.inputs.join(', ')}{template.setPoint ? `. Then ${template.setPoint.name} +${template.setPoint.delta}.` : '.'}</p>
+        <p className="connection-help">Inputs: {inputs.join(', ') || 'none yet. Browse the points below.'}{template.setPoint ? `. Then ${template.setPoint.name} +${template.setPoint.delta}.` : '.'}</p>
         <div className="connection-actions">
-          <ActionButton label="Preview on this asset" variant="primary" disabled={!assetId} onClick={() => void preview()} />
+          <ActionButton label="Preview on this asset" variant="primary" disabled={!assetId || inputs.length === 0} onClick={() => void preview()} />
+          <ActionButton label="Browse points" variant="secondary" busy={loadingPoints} disabled={!assetId} onClick={() => void browse()} />
           {template.setPoint && <ActionButton label="Plan the set point change" variant="secondary" busy={planning} disabled={!assetId} onClick={() => void runPlan()} />}
         </div>
       </div>
       <div>
+        {points && <div className="connection-form">
+          <SelectField label="Where from" value={pointGroup} onChange={event => setPointGroup(event.target.value)}>
+            <option value="">All (surveillance, well test, well)</option>
+            {groups.map(group => <option key={group} value={group}>{group}</option>)}
+          </SelectField>
+          <TextField label={`Points on this asset (${points.length})`} value={pointFilter} onChange={event => setPointFilter(event.target.value)} />
+          <ul className="authoring-points">{shownPoints.map(point => <li key={point.name}>
+            <span>{point.name} = {point.value} <small>({point.basis}{Number.isFinite(Number(point.value)) ? '' : ', text'})</small></span>
+            <ActionButton label="Add" variant="quiet" aria-label={`Add ${point.name}`} disabled={extra.includes(point.name)}
+              onClick={() => setExtra(current => [...current, point.name])} />
+          </li>)}</ul>
+        </div>}
         {rows.length > 0 && <table className="authoring-table">
           <thead><tr><th scope="col">Input</th><th scope="col">Result</th><th scope="col">Source</th><th scope="col">Value</th><th scope="col">Why</th></tr></thead>
           <tbody>{rows.map(row => {

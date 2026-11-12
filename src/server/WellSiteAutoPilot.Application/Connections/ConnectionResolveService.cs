@@ -7,6 +7,7 @@ namespace WellSiteAutoPilot.Application.Connections;
 public interface IGatewayResolver
 {
     Task<ResolvePreview?> ResolveAsync(string adapterKey, ResolveRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CatalogPoint>?> PointsAsync(string adapterKey, ResolveRequest request, CancellationToken cancellationToken = default);
     Task<SetPointWritePlan?> PlanSetPointAsync(string adapterKey, SetPointPlanRequest request, CancellationToken cancellationToken = default);
 }
 
@@ -24,6 +25,16 @@ public sealed class ConnectionResolveService(ConnectionService connections, IGat
         return await gateway.ResolveAsync(connection.AdapterKey, request, cancellationToken)
             ?? throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryUnsupported, FailureKind.Conflict,
                 "This connection's adapter cannot resolve inputs yet.");
+    }
+
+    public async Task<IReadOnlyList<CatalogPoint>> PointsAsync(
+        Guid connectionId, string externalId, CancellationToken cancellationToken = default)
+    {
+        var connection = await Enabled(connectionId, cancellationToken);
+        var request = new ResolveRequest(connection.Id, connection.Revision, Settings(connection), externalId, "");
+        return await gateway.PointsAsync(connection.AdapterKey, request, cancellationToken)
+            ?? throw new WellSiteAutoPilotException(ConnectionFailureCodes.DiscoveryUnsupported, FailureKind.Conflict,
+                "This connection's adapter cannot list points yet.");
     }
 
     public async Task<SetPointWritePlan> PlanSetPointAsync(

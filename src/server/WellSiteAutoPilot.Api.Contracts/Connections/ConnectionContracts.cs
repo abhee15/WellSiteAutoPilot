@@ -132,3 +132,4 @@ public sealed record ImportResultResponse(
 public sealed record ResolveInputRequest(string ExternalId, string Input, string? Basis = null, bool? Read = null);
 
 public sealed record SetPointPlanInput(string ExternalId, string SetPoint, decimal Delta);
+public sealed record PointsRequest(string ExternalId);
