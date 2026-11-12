@@ -131,6 +131,7 @@ public sealed record ProviderVerificationResult(
     string? Detail = null);
 
 /// <summary>Whether a provider can supply an input for one asset.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
 public enum ResolveOutcome
 {
     Compatible,
@@ -141,6 +142,7 @@ public enum ResolveOutcome
 }
 
 /// <summary>How a candidate value relates to time; freshness is judged per basis.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
 public enum ResolveBasis
 {
     Static,

@@ -113,11 +113,6 @@ public static class ForeSiteResolver
     }
 }
 
-/// <summary>A dry-run write: what would be sent to the controller, with the before and after values. Nothing is sent.</summary>
-public sealed record SetPointWritePlan(
-    string WellId, string SetPoint, string Description, string Unit, decimal Current, decimal Proposed,
-    decimal? RangeLow, decimal? RangeHigh, bool Allowed, string? Refusal);
-
 public static class ForeSiteSetPoints
 {
     /// <summary>Writable set points (not read-only, not hidden) from an AllSavedSetPointParams response.</summary>
@@ -163,10 +158,33 @@ public static class ForeSiteSetPoints
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetDecimal(out var d) ? d : null;
 }
 
-/// <summary>Catalog, Resolve and Read over live ForeSite wells.</summary>
-public sealed class ForeSiteResolveProvider(ForeSiteSession session) : IAssetCatalogProvider, IResolveProvider
+/// <summary>Short-lived snapshots per well, so the several inputs of one preview or run share a single load of ForeSite.</summary>
+public sealed class ForeSiteSnapshotCache(TimeSpan lifetime, TimeProvider clock)
 {
-    public async Task<ForeSiteWellSnapshot> LoadAsync(string wellId, CancellationToken cancellationToken)
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTimeOffset At, ForeSiteWellSnapshot Snapshot)> _items = new();
+
+    public async Task<ForeSiteWellSnapshot> GetAsync(string key, Func<Task<ForeSiteWellSnapshot>> load)
+    {
+        var now = clock.GetUtcNow();
+        if (_items.TryGetValue(key, out var hit) && now - hit.At < lifetime)
+            return hit.Snapshot;
+        var snapshot = await load();
+        if (_items.Count > 512)
+            _items.Clear();
+        _items[key] = (now, snapshot);
+        return snapshot;
+    }
+}
+
+/// <summary>Catalog, Resolve and Read over live ForeSite wells.</summary>
+public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSnapshotCache? cache = null, string cacheScope = "")
+    : IAssetCatalogProvider, IResolveProvider
+{
+    public Task<ForeSiteWellSnapshot> LoadAsync(string wellId, CancellationToken cancellationToken) =>
+        cache is null ? LoadFreshAsync(wellId, cancellationToken)
+            : cache.GetAsync(cacheScope + "|" + wellId, () => LoadFreshAsync(wellId, cancellationToken));
+
+    private async Task<ForeSiteWellSnapshot> LoadFreshAsync(string wellId, CancellationToken cancellationToken)
     {
         if (!long.TryParse(wellId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
@@ -176,13 +194,14 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session) : IAssetCat
         return new ForeSiteWellSnapshot(well, surveillance, welltest);
     }
 
-    // A source that is missing or fails is an empty source, so the other sources still resolve.
+    // A source that is missing or fails is an empty source, so the other sources still resolve. ForeSite closes idle
+    // connections, so a reset is retried once on a fresh connection.
     private static async Task<IReadOnlyDictionary<string, string>> FetchAsync(
         Func<Task<HttpResponseMessage>> call, CancellationToken cancellationToken)
     {
         try
         {
-            using var response = await call();
+            using var response = await Retry(call);
             if (!response.IsSuccessStatusCode)
                 return new Dictionary<string, string>();
             using var document = await JsonDocument.ParseAsync(
@@ -192,6 +211,15 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session) : IAssetCat
         catch (JsonException)
         {
             return new Dictionary<string, string>();
+        }
+    }
+
+    private static async Task<HttpResponseMessage> Retry(Func<Task<HttpResponseMessage>> call)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try { return await call(); }
+            catch (HttpRequestException) when (attempt < 2) { await Task.Delay(300 * (attempt + 1)); }
         }
     }
 
@@ -216,8 +244,8 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session) : IAssetCat
     {
         if (!long.TryParse(wellId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
-        using var response = await session.GetAsync(
-            $"Surveillance/Well/AllSavedSetPointParams?WellId={id}&scanOption=0", cancellationToken);
+        using var response = await Retry(() => session.GetAsync(
+            $"Surveillance/Well/AllSavedSetPointParams?WellId={id}&scanOption=0", cancellationToken));
         if (!response.IsSuccessStatusCode)
             throw new ForeSiteMeasurementException("FORESITE_SETPOINTS_UNAVAILABLE");
         return ForeSiteSetPoints.Plan(wellId, await response.Content.ReadAsStringAsync(cancellationToken), setPoint, delta);

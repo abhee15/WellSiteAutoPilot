@@ -26,6 +26,30 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         WithSessionAsync(request, async session => await new ForeSiteCurrentDataProvider(session.Session)
             .GetCurrentSnapshotAsync(request.ExternalId, quantities, session.Token), cancellationToken);
 
+    private readonly ForeSiteSnapshotCache _snapshots = new(TimeSpan.FromSeconds(10), clock);
+
+    public Task<ResolvePreview> ResolveAsync(ResolveRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return WithSessionAsync(new(request.ConnectionId, request.ConnectionRevision, request.Settings, request.ExternalId, request.Input), async session =>
+        {
+            var provider = new ForeSiteResolveProvider(session.Session, _snapshots, $"{request.ConnectionId}/{request.ConnectionRevision}");
+            var result = await provider.ResolveAsync(request.ExternalId, request.Input, request.Basis, session.Token);
+            if (!request.Read || result.Outcome != ResolveOutcome.Compatible)
+                return new ResolvePreview(result, null, null);
+            try { return new ResolvePreview(result, await provider.ReadAsync(request.ExternalId, result.Candidates[0], session.Token), null); }
+            catch (ForeSiteMeasurementException error) { return new ResolvePreview(result, null, error.Code); }
+        }, cancellationToken);
+    }
+
+    public Task<SetPointWritePlan> PlanSetPointAsync(SetPointPlanRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return WithSessionAsync(new(request.ConnectionId, request.ConnectionRevision, request.Settings, request.ExternalId, request.SetPoint), async session =>
+            await new ForeSiteResolveProvider(session.Session)
+                .PlanSetPointChangeAsync(request.ExternalId, request.SetPoint, request.Delta, session.Token), cancellationToken, budgetSeconds: 60);
+    }
+
     public Task<HistoricalReadResult> ReadHistoryAsync(ConnectionHistoryRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -45,14 +69,14 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
     }
 
     private async Task<T> WithSessionAsync<T>(ConnectionMeasurementRequest request,
-        Func<(ForeSiteSession Session, CancellationToken Token), Task<T>> read, CancellationToken cancellationToken)
+        Func<(ForeSiteSession Session, CancellationToken Token), Task<T>> read, CancellationToken cancellationToken, int budgetSeconds = 6)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.ConnectionId == Guid.Empty || request.ConnectionRevision < 1 || request.Settings is null ||
             AdapterSettingsValidator.Validate(ForeSiteAdapter.Descriptor, request.Settings).Count != 0)
             throw Failure("FORESITE_CONNECTION_INVALID");
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(TimeSpan.FromSeconds(6));
+        budget.CancelAfter(TimeSpan.FromSeconds(budgetSeconds));
         var entry = Acquire(request);
         try
         {

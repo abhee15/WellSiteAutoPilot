@@ -16,6 +16,7 @@ using WellSiteAutoPilot.Application.Assets.Views;
 using WellSiteAutoPilot.Application.Audit;
 using WellSiteAutoPilot.Application.Changes;
 using WellSiteAutoPilot.Application.Connections;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.Application.Connections.Discovery;
 using WellSiteAutoPilot.Application.Connections.Importing;
 using WellSiteAutoPilot.Application.Executions;
@@ -197,6 +198,8 @@ builder.Services.AddHttpClient<IGatewayAdapters, GatewayAdapterClient>(client =>
 });
 builder.Services.AddSingleton<DiscoverySnapshotStore>();
 builder.Services.AddScoped<ConnectionService>();
+builder.Services.AddScoped<IGatewayResolver>(services => (GatewayAdapterClient)services.GetRequiredService<IGatewayAdapters>());
+builder.Services.AddScoped<ConnectionResolveService>();
 builder.Services.AddScoped<AssetOperationService>();
 builder.Services.AddScoped<WellSiteAutoPilot.Application.Control.ConnectionCommandCatalogService>();
 builder.Services.AddScoped<ConnectionMonitorService>();
@@ -1806,6 +1809,26 @@ v1.MapPost(
     .RequireAuthorization(WellSitePolicies.ConnectionsManage)
     .Produces<DiscoverySearchResponse>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/connections/{connectionId:guid}/resolve",
+    async (Guid connectionId, ResolveInputRequest request, ConnectionResolveService resolver, CancellationToken cancellationToken) =>
+        Results.Ok(await resolver.ResolveAsync(connectionId, request.ExternalId, request.Input,
+            Enum.TryParse<ResolveBasis>(request.Basis, true, out var basis) ? basis : null, request.Read ?? true, cancellationToken)))
+    .WithName("ResolveConnectionInput")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<ResolvePreview>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
+v1.MapPost(
+    "/connections/{connectionId:guid}/setpoint-plan",
+    async (Guid connectionId, SetPointPlanInput request, ConnectionResolveService resolver, CancellationToken cancellationToken) =>
+        Results.Ok(await resolver.PlanSetPointAsync(connectionId, request.ExternalId, request.SetPoint, request.Delta, cancellationToken)))
+    .WithName("PlanConnectionSetPoint")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<SetPointWritePlan>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
 v1.MapPost("/connections/{connectionId:guid}/source-checks",

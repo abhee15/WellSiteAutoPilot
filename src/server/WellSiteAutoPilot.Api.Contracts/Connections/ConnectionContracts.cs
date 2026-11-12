@@ -127,3 +127,8 @@ public sealed record ImportConnectionRequest(
 
 public sealed record ImportResultResponse(
     int WellsCreated, int GroupsCreated, int GroupsReused, int AlreadyImported, IReadOnlyList<string> TypesCreated, bool HierarchyAdopted = false);
+
+/// <summary>Basis is one of Static, Current, DailyAverage, TestSample, History; null lets the provider list every candidate.</summary>
+public sealed record ResolveInputRequest(string ExternalId, string Input, string? Basis = null, bool? Read = null);
+
+public sealed record SetPointPlanInput(string ExternalId, string SetPoint, decimal Delta);

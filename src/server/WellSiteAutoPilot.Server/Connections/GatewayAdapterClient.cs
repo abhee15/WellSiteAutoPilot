@@ -13,7 +13,7 @@ namespace WellSiteAutoPilot.Server.Connections;
 /// Asks the Integration Gateway about adapters, presenting the Server's own caller key. The key is read when a
 /// request is made, so a Server without one still starts and only connection features report the gap.
 /// </summary>
-public sealed class GatewayAdapterClient(HttpClient client, IConfiguration configuration) : IGatewayAdapters, IExecutionMeasurementGateway
+public sealed class GatewayAdapterClient(HttpClient client, IConfiguration configuration) : IGatewayAdapters, IExecutionMeasurementGateway, IGatewayResolver
 {
     private const string Base = "api/internal/v1/adapters";
 
@@ -41,6 +41,28 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         return response.StatusCode == HttpStatusCode.NotFound
             ? null
             : await response.Content.ReadFromJsonAsync<AdapterTestResult>(cancellationToken);
+    }
+
+    public async Task<ResolvePreview?> ResolveAsync(
+        string adapterKey, ResolveRequest request, CancellationToken cancellationToken = default)
+    {
+        using var message = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(adapterKey)}/resolve");
+        message.Content = JsonContent.Create(request);
+        using var response = await SendAsync(message, cancellationToken, allowNotFound: true);
+        return response.StatusCode == HttpStatusCode.NotFound
+            ? null : await response.Content.ReadFromJsonAsync<ResolvePreview>(cancellationToken);
+    }
+
+    public async Task<SetPointWritePlan?> PlanSetPointAsync(
+        string adapterKey, SetPointPlanRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!string.Equals(adapterKey, "foresite", StringComparison.Ordinal))
+            return null;
+        using var message = Authorized(HttpMethod.Post, $"{Base}/foresite/setpoint-plan");
+        message.Content = JsonContent.Create(request);
+        using var response = await SendAsync(message, cancellationToken, allowNotFound: true);
+        return response.StatusCode == HttpStatusCode.NotFound
+            ? null : await response.Content.ReadFromJsonAsync<SetPointWritePlan>(cancellationToken);
     }
 
     public async Task<DiscoveryResult?> DiscoverAsync(

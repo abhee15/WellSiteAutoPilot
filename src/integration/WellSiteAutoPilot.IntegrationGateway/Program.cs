@@ -243,6 +243,29 @@ v1.MapPost("/adapters/foresite/current",
     .RequireAuthorization(ServiceCaller.ServerPolicy)
     .Produces<EngineeringValue>(StatusCodes.Status200OK);
 
+// Resolve: which source on a saved connection serves a named input for one asset. Read-only; Server caller only.
+v1.MapPost("/adapters/{adapterKey}/resolve",
+    async (string adapterKey, ResolveRequest request, CygNetConnectionMeasurements cygnet,
+        ForeSiteConnectionMeasurements foresite, CancellationToken cancellationToken) =>
+        adapterKey switch
+        {
+            "cygnet" => Results.Ok(await cygnet.ResolveAsync(request, cancellationToken)),
+            "foresite" => Results.Ok(await foresite.ResolveAsync(request, cancellationToken)),
+            _ => Results.NotFound()
+        })
+    .WithName("ResolveAdapterInput")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<ResolvePreview>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound);
+
+// Dry-run only: plans a set point change and sends nothing.
+v1.MapPost("/adapters/foresite/setpoint-plan",
+    async (SetPointPlanRequest request, ForeSiteConnectionMeasurements provider, CancellationToken cancellationToken) =>
+        Results.Ok(await provider.PlanSetPointAsync(request, cancellationToken)))
+    .WithName("PlanForeSiteSetPoint")
+    .RequireAuthorization(ServiceCaller.ServerPolicy)
+    .Produces<SetPointWritePlan>(StatusCodes.Status200OK);
+
 v1.MapPost("/adapters/cygnet/history",
     async (ConnectionHistoryRequest request, CygNetConnectionMeasurements provider, CancellationToken cancellationToken) =>
         Results.Ok(await provider.ReadHistoryAsync(request, cancellationToken)))
