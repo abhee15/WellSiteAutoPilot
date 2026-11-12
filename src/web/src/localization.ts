@@ -174,6 +174,7 @@ export const englishMessages = {
   'logicDetail.authoringMode': 'The existing editor creates Shadow revisions. Authoring for other modes will be refined separately.',
   'logicDetail.changedElsewhere': 'The active revision changed elsewhere. Reload before activating a revision or requesting a run. Existing draft inputs are retained.',
   'logicDetail.activityUnavailable': 'Operational updates could not be refreshed. Any displayed activity or next scheduled time may be out of date.',
+  'logicDetail.savedSchedule': 'Saved schedule',
   'logicDetail.nextScheduled': 'Next scheduled',
   'logicDetail.notAvailable': 'Not available',
   'logicDetail.targetLabel': 'Targets',
