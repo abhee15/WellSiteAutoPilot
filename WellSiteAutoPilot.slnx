@@ -57,6 +57,7 @@
     <Project Path="tests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests/WellSiteAutoPilot.ConfiguredLogicPersistenceTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.CygNetAdapterTests/WellSiteAutoPilot.CygNetAdapterTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ForeSiteAdapterTests/WellSiteAutoPilot.ForeSiteAdapterTests.csproj" />
+    <Project Path="tests/WellSiteAutoPilot.AuthoringTests/WellSiteAutoPilot.AuthoringTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.PetroVisorAdapterTests/WellSiteAutoPilot.PetroVisorAdapterTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ConnectionImportTests/WellSiteAutoPilot.ConnectionImportTests.csproj" />
     <Project Path="tests/WellSiteAutoPilot.ProviderContractTests/WellSiteAutoPilot.ProviderContractTests.csproj" />

@@ -1840,6 +1840,29 @@ v1.MapPost(
     .Produces<SetPointWritePlan>(StatusCodes.Status200OK)
     .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
 
+v1.MapGet("/authoring/starters", () => Results.Ok(WellSiteAutoPilot.Application.Authoring.AuthoringStarters.All))
+    .WithName("ListAuthoringStarters")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<IReadOnlyList<WellSiteAutoPilot.Application.Authoring.Starter>>(StatusCodes.Status200OK);
+
+v1.MapPost("/authoring/validate",
+    (WellSiteAutoPilot.Application.Authoring.ModuleDraft draft) =>
+        Results.Ok(WellSiteAutoPilot.Application.Authoring.DraftAnalyzer.Analyze(draft)))
+    .WithName("ValidateModuleDraft")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<WellSiteAutoPilot.Application.Authoring.DraftAnalysis>(StatusCodes.Status200OK);
+
+v1.MapPost("/authoring/evaluate",
+    async (WellSiteAutoPilot.Application.Authoring.EvaluateDraftRequest request, ConnectionResolveService resolver, CancellationToken cancellationToken) =>
+        Results.Ok(await WellSiteAutoPilot.Application.Authoring.AuthoringService.EvaluateAsync(
+            request.Draft,
+            request.ConnectionId is { } id ? new WellSiteAutoPilot.Application.Authoring.ConnectionAuthoringInputs(resolver, id) : null,
+            request.ExternalId, request.Samples, request.Parameters, cancellationToken)))
+    .WithName("EvaluateModuleDraft")
+    .RequireAuthorization(WellSitePolicies.ConnectionsManage)
+    .Produces<WellSiteAutoPilot.Application.Authoring.ModuleRun>(StatusCodes.Status200OK)
+    .Produces<WellSiteProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+
 v1.MapPost("/connections/{connectionId:guid}/source-checks",
     async (Guid connectionId, SourceChangeService changes, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>

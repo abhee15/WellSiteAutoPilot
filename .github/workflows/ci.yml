@@ -150,6 +150,9 @@ jobs:
       - name: Verify ForeSite adapter
         run: dotnet run --project tests/WellSiteAutoPilot.ForeSiteAdapterTests/WellSiteAutoPilot.ForeSiteAdapterTests.csproj --configuration Release --no-build
 
+      - name: Verify authoring core
+        run: dotnet run --project tests/WellSiteAutoPilot.AuthoringTests/WellSiteAutoPilot.AuthoringTests.csproj --configuration Release --no-build
+
       - name: Verify CygNet adapter (offline test double, no CygNet libraries)
         run: dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests/WellSiteAutoPilot.CygNetAdapterTests.csproj --configuration Release --no-build
 

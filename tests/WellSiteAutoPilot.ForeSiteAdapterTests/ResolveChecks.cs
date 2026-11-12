@@ -27,6 +27,11 @@ internal static class ResolveChecks
         var missing = ForeSiteResolver.Resolve("CasingPressure", none);
         Check(missing.Outcome == ResolveOutcome.NotApplicable && missing.Reasons.Count == 2, "no source reports every reason");
         Check(ForeSiteResolver.Resolve("surveillance:CurrentPumpFillage", both).Outcome == ResolveOutcome.Compatible, "a surveillance point resolves by name");
+        var unitDoc = JsonDocument.Parse("""{"Units":{"CasingPressure":{"UnitKey":"psia"},"Other":{"Precision":1}},"Value":{"CasingPressure":234.2}}""").RootElement;
+        var withUnits = both with { SurveillanceUnits = ForeSiteResolver.Units(unitDoc) };
+        Check(ForeSiteResolver.Units(unitDoc).Count == 1, "only fields that report a unit key are listed");
+        Check(ForeSiteResolver.Resolve("surveillance:CasingPressure", withUnits).Candidates[0].ReadPlan == "surveillance|CasingPressure|psia",
+            "a surveillance point carries the unit ForeSite reports, not an assumed psi");
         Check(ForeSiteResolver.Resolve("CasingPresure", both).Outcome == ResolveOutcome.Misconfigured, "a typo is misconfigured");
         Check(ForeSiteResolver.ResolveCommand("CasingPressure", ["POLoadSP", "VFDMaxSPM"]).Outcome == ResolveOutcome.NotApplicable, "casing pressure is not writable");
         Check(ForeSiteResolver.ResolveCommand("setpoint:POLoadSP", ["POLoadSP"]).Outcome == ResolveOutcome.Compatible, "a writable set point resolves");

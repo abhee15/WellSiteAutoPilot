@@ -10,6 +10,9 @@ public sealed record ForeSiteWellSnapshot(
     IReadOnlyDictionary<string, string> Surveillance,
     IReadOnlyDictionary<string, string> WellTest)
 {
+    /// <summary>Units ForeSite reports for surveillance fields (for example psia), keyed by field name.</summary>
+    public IReadOnlyDictionary<string, string> SurveillanceUnits { get; init; } = new Dictionary<string, string>();
+
     public IReadOnlyDictionary<string, string> Source(string name) => name switch
     {
         "well" => Well,
@@ -89,10 +92,11 @@ public static class ForeSiteResolver
         {
             if (basis is not null && source.Basis != basis)
                 continue;
+            var unit = source.Endpoint == "surveillance" && snapshot.SurveillanceUnits.TryGetValue(source.Field, out var reported) ? reported : source.Unit;
             if (snapshot.Source(source.Endpoint).TryGetValue(source.Field, out var raw) && !string.IsNullOrWhiteSpace(raw))
                 found.Add(new ResolveCandidate($"foresite:{source.Endpoint}.{source.Field}", source.Basis,
-                    $"{source.Endpoint}.{source.Field}" + (source.Unit.Length > 0 ? $" ({source.Unit})" : ""),
-                    $"{source.Endpoint}|{source.Field}|{source.Unit}"));
+                    $"{source.Endpoint}.{source.Field}" + (unit.Length > 0 ? $" ({unit})" : ""),
+                    $"{source.Endpoint}|{source.Field}|{unit}"));
             else
                 reasons.Add($"{source.Endpoint} has no value for {source.Field} on this well.");
         }
@@ -116,6 +120,18 @@ public static class ForeSiteResolver
             return ResolveResult.Compatible(new ResolveCandidate($"foresite:setpoint.{name}", ResolveBasis.Current, $"set point {name}", name));
         return ResolveResult.Failed(ResolveOutcome.NotApplicable,
             $"'{input}' is not a writable set point on this well, so it cannot be sent to the controller. Writable: {string.Join(", ", writableSetPoints.Order())}.");
+    }
+
+    /// <summary>The unit ForeSite reports per surveillance field, from the "Units" block that comes with the values.</summary>
+    public static IReadOnlyDictionary<string, string> Units(JsonElement root)
+    {
+        var units = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Units", out var block) && block.ValueKind == JsonValueKind.Object)
+            foreach (var property in block.EnumerateObject())
+                if (property.Value.ValueKind == JsonValueKind.Object && property.Value.TryGetProperty("UnitKey", out var key)
+                    && key.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(key.GetString()))
+                    units[property.Name] = key.GetString()!;
+        return units;
     }
 
     /// <summary>Top-level scalar fields of a JSON object (or of its "Value" object); nulls and nested objects are skipped.</summary>
@@ -210,15 +226,16 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
         if (!long.TryParse(wellId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
             throw new ForeSiteMeasurementException("FORESITE_WELL_ID_INVALID");
         var well = await FetchAsync(() => session.GetAsync($"Wells/Well/{id}", cancellationToken), cancellationToken);
-        var surveillance = await FetchAsync(() => session.GetAsync($"Surveillance/well/{id}", cancellationToken), cancellationToken);
+        var units = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var surveillance = await FetchAsync(() => session.GetAsync($"Surveillance/well/{id}", cancellationToken), cancellationToken, units);
         var welltest = await FetchAsync(() => session.GetAsync($"WellTests/GetLatestWellTestData/{id}", cancellationToken), cancellationToken);
-        return new ForeSiteWellSnapshot(well, surveillance, welltest);
+        return new ForeSiteWellSnapshot(well, surveillance, welltest) { SurveillanceUnits = units };
     }
 
     // A source that is missing or fails is an empty source, so the other sources still resolve. ForeSite closes idle
     // connections, so a reset is retried once on a fresh connection.
     private static async Task<IReadOnlyDictionary<string, string>> FetchAsync(
-        Func<Task<HttpResponseMessage>> call, CancellationToken cancellationToken)
+        Func<Task<HttpResponseMessage>> call, CancellationToken cancellationToken, Dictionary<string, string>? units = null)
     {
         try
         {
@@ -227,6 +244,9 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
                 return new Dictionary<string, string>();
             using var document = await JsonDocument.ParseAsync(
                 await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            if (units is not null)
+                foreach (var (field, unit) in ForeSiteResolver.Units(document.RootElement))
+                    units[field] = unit;
             return ForeSiteResolver.Flatten(document.RootElement);
         }
         catch (JsonException)
