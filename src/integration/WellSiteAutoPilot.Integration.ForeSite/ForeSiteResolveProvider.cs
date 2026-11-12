@@ -77,7 +77,10 @@ public static class ForeSiteResolver
         ["VfdMinFrequency"] = ["VFDMinFrq", "SloSpeed"],
         ["VfdMaxFrequency"] = ["VFDMaxFrq", "PkSpeed"],
         ["TargetFillage"] = ["IdealPF", "PmpFillPer"],
-        ["MinimumFillage"] = ["MinPFA"]
+        ["MinimumFillage"] = ["MinPFA"],
+        ["FillageDeadband"] = ["PODeadBand"],
+        ["DownstrokeSpeed1"] = ["Sec4ScaSpd"],
+        ["DownstrokeSpeed2"] = ["Sec5ScaSpd"]
     };
 
     public static string[] SetPointNames(string input) =>
