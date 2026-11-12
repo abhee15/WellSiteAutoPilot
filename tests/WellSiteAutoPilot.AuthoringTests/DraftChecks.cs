@@ -50,14 +50,16 @@ internal static class DraftChecks
         var fake = new FakeInputs(answers) { History = Day };
         var run = await AuthoringService.EvaluateAsync(draft, fake, "1596", null, null, null, new FixedClock(FakeInputs.Now));
         Check.That(run.Outcome == ModuleOutcome.Runs, "idle time runs from history: " + string.Join("; ", run.Inputs.Select(i => i.Name + "=" + i.Resolution)));
-        Check.That(run.Outputs.Single().Value.Number == 30m, "idle time falls 60 -> 30 min when production fell; the controller's seconds were converted to minutes");
+        Check.That(run.Outputs[0].Value.Number == 30m, "idle time falls 60 -> 30 min when production fell; the controller's seconds were converted to minutes");
         Check.That(fake.HistoryAsked.Any(a => a.End == today && a.Start == today.AddMinutes(-60)) && fake.HistoryAsked.Any(a => a.End == today.AddDays(-1)),
             "today's and the day before's gauge-off windows are read in site time");
         Check.That(run.Inputs.First(i => i.Name == "Cycles").Value.Number == 20m, "the last reading in the window is used");
+        var proposal = run.Outputs.Single(o => o.Name == "IdleTime_proposal");
+        Check.That(proposal.Proposed == false && proposal.Checks!.Any(c => c.Name == "Evidence quality" && c.Status == "Fail"), "a proposal resting on saved or uncertain readings is refused: writing needs a live read");
 
         var gap = new FakeInputs(answers) { History = (q, end) => q == "InferredProductionYesterday" && end.Day == 10 ? FakeInputs.Samples(q, "bbl/d", false) : Day(q, end) };
         var missing = await AuthoringService.EvaluateAsync(draft, gap, "1596", null, null, null, new FixedClock(FakeInputs.Now));
-        Check.That(missing.Outcome != ModuleOutcome.Runs && !missing.Outputs.Single().Value.Available, "no history for the day before stops the run instead of counting as zero");
+        Check.That(missing.Outcome != ModuleOutcome.Runs && !missing.Outputs[0].Value.Available, "no history for the day before stops the run instead of counting as zero");
         var cut = new FakeInputs(answers) { History = (q, end) => q == "CyclesYesterday" ? FakeInputs.Samples(q, "", true, (end.AddMinutes(-1), 20)) : Day(q, end) };
         var truncated = await AuthoringService.EvaluateAsync(draft, cut, "1596", null, null, null, new FixedClock(FakeInputs.Now));
         Check.That(truncated.Outcome != ModuleOutcome.Runs, "a truncated window is never treated as complete");
