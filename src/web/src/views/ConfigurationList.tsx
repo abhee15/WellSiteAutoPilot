@@ -13,7 +13,7 @@ import type { OwnerGroup } from './assetHierarchy';
 import { loadViews } from './assetViewsApi';
 import { loadConnections } from './connections';
 import { groupConfigurations, listedStatus } from './configuredLogicViews';
-import { scheduleText } from './logicSummary';
+import { configurationScheduleText } from './logicSummary';
 import { configuredTargetLabel, latestRunByConfiguration, shortId } from './runContext';
 import { useLiveResource } from './useLiveResource';
 
@@ -143,11 +143,7 @@ export function ConfigurationList({
                   const name = connection?.name ?? ownersById.get(id) ?? shortId(id);
                   return connection?.adapterKey ? `${name} (${connection.adapterKey})` : name;
                 });
-                const effective = active ? (item.effectiveSchedule ?? revision?.schedule) : revision?.schedule;
-                const schedule =
-                  active && effective?.enabled === false && revision?.schedule?.enabled
-                    ? t('schedules.paused')
-                    : scheduleText(effective);
+                const schedule = configurationScheduleText(item, revision);
                 const run = lastRuns.get(item.id ?? '');
                 const drafts = item.revisions?.filter((revision) => revision.status === 'Draft').length ?? 0;
                 const version = revision?.moduleVersion

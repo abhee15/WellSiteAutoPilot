@@ -9,7 +9,7 @@ import { hashFor } from '../routing';
 import { Status } from '../components/Status';
 import { ActionButton } from '../components/ActionButton';
 import { LoadingIndicator } from '../components/LoadingIndicator';
-import { scheduleText } from './logicSummary';
+import { configurationScheduleText } from './logicSummary';
 import { orderedRevisions } from './configuredLogicViews';
 import './logicSummary.css';
 
@@ -43,9 +43,9 @@ export function ConfiguredLogicRevisionOverview({ logic, assets = [], activity, 
       <div><dt>{t('logicDetail.targetLabel')}</dt><dd>{targets.slice(0, 2).map(id => assetIdentityLabel(id, assets, owners)).join(', ') || '—'}
         {targets.length > 2 && <> · {t('logicDetail.moreTargets', { count: targets.length - 2 })}</>}</dd></div>
       <div><dt>{t('logicDetail.providerLabel')}</dt><dd>{providers.join(', ') || t('logicDetail.noProviders')}</dd></div>
-      <div><dt>{t('configured.schedule')}</dt><dd>{scheduleText(active ? logic.effectiveSchedule ?? active.schedule : null)}</dd></div>
+      <div><dt>{t('configured.schedule')}</dt><dd>{configurationScheduleText(logic, shown)}</dd></div>
     </dl>
-    {active?.schedule?.enabled && <p>{t('logicDetail.nextScheduled')}: {matching && activity.nextScheduledAtUtc
+    {(logic.effectiveSchedule ?? active?.schedule)?.enabled && <p>{t('logicDetail.nextScheduled')}: {matching && activity.nextScheduledAtUtc
       ? formatTimestamp(activity.nextScheduledAtUtc) : t('logicDetail.notAvailable')}</p>}
     {shown.view && <p className="logic-detail-note">{t('assetDetail.viewSchedule')}</p>}
     {loading && <LoadingIndicator size="small" label={t('assetPage.loading')} />}

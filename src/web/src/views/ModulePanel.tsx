@@ -12,7 +12,7 @@ import { moduleStateLabel } from './moduleApproval';
 
 export function ModulePanel({ module, configurations, onClose, canManage = false, onChanged = async () => {}, versions = [], onSelectVersion }: {
   module: LogicModuleResponse;
-  configurations: readonly ConfiguredLogicResponse[];
+  configurations?: readonly ConfiguredLogicResponse[];
   onClose: () => void;
   canManage?: boolean;
   onChanged?: () => Promise<void>;
@@ -20,7 +20,7 @@ export function ModulePanel({ module, configurations, onClose, canManage = false
   onSelectVersion?: (id: string) => void;
 }) {
   const summary = describeModule(module);
-  const usedBy = configurations.filter(item => item.id && item.revisions?.some(revision =>
+  const usedBy = (configurations ?? []).filter(item => item.id && item.revisions?.some(revision =>
     revision.moduleId === module.moduleId)).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
   return (
     <section className="module-panel" role="region" aria-label={t('modulePanel.label', { name: module.displayName ?? '—' })}>
@@ -47,11 +47,13 @@ export function ModulePanel({ module, configurations, onClose, canManage = false
         <ul>{summary.needs.map(line => <li key={line}>{line}</li>)}</ul>
       </>}
       <p>{summary.declaresCommands ? t('modulePanel.commands') : t('modulePanel.noCommands')}</p>
-      <h4>{t('modulePanel.usedBy')}</h4>
-      {usedBy.length === 0 ? <p>{t('modulePanel.unused')}</p>
-        : <ul>{usedBy.map(item => <li key={item.id}>
-          <ContextLink appearance="record" href={hashFor('logic', item.id)} label={item.name ?? '—'} />
-        </li>)}</ul>}
+      {configurations && <>
+        <h4>{t('modulePanel.usedBy')}</h4>
+        {usedBy.length === 0 ? <p>{t('modulePanel.unused')}</p>
+          : <ul>{usedBy.map(item => <li key={item.id}>
+            <ContextLink appearance="record" href={hashFor('logic', item.id)} label={item.name ?? '—'} />
+          </li>)}</ul>}
+      </>}
     </section>
   );
 }

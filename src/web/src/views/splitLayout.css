@@ -130,7 +130,8 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
   overflow-wrap: anywhere;
 }
 
-.configuration-list .configuration-group .ui-action-button {
+.activity-table.configuration-list td button,
+.configuration-list .status-indicator {
   white-space: normal;
   text-align: start;
 }

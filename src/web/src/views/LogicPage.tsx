@@ -65,7 +65,7 @@ export function LogicPage({
   );
   const [rawDetail, setSelectedConfiguredId] = useHashDetail('logic');
   // `#logic/new:<assetId>` starts setup from an asset (the "Put logic on this asset" link);
-  // `#logic/modules` opens the Modules tab. Any other detail is a configuration id.
+  // `#logic/modules` opens the catalog and `modules:<id>` opens an installed version.
   const startViewId = rawDetail?.startsWith('new-view:') ? rawDetail.slice(9) : null;
   const startAssetId = rawDetail?.startsWith('new:') ? rawDetail.slice(4) : null;
   const aboutModuleId = rawDetail?.startsWith(MODULE_PREFIX) ? rawDetail.slice(MODULE_PREFIX.length) : null;
@@ -222,7 +222,7 @@ export function LogicPage({
             <ActionButton label={t('logic.back')} className="split-back" onClick={() => setAboutModuleId(null)} />
             {aboutModule ? <ModulePanel key={aboutModule.id} module={aboutModule}
               versions={selectedModuleVersions} onSelectVersion={setAboutModuleId}
-              configurations={canReadConfigurations ? configuredLogic : []}
+              configurations={canReadConfigurations ? configuredLogic : undefined}
               canManage={permissions.includes('logic.manage')} onChanged={onRefresh}
               onClose={() => setAboutModuleId(null)} />
               : <p className="split-note">{t(aboutModuleId ? 'configured.moduleUnavailable' : 'logic.pickModule')}</p>}

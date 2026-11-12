@@ -60,7 +60,9 @@ it('a module explains what it does, what it needs and what uses it', async () =>
   const panel = await screen.findByRole('region', { name: 'About Fillage monitor' });
   expect(panel.textContent).toContain('Reads pump fillage for 1 well.');
   expect(panel.textContent).toContain('no older than 1 min');
-  expect(panel.textContent).toContain('Pressure watch');
+  const deployment = screen.getByRole('link', { name: 'Pressure watch' });
+  expect(deployment.getAttribute('href')).toBe('#logic/' + configurationId);
+  expect(window.location.hash).toBe('#logic/modules%3Am1');
 });
 
 it('Configurations and Modules are addressable navigation links beside the selection pane', async () => {
