@@ -60,6 +60,8 @@ internal static class DraftChecks
         var gap = new FakeInputs(answers) { History = (q, end) => q == "InferredProductionYesterday" && end.Day == 10 ? FakeInputs.Samples(q, "bbl/d", false) : Day(q, end) };
         var missing = await AuthoringService.EvaluateAsync(draft, gap, "1596", null, null, null, new FixedClock(FakeInputs.Now));
         Check.That(missing.Outcome != ModuleOutcome.Runs && !missing.Outputs[0].Value.Available, "no history for the day before stops the run instead of counting as zero");
+        Check.That(missing.Outputs.Where(o => o.Kind == "setpoint").All(o => o.Proposed == false && o.Checks!.Any(c => c.Name == "Module outcome" && c.Status == "Fail")),
+            "when the module does not run, no set point is proposed and the reason says so");
         var cut = new FakeInputs(answers) { History = (q, end) => q == "CyclesYesterday" ? FakeInputs.Samples(q, "", true, (end.AddMinutes(-1), 20)) : Day(q, end) };
         var truncated = await AuthoringService.EvaluateAsync(draft, cut, "1596", null, null, null, new FixedClock(FakeInputs.Now));
         Check.That(truncated.Outcome != ModuleOutcome.Runs, "a truncated window is never treated as complete");

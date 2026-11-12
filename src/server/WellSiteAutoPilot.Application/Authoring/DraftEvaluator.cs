@@ -149,6 +149,16 @@ public static class DraftEvaluator
             // A definite "does not apply" wins, then a choice the author must make, then an unreachable or untrustworthy source.
             if (Rank(next) > Rank(outcome)) outcome = next;
         }
+        // The module as a whole must run before any of its set points may be proposed.
+        if (outcome != ModuleOutcome.Runs)
+            outputResults = outputResults.Select(o => o.Kind == "setpoint"
+                ? o with
+                {
+                    Proposed = false,
+                    Checks = [.. o.Checks ?? [], new ProposalCheck("Module outcome", "Fail", $"The module did not run ({outcome}), so nothing is proposed.")],
+                    Note = "Not proposed. Nothing was sent."
+                }
+                : o).ToList();
         return new ModuleRun(outcome, reasons, analysis.Fingerprint, inputs, parameterResults, stepResults, outputResults, analysis.Problems, at);
     }
 
