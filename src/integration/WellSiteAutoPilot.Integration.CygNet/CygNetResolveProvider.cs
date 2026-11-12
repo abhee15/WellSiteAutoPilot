@@ -30,6 +30,19 @@ public static class CygNetResolver
     }
 }
 
+/// <summary>Picks the candidates that fit the requested basis. A CygNet set point is a point whose current value is the setting, so a Saved request is answered by the current value.</summary>
+public static class CygNetBasis
+{
+    public static ResolveResult Apply(ResolveResult result, string input, ResolveBasis? basis)
+    {
+        if (basis is null || result.Outcome != ResolveOutcome.Compatible || result.Candidates.Any(c => c.Basis == basis))
+            return result;
+        if (basis == ResolveBasis.Saved && result.Candidates.FirstOrDefault(c => c.Basis == ResolveBasis.Current) is { } current)
+            return ResolveResult.Compatible(current with { Basis = ResolveBasis.Saved, Description = $"set point {current.Description}" });
+        return ResolveResult.Failed(ResolveOutcome.NotApplicable, $"CygNet offers '{input}' only as a current value, not '{basis}'.");
+    }
+}
+
 /// <summary>Catalog and Resolve over a live CygNet facility. Catalog reads CygNet's point service; Resolve uses it.</summary>
 public sealed class CygNetResolveProvider(CygNetProviderOptions options) : IAssetCatalogProvider, IResolveProvider
 {
@@ -53,8 +66,7 @@ public sealed class CygNetResolveProvider(CygNetProviderOptions options) : IAsse
     {
         var catalog = await GetCatalogAsync(assetExternalId, cancellationToken);
         var result = CygNetResolver.Resolve(input, options.Quantities, catalog.Select(c => c.Name).ToList());
-        return basis is null || result.Candidates.Any(c => c.Basis == basis) ? result
-            : ResolveResult.Failed(ResolveOutcome.NotApplicable, $"CygNet offers '{input}' only as a current value, not '{basis}'.");
+        return CygNetBasis.Apply(result, input, basis);
     }
 
     public async ValueTask<EngineeringValue> ReadAsync(

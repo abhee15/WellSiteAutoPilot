@@ -16,6 +16,9 @@ await HistoryChecks.RunAsync();
     Expect(missing.Outcome == ResolveOutcome.NotApplicable && missing.Reasons[0].Contains("RRLPFILAVG"), "resolve: no fillage point is not applicable");
     var typo = CygNetResolver.Resolve("PumpFilage", q, withFillage);
     Expect(typo.Outcome == ResolveOutcome.Misconfigured && typo.Reasons[0].Contains("PumpFillage"), "resolve: unmapped input is misconfigured and lists mapped inputs");
+    var saved = CygNetBasis.Apply(CygNetResolver.Resolve("PumpFillage", q, withFillage), "PumpFillage", ResolveBasis.Saved);
+    Expect(saved.Outcome == ResolveOutcome.Compatible && saved.Candidates[0].Basis == ResolveBasis.Saved, "resolve: a set point request is answered by the point's current value");
+    Expect(CygNetBasis.Apply(CygNetResolver.Resolve("PumpFillage", q, withFillage), "PumpFillage", ResolveBasis.History).Outcome == ResolveOutcome.NotApplicable, "resolve: a history request is not answered by a current value");
 }
 if (Environment.GetEnvironmentVariable("WSA_LIVE_CYGNET") == "1")
 {
