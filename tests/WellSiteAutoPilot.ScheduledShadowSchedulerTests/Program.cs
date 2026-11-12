@@ -677,8 +677,8 @@ file sealed class FaultInjectingModuleCatalogRepository(
     public Task<IReadOnlyCollection<InstalledLogicModule>> ListAsync(
         string? moduleId,
         int limit,
-        CancellationToken cancellationToken = default) =>
-        inner.ListAsync(moduleId, limit, cancellationToken);
+        int offset = 0, CancellationToken cancellationToken = default) =>
+        inner.ListAsync(moduleId, limit, offset, cancellationToken);
 
     public Task AddAsync(
         InstalledLogicModule module,

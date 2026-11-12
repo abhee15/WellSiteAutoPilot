@@ -24,7 +24,7 @@ public sealed partial class LogicModuleCatalogRepository(
     public async Task<IReadOnlyCollection<InstalledLogicModule>> ListAsync(
         string? moduleId,
         int limit,
-        CancellationToken cancellationToken = default)
+        int offset = 0, CancellationToken cancellationToken = default)
     {
         var query = dbContext.LogicModules.AsNoTracking();
 
@@ -36,6 +36,8 @@ public sealed partial class LogicModuleCatalogRepository(
         return (await query
             .OrderBy(item => item.ModuleId)
             .ThenByDescending(item => item.InstalledAtUtc)
+            .ThenBy(item => item.Id)
+            .Skip(offset)
             .Take(limit)
             .ToArrayAsync(cancellationToken))
             .Select(ToDomain)

@@ -93,6 +93,8 @@ jobs:
           npm run generate-api
           npx vite build --outDir "$GITHUB_WORKSPACE/preview-after" --emptyOutDir
       - name: Capture responsive before and after
+        env:
+          LOGIC_CONFIGURATIONS_PREVIEW: "1"
         run: |
           node before/tools/design-preview/mock-server.mjs "$GITHUB_WORKSPACE/preview-before" 5198 > /tmp/wsa-before.log 2>&1 &
           node after/tools/design-preview/mock-server.mjs "$GITHUB_WORKSPACE/preview-after" 5199 > /tmp/wsa-after.log 2>&1 &

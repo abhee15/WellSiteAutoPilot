@@ -1,4 +1,4 @@
-import type { ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
+import type { ConfiguredLogicResponse, ConfiguredLogicRevisionResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
 import { formatTimestamp } from '../format';
 import { statusLabel } from '../words';
 import { t } from '../localization';
@@ -46,9 +46,27 @@ export function logicStatusSentence(
 /** "Every 1 min · America/Chicago", or "Off" when the revision has no enabled schedule. */
 export function scheduleText(schedule: { enabled?: boolean; cadenceSeconds?: number | null; timeZoneId?: string | null; every?: number | null; unit?: string | null; endAtUtc?: string | null } | null | undefined): string {
   if (!schedule?.enabled) return t('configured.scheduleOff');
-  if (schedule.unit && schedule.every) return t('configured.scheduleEvery', {
-    interval: schedule.every + ' ' + schedule.unit.toLowerCase() }) + ' · ' + schedule.timeZoneId;
+  if (schedule.unit && schedule.every) {
+    const unit = schedule.unit.toLowerCase();
+    const interval = schedule.every + ' ' + (schedule.every === 1 ? unit.replace(/s$/, '') : unit);
+    return [t('configured.scheduleEvery', { interval }), schedule.timeZoneId].filter(Boolean).join(' · ');
+  }
   const every = typeof schedule.cadenceSeconds === 'number'
     ? t('configured.scheduleEvery', { interval: formatDuration(schedule.cadenceSeconds * 1000) }) : null;
   return [every, schedule.timeZoneId].filter(Boolean).join(' · ') || t('configured.scheduleOff');
+}
+
+/** Summarize the effective live schedule, or the proposed schedule for a saved, inactive configuration. */
+export function configurationScheduleText(
+  configuration: ConfiguredLogicResponse,
+  revision: ConfiguredLogicRevisionResponse | null | undefined,
+  now = Date.now(),
+): string {
+  const live = Boolean(revision && revision.id === configuration.activeRevisionId);
+  const effective = live ? configuration.effectiveSchedule ?? revision?.schedule : revision?.schedule;
+  if (live && effective?.endAtUtc && Date.parse(effective.endAtUtc) < now) return t('assignment.ended');
+  if (live && effective?.enabled === false && revision?.schedule?.enabled) return t('schedules.paused');
+  const label = scheduleText(effective);
+  return live && effective?.enabled && configuration.belowMinimum
+    ? [label, t('schedules.belowMinimum')].join(' · ') : label;
 }

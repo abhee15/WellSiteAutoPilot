@@ -16,7 +16,7 @@ it('selects one saved revision at a time while retaining active, pending and his
   render(<ConfiguredLogicWorkspace selectedId={logic.id} canManage={false}
     modules={[]} assets={[]} assetTypes={[]} onClose={() => undefined} onChanged={async () => undefined} />);
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('tab', { name: 'Configuration', exact: true }));
+  await user.click(await screen.findByRole('tab', { name: 'Revisions', exact: true }));
   const picker = screen.getByRole('combobox', { name: 'Saved revision' });
   expect((picker as HTMLSelectElement).value).toBe(logic.activeRevisionId);
   expect(screen.getByRole('group', { name: 'Earlier revisions (2)' })).toBeTruthy();

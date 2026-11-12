@@ -1,6 +1,7 @@
 import type {
   ConfiguredLogicResponse,
   ConfiguredLogicRevisionResponse,
+  LogicModuleResponse,
 } from '../api/generated/v1/types.gen';
 
 export type ConfiguredLogicCriteria = {
@@ -40,6 +41,7 @@ export function latestRevision(
 export function filterConfiguredLogic(
   authorizedItems: readonly ConfiguredLogicResponse[],
   criteria: ConfiguredLogicCriteria,
+  moduleNames: ReadonlyMap<string, string> = new Map(),
 ): ConfiguredLogicResponse[] {
   const query = criteria.search.trim().toLocaleLowerCase();
   return authorizedItems.filter(item => {
@@ -54,7 +56,7 @@ export function filterConfiguredLogic(
     const textFields = [
       item.name, item.id,
       ...((item.revisions ?? []).flatMap(revision =>
-        [revision.moduleId, revision.moduleVersion])),
+        [revision.moduleId, revision.moduleVersion, moduleNames.get(revision.moduleId ?? '')])),
     ];
     return textFields.some(value => (value ?? '').toLocaleLowerCase().includes(query));
   }).sort((left, right) => {
@@ -73,4 +75,39 @@ export function filterConfiguredLogic(
 export function listedStatus(item: ConfiguredLogicResponse): string {
   const live = (item.revisions ?? []).find(revision => revision.id === item.activeRevisionId);
   return live?.status ?? latestRevision(item)?.status ?? 'Draft';
+}
+
+/** An active revision is authoritative. A missing active reference must never look like a draft is live. */
+export function configurationRevision(item: ConfiguredLogicResponse): ConfiguredLogicRevisionResponse | null {
+  return item.activeRevisionId
+    ? item.revisions?.find(revision => revision.id === item.activeRevisionId) ?? null
+    : latestRevision(item);
+}
+
+export function groupConfigurations(
+  configurations: readonly ConfiguredLogicResponse[],
+  catalog: ReadonlyMap<string, readonly LogicModuleResponse[]>,
+) {
+  const groups = new Map<string, {
+    key: string; moduleId: string | null; name: string; latestApproved?: string | null;
+    deployments: { item: ConfiguredLogicResponse; revision: ConfiguredLogicRevisionResponse | null; assetIds: string[] }[];
+    assets: Set<string>; active: number;
+  }>();
+  for (const item of configurations) {
+    const revision = configurationRevision(item);
+    const moduleId = revision?.moduleId || null;
+    const key = moduleId ? 'module:' + moduleId : 'configuration:' + item.id;
+    const versions = moduleId ? catalog.get(moduleId) : undefined;
+    const group = groups.get(key) ?? {
+      key, moduleId, name: versions?.find(version => version.displayName)?.displayName || moduleId || '',
+      latestApproved: versions?.find(version => version.isEnabled === true)?.version,
+      deployments: [], assets: new Set<string>(), active: 0,
+    };
+    const assetIds = [...new Set(revision?.assetBindings?.flatMap(binding => binding.assetId ? [binding.assetId] : []) ?? [])];
+    group.deployments.push({ item, revision, assetIds });
+    for (const id of assetIds) group.assets.add(id);
+    if (item.activeRevisionId && revision) group.active++;
+    groups.set(key, group);
+  }
+  return [...groups.values()];
 }

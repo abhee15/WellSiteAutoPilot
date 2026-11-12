@@ -89,7 +89,8 @@ if (roundTrip.PackageSha256 != checksum ||
 }
 
 var listed = await catalog.ListAsync("weatherford.catalog-test", 10);
-if (listed.Count != 1 || listed.Single().Id != installed.Id)
+if (listed.Count != 1 || listed.Single().Id != installed.Id ||
+    (await catalog.ListAsync("weatherford.catalog-test", 1, offset: 1)).Count != 0)
 {
     throw new InvalidOperationException("Logic Module catalog listing failed.");
 }

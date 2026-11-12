@@ -95,7 +95,7 @@ public sealed class LogicModuleCatalogService(
     public Task<IReadOnlyCollection<InstalledLogicModule>> ListAsync(
         string? moduleId,
         int limit,
-        CancellationToken cancellationToken = default)
+        int offset = 0, CancellationToken cancellationToken = default)
     {
         if (limit is < 1 or > 500)
         {
@@ -108,7 +108,7 @@ public sealed class LogicModuleCatalogService(
         return repository.ListAsync(
             string.IsNullOrWhiteSpace(moduleId) ? null : moduleId.Trim(),
             limit,
-            cancellationToken);
+            offset, cancellationToken);
     }
 
     private static LogicModuleManifest DeserializeManifest(string json)

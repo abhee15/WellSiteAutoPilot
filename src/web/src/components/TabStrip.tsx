@@ -12,12 +12,13 @@ export function TabStrip({ label, mode, children }: {
     : <div className="tab-strip" role="tablist" aria-label={label}>{children}</div>;
 }
 
-export function TabBar({ children, action, rootRef }: {
+export function TabBar({ children, action, rootRef, compactOnNarrow }: {
   children: ReactNode;
   action?: ReactNode;
   rootRef?: Ref<HTMLDivElement>;
+  compactOnNarrow?: boolean;
 }) {
-  return <div className="tab-bar" ref={rootRef}>
+  return <div className="tab-bar" ref={rootRef} data-compact-on-narrow={compactOnNarrow || undefined}>
     {children}
     {action && <div className="tab-bar-action">{action}</div>}
   </div>;

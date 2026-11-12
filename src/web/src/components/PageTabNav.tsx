@@ -10,11 +10,13 @@ export type PageTab<T extends string> = {
 };
 
 /** Addressable page sections are links, not ARIA tabpanels. */
-export function PageTabNav<T extends string>({ label, tabs, activeId, action, onNavigate }: {
+export function PageTabNav<T extends string>({ label, tabs, activeId, action, onNavigate, compactOnNarrow }: {
   label: string;
   tabs: readonly PageTab<T>[];
   activeId: T;
   action?: ReactNode;
+  /** Give the tab strip the full row and move its action below on narrow screens. */
+  compactOnNarrow?: boolean;
   /** Optional side effect; native links still own browser/history navigation. */
   onNavigate?: (id: T) => void;
 }) {
@@ -32,7 +34,7 @@ export function PageTabNav<T extends string>({ label, tabs, activeId, action, on
     else if (bounds.right > viewport.right) strip.scrollLeft += bounds.right - viewport.right;
   }, [activeId]);
 
-  return <TabBar action={action} rootRef={rootRef}>
+  return <TabBar action={action} rootRef={rootRef} compactOnNarrow={compactOnNarrow}>
     <TabStrip label={label} mode="navigation">
       {tabs.map(tab => <a key={tab.id} className="tab-strip-item" href={tab.href}
         aria-label={tab.count === undefined ? tab.label : tab.label + ' ' + tab.count}

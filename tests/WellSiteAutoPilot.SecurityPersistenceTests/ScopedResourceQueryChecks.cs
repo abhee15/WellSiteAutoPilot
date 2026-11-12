@@ -537,7 +537,10 @@ internal static class ScopedResourceQueryChecks
                 (await assetRepository.GetAssetTypeAuthorizedAsync(request, assetTypeId))?.Id != assetTypeId ||
                 await assetRepository.GetAssetTypeAuthorizedAsync(request, unusedTypeId) is not null)
                 throw new InvalidOperationException("Scoped type metadata disclosed an unused catalog type or lost a readable Asset's type.");
+            var secondPage = (await configuredRepository.ListAuthorizedAsync(request, 1, offset: 1)).Single();
             if ((await configuredRepository.ListAuthorizedAsync(request, 1)).Single().Id != allowed.Id ||
+                secondPage.Id != mixed.Id || secondPage.Revisions.Single().Id != mixed.Revision ||
+                (await configuredRepository.ListAuthorizedAsync(request, 1, offset: 2)).Count != 0 ||
                 await configuredRepository.GetAuthorizedAsync(request, history.Id) is not null ||
                 await configuredRepository.GetAuthorizedAsync(request, inputLeak.Id) is not null ||
                 (await configuredRepository.GetAuthorizedAsync(request, mixed.Id))?.Revisions.Count != 1)

@@ -52,6 +52,22 @@ export async function loadWorkspaceSnapshot(user: VerifiedSession, signal: Abort
   }
   const object = (value: unknown) => !!value && typeof value === 'object' && !Array.isArray(value);
   const records = (value: unknown) => Array.isArray(value) && value.every(object);
+  async function readCatalog<T extends { id?: string | null }>(
+    key: 'modules' | 'configurations', permission: string, path: string,
+  ): Promise<T[]> {
+    const pageSize = 100;
+    const items = new Map<string | T, T>();
+    for (let offset = 0; offset <= 100_000; offset += pageSize) {
+      const page = await read<T[]>(key, permission, path + '?limit=' + pageSize +
+        (offset ? '&offset=' + offset : ''), [], value => records(value) && (value as unknown[]).length <= pageSize);
+      if (denied.has(permission) || sessionExpired || unavailable.has(key)) return [];
+      for (const item of page) items.set(item.id ?? item, item);
+      if (page.length < pageSize) return [...items.values()];
+    }
+    incomplete = true;
+    unavailable.add(key);
+    return [];
+  }
   const [system, executions, assetTypes, assets, capabilities, modules, configurations] = await Promise.all([
     read<SystemHealthResponse | null>('system', null, '/api/v1/system/health', null, object),
     read<ExecutionResponse[]>('executions', 'executions.read', '/api/v1/executions?limit=50', [], records),
@@ -60,8 +76,8 @@ export async function loadWorkspaceSnapshot(user: VerifiedSession, signal: Abort
     read<AssetCreationCapabilitiesResponse | null>('capabilities', 'assets.read', '/api/v1/assets/capabilities', null,
       value => object(value) && typeof (value as AssetCreationCapabilitiesResponse).canCreateRoot === 'boolean' &&
         typeof (value as AssetCreationCapabilitiesResponse).canCreateUnderAuthorizedParents === 'boolean'),
-    read<LogicModuleResponse[]>('modules', 'logic.read', '/api/v1/logic-modules?limit=100', [], records),
-    read<ConfiguredLogicResponse[]>('configurations', 'configured-logic.read', '/api/v1/configured-logic?limit=100', [], records),
+    readCatalog<LogicModuleResponse>('modules', 'logic.read', '/api/v1/logic-modules'),
+    readCatalog<ConfiguredLogicResponse>('configurations', 'configured-logic.read', '/api/v1/configured-logic'),
   ]);
   if (sessionExpired) throw new SessionAccessError('Session expired');
   // One API family can have multiple reads. A refusal clears that entire

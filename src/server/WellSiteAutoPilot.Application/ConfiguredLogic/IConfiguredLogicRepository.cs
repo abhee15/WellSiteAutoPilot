@@ -32,7 +32,7 @@ public interface IConfiguredLogicRepository
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<ConfiguredLogicDefinition>> ListAuthorizedAsync(AccessSubject subject, int limit,
-        CancellationToken cancellationToken = default);
+        int offset = 0, CancellationToken cancellationToken = default);
 
     Task AddAsync(
         ConfiguredLogicDefinition configuredLogic,

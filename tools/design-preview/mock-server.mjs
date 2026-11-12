@@ -117,6 +117,34 @@ const responses = {
       moduleId: 'esp-frequency-optimizer', moduleVersion: '1.2.0', reasonCode: 'intake_pressure_high', quantity: 'ChokePosition',
       createdAtUtc: iso(40), expiresAtUtc: new Date(now + 3_000_000).toISOString() }],
 };
+// Exercise multiple saved deployments and catalog versions in the Logic visual review.
+if (process.env.LOGIC_CONFIGURATIONS_PREVIEW === '1') {
+  const connectionA = responses['/api/v1/connections'][0];
+  connectionA.name = 'ForeSite System A';
+  const connectionB = { ...connectionA, id: id(951), name: 'ForeSite System B' };
+  responses['/api/v1/connections'].push(connectionB);
+  responses['/api/v1/security/me'].permissions.push('connections.read');
+  responses['/api/v1/logic-modules'][1].isEnabled = true;
+  responses['/api/v1/logic-modules'][1].trustStatus = 'CustomerApproved';
+  const view = (n, connectionId, name) => ({
+    id: id(n), connectionId, name, revision: 1, memberCount: 1, hasUnavailableMembers: false,
+    createdAtUtc: iso(4000), updatedAtUtc: iso(4000), canEdit: false, canDelete: false,
+  });
+  const viewA = view(960, connectionA.id, 'West wells');
+  const viewB = view(961, connectionB.id, 'East wells');
+  responses['/api/v1/asset-views'] = [viewA, viewB];
+  const viewRef = ({ id: viewId, connectionId, revision }) => ({ viewId, connectionId, revision, role: 'well' });
+  configuredDetail.revisions[0].view = viewRef(viewA);
+  const second = {
+    ...configuredDetail, id: id(501), name: 'ESP frequency — East field', activeRevisionId: id(301),
+    revisions: [{
+      ...configuredDetail.revisions[0], id: id(301), configuredLogicId: id(501), moduleVersion: '1.3.0', view: viewRef(viewB),
+      assetBindings: [{ role: 'well', assetId: id(12), parameterOverridesJson: '{}' }],
+    }],
+  };
+  responses['/api/v1/configured-logic'].push(second);
+  responses['/api/v1/configured-logic/' + second.id] = second;
+}
 // Optional live-update hub (MOCK_HUB=1): just enough of SignalR's long-polling transport for the
 // browser client to connect. Without it /hubs/changes is a 404 and the page falls back to polling,
 // which is also worth previewing. POST /__mock/change?area=assets pushes a change signal.
@@ -225,8 +253,8 @@ http.createServer(async (req, res) => {
     const rule = needs.find(([pattern]) => pattern.test(url.pathname));
     if (rule && !granted.includes(rule[1])) { res.writeHead(403, { 'content-type': 'application/json' }); res.end('{}'); return; }
   }
-  if (granted && url.pathname === '/api/v1/assets/capabilities') {
-    const can = granted.includes('assets.manage');
+  if (url.pathname === '/api/v1/assets/capabilities') {
+    const can = !granted || granted.includes('assets.manage');
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ canCreateRoot: can, canCreateUnderAuthorizedParents: can })); return;
   }
@@ -251,17 +279,20 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ items, nextCursor: null })); return;
   }
-  if (url.pathname === '/api/v1/configured-logic/' + id(500) + '/schedule' && req.method === 'GET') {
-    const schedule = configuredDetail.revisions[0].schedule;
+  const configResource = /^\/api\/v1\/configured-logic\/([^/]+)\/(schedule|activity)$/.exec(url.pathname);
+  const config = configResource && responses['/api/v1/configured-logic/' + configResource[1]];
+  if (config && configResource[2] === 'schedule' && req.method === 'GET') {
+    const schedule = config.revisions.find(revision => revision.id === config.activeRevisionId)?.schedule;
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ configuredLogicId: id(500), activeRevisionId: id(300), version: 'preview-1', declared: schedule, effective: schedule,
-      differsFromRevision: false, nextRunAtUtc: configuredDetail.nextRunAtUtc, minimumCadenceSeconds: 60, maximumCadenceSeconds: 31536000,
+    res.end(JSON.stringify({ configuredLogicId: config.id, activeRevisionId: config.activeRevisionId, version: 'preview-1', declared: schedule, effective: schedule,
+      differsFromRevision: false, nextRunAtUtc: config.nextRunAtUtc, minimumCadenceSeconds: 60, maximumCadenceSeconds: 31536000,
       belowMinimum: false, canManage: !granted || granted.includes('configured-logic.manage'), changes: [] })); return;
   }
-  if (url.pathname === '/api/v1/configured-logic/' + id(500) + '/activity' && req.method === 'GET') {
+  if (config && configResource[2] === 'activity' && req.method === 'GET') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ activeRevisionId: id(300), observedAtUtc: new Date(now).toISOString(), nextScheduledAtUtc: configuredDetail.nextRunAtUtc,
-      recentRuns: executions.filter(item => item.logicInstanceId === id(500)) })); return;
+    res.end(JSON.stringify({ activeRevisionId: config.activeRevisionId, observedAtUtc: new Date(now).toISOString(), nextScheduledAtUtc: config.nextRunAtUtc,
+      recentRuns: executions.filter(item => item.logicInstanceId === config.id)
+        .sort((a, b) => b.requestedAtUtc.localeCompare(a.requestedAtUtc)).slice(0, 2) })); return;
   }
   if (granted && url.pathname.startsWith('/api/v1/configured-logic') && req.method === 'GET') {
     const manage = granted.includes('configured-logic.manage'), request = granted.includes('executions.request');

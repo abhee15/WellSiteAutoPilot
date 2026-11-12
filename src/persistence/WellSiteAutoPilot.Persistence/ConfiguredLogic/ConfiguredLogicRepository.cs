@@ -391,46 +391,40 @@ public sealed partial class ConfiguredLogicRepository(
 
     private async Task<IReadOnlyCollection<ConfiguredLogicRevision>> LoadRevisionsAsync(
         Guid configuredLogicId,
+        CancellationToken cancellationToken) =>
+        (await LoadRevisionsAsync([configuredLogicId], cancellationToken))[configuredLogicId].ToArray();
+
+    private async Task<ILookup<Guid, ConfiguredLogicRevision>> LoadRevisionsAsync(
+        Guid[] configurationIds,
         CancellationToken cancellationToken)
     {
         var revisions = await dbContext.ConfiguredLogicRevisions
             .AsNoTracking()
-            .Where(item => item.ConfiguredLogicId == configuredLogicId)
+            .Where(item => configurationIds.Contains(item.ConfiguredLogicId))
             .OrderBy(item => item.RevisionNumber)
             .ToArrayAsync(cancellationToken);
 
         if (revisions.Length == 0)
-        {
-            return [];
-        }
+            return Array.Empty<ConfiguredLogicRevision>().ToLookup(item => item.Id);
 
         var revisionIds = revisions.Select(item => item.Id).ToArray();
-        var assetBindings = await dbContext.ConfiguredLogicAssetBindings
+        var assetBindings = (await dbContext.ConfiguredLogicAssetBindings
             .AsNoTracking()
             .Where(item => revisionIds.Contains(item.RevisionId))
             .OrderBy(item => item.Role)
             .ThenBy(item => item.AssetId)
-            .ToArrayAsync(cancellationToken);
+            .ToArrayAsync(cancellationToken)).ToLookup(item => item.RevisionId);
 
-        var dataBindings = await dbContext.ConfiguredLogicDataBindings
+        var dataBindings = (await dbContext.ConfiguredLogicDataBindings
             .AsNoTracking()
             .Where(item => revisionIds.Contains(item.RevisionId))
             .OrderBy(item => item.RequirementId)
             .ThenBy(item => item.AssetId)
-            .ToArrayAsync(cancellationToken);
+            .ToArrayAsync(cancellationToken)).ToLookup(item => item.RevisionId);
 
-        return revisions
-            .Select(revision => ToDomain(
-                revision,
-                assetBindings
-                    .Where(binding => binding.RevisionId == revision.Id)
-                    .Select(ToDomain)
-                    .ToArray(),
-                dataBindings
-                    .Where(binding => binding.RevisionId == revision.Id)
-                    .Select(ToDomain)
-                    .ToArray()))
-            .ToArray();
+        return revisions.ToLookup(revision => revision.ConfiguredLogicId,
+            revision => ToDomain(revision, assetBindings[revision.Id].Select(ToDomain).ToArray(),
+                dataBindings[revision.Id].Select(ToDomain).ToArray()));
     }
 
     private static ConfiguredLogicDefinition ToDomain(

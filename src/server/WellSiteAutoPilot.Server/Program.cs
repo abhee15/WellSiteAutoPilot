@@ -976,11 +976,11 @@ v1.MapPost(
 
 v1.MapGet(
     "/configured-logic",
-    async (int? limit, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
+    async (int? limit, int? offset, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
         IResourceActionRepository actions, IAdapterScheduleFloors floors, RequestAccessContext access, TimeProvider clock,
         CancellationToken cancellationToken) =>
     {
-        var items = await configurations.ListAuthorizedAsync(access.Subject, PageLimit(limit ?? 100), cancellationToken);
+        var items = await configurations.ListAuthorizedAsync(access.Subject, PageLimit(limit ?? 100), PageOffset(offset), cancellationToken);
         var scheduleStates = await schedules.ListAsync(items.Select(item => item.Id).ToArray(), cancellationToken);
         var capabilities = (await actions.GetConfiguredLogicActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
@@ -1309,9 +1309,10 @@ v1.MapGet(
     async (
         string? moduleId,
         int? limit,
+        int? offset,
         LogicModuleCatalogService catalog,
         CancellationToken cancellationToken) =>
-        (await catalog.ListAsync(moduleId, limit ?? 100, cancellationToken))
+        (await catalog.ListAsync(moduleId, limit ?? 100, PageOffset(offset), cancellationToken))
             .Select(ToLogicModuleResponse)
             .ToArray())
     .WithName("ListLogicModules")

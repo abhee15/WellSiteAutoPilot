@@ -15,10 +15,9 @@ import type {
 import { t } from '../localization';
 import { EmptyRow, PanelHeader } from '../components/common';
 import { Status } from '../components/Status';
-import { formatTimestamp } from '../format';
-import { profileLabel, statusLabel } from '../words';
+import { profileLabel } from '../words';
 import { moduleStateLabel, moduleStateToken } from './moduleApproval';
-import { configuredTargetLabel, latestRunByConfiguration } from './runContext';
+import { configurationTargetAssetIds } from './runContext';
 import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
 import { ConfiguredLogicControls } from './ConfiguredLogicControls';
 import { ConfiguredLogicWorkspace } from './ConfiguredLogicWorkspace';
@@ -27,7 +26,8 @@ import { ModulePanel } from './ModulePanel';
 import { SchedulesOverview } from './SchedulesOverview';
 import { ModulePackageUpload } from './ModulePackageUpload';
 import { LogicCatalogControls } from './LogicCatalogControls';
-import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, listedStatus, orderedRevisions } from './configuredLogicViews';
+import { DEFAULT_CONFIGURED_LOGIC_CRITERIA, filterConfiguredLogic, groupConfigurations } from './configuredLogicViews';
+import { ConfigurationList } from './ConfigurationList';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes, groupModuleVersions } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
@@ -36,6 +36,7 @@ import './splitLayout.css';
 /** `#logic/modules` opens the Modules tab and `#logic/schedules` the Schedules tab. */
 const MODULES_TAB = 'modules';
 const SCHEDULES_TAB = 'schedules';
+const MODULE_PREFIX = 'modules:';
 
 export function LogicPage({
   modules,
@@ -55,7 +56,6 @@ export function LogicPage({
   const canReadCatalog = permissions.includes('logic.read');
   const canReadConfigurations = permissions.includes('configured-logic.read');
   const canReadRuns = permissions.includes('executions.read');
-  const lastRuns = useMemo(() => latestRunByConfiguration(executions), [executions]);
   const mayManage = permissions.includes('configured-logic.manage');
   const [catalogCriteria, setCatalogCriteria] = useState<LogicCatalogCriteria>(
     DEFAULT_LOGIC_CATALOG_CRITERIA,
@@ -65,10 +65,11 @@ export function LogicPage({
   );
   const [rawDetail, setSelectedConfiguredId] = useHashDetail('logic');
   // `#logic/new:<assetId>` starts setup from an asset (the "Put logic on this asset" link);
-  // `#logic/modules` opens the Modules tab. Any other detail is a configuration id.
+  // `#logic/modules` opens the catalog and `modules:<id>` opens an installed version.
   const startViewId = rawDetail?.startsWith('new-view:') ? rawDetail.slice(9) : null;
   const startAssetId = rawDetail?.startsWith('new:') ? rawDetail.slice(4) : null;
-  const modulesRequested = rawDetail === MODULES_TAB;
+  const aboutModuleId = rawDetail?.startsWith(MODULE_PREFIX) ? rawDetail.slice(MODULE_PREFIX.length) : null;
+  const modulesRequested = rawDetail === MODULES_TAB || aboutModuleId !== null;
   const schedulesRequested = rawDetail === SCHEDULES_TAB;
   const selectedConfiguredId = startAssetId || startViewId || modulesRequested || schedulesRequested ? null : rawDetail;
   const showSchedules = canReadConfigurations && schedulesRequested;
@@ -78,25 +79,35 @@ export function LogicPage({
   useEffect(() => { if (startAssetId || startViewId) setCreating(true); }, [startAssetId, startViewId]);
   const prefillAssetId = startAssetId && assets.some(asset => asset.id === startAssetId && asset.isActive)
     ? startAssetId : null;
-  const [aboutModuleId, setAboutModuleId] = useState<string | null>(null);
-  const aboutModule = modules.find(module => module.id === aboutModuleId);
+  const setAboutModuleId = (id: string | null) => setSelectedConfiguredId(id ? MODULE_PREFIX + id : MODULES_TAB);
+  const aboutModule = canReadCatalog ? modules.find(module => module.id === aboutModuleId) : undefined;
   const canManage = mayManage && canReadConfigurations;
   const canCreate = canManage && (Boolean(startViewId) || assets.some(asset => asset.isActive));
   useEffect(() => { if (!canCreate) setCreating(false); }, [canCreate]);
   const selectedConfiguration = configuredLogic.find(item => item.id === selectedConfiguredId);
-  useForgetVanishedSelection(selectedConfiguredId, Boolean(selectedConfiguration) || configuredLogic.length >= 100, () => setSelectedConfiguredId(null));
+  useForgetVanishedSelection(selectedConfiguredId, Boolean(selectedConfiguration), () => setSelectedConfiguredId(null));
+  const moduleGroups = useMemo(() => groupModuleVersions(canReadCatalog ? modules : []), [canReadCatalog, modules]);
+  const moduleCatalog = useMemo(() => new Map(moduleGroups.map(group => [group.key, group.versions])), [moduleGroups]);
+  const moduleNames = useMemo(() => new Map(moduleGroups.map(group =>
+    [group.key, group.versions.find(version => version.displayName)?.displayName ?? group.key])), [moduleGroups]);
   const visibleConfigurations = useMemo(
-    () => filterConfiguredLogic(configuredLogic, configuredCriteria),
-    [configuredLogic, configuredCriteria],
+    () => filterConfiguredLogic(canReadConfigurations ? configuredLogic : [], configuredCriteria, moduleNames),
+    [canReadConfigurations, configuredLogic, configuredCriteria, moduleNames],
   );
-  // Resolve the grid's visible target names independently from the selected detail.
-  // Changing selection must not invalidate names already shown in unrelated table rows.
+  const configurationGroups = useMemo(
+    () => {
+      const groups = groupConfigurations(visibleConfigurations, moduleCatalog);
+      return configuredCriteria.sort === 'name' ? groups.sort((a, b) => a.name.localeCompare(b.name)) : groups;
+    },
+    [visibleConfigurations, moduleCatalog, configuredCriteria.sort],
+  );
+  // Resolve visible names independently from the selected detail, including the Schedules overview.
   const gridTargetIds = useMemo(() => {
     if (showModules) return [];
-    const targets = visibleConfigurations.flatMap(item => (contextRevision(item)?.assetBindings ?? [])
-      .flatMap(binding => binding.assetId ? [binding.assetId] : []).slice(0, 2));
+    const items = showSchedules ? configuredLogic : visibleConfigurations;
+    const targets = items.flatMap(item => configurationTargetAssetIds(item).slice(0, 2));
     return [...new Set(targets)].slice(0, 100);
-  }, [showModules, visibleConfigurations]);
+  }, [showModules, showSchedules, configuredLogic, visibleConfigurations]);
   const canReadAssets = permissions.includes('assets.read');
   const gridAssetDirectory = useAssetIdentityDirectory(gridTargetIds, assets, canReadAssets, userId);
   // A selected configuration may reference historical assets not shown in the grid.
@@ -114,27 +125,29 @@ export function LogicPage({
     () => filterLogicCatalog(modules, catalogCriteria),
     [modules, catalogCriteria],
   );
-  const moduleGroups = useMemo(() => groupModuleVersions(modules), [modules]);
   const visibleGroups = useMemo(() => groupModuleVersions(visibleModules), [visibleModules]);
   const selectedModuleVersions = moduleGroups.find(group => group.versions.some(version => version.id === aboutModuleId))?.versions ?? [];
   const runtimes = useMemo(() => availableLogicRuntimes(modules), [modules]);
 
-  const splitFocus = useSplitPaneFocus(showModules ? aboutModule?.id ?? null
-    : selectedConfiguredId ?? (creating && canCreate ? 'new' : null));
-  const hasConfigurationDetail = selectedConfiguredId !== null || (creating && canCreate);
+  const configurationSelection = canReadConfigurations ? selectedConfiguredId : null;
+  const splitFocus = useSplitPaneFocus(showModules ? aboutModuleId
+    : configurationSelection ?? (creating && canCreate ? 'new' : null));
+  const hasConfigurationDetail = configurationSelection !== null || (creating && canCreate);
   const isActivityFocused = activityFocused && selectedConfiguredId !== null && !showSchedules && !showModules;
 
   return (
     <div {...splitFocus} className={`split-layout runs-layout logic-layout${isActivityFocused ? ' logic-history-focused' : ''}`}
-      data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModule) : hasConfigurationDetail}>
-      <PageTabNav label={t('logic.tabs')}
+      data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModuleId) : hasConfigurationDetail}>
+      <PageTabNav label={t('logic.tabs')} compactOnNarrow
         tabs={[
           ...(canReadConfigurations ? [
             { id: 'configured', label: t('logic.tabConfigured'), href: hashFor('logic'), count: configuredLogic.length },
-            { id: SCHEDULES_TAB, label: t('logic.tabSchedules'), href: hashFor('logic', SCHEDULES_TAB) },
           ] : []),
           ...(canReadCatalog ? [
             { id: MODULES_TAB, label: t('logic.tabModules'), href: hashFor('logic', MODULES_TAB), count: moduleGroups.length },
+          ] : []),
+          ...(canReadConfigurations ? [
+            { id: SCHEDULES_TAB, label: t('logic.tabSchedules'), href: hashFor('logic', SCHEDULES_TAB) },
           ] : []),
         ]}
         activeId={showSchedules ? SCHEDULES_TAB : showModules ? MODULES_TAB : 'configured'}
@@ -209,16 +222,16 @@ export function LogicPage({
             <ActionButton label={t('logic.back')} className="split-back" onClick={() => setAboutModuleId(null)} />
             {aboutModule ? <ModulePanel key={aboutModule.id} module={aboutModule}
               versions={selectedModuleVersions} onSelectVersion={setAboutModuleId}
-              configurations={canReadConfigurations ? configuredLogic : []}
+              configurations={canReadConfigurations ? configuredLogic : undefined}
               canManage={permissions.includes('logic.manage')} onChanged={onRefresh}
               onClose={() => setAboutModuleId(null)} />
-              : <p className="split-note">{t('logic.pickModule')}</p>}
+              : <p className="split-note">{t(aboutModuleId ? 'configured.moduleUnavailable' : 'logic.pickModule')}</p>}
           </section>
         </div>
       ) : (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabConfigured')}>
-            <PanelHeader title="Configured logic"
+            <PanelHeader title={t('logic.tabConfigured')}
               count={visibleConfigurations.length} />
             <ConfiguredLogicControls
               criteria={configuredCriteria}
@@ -226,51 +239,14 @@ export function LogicPage({
               matchingCount={visibleConfigurations.length}
               totalCount={configuredLogic.length}
             />
-            {!isLoaded ? <PanelLoading label={t('views.loading')} /> : <DataTable label={t('configured.tableLabel')}>
-                <thead>
-                  <tr>
-                    <th>{t('configured.colStatus')}</th>
-                    <th>{t('configured.colLogic')}</th>
-                    <th className="run-col-secondary">{t('configured.colRevision')}</th>
-                    {canReadRuns && <th className="run-col-secondary">{t('configured.colLastRun')}</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleConfigurations.map(item => (
-                    <tr key={item.id} data-selected={selectedConfiguredId === item.id}
-                      onClick={event => {
-                        if ((event.target as HTMLElement).closest('button, a')) return;
-                        if (item.id) { setCreating(false); setSelectedConfiguredId(item.id); }
-                      }}>
-                      <td><Status value={listedStatus(item)} /></td>
-                      <td>
-                        <button type="button" className="asset-select" disabled={!item.id}
-                          aria-expanded={selectedConfiguredId === item.id}
-                          aria-controls={selectedConfiguredId === item.id ? 'configured-revisions' : undefined}
-                          aria-label={t('configured.inspectFor', { name: item.name ?? '—' })}
-                          onClick={() => { setCreating(false); setSelectedConfiguredId(current =>
-                            current === item.id ? null : item.id ?? null); }}>
-                          {item.name}
-                        </button>
-                        <small>{configuredTargetLabel((contextRevision(item)?.assetBindings ?? []).flatMap(binding => binding.assetId ? [binding.assetId] : []), gridAssetDirectory.assets, gridAssetDirectory.owners)}</small>
-                        <small>{contextRevision(item)?.moduleId} · v{contextRevision(item)?.moduleVersion}</small>
-                        {(item.revisions ?? []).some(revision => revision.status === 'Draft') && <small>{t('logic.rowDrafts', { count: (item.revisions ?? []).filter(revision => revision.status === 'Draft').length })}</small>}
-                      </td>
-                      <td className="run-col-secondary">{activeRevisionLabel(item)}</td>
-                      {canReadRuns && <td className="run-col-secondary">{lastRunText(lastRuns.get(item.id ?? ''))}</td>}
-                    </tr>
-                  ))}
-                  {visibleConfigurations.length === 0 && (
-                    <EmptyRow columns={canReadRuns ? 4 : 3} loading={!isLoaded}
-                      hint={isLoaded && configuredLogic.length === 0 ? t('configured.noneHint') : undefined}
-                      action={isLoaded && configuredLogic.length > 0 ? <ActionButton label={t('views.clearFilters')} onClick={() => setConfiguredCriteria(DEFAULT_CONFIGURED_LOGIC_CRITERIA)} /> : undefined}>
-                      {!isLoaded ? t('views.loading') : configuredLogic.length === 0 ? t('configured.none') : t('configured.noMatches')}
-                    </EmptyRow>
-                  )}
-                </tbody>
-              </DataTable>}
+            <ConfigurationList groups={configurationGroups} selectedId={configurationSelection}
+              isLoaded={isLoaded} totalCount={configuredLogic.length} assets={gridAssetDirectory.assets}
+              owners={gridAssetDirectory.owners} executions={canReadRuns ? executions : undefined}
+              canReadConnections={permissions.includes('connections.read')} userId={userId}
+              onClearFilters={() => setConfiguredCriteria(DEFAULT_CONFIGURED_LOGIC_CRITERIA)}
+              onSelect={id => { setCreating(false); setSelectedConfiguredId(id); }} />
           </section>
-          <section className="split-selected" tabIndex={-1} aria-label={t('logic.tabConfigured')}>
+          <section id="configured-revisions" className="split-selected" tabIndex={-1} aria-label={t('logic.tabConfigured')}>
             <ActionButton label={t('logic.back')} className="split-back" onClick={() => { setSelectedConfiguredId(null); setCreating(false); }} />
             {hasConfigurationDetail ? (
               <ConfiguredLogicWorkspace
@@ -281,7 +257,7 @@ export function LogicPage({
                 canReadViews={permissions.includes('connections.read')}
                 canReadControl={permissions.includes('recommendations.read')}
                 canManageControl={permissions.includes(CONTROL_MANAGE_PERMISSION)}
-                modules={modules} assets={detailAssetDirectory.assets} owners={detailAssetDirectory.owners} assetTypes={assetTypes}
+                modules={canReadCatalog ? modules : []} assets={detailAssetDirectory.assets} owners={detailAssetDirectory.owners} assetTypes={assetTypes}
                 executions={canReadRuns ? executions : undefined}
                 onChanged={onRefresh} onActivityFocusedChange={setActivityFocused}
                 onClose={() => { setSelectedConfiguredId(null); setCreating(false); }}
@@ -292,18 +268,4 @@ export function LogicPage({
       )}
     </div>
   );
-}
-
-function contextRevision(item: ConfiguredLogicResponse) {
-  return item.revisions?.find(revision => revision.id === item.activeRevisionId) ?? orderedRevisions(item)[0];
-}
-
-function activeRevisionLabel(item: ConfiguredLogicResponse): string {
-  if (!item.activeRevisionId) return '—';
-  const active = item.revisions?.find(revision => revision.id === item.activeRevisionId);
-  return active?.revisionNumber ? t('setup.revision', { number: active.revisionNumber }) : '—';
-}
-
-function lastRunText(run?: { requestedAtUtc: string; status: string | null }): string {
-  return run ? `${formatTimestamp(run.requestedAtUtc)} · ${statusLabel(run.status)}` : t('configured.noRecentRun');
 }

@@ -85,3 +85,13 @@
 @media (pointer: coarse) {
   .tab-strip-item { min-height: var(--size-touch-target); }
 }
+
+@media (width <= 40em) {
+  .tab-bar[data-compact-on-narrow] { flex-wrap: wrap; }
+  .tab-bar[data-compact-on-narrow] > .tab-strip { flex-basis: 100%; }
+  .tab-bar[data-compact-on-narrow] .tab-strip-item { padding-inline: var(--space-12); }
+  .tab-bar[data-compact-on-narrow] > .tab-bar-action {
+    margin-inline-start: auto;
+    padding-bottom: var(--space-4);
+  }
+}
