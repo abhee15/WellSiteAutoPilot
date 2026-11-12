@@ -82,7 +82,11 @@ public static class ForeSiteResolver
         ["VfdMaxSpeed"] = ["VFDMaxSPM"],
         ["SpeedTrimEnabled"] = ["STAEnR"],
         ["DownstrokeSpeed1"] = ["Sec4ScaSpd"],
-        ["DownstrokeSpeed2"] = ["Sec5ScaSpd"]
+        ["DownstrokeSpeed2"] = ["Sec5ScaSpd"],
+        ["SpeedChangeMode"] = ["Sec1SpdChg"],
+        ["StrokeLocationMode"] = ["Sec4StkLoc"],
+        ["UpstrokeSpeedOverride"] = ["Sec1WoSpLi"],
+        ["DownstrokeSpeedOverride"] = ["Sec4WoSpLi"]
     };
 
     public static string[] SetPointNames(string input) =>
@@ -99,7 +103,7 @@ public static class ForeSiteResolver
         var found = names.Select(n => all.FirstOrDefault(p => string.Equals(p.Id, n, StringComparison.OrdinalIgnoreCase))).FirstOrDefault(p => p.Id is not null);
         if (found.Id is null)
             return ResolveResult.Failed(ResolveOutcome.NotApplicable, $"This well has no saved set point named {string.Join(" or ", names)}.");
-        if (!decimal.TryParse(found.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
+        if (!ForeSiteSetPoints.TryNumber(found.Value, out _))
             return ResolveResult.Failed(ResolveOutcome.Misconfigured, $"Set point {found.Id} is not numeric (\"{found.Value}\").");
         return ResolveResult.Compatible(new ResolveCandidate($"foresite:setpoint.{found.Id}", ResolveBasis.Saved,
             $"saved set point {found.Id}" + (found.Unit.Length > 0 ? $" ({found.Unit})" : ""), $"setpoint|{found.Id}|{found.Unit}"));
@@ -229,6 +233,15 @@ public static class ForeSiteResolver
 
 public static class ForeSiteSetPoints
 {
+    /// <summary>A set point value as a number. Enumerated set points read like "1-Fixed" or "04-Idle Time"; the leading number is the code the controller stores.</summary>
+    public static bool TryNumber(string value, out decimal number)
+    {
+        if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out number))
+            return true;
+        var dash = value.IndexOf('-', StringComparison.Ordinal);
+        return dash > 0 && decimal.TryParse(value.AsSpan(0, dash), NumberStyles.None, CultureInfo.InvariantCulture, out number);
+    }
+
     /// <summary>Writable set points (not read-only, not hidden) from an AllSavedSetPointParams response.</summary>
     public static IReadOnlyList<(string Id, string Description, string Unit, string Value, decimal? Low, decimal? High)> Parse(string json, bool includeReadOnly = false)
     {
@@ -258,7 +271,7 @@ public static class ForeSiteSetPoints
         if (found.Count == 0)
             return new SetPointWritePlan(wellId, setPoint, "", "", 0, 0, null, null, false, $"'{setPoint}' is not a writable set point on this well.");
         var p = found[0];
-        if (!decimal.TryParse(p.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var current))
+        if (!ForeSiteSetPoints.TryNumber(p.Value, out var current))
             return new SetPointWritePlan(wellId, p.Id, p.Description, p.Unit, 0, 0, p.Low, p.High, false, $"'{p.Id}' is not numeric ('{p.Value}').");
         var proposed = absolute ?? current + delta;
         var inRange = (p.Low is null || proposed >= p.Low) && (p.High is null || proposed <= p.High);
@@ -416,7 +429,7 @@ public sealed class ForeSiteResolveProvider(ForeSiteSession session, ForeSiteSna
         {
             var saved = ForeSiteSetPoints.Parse(await SavedSetPointsAsync(assetExternalId, cancellationToken), includeReadOnly: true)
                 .FirstOrDefault(p => string.Equals(p.Id, parts[1], StringComparison.OrdinalIgnoreCase));
-            if (saved.Id is null || !decimal.TryParse(saved.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var stored))
+            if (saved.Id is null || !ForeSiteSetPoints.TryNumber(saved.Value, out var stored))
                 throw new ForeSiteMeasurementException("FORESITE_MEASUREMENT_MISSING");
             var now = DateTimeOffset.UtcNow;
             // The saved value has no observation time and may differ from the controller, so it is never reported as Good.

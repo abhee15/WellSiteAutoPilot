@@ -57,6 +57,9 @@ internal static class ResolveChecks
         Check(ForeSiteResolver.IsSetPointInput("setpoint:IdleTime") && ForeSiteResolver.ResolveSetPoint("setpoint:Mode", idleJson).Outcome == ResolveOutcome.Misconfigured,
             "a non-numeric set point is misconfigured, and read-only set points can still be read");
         Check(ForeSiteResolver.ResolveSetPoint("setpoint:Nope", idleJson).Outcome == ResolveOutcome.NotApplicable, "an unknown set point is not applicable");
+        Check(ForeSiteSetPoints.TryNumber("04-Idle Time", out var code) && code == 4 && ForeSiteSetPoints.TryNumber("1-Fixed", out code) && code == 1
+            && ForeSiteSetPoints.TryNumber("-5", out code) && code == -5 && !ForeSiteSetPoints.TryNumber("Auto", out _) && !ForeSiteSetPoints.TryNumber("-Auto", out _),
+            "an enumerated set point reads as its code, and plain text is still refused");
         const string vsdJson = """[{"SetPointsList":[{"ElementId":"SloSpeed","UnitKey":"Hz","OriginalValue":"25","IsReadOnly":false}]}]""";
         Check(ForeSiteResolver.IsSetPointInput("VfdMinFrequency") && ForeSiteResolver.ResolveSetPoint("VfdMinFrequency", vsdJson).Candidates[0].ReadPlan == "setpoint|SloSpeed|Hz",
             "a portable quantity finds whichever ForeSite element id the controller family uses");
