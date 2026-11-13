@@ -21,6 +21,7 @@ const labels: Record<string, MessageKey> = {
   'assets.read': 'roles.permissionAssetsRead',
   'assets.manage': 'roles.permissionAssetsManage',
   'logic.read': 'roles.permissionLogicRead',
+  'logic.authoring.manage': 'roles.permissionGuidedDraftManage',
   'logic.manage': 'roles.permissionLogicManage',
   'configured-logic.read': 'roles.permissionConfiguredRead',
   'configured-logic.manage': 'roles.permissionConfiguredManage',

@@ -208,6 +208,7 @@ builder.Services.AddScoped<ExecutionService>();
 builder.Services.AddScoped<ManualShadowRequestService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<LogicModulePackageService>();
+builder.Services.AddScoped<GuidedModuleDraftService>();
 builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ConfiguredLogicScheduleControlService>();
@@ -1253,6 +1254,40 @@ v1.MapGet(
         StatusCodes.Status500InternalServerError,
         "application/problem+json");
 
+v1.MapPost("/guided-module-drafts",
+    async (SaveGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        ToGuidedDraft(await drafts.CreateAsync(await ReadGuidedDraftAsync(request, cancellationToken), access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("CreateGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedModuleDraftResponse>();
+
+v1.MapGet("/guided-module-drafts/{id:guid}",
+    async (Guid id, GuidedModuleDraftService drafts, RequestAccessContext access, CancellationToken cancellationToken) =>
+        ToGuidedDraft(await drafts.GetAsync(id, access.Subject, cancellationToken)))
+    .WithName("GetGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedModuleDraftResponse>();
+
+v1.MapPut("/guided-module-drafts/{id:guid}",
+    async (Guid id, SaveGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+        ToGuidedDraft(await drafts.EditAsync(id, request.ExpectedRevision ?? 0, await ReadGuidedDraftAsync(request, cancellationToken),
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("EditGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedModuleDraftResponse>();
+
+v1.MapPost("/guided-module-drafts/{id:guid}/preview",
+    async (Guid id, PreviewGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var evidence = await drafts.PreviewAsync(id, request.ExpectedRevision, request.Value, request.ParametersJson,
+            access.Subject, cancellationToken);
+        var recommendation = evidence.Result?.Recommendations.SingleOrDefault();
+        return new GuidedModulePreviewResponse(request.ExpectedRevision, evidence.PackageSha256,
+            evidence.Result?.OutcomeCode, evidence.FailureCode, recommendation?.Title, recommendation?.Detail);
+    })
+    .WithName("PreviewGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedModulePreviewResponse>();
+
 v1.MapPost(
     "/logic-modules",
     async (
@@ -1887,6 +1922,30 @@ app.MapHealthChecks("/health/ready").AllowAnonymous();
 app.MapChangeSignal();
 
 app.Run();
+
+static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModuleDraftRequest request, CancellationToken cancellationToken)
+{
+    if (request.Definition is not { } definition)
+        throw new WellSiteAutoPilotException("GUIDED_DRAFT_DEFINITION_REQUIRED", FailureKind.Validation, "A threshold definition is required.");
+    if (string.IsNullOrWhiteSpace(request.ManifestJson) || request.ManifestJson.Length > 65_536)
+        throw new WellSiteAutoPilotException("GUIDED_DRAFT_MANIFEST_INVALID", FailureKind.Validation, "Provide a bounded module manifest.");
+    using var source = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(request.ManifestJson));
+    WellSiteAutoPilot.Domain.Logic.LogicModuleManifest manifest;
+    try { manifest = await LogicModuleManifestReader.ReadAsync(source, cancellationToken); }
+    catch (System.Text.Json.JsonException error)
+    {
+        throw new WellSiteAutoPilotException("GUIDED_DRAFT_MANIFEST_INVALID", FailureKind.Validation, "The module manifest is malformed.", innerException: error);
+    }
+    return new(manifest with { EntryPoint = DeclarativeThresholdModule.EntryPoint },
+        new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail));
+}
+
+static GuidedModuleDraftResponse ToGuidedDraft(GuidedModuleDraft draft)
+{
+    var definition = draft.Content.Definition;
+    return new(draft.Id, draft.Revision, GuidedDraftManifestJson.Serialize(draft.Content.Manifest),
+        new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail));
+}
 
 static AssetTypeResponse ToAssetTypeResponse(WellSiteAutoPilot.Domain.Assets.AssetTypeDefinition assetType) => new(
     assetType.Id,

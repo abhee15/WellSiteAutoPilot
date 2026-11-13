@@ -39,6 +39,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
     public DbSet<LogicModulePackageEntity> LogicModulePackages => Set<LogicModulePackageEntity>();
+    public DbSet<GuidedModuleDraftEntity> GuidedModuleDrafts => Set<GuidedModuleDraftEntity>();
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
     public DbSet<ConfiguredLogicScheduleStateEntity> ConfiguredLogicScheduleStates => Set<ConfiguredLogicScheduleStateEntity>();
@@ -276,6 +277,13 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
             .WithMany()
             .HasForeignKey(x => x.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        var guidedDraft = modelBuilder.Entity<GuidedModuleDraftEntity>();
+        guidedDraft.ToTable("guided_module_drafts", "logic");
+        guidedDraft.HasKey(x => x.Id);
+        guidedDraft.HasIndex(x => x.OwnerUserId);
+        guidedDraft.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.Restrict);
+        guidedDraft.Property(x => x.ContentJson).HasColumnType("jsonb").IsRequired();
 
         var modulePackage = modelBuilder.Entity<LogicModulePackageEntity>();
         modulePackage.ToTable("module_packages", "logic", table => table.HasCheckConstraint(

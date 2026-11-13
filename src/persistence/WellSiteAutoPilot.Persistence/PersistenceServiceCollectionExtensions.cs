@@ -50,6 +50,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IConfiguredLogicScheduleRepository, ConfiguredLogicScheduleRepository>();
         services.AddScoped<ILogicModuleCatalogRepository, LogicModuleCatalogRepository>();
         services.AddScoped<IModulePackageStateRepository, LogicModuleCatalogRepository>();
+        services.AddScoped<IGuidedModuleDraftRepository, GuidedModuleDraftRepository>();
         services.AddScoped<ILogicModulePackageRepository, LogicModuleCatalogRepository>();
         services.AddScoped<ILogicModuleApprovalRepository, LogicModuleCatalogRepository>();
         services.AddScoped<IRecommendationRepository, RecommendationRepository>();
