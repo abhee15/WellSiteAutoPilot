@@ -163,7 +163,10 @@ export function AuthoringNodeEditor({ draft, kind, name, analysis, run, points, 
       {traced && <><dt>Last test</dt><dd>{showVal(traced.value)}</dd></>}
       {outputResult && <><dt>Last test</dt><dd>{showVal(outputResult.value, outputResult.unit)}</dd></>}
     </dl>
-    <div className="connection-actions"><ActionButton label={`Remove ${kindLabel[kind].toLowerCase()}`} variant="quiet" onClick={onRemove} /></div>
+    <div className="connection-actions">
+      {kind !== 'output' && <ActionButton label={`Copy name ${name}`} variant="secondary" onClick={() => void navigator.clipboard?.writeText(name)} />}
+      <ActionButton label={`Remove ${kindLabel[kind].toLowerCase()}`} variant="quiet" onClick={onRemove} />
+    </div>
   </div>;
 }
 

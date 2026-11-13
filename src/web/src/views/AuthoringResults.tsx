@@ -18,8 +18,11 @@ function SetPointPanel({ output }: { output: OutputResult }) {
   const verdict = output.proposed ? (plan?.allowed ? 'Proposed, within limits' : 'Refused') : 'No change proposed';
   return <section className="authoring-safety" aria-label={`Set point proposal ${output.name}`} data-verdict={output.proposed ? (plan?.allowed ? 'ok' : 'refused') : 'none'}>
     <p><strong className="authoring-badge">DRY RUN</strong> {verdict}. Nothing was sent to the controller.</p>
-    {plan && <p className="authoring-change">{plan.setPoint}: {plan.current} → <strong>{plan.proposed}</strong> {plan.unit}
-      <small> (controller range {plan.rangeLow}–{plan.rangeHigh})</small></p>}
+    {plan && <table className="authoring-diff" aria-label={`Change to ${plan.setPoint}`}>
+      <thead><tr><th>Set point</th><th>Current</th><th>Proposed</th><th>Change</th><th>Controller range</th></tr></thead>
+      <tbody><tr><td>{plan.setPoint}</td><td>{plan.current} {plan.unit}</td><td><strong>{plan.proposed} {plan.unit}</strong></td>
+        <td>{plan.proposed === plan.current ? 'none' : `${plan.proposed > plan.current ? '+' : '-'}${Number(Math.abs(plan.proposed - plan.current).toFixed(5))} ${plan.unit}`}</td>
+        <td>{plan.rangeLow ?? '?'} to {plan.rangeHigh ?? '?'}</td></tr></tbody></table>}
     {output.checks && output.checks.length > 0 && <ul className="authoring-checks">{output.checks.map(check => <li key={check.name} data-status={check.status}>
       <strong>{statusLabel[check.status]}</strong> {check.name}: {check.detail}</li>)}</ul>}
     {output.note && <p className="connection-help">{output.note}</p>}
