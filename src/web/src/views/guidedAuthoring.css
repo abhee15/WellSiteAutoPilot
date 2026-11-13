@@ -1,0 +1,44 @@
+.guided-authoring {
+  grid-column: 1 / -1;
+}
+
+.guided-authoring-editor,
+.guided-authoring-review {
+  display: grid;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.guided-authoring-actions,
+.guided-authoring-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.guided-authoring-approval {
+  display: grid;
+  gap: var(--space-12);
+  justify-items: start;
+}
+
+.guided-authoring-fields > * {
+  flex: 1 1 var(--layout-field-min);
+  min-width: 0;
+}
+
+.guided-authoring-mobile {
+  display: none;
+}
+
+@media (width <= 40em) {
+  .guided-authoring-editor,
+  .guided-authoring-approval {
+    display: none;
+  }
+
+  .guided-authoring-mobile {
+    display: block;
+    padding: var(--space-16);
+  }
+}
