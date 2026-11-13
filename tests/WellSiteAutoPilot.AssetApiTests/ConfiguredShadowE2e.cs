@@ -194,6 +194,18 @@ internal static class ConfiguredShadowE2e
             throw new InvalidOperationException("The guided run lost input provenance or emitted a control intent.");
         if (pressure && output.RootElement.GetProperty("engineeringResults")[0].GetProperty("value").GetDecimal() != 280)
             throw new InvalidOperationException("Pressure differential diverged from preview.");
+        if (pressure)
+        {
+            using var simulator = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:5091") };
+            using var changed = await simulator.PutAsJsonAsync("/api/sim/v1/assets/WELL-102/current/CasingPressure",
+                new { value = 400, unit = "psi", quality = "Bad" });
+            changed.EnsureSuccessStatusCode();
+            var badReceipt = await Send(client, path + "/shadow", Guid.NewGuid());
+            var badRun = await AwaitTerminal(client, badReceipt.GetProperty("executionId").GetGuid());
+            if (badRun.GetProperty("status").GetString() != "Failed" ||
+                badRun.GetProperty("failureCode").GetString() != "EXECUTION_INPUT_QUALITY_REJECTED")
+                throw new InvalidOperationException("The worker accepted a bad pressure reading: " + badRun);
+        }
         Console.WriteLine($"Guided draft, preview, approval and configured Shadow execution passed for {(pressure ? "pressure differential" : "pump fillage")}.");
     }
 
