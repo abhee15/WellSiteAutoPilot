@@ -119,7 +119,8 @@ it('tests a module against typed values and marks the evidence stale after an ed
   render(<AuthoringWorkbench />);
   const user = userEvent.setup();
 
-  await screen.findByText('The module is valid. Calculation order: IsHigh.');
+  await user.click(await screen.findByRole('button', { name: /Pressure status|Gated/ }));
+  await screen.findByText('Valid');
   fireEvent.change(screen.getByLabelText('Value for Casing'), { target: { value: '300' } });
   await user.click(screen.getByRole('button', { name: 'Run test' }));
   await screen.findByText('Runs on this asset. Every required input resolved.');
@@ -162,7 +163,8 @@ it('edits a rule table row and a history window, and shows which rule decided', 
   render(<AuthoringWorkbench />);
   const user = userEvent.setup();
 
-  await screen.findByText('The module is valid. Calculation order: IsHigh.');
+  await user.click(await screen.findByRole('button', { name: /Pressure status|Gated/ }));
+  await screen.findByText('Valid');
   await user.click(screen.getAllByRole('button', { name: /Casing/ })[0]);
   expect((screen.getByLabelText(/^Ends at/) as HTMLInputElement).value).toBe('now');
   fireEvent.change(screen.getByLabelText('Window (minutes)'), { target: { value: '120' } });
@@ -203,6 +205,7 @@ it('lists the module as reads, decides and does, and opens a row in place', asyn
   render(<AuthoringWorkbench />);
   const user = userEvent.setup();
 
+  await user.click(await screen.findByRole('button', { name: /Pressure status|Gated/ }));
   await screen.findByRole('heading', { name: 'How it decides' });
   expect(screen.getByRole('heading', { name: 'What it reads' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'What it does' })).toBeTruthy();
