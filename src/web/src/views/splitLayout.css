@@ -130,6 +130,34 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
   overflow-wrap: anywhere;
 }
 
+/* The open configuration reads the same here as in the Runs list; its module header carries a lighter cue so the
+   selection stays findable when the module is collapsed. */
+.configuration-list tbody tr[data-selected='true'] {
+  background: var(--color-surface-navigation-active);
+  box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring);
+}
+
+.configuration-list .configuration-group[data-holds-selection='true'] {
+  box-shadow: inset var(--border-width-thick) 0 0 var(--color-focus-ring);
+}
+
+.configuration-group-chip {
+  display: inline-block;
+  margin-inline-start: var(--space-8);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-status-info);
+  color: var(--color-text-selected);
+  font-size: var(--font-size-tag);
+  white-space: nowrap;
+}
+
+.configuration-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding-block-end: var(--space-2);
+}
+
 .activity-table.configuration-list td button,
 .configuration-list .status-indicator {
   white-space: normal;
