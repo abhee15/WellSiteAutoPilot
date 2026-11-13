@@ -11,6 +11,7 @@ public sealed record InspectedLogicModulePackage(
     LogicModuleManifest Manifest, string Sha256, int PayloadFileCount)
 {
     public string ManifestJson { get; init; } = string.Empty;
+    public DeclarativeThresholdModule? DeclarativeModule { get; init; }
 }
 
 /// <summary>
@@ -92,7 +93,20 @@ public static class LogicModulePackageReader
             }
             await using var manifestStream = manifestEntry!.Open();
             var parsed = await LogicModuleManifestReader.ReadDocumentAsync(manifestStream, cancellationToken);
-            return new InspectedLogicModulePackage(parsed.Manifest, sha256, payloadCount) { ManifestJson = parsed.NormalizedJson };
+            DeclarativeThresholdModule? declarative = null;
+            if (DeclarativeThresholdModule.UsesReservedEntryPoint(parsed.Manifest))
+            {
+                var definition = archive.GetEntry(DeclarativeThresholdModule.PayloadPath);
+                if (payloadCount != 1 || definition is null || definition.Length > DeclarativeThresholdModule.MaximumDefinitionBytes)
+                    Fail("The declarative package must contain only a bounded definition.json payload.");
+                await using var definitionStream = definition.Open();
+                declarative = await DeclarativeThresholdModule.ReadAsync(parsed.Manifest, definitionStream, cancellationToken);
+            }
+            return new InspectedLogicModulePackage(parsed.Manifest, sha256, payloadCount)
+            {
+                ManifestJson = parsed.NormalizedJson,
+                DeclarativeModule = declarative
+            };
         }
         catch (Exception exception) when (exception is InvalidDataException or JsonException or OverflowException)
         {

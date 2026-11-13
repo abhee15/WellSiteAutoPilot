@@ -35,6 +35,9 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
             new LogicModulePackageExpectation(moduleId, version, sha256, LogicRuntimeKind.DotNet, sdk));
         LogicModulePackageCompatibility.ValidateCatalog(inspected, moduleId, version, sha256, reviewedManifestJson);
 
+        if (inspected.DeclarativeModule is { } declarative)
+            return new LoadedLogicModule(declarative, null, null);
+
         var lease = _directories.Acquire();
         var directory = lease.DirectoryPath;
         PackageLoadContext? context = null;
@@ -149,7 +152,7 @@ public sealed class DotNetModulePackageHost(IModulePackageSource source, string 
     }
 }
 
-public sealed class LoadedLogicModule(object module, AssemblyLoadContext context, string directory,
+public sealed class LoadedLogicModule(object module, AssemblyLoadContext? context, string? directory,
     IDisposable? directoryLease = null) : IAsyncDisposable
 {
     private object? _module = module;
@@ -167,8 +170,8 @@ public sealed class LoadedLogicModule(object module, AssemblyLoadContext context
         }
         finally
         {
-            context.Unload();
-            try { Directory.Delete(directory, recursive: true); }
+            context?.Unload();
+            try { if (directory is not null) Directory.Delete(directory, recursive: true); }
             finally { directoryLease?.Dispose(); }
         }
     }

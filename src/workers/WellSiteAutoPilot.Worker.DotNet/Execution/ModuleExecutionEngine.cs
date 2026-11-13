@@ -1,3 +1,4 @@
+using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Failures;
 using WellSiteAutoPilot.Messaging.Contracts.Execution;
 using WellSiteAutoPilot.ModuleSdk;
@@ -177,6 +178,22 @@ public sealed class ModuleExecutionEngine(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
         if (request.Assets.Count == 0) throw new InvalidOperationException("Execution request must contain at least one Asset binding.");
+
+        if (logicModule is DeclarativeThresholdModule declarative)
+        {
+            var input = declarative.Input;
+            if (request.Assets.Count != 1 || request.Inputs.Count != 1)
+                throw InputFailure("EXECUTION_INPUT_CONTRACT_MISMATCH");
+            var binding = request.Inputs.Single();
+            if (!string.Equals(request.Assets.Single().Role, input.AssetRole, StringComparison.OrdinalIgnoreCase) ||
+                binding.AssetId != request.Assets.Single().AssetId ||
+                !string.Equals(binding.RequirementId, input.Id, StringComparison.OrdinalIgnoreCase) ||
+                binding.Quantity != input.Quantity || binding.Access != input.Access ||
+                binding.CanonicalUnit != input.CanonicalUnit || binding.MaximumAgeSeconds != input.MaximumAgeSeconds ||
+                binding.AllowUncertainQuality != input.AllowUncertainQuality ||
+                binding.RequiredCapability is not null || binding.SchemaId is not null)
+                throw InputFailure("EXECUTION_INPUT_CONTRACT_MISMATCH");
+        }
 
         var diagnostics = new ExecutionFailureDiagnostics();
         using var readLimiter = new SemaphoreSlim(_maximumConcurrentInputReads);

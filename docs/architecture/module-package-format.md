@@ -12,6 +12,12 @@ payload/
 
 The manifest is the package source of truth and must pass the same semantic validation used by the Server and CLI. Payload content is runtime-specific and may contain compiled .NET artifacts, Python source/wheels, or other approved module resources.
 
+## Declarative threshold packages
+
+A manifest V1 with entry point `wsa.declarative.threshold.v1` selects the product-owned threshold evaluator in the .NET host. The archive contains `manifest.json` and one payload file, `payload/definition.json`. The manifest declares one asset role with one bound asset, one current scalar input with a canonical unit, and one numeric parameter in its settings schema. The definition names that parameter and supplies its default, recommendation code, title, and detail. The settings schema bounds the default and any override.
+
+The evaluator uses the asset override, configured value, or reviewed default in that order. A reading strictly below the threshold yields a recommendation. The worker verifies the reviewed package hash and the declared input binding before reading data. The evaluator applies the shared input validation and emits no control intents. Package inspection validates the payload before approval or loading. The package catalog and publication path continue to use the reviewed archive hash.
+
 The CLI command
 
 ```text
