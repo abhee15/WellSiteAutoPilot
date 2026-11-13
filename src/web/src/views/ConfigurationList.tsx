@@ -102,10 +102,9 @@ export function ConfigurationList({
             <tbody key={group.key}>
               <tr className="configuration-group" data-holds-selection={holdsSelection}>
                 <td colSpan={showRuns ? 4 : 3}>
-                  <ActionButton
-                    variant="quiet"
-                    icon={expanded ? ChevronDown : ChevronRight}
-                    label={group.name || t('configured.moduleUnavailable')}
+                  <button
+                    type="button"
+                    className="configuration-group-toggle"
                     aria-expanded={expanded}
                     onClick={() =>
                       setCollapsed((current) => {
@@ -115,7 +114,14 @@ export function ConfigurationList({
                         return next;
                       })
                     }
-                  />
+                  >
+                    {expanded ? (
+                      <ChevronDown size={16} aria-hidden="true" />
+                    ) : (
+                      <ChevronRight size={16} aria-hidden="true" />
+                    )}
+                    <span>{group.name || t('configured.moduleUnavailable')}</span>
+                  </button>
                   {group.moduleId && group.moduleId !== group.name && <small>{group.moduleId}</small>}
                   <small>
                     {[
