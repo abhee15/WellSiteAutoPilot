@@ -59,7 +59,7 @@ test('controls have accessible labels and dynamic runtime options', () => {
   }));
   assert.match(html, /Logic module catalog controls/);
   assert.match(html, /role="group"/);
-  assert.match(html, /<option value="DotNet">DotNet<\/option>/);
+  assert.match(html, /<option value="DotNet">\.NET<\/option>/);
   assert.match(html, /Showing 2 of 3 loaded versions/);
 });
 

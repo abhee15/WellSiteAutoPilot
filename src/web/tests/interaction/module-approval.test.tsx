@@ -95,3 +95,17 @@ it('a refusal is explained in words and the choice is closed, with no second wri
   expect((await within(approval).findByRole('alert')).textContent).toContain('already retired and cannot be approved again');
   expect(writes).toHaveLength(1);
 });
+
+it('lists the module first, then its short state, publisher, and runtime wording', async () => {
+  fixture(['logic.read'], { trustStatus: 'CustomerApproved', isEnabled: true });
+  render(<App />);
+  const row = (await screen.findByRole('button', { name: 'About Fillage monitor' })).closest('tr')!;
+  const headers = screen.getAllByRole('columnheader').map(cell => cell.textContent);
+  expect(headers.slice(0, 4)).toEqual(['Module', 'Status', 'Publisher', 'Runtime']);
+  const cells = within(row).getAllByRole('cell');
+  expect(within(cells[0]).getByRole('button', { name: 'About Fillage monitor' })).toBeTruthy();
+  expect(cells[1].textContent).toContain('Approved');
+  expect(cells[1].textContent).not.toContain('your company');
+  expect(cells[2].textContent).toBe('Weatherford');
+  expect(cells[3].textContent).toBe('.NET · Runs on a schedule');
+});

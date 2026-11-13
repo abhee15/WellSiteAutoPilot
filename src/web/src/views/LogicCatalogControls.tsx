@@ -2,6 +2,7 @@ import { FilterToolbar, FilterSelect } from '../components/FilterToolbar';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA } from './logicCatalog';
 import type { FilterChip } from '../components/FilterToolbar';
 import { t } from '../localization';
+import { runtimeLabel } from '../words';
 import type { LogicCatalogCriteria } from './logicCatalog';
 
 type Props = {
@@ -42,7 +43,7 @@ export function LogicCatalogControls({
             onChange={event => onChange({ ...criteria, runtime: event.target.value })}>
             <option value="all">{t('logicCatalog.allRuntimes')}</option>
             {runtimes.map(runtime => (
-              <option key={runtime} value={runtime}>{runtime}</option>
+              <option key={runtime} value={runtime}>{runtimeLabel(runtime)}</option>
             ))}</FilterSelect>
         <FilterSelect label={t('logicCatalog.sort')} value={criteria.sort}
             onChange={event => onChange({

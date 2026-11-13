@@ -15,7 +15,7 @@ import type {
 import { t } from '../localization';
 import { EmptyRow, PanelHeader } from '../components/common';
 import { Status } from '../components/Status';
-import { profileLabel } from '../words';
+import { profileLabel, runtimeLabel } from '../words';
 import { moduleStateLabel, moduleStateToken } from './moduleApproval';
 import { configurationTargetAssetIds } from './runContext';
 import { useAssetIdentityDirectory } from './useAssetIdentityDirectory';
@@ -161,7 +161,7 @@ export function LogicPage({
       ) : showModules ? (
         <div className="split-panes">
           <section className="panel split-browse" aria-label={t('logic.tabModules')}>
-            <PanelHeader title="Logic modules" count={visibleGroups.length} />
+            <PanelHeader title={t('logicCatalog.tableLabel')} count={visibleGroups.length} />
             <LogicCatalogControls
               criteria={catalogCriteria}
               onChange={setCatalogCriteria}
@@ -175,8 +175,8 @@ export function LogicPage({
             {!isLoaded ? <PanelLoading label={t('views.loading')} /> : <DataTable label={t('logicCatalog.tableLabel')}>
                 <thead>
                   <tr>
-                    <th>{t('logicCatalog.colStatus')}</th>
                     <th>{t('logicCatalog.colModule')}</th>
+                    <th>{t('logicCatalog.colStatus')}</th>
                     <th className="run-col-secondary">{t('logicCatalog.colPublisher')}</th>
                     <th className="run-col-secondary">{t('logicCatalog.colRuntime')}</th>
                   </tr>
@@ -192,7 +192,6 @@ export function LogicPage({
                         if ((event.target as HTMLElement).closest('button, a')) return;
                         if (module.id) setAboutModuleId(module.id);
                       }}>
-                      <td><Status value={moduleStateToken(module)} label={moduleStateLabel(module)} /><small>{t('moduleGroup.shown', { version: module.version ?? '—' })}</small></td>
                       <td>
                         <button type="button" className="asset-select"
                           aria-expanded={selectedFamily}
@@ -204,8 +203,9 @@ export function LogicPage({
                         <small>{t('moduleGroup.versions', { count: allVersions.length })}</small>
                         {group.versions.length < allVersions.length && <small>{t('moduleGroup.matches', { count: group.versions.length })}</small>}
                       </td>
+                      <td><Status value={moduleStateToken(module)} label={moduleStateLabel(module)} /><small>{t('moduleGroup.shown', { version: module.version ?? '—' })}</small></td>
                       <td className="run-col-secondary">{module.publisher}</td>
-                      <td className="run-col-secondary">{module.runtime} · {profileLabel(module.executionProfile)}</td>
+                      <td className="run-col-secondary">{runtimeLabel(module.runtime)} · {profileLabel(module.executionProfile)}</td>
                     </tr>;
                   })}
                   {visibleModules.length === 0 && (
