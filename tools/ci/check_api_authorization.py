@@ -15,9 +15,13 @@ import sys
 # must be consciously reviewed and added here in the SAME PR.
 # The two authenticated-only endpoints inherit the authenticated route group.
 EXPECTED_ENDPOINTS: dict[tuple[str, str], tuple[str, str | None]] = {
+    ("GET", "/guided-module-drafts"): ("ListGuidedModuleDrafts", "GuidedDraftManage"),
     ("POST", "/guided-module-drafts"): ("CreateGuidedModuleDraft", "GuidedDraftManage"),
     ("GET", "/guided-module-drafts/{id:guid}"): ("GetGuidedModuleDraft", "GuidedDraftManage"),
     ("PUT", "/guided-module-drafts/{id:guid}"): ("EditGuidedModuleDraft", "GuidedDraftManage"),
+    ("GET", "/guided-module-drafts/{id:guid}/submissions/{revision:int}"): ("GetGuidedModuleSubmission", "GuidedDraftReview"),
+    ("POST", "/guided-module-drafts/{id:guid}/submissions/{revision:int}/approve"): ("ApproveGuidedModuleSubmission", "LogicManage"),
+    ("POST", "/guided-module-drafts/{id:guid}/submit"): ("SubmitGuidedModuleDraft", "GuidedDraftManage"),
     ("POST", "/guided-module-drafts/{id:guid}/preview"): ("PreviewGuidedModuleDraft", "GuidedDraftManage"),
     ("GET", "/system/info"): ("GetSystemInformation", "SystemStatusRead"),
     ("GET", "/system/health"): ("GetSystemHealth", None),

@@ -20,14 +20,26 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
 
     public async Task<GuidedModuleDraft?> FindOwnedAsync(Guid id, AccessSubject subject, CancellationToken cancellationToken = default)
     {
+        var entity = await OwnedDrafts(subject).SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        return entity is null ? null : ToDraft(entity);
+    }
+
+    public async Task<IReadOnlyList<GuidedModuleDraft>> ListOwnedAsync(AccessSubject subject, int offset, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var entities = await OwnedDrafts(subject).OrderBy(item => item.Id).Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
+        return entities.Select(ToDraft).ToArray();
+    }
+
+    private IQueryable<GuidedModuleDraftEntity> OwnedDrafts(AccessSubject subject)
+    {
         var authorized = ScopedAccessQueries.DeploymentGrants(db, subject.UserId, WellSitePermissions.GuidedDraftManage,
             subject.Groups, clock.GetUtcNow());
-        var entity = await db.GuidedModuleDrafts.AsNoTracking()
-            .Where(item => item.Id == id && item.OwnerUserId == subject.UserId && authorized.Any())
-            .SingleOrDefaultAsync(cancellationToken);
-        return entity is null ? null : new(entity.Id, entity.OwnerUserId, entity.Revision,
-            JsonSerializer.Deserialize<GuidedModuleDraftContent>(entity.ContentJson, Json)!);
+        return db.GuidedModuleDrafts.AsNoTracking().Where(item => item.OwnerUserId == subject.UserId && authorized.Any());
     }
+
+    private static GuidedModuleDraft ToDraft(GuidedModuleDraftEntity entity) =>
+        new(entity.Id, entity.OwnerUserId, entity.Revision, JsonSerializer.Deserialize<GuidedModuleDraftContent>(entity.ContentJson, Json)!);
 
     public Task AddOwnedAsync(GuidedModuleDraft draft, AccessSubject subject, SecurityActorContext actor,
         CancellationToken cancellationToken = default) =>
@@ -54,6 +66,57 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
                     .SetProperty(item => item.ContentJson, content), cancellationToken);
             if (changed != 1) throw Conflict();
         }, cancellationToken);
+
+    public async Task<GuidedModuleReviewSnapshot?> FindSubmissionAsync(Guid id, int revision, AccessSubject subject,
+        CancellationToken cancellationToken = default)
+    {
+        var authorized = ScopedAccessQueries.DeploymentGrants(db, subject.UserId, WellSitePermissions.GuidedDraftReview,
+            subject.Groups, clock.GetUtcNow());
+        var entity = await db.GuidedModuleSubmissions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.DraftId == id && item.Revision == revision && authorized.Any(), cancellationToken);
+        if (entity is null) return null;
+        using var source = new MemoryStream(entity.PackageBytes);
+        var inspected = await LogicModulePackageReader.ReadAsync(source, cancellationToken);
+        if (inspected.Sha256 != entity.PackageSha256 || inspected.DeclarativeModule is null)
+            throw new WellSiteAutoPilotException("GUIDED_SUBMISSION_INVALID", FailureKind.Conflict, "The reviewed package could not be verified.");
+        return new(id, revision, entity.PackageSha256, entity.SubmittedAtUtc, entity.PackageBytes, inspected.ManifestJson,
+            inspected.DeclarativeModule.Definition,
+            JsonSerializer.Deserialize<DeclarativeThresholdEvidence[]>(entity.EvidenceJson, Json)!);
+    }
+
+    public async Task<GuidedModuleSubmissionReceipt> SubmitOwnedAsync(GuidedModuleDraft draft, GuidedModuleSubmission submission,
+        AccessSubject subject, SecurityActorContext actor, CancellationToken cancellationToken = default)
+    {
+        if (submission.DraftId != draft.Id || submission.DraftRevision != draft.Revision) throw Conflict();
+        GuidedModuleSubmissionReceipt? receipt = null;
+        await WriteAsync(draft, subject, actor, "guided-draft.submitted", async () =>
+        {
+            // Lock the same row that edit updates, then compare the saved revision.
+            var current = await db.GuidedModuleDrafts.FromSqlInterpolated($"""
+                SELECT * FROM logic.guided_module_drafts
+                 WHERE "Id" = {draft.Id} AND "OwnerUserId" = {subject.UserId}
+                 FOR UPDATE
+                """).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+            if (current is null || current.Revision != draft.Revision) throw Conflict();
+
+            var existing = await db.GuidedModuleSubmissions.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.DraftId == draft.Id && item.Revision == draft.Revision, cancellationToken);
+            if (existing is not null)
+                throw new WellSiteAutoPilotException("GUIDED_DRAFT_ALREADY_SUBMITTED", FailureKind.Conflict,
+                    "This draft revision was already submitted.");
+
+            var now = clock.GetUtcNow();
+            var hash = submission.Artifact.Package.Sha256;
+            db.GuidedModuleSubmissions.Add(new()
+            {
+                DraftId = draft.Id, Revision = draft.Revision, PackageSha256 = hash,
+                PackageBytes = submission.Artifact.Bytes.ToArray(),
+                EvidenceJson = JsonSerializer.Serialize(submission.Evidence, Json), SubmittedAtUtc = now
+            });
+            receipt = new(draft.Id, draft.Revision, hash, now);
+        }, cancellationToken);
+        return receipt!;
+    }
 
     private async Task WriteAsync(GuidedModuleDraft draft, AccessSubject subject, SecurityActorContext actor,
         string action, Func<Task> write, CancellationToken cancellationToken)

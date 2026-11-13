@@ -137,6 +137,8 @@ request("POST", "/guided-module-drafts", GROUP_ONLY, guided_content, expected=40
 guided = request("POST", "/guided-module-drafts", OPERATOR, guided_content)
 guided_url = "/guided-module-drafts/" + guided["id"]
 request("GET", guided_url, OTHER, expected=404)
+assert request("GET", "/guided-module-drafts?limit=1", OPERATOR) == [guided]
+assert request("GET", "/guided-module-drafts?limit=1", OTHER) == []
 preview = {"expectedRevision":1,"value":62,"parametersJson":"{}"}
 assert request("POST", guided_url + "/preview", OPERATOR, preview)["outcomeCode"] == "LOW_FILLAGE"
 assert request("POST", guided_url + "/preview", OPERATOR, dict(preview, value=70))["outcomeCode"] == "THRESHOLD_NOT_MET"
@@ -144,6 +146,32 @@ assert request("POST", guided_url + "/preview", OPERATOR, dict(preview, value=No
 assert request("PUT", guided_url, OPERATOR, dict(guided_content, expectedRevision=1))["revision"] == 2
 request("PUT", guided_url, OPERATOR, dict(guided_content, expectedRevision=1), expected=409)
 request("POST", guided_url + "/preview", OPERATOR, preview, expected=409)
+submit = {"expectedRevision":2,"readings":[62,70,None]}
+request("POST", guided_url + "/submit", OTHER, submit, expected=404)
+request("POST", guided_url + "/submit", OPERATOR, dict(submit, expectedRevision=1), expected=409)
+receipt = request("POST", guided_url + "/submit", OPERATOR, submit)
+assert receipt["draftId"] == guided["id"] and receipt["revision"] == 2 and len(receipt["packageSha256"]) == 64
+assert request("POST", guided_url + "/preview", OPERATOR, dict(preview, expectedRevision=2))["packageSha256"] == receipt["packageSha256"]
+request("POST", guided_url + "/submit", OPERATOR, submit, expected=409)
+review_url = guided_url + "/submissions/2"
+request("GET", review_url, OPERATOR, expected=403)
+review_role = role("Guided reviewer", ["logic.authoring.review"])
+review_grant = grant(other["userId"], review_role, "DeploymentWide")
+reviewed = request("GET", review_url, OTHER)
+assert reviewed["packageSha256"] == receipt["packageSha256"]
+assert [item["outcomeCode"] for item in reviewed["cases"]] == ["LOW_FILLAGE", "THRESHOLD_NOT_MET", None]
+assert reviewed["cases"][2]["failureCode"] == "MODULE_DECLARATIVE_INPUT_UNAVAILABLE"
+changed_guided_content = dict(guided_content, expectedRevision=2, definition=dict(guided_content["definition"], default=71))
+assert request("PUT", guided_url, OPERATOR, changed_guided_content)["revision"] == 3
+assert request("GET", review_url, OTHER) == reviewed
+approve_guided = {"packageSha256":receipt["packageSha256"],"reason":"Verified immutable guided evidence"}
+request("POST", review_url + "/approve", OTHER, approve_guided, expected=403)
+request("POST", review_url + "/approve", body=dict(approve_guided, packageSha256="0" * 64), expected=409)
+approved_guided = request("POST", review_url + "/approve", body=approve_guided)
+assert approved_guided["packageSha256"] == receipt["packageSha256"] and approved_guided["isEnabled"]
+assert request("POST", review_url + "/approve", body=approve_guided)["packageSha256"] == receipt["packageSha256"]
+retire(other["userId"], review_grant)
+request("GET", review_url, OTHER, expected=403)
 retire(operator["userId"], author_grant)
 request("GET", guided_url, OPERATOR, expected=403)
 retire(other["userId"], other_author_grant)
