@@ -4,6 +4,7 @@ import { PanelHeader } from '../components/common';
 import { SelectField, TextAreaField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { CollapsibleSection } from '../components/Section';
+import { SectionTabs } from '../components/SectionTabs';
 import { t } from '../localization';
 import { PanelLoading } from '../components/LoadingIndicator';
 import { AdapterGuide } from './AdapterGuide';
@@ -75,6 +76,7 @@ export function AuthoringWorkbench() {
   const [verifying, setVerifying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [guide, setGuide] = useState(false);
+  const [panel, setPanel] = useState<'test' | 'results' | 'problems' | 'examples'>('test');
   const [transfer, setTransfer] = useState<string | null>(null);
   const [recovered, setRecovered] = useState<Recovered | null>(() => readRecovery());
   const [connections, setConnections] = useState<Connection[] | null>(null);
@@ -262,7 +264,10 @@ export function AuthoringWorkbench() {
     setMessage(null);
     try {
       const result = await evaluateDraft(draft, target);
-      if (ticket === testing.current) setRun({ result, key });
+      if (ticket === testing.current) {
+        setRun({ result, key });
+        setPanel('results');
+      }
     } catch {
       if (ticket === testing.current)
         setMessage('The test could not be completed. ForeSite can take a little while; try again.');
@@ -458,6 +463,9 @@ export function AuthoringWorkbench() {
               onAdd={add}
             />
           </CollapsibleSection>
+        </div>
+
+        <div className="authoring-properties">
           {selected ? (
             <AuthoringNodeEditor
               draft={draft}
@@ -490,26 +498,155 @@ export function AuthoringWorkbench() {
                 value={draft.description ?? ''}
                 onChange={(event) => change({ ...draft, description: event.target.value })}
               />
-              {problems.length > 0 && (
-                <ul className="authoring-reasons">
-                  {problems.map((problem, index) => (
-                    <li key={`${problem.node}-${index}`} data-severity={problem.severity}>
-                      {problem.node ? (
-                        <button type="button" className="authoring-link" onClick={() => select(problem.node)}>
-                          {problem.node}
-                        </button>
-                      ) : null}{' '}
-                      {problem.message}
-                    </li>
-                  ))}
-                </ul>
-              )}
               {analysis?.valid && (
                 <Notice tone="success">
                   The module is valid.{' '}
                   {analysis.order.length > 0 ? `Calculation order: ${analysis.order.join(', ')}.` : ''}
                 </Notice>
               )}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="authoring-panel">
+        <SectionTabs
+          prefix="authoring-panel"
+          label={t('authoring.panelLabel')}
+          selected={panel}
+          onSelect={setPanel}
+          tabs={[
+            { id: 'test', label: t('authoring.panelTest') },
+            { id: 'results', label: t('authoring.panelResults') },
+            { id: 'problems', label: t('authoring.panelProblems', { count: problems.length }) },
+            { id: 'examples', label: t('authoring.panelExamples', { count: examples.length }) },
+          ]}
+        />
+        <div
+          role="tabpanel"
+          id={`authoring-panel-${panel}`}
+          aria-labelledby={`authoring-panel-tab-${panel}`}
+          className="authoring-panel-body"
+        >
+          {panel === 'test' && (
+            <div className="connection-form">
+              <SelectField
+                label="Connection"
+                value={connectionId}
+                onChange={(event) => setConnectionId(event.target.value)}
+              >
+                <option value="">No connection: use typed values</option>
+                {connections.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({item.adapterKey})
+                  </option>
+                ))}
+              </SelectField>
+              {connection && (
+                <>
+                  <TextField
+                    label="Find an asset"
+                    value={assetFilter}
+                    onChange={(event) => setAssetFilter(event.target.value)}
+                  />
+                  <SelectField
+                    label={`Asset (${assets.length})`}
+                    value={assetId}
+                    onChange={(event) => setAssetId(event.target.value)}
+                  >
+                    <option value="">Choose an asset</option>
+                    {shownAssets.map((item) => (
+                      <option key={item.externalId} value={item.externalId}>
+                        {item.displayName} [{item.externalId}]
+                      </option>
+                    ))}
+                  </SelectField>
+                </>
+              )}
+              {Object.keys(pins).length > 0 && live && (
+                <Notice tone="info">
+                  {t('authoring.pinnedTitle')}: {Object.keys(pins).join(', ')} use typed values, not live reads. Clear a
+                  value to read it live again.
+                </Notice>
+              )}
+              {draft.inputs.map((input) => (
+                <TextField
+                  key={input.name}
+                  label={live ? `Pin ${input.name} (optional)` : `Value for ${input.name}`}
+                  value={samples[input.name] ?? ''}
+                  helper={input.unit ? `A number in ${input.unit}, or with its own unit, such as 20 kPa.` : undefined}
+                  onChange={(event) => setSamples({ ...samples, [input.name]: event.target.value })}
+                />
+              ))}
+              {draft.parameters.map((parameter) => (
+                <TextField
+                  key={parameter.name}
+                  label={`Try ${parameter.name} (saved: ${parameter.value}${parameter.unit ? ` ${parameter.unit}` : ''})`}
+                  value={overrides[parameter.name] ?? ''}
+                  onChange={(event) => setOverrides({ ...overrides, [parameter.name]: event.target.value })}
+                />
+              ))}
+              <div className="connection-actions">
+                <ActionButton
+                  label="Run test"
+                  variant="primary"
+                  busy={running}
+                  disabled={errors.length > 0 || draft.outputs.length === 0}
+                  onClick={() => void test()}
+                />
+                <ActionButton
+                  label="Browse this asset's points"
+                  variant="secondary"
+                  disabled={!live}
+                  onClick={() => void browse()}
+                />
+              </div>
+              {points && (
+                <p className="connection-help">
+                  {points.length} points loaded. Select an input and use "Add a source from this asset's points".
+                </p>
+              )}
+            </div>
+          )}
+          {panel === 'results' &&
+            (run ? (
+              <AuthoringResults
+                run={run.result}
+                stale={stale}
+                onSelect={select}
+                onSaveExample={
+                  stale || !exampleFromRun(run.result, 'x')
+                    ? undefined
+                    : () => {
+                        const saved = exampleFromRun(
+                          run.result,
+                          `Example ${examples.length + 1}${run.result.externalId ? ` from ${run.result.externalId}` : ''}`,
+                        );
+                        if (saved) change({ ...draft, tests: [...examples, saved] });
+                      }
+                }
+              />
+            ) : (
+              <p className="connection-help">{t('authoring.noResults')}</p>
+            ))}
+          {panel === 'problems' &&
+            (problems.length > 0 ? (
+              <ul className="authoring-reasons">
+                {problems.map((problem, index) => (
+                  <li key={`${problem.node}-${index}`} data-severity={problem.severity}>
+                    {problem.node ? (
+                      <button type="button" className="authoring-link" onClick={() => select(problem.node)}>
+                        {problem.node}
+                      </button>
+                    ) : null}{' '}
+                    {problem.message}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="connection-help">{t('authoring.noProblems')}</p>
+            ))}
+          {panel === 'examples' && (
+            <div className="connection-form">
               <h4>Stored examples</h4>
               <p className="connection-help">
                 {examples.length === 0
@@ -556,107 +693,7 @@ export function AuthoringWorkbench() {
             </div>
           )}
         </div>
-
-        <div className="authoring-test">
-          <div className="connection-form">
-            <h3>Test</h3>
-            <SelectField
-              label="Connection"
-              value={connectionId}
-              onChange={(event) => setConnectionId(event.target.value)}
-            >
-              <option value="">No connection: use typed values</option>
-              {connections.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} ({item.adapterKey})
-                </option>
-              ))}
-            </SelectField>
-            {connection && (
-              <>
-                <TextField
-                  label="Find an asset"
-                  value={assetFilter}
-                  onChange={(event) => setAssetFilter(event.target.value)}
-                />
-                <SelectField
-                  label={`Asset (${assets.length})`}
-                  value={assetId}
-                  onChange={(event) => setAssetId(event.target.value)}
-                >
-                  <option value="">Choose an asset</option>
-                  {shownAssets.map((item) => (
-                    <option key={item.externalId} value={item.externalId}>
-                      {item.displayName} [{item.externalId}]
-                    </option>
-                  ))}
-                </SelectField>
-              </>
-            )}
-            {Object.keys(pins).length > 0 && live && (
-              <Notice tone="info">
-                {t('authoring.pinnedTitle')}: {Object.keys(pins).join(', ')} use typed values, not live reads. Clear a
-                value to read it live again.
-              </Notice>
-            )}
-            {draft.inputs.map((input) => (
-              <TextField
-                key={input.name}
-                label={live ? `Pin ${input.name} (optional)` : `Value for ${input.name}`}
-                value={samples[input.name] ?? ''}
-                helper={input.unit ? `A number in ${input.unit}, or with its own unit, such as 20 kPa.` : undefined}
-                onChange={(event) => setSamples({ ...samples, [input.name]: event.target.value })}
-              />
-            ))}
-            {draft.parameters.map((parameter) => (
-              <TextField
-                key={parameter.name}
-                label={`Try ${parameter.name} (saved: ${parameter.value}${parameter.unit ? ` ${parameter.unit}` : ''})`}
-                value={overrides[parameter.name] ?? ''}
-                onChange={(event) => setOverrides({ ...overrides, [parameter.name]: event.target.value })}
-              />
-            ))}
-            <div className="connection-actions">
-              <ActionButton
-                label="Run test"
-                variant="primary"
-                busy={running}
-                disabled={errors.length > 0 || draft.outputs.length === 0}
-                onClick={() => void test()}
-              />
-              <ActionButton
-                label="Browse this asset's points"
-                variant="secondary"
-                disabled={!live}
-                onClick={() => void browse()}
-              />
-            </div>
-            {points && (
-              <p className="connection-help">
-                {points.length} points loaded. Select an input and use "Add a source from this asset's points".
-              </p>
-            )}
-          </div>
-        </div>
       </div>
-      {run && (
-        <AuthoringResults
-          run={run.result}
-          stale={stale}
-          onSelect={select}
-          onSaveExample={
-            stale || !exampleFromRun(run.result, 'x')
-              ? undefined
-              : () => {
-                  const saved = exampleFromRun(
-                    run.result,
-                    `Example ${examples.length + 1}${run.result.externalId ? ` from ${run.result.externalId}` : ''}`,
-                  );
-                  if (saved) change({ ...draft, tests: [...examples, saved] });
-                }
-          }
-        />
-      )}
     </section>
   );
 }

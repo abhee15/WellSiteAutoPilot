@@ -266,3 +266,17 @@ td[data-outcome='Misconfigured'] {
   border-color: var(--color-border-selected);
   box-shadow: 0 0 0 var(--focus-ring-width) var(--color-border-selected);
 }
+
+.authoring-panel {
+  border-top: var(--border-width-thin) solid var(--color-border-row);
+  padding-top: var(--space-8);
+}
+.authoring-panel-body {
+  min-width: 0;
+}
+
+.authoring-properties {
+  display: grid;
+  gap: var(--space-12);
+  min-width: 0;
+}

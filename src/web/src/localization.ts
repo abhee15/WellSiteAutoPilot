@@ -5,7 +5,8 @@
 export const englishMessages = {
   'adapterReference.yes': 'Yes',
   'adapterReference.no': 'No',
-  'adapterReference.missing': 'The selected adapter is no longer installed. Choose another adapter to view its capabilities.',
+  'adapterReference.missing':
+    'The selected adapter is no longer installed. Choose another adapter to view its capabilities.',
   'adapterReference.missingOption': '{adapter} (unavailable)',
   'adapterReference.adapter': 'Adapter',
   'adapterReference.refresh': 'Refresh capabilities',
@@ -15,7 +16,8 @@ export const englishMessages = {
   'adapterReference.capabilities': 'Capabilities',
   'adapterReference.search': 'Search capabilities',
   'adapterReference.noMatches': 'No capabilities match your search.',
-  'adapterReference.empty': 'No operations are published in this adapter reference yet. This does not indicate whether the provider can be connected or used elsewhere.',
+  'adapterReference.empty':
+    'No operations are published in this adapter reference yet. This does not indicate whether the provider can be connected or used elsewhere.',
   'adapterReference.version': 'Contract v{version}',
   'adapterReference.selected': 'Selected capability',
   'adapterReference.back': 'Back to capabilities',
@@ -29,7 +31,8 @@ export const englishMessages = {
   'adapterReference.supported': 'Supported data and operations',
   'adapterReference.data': 'Data or function',
   'adapterReference.shape': 'Response schema',
-  'adapterReference.scope': 'This is the implemented subset of the provider API. Supported fields and operations can grow as the adapter is extended.',
+  'adapterReference.scope':
+    'This is the implemented subset of the provider API. Supported fields and operations can grow as the adapter is extended.',
   'adapterReference.variant': 'Supported data example',
   'adapterReference.providerMapping': 'Provider API mapping',
   'adapterReference.workflow': 'Recommended provider workflow',
@@ -39,13 +42,18 @@ export const englishMessages = {
   'adapterReference.workflowOnFailure': 'If this fails',
   'adapterReference.workflowReadiness': 'Workflow readiness',
   'adapterReference.authoringGuidance': 'For logic module authors',
-  'adapterReference.authoringBoundary': 'Request supported typed inputs through AutoPilot. The gateway owns provider credentials, authorized assets and the native call sequence. Do not call provider URLs from a module.',
-  'adapterReference.moduleAvailabilityUnverified': 'An adapter operation is not automatically available to a hosted logic module. Verify the reviewed module binding separately.',
-  'adapterReference.workflowPendingNote': 'The complete sequence is reference guidance; some provider checks are not yet connected to runtime reads.',
+  'adapterReference.authoringBoundary':
+    'Request supported typed inputs through AutoPilot. The gateway owns provider credentials, authorized assets and the native call sequence. Do not call provider URLs from a module.',
+  'adapterReference.moduleAvailabilityUnverified':
+    'An adapter operation is not automatically available to a hosted logic module. Verify the reviewed module binding separately.',
+  'adapterReference.workflowPendingNote':
+    'The complete sequence is reference guidance; some provider checks are not yet connected to runtime reads.',
   'adapterReference.dataTrust': 'Data validity and provenance',
-  'adapterReference.trustPolicy': 'Applicability, a populated value, validity and freshness are separate checks. Retrieval time must not replace the provider acquisition or measurement time.',
+  'adapterReference.trustPolicy':
+    'Applicability, a populated value, validity and freshness are separate checks. Retrieval time must not replace the provider acquisition or measurement time.',
   'adapterReference.invocation': 'Typed adapter API',
-  'adapterReference.synthetic': 'Synthetic example only. These values do not come from a saved connection or a live provider.',
+  'adapterReference.synthetic':
+    'Synthetic example only. These values do not come from a saved connection or a live provider.',
   'adapterReference.requestExample': 'Example request',
   'adapterReference.responseExample': 'Example response',
   'adapterReference.noExample': 'This adapter has not declared an API example for this operation.',
@@ -66,7 +74,8 @@ export const englishMessages = {
   'adapterReference.window': 'History window',
   'adapterReference.days': '{count} days maximum',
   'adapterReference.samples': 'Maximum history samples',
-  'adapterReference.executionLimits': 'Execution independently validates authorization, source compatibility and these bounds. History callers must inspect truncation.',
+  'adapterReference.executionLimits':
+    'Execution independently validates authorization, source compatibility and these bounds. History callers must inspect truncation.',
   'adapterReference.contractTable': '{title} contract',
 
   'workspace.commandReference': 'Command {id}',
@@ -93,8 +102,10 @@ export const englishMessages = {
   'form.confirmExecution': 'Confirm command execution',
   'notice.dismiss': 'Dismiss notice',
   'errorBoundary.title': 'Something went wrong',
-  'errorBoundary.appMessage': 'The application could not be displayed. Reload the page to continue. If it keeps happening, tell your administrator and include the technical details.',
-  'errorBoundary.pageMessage': 'This page could not be displayed. Try again, or choose another page from the navigation.',
+  'errorBoundary.appMessage':
+    'The application could not be displayed. Reload the page to continue. If it keeps happening, tell your administrator and include the technical details.',
+  'errorBoundary.pageMessage':
+    'This page could not be displayed. Try again, or choose another page from the navigation.',
   'errorBoundary.details': 'Technical details',
   'errorBoundary.noDetails': 'No further details were reported.',
   'errorBoundary.retry': 'Try again',
@@ -109,7 +120,8 @@ export const englishMessages = {
   'assignment.ended': 'This schedule has ended. Create a revision to change its dates.',
   'assignment.assign': 'Assign logic',
   'assignment.wells': 'wells',
-  'assignment.mappingError': 'Some inputs could not be resolved. Check that the selected wells have an enabled source connection and that the module supports their data.',
+  'assignment.mappingError':
+    'Some inputs could not be resolved. Check that the selected wells have an enabled source connection and that the module supports their data.',
   'assignment.resolving': 'Checking data sources…',
   'assignment.dataSources': 'Data sources (read-only)',
   'assignment.derived': 'Input mappings are derived from the selected wells and checked again when you save.',
@@ -134,13 +146,15 @@ export const englishMessages = {
   'assignment.shortMonth': 'If the start day is absent in a month',
   'assignment.lastDay': 'Use the last day of that month',
   'assignment.skipMonth': 'Skip that month',
-  'assignment.calendarHint': 'Keeps the local start time. Missing clock times are skipped; repeated clock times run once.',
+  'assignment.calendarHint':
+    'Keeps the local start time. Missing clock times are skipped; repeated clock times run once.',
   'assignment.intervalHint': 'Fixed interval anchored to the start time.',
   'assignment.nextStarts': 'Next three scheduled starts',
   'assignment.noStarts': 'No occurrences within these dates.',
   'assignment.previewError': 'Schedule preview is unavailable. Review the fields and try again.',
   'assignment.previewLoading': 'Calculating schedule…',
-  'assignment.scheduleError.interval': 'Enter a whole-number frequency between 1 and 999 that fits the supported range.',
+  'assignment.scheduleError.interval':
+    'Enter a whole-number frequency between 1 and 999 that fits the supported range.',
   'assignment.scheduleError.start': 'Choose a valid start date, time and time zone.',
   'assignment.scheduleError.end': 'Choose an end date on or after the start date.',
   'assignment.unitSeconds': 'Seconds',
@@ -157,7 +171,8 @@ export const englishMessages = {
   'logicDetail.purpose': 'Module purpose',
   'logicDetail.mode': 'Run mode',
   'logicDetail.shadowMode': 'Shadow (read-only)',
-  'logicDetail.shadowModeHint': 'Shadow runs read data and record results. They cannot create recommendations or send commands.',
+  'logicDetail.shadowModeHint':
+    'Shadow runs read data and record results. They cannot create recommendations or send commands.',
   'logicDetail.reviewedRevision': 'Reviewed revision',
   'logicDetail.reviewedContext': 'Reviewed revision {number} · {mode} mode · {count} assets',
   'logicDetail.activeContextOne': 'Revision {number} is live in {mode} mode · 1 asset',
@@ -170,10 +185,14 @@ export const englishMessages = {
   'logicDetail.selectRevision': 'Saved revision',
   'logicDetail.activeAndDrafts': 'Active and pending revisions',
   'logicDetail.selectedRevision': 'Selected revision settings',
-  'logicDetail.editingNotice': 'Finish or cancel this new revision before changing tabs. Previously saved revisions remain unchanged.',
-  'logicDetail.authoringMode': 'The existing editor creates Shadow revisions. Authoring for other modes will be refined separately.',
-  'logicDetail.changedElsewhere': 'The active revision changed elsewhere. Reload before activating a revision or requesting a run. Existing draft inputs are retained.',
-  'logicDetail.activityUnavailable': 'Operational updates could not be refreshed. Any displayed activity or next scheduled time may be out of date.',
+  'logicDetail.editingNotice':
+    'Finish or cancel this new revision before changing tabs. Previously saved revisions remain unchanged.',
+  'logicDetail.authoringMode':
+    'The existing editor creates Shadow revisions. Authoring for other modes will be refined separately.',
+  'logicDetail.changedElsewhere':
+    'The active revision changed elsewhere. Reload before activating a revision or requesting a run. Existing draft inputs are retained.',
+  'logicDetail.activityUnavailable':
+    'Operational updates could not be refreshed. Any displayed activity or next scheduled time may be out of date.',
   'logicDetail.nextScheduled': 'Next scheduled',
   'logicDetail.notAvailable': 'Not available',
   'logicDetail.targetLabel': 'Targets',
@@ -204,7 +223,8 @@ export const englishMessages = {
   'assetDetail.scheduleUnavailable': 'Next scheduled time unavailable',
   'assetDetail.runsUnavailable': 'Run updates unavailable. Any displayed runs may be out of date.',
   'assetDetail.logicUnavailable': 'Logic details unavailable. Any displayed schedules may be out of date.',
-  'assetDetail.recommendationsUnavailable': 'Recommendation updates unavailable. Any displayed recommendations may be out of date.',
+  'assetDetail.recommendationsUnavailable':
+    'Recommendation updates unavailable. Any displayed recommendations may be out of date.',
   'assetDetail.retry': 'Retry',
   'assetDetail.previousLogic': 'Previous logic',
   'assetDetail.moreLogic': 'More logic',
@@ -227,9 +247,11 @@ export const englishMessages = {
   'directory.searchHelp': 'Search by group name, then choose a matching group below.',
 
   'directory.assigned': 'Previously assigned groups',
-  'directory.assignedFailed': 'Previously assigned groups could not be loaded. Directory search is available when configured.',
+  'directory.assignedFailed':
+    'Previously assigned groups could not be loaded. Directory search is available when configured.',
 
-  'directory.failed': 'Directory lookup could not be completed. Check your access, domain connectivity and directory configuration.',
+  'directory.failed':
+    'Directory lookup could not be completed. Check your access, domain connectivity and directory configuration.',
   'directory.unsupported': 'Group search is not configured for this deployment.',
   'directory.groupName': 'Group name starts with',
   'directory.search': 'Search groups',
@@ -240,49 +262,65 @@ export const englishMessages = {
   'execution.structured': 'Structured inputs and results',
   'execution.structuredInput': 'Input',
   'execution.structuredResult': 'Result',
-  'setup.directWellHint': 'Select one imported ForeSite well directly, or choose a saved view for a reusable group. The server verifies its connection and source identity.',
+  'setup.directWellHint':
+    'Select one imported ForeSite well directly, or choose a saved view for a reusable group. The server verifies its connection and source identity.',
   'setup.selectedConnection': 'Selected connection: {connection}',
-  'moduleUpload.refreshFailed': 'The upload was verified, but the catalog could not be refreshed. Reload the catalog to review the stored version.',
+  'moduleUpload.refreshFailed':
+    'The upload was verified, but the catalog could not be refreshed. Reload the catalog to review the stored version.',
   'moduleUpload.heading': 'Upload module package',
   'moduleUpload.file': 'Module archive (.wsamodule or .zip)',
-  'moduleUpload.hint': 'Upload the original archive, up to 16 MiB. Upload does not approve code. Review the stored version and checksum before using the existing approval controls.',
+  'moduleUpload.hint':
+    'Upload the original archive, up to 16 MiB. Upload does not approve code. Review the stored version and checksum before using the existing approval controls.',
   'moduleUpload.upload': 'Upload package',
   'moduleUpload.working': 'Uploading…',
   'moduleUpload.tooLarge': 'Choose an archive no larger than 16 MiB.',
   'moduleUpload.saved': 'Stored {module} v{version}. Review its approval state in the catalog.',
-  'moduleUpload.newVersion': 'This version already has different or previously reviewed content. Build a new version before uploading changed bytes.',
+  'moduleUpload.newVersion':
+    'This version already has different or previously reviewed content. Build a new version before uploading changed bytes.',
   'moduleUpload.denied': 'You no longer have permission to upload module packages. Reload your access.',
   'moduleUpload.rejected': 'The archive was rejected. Check the package structure, manifest and SDK compatibility.',
-  'moduleUpload.uncertain': 'The stored outcome could not be verified. Reload the catalog before retrying; approval has not been changed by this action.',
+  'moduleUpload.uncertain':
+    'The stored outcome could not be verified. Reload the catalog before retrying; approval has not been changed by this action.',
   'moduleUpload.identity': 'Package SHA-256:',
-  'moduleUpload.readiness': 'Approval, package delivery and runtime availability are separate. Shadow execution rechecks the package and source; an approved entry alone does not confirm readiness.',
-  'moduleUpload.pythonUnavailable': 'Python authoring is available offline. Production Python package hosting is not implemented, so this version cannot be selected for execution.',
+  'moduleUpload.readiness':
+    'Approval, package delivery and runtime availability are separate. Shadow execution rechecks the package and source; an approved entry alone does not confirm readiness.',
+  'moduleUpload.pythonUnavailable':
+    'Python authoring is available offline. Production Python package hosting is not implemented, so this version cannot be selected for execution.',
 
   'execution.inputOutcome': 'Input outcome',
   'execution.retrieved': 'Retrieved at',
   'execution.unverifiedScan': 'Unverified scan time; measurement freshness is unknown',
   'sourceChanges.heading': 'Source changes',
-  'sourceChanges.diagnostic': 'Check the source and review potential configuration impacts. This review does not update assets or block execution.',
+  'sourceChanges.diagnostic':
+    'Check the source and review potential configuration impacts. This review does not update assets or block execution.',
   'sourceChanges.check': 'Check for changes',
   'sourceChanges.review': 'Review saved findings',
   'sourceChanges.loading': 'Loading source review…',
-  'sourceChanges.denied': 'Review needs connection read and read access to all assets. Checking needs connection management and management of all assets.',
-  'sourceChanges.failed': 'The check or review could not be verified. Reload saved findings before retrying. Existing findings are retained.',
+  'sourceChanges.denied':
+    'Review needs connection read and read access to all assets. Checking needs connection management and management of all assets.',
+  'sourceChanges.failed':
+    'The check or review could not be verified. Reload saved findings before retrying. Existing findings are retained.',
   'sourceChanges.unknown': 'Account not reported',
   'sourceChanges.latest': 'Latest check: {status} · {time} · Gateway account: {account}',
-  'sourceChanges.stale': 'The check and displayed connection use different settings revisions. Reload the connection and check again.',
-  'sourceChanges.counts': '{found} found · {changed} changed · {added} new · {missing} not returned · {unknown} with incomplete comparisons',
+  'sourceChanges.stale':
+    'The check and displayed connection use different settings revisions. Reload the connection and check again.',
+  'sourceChanges.counts':
+    '{found} found · {changed} changed · {added} new · {missing} not returned · {unknown} with incomplete comparisons',
   'sourceChanges.coverageUnknown': 'Field availability was not reported; missing facts remain unknown.',
   'sourceChanges.unavailable': 'Facts with unavailable or unknown comparison: {fields}',
-  'sourceChanges.lastComplete': 'Last complete inventory check: {time}. Manual checks do not monitor later source changes.',
+  'sourceChanges.lastComplete':
+    'Last complete inventory check: {time}. Manual checks do not monitor later source changes.',
   'sourceChanges.never': 'No complete check recorded',
-  'sourceChanges.retained': 'Findings remain saved after source reversion or failed checks. Repeated identical findings are counted once. Separate source changes may have separate findings for the same well.',
+  'sourceChanges.retained':
+    'Findings remain saved after source reversion or failed checks. Repeated identical findings are counted once. Separate source changes may have separate findings for the same well.',
   'sourceChanges.search': 'Search saved findings',
   'sourceChanges.searchPlaceholder': 'Name, ID, or value…',
   'sourceChanges.results': '{total} retained findings',
   'sourceChanges.seen': 'First observed: {first} · Last observed: {last}',
-  'sourceChanges.notDeleted': 'Not returned in this inventory. Access or source scope may have changed; this does not confirm deletion.',
-  'sourceChanges.newWell': 'New source well. Use Discover to select and review its import into the saved hierarchy. Views are not updated automatically.',
+  'sourceChanges.notDeleted':
+    'Not returned in this inventory. Access or source scope may have changed; this does not confirm deletion.',
+  'sourceChanges.newWell':
+    'New source well. Use Discover to select and review its import into the saved hierarchy. Views are not updated automatically.',
   'sourceChanges.fact': 'Source fact',
   'sourceChanges.differencesLabel': 'Differences for {name}',
   'adapterOperations.colField': 'Field',
@@ -293,7 +331,8 @@ export const englishMessages = {
   'sourceChanges.observed': 'Observed by this check',
   'sourceChanges.views': 'Current connection views',
   'sourceChanges.configurations': 'Potential configuration impacts',
-  'sourceChanges.visibleOnly': 'References recorded at check time. Only configurations you can read in full are listed, including pinned historical revisions and input-only references. This is not a compatibility determination.',
+  'sourceChanges.visibleOnly':
+    'References recorded at check time. Only configurations you can read in full are listed, including pinned historical revisions and input-only references. This is not a compatibility determination.',
   'sourceChanges.sourceName': 'Source name',
   'sourceChanges.wellType': 'Well type',
   'sourceChanges.wellTypeId': 'Well type ID',
@@ -302,25 +341,31 @@ export const englishMessages = {
   'sourceChanges.assetId': 'Source asset ID',
   'sourceChanges.scope': 'Authorized source asset scopes, including unmapped: {count}',
   'sourceChanges.scopeUnknown': 'Not reported',
-  'sourceChanges.referencesTruncated': 'Showing up to 100 readable references in each list. Additional references remain recorded; review configuration history for the complete set.',
+  'sourceChanges.referencesTruncated':
+    'Showing up to 100 readable references in each list. Additional references remain recorded; review configuration history for the complete set.',
   'sourceChanges.previous': 'Previous findings',
   'sourceChanges.next': 'Next findings',
-  'shadow.storageCorrupt': 'The saved recovery key is invalid. Inspect execution history before clearing browser data or submitting another run.',
+  'shadow.storageCorrupt':
+    'The saved recovery key is invalid. Inspect execution history before clearing browser data or submitting another run.',
   'shadow.heading': 'Shadow execution',
   'shadow.scope': 'Run reviewed revision {number} using its exact asset and input bindings.',
   'shadow.readOnly': 'Your current permissions allow result inspection but do not allow requesting execution.',
   'shadow.review': 'Review shadow run',
   'shadow.confirmHeading': 'Confirm shadow request',
-  'shadow.confirmText': 'Submit one shadow execution for this active revision? It reads configured inputs and produces results without issuing physical control commands.',
+  'shadow.confirmText':
+    'Submit one shadow execution for this active revision? It reads configured inputs and produces results without issuing physical control commands.',
   'shadow.confirm': 'Run reviewed shadow revision',
   'shadow.cancel': 'Cancel run',
   'shadow.storageUnavailable': 'A durable recovery key could not be saved in this browser. No new request was sent.',
-  'shadow.recoveryHint': 'This revision has a saved request key. Recovery submits the same idempotent request; if the original never committed, it can submit it once. Do not use a new key to recover a lost response.',
+  'shadow.recoveryHint':
+    'This revision has a saved request key. Recovery submits the same idempotent request; if the original never committed, it can submit it once. Do not use a new key to recover a lost response.',
   'shadow.recover': 'Recover saved shadow request',
   'shadow.submitting': 'Submitting and verifying persisted execution…',
   'shadow.denied': 'Execution access is unavailable. Refresh your session before continuing.',
-  'shadow.conflict': 'The revision changed, this key belongs to another request, or an execution is already pending. Inspect current revisions and activity before continuing.',
-  'shadow.uncertain': 'The request outcome could not be verified. Keep this key and recover the same request; do not start a second run.',
+  'shadow.conflict':
+    'The revision changed, this key belongs to another request, or an execution is already pending. Inspect current revisions and activity before continuing.',
+  'shadow.uncertain':
+    'The request outcome could not be verified. Keep this key and recover the same request; do not start a second run.',
   'shadow.newRun': 'Prepare another shadow run',
   'shadow.observations': 'Inputs this run read',
   'shadow.source': 'Source',
@@ -331,14 +376,18 @@ export const englishMessages = {
   'setup.module': 'Approved module version',
   'setup.choose': 'Choose a module',
   'setup.parameters': 'Parameters (JSON object)',
-  'setup.parametersHint': 'Use the module documentation for parameter names and units. This module does not describe its settings, so they are entered as JSON. The server checks bindings and module readiness; it does not verify live provider connectivity.',
-  'setup.parametersHintSchema': 'These settings are shown as JSON because the form cannot display all of them. The server checks them when you save.',
+  'setup.parametersHint':
+    'Use the module documentation for parameter names and units. This module does not describe its settings, so they are entered as JSON. The server checks bindings and module readiness; it does not verify live provider connectivity.',
+  'setup.parametersHintSchema':
+    'These settings are shown as JSON because the form cannot display all of them. The server checks them when you save.',
   'setup.settingsLegend': 'Settings',
-  'setup.startingFromAsset': 'Starting from {name}. It is chosen for you below once you pick a logic it fits; you can change that.',
+  'setup.startingFromAsset':
+    'Starting from {name}. It is chosen for you below once you pick a logic it fits; you can change that.',
   'setup.moduleDescription': 'About this logic',
   'setup.assetRole': 'Asset role {role} ({min}–{max})',
   'setup.assetsFor': 'Assets for {role}',
-  'setup.loadedAssets': 'Choose from the currently loaded active, authorized inventory. Selection grants no descendant access.',
+  'setup.loadedAssets':
+    'Choose from the currently loaded active, authorized inventory. Selection grants no descendant access.',
   'setup.overrides': 'Parameter overrides for {asset}',
   'setup.providerId': 'Provider ID',
   'setup.providerAssetExternalId': 'Provider asset external ID',
@@ -346,7 +395,8 @@ export const englishMessages = {
   'setup.schedule': 'Schedule (optional)',
   'setup.useSchedule': 'Include a cadence schedule',
   'setup.scheduleEnabled': 'Enable scheduled shadow runs after activation',
-  'setup.scheduleWarning': 'An enabled schedule starts automatic shadow execution when this revision is activated. Leave disabled for manual execution.',
+  'setup.scheduleWarning':
+    'An enabled schedule starts automatic shadow execution when this revision is activated. Leave disabled for manual execution.',
   'setup.cadence': 'Cadence (seconds)',
   'setup.start': 'Start timestamp (UTC, ending in Z)',
   'setup.zone': 'Schedule timezone',
@@ -354,20 +404,26 @@ export const englishMessages = {
   'setup.save': 'Save draft',
   'setup.cancel': 'Cancel editor',
   'setup.formInvalid': 'Check JSON objects, asset role counts, provider bindings and the explicit UTC schedule.',
-  'setup.noModules': 'No approved, enabled modules are available. An administrator must install and approve a module before configuration.',
+  'setup.noModules':
+    'No approved, enabled modules are available. An administrator must install and approve a module before configuration.',
   'setup.denied': 'Access is unavailable. Refresh and review your permissions before continuing.',
   'setup.conflict': 'The configuration changed. Reload and review the persisted revisions before continuing.',
   'setup.invalid': 'The server rejected this configuration. Review the requirements and validation code.',
   'setup.unavailable': 'Could not load the configuration. Refresh before continuing.',
-  'setup.uncertain': 'The write outcome is unknown. Do not repeat it. Close the editor, refresh the list and inspect persisted revisions first.',
-  'setup.committed': 'The server accepted the write, but its current state could not be verified. Refresh and inspect persisted revisions before another action.',
+  'setup.uncertain':
+    'The write outcome is unknown. Do not repeat it. Close the editor, refresh the list and inspect persisted revisions first.',
+  'setup.committed':
+    'The server accepted the write, but its current state could not be verified. Refresh and inspect persisted revisions before another action.',
   'setup.workspace': 'Configured logic setup',
   'setup.loading': 'Loading authorized revision details…',
   'draftEditor.edit': 'Edit draft revision {number}',
-  'draftEditor.editHint': 'Save changes to draft revision {number}. The active revision keeps running. Successful validation locks this draft.',
-  'draftEditor.copyHint': 'Start from revision {number}. Saving creates a separate editable draft and leaves the active revision unchanged.',
+  'draftEditor.editHint':
+    'Save changes to draft revision {number}. The active revision keeps running. Successful validation locks this draft.',
+  'draftEditor.copyHint':
+    'Start from revision {number}. Saving creates a separate editable draft and leaves the active revision unchanged.',
   'draftEditor.save': 'Save draft changes',
-  'draftEditor.inheritance': 'Only enter values that differ for this asset. Empty fields inherit the revision defaults.',
+  'draftEditor.inheritance':
+    'Only enter values that differ for this asset. Empty fields inherit the revision defaults.',
   'draftEditor.editJson': 'Edit JSON',
   'draftEditor.useFields': 'Use form fields',
   'draftEditor.inherit': 'Use default',
@@ -375,7 +431,8 @@ export const englishMessages = {
   'draftEditor.false': 'False',
   'draftEditor.settings': 'Settings',
   'draftEditor.targets': 'Targets and overrides',
-  'setup.immutable': 'Draft revisions can be edited until validation succeeds. Validated, active and superseded revisions are locked; copy one to make changes. Activation is a separate step.',
+  'setup.immutable':
+    'Draft revisions can be edited until validation succeeds. Validated, active and superseded revisions are locked; copy one to make changes. Activation is a separate step.',
   'setup.revision': 'Revision {number}',
   'setup.exactScope': 'Exact asset scope: {assets}',
   'setup.revisionSettings': 'Settings used by this revision',
@@ -383,7 +440,8 @@ export const englishMessages = {
   'setup.validate': 'Validate revision {number}',
   'setup.reviewActivation': 'Review activation of revision {number}',
   'setup.confirmHeading': 'Confirm revision activation',
-  'setup.confirmText': 'Activate revision {number} in shadow mode? This supersedes the current active revision. An enabled schedule will start automatic shadow runs.',
+  'setup.confirmText':
+    'Activate revision {number} in shadow mode? This supersedes the current active revision. An enabled schedule will start automatic shadow runs.',
   'setup.confirm': 'Activate reviewed revision',
   'setup.cancelActivation': 'Cancel activation',
   'setup.reload': 'Reload persisted revisions',
@@ -395,12 +453,16 @@ export const englishMessages = {
   'grants.tab': 'Scoped grants',
   'grants.manage': 'Manage scoped role grants',
   'grants.loadingFailed': 'Could not verify security assignments. Reload before making changes.',
-  'grants.assetDirectoryTooLarge': 'The asset directory exceeds the supported verification limit. Grant editing is blocked rather than showing an incomplete asset list.',
+  'grants.assetDirectoryTooLarge':
+    'The asset directory exceeds the supported verification limit. Grant editing is blocked rather than showing an incomplete asset list.',
   'grants.refineSearch': '{count} assets match. Refine the search to choose from the first 100 displayed.',
   'grants.saveUncertain': 'The result of this change could not be verified. Reload the user before trying again.',
-  'security.selfAccessChange': 'No change was saved. Another administrator must change access assigned to you or your groups.',
-  'security.groupProofRequired': 'No change was saved. Group membership could not be verified. Reauthenticate and ask your identity administrator to check the configured authentication integration if this continues.',
-  'grants.lastDirectAdmin': 'This assignment was not deactivated. Assign another active user the built-in Admin role with deployment-wide scope before retiring the last direct administrator. Refresh to review current assignments.',
+  'security.selfAccessChange':
+    'No change was saved. Another administrator must change access assigned to you or your groups.',
+  'security.groupProofRequired':
+    'No change was saved. Group membership could not be verified. Reauthenticate and ask your identity administrator to check the configured authentication integration if this continues.',
+  'grants.lastDirectAdmin':
+    'This assignment was not deactivated. Assign another active user the built-in Admin role with deployment-wide scope before retiring the last direct administrator. Refresh to review current assignments.',
   'grants.subjectKind': 'Assignment target',
   'grants.userSubject': 'Individual user',
   'grants.groupSubject': 'Directory group',
@@ -411,17 +473,20 @@ export const englishMessages = {
   'grants.noExisting': 'No assignments recorded for this subject.',
   'grants.new': 'Prepare a scoped grant',
   'grants.finalReview': 'Final grant review',
-  'grants.noRuntimeEffect': 'Saving changes access for this subject within the selected scope. Each role and scope form one assignment.',
+  'grants.noRuntimeEffect':
+    'Saving changes access for this subject within the selected scope. Each role and scope form one assignment.',
   'grants.saveAssignment': 'Save assignment',
   'grants.savedAssignment': 'Assignment saved and verified. Access is evaluated from current assignments.',
   'grants.active': 'Active',
   'grants.inactive': 'Inactive',
   'grants.retireAction': 'Deactivate grant',
   'grants.retireReview': 'Review grant deactivation',
-  'grants.retireWarning': 'This deactivates the assignment and removes the access it provides. Other active assignments may still grant access. The change is audited.',
+  'grants.retireWarning':
+    'This deactivates the assignment and removes the access it provides. Other active assignments may still grant access. The change is audited.',
   'grants.retireConfirm': 'I verified the user, role, and scope to deactivate.',
   'grants.retired': 'Grant deactivated and verified. Other active assignments may still provide access.',
-  'roles.assignedRoleWarning': 'For security, permissions cannot be changed and an inactive role cannot be reactivated while active scoped assignments reference it. Retire its assignments first, then edit the role.',
+  'roles.assignedRoleWarning':
+    'For security, permissions cannot be changed and an inactive role cannot be reactivated while active scoped assignments reference it. Retire its assignments first, then edit the role.',
   'grants.heading': 'Plan a scoped role assignment',
   'grants.forUser': 'For user: {name}',
   'grants.role': 'Role',
@@ -439,7 +504,8 @@ export const englishMessages = {
   'grants.excluded': '{count} other role permissions would not apply in this scope.',
   'grants.incomplete': 'Choose a role and compatible scope, including at least one active asset when scoped.',
   'grants.privileged': 'Sensitive permissions require privileged server-side approval.',
-  'grants.noSave': 'This preview does not change user access. Final server validation and an audited save are required.',
+  'grants.noSave':
+    'This preview does not change user access. Final server validation and an audited save are required.',
   'grants.confirm': 'I reviewed the role, permissions, and asset boundaries.',
   'grants.continue': 'Continue to final review',
   'execution.inspectFor': 'Inspect execution {id}',
@@ -536,7 +602,8 @@ export const englishMessages = {
   'assets.count': 'Showing {shown} of {total} loaded assets (up to 100 per refresh).',
   'assets.none': 'No assets are configured.',
   'assets.importFromConnection': 'Import from a connection',
-  'assets.noneHint': 'Assets are the wells and equipment logic runs on. Use Add asset if you have permission, or ask an administrator.',
+  'assets.noneHint':
+    'Assets are the wells and equipment logic runs on. Use Add asset if you have permission, or ask an administrator.',
   'logic.tabs': 'Logic section',
   'logic.tabConfigured': 'Your logic',
   'logic.tabSchedules': 'Schedules',
@@ -579,7 +646,8 @@ export const englishMessages = {
   'assetTypes.hiddenBy': 'Hidden by {by} on {when}',
   'assetTypes.hiddenNote': 'Note: {note}',
   'assetTypes.showHidden': 'Show hidden types',
-  'assetTypes.hideHelp': 'Hiding keeps existing assets working but stops new assets being built on this type. A manager can restore it.',
+  'assetTypes.hideHelp':
+    'Hiding keeps existing assets working but stops new assets being built on this type. A manager can restore it.',
   'assetTypes.hideNote': 'Note (optional, up to 200 characters)',
   'assetTypes.hide': 'Hide this type',
   'assetTypes.unhide': 'Restore this type',
@@ -638,7 +706,8 @@ export const englishMessages = {
   'assets.createField.maximum': 'This is above the allowed maximum.',
   'assets.createField.length': 'This is shorter or longer than allowed.',
   'assets.createSchemaInfo': 'View selected asset type schema',
-  'assets.createValidationNote': 'The server validates attributes against the selected asset type. No write occurs before Create asset.',
+  'assets.createValidationNote':
+    'The server validates attributes against the selected asset type. No write occurs before Create asset.',
   'assets.createNameInvalid': 'Enter an asset name up to 256 characters.',
   'assets.createAttributesInvalid': 'Enter a valid JSON object for asset attributes.',
   'assets.createDenied': 'You do not have permission to create this asset. Refresh your access.',
@@ -646,11 +715,14 @@ export const englishMessages = {
   'assets.createRejected': 'The server rejected the asset values or schema. Review the selected type and attributes.',
   'assets.createMissing': 'The selected asset type or parent no longer exists. Refresh and try again.',
   'assets.createUncertain': 'Creation could not be confirmed. Refresh and check the asset list before retrying.',
-  'assets.createReadbackFailed': 'A create response was received, but the new asset could not be verified. Refresh before retrying.',
+  'assets.createReadbackFailed':
+    'A create response was received, but the new asset could not be verified. Refresh before retrying.',
   'assets.createSuccess': 'Asset {name} created and verified.',
-  'assets.createPendingAccess': 'Asset {name} was created, but you do not currently have permission to view it. Ask an administrator to grant access. Do not recreate it.',
+  'assets.createPendingAccess':
+    'Asset {name} was created, but you do not currently have permission to view it. Ask an administrator to grant access. Do not recreate it.',
   'assetTypes.defineTitle': 'Define an asset type',
-  'assetTypes.defineHelp': 'An asset type says what information an asset of this kind holds. Describe the attributes with a JSON schema; {} accepts any attributes.',
+  'assetTypes.defineHelp':
+    'An asset type says what information an asset of this kind holds. Describe the attributes with a JSON schema; {} accepts any attributes.',
   'assetTypes.key': 'Key (short, unique)',
   'assetTypes.displayName': 'Display name',
   'assetTypes.colDisplayName': 'Display name',
@@ -659,14 +731,16 @@ export const englishMessages = {
   'assetTypes.colStatus': 'Status',
   'assetTypes.schema': 'Attribute schema (JSON)',
   'assetTypes.example': 'Show an example schema',
-  'assetTypes.immutableNote': 'A schema cannot be edited after the type is created. Supported: type, properties, required, items, enum, minimum, maximum, minLength, maxLength, title, description. The server rejects anything else.',
+  'assetTypes.immutableNote':
+    'A schema cannot be edited after the type is created. Supported: type, properties, required, items, enum, minimum, maximum, minLength, maxLength, title, description. The server rejects anything else.',
   'assetTypes.submit': 'Create asset type',
   'assetTypes.creating': 'Creating…',
   'assetTypes.created': 'Asset type {name} created.',
   'assetTypes.keyInvalid': 'Enter a key of up to 128 characters.',
   'assetTypes.nameInvalid': 'Enter a display name of up to 256 characters.',
   'assetTypes.schemaSyntax': 'The schema is not valid JSON.',
-  'assetTypes.schemaSyntaxAt': 'The schema is not valid JSON. Check near line {line}, column {column}: common causes are a comma after the last item, single quotes instead of double quotes, or a missing comma or bracket.',
+  'assetTypes.schemaSyntaxAt':
+    'The schema is not valid JSON. Check near line {line}, column {column}: common causes are a comma after the last item, single quotes instead of double quotes, or a missing comma or bracket.',
   'assetTypes.useExample': 'Use this example',
   'assetTypes.schemaShape': 'The schema must be a JSON object, for example {}.',
   'assetTypes.schemaSize': 'The schema is larger than 32 KiB.',
@@ -682,24 +756,26 @@ export const englishMessages = {
   'logicSummary.noRuns': 'No recent runs are recorded for this logic.',
   'modulePanel.label': 'About {name}',
   'modulePanel.about': 'About {name}',
-  'packageState.awaitDelivery': "Package delivery has not completed. Check the catalog readiness panel, then recover this same request key after delivery succeeds.",
-  'packageState.heading': "Package delivery and runtime",
-  'packageState.loading': "Checking package and runtime…",
-  'packageState.failed': "Readiness could not be verified. Refresh before relying on it.",
-  'packageState.ready': "Observed package preflight is ready for Shadow.",
-  'packageState.notReady': "Package preflight is not ready for hosted Shadow.",
-  'packageState.stored': "Archive stored",
-  'packageState.published': "Delivery recorded",
-  'packageState.available': "Exact artifact available",
-  'packageState.worker': "Authenticated worker ready",
-  'packageState.gateway': "Gateway reachable",
-  'packageState.compatible': "Worker runtime and SDK compatible",
-  'packageState.observed': "Observed at",
-  'packageState.pending': "Publication pending · {count} failed attempts",
-  'packageState.hint': "These observations do not authorize a run or verify a selected source. Execution rechecks package integrity, current access and the saved connection. Metadata-only compatibility modules use the existing V2 path.",
-  'packageState.refresh': "Refresh readiness",
-  'packageState.yes': "Yes",
-  'packageState.no': "No",
+  'packageState.awaitDelivery':
+    'Package delivery has not completed. Check the catalog readiness panel, then recover this same request key after delivery succeeds.',
+  'packageState.heading': 'Package delivery and runtime',
+  'packageState.loading': 'Checking package and runtime…',
+  'packageState.failed': 'Readiness could not be verified. Refresh before relying on it.',
+  'packageState.ready': 'Observed package preflight is ready for Shadow.',
+  'packageState.notReady': 'Package preflight is not ready for hosted Shadow.',
+  'packageState.stored': 'Archive stored',
+  'packageState.published': 'Delivery recorded',
+  'packageState.available': 'Exact artifact available',
+  'packageState.worker': 'Authenticated worker ready',
+  'packageState.gateway': 'Gateway reachable',
+  'packageState.compatible': 'Worker runtime and SDK compatible',
+  'packageState.observed': 'Observed at',
+  'packageState.pending': 'Publication pending · {count} failed attempts',
+  'packageState.hint':
+    'These observations do not authorize a run or verify a selected source. Execution rechecks package integrity, current access and the saved connection. Metadata-only compatibility modules use the existing V2 path.',
+  'packageState.refresh': 'Refresh readiness',
+  'packageState.yes': 'Yes',
+  'packageState.no': 'No',
   'modulePanel.needs': 'What it needs',
   'modulePanel.commands': 'It declares commands it could send. In shadow mode nothing is ever sent.',
   'modulePanel.noCommands': 'It declares no commands: it only reads and calculates.',
@@ -708,13 +784,16 @@ export const englishMessages = {
   'moduleApproval.group': 'Approval of {name}',
   'moduleApproval.notApproved': 'This version has not been approved, so it cannot be used in any configuration.',
   'moduleApproval.approved': 'This version is approved and can be used in configurations.',
-  'moduleApproval.retired': 'This version was retired. It cannot be used again and cannot be approved again. A corrected module is installed as a new version.',
+  'moduleApproval.retired':
+    'This version was retired. It cannot be used again and cannot be approved again. A corrected module is installed as a new version.',
   'moduleApproval.approve': 'Approve this version…',
   'moduleApproval.retire': 'Retire this version…',
   'moduleApproval.approveHeading': 'Approve {name} version {version}?',
-  'moduleApproval.approveText': 'People who can configure logic will be able to choose this version. Nothing runs because of the approval: a configuration still has to be validated and activated. You can retire the version later, but a retired version cannot be approved again.',
+  'moduleApproval.approveText':
+    'People who can configure logic will be able to choose this version. Nothing runs because of the approval: a configuration still has to be validated and activated. You can retire the version later, but a retired version cannot be approved again.',
   'moduleApproval.retireHeading': 'Retire {name} version {version}?',
-  'moduleApproval.retireText': 'No new configuration can use this version, and configurations that already use it stop being validated, activated or run. Results already recorded are kept. This cannot be undone: a retired version cannot be approved again.',
+  'moduleApproval.retireText':
+    'No new configuration can use this version, and configurations that already use it stop being validated, activated or run. Results already recorded are kept. This cannot be undone: a retired version cannot be approved again.',
   'moduleApproval.reason': 'Reason (recorded in the audit history)',
   'moduleApproval.reasonEmpty': 'Enter a reason to continue.',
   'moduleApproval.reasonLong': 'The reason is too long. Keep it under 500 characters.',
@@ -726,10 +805,12 @@ export const englishMessages = {
   'moduleApproval.approvedDone': 'Version approved and recorded.',
   'moduleApproval.retiredDone': 'Version retired and recorded.',
   'moduleApproval.denied': 'You do not have permission to change this module. Refresh and review your permissions.',
-  'moduleApproval.conflict': 'This module changed since the page was loaded. Its current state is shown now; review it before trying again.',
+  'moduleApproval.conflict':
+    'This module changed since the page was loaded. Its current state is shown now; review it before trying again.',
   'moduleApproval.invalid': 'The server rejected the request. Check the reason and try again.',
   'moduleApproval.unavailable': 'The change could not be sent. Check the connection and try again.',
-  'moduleApproval.uncertain': 'The outcome is unknown. Do not repeat the action. The list was refreshed; check the version’s state first.',
+  'moduleApproval.uncertain':
+    'The outcome is unknown. Do not repeat the action. The list was refreshed; check the version’s state first.',
   'moduleApproval.retiredCode': 'This version was already retired and cannot be approved again.',
   'moduleApproval.notApprovedCode': 'This version was never approved, so there is nothing to retire.',
   'views.noActivityHint': 'Runs appear here once logic has run. Nothing runs until a configured logic is live.',
@@ -740,9 +821,11 @@ export const englishMessages = {
   'assetTree.count': '{count} below',
   'assetTree.below': 'below',
   'setup.targetView': 'Target view',
-  'setup.viewCompatibility': 'Views must match the module adapter and target count. A single-well module requires a one-well view.',
+  'setup.viewCompatibility':
+    'Views must match the module adapter and target count. A single-well module requires a one-well view.',
   'setup.individualAssets': 'Choose individual assets',
-  'setup.viewSnapshot': 'View revision {revision} · {count} selected wells. Later view edits do not change these targets.',
+  'setup.viewSnapshot':
+    'View revision {revision} · {count} selected wells. Later view edits do not change these targets.',
   'setup.refreshView': 'Review latest view selection',
   'setup.viewUnavailable': 'The complete view selection could not be loaded. Review it again before saving.',
   'setup.viewTargets': 'Targets come from the complete saved view. Choose individual assets to change them manually.',
@@ -753,13 +836,15 @@ export const englishMessages = {
   'assetViews.edit': 'Edit view',
   'assetViews.createTitle': 'Create a view',
   'assetViews.editTitle': 'Edit view',
-  'assetViews.intro': 'Select wells from one connection and save the selection for logic assignment. Everyone who can view that connection can see this view.',
+  'assetViews.intro':
+    'Select wells from one connection and save the selection for logic assignment. Everyone who can view that connection can see this view.',
   'assetViews.name': 'View name',
   'assetViews.unavailableWell': 'Inactive or ineligible: remove before saving',
   'assetViews.errReferenced': 'This view is used by a logic configuration and cannot be deleted.',
   'assetViews.connection': 'Connection',
   'assetViews.chooseConnection': 'Choose one connection',
-  'assetViews.connectionHelp': 'Changing the connection clears the current selection. New imports are added to a view only when you select them.',
+  'assetViews.connectionHelp':
+    'Changing the connection clears the current selection. New imports are added to a view only when you select them.',
   'assetViews.availableWells': 'Available wells',
   'assetViews.findWells': 'Find wells in this connection',
   'assetViews.findWellsPlaceholder': 'Well name…',
@@ -772,7 +857,8 @@ export const englishMessages = {
   'assetViews.selectAllWells': 'Select all wells in this connection',
   'assetViews.clearSelection': 'Clear selection',
   'assetViews.working': 'Resolving selection or saving…',
-  'assetViews.unavailableMembers': 'Some selected wells are inactive or unavailable to you. Assignment requires a complete, authorized selection.',
+  'assetViews.unavailableMembers':
+    'Some selected wells are inactive or unavailable to you. Assignment requires a complete, authorized selection.',
   'assetViews.remove': 'Remove',
   'assetViews.save': 'Save view',
   'assetViews.cancel': 'Cancel',
@@ -831,14 +917,16 @@ export const englishMessages = {
   'configured.count': 'Showing {shown} of {total} loaded configurations (up to 100 per refresh).',
   'configured.none': 'No logic has been configured.',
   'configured.tableLabel': 'Configured logic',
-  'configured.noneHint': 'Approved modules appear in the modules tab. Select a view in assets and assign logic to its wells to get started.',
+  'configured.noneHint':
+    'Approved modules appear in the modules tab. Select a view in assets and assign logic to its wells to get started.',
   'configured.noMatches': 'No loaded configured logic matches these filters.',
   'setupStep.logic': 'Choose the logic',
   'setupStep.logicHint': 'The logic decides what is calculated. Only logic that has been checked for setup is listed.',
   'setupStep.name': 'Configuration name',
   'setupStep.nameHint': 'Pick a name people will recognise. It is shown on runs and recommendations.',
   'setupStep.settingsHint': 'Values the logic uses, as JSON. The defaults are fine to start with.',
-  'setupStep.settingsFormHint': 'Values the logic uses. Optional ones can be left empty. The server checks them again when you save.',
+  'setupStep.settingsFormHint':
+    'Values the logic uses. Optional ones can be left empty. The server checks them again when you save.',
   'setupStep.assetsHint': 'Which assets this logic looks at. Each role says how many are needed.',
   'setupStep.schedule': 'Run schedule',
   'configured.liveRevision': 'Live revision',
@@ -916,7 +1004,8 @@ export const englishMessages = {
   'scheduleControl.pausedBy': 'Paused by {by}.',
   'scheduleControl.nextNone': 'none while paused',
   'scheduleControl.differs': 'Live schedule changed · saved frequency: every {interval}.',
-  'scheduleControl.belowMinimum': 'This schedule is faster than the logic\'s adapter allows, so its runs are skipped. Change the frequency to {interval} or longer.',
+  'scheduleControl.belowMinimum':
+    "This schedule is faster than the logic's adapter allows, so its runs are skipped. Change the frequency to {interval} or longer.",
   'scheduleControl.changeFrequency': 'Change frequency',
   'scheduleControl.pause': 'Pause',
   'scheduleControl.resume': 'Resume',
@@ -924,7 +1013,8 @@ export const englishMessages = {
   'scheduleControl.confirmFrequency': 'Change frequency',
   'scheduleControl.secondsLabel': 'Seconds between runs ({minimum} to {maximum})',
   'scheduleControl.preview': 'Runs will start every {interval} from the moment you save.',
-  'scheduleControl.resumeNote': 'Runs will start again every {interval}, beginning one interval from now. Runs missed while paused are not made up.',
+  'scheduleControl.resumeNote':
+    'Runs will start again every {interval}, beginning one interval from now. Runs missed while paused are not made up.',
   'scheduleControl.resumeConfirmation': 'I understand that scheduled runs will start again.',
   'scheduleControl.reasonLabel': 'Reason (optional)',
   'scheduleControl.saving': 'Saving the schedule change…',
@@ -934,9 +1024,11 @@ export const englishMessages = {
   'scheduleControl.kindResumed': 'Resumed',
   'scheduleControl.kindFrequency': 'Frequency changed',
   'scheduleControl.kindReset': 'Revision activated; schedule reset to the one it declares',
-  'scheduleControl.invalid': 'Enter whole seconds within the allowed range and a reason of at most 1024 printable characters.',
+  'scheduleControl.invalid':
+    'Enter whole seconds within the allowed range and a reason of at most 1024 printable characters.',
   'scheduleControl.accessDenied': 'You do not have permission to change this schedule.',
-  'scheduleControl.stale': 'The schedule changed since you opened it. The latest state is shown; review it and try again.',
+  'scheduleControl.stale':
+    'The schedule changed since you opened it. The latest state is shown; review it and try again.',
   'scheduleControl.unavailable': 'The live schedule could not be confirmed. Try again.',
   'scheduleControl.invalidResponse': 'The server answered in an unexpected way. The schedule state is not confirmed.',
   'killSwitch.heading': 'Control kill switch',
@@ -945,7 +1037,8 @@ export const englishMessages = {
   'killSwitch.released': 'Released',
   'killSwitch.engagedNote': 'The kill switch is engaged. No control command will be sent until it is released.',
   'killSwitch.releasedNote': 'The kill switch is released. Approved commands can be sent through the control gate.',
-  'killSwitch.deploymentOff': 'Control is switched off for this deployment, so the gate refuses every command until an administrator enables it.',
+  'killSwitch.deploymentOff':
+    'Control is switched off for this deployment, so the gate refuses every command until an administrator enables it.',
   'killSwitch.changedBy': 'Last changed by {by} on {at}.',
   'killSwitch.reason': 'Reason: {reason}',
   'killSwitch.engage': 'Engage kill switch',
@@ -958,7 +1051,8 @@ export const englishMessages = {
   'killSwitch.saving': 'Saving the kill switch…',
   'killSwitch.invalid': 'The reason must be printable text of at most 1024 characters.',
   'killSwitch.accessDenied': 'You do not have permission to change the kill switch.',
-  'killSwitch.unavailable': 'The kill switch state could not be confirmed. Treat commands as possibly enabled and try again.',
+  'killSwitch.unavailable':
+    'The kill switch state could not be confirmed. Treat commands as possibly enabled and try again.',
   'killSwitch.invalidResponse': 'The server answered in an unexpected way. The kill switch state is not confirmed.',
   'schedules.heading': 'Schedules',
   'schedules.intro': 'Schedules for active logic. Select a logic to review its schedule and controls.',
@@ -976,15 +1070,18 @@ export const englishMessages = {
   'schedules.none': 'No logic has a schedule yet.',
   'schedules.unscheduled': '{count} without a schedule, not listed here.',
   'controlActions.all': 'All unconfirmed commands',
-  'controlActions.selectedUnavailable': 'This command is no longer in the authorized open-command list. It may have been settled or your access may have changed.',
+  'controlActions.selectedUnavailable':
+    'This command is no longer in the authorized open-command list. It may have been settled or your access may have changed.',
   'controlActions.heading': 'Unconfirmed commands',
   'controlActions.count': '{count} open',
   'controlActions.countMany': '{count}+ open, showing the longest waiting',
   'controlActions.waitingMinutes': 'waiting {count} min',
   'controlActions.waitingHours': 'waiting {count} h',
   'controlActions.waitingDays': 'waiting {count} d',
-  'controlActions.notDecidable': 'You can see this command but cannot decide it. Ask someone with control access to its asset.',
-  'controlActions.intro': 'These commands were sent but their result is not confirmed. Verify asks the target again. Resolve records, as you, whether the command was applied.',
+  'controlActions.notDecidable':
+    'You can see this command but cannot decide it. Ask someone with control access to its asset.',
+  'controlActions.intro':
+    'These commands were sent but their result is not confirmed. Verify asks the target again. Resolve records, as you, whether the command was applied.',
   'controlActions.sentAt': 'sent {at}',
   'controlActions.verify': 'Verify',
   'controlActions.verifyFor': 'Verify {command}',
@@ -992,23 +1089,27 @@ export const englishMessages = {
   'controlActions.resolveFor': 'Resolve {command}',
   'controlActions.verifyChanged': 'The target answered and the command was updated.',
   'controlActions.verifyUnchanged': 'The target gave no answer, so the command remains unconfirmed.',
-  'controlActions.resolveWarning': 'Only record what you have checked on the target yourself. Your name and note are kept with the command.',
+  'controlActions.resolveWarning':
+    'Only record what you have checked on the target yourself. Your name and note are kept with the command.',
   'controlActions.wasApplied': 'The command was applied',
   'controlActions.wasNotApplied': 'The command was not applied',
   'controlActions.appliedLegend': 'What happened on the target',
   'controlActions.noteLabel': 'What did you check? (required)',
   'controlActions.confirmResolve': 'Record decision',
-  'controlActions.invalid': 'The request was not accepted. A note is required and must be printable text of at most 1024 characters.',
+  'controlActions.invalid':
+    'The request was not accepted. A note is required and must be printable text of at most 1024 characters.',
   'controlActions.accessDenied': 'You do not have permission to change this command.',
   'controlActions.notFound': 'This command could not be found.',
-  'controlActions.conflict': 'This command has already been settled or can no longer be verified. The list was refreshed.',
+  'controlActions.conflict':
+    'This command has already been settled or can no longer be verified. The list was refreshed.',
   'controlActions.unavailable': 'Unconfirmed commands could not be loaded. Try again.',
   'controlActions.invalidResponse': 'The server answered in an unexpected way. The command is not confirmed.',
   'autonomyPolicy.heading': 'Autonomy policy',
   'autonomyPolicy.loading': 'Loading the autonomy policy…',
   'autonomyPolicy.enabled': 'Enabled',
   'autonomyPolicy.off': 'Off',
-  'autonomyPolicy.scope': 'The commands this configuration may send on its own, and how often. Applies to every revision. Only the simulator can be commanded in this build.',
+  'autonomyPolicy.scope':
+    'The commands this configuration may send on its own, and how often. Applies to every revision. Only the simulator can be commanded in this build.',
   'autonomyPolicy.none': 'This configuration has no autonomy policy, so it may not command anything.',
   'autonomyPolicy.noCommands': 'No command is permitted.',
   'autonomyPolicy.bounds': 'from {min} to {max}, unit: {unit}',
@@ -1042,10 +1143,12 @@ export const englishMessages = {
   'autonomyPolicy.issue.tooManyLimits': 'A policy can permit at most 64 commands.',
   'autonomyPolicy.issue.commandRequired': 'Command {row} needs a name.',
   'autonomyPolicy.issue.commandTooLong': 'Command {row} has a name longer than 256 characters.',
-  'autonomyPolicy.issue.commandReserved': 'Command {row} uses a name that is reserved for advisory recommendations and cannot be permitted.',
+  'autonomyPolicy.issue.commandReserved':
+    'Command {row} uses a name that is reserved for advisory recommendations and cannot be permitted.',
   'autonomyPolicy.issue.commandDuplicate': 'Command {row} repeats a command already listed.',
   'autonomyPolicy.issue.unitTooLong': 'The unit of command {row} is longer than 64 characters.',
-  'autonomyPolicy.issue.boundsRequired': 'Command {row} needs both a minimum and a maximum while the policy is enabled.',
+  'autonomyPolicy.issue.boundsRequired':
+    'Command {row} needs both a minimum and a maximum while the policy is enabled.',
   'autonomyPolicy.issue.boundNotNumber': 'The bounds of command {row} must be numbers.',
   'autonomyPolicy.issue.boundsReversed': 'The minimum of command {row} is above its maximum.',
   'autonomyPolicy.issue.rateInvalid': 'Actions per window must be a whole number from 1 to 1000.',
@@ -1054,8 +1157,10 @@ export const englishMessages = {
   'control.execute.open': 'Execute',
   'control.execute.heading': 'Execute approved recommendation',
   'control.execute.untilConfirmed': 'Nothing is sent until you confirm.',
-  'control.execute.notice': 'Executing sends the approved command through the control gate. The gate checks the kill switch, the configuration\'s autonomy policy, value bounds and rate limit again, and may refuse it. Only the simulator can be commanded in this build; no real equipment receives anything.',
-  'control.execute.pageNotice': 'Approval records a decision only. Executing an approved recommendation is a separate, explicit step.',
+  'control.execute.notice':
+    "Executing sends the approved command through the control gate. The gate checks the kill switch, the configuration's autonomy policy, value bounds and rate limit again, and may refuse it. Only the simulator can be commanded in this build; no real equipment receives anything.",
+  'control.execute.pageNotice':
+    'Approval records a decision only. Executing an approved recommendation is a separate, explicit step.',
   'control.execute.confirmation': 'I understand this sends the approved command through the control gate.',
   'control.execute.submit': 'Execute command',
   'control.execute.submitting': 'Sending the command through the control gate…',
@@ -1067,8 +1172,10 @@ export const englishMessages = {
   'control.execute.accessDenied': 'You do not have permission to execute this recommendation.',
   'control.execute.notFound': 'The recommendation was not found or is not available to you.',
   'control.execute.conflict': 'The recommendation changed and can no longer be executed. The list is reloading.',
-  'control.execute.unavailable': 'The control gate could not be reached. Nothing was confirmed; check the recommendation before trying again.',
-  'control.execute.invalidResponse': 'The server answered in an unexpected way. Check the recommendation before trying again.',
+  'control.execute.unavailable':
+    'The control gate could not be reached. Nothing was confirmed; check the recommendation before trying again.',
+  'control.execute.invalidResponse':
+    'The server answered in an unexpected way. Check the recommendation before trying again.',
 
   'control.outcome.Requested': 'The command is being sent.',
   'control.outcome.Dispatched': 'The command was sent. The target has not confirmed it yet.',
@@ -1083,21 +1190,26 @@ export const englishMessages = {
   'control.gate.GATE_NO_POLICY': 'This configuration has no autonomy policy, so no command is permitted.',
   'control.gate.GATE_POLICY_DISABLED': 'The autonomy policy for this configuration is disabled.',
   'control.gate.GATE_NOT_AUTONOMOUS_REVISION': 'The configuration revision is not in autonomous mode.',
-  'control.gate.GATE_SOURCE_INVALID': 'The configuration revision that produced this recommendation is no longer active.',
+  'control.gate.GATE_SOURCE_INVALID':
+    'The configuration revision that produced this recommendation is no longer active.',
   'control.gate.GATE_RECOMMENDATION_EXPIRED': 'The recommendation has expired.',
   'control.gate.GATE_COMMAND_NOT_PERMITTED': 'The autonomy policy does not permit this command.',
   'control.gate.GATE_VALUE_REQUIRED': 'The recommendation has no value to send.',
-  'control.gate.GATE_UNIT_MISMATCH': 'The recommendation\'s unit does not match the unit the policy permits.',
+  'control.gate.GATE_UNIT_MISMATCH': "The recommendation's unit does not match the unit the policy permits.",
   'control.gate.GATE_VALUE_OUT_OF_BOUNDS': 'The value is outside the bounds the policy permits.',
   'control.gate.GATE_TARGET_NO_CONNECTION': 'The asset has no connection to send the command through.',
-  'control.gate.GATE_TARGET_CONNECTION_DISABLED': 'The asset\'s connection is switched off, so nothing can be sent through it.',
-  'control.gate.GATE_TARGET_NOT_BOUND': 'The asset is not linked to an item in the provider, so the command has nowhere to go.',
-  'control.gate.GATE_TARGET_AMBIGUOUS': 'The asset matches more than one item in the provider, or two records disagree. Nothing was sent.',
-  'control.gate.GATE_COMMAND_NOT_IN_CATALOG': 'This connection\'s command catalog does not list the command.',
+  'control.gate.GATE_TARGET_CONNECTION_DISABLED':
+    "The asset's connection is switched off, so nothing can be sent through it.",
+  'control.gate.GATE_TARGET_NOT_BOUND':
+    'The asset is not linked to an item in the provider, so the command has nowhere to go.',
+  'control.gate.GATE_TARGET_AMBIGUOUS':
+    'The asset matches more than one item in the provider, or two records disagree. Nothing was sent.',
+  'control.gate.GATE_COMMAND_NOT_IN_CATALOG': "This connection's command catalog does not list the command.",
   'control.gate.GATE_COMMAND_NOT_ENABLED': 'The command is not switched on for this connection.',
   'control.gate.GATE_CATALOG_OUT_OF_BOUNDS': 'The value is outside the limits this connection allows for the command.',
-  'control.gate.GATE_RATE_LIMITED': 'The policy\'s rate limit has been reached. Try again later.',
-  'control.gate.REAL_PROVIDER_WRITES_DISABLED': 'Real provider writes are disabled. Only the simulator can be commanded.',
+  'control.gate.GATE_RATE_LIMITED': "The policy's rate limit has been reached. Try again later.",
+  'control.gate.REAL_PROVIDER_WRITES_DISABLED':
+    'Real provider writes are disabled. Only the simulator can be commanded.',
   'control.gate.GATE_SINK_UNAVAILABLE': 'The command target is not available.',
   'control.gate.SINK_REFUSED': 'The command target refused the command.',
   'control.gate.SINK_AMBIGUOUS': 'The command was sent but its result is unknown. It needs to be verified or resolved.',
@@ -1106,9 +1218,11 @@ export const englishMessages = {
   'control.gate.READBACK_NOT_APPLIED': 'The target does not show the command as applied.',
   'control.gate.OPERATOR_RESOLVED_APPLIED': 'An operator confirmed the command was applied.',
   'control.gate.OPERATOR_RESOLVED_NOT_APPLIED': 'An operator confirmed the command was not applied.',
-  'control.gate.GATE_APPROVED_EXECUTION_NOT_ENABLED': 'This configuration does not allow approved recommendations to be executed. Enable it in its autonomy policy.',
+  'control.gate.GATE_APPROVED_EXECUTION_NOT_ENABLED':
+    'This configuration does not allow approved recommendations to be executed. Enable it in its autonomy policy.',
   'control.gate.GATE_NOT_RECOMMENDATION_MODE': 'The configuration revision is no longer in recommendation mode.',
-  'control.gate.GATE_RECOMMENDATION_STALE': 'The approval is too old to execute. Run the logic again for a current recommendation.',
+  'control.gate.GATE_RECOMMENDATION_STALE':
+    'The approval is too old to execute. Run the logic again for a current recommendation.',
   'control.gate.GATE_ADVISORY_NOT_EXECUTABLE': 'Advice has no device action and cannot be executed.',
   'nav.recommendations': 'Recommendations',
   'inbox.pageTitle': 'Recommendation inbox',
@@ -1246,7 +1360,8 @@ export const englishMessages = {
   'activity.ev.bootstrapAccess': 'Initial administrator access was set up',
   'roles.heading': 'Roles and permissions',
   'roles.intro': 'Creating a role does not grant users or groups new access.',
-  'roles.inactiveUntilGrants': 'Role definitions do not modify existing user permissions. Scoped user and AD-group assignments will be enabled after the new authorization evaluator is validated.',
+  'roles.inactiveUntilGrants':
+    'Role definitions do not modify existing user permissions. Scoped user and AD-group assignments will be enabled after the new authorization evaluator is validated.',
   'roles.refresh': 'Reload roles',
   'roles.backToList': 'Back to roles',
   'roles.create': 'Create role',
@@ -1306,7 +1421,8 @@ export const englishMessages = {
   'roles.permissionAssetViewsDelete': 'Delete views',
   'roles.deploymentWide': 'Deployment-wide capability',
   'roles.assetBound': 'Asset-scoped capability',
-  'roles.privilegedWarning': 'Security administration requires a protected administrator assignment. This permission in a custom role does not confer administrator privileges.',
+  'roles.privilegedWarning':
+    'Security administration requires a protected administrator assignment. This permission in a custom role does not confer administrator privileges.',
   'roles.reviewHeading': 'Review proposed role definition',
   'roles.reviewName': 'Name: {name}',
   'roles.reviewPermissions': 'Selected permissions: {count}',
@@ -1346,11 +1462,13 @@ export const englishMessages = {
   'access.inactiveRole': 'This role is inactive and does not grant access.',
   'access.scopedAssets': 'Assigned assets ({count})',
   'access.unnamedAsset': 'Asset ID: {id}',
-  'access.namesIncomplete': 'Some role or asset names are unavailable. The assignment IDs and scopes are shown instead.',
+  'access.namesIncomplete':
+    'Some role or asset names are unavailable. The assignment IDs and scopes are shown instead.',
   'access.directNotEffective': 'These assignments describe configured grants, not verified effective access.',
   'access.groupAssignments': 'Group-derived access',
   'access.notEvaluated': 'Not evaluated',
-  'access.groupInspectionDeferred': 'Directory group membership is not verified in this view. A user may have additional access through their identity provider.',
+  'access.groupInspectionDeferred':
+    'Directory group membership is not verified in this view. A user may have additional access through their identity provider.',
   'access.manageAssignments': 'Manage assignments',
   'access.noDirectRole': 'None',
   'access.filters': 'User directory filters',
@@ -1370,7 +1488,8 @@ export const englishMessages = {
   'access.moreUsersAvailable': 'Showing {count} users · more available',
   'access.assignRole': 'Assign role',
   'access.assignRoleTo': 'Assign a role to {name}',
-  'access.groupNote': 'Direct assignments exclude access granted through verified directory groups. No direct assignment does not mean no access.',
+  'access.groupNote':
+    'Direct assignments exclude access granted through verified directory groups. No direct assignment does not mean no access.',
   'access.actions': 'Actions',
   'access.refresh': 'Reload users',
   'access.loading': 'Loading authorized users…',
@@ -1411,7 +1530,8 @@ export const englishMessages = {
   'connections.loading': 'Loading connections…',
   'connections.loadFailed': 'Connections could not be loaded.',
   'connections.denied': 'You do not have access to connections.',
-  'connections.adaptersUnavailable': 'The systems this installation can connect to could not be loaded, so new connections cannot be created right now. Existing connections are still shown.',
+  'connections.adaptersUnavailable':
+    'The systems this installation can connect to could not be loaded, so new connections cannot be created right now. Existing connections are still shown.',
   'connections.readOnly': 'You can view connections but not change them.',
   'connections.statusDisabled': 'Disabled',
   'connections.statusNotTested': 'Not tested',
@@ -1454,10 +1574,13 @@ export const englishMessages = {
   'connections.errInvalid': 'Check the name and settings and try again.',
   'connections.errSettings': 'The settings were not accepted: {detail}',
   'connections.errDenied': 'You do not have permission to change connections.',
-  'connections.errGateway': 'The integration gateway could not be reached, so this could not be done. Try again shortly.',
+  'connections.errGateway':
+    'The integration gateway could not be reached, so this could not be done. Try again shortly.',
   'connections.errDisabled': 'Enable the connection before testing it.',
-  'inventory.discoverFirst': 'Click Discover to load wells and grouping values from the saved connection. Then choose which wells to import and how to group them.',
-  'inventory.filterHelp': 'Choose any values within a field; wells must match every field you filter. Counts describe the full discovery. Apply filters when ready. Filters choose wells; grouping levels arrange them.',
+  'inventory.discoverFirst':
+    'Click Discover to load wells and grouping values from the saved connection. Then choose which wells to import and how to group them.',
+  'inventory.filterHelp':
+    'Choose any values within a field; wells must match every field you filter. Counts describe the full discovery. Apply filters when ready. Filters choose wells; grouping levels arrange them.',
   'inventory.facetSelected': '{count} selected',
   'inventory.searchValues': 'Search {field} values',
   'inventory.searchValuesPlaceholder': 'Value…',
@@ -1476,7 +1599,8 @@ export const englishMessages = {
   'inventory.selectionHeading': 'Choose wells to import',
   'inventory.allMatching': 'Import all matching wells',
   'inventory.individual': 'Choose individual wells',
-  'inventory.selectionHelp': 'Filters narrow the inventory. Individual selections stay selected across searches and pages. Importing does not create a view.',
+  'inventory.selectionHelp':
+    'Filters narrow the inventory. Individual selections stay selected across searches and pages. Importing does not create a view.',
   'inventory.filters': 'Filter discovered wells',
   'inventory.applySearch': 'Apply filters to update matching wells before reviewing or changing the selection.',
   'inventory.selected': '{count} wells selected',
@@ -1491,14 +1615,18 @@ export const englishMessages = {
   'inventory.next': 'Next wells',
   'inventory.searchFailed': 'The inventory could not be loaded. Retry the search before reviewing an import.',
   'inventory.tooMany': 'That would exceed 5,000 selected wells. No additional wells were selected.',
-  'inventory.batchLimit': 'One import can contain up to 5,000 wells. Narrow the filters or choose individual wells, then import the remaining wells in another batch.',
+  'inventory.batchLimit':
+    'One import can contain up to 5,000 wells. Narrow the filters or choose individual wells, then import the remaining wells in another batch.',
   'hierarchy.heading': 'Arrange the imported hierarchy',
   'hierarchy.help': 'These levels organize wells under this connection. They do not change which wells you selected.',
   'hierarchy.presets': 'Hierarchy presets',
-  'hierarchy.saved': 'This connection has one saved hierarchy. Further imports use these levels; changing the hierarchy requires a separate review.',
-  'hierarchy.legacy': 'These wells were imported before hierarchy recipes were saved. Choose their original grouping levels, then review adoption. Paths that cannot be verified will block adoption; no existing wells are moved or renamed.',
+  'hierarchy.saved':
+    'This connection has one saved hierarchy. Further imports use these levels; changing the hierarchy requires a separate review.',
+  'hierarchy.legacy':
+    'These wells were imported before hierarchy recipes were saved. Choose their original grouping levels, then review adoption. Paths that cannot be verified will block adoption; no existing wells are moved or renamed.',
   'hierarchy.adoptChoice': 'Review these levels as the saved hierarchy for all existing imported wells.',
-  'hierarchy.adoptSummary': 'Adopt the verified hierarchy for {wells} existing wells and {groups} groups. Their IDs, paths and view memberships stay unchanged.',
+  'hierarchy.adoptSummary':
+    'Adopt the verified hierarchy for {wells} existing wells and {groups} groups. Their IDs, paths and view memberships stay unchanged.',
   'hierarchy.adoptConfirm': 'Adopt the verified hierarchy for {existing} existing wells and import {count} new wells?',
   'hierarchy.adoptButton': 'Adopt hierarchy',
   'hierarchy.adopted': 'Existing hierarchy adopted. Well IDs and current paths were preserved.',
@@ -1511,14 +1639,17 @@ export const englishMessages = {
   'hierarchy.customize': 'Customize grouping levels',
   'hierarchy.add': 'Add level',
   'hierarchy.needsSelection': 'Discover wells and finish selecting them before reviewing an import.',
-  'hierarchy.reviewHelp': 'Review the proposed wells and groups before creating assets. Already-imported wells are kept as they are.',
+  'hierarchy.reviewHelp':
+    'Review the proposed wells and groups before creating assets. Already-imported wells are kept as they are.',
   'connections.find': 'Discover',
   'connections.finding': 'Discovering wells…',
   'connections.stageDiscover': 'Step 1 of 2 · Discover',
   'connections.stageImport': 'Step 2 of 2 · Structure, review and import',
-  'connections.findStale': 'You have unsaved changes. This list was read with the saved settings, so save and look again before relying on it.',
+  'connections.findStale':
+    'You have unsaved changes. This list was read with the saved settings, so save and look again before relying on it.',
   'connections.findKeptUntil': 'This list is kept until {time}; after that, look again.',
-  'connections.importDestination': 'Assets are created under the connection “{name}”. A connection owns what it imports.',
+  'connections.importDestination':
+    'Assets are created under the connection “{name}”. A connection owns what it imports.',
   'connections.findHeading': 'What this connection holds',
   'connections.findEmpty': 'Nothing was found.',
   'connections.findIncomplete': 'This list is incomplete. Do not treat it as everything the system holds.',
@@ -1526,9 +1657,11 @@ export const englishMessages = {
   'connections.findSearch': 'Search what was found',
   'connections.findSearchPlaceholder': 'Name, ID, or value…',
   'connections.findNone': 'Nothing matches that search.',
-  'connections.errHasImports': 'This connection has imported assets, views, source-check history or a command catalog and cannot be deleted. Disable it instead.',
+  'connections.errHasImports':
+    'This connection has imported assets, views, source-check history or a command catalog and cannot be deleted. Disable it instead.',
   'connections.importHeading': 'Import into assets',
-  'connections.importHelp': 'Choose how to group what was found, review exactly what would be created, then import it. Importing needs permission to manage all assets.',
+  'connections.importHelp':
+    'Choose how to group what was found, review exactly what would be created, then import it. Importing needs permission to manage all assets.',
   'connections.importNoLevels': 'No grouping: everything would be added at the top level.',
   'connections.importLevel': 'Level {number}: {field}',
   'connections.importMoveUp': 'Move {field} up',
@@ -1556,20 +1689,25 @@ export const englishMessages = {
   'connections.importDone': 'Imported {wells} wells and created {groups} groups.',
   'connections.importReused': '{count} groups already existed and were reused.',
   'connections.importOpenAssets': 'Open assets',
-  'connections.importNeedsAllAssets': 'Importing creates assets, so it needs permission to manage all assets. Ask an administrator to import, or to widen your access.',
-  'connections.importPlanChanged': 'What the system holds has changed since you reviewed it. Nothing was imported. Review it again.',
+  'connections.importNeedsAllAssets':
+    'Importing creates assets, so it needs permission to manage all assets. Ask an administrator to import, or to widen your access.',
+  'connections.importPlanChanged':
+    'What the system holds has changed since you reviewed it. Nothing was imported. Review it again.',
   'connections.importNotAllowed': 'This import cannot go ahead until the conflicts and warnings shown are resolved.',
-  'connections.importIncomplete': 'The system did not give a complete answer, so nothing can be planned from it. {detail}',
+  'connections.importIncomplete':
+    'The system did not give a complete answer, so nothing can be planned from it. {detail}',
   'connections.importLevelsInvalid': 'Choose up to five different grouping levels from the ones offered.',
   'connections.errUnsupported': 'This system cannot list what it holds.',
   'connections.errTooLarge': 'That system holds more than can be listed at once. {detail}',
   'connections.errSnapshotExpired': 'What was found has expired. Find what the connection holds again.',
-  'connections.importTooLarge': 'Too many objects are selected for one import. Narrow the selection and import the rest afterwards.',
+  'connections.importTooLarge':
+    'Too many objects are selected for one import. Narrow the selection and import the rest afterwards.',
   'connections.importSelected': '{count} of the {total} found are selected for import.',
   'connections.importSelectedAll': 'Everything found ({total}) is selected for import.',
   'connections.findFacetAny': 'Any',
   'connections.findFacetOption': '{value} ({count})',
-  'connections.findFacetMore': 'Only the 200 most common values are listed. Search wells to find other values; this value search only searches the listed values.',
+  'connections.findFacetMore':
+    'Only the 200 most common values are listed. Search wells to find other values; this value search only searches the listed values.',
   'connections.errUncertain': 'The result is not known. Reload the page to see whether the change was saved.',
   'nav.assets': 'Assets',
   'nav.logic': 'Logic',
@@ -1587,14 +1725,18 @@ export const englishMessages = {
   'session.permissionCount': '{count} available capabilities',
   'session.assigned': '{count} assigned',
   'session.authNotice': 'Server-side access rules remain authoritative.',
-  'refresh.accessChanged': 'Access changed during refresh. Unavailable sections have been cleared; other permitted work remains available.',
+  'refresh.accessChanged':
+    'Access changed during refresh. Unavailable sections have been cleared; other permitted work remains available.',
   'awaitingAccess.heading': 'Waiting for access',
-  'awaitingAccess.body': 'You are signed in, but an administrator has not granted you access to WellSite AutoPilot yet. Send your sign-in name below to your administrator and ask for a role. This page updates automatically once access is granted.',
+  'awaitingAccess.body':
+    'You are signed in, but an administrator has not granted you access to WellSite AutoPilot yet. Send your sign-in name below to your administrator and ask for a role. This page updates automatically once access is granted.',
   'awaitingAccess.identity': 'Your sign-in name',
   'awaitingAccess.copy': 'Copy sign-in name',
   'awaitingAccess.copied': 'Copied',
-  'refresh.signInRequired': 'Windows sign-in is required. Your browser did not provide Windows credentials for this address, so automatic refresh is paused. Open the application from an address your browser trusts for Windows sign-in, then choose Refresh.',
-  'refresh.partial': 'Some information could not be refreshed, so what you see may be out of date. Refresh to try again.',
+  'refresh.signInRequired':
+    'Windows sign-in is required. Your browser did not provide Windows credentials for this address, so automatic refresh is paused. Open the application from an address your browser trusts for Windows sign-in, then choose Refresh.',
+  'refresh.partial':
+    'Some information could not be refreshed, so what you see may be out of date. Refresh to try again.',
   'views.loading': 'Loading…',
   'overview.pageTitle': 'Overview',
   'overview.attention': 'Needs your attention',
@@ -1643,19 +1785,19 @@ export const englishMessages = {
   'page.logicTitle': 'Logic workspace',
   'page.skipToContent': 'Skip to main content',
   'live.connected': 'Live updates on',
-  'live.connectedDetail': 'Changes appear as they happen. The page also checks every {seconds} seconds as a safety net.',
+  'live.connectedDetail':
+    'Changes appear as they happen. The page also checks every {seconds} seconds as a safety net.',
   'live.connecting': 'Connecting live updates…',
   'live.reconnecting': 'Live updates reconnecting…',
   'live.polling': 'Checking every {seconds} s',
-  'live.pollingDetail': 'Live updates are not available right now, so the page checks for changes every {seconds} seconds.',
+  'live.pollingDetail':
+    'Live updates are not available right now, so the page checks for changes every {seconds} seconds.',
   'page.updated': 'Updated',
   'page.refresh': 'Refresh',
   'page.refreshing': 'Refreshing…',
   'session.sectionDenied': 'Your current permissions do not allow this section.',
-  'refresh.sessionUnavailable':
-    'Session access is unavailable. Sign in with an authorized account.',
-  'refresh.runtimeFailed':
-    'Runtime data request failed ({status}). Previous data may be stale.',
+  'refresh.sessionUnavailable': 'Session access is unavailable. Sign in with an authorized account.',
+  'refresh.runtimeFailed': 'Runtime data request failed ({status}). Previous data may be stale.',
   'authoring.colSetPoint': 'Set point',
   'authoring.colCurrent': 'Current',
   'authoring.colProposed': 'Proposed',
@@ -1680,6 +1822,13 @@ export const englishMessages = {
   'authoring.colOutput': 'Output',
   'authoring.colDetail': 'Detail',
   'authoring.flowTitle': 'Flow',
+  'authoring.panelLabel': 'Module panel',
+  'authoring.panelTest': 'Test',
+  'authoring.panelResults': 'Results',
+  'authoring.panelProblems': 'Problems ({count})',
+  'authoring.panelExamples': 'Examples ({count})',
+  'authoring.noResults': 'Run a test to see the evidence here.',
+  'authoring.noProblems': 'No problems found.',
   'authoring.flowWaiting': 'The flow appears once the module has been checked.',
   'authoring.flowFrom': 'reads {names}',
   'authoring.flowAdd': 'Add {kind}',
@@ -1696,10 +1845,7 @@ export const englishMessages = {
 
 export type MessageKey = keyof typeof englishMessages;
 
-export function t(
-  key: MessageKey,
-  variables: Record<string, string | number> = {},
-): string {
+export function t(key: MessageKey, variables: Record<string, string | number> = {}): string {
   return englishMessages[key].replace(/\{([a-zA-Z][a-zA-Z0-9]*)\}/g, (placeholder, name: string) => {
     const value = variables[name];
     return value === undefined ? placeholder : String(value);
