@@ -12,6 +12,7 @@ import type {
   GuidedModuleDraftResponse,
   GuidedModulePreviewResponse,
   GuidedModuleReviewResponse,
+  GuidedPressureReadingRequest,
 } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { NumberField, TextField } from '../components/FormFields';
@@ -27,7 +28,19 @@ const pageSize = 25;
 export const guidedAuthoringTab = 'authoring';
 export const guidedReviewPrefix = guidedAuthoringTab + ':';
 
-function draftManifest(name: string) {
+const pressureEntryPoint = 'wsa.declarative.difference.v1';
+
+function isPressure(manifestJson: string | null | undefined) {
+  return manifestJson && (JSON.parse(manifestJson) as { entryPoint?: string }).entryPoint === pressureEntryPoint;
+}
+
+function draftManifest(name: string, pressure: boolean) {
+  const quantities = pressure
+    ? [
+        { id: 'casing-pressure', quantity: 'CasingPressure' },
+        { id: 'tubing-pressure', quantity: 'TubingPressure' },
+      ]
+    : [{ id: 'fillage', quantity: 'PumpFillage' }];
   return JSON.stringify({
     manifestVersion: 1,
     moduleId: 'guided.' + crypto.randomUUID(),
@@ -36,27 +49,47 @@ function draftManifest(name: string) {
     publisher: 'WellSite AutoPilot',
     runtime: 'DotNet',
     executionProfile: 'ScheduledOneShot',
-    entryPoint: 'wsa.declarative.threshold.v1',
+    entryPoint: pressure ? pressureEntryPoint : 'wsa.declarative.threshold.v1',
     minimumSdkVersion: '1.1.0',
     assetRequirements: [{ role: 'well', minimumCount: 1, maximumCount: 1, requiredTraits: [] }],
-    dataRequirements: [
-      {
-        id: 'fillage',
-        assetRole: 'well',
-        quantity: 'PumpFillage',
-        access: 'Current',
-        canonicalUnit: '%',
-        maximumAgeSeconds: 60,
-        allowUncertainQuality: false,
-      },
-    ],
+    dataRequirements: quantities.map((input) => ({
+      ...input,
+      assetRole: 'well',
+      access: 'Current',
+      canonicalUnit: pressure ? 'psi' : '%',
+      maximumAgeSeconds: pressure ? 120 : 60,
+      allowUncertainQuality: false,
+    })),
     commandRequirements: [],
     parameterSchema: {
       type: 'object',
-      properties: { threshold: { type: 'number', minimum: 0, maximum: 100 } },
+      properties: { threshold: { type: 'number', minimum: 0, maximum: pressure ? 10000 : 100 } },
       additionalProperties: false,
     },
   });
+}
+
+function PressureEvidence({
+  reading,
+  differential,
+}: {
+  reading: GuidedPressureReadingRequest;
+  differential?: number | null;
+}) {
+  return (
+    <>
+      {t('guided.casing')} {reading.casingPsi == null ? t('guided.unavailable') : reading.casingPsi + ' psi'}
+      {' · '}
+      {t('guided.tubing')} {reading.tubingPsi == null ? t('guided.unavailable') : reading.tubingPsi + ' psi'}
+      {differential != null && (
+        <>
+          {' '}
+          {' · '}
+          {t('guided.difference')} {differential} psi
+        </>
+      )}
+    </>
+  );
 }
 
 function displayName(manifestJson: string | null | undefined): string {
@@ -80,6 +113,7 @@ export function GuidedAuthoringPage({
   const [offset, setOffset] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
+  const [pressure, setPressure] = useState(false);
   const [name, setName] = useState('');
   const [threshold, setThreshold] = useState('70');
   const [evidence, setEvidence] = useState<GuidedModulePreviewResponse[]>([]);
@@ -107,10 +141,11 @@ export function GuidedAuthoringPage({
     return () => controller.abort();
   }, [canAuthor, offset, refresh]);
 
-  function select(next: GuidedModuleDraftResponse | null) {
+  function select(next: GuidedModuleDraftResponse | null, nextPressure = Boolean(isPressure(next?.manifestJson))) {
+    setPressure(nextPressure);
     setDraft(next);
     setName(displayName(next?.manifestJson));
-    setThreshold(String(next?.definition?.default ?? 70));
+    setThreshold(String(next?.definition?.default ?? (nextPressure ? 150 : 70)));
     setEvidence([]);
     setSubmittedReference('');
     setNotice(null);
@@ -130,27 +165,36 @@ export function GuidedAuthoringPage({
     }
   }
 
-  const boundary = draft?.definition?.default ?? 70;
+  const boundary = draft?.definition?.default ?? (pressure ? 150 : 70);
+  const maximum = pressure ? 10000 : 100;
   const readings = [boundary === 0 ? 8 : Math.max(0, boundary - 8), boundary, null] as const;
-  const valid = name.trim().length > 0 && threshold.trim() !== '' && Number(threshold) >= 0 && Number(threshold) <= 100;
+  const pressureReadings: GuidedPressureReadingRequest[] = [
+    { casingPsi: 120, tubingPsi: 120 },
+    { casingPsi: boundary, tubingPsi: 0 },
+    { casingPsi: boundary + 1, tubingPsi: 0 },
+    { casingPsi: null, tubingPsi: 120 },
+  ];
+  const sampleCount = pressure ? pressureReadings.length : readings.length;
+  const valid =
+    name.trim().length > 0 && threshold.trim() !== '' && Number(threshold) >= 0 && Number(threshold) <= maximum;
   const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary);
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
-  function changeDraft(next: GuidedModuleDraftResponse | null) {
-    requestNavigation(() => select(next));
+  function changeDraft(next: GuidedModuleDraftResponse | null, nextPressure?: boolean) {
+    requestNavigation(() => select(next, nextPressure));
   }
 
   async function save() {
     const body = {
       manifestJson: draft?.manifestJson
         ? JSON.stringify({ ...(JSON.parse(draft.manifestJson) as object), displayName: name.trim() })
-        : draftManifest(name.trim()),
+        : draftManifest(name.trim(), pressure),
       definition: {
         ...(draft?.definition ?? {
           parameter: 'threshold',
-          outcomeCode: 'LOW_FILLAGE',
-          title: t('guided.recommendationTitle'),
-          detail: t('guided.recommendationDetail'),
+          outcomeCode: pressure ? 'PRESSURE_DIFFERENTIAL_HIGH' : 'LOW_FILLAGE',
+          title: t(pressure ? 'guided.pressureRecommendationTitle' : 'guided.recommendationTitle'),
+          detail: t(pressure ? 'guided.pressureRecommendationDetail' : 'guided.recommendationDetail'),
         }),
         default: Number(threshold),
       },
@@ -171,11 +215,12 @@ export function GuidedAuthoringPage({
     const id = draft.id;
     const expectedRevision = draft.revision;
     const results = await Promise.all(
-      readings.map((value) =>
-        previewGuidedModuleDraft({
-          path: { id },
-          body: { expectedRevision, value, parametersJson: '{}' },
-        }),
+      (pressure ? pressureReadings.map((sample) => ({ pressure: sample })) : readings.map((value) => ({ value }))).map(
+        (sample) =>
+          previewGuidedModuleDraft({
+            path: { id },
+            body: { expectedRevision, ...sample, parametersJson: '{}' },
+          }),
       ),
     );
     setEvidence(
@@ -190,7 +235,7 @@ export function GuidedAuthoringPage({
     if (!draft?.id || !draft.revision) return;
     const { data } = await submitGuidedModuleDraft({
       path: { id: draft.id },
-      body: { expectedRevision: draft.revision, readings: [...readings] },
+      body: { expectedRevision: draft.revision, ...(pressure ? { pressureReadings } : { readings: [...readings] }) },
     });
     if (!data) throw new Error();
     setSubmittedReference(draft.id + '/' + draft.revision);
@@ -232,6 +277,7 @@ export function GuidedAuthoringPage({
           <div className="guided-authoring-editor">
             <div className="guided-authoring-actions">
               <ActionButton label={t('guided.new')} disabled={busy} onClick={() => changeDraft(null)} />
+              <ActionButton label={t('guided.newPressure')} disabled={busy} onClick={() => changeDraft(null, true)} />
               {drafts.map((item) => (
                 <ActionButton
                   key={item.id}
@@ -251,6 +297,7 @@ export function GuidedAuthoringPage({
                 <ActionButton label={t('guided.next')} disabled={busy} onClick={() => setOffset(offset + pageSize)} />
               )}
             </div>
+            {pressure && <p>{t('guided.pressureRule')}</p>}
             <div className="guided-authoring-fields">
               <TextField
                 label={t('guided.name')}
@@ -260,9 +307,9 @@ export function GuidedAuthoringPage({
                 onChange={(event) => setName(event.target.value)}
               />
               <NumberField
-                label={t('guided.threshold')}
+                label={t(pressure ? 'guided.pressureThreshold' : 'guided.threshold')}
                 min={0}
-                max={100}
+                max={maximum}
                 step="any"
                 value={threshold}
                 disabled={busy}
@@ -282,7 +329,7 @@ export function GuidedAuthoringPage({
               />
               <ActionButton
                 label={t('guided.submit')}
-                disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== readings.length}
+                disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
                 onClick={() => void run(submit)}
               />
             </div>
@@ -290,7 +337,14 @@ export function GuidedAuthoringPage({
               <ul>
                 {evidence.map((item, index) => (
                   <li key={index}>
-                    {readings[index] === null ? t('guided.unavailable') : readings[index] + '%'} {' · '}
+                    {pressure ? (
+                      <PressureEvidence reading={pressureReadings[index]} differential={item.differentialPsi} />
+                    ) : readings[index] === null ? (
+                      t('guided.unavailable')
+                    ) : (
+                      readings[index] + '%'
+                    )}{' '}
+                    {' · '}
                     <span title={item.outcomeCode ?? item.failureCode ?? undefined}>
                       {item.recommendationTitle ?? outcomeLabel(item.outcomeCode ?? item.failureCode).text}
                     </span>
@@ -329,13 +383,22 @@ export function GuidedAuthoringPage({
             <>
               {review.reviewedManifestJson && <h3>{displayName(review.reviewedManifestJson)}</h3>}
               <p>
-                {t('guided.threshold')} {review.definition?.default}%
+                {isPressure(review.reviewedManifestJson)
+                  ? t('guided.pressureThreshold') + ' ' + review.definition?.default + ' psi'
+                  : t('guided.threshold') + ' ' + review.definition?.default + '%'}
               </p>
               <p>{review.definition?.title}</p>
               <ul>
                 {review.cases?.map((item, index) => (
                   <li key={index}>
-                    {item.value == null ? t('guided.unavailable') : item.value + '%'} {' · '}{' '}
+                    {item.pressure ? (
+                      <PressureEvidence reading={item.pressure} differential={item.differentialPsi} />
+                    ) : item.value == null ? (
+                      t('guided.unavailable')
+                    ) : (
+                      item.value + '%'
+                    )}{' '}
+                    {' · '}
                     <span title={item.outcomeCode ?? item.failureCode ?? undefined}>
                       {outcomeLabel(item.outcomeCode ?? item.failureCode).text}
                     </span>

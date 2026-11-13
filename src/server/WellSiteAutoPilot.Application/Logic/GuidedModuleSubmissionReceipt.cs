@@ -4,4 +4,4 @@ public sealed record GuidedModuleSubmissionReceipt(Guid DraftId, int Revision, s
     DateTimeOffset SubmittedAtUtc);
 
 public sealed record GuidedModuleReviewSnapshot(Guid DraftId, int Revision, string PackageSha256, DateTimeOffset SubmittedAtUtc,
-    ReadOnlyMemory<byte> PackageBytes, string ReviewedManifestJson, ThresholdDefinition Definition, IReadOnlyList<DeclarativeThresholdEvidence> Evidence);
+    ReadOnlyMemory<byte> PackageBytes, string ReviewedManifestJson, ThresholdDefinition Definition, IReadOnlyList<DeclarativeThresholdEvidence> Evidence, bool IsPressureDifference);

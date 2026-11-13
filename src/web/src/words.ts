@@ -75,6 +75,7 @@ const OUTCOME_LABELS: Record<string, string> = {
   MODULE_NOT_AVAILABLE: 'The logic module is not available (disabled or not installed)',
   MODULE_NOT_INSTALLED: 'The logic module is not installed',
   PROVIDER_TIMEOUT: 'The data source did not respond in time',
+  PRESSURE_DIFFERENTIAL_HIGH: 'High casing-to-tubing pressure differential',
   LOW_FILLAGE: 'Low pump fillage',
   THRESHOLD_NOT_MET: 'No recommendation',
   MODULE_DECLARATIVE_INPUT_UNAVAILABLE: 'Required reading unavailable',

@@ -1290,7 +1290,10 @@ v1.MapGet("/guided-module-drafts/{id:guid}/submissions/{revision:int}",
         return new GuidedModuleReviewResponse(id, revision, reviewed.PackageSha256, reviewed.SubmittedAtUtc,
             reviewed.ReviewedManifestJson, new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
             reviewed.Evidence.Select(item => new GuidedModuleReviewCaseResponse(
-                item.Sample.Input?.Value, item.Result?.OutcomeCode, item.FailureCode)).ToArray());
+                item.Sample.Input?.Value, item.Result?.OutcomeCode, item.FailureCode,
+                reviewed.IsPressureDifference
+                    ? new(item.Sample.Input?.Value, item.Sample.SecondInput?.Value) : null,
+                item.Result?.EngineeringResults.SingleOrDefault()?.Value)).ToArray());
     })
     .WithName("GetGuidedModuleSubmission").RequireAuthorization(WellSitePolicies.GuidedDraftReview)
     .Produces<GuidedModuleReviewResponse>();
@@ -1309,7 +1312,9 @@ v1.MapPost("/guided-module-drafts/{id:guid}/submit",
         HttpContext context, CancellationToken cancellationToken) =>
     {
         var receipt = await drafts.SubmitAsync(id, request.ExpectedRevision, request.Readings,
-            access.Subject, access.CreateActor(context), cancellationToken);
+            access.Subject, access.CreateActor(context),
+            request.PressureReadings?.Select(reading => reading is null ? null : new GuidedPressureReading(reading.CasingPsi, reading.TubingPsi)).ToArray(),
+            cancellationToken);
         return new GuidedModuleSubmissionResponse(receipt.DraftId, receipt.Revision, receipt.PackageSha256, receipt.SubmittedAtUtc);
     })
     .WithName("SubmitGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
@@ -1320,10 +1325,11 @@ v1.MapPost("/guided-module-drafts/{id:guid}/preview",
         CancellationToken cancellationToken) =>
     {
         var evidence = await drafts.PreviewAsync(id, request.ExpectedRevision, request.Value, request.ParametersJson,
-            access.Subject, cancellationToken);
+            access.Subject, request.Pressure is { } pressure ? new GuidedPressureReading(pressure.CasingPsi, pressure.TubingPsi) : null,
+            cancellationToken);
         var recommendation = evidence.Result?.Recommendations.SingleOrDefault();
         return new GuidedModulePreviewResponse(request.ExpectedRevision, evidence.PackageSha256,
-            evidence.Result?.OutcomeCode, evidence.FailureCode, recommendation?.Title, recommendation?.Detail);
+            evidence.Result?.OutcomeCode, evidence.FailureCode, recommendation?.Title, recommendation?.Detail, evidence.Result?.EngineeringResults.SingleOrDefault()?.Value);
     })
     .WithName("PreviewGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModulePreviewResponse>();
@@ -1976,7 +1982,11 @@ static async Task<GuidedModuleDraftContent> ReadGuidedDraftAsync(SaveGuidedModul
     {
         throw new WellSiteAutoPilotException("GUIDED_DRAFT_MANIFEST_INVALID", FailureKind.Validation, "The module manifest is malformed.", innerException: error);
     }
-    return new(manifest with { EntryPoint = DeclarativeThresholdModule.EntryPoint },
+    return new(manifest with
+    {
+        EntryPoint = manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint
+            ? DeclarativeThresholdModule.DifferenceEntryPoint : DeclarativeThresholdModule.EntryPoint
+    },
         new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail));
 }
 

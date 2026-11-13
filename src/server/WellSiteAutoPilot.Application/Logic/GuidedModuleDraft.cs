@@ -14,9 +14,10 @@ public sealed record GuidedModuleDraft(
         ArgumentNullException.ThrowIfNull(content);
         RequireRevision(expectedRevision);
         if (!string.Equals(Content.Manifest.ModuleId, content.Manifest.ModuleId, StringComparison.Ordinal) ||
-            !string.Equals(Content.Manifest.Version, content.Manifest.Version, StringComparison.Ordinal))
+            !string.Equals(Content.Manifest.Version, content.Manifest.Version, StringComparison.Ordinal) ||
+            Content.Manifest.EntryPoint != content.Manifest.EntryPoint)
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_IDENTITY_IMMUTABLE", FailureKind.Validation,
-                "A guided draft edit must preserve the module identity and version.");
+                "A guided draft edit must preserve the module identity, version and calculation.");
         return this with { Content = content, Revision = checked(Revision + 1) };
     }
 

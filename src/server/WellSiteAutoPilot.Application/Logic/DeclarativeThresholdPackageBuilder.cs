@@ -21,7 +21,11 @@ public static class DeclarativeThresholdPackageBuilder
         ArgumentNullException.ThrowIfNull(definition);
         cancellationToken.ThrowIfCancellationRequested();
 
-        manifest = manifest with { EntryPoint = DeclarativeThresholdModule.EntryPoint };
+        manifest = manifest with
+        {
+            EntryPoint = manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint
+                ? DeclarativeThresholdModule.DifferenceEntryPoint : DeclarativeThresholdModule.EntryPoint
+        };
         await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, cancellationToken);
         using var buffer = new MemoryStream();
         using (var archive = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
