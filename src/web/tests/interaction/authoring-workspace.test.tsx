@@ -94,3 +94,18 @@ it('edits a rule table row and a history window, and shows which rule decided', 
   await user.click(screen.getByRole('button', { name: 'Save this run as a stored example' }));
   await waitFor(() => expect(vi.mocked(api.validateDraft).mock.calls.some(call => call[0].tests?.length === 1 && call[0].tests[0].inputs.Casing === '300' && call[0].tests[0].expect.High_out === 'true')).toBe(true));
 });
+
+it('shows the flow in three columns and marks what the chosen box reads', async () => {
+  vi.mocked(api.loadStarters).mockResolvedValue([{ id: 'threshold', title: 'Pressure status', summary: '', draft }]);
+  vi.mocked(connections.loadConnections).mockResolvedValue([]);
+  vi.mocked(api.validateDraft).mockResolvedValue(analysis('one'));
+  render(<AuthoringWorkbench />); const user = userEvent.setup();
+
+  const flow = await screen.findByRole('group', { name: 'Flow' });
+  expect(flow.textContent).toContain('reads Casing, Limit');
+  const box = (name: string) => [...flow.querySelectorAll('.authoring-flow-node')].find(node => node.textContent?.startsWith(name))!;
+  await user.click(box('IsHigh'));
+  expect(box('IsHigh').getAttribute('data-relation')).toBe('self');
+  expect(box('Casing').getAttribute('data-relation')).toBe('feeds');
+  expect(box('High_out').getAttribute('data-relation')).toBe('fed');
+});
