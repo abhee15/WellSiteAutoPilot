@@ -54,6 +54,9 @@ public sealed class LogicModuleCatalogService(
         ArgumentNullException.ThrowIfNull(command);
         var manifest = DeserializeManifest(command.ManifestJson);
         await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, cancellationToken);
+        if (DeclarativeThresholdModule.UsesReservedEntryPoint(manifest))
+            throw new WellSiteAutoPilotException("MODULE_DECLARATIVE_PACKAGE_REQUIRED", FailureKind.Validation,
+                "Declarative modules must be registered with their reviewed definition package.");
         var checksum = NormalizeSha256(command.PackageSha256);
         ValidateTrustStatus(command.TrustStatus);
         return new InstalledLogicModule(

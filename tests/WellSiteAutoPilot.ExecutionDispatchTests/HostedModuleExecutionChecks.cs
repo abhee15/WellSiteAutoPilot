@@ -38,7 +38,7 @@ internal static class HostedModuleExecutionChecks
     { Converters = { new JsonStringEnumConverter() } };
 
     public static async Task RunAsync(DbContextOptions<WellSiteAutoPilotDbContext> options, NatsConnection connection,
-        bool savedConnection = false, bool disabledConnection = false, string? foreSitePayload = null, bool structured = false, string structuredQuality = "Good")
+        bool savedConnection = false, bool disabledConnection = false, string? foreSitePayload = null, bool structured = false, string structuredQuality = "Good", bool declarative = false)
     {
         await using var db = new WellSiteAutoPilotDbContext(options);
         var structuredRejected = structured && structuredQuality == "Unknown";
@@ -68,11 +68,19 @@ internal static class HostedModuleExecutionChecks
                 OutputRequirements = [new("curve", "Curve", null,
                     new("fixture.curve/v1", CardSchema()))]
             };
+        if (declarative)
+            manifest = manifest with
+            {
+                EntryPoint = DeclarativeThresholdModule.EntryPoint,
+                ParameterSchema = JsonSerializer.Deserialize<JsonElement>("""
+                    {"type":"object","properties":{"threshold":{"type":"number","minimum":0,"maximum":100}},"additionalProperties":false}
+                    """)
+            };
         using var bytes = new MemoryStream(Pack(manifest));
         var module = await new LogicModulePackageService(new LogicModuleCatalogRepository(db), TimeProvider.System)
             .UploadAsync(bytes, subject, actor);
         var asset = Guid.NewGuid();
-        var command = new ConfiguredShadowExecutionCommand(Guid.NewGuid(), Guid.NewGuid(), moduleId, "1.0.0", "{}",
+        var command = new ConfiguredShadowExecutionCommand(Guid.NewGuid(), Guid.NewGuid(), moduleId, "1.0.0", declarative ? """{"threshold":100}""" : "{}",
             [new("well", asset, "{}")], [new("fillage", asset, "simulator", "WELL-PROBE", "PumpFillage", "Current", "%", 60, false, "{}")],
             ExecutionTriggerKind.Scheduled, now);
         if (structured)
@@ -195,10 +203,17 @@ internal static class HostedModuleExecutionChecks
                 else
                 {
                     var completed = JsonSerializer.Deserialize<MessageEnvelope<ExecutionCompletedV2>>(message.Data, Options)!;
-                    Assert(completed.Payload.ResultCode == "HOSTED_PROBE_COMPLETED" && completed.Payload.OutputJson.Contains(structured ? "valueContractVersion" : "99.6", StringComparison.Ordinal),
+                    Assert(completed.Payload.ResultCode == (declarative ? "LOW_FILLAGE" : "HOSTED_PROBE_COMPLETED") && completed.Payload.OutputJson.Contains(structured ? "valueContractVersion" : "99.6", StringComparison.Ordinal),
                         "Hosted result lost the normalized input or algorithm output.");
                     await repository.ApplyCompletedAsync(completed.MessageId, "hosted-check", execution.Id,
                         completed.Payload.StartedAtUtc, completed.Payload.CompletedAtUtc, completed.Payload.ResultCode, completed.Payload.OutputJson);
+                    if (declarative)
+                    {
+                        using var output = JsonDocument.Parse(completed.Payload.OutputJson);
+                        Assert(output.RootElement.GetProperty("recommendations").GetArrayLength() == 1 &&
+                            output.RootElement.GetProperty("controlIntents").GetArrayLength() == 0,
+                            "Guided Shadow execution did not preserve its recommendation and read-only boundary.");
+                    }
                     if (structured)
                     {
                         var persisted = (await repository.GetAsync(execution.Id))!.OutputJson!;
@@ -253,7 +268,7 @@ internal static class HostedModuleExecutionChecks
                     input.GetProperty("timestampUtc").GetDateTimeOffset() == fixture.AcquisitionTime,
                     "Successful ForeSite execution lost the scan acquisition evidence.");
             }
-            Assert(!Directory.EnumerateFileSystemEntries(working).Any(), "Successful execution retained working files.");
+            Assert(!Directory.Exists(working) || !Directory.EnumerateFileSystemEntries(working).Any(), "Successful execution retained working files.");
             Console.WriteLine("Hosted package E2E: upload, approval, pinned dispatch, NATS, worker loading, input read, result persistence and retirement boundary passed.");
         }
         finally
@@ -290,9 +305,19 @@ internal static class HostedModuleExecutionChecks
         using (var archive = new ZipArchive(bytes, ZipArchiveMode.Create, leaveOpen: true))
         {
             using (var writer = new StreamWriter(archive.CreateEntry("manifest.json").Open())) writer.Write(JsonSerializer.Serialize(manifest, Options));
-            using var image = File.OpenRead(Assembly.GetExecutingAssembly().Location);
-            using var output = archive.CreateEntry("payload/probe.dll").Open();
-            image.CopyTo(output);
+            if (manifest.EntryPoint == DeclarativeThresholdModule.EntryPoint)
+            {
+                using var definition = new StreamWriter(archive.CreateEntry(DeclarativeThresholdModule.PayloadPath).Open());
+                definition.Write("""
+                    {"parameter":"threshold","default":70,"outcomeCode":"LOW_FILLAGE","title":"Low pump fillage","detail":"Review pump fillage."}
+                    """);
+            }
+            else
+            {
+                using var image = File.OpenRead(Assembly.GetExecutingAssembly().Location);
+                using var output = archive.CreateEntry("payload/probe.dll").Open();
+                image.CopyTo(output);
+            }
         }
         return bytes.ToArray();
     }
