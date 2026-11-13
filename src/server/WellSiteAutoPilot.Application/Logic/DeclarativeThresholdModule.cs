@@ -11,6 +11,7 @@ namespace WellSiteAutoPilot.Application.Logic;
 public sealed class DeclarativeThresholdModule : ILogicModuleV1
 {
     public const string EntryPoint = "wsa.declarative.threshold.v1";
+    public const string DifferenceEntryPoint = "wsa.declarative.difference.v1";
     public const string PayloadPath = "payload/definition.json";
     public const int MaximumDefinitionBytes = 8192;
 
@@ -24,18 +25,24 @@ public sealed class DeclarativeThresholdModule : ILogicModuleV1
 
     private readonly LogicModuleManifest _manifest;
     private readonly LogicDataRequirement _input;
+    private readonly LogicDataRequirement? _subtrahend;
     private readonly ThresholdDefinition _definition;
 
     private DeclarativeThresholdModule(LogicModuleManifest manifest, ThresholdDefinition definition)
     {
         _manifest = manifest;
-        _input = manifest.DataRequirements.Single();
+        _subtrahend = manifest.EntryPoint == DifferenceEntryPoint
+            ? manifest.DataRequirements.Single(requirement => requirement.Id == "tubing-pressure")
+            : null;
+        _input = _subtrahend is null ? manifest.DataRequirements.Single()
+            : manifest.DataRequirements.Single(requirement => requirement.Id == "casing-pressure");
         _definition = definition;
         Identity = new(manifest.ModuleId, manifest.Version);
     }
 
     public LogicModuleIdentity Identity { get; }
     public LogicDataRequirement Input => _input;
+    public LogicDataRequirement? Subtrahend => _subtrahend;
     public ThresholdDefinition Definition => _definition;
 
     public static bool UsesReservedEntryPoint(LogicModuleManifest manifest) =>
@@ -44,18 +51,24 @@ public sealed class DeclarativeThresholdModule : ILogicModuleV1
     internal static async Task<DeclarativeThresholdModule> ReadAsync(LogicModuleManifest manifest,
         Stream definition, CancellationToken cancellationToken)
     {
-        if (manifest.EntryPoint != EntryPoint)
+        var difference = manifest.EntryPoint == DifferenceEntryPoint;
+        if (manifest.EntryPoint != EntryPoint && !difference)
             Fail("MODULE_DECLARATIVE_VERSION_UNSUPPORTED", "The declarative evaluator version is unsupported.");
 
         if (manifest.ManifestVersion != 1 || manifest.Runtime != LogicRuntimeKind.DotNet ||
             manifest.ExecutionProfile != ExecutionProfile.ScheduledOneShot ||
             manifest.AssetRequirements.Count != 1 ||
             manifest.AssetRequirements.Single() is not { MinimumCount: 1, MaximumCount: 1 } ||
-            manifest.DataRequirements.Count != 1 ||
-            manifest.DataRequirements.Single() is not { Access: "Current", CanonicalUnit.Length: > 0 } ||
+            manifest.DataRequirements.Count != (difference ? 2 : 1) ||
+            manifest.DataRequirements.Any(input => input is not { Access: "Current", CanonicalUnit.Length: > 0 }) ||
             manifest.CommandRequirements.Count != 0 ||
             manifest.ParameterSchema is not { ValueKind: JsonValueKind.Object })
             Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", "A threshold module requires one asset, one current scalar input with a unit, and a numeric settings schema.");
+
+        if (difference &&
+            (!manifest.DataRequirements.Any(input => input is { Id: "casing-pressure", Quantity: "CasingPressure", CanonicalUnit: "psi", ValueSchema: null, RequiredCapability: null }) ||
+             !manifest.DataRequirements.Any(input => input is { Id: "tubing-pressure", Quantity: "TubingPressure", CanonicalUnit: "psi", ValueSchema: null, RequiredCapability: null })))
+            Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", "The pressure differential requires casing and tubing pressure in psi.");
 
         using var document = await JsonDocument.ParseAsync(definition, cancellationToken: cancellationToken);
         LogicModuleManifestReader.ValidateUniqueFields(document.RootElement);
@@ -92,12 +105,17 @@ public sealed class DeclarativeThresholdModule : ILogicModuleV1
             Fail("MODULE_DECLARATIVE_CONTEXT_INVALID", "The execution does not match the reviewed asset role and module identity.");
 
         var asset = context.Assets.Single();
-        if (context.Inputs.Count != 1)
-            Fail("MODULE_DECLARATIVE_INPUT_UNAVAILABLE", "The required scalar input is unavailable.");
-        var input = context.Inputs.Single();
-        if (!string.Equals(input.RequirementId, _input.Id, StringComparison.OrdinalIgnoreCase) || input.AssetId != asset.AssetId)
-            Fail("MODULE_DECLARATIVE_INPUT_UNAVAILABLE", "The required scalar input is unavailable.");
-        LogicModuleInputValidation.Validate(input, _input, context.EvaluationTimeUtc);
+        if (context.Inputs.Count != (_subtrahend is null ? 1 : 2))
+            Fail("MODULE_DECLARATIVE_INPUT_UNAVAILABLE", "A required scalar input is unavailable.");
+        var reading = ReadInput(_input, context, asset.AssetId);
+        decimal? difference = null;
+        if (_subtrahend is not null)
+        {
+            var tubing = ReadInput(_subtrahend, context, asset.AssetId);
+            if (reading < 0 || tubing < 0)
+                Fail("INPUT_VALUE_INVALID", "Pressure readings must be nonnegative.");
+            difference = reading - tubing;
+        }
 
         var threshold = _definition.Default;
         foreach (var json in new[] { context.ParametersJson, asset.ParameterOverridesJson })
@@ -116,10 +134,21 @@ public sealed class DeclarativeThresholdModule : ILogicModuleV1
             }
         }
 
-        var below = input.Value < threshold;
-        return new(below ? _definition.OutcomeCode : "THRESHOLD_NOT_MET", [],
-            below ? [new(_definition.OutcomeCode, asset.AssetId, _definition.Title, _definition.Detail)] : [],
+        var triggered = difference is { } delta ? delta > threshold : reading < threshold;
+        return new(triggered ? _definition.OutcomeCode : "THRESHOLD_NOT_MET",
+            difference is { } measured ? [new("casing-tubing-differential", asset.AssetId, "CasingTubingDifferential", measured, "psi")] : [],
+            triggered ? [new(_definition.OutcomeCode, asset.AssetId, _definition.Title, _definition.Detail)] : [],
             [], new Dictionary<string, string>());
+    }
+
+    private static decimal ReadInput(LogicDataRequirement requirement, LogicModuleExecutionContext context, Guid assetId)
+    {
+        var inputs = context.Inputs.Where(input => input.AssetId == assetId &&
+            string.Equals(input.RequirementId, requirement.Id, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (inputs.Length != 1)
+            Fail("MODULE_DECLARATIVE_INPUT_UNAVAILABLE", "A required scalar input is unavailable.");
+        LogicModuleInputValidation.Validate(inputs[0], requirement, context.EvaluationTimeUtc);
+        return inputs[0].Value;
     }
 
     private static bool IsOutcomeCode(string? value) =>

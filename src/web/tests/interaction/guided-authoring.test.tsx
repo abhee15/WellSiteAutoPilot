@@ -117,3 +117,55 @@ it('preserves unsaved edits until the author confirms a draft switch', async () 
   fireEvent.click(screen.getByRole('button', { name: /leave/i }));
   expect(name.value).toBe('Existing draft');
 });
+
+it('authors paired pressure samples and shows the reviewed differential', async () => {
+  const manifestJson = '{"displayName":"Pressure check","entryPoint":"wsa.declarative.difference.v1"}';
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [] } as never);
+  vi.mocked(createGuidedModuleDraft).mockResolvedValue({
+    data: { id: 'pressure-draft', revision: 1, manifestJson, definition: { default: 150 } },
+  } as never);
+  vi.mocked(previewGuidedModuleDraft)
+    .mockResolvedValueOnce({ data: { differentialPsi: 0, outcomeCode: 'THRESHOLD_NOT_MET' } } as never)
+    .mockResolvedValueOnce({ data: { differentialPsi: 150, outcomeCode: 'THRESHOLD_NOT_MET' } } as never)
+    .mockResolvedValueOnce({ data: { differentialPsi: 151, outcomeCode: 'PRESSURE_DIFFERENTIAL_HIGH' } } as never)
+    .mockResolvedValueOnce({ data: { failureCode: 'MODULE_DECLARATIVE_INPUT_UNAVAILABLE' } } as never);
+  vi.mocked(getGuidedModuleSubmission).mockResolvedValue({
+    data: {
+      reviewedManifestJson: manifestJson,
+      definition: { default: 150 },
+      cases: [
+        {
+          pressure: { casingPsi: 400, tubingPsi: 120 },
+          differentialPsi: 280,
+          outcomeCode: 'PRESSURE_DIFFERENTIAL_HIGH',
+        },
+      ],
+    },
+  } as never);
+  render(<GuidedAuthoringPage canAuthor canReview canApprove={false} onRefresh={async () => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'New pressure differential module' }));
+  expect(screen.getByLabelText<HTMLInputElement>('Maximum differential (psi)').value).toBe('150');
+  fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Pressure check' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await screen.findByText('Draft saved.');
+  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
+  expect(await screen.findByText(/Differential 151 psi/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Submit for review' }));
+  await screen.findByLabelText('Shareable review link');
+  expect(submitGuidedModuleDraft).toHaveBeenLastCalledWith({
+    path: { id: 'pressure-draft' },
+    body: {
+      expectedRevision: 1,
+      pressureReadings: [
+        { casingPsi: 120, tubingPsi: 120 },
+        { casingPsi: 150, tubingPsi: 0 },
+        { casingPsi: 151, tubingPsi: 0 },
+        { casingPsi: null, tubingPsi: 120 },
+      ],
+    },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Open submitted revision' }));
+  expect(
+    await screen.findByText(/Casing pressure 400 psi · Tubing pressure 120 psi · Differential 280 psi/),
+  ).toBeTruthy();
+});

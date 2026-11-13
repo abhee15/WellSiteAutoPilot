@@ -27,11 +27,12 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
     }
 
     public async Task<DeclarativeThresholdEvidence> PreviewAsync(Guid id, int expectedRevision, decimal? value,
-        string parametersJson, AccessSubject subject, CancellationToken cancellationToken = default)
+        string parametersJson, AccessSubject subject, GuidedPressureReading? pressure = null,
+        CancellationToken cancellationToken = default)
     {
         var draft = await GetAsync(id, subject, cancellationToken);
         var submission = await draft.PrepareSubmissionAsync(expectedRevision,
-            [CreateSample(draft, value, parametersJson)], cancellationToken);
+            [CreateSample(draft, value, parametersJson, pressure)], cancellationToken);
         return submission.Evidence.Single();
     }
 
@@ -58,28 +59,40 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
     }
 
     public async Task<GuidedModuleSubmissionReceipt> SubmitAsync(Guid id, int expectedRevision,
-        IReadOnlyList<decimal?> readings, AccessSubject subject, SecurityActorContext actor,
-        CancellationToken cancellationToken = default)
+        IReadOnlyList<decimal?>? readings, AccessSubject subject, SecurityActorContext actor,
+        IReadOnlyList<GuidedPressureReading?>? pressureReadings = null, CancellationToken cancellationToken = default)
     {
-        if (readings is null || readings.Count is < 1 or > 50)
+        if ((readings is null) == (pressureReadings is null) ||
+            (readings?.Count ?? pressureReadings?.Count) is < 1 or > 50 || pressureReadings?.Any(sample => sample is null) == true)
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_SCENARIOS_INVALID", FailureKind.Validation,
                 "Provide between one and fifty sample readings.");
         var draft = await GetAsync(id, subject, cancellationToken);
-        var samples = readings.Select(value => CreateSample(draft, value, "{}")).ToArray();
+        var samples = readings is not null
+            ? readings.Select(value => CreateSample(draft, value, "{}", null)).ToArray()
+            : pressureReadings!.Select(pressure => CreateSample(draft, null, "{}", pressure)).ToArray();
         var submission = await draft.PrepareSubmissionAsync(expectedRevision, samples, cancellationToken);
         return await drafts.SubmitOwnedAsync(draft, submission, subject, actor, cancellationToken);
     }
 
-    private DeclarativeThresholdSample CreateSample(GuidedModuleDraft draft, decimal? value, string parametersJson)
+    private DeclarativeThresholdSample CreateSample(GuidedModuleDraft draft, decimal? value, string parametersJson,
+        GuidedPressureReading? pressure)
     {
+        var difference = draft.Content.Manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint;
+        if (difference != (pressure is not null) || difference && value is not null)
+            throw new WellSiteAutoPilotException("GUIDED_DRAFT_SCENARIOS_INVALID", FailureKind.Validation,
+                "Provide sample readings for the draft calculation.");
         var asset = Guid.NewGuid();
         var run = Guid.NewGuid();
         var now = clock.GetUtcNow();
-        var requirement = draft.Content.Manifest.DataRequirements.Single();
-        LogicInputValue? input = value is { } reading
-            ? new(requirement.Id, asset, requirement.Quantity, reading, requirement.CanonicalUnit!, now, "Good", "guided-preview")
+        var requirements = draft.Content.Manifest.DataRequirements;
+        LogicInputValue? Observation(LogicDataRequirement requirement, decimal? reading) => reading is { } number
+            ? new(requirement.Id, asset, requirement.Quantity, number, requirement.CanonicalUnit!, now, "Good", "guided-preview")
             : null;
-        return new(run, run.ToString("D"), asset, now, parametersJson, "{}", input);
+        return difference
+            ? new(run, run.ToString("D"), asset, now, parametersJson, "{}",
+                Observation(requirements.Single(input => input.Id == "casing-pressure"), pressure!.CasingPsi),
+                Observation(requirements.Single(input => input.Id == "tubing-pressure"), pressure.TubingPsi))
+            : new(run, run.ToString("D"), asset, now, parametersJson, "{}", Observation(requirements.Single(), value));
     }
 
     public async Task<GuidedModuleDraft> GetAsync(Guid id, AccessSubject subject, CancellationToken cancellationToken = default) =>
@@ -96,3 +109,5 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
         return edited;
     }
 }
+
+public sealed record GuidedPressureReading(decimal? CasingPsi, decimal? TubingPsi);

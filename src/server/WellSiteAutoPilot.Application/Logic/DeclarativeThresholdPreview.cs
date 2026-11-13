@@ -17,9 +17,12 @@ public static class DeclarativeThresholdPreview
             ?? throw new ArgumentException("The artifact requires a declarative evaluator.", nameof(artifact));
         var input = module.Input;
         var asset = new LogicAssetContext(input.AssetRole, sample.FixtureAssetId, sample.ParameterOverridesJson);
+        var inputs = new List<LogicInputValue>(2);
+        if (sample.Input is { } inputValue) inputs.Add(inputValue);
+        if (sample.SecondInput is { } secondValue) inputs.Add(secondValue);
         var context = new LogicModuleExecutionContext(sample.RunId, module.Identity, sample.CorrelationId,
             sample.EvaluatedAtUtc, sample.ParametersJson, [asset],
-            sample.Input is { } observed ? [observed] : []);
+            inputs);
         try
         {
             var result = await module.ExecuteAsync(context, cancellationToken);
@@ -34,7 +37,7 @@ public static class DeclarativeThresholdPreview
 
 public sealed record DeclarativeThresholdSample(
     Guid RunId, string CorrelationId, Guid FixtureAssetId, DateTimeOffset EvaluatedAtUtc,
-    string ParametersJson, string ParameterOverridesJson, LogicInputValue? Input);
+    string ParametersJson, string ParameterOverridesJson, LogicInputValue? Input, LogicInputValue? SecondInput = null);
 
 public sealed record DeclarativeThresholdEvidence(
     string PackageSha256, DeclarativeThresholdSample Sample, LogicModuleExecutionResult? Result, string? FailureCode);

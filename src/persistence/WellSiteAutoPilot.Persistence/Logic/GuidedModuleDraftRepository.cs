@@ -81,7 +81,8 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
             throw new WellSiteAutoPilotException("GUIDED_SUBMISSION_INVALID", FailureKind.Conflict, "The reviewed package could not be verified.");
         return new(id, revision, entity.PackageSha256, entity.SubmittedAtUtc, entity.PackageBytes, inspected.ManifestJson,
             inspected.DeclarativeModule.Definition,
-            JsonSerializer.Deserialize<DeclarativeThresholdEvidence[]>(entity.EvidenceJson, Json)!);
+            JsonSerializer.Deserialize<DeclarativeThresholdEvidence[]>(entity.EvidenceJson, Json)!,
+            inspected.Manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint);
     }
 
     public async Task<GuidedModuleSubmissionReceipt> SubmitOwnedAsync(GuidedModuleDraft draft, GuidedModuleSubmission submission,
