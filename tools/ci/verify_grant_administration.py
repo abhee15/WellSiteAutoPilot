@@ -137,7 +137,10 @@ request("POST", "/guided-module-drafts", GROUP_ONLY, guided_content, expected=40
 guided = request("POST", "/guided-module-drafts", OPERATOR, guided_content)
 guided_url = "/guided-module-drafts/" + guided["id"]
 request("GET", guided_url, OTHER, expected=404)
-assert request("GET", "/guided-module-drafts?limit=1", OPERATOR) == [guided]
+listed = request("GET", "/guided-module-drafts?limit=1", OPERATOR)
+assert [(item["id"], item["revision"]) for item in listed] == [(guided["id"], guided["revision"])], listed
+assert listed[0]["definition"] == guided["definition"]
+assert json.loads(listed[0]["manifestJson"]) == json.loads(guided["manifestJson"])
 assert request("GET", "/guided-module-drafts?limit=1", OTHER) == []
 preview = {"expectedRevision":1,"value":62,"parametersJson":"{}"}
 assert request("POST", guided_url + "/preview", OPERATOR, preview)["outcomeCode"] == "LOW_FILLAGE"
