@@ -79,7 +79,6 @@ export function ConfigurationList({
       {groups.length > 1 && (
         <div className="configuration-list-toolbar">
           <ActionButton
-            variant="quiet"
             icon={allCollapsed ? ChevronsUpDown : ChevronsDownUp}
             label={t(allCollapsed ? 'configured.expandAll' : 'configured.collapseAll')}
             onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((group) => group.key)))}
