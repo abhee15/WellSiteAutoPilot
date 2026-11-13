@@ -1,5 +1,5 @@
 import {
-  Activity, GitBranch, LayoutDashboard, Lightbulb, Network, Plug, Server, ShieldCheck,
+  Activity, FilePenLine, GitBranch, LayoutDashboard, Lightbulb, Network, Plug, Server, ShieldCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Section } from './NavigationLink';
@@ -11,6 +11,7 @@ const ICONS: Record<Section, LucideIcon> = {
   recommendations: Lightbulb,
   assets: Network,
   logic: GitBranch,
+  authoring: FilePenLine,
   connections: Plug,
   status: Server,
   access: ShieldCheck,

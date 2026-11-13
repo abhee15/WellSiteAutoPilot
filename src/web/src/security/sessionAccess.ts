@@ -30,7 +30,9 @@ export function canOpenSection(user: CurrentUserResponse | null | undefined, sec
     return ['executions.read', 'recommendations.read', 'assets.read', 'logic.read', 'configured-logic.read']
       .some(permission => hasPermission(user, permission));
   }
-  if (section === 'logic') return ['logic.read', 'configured-logic.read', 'logic.authoring.manage', 'logic.authoring.review']
+  if (section === 'logic') return ['logic.read', 'configured-logic.read']
+    .some(permission => hasPermission(user, permission));
+  if (section === 'authoring') return ['logic.authoring.manage', 'logic.authoring.review']
     .some(permission => hasPermission(user, permission));
   if (section === 'status') return hasPermission(user, 'connections.read') || hasPermission(user, 'security.manage');
   const required = { operations: 'executions.read', recommendations: 'recommendations.read',

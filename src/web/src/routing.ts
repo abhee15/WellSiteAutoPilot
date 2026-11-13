@@ -5,7 +5,7 @@ import { canOpenSection } from './security/sessionAccess';
 import { allowHash, requestNavigation } from './navigationGuard';
 
 /** Sections in landing priority order. */
-export const SECTION_ORDER: readonly Section[] = ['overview', 'operations', 'recommendations', 'assets', 'logic', 'connections', 'access', 'status'];
+export const SECTION_ORDER: readonly Section[] = ['overview', 'operations', 'recommendations', 'assets', 'logic', 'authoring', 'connections', 'access', 'status'];
 
 /**
  * Addresses look like `#section` or `#section/detail` (a selected record or tab).
@@ -19,7 +19,12 @@ export function parseHash(
   if (rest.length > 0 && rest.join('/') !== '') {
     try { detail = decodeURIComponent(rest.join('/')); } catch { detail = null; }
   }
-  return { section: section.toLowerCase(), detail };
+  const normalized = section.toLowerCase();
+  // Preserve bookmarks and review links issued when Authoring lived under Logic.
+  if (normalized === 'logic' && detail === 'authoring') return { section: 'authoring', detail: null };
+  if (normalized === 'logic' && detail?.startsWith('authoring:'))
+    return { section: 'authoring', detail: detail.slice('authoring:'.length) || null };
+  return { section: normalized, detail };
 }
 
 export function hashFor(section: Section, detail?: string | null): string {

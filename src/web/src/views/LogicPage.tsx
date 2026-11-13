@@ -31,7 +31,6 @@ import { ConfigurationList } from './ConfigurationList';
 import type { ConfiguredLogicCriteria } from './configuredLogicViews';
 import { DEFAULT_LOGIC_CATALOG_CRITERIA, filterLogicCatalog, availableLogicRuntimes, groupModuleVersions } from './logicCatalog';
 import type { LogicCatalogCriteria } from './logicCatalog';
-import { GuidedAuthoringPage, guidedAuthoringTab as AUTHORING_TAB, guidedReviewPrefix } from './GuidedAuthoringPage';
 import './splitLayout.css';
 
 /** `#logic/modules` opens the Modules tab and `#logic/schedules` the Schedules tab. */
@@ -54,8 +53,6 @@ export function LogicPage({
   executions?: readonly ExecutionResponse[];
   isLoaded?: boolean;
 }) {
-  const canAuthor = permissions.includes('logic.authoring.manage');
-  const canReview = permissions.includes('logic.authoring.review');
   const canReadCatalog = permissions.includes('logic.read');
   const canReadConfigurations = permissions.includes('configured-logic.read');
   const canReadRuns = permissions.includes('executions.read');
@@ -74,9 +71,7 @@ export function LogicPage({
   const aboutModuleId = rawDetail?.startsWith(MODULE_PREFIX) ? rawDetail.slice(MODULE_PREFIX.length) : null;
   const modulesRequested = rawDetail === MODULES_TAB || aboutModuleId !== null;
   const schedulesRequested = rawDetail === SCHEDULES_TAB;
-  const reviewReference = rawDetail?.startsWith(guidedReviewPrefix) ? rawDetail.slice(guidedReviewPrefix.length) : null;
-  const showAuthoring = (canAuthor || canReview) && (rawDetail === AUTHORING_TAB || reviewReference !== null || !canReadCatalog && !canReadConfigurations);
-  const selectedConfiguredId = showAuthoring || startAssetId || startViewId || modulesRequested || schedulesRequested ? null : rawDetail;
+  const selectedConfiguredId = startAssetId || startViewId || modulesRequested || schedulesRequested ? null : rawDetail;
   const showSchedules = canReadConfigurations && schedulesRequested;
   const showModules = !showSchedules && canReadCatalog && (modulesRequested || !canReadConfigurations);
   const [creating, setCreating] = useState(Boolean(startAssetId || startViewId));
@@ -142,13 +137,12 @@ export function LogicPage({
 
   return (
     <div {...splitFocus} className={`split-layout runs-layout logic-layout${isActivityFocused ? ' logic-history-focused' : ''}`}
-      data-has-selection={showAuthoring || showSchedules ? false : showModules ? Boolean(aboutModuleId) : hasConfigurationDetail}>
+      data-has-selection={showSchedules ? false : showModules ? Boolean(aboutModuleId) : hasConfigurationDetail}>
       <PageTabNav label={t('logic.tabs')} compactOnNarrow
         tabs={[
           ...(canReadConfigurations ? [
             { id: 'configured', label: t('logic.tabConfigured'), href: hashFor('logic'), count: configuredLogic.length },
           ] : []),
-          ...(canAuthor || canReview ? [{ id: AUTHORING_TAB, label: t('guided.heading'), href: hashFor('logic', AUTHORING_TAB) }] : []),
           ...(canReadCatalog ? [
             { id: MODULES_TAB, label: t('logic.tabModules'), href: hashFor('logic', MODULES_TAB), count: moduleGroups.length },
           ] : []),
@@ -156,14 +150,12 @@ export function LogicPage({
             { id: SCHEDULES_TAB, label: t('logic.tabSchedules'), href: hashFor('logic', SCHEDULES_TAB) },
           ] : []),
         ]}
-        activeId={showAuthoring ? AUTHORING_TAB : showSchedules ? SCHEDULES_TAB : showModules ? MODULES_TAB : 'configured'}
-        action={!showAuthoring && !showModules && !showSchedules && canCreate && !creating && !selectedConfiguredId
+        activeId={showSchedules ? SCHEDULES_TAB : showModules ? MODULES_TAB : 'configured'}
+        action={!showModules && !showSchedules && canCreate && !creating && !selectedConfiguredId
           ? <ActionButton label={t('setup.heading')} variant="primary" data-split-focus-key="create" onClick={() => setCreating(true)} />
           : undefined} />
 
-      {showAuthoring ? (
-        <GuidedAuthoringPage key={reviewReference} initialReviewReference={reviewReference ?? ''} canAuthor={canAuthor} canReview={canReview} canApprove={permissions.includes('logic.manage')} onRefresh={onRefresh} />
-      ) : showSchedules ? (
+      {showSchedules ? (
         <SchedulesOverview configuredLogic={configuredLogic} assets={gridAssetDirectory.assets} owners={gridAssetDirectory.owners}
           executions={canReadRuns ? executions : undefined} isLoaded={isLoaded} />
       ) : showModules ? (

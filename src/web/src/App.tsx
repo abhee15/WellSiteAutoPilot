@@ -39,6 +39,7 @@ import { OperationsPage } from './views/OperationsPage';
 import { OverviewPage } from './views/OverviewPage';
 import { AssetsPage } from './views/AssetsPage';
 import { LogicPage } from './views/LogicPage';
+import { ModuleAuthoringWorkspace } from './views/GuidedAuthoringPage';
 
 
 export function App() {
@@ -48,6 +49,8 @@ export function App() {
   const mainRef = useRef<HTMLElement | null>(null);
   useSplitPaneViewport(mainRef);
   const nav = useNavCollapsed();
+  const showSnapshotRefresh = !['recommendations', 'access', 'connections', 'status'].includes(section) &&
+    (section !== 'authoring' || !currentUser);
   const activeRefresh = useRef<AbortController | null>(null);
   const accessKey = useRef<string | null>(null);
   // A 401 means the browser sent no Windows credentials; polling would only repeat prompts.
@@ -207,7 +210,8 @@ export function App() {
           </NavigationGroup>
           <NavigationGroup id="nav-group-configure" label={t('nav.groupConfigure')}>
             {[canOpenSection(currentUser, 'assets') && <NavigationLink key="assets" section="assets" current={section}>{t('nav.assets')}</NavigationLink>,
-              canOpenSection(currentUser, 'logic') && <NavigationLink key="logic" section="logic" current={section}>{t('nav.logic')}</NavigationLink>]}
+              canOpenSection(currentUser, 'logic') && <NavigationLink key="logic" section="logic" current={section}>{t('nav.logic')}</NavigationLink>,
+              canOpenSection(currentUser, 'authoring') && <NavigationLink key="authoring" section="authoring" current={section}>{t('nav.authoring')}</NavigationLink>]}
           </NavigationGroup>
           <NavigationGroup id="nav-group-administer" label={t('nav.groupAdminister')}>
             {[canOpenSection(currentUser, 'connections') && <NavigationLink key="connections" section="connections" current={section}>{t('nav.connections')}</NavigationLink>,
@@ -221,9 +225,9 @@ export function App() {
       <main className="content" id="main-content" tabIndex={-1} ref={mainRef}>
         <PageHeader
           section={section}
-          isRefreshing={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? false : isRefreshing}
-          lastUpdated={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? null : lastUpdated}
-          onRefresh={section === 'recommendations' || section === 'access' || section === 'connections' || section === 'status' ? undefined : () => void refresh()}
+          isRefreshing={showSnapshotRefresh && isRefreshing}
+          lastUpdated={showSnapshotRefresh ? lastUpdated : null}
+          onRefresh={showSnapshotRefresh ? () => void refresh() : undefined}
         />
 
         <ErrorBoundary scope="page" key={section}>
@@ -296,6 +300,13 @@ export function App() {
               isLoaded={isLoaded}
               userId={currentUser?.userId}
               capabilities={assetCapabilities}
+              permissions={currentUser?.permissions ?? []}
+              onRefresh={refresh}
+            />
+          )}
+          {section === 'authoring' && canOpenSection(currentUser, section) && (
+            <ModuleAuthoringWorkspace
+              key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
               permissions={currentUser?.permissions ?? []}
               onRefresh={refresh}
             />

@@ -15,11 +15,13 @@ function signIn(permissions: string[]) {
 
 it('groups navigation by intent and shows only groups the user can use', async () => {
   window.location.hash = '#assets';
-  signIn(['assets.read', 'logic.read']);
+  signIn(['assets.read', 'logic.read', 'logic.authoring.manage']);
   render(<App />);
   const nav = await screen.findByRole('navigation', { name: 'Primary' });
-  await within(nav).findByRole('link', { name: 'Assets' });
-  expect(within(nav).getByRole('group', { name: 'Configure' })).not.toBeNull();
+  await within(nav).findByRole('link', { name: 'Assets & views' });
+  const configure = within(nav).getByRole('group', { name: 'Configure' });
+  expect(within(configure).getAllByRole('link').map(link => link.getAttribute('aria-label')))
+    .toEqual(['Assets & views', 'Logic setup', 'Module authoring']);
   expect(within(nav).getByRole('group', { name: 'Operate' })).not.toBeNull();
   expect(within(nav).queryByRole('group', { name: 'Administer' })).toBeNull();
 });
@@ -71,8 +73,33 @@ it('collapses the side panel to an icon rail, remembers it, and keeps every link
   const expand = screen.getByRole('button', { name: 'Expand side panel' });
   expect(expand.getAttribute('aria-expanded')).toBe('false');
   expect(document.querySelector('.app-shell')?.classList.contains('nav-collapsed')).toBe(true);
-  expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Assets' }).getAttribute('title')).toBe('Assets');
+  expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Assets & views' }).getAttribute('title')).toBe('Assets & views');
   first.unmount();
   render(<App />);
   expect(await screen.findByRole('button', { name: 'Expand side panel' })).not.toBeNull();
+});
+
+it.each([
+  ['logic.authoring.manage', '#authoring', 'New threshold module'],
+  ['logic.authoring.review', '#logic/authoring%3Adraft-2%2F3', 'Open submitted revision'],
+])('opens the dedicated workspace for %s without Logic setup access', async (permission, hash, action) => {
+  window.location.hash = hash;
+  signIn([permission]);
+  render(<App />);
+  expect((await screen.findByRole('link', { name: 'Module authoring' })).getAttribute('aria-current')).toBe('page');
+  expect(screen.queryByRole('link', { name: 'Logic setup' })).toBeNull();
+  expect(await screen.findByRole('button', { name: action })).toBeTruthy();
+  if (permission === 'logic.authoring.review') {
+    expect(screen.getByLabelText<HTMLInputElement>('Review reference').value).toBe('draft-2/3');
+    expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
+  }
+});
+
+it('denies legacy review links to users with catalog and approval grants alone', async () => {
+  window.location.hash = '#logic/authoring%3Adraft-2%2F3';
+  signIn(['logic.read', 'logic.manage']);
+  render(<App />);
+  await screen.findByText('Your current permissions do not allow this section.');
+  expect(screen.queryByRole('link', { name: 'Module authoring' })).toBeNull();
+  expect(screen.queryByLabelText('Review reference')).toBeNull();
 });

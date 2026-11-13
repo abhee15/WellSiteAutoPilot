@@ -8,9 +8,9 @@ const userId = '66666666-6666-4666-8666-666666666666';
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.location.hash = ''; localStorage.clear(); });
 
-const sections = ['overview', 'operations', 'recommendations', 'assets', 'logic', 'connections', 'status', 'access'] as const;
+const sections = ['overview', 'operations', 'recommendations', 'assets', 'logic', 'authoring', 'connections', 'status', 'access'] as const;
 const linkName: Record<(typeof sections)[number], string> = {
-  overview: 'Overview', operations: 'Runs', recommendations: 'Recommendations', assets: 'Assets', logic: 'Logic',
+  overview: 'Overview', operations: 'Runs', recommendations: 'Recommendations', assets: 'Assets & views', logic: 'Logic setup', authoring: 'Module authoring',
   connections: 'Connections', status: 'Status', access: 'Access' };
 
 /** Which permission each API area needs: a request outside the persona's permissions means the page asked for data it may not read. */
@@ -109,7 +109,7 @@ describe.each(Object.entries(personas))('controls as %s', (_name, permissions) =
     const user = { userId, identityName: 'x', isActive: true, permissions } as never;
     const section = hash.slice(1) as (typeof sections)[number];
     if (!canOpenSection(user, section)) return; // not reachable: covered by the section matrix above
-    await screen.findByRole('heading', { name: section === 'logic' ? 'Logic workspace' : linkName[section] });
+    await screen.findByRole('heading', { name: linkName[section] });
     await new Promise(resolve => setTimeout(resolve, 300));
     const present = screen.queryAllByRole('button', { name: label }).length + screen.queryAllByRole('link', { name: label }).length > 0;
     expect(present, `${label} for permissions ${permissions.join(', ')}`).toBe(offered(permissions));
