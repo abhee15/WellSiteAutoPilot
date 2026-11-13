@@ -551,11 +551,13 @@ export function AuthoringWorkbench() {
                   </SelectField>
                   {connection && (
                     <>
-                      <TextField
-                        label="Find an asset"
-                        value={assetFilter}
-                        onChange={(event) => setAssetFilter(event.target.value)}
-                      />
+                      {assets.length > 12 && (
+                        <TextField
+                          label="Find an asset"
+                          value={assetFilter}
+                          onChange={(event) => setAssetFilter(event.target.value)}
+                        />
+                      )}
                       <SelectField
                         label={`Asset (${assets.length})`}
                         value={assetId}
