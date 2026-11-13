@@ -3,12 +3,11 @@ import { ActionButton } from '../components/ActionButton';
 import { PanelHeader } from '../components/common';
 import { SelectField, TextAreaField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
-import { CollapsibleSection } from '../components/Section';
+import { Section } from '../components/Section';
 import { SectionTabs } from '../components/SectionTabs';
 import { t } from '../localization';
 import { PanelLoading } from '../components/LoadingIndicator';
 import { AdapterGuide } from './AdapterGuide';
-import { AuthoringFlow } from './AuthoringFlow';
 import { AuthoringNodeEditor } from './AuthoringNodeEditor';
 import { AuthoringResults } from './AuthoringResults';
 import {
@@ -38,13 +37,15 @@ import type { CatalogPoint, Connection, DiscoveredObject } from './connections';
 import './connections.css';
 import './authoring.css';
 
-const kinds: NodeKind[] = ['input', 'parameter', 'step', 'output'];
-const groupTitle: Record<NodeKind, string> = {
-  input: 'Inputs',
-  parameter: 'Parameters',
-  step: 'Calculations',
-  output: 'Outputs',
-};
+const docGroups: {
+  title: 'authoring.docReads' | 'authoring.docDecides' | 'authoring.docDoes';
+  hint: 'authoring.docReadsHint' | 'authoring.docDecidesHint' | 'authoring.docDoesHint';
+  kinds: NodeKind[];
+}[] = [
+  { title: 'authoring.docReads', hint: 'authoring.docReadsHint', kinds: ['input', 'parameter'] },
+  { title: 'authoring.docDecides', hint: 'authoring.docDecidesHint', kinds: ['step'] },
+  { title: 'authoring.docDoes', hint: 'authoring.docDoesHint', kinds: ['output'] },
+];
 const recoveryKey = 'wsa.authoring.draft';
 
 type Recovered = { draft: ModuleDraft; bindings: ModuleBindings };
@@ -383,315 +384,287 @@ export function AuthoringWorkbench() {
       )}
 
       <div className="authoring-workspace">
-        <nav className="connection-form authoring-outline" aria-label="Module outline">
-          <button
-            type="button"
-            className="authoring-node"
-            aria-current={selection.kind === 'module'}
-            onClick={() => setSelection({ kind: 'module' })}
+        <div className="authoring-doc">
+          <div className="connection-form">
+            <TextField
+              label="Module name"
+              value={draft.name}
+              onChange={(event) => change({ ...draft, name: event.target.value })}
+            />
+            <TextAreaField
+              label="What it does"
+              rows={2}
+              value={draft.description ?? ''}
+              onChange={(event) => change({ ...draft, description: event.target.value })}
+            />
+            {analysis?.valid && (
+              <Notice tone="success">
+                {t('authoring.valid')}{' '}
+                {analysis.order.length > 0 ? `Calculation order: ${analysis.order.join(', ')}.` : ''}
+              </Notice>
+            )}
+          </div>
+          {docGroups.map((group) => (
+            <Section key={group.title} title={t(group.title)} hint={t(group.hint)}>
+              {group.kinds.map((kind) => {
+                const items = {
+                  input: draft.inputs,
+                  parameter: draft.parameters,
+                  step: draft.steps,
+                  output: draft.outputs,
+                }[kind];
+                return (
+                  <div key={kind} className="authoring-items">
+                    {items.map((item) => {
+                      const own = problems.filter((problem) => problem.node === item.name);
+                      const open = selection.kind === kind && 'name' in selection && selection.name === item.name;
+                      const reads = analysis?.graph.find((node) => node.kind === kind && node.name === item.name);
+                      return (
+                        <div key={item.name} className="authoring-item" data-open={open}>
+                          <button
+                            type="button"
+                            className="authoring-node"
+                            aria-expanded={open}
+                            data-problem={
+                              own.some((problem) => problem.severity === 'Error')
+                                ? 'error'
+                                : own.length
+                                  ? 'warning'
+                                  : undefined
+                            }
+                            onClick={() => setSelection(open ? { kind: 'module' } : { kind, name: item.name })}
+                          >
+                            <span>
+                              <strong>{item.name}</strong>
+                              <small className="authoring-why">
+                                {kindLabel[kind]}
+                                {reads && reads.dependsOn.length > 0
+                                  ? ` · ${t('authoring.flowFrom', { names: reads.dependsOn.join(', ') })}`
+                                  : ''}
+                                {own[0] ? ` · ${own[0].message}` : ''}
+                              </small>
+                            </span>
+                            <strong>{valueOf.get(item.name) ?? ''}</strong>
+                          </button>
+                          {open && selected && (
+                            <AuthoringNodeEditor
+                              draft={draft}
+                              kind={selected.kind}
+                              name={selected.name}
+                              analysis={analysis}
+                              run={run?.result ?? null}
+                              points={points}
+                              sources={selected.kind === 'input' ? (bindings.inputs?.[selected.name] ?? []) : []}
+                              onSources={(sources) => setSources(selected.name, sources)}
+                              onChange={(patch) => edit(selected.kind, selected.name, patch)}
+                              onRemove={() => {
+                                if (selected.kind === 'input')
+                                  setBindings((current) => moveBindings(current, selected.name, null));
+                                change(removeNode(draft, selected.kind, selected.name));
+                                setSelection({ kind: 'module' });
+                              }}
+                              onSelect={select}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                    <ActionButton
+                      label={t('authoring.flowAdd', { kind: kindLabel[kind].toLowerCase() })}
+                      variant="quiet"
+                      onClick={() => add(kind)}
+                    />
+                  </div>
+                );
+              })}
+            </Section>
+          ))}
+        </div>
+        <div className="authoring-panel">
+          <SectionTabs
+            prefix="authoring-panel"
+            label={t('authoring.panelLabel')}
+            selected={panel}
+            onSelect={setPanel}
+            tabs={[
+              { id: 'test', label: t('authoring.panelTest') },
+              { id: 'results', label: t('authoring.panelResults') },
+              { id: 'problems', label: t('authoring.panelProblems', { count: problems.length }) },
+              { id: 'examples', label: t('authoring.panelExamples', { count: examples.length }) },
+            ]}
+          />
+          <div
+            role="tabpanel"
+            id={`authoring-panel-${panel}`}
+            aria-labelledby={`authoring-panel-tab-${panel}`}
+            className="authoring-panel-body"
           >
-            <strong>{draft.name || 'Untitled'}</strong>
-            <small>{errors.length === 0 ? (analysis ? 'No errors' : 'Checking…') : `${errors.length} to fix`}</small>
-          </button>
-          {kinds.map((kind) => {
-            const items = {
-              input: draft.inputs,
-              parameter: draft.parameters,
-              step: draft.steps,
-              output: draft.outputs,
-            }[kind];
-            return (
-              <div key={kind}>
-                <h4>
-                  {groupTitle[kind]}{' '}
-                  <small>
-                    {items.length === 0
-                      ? t('authoring.sectionNone')
-                      : problems.some(
-                            (problem) =>
-                              items.some((item) => item.name === problem.node) && problem.severity === 'Error',
-                          )
-                        ? t('authoring.sectionAttention')
-                        : t('authoring.sectionOk')}
-                  </small>
-                </h4>
-                {items.map((item) => {
-                  const own = problems.filter((problem) => problem.node === item.name);
-                  return (
-                    <button
-                      key={item.name}
-                      type="button"
-                      className="authoring-node"
-                      aria-current={selection.kind === kind && selection.name === item.name}
-                      data-problem={
-                        own.some((problem) => problem.severity === 'Error')
-                          ? 'error'
-                          : own.length
-                            ? 'warning'
-                            : undefined
-                      }
-                      onClick={() => setSelection({ kind, name: item.name })}
+            {panel === 'test' && (
+              <div className="connection-form">
+                <SelectField
+                  label="Connection"
+                  value={connectionId}
+                  onChange={(event) => setConnectionId(event.target.value)}
+                >
+                  <option value="">No connection: use typed values</option>
+                  {connections.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ({item.adapterKey})
+                    </option>
+                  ))}
+                </SelectField>
+                {connection && (
+                  <>
+                    <TextField
+                      label="Find an asset"
+                      value={assetFilter}
+                      onChange={(event) => setAssetFilter(event.target.value)}
+                    />
+                    <SelectField
+                      label={`Asset (${assets.length})`}
+                      value={assetId}
+                      onChange={(event) => setAssetId(event.target.value)}
                     >
-                      <span>{item.name}</span>
-                      <small>{own[0]?.message ?? valueOf.get(item.name) ?? ''}</small>
-                    </button>
-                  );
-                })}
-                <ActionButton
-                  label={`Add ${kindLabel[kind].toLowerCase()}`}
-                  variant="quiet"
-                  onClick={() => add(kind)}
-                />
-              </div>
-            );
-          })}
-        </nav>
-
-        <div className="authoring-center">
-          <CollapsibleSection
-            open
-            title={t('authoring.flowTitle')}
-            hint={t('authoring.flowHint')}
-            className="connection-form"
-          >
-            <AuthoringFlow
-              analysis={analysis}
-              problems={problems}
-              selection={selection}
-              valueOf={valueOf}
-              onSelect={(kind, name) => setSelection({ kind, name })}
-              onAdd={add}
-            />
-          </CollapsibleSection>
-        </div>
-
-        <div className="authoring-properties">
-          {selected ? (
-            <AuthoringNodeEditor
-              draft={draft}
-              kind={selected.kind}
-              name={selected.name}
-              analysis={analysis}
-              run={run?.result ?? null}
-              points={points}
-              sources={selected.kind === 'input' ? (bindings.inputs?.[selected.name] ?? []) : []}
-              onSources={(sources) => setSources(selected.name, sources)}
-              onChange={(patch) => edit(selected.kind, selected.name, patch)}
-              onRemove={() => {
-                if (selected.kind === 'input') setBindings((current) => moveBindings(current, selected.name, null));
-                change(removeNode(draft, selected.kind, selected.name));
-                setSelection({ kind: 'module' });
-              }}
-              onSelect={select}
-            />
-          ) : (
-            <div className="connection-form">
-              <h3>Module</h3>
-              <TextField
-                label="Module name"
-                value={draft.name}
-                onChange={(event) => change({ ...draft, name: event.target.value })}
-              />
-              <TextAreaField
-                label="What it does"
-                rows={3}
-                value={draft.description ?? ''}
-                onChange={(event) => change({ ...draft, description: event.target.value })}
-              />
-              {analysis?.valid && (
-                <Notice tone="success">
-                  The module is valid.{' '}
-                  {analysis.order.length > 0 ? `Calculation order: ${analysis.order.join(', ')}.` : ''}
-                </Notice>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="authoring-panel">
-        <SectionTabs
-          prefix="authoring-panel"
-          label={t('authoring.panelLabel')}
-          selected={panel}
-          onSelect={setPanel}
-          tabs={[
-            { id: 'test', label: t('authoring.panelTest') },
-            { id: 'results', label: t('authoring.panelResults') },
-            { id: 'problems', label: t('authoring.panelProblems', { count: problems.length }) },
-            { id: 'examples', label: t('authoring.panelExamples', { count: examples.length }) },
-          ]}
-        />
-        <div
-          role="tabpanel"
-          id={`authoring-panel-${panel}`}
-          aria-labelledby={`authoring-panel-tab-${panel}`}
-          className="authoring-panel-body"
-        >
-          {panel === 'test' && (
-            <div className="connection-form">
-              <SelectField
-                label="Connection"
-                value={connectionId}
-                onChange={(event) => setConnectionId(event.target.value)}
-              >
-                <option value="">No connection: use typed values</option>
-                {connections.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} ({item.adapterKey})
-                  </option>
-                ))}
-              </SelectField>
-              {connection && (
-                <>
-                  <TextField
-                    label="Find an asset"
-                    value={assetFilter}
-                    onChange={(event) => setAssetFilter(event.target.value)}
-                  />
-                  <SelectField
-                    label={`Asset (${assets.length})`}
-                    value={assetId}
-                    onChange={(event) => setAssetId(event.target.value)}
-                  >
-                    <option value="">Choose an asset</option>
-                    {shownAssets.map((item) => (
-                      <option key={item.externalId} value={item.externalId}>
-                        {item.displayName} [{item.externalId}]
-                      </option>
-                    ))}
-                  </SelectField>
-                </>
-              )}
-              {Object.keys(pins).length > 0 && live && (
-                <Notice tone="info">
-                  {t('authoring.pinnedTitle')}: {Object.keys(pins).join(', ')} use typed values, not live reads. Clear a
-                  value to read it live again.
-                </Notice>
-              )}
-              {draft.inputs.map((input) => (
-                <TextField
-                  key={input.name}
-                  label={live ? `Pin ${input.name} (optional)` : `Value for ${input.name}`}
-                  value={samples[input.name] ?? ''}
-                  helper={input.unit ? `A number in ${input.unit}, or with its own unit, such as 20 kPa.` : undefined}
-                  onChange={(event) => setSamples({ ...samples, [input.name]: event.target.value })}
-                />
-              ))}
-              {draft.parameters.map((parameter) => (
-                <TextField
-                  key={parameter.name}
-                  label={`Try ${parameter.name} (saved: ${parameter.value}${parameter.unit ? ` ${parameter.unit}` : ''})`}
-                  value={overrides[parameter.name] ?? ''}
-                  onChange={(event) => setOverrides({ ...overrides, [parameter.name]: event.target.value })}
-                />
-              ))}
-              <div className="connection-actions">
-                <ActionButton
-                  label="Run test"
-                  variant="primary"
-                  busy={running}
-                  disabled={errors.length > 0 || draft.outputs.length === 0}
-                  onClick={() => void test()}
-                />
-                <ActionButton
-                  label="Browse this asset's points"
-                  variant="secondary"
-                  disabled={!live}
-                  onClick={() => void browse()}
-                />
-              </div>
-              {points && (
-                <p className="connection-help">
-                  {points.length} points loaded. Select an input and use "Add a source from this asset's points".
-                </p>
-              )}
-            </div>
-          )}
-          {panel === 'results' &&
-            (run ? (
-              <AuthoringResults
-                run={run.result}
-                stale={stale}
-                onSelect={select}
-                onSaveExample={
-                  stale || !exampleFromRun(run.result, 'x')
-                    ? undefined
-                    : () => {
-                        const saved = exampleFromRun(
-                          run.result,
-                          `Example ${examples.length + 1}${run.result.externalId ? ` from ${run.result.externalId}` : ''}`,
-                        );
-                        if (saved) change({ ...draft, tests: [...examples, saved] });
-                      }
-                }
-              />
-            ) : (
-              <p className="connection-help">{t('authoring.noResults')}</p>
-            ))}
-          {panel === 'problems' &&
-            (problems.length > 0 ? (
-              <ul className="authoring-reasons">
-                {problems.map((problem, index) => (
-                  <li key={`${problem.node}-${index}`} data-severity={problem.severity}>
-                    {problem.node ? (
-                      <button type="button" className="authoring-link" onClick={() => select(problem.node)}>
-                        {problem.node}
-                      </button>
-                    ) : null}{' '}
-                    {problem.message}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="connection-help">{t('authoring.noProblems')}</p>
-            ))}
-          {panel === 'examples' && (
-            <div className="connection-form">
-              <h4>Stored examples</h4>
-              <p className="connection-help">
-                {examples.length === 0
-                  ? 'This module has no stored examples. Examples are typed inputs with the outputs they must produce, so the module can be checked on any system without live data.'
-                  : `${examples.length} example${examples.length === 1 ? '' : 's'} stored with the module.`}
-              </p>
-              <div className="connection-actions">
-                <ActionButton
-                  label="Run stored examples"
-                  variant="secondary"
-                  busy={verifying}
-                  disabled={errors.length > 0 || examples.length === 0}
-                  onClick={() => void verify()}
-                />
-              </div>
-              {verified && (
-                <div data-stale={exampleStale} aria-label="Stored example results">
-                  {exampleStale && (
-                    <Notice tone="warning">The module changed after these examples ran. Run them again.</Notice>
-                  )}
-                  <Notice tone={verified.result.tests.failed === 0 ? 'success' : 'warning'}>
-                    {verified.result.tests.passed} passed, {verified.result.tests.failed} failed.
-                    {verified.result.manifestValid
-                      ? ' Maps onto a valid logic module manifest.'
-                      : ` Does not map onto a valid manifest: ${verified.result.manifestError ?? 'unknown'}.`}
+                      <option value="">Choose an asset</option>
+                      {shownAssets.map((item) => (
+                        <option key={item.externalId} value={item.externalId}>
+                          {item.displayName} [{item.externalId}]
+                        </option>
+                      ))}
+                    </SelectField>
+                  </>
+                )}
+                {Object.keys(pins).length > 0 && live && (
+                  <Notice tone="info">
+                    {t('authoring.pinnedTitle')}: {Object.keys(pins).join(', ')} use typed values, not live reads. Clear
+                    a value to read it live again.
                   </Notice>
-                  <ul className="authoring-checks">
-                    {verified.result.tests.cases.map((item) => (
-                      <li key={item.name} data-status={item.passed ? 'Pass' : 'Fail'}>
-                        <strong>{item.passed ? 'Pass' : 'Fail'}</strong> {item.name}
-                        {item.error ? `: ${item.error}` : ''}
-                        {item.checks
-                          .filter((check) => !check.passed)
-                          .map((check) => (
-                            <small key={check.output} className="authoring-why">
-                              {check.output}: expected {check.expected}, got {check.actual}
-                            </small>
-                          ))}
-                      </li>
-                    ))}
-                  </ul>
+                )}
+                {draft.inputs.map((input) => (
+                  <TextField
+                    key={input.name}
+                    label={live ? `Pin ${input.name} (optional)` : `Value for ${input.name}`}
+                    value={samples[input.name] ?? ''}
+                    helper={input.unit ? `A number in ${input.unit}, or with its own unit, such as 20 kPa.` : undefined}
+                    onChange={(event) => setSamples({ ...samples, [input.name]: event.target.value })}
+                  />
+                ))}
+                {draft.parameters.map((parameter) => (
+                  <TextField
+                    key={parameter.name}
+                    label={`Try ${parameter.name} (saved: ${parameter.value}${parameter.unit ? ` ${parameter.unit}` : ''})`}
+                    value={overrides[parameter.name] ?? ''}
+                    onChange={(event) => setOverrides({ ...overrides, [parameter.name]: event.target.value })}
+                  />
+                ))}
+                <div className="connection-actions">
+                  <ActionButton
+                    label="Run test"
+                    variant="primary"
+                    busy={running}
+                    disabled={errors.length > 0 || draft.outputs.length === 0}
+                    onClick={() => void test()}
+                  />
+                  <ActionButton
+                    label="Browse this asset's points"
+                    variant="secondary"
+                    disabled={!live}
+                    onClick={() => void browse()}
+                  />
                 </div>
-              )}
-            </div>
-          )}
+                {points && (
+                  <p className="connection-help">
+                    {points.length} points loaded. Select an input and use "Add a source from this asset's points".
+                  </p>
+                )}
+              </div>
+            )}
+            {panel === 'results' &&
+              (run ? (
+                <AuthoringResults
+                  run={run.result}
+                  stale={stale}
+                  onSelect={select}
+                  onSaveExample={
+                    stale || !exampleFromRun(run.result, 'x')
+                      ? undefined
+                      : () => {
+                          const saved = exampleFromRun(
+                            run.result,
+                            `Example ${examples.length + 1}${run.result.externalId ? ` from ${run.result.externalId}` : ''}`,
+                          );
+                          if (saved) change({ ...draft, tests: [...examples, saved] });
+                        }
+                  }
+                />
+              ) : (
+                <p className="connection-help">{t('authoring.noResults')}</p>
+              ))}
+            {panel === 'problems' &&
+              (problems.length > 0 ? (
+                <ul className="authoring-reasons">
+                  {problems.map((problem, index) => (
+                    <li key={`${problem.node}-${index}`} data-severity={problem.severity}>
+                      {problem.node ? (
+                        <button type="button" className="authoring-link" onClick={() => select(problem.node)}>
+                          {problem.node}
+                        </button>
+                      ) : null}{' '}
+                      {problem.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="connection-help">{t('authoring.noProblems')}</p>
+              ))}
+            {panel === 'examples' && (
+              <div className="connection-form">
+                <h4>Stored examples</h4>
+                <p className="connection-help">
+                  {examples.length === 0
+                    ? 'This module has no stored examples. Examples are typed inputs with the outputs they must produce, so the module can be checked on any system without live data.'
+                    : `${examples.length} example${examples.length === 1 ? '' : 's'} stored with the module.`}
+                </p>
+                <div className="connection-actions">
+                  <ActionButton
+                    label="Run stored examples"
+                    variant="secondary"
+                    busy={verifying}
+                    disabled={errors.length > 0 || examples.length === 0}
+                    onClick={() => void verify()}
+                  />
+                </div>
+                {verified && (
+                  <div data-stale={exampleStale} aria-label="Stored example results">
+                    {exampleStale && (
+                      <Notice tone="warning">The module changed after these examples ran. Run them again.</Notice>
+                    )}
+                    <Notice tone={verified.result.tests.failed === 0 ? 'success' : 'warning'}>
+                      {verified.result.tests.passed} passed, {verified.result.tests.failed} failed.
+                      {verified.result.manifestValid
+                        ? ' Maps onto a valid logic module manifest.'
+                        : ` Does not map onto a valid manifest: ${verified.result.manifestError ?? 'unknown'}.`}
+                    </Notice>
+                    <ul className="authoring-checks">
+                      {verified.result.tests.cases.map((item) => (
+                        <li key={item.name} data-status={item.passed ? 'Pass' : 'Fail'}>
+                          <strong>{item.passed ? 'Pass' : 'Fail'}</strong> {item.name}
+                          {item.error ? `: ${item.error}` : ''}
+                          {item.checks
+                            .filter((check) => !check.passed)
+                            .map((check) => (
+                              <small key={check.output} className="authoring-why">
+                                {check.output}: expected {check.expected}, got {check.actual}
+                              </small>
+                            ))}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </section>
