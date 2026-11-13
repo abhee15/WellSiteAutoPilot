@@ -15,7 +15,9 @@
 .asset-view-levels { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-6); }
 .asset-view-levels li { display: flex; align-items: center; gap: var(--space-6); }
 .asset-view-levels li > span { flex: 1; }
-.asset-view-bar { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; padding: var(--space-4) 0; }
+/* The selector is a labelled field, so its action buttons align with the control's bottom, as in the connection and
+   operation control rows; centring would float them beside the label. */
+.asset-view-bar { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: flex-end; padding: var(--space-4) 0; }
 .asset-view-bar > .ui-field { min-inline-size: 0; flex: 1 1 var(--layout-field-min); max-inline-size: var(--layout-form-wide); }
 .well-selection-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-16); }
 .well-selection-layout > section { min-inline-size: 0; }
