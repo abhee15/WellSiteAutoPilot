@@ -87,7 +87,86 @@ internal static class ConfiguredShadowE2e
         if (failed.GetProperty("status").GetString() != "Failed" || string.IsNullOrEmpty(failed.GetProperty("failureCode").GetString()))
             throw new InvalidOperationException("Provider failure was not durably inspectable.");
         Console.WriteLine("Configured Shadow V2 real HTTP/PostgreSQL/JetStream/simulator journey, request recovery, provenance and failure checks passed.");
+        await VerifyGuidedAsync(client, assetId);
     }
+
+    private static async Task VerifyGuidedAsync(HttpClient client, Guid assetId)
+    {
+        client.DefaultRequestHeaders.Remove("X-Correlation-ID");
+        client.DefaultRequestHeaders.Add("X-Correlation-ID", "ci-guided-shadow-e2e");
+        var manifestJson = JsonSerializer.Serialize(new
+        {
+            manifestVersion = 1,
+            moduleId = "ci.guided-" + Guid.NewGuid().ToString("N"),
+            version = "1.0.0", displayName = "Guided pump fillage", publisher = "WellSite AutoPilot",
+            runtime = "DotNet", executionProfile = "ScheduledOneShot",
+            entryPoint = DeclarativeThresholdModule.EntryPoint, minimumSdkVersion = "1.1.0",
+            assetRequirements = new[] { new { role = "well", minimumCount = 1, maximumCount = 1, requiredTraits = Array.Empty<string>() } },
+            dataRequirements = new[] { new { id = "fillage", assetRole = "well", quantity = "PumpFillage", access = "Current",
+                canonicalUnit = "%", maximumAgeSeconds = 60, allowUncertainQuality = false } },
+            commandRequirements = Array.Empty<object>(),
+            parameterSchema = JsonSerializer.Deserialize<JsonElement>("""{"type":"object","properties":{"threshold":{"type":"number","minimum":0,"maximum":100}},"additionalProperties":false}""")
+        });
+        var draft = await Read(await client.PostAsJsonAsync("/api/v1/guided-module-drafts", new
+        {
+            manifestJson,
+            definition = new { parameter = "threshold", @default = 90, outcomeCode = "LOW_FILLAGE", title = "Low pump fillage", detail = "Review the simulator reading." }
+        }), HttpStatusCode.OK);
+        var draftPath = "/api/v1/guided-module-drafts/" + draft.GetProperty("id").GetGuid();
+        var revision = draft.GetProperty("revision").GetInt32();
+        var preview = await Read(await client.PostAsJsonAsync(draftPath + "/preview",
+            new { expectedRevision = revision, value = 82, parametersJson = "{}" }), HttpStatusCode.OK);
+        var submission = await Read(await client.PostAsJsonAsync(draftPath + "/submit",
+            new { expectedRevision = revision, readings = new int?[] { 82, 90, null } }), HttpStatusCode.OK);
+        var packageSha256 = submission.GetProperty("packageSha256").GetString();
+        if (preview.GetProperty("packageSha256").GetString() != packageSha256)
+            throw new InvalidOperationException("The preview and submission refer to different packages.");
+        var approved = await Read(await client.PostAsJsonAsync($"{draftPath}/submissions/{revision}/approve",
+            new { packageSha256, reason = "Simulator threshold evidence reviewed" }), HttpStatusCode.OK);
+        if (!approved.GetProperty("isEnabled").GetBoolean() || approved.GetProperty("packageSha256").GetString() != packageSha256)
+            throw new InvalidOperationException("The reviewed package was not enabled in the catalog.");
+        var moduleId = approved.GetProperty("moduleId").GetString();
+        var version = approved.GetProperty("version").GetString();
+        await AwaitPackagePublication(client, $"/api/v1/logic-modules/{moduleId}/{version}/package-state");
+
+        var configuration = await Read(await client.PostAsJsonAsync("/api/v1/configured-logic", new
+        {
+            name = "Guided Shadow E2E", moduleManifestJson = approved.GetProperty("manifestJson").GetString(), parametersJson = "{}",
+            assetBindings = new[] { new { role = "well", assetId, parameterOverridesJson = "{}" } },
+            dataBindings = new[] { new { requirementId = "fillage", assetId, providerId = "simulator",
+                providerAssetExternalId = "WELL-101", providerMappingJson = "{}" } }, schedule = (object?)null
+        }), HttpStatusCode.Created);
+        var configurationId = configuration.GetProperty("id").GetGuid();
+        var configurationRevision = configuration.GetProperty("revisions")[0].GetProperty("id").GetGuid();
+        var path = $"/api/v1/configured-logic/{configurationId}/revisions/{configurationRevision}";
+        await Read(await client.PostAsync(path + "/validate", null), HttpStatusCode.OK);
+        await Activate(client, path + "/activate", "none");
+        var receipt = await Send(client, path + "/shadow", Guid.NewGuid());
+        var result = await AwaitTerminal(client, receipt.GetProperty("executionId").GetGuid());
+        if (result.GetProperty("status").GetString() != "Completed" || result.GetProperty("mode").GetString() != "Shadow" ||
+            result.GetProperty("correlationId").GetString() != "ci-guided-shadow-e2e" ||
+            result.GetProperty("resultCode").GetString() != preview.GetProperty("outcomeCode").GetString())
+            throw new InvalidOperationException("The configured worker execution diverged from the guided preview: " + result);
+        using var output = JsonDocument.Parse(result.GetProperty("outputJson").GetString()!);
+        var observation = output.RootElement.GetProperty("inputObservations")[0];
+        if (observation.GetProperty("assetId").GetGuid() != assetId || observation.GetProperty("value").GetDecimal() != 82 ||
+            output.RootElement.GetProperty("controlIntents").GetArrayLength() != 0)
+            throw new InvalidOperationException("The guided run lost input provenance or emitted a control intent.");
+        Console.WriteLine("Guided draft, preview, approval and configured Shadow execution passed with the same pump fillage outcome.");
+    }
+
+    private static async Task AwaitPackagePublication(HttpClient client, string path)
+    {
+        JsonElement state = default;
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            state = await Read(await client.GetAsync(path), HttpStatusCode.OK);
+            if (state.GetProperty("publicationRecorded").GetBoolean() && state.GetProperty("objectAvailable").GetBoolean()) return;
+            await Task.Delay(500);
+        }
+        throw new InvalidOperationException("The approved package did not reach the object store: " + state);
+    }
+
     private static async Task Activate(HttpClient client, string path, string reviewedActiveRevision)
     {
         using var message = new HttpRequestMessage(HttpMethod.Post, path);

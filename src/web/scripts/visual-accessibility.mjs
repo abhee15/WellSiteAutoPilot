@@ -11,6 +11,7 @@ const cases = [
   ['adapter-operations', '?nav=expanded', 1440], ['adapter-operations', '?mode=examples', 390],
   ['operator-review', '', 1440], ['operator-review', '?page=overview', 390],
   ['shared-forms', '', 1440], ['shared-forms', '', 390],
+  ['guided-authoring', '', 1440], ['guided-authoring', '', 768], ['guided-authoring', '', 390],
 ];
 /**
  * Rules that cannot be judged on these pages. heading-order: each page renders one component without the heading
@@ -52,6 +53,26 @@ try {
     await channel.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
     await channel.send('Page.navigate', { url: `${session.origin}/tests/visual/${page}.html${query}` });
     try { await settled(); } catch (error) { problems.push(`${key}: ${error.message}`); continue; }
+    if (page === 'guided-authoring') {
+      await evaluate("document.querySelector('.guided-authoring-review button').click()");
+      await settled();
+      const layout = await evaluate(`(() => {
+        const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
+        return {
+          editor: visible('.guided-authoring-editor'),
+          review: visible('.guided-authoring-review'),
+          evidence: visible('[title="LOW_FILLAGE"]'),
+          approval: visible('.guided-authoring-approval'),
+          phoneMessage: visible('.guided-authoring-mobile'),
+          overflow: document.documentElement.scrollWidth > innerWidth,
+        };
+      })()`);
+      const phone = width === 390;
+      if (layout.editor === phone || !layout.review || !layout.evidence || layout.approval === phone
+        || layout.phoneMessage !== phone || layout.overflow) {
+        problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
+      }
+    }
     await evaluate(axeSource);
     const violations = await evaluate(`axe.run(document, { resultTypes: ['violations'], rules: ${JSON.stringify(fixtureRules)} }).then(result =>
       result.violations.map(v => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.map(n => ({ target: n.target.join(' '), summary: n.failureSummary })) })))`);
