@@ -152,10 +152,12 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
   white-space: nowrap;
 }
 
+/* A bar of its own under the search and filters, spaced and ruled like them (see .filter-toolbar). */
 .configuration-list-toolbar {
   display: flex;
   justify-content: flex-end;
-  padding-block-end: var(--space-2);
+  padding: var(--space-8) var(--space-panel-inline);
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
 }
 
 .activity-table.configuration-list td button,
