@@ -76,7 +76,11 @@ internal static class HostedModuleExecutionChecks
                     {"type":"object","properties":{"threshold":{"type":"number","minimum":0,"maximum":100}},"additionalProperties":false}
                     """)
             };
-        using var bytes = new MemoryStream(Pack(manifest));
+        var packageBytes = declarative
+            ? (await DeclarativeThresholdPackageBuilder.BuildAsync(manifest,
+                new("threshold", 70, "LOW_FILLAGE", "Low pump fillage", "Review pump fillage."))).Bytes.ToArray()
+            : Pack(manifest);
+        using var bytes = new MemoryStream(packageBytes);
         var module = await new LogicModulePackageService(new LogicModuleCatalogRepository(db), TimeProvider.System)
             .UploadAsync(bytes, subject, actor);
         var asset = Guid.NewGuid();
@@ -305,19 +309,9 @@ internal static class HostedModuleExecutionChecks
         using (var archive = new ZipArchive(bytes, ZipArchiveMode.Create, leaveOpen: true))
         {
             using (var writer = new StreamWriter(archive.CreateEntry("manifest.json").Open())) writer.Write(JsonSerializer.Serialize(manifest, Options));
-            if (manifest.EntryPoint == DeclarativeThresholdModule.EntryPoint)
-            {
-                using var definition = new StreamWriter(archive.CreateEntry(DeclarativeThresholdModule.PayloadPath).Open());
-                definition.Write("""
-                    {"parameter":"threshold","default":70,"outcomeCode":"LOW_FILLAGE","title":"Low pump fillage","detail":"Review pump fillage."}
-                    """);
-            }
-            else
-            {
-                using var image = File.OpenRead(Assembly.GetExecutingAssembly().Location);
-                using var output = archive.CreateEntry("payload/probe.dll").Open();
-                image.CopyTo(output);
-            }
+            using var image = File.OpenRead(Assembly.GetExecutingAssembly().Location);
+            using var output = archive.CreateEntry("payload/probe.dll").Open();
+            image.CopyTo(output);
         }
         return bytes.ToArray();
     }

@@ -67,13 +67,15 @@ public sealed class DeclarativeThresholdModule : ILogicModuleV1
 
         var schema = manifest.ParameterSchema.GetValueOrDefault();
         if (!schema.TryGetProperty("properties", out var properties) ||
-            properties.EnumerateObject().Count() != 1 ||
+            properties.ValueKind != JsonValueKind.Object || properties.EnumerateObject().Count() != 1 ||
             !properties.TryGetProperty(parsed.Parameter, out var parameter) ||
-            !parameter.TryGetProperty("type", out var type) || type.GetString() != "number" ||
+            parameter.ValueKind != JsonValueKind.Object || !parameter.TryGetProperty("type", out var type) || type.GetString() != "number" ||
             !schema.TryGetProperty("additionalProperties", out var additional) ||
-            additional.ValueKind != JsonValueKind.False)
-            Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", "Declare exactly the referenced numeric threshold and disallow other settings.");
+            additional.ValueKind != JsonValueKind.False ||
+            schema.TryGetProperty("required", out var required) && required.GetArrayLength() != 0)
+            Fail("MODULE_DECLARATIVE_CONTRACT_INVALID", "Declare exactly one optional numeric threshold and disallow other settings.");
 
+        await LogicModuleManifestValidator.ValidateParametersAsync(manifest, "{}", cancellationToken);
         await LogicModuleManifestValidator.ValidateParametersAsync(manifest,
             JsonSerializer.Serialize(new Dictionary<string, decimal> { [parsed.Parameter] = parsed.Default }), cancellationToken);
         return new(manifest, parsed);
@@ -127,5 +129,6 @@ public sealed class DeclarativeThresholdModule : ILogicModuleV1
     private static void Fail(string code, string detail) =>
         throw new WellSiteAutoPilotException(code, FailureKind.Validation, detail);
 
-    private sealed record ThresholdDefinition(string Parameter, decimal Default, string OutcomeCode, string Title, string Detail);
 }
+
+public sealed record ThresholdDefinition(string Parameter, decimal Default, string OutcomeCode, string Title, string Detail);

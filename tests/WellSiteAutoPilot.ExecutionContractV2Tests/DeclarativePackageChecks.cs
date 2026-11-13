@@ -35,10 +35,14 @@ internal static class DeclarativePackageChecks
             [new("well", 1, 1, null, [])], [new(binding.RequirementId, "well", binding.Quantity, binding.Access,
                 binding.CanonicalUnit, binding.MaximumAgeSeconds, binding.AllowUncertainQuality)], [],
             ParameterSchema: JsonSerializer.Deserialize<JsonElement>(Schema));
-        var bytes = Pack(manifest, Definition);
-        using var package = new MemoryStream(bytes);
-        var inspected = await LogicModulePackageReader.ReadAsync(package);
-        var preview = inspected.DeclarativeModule ?? throw new InvalidOperationException("No declarative evaluator.");
+        var definition = new ThresholdDefinition("threshold", 70, "LOW_FILLAGE", "Low pump fillage", "Review pump fillage.");
+        var artifact = await DeclarativeThresholdPackageBuilder.BuildAsync(manifest, definition);
+        var rebuilt = await DeclarativeThresholdPackageBuilder.BuildAsync(manifest, definition);
+        var changed = await DeclarativeThresholdPackageBuilder.BuildAsync(manifest, definition with { Default = 71 });
+        if (!artifact.Bytes.Span.SequenceEqual(rebuilt.Bytes.Span) || artifact.Package.Sha256 == changed.Package.Sha256)
+            throw new InvalidOperationException("The artifact is unstable or a reviewed definition edit did not change its hash.");
+        var bytes = artifact.Bytes.ToArray();
+        var inspected = artifact.Package;
         var request = template with { ModuleId = manifest.ModuleId, ModuleVersion = manifest.Version,
             ParametersJson = "{}", Assets = [asset], Inputs = [binding] };
         var hosted = new ExecutionRequestedV3(request, new(inspected.Sha256, inspected.ManifestJson));
@@ -53,10 +57,12 @@ internal static class DeclarativePackageChecks
             (62m, """{"threshold":60}""", """{"threshold":65}""", "LOW_FILLAGE")
         })
         {
-            var context = new LogicModuleExecutionContext(request.ExecutionId, preview.Identity, "guided", now, settings,
-                [new("well", asset.AssetId, overrides)],
-                [new(binding.RequirementId, asset.AssetId, binding.Quantity, value, "%", now, "Good", "fixture")]);
-            var expectedResult = await preview.ExecuteAsync(context);
+            var sample = new DeclarativeThresholdSample(request.ExecutionId, "guided", asset.AssetId, now, settings, overrides,
+                new(binding.RequirementId, asset.AssetId, binding.Quantity, value, "%", now, "Good", "fixture"));
+            var evidence = await DeclarativeThresholdPreview.EvaluateAsync(artifact, sample);
+            var expectedResult = evidence.Result ?? throw new InvalidOperationException(evidence.FailureCode);
+            if (evidence.PackageSha256 != inspected.Sha256 || evidence.Sample != sample)
+                throw new InvalidOperationException("Preview evidence did not preserve its artifact and effective sample.");
             using var client = new HttpClient(new Measurement(now, value)) { BaseAddress = new("http://fixture.invalid") };
             var engine = new ModuleExecutionEngine(new GatewayDataClient(client), new BuiltInLogicModuleResolver(),
                 packageHost: packageHost);
@@ -74,6 +80,12 @@ internal static class DeclarativePackageChecks
                 Execution = request with { Inputs = [binding with { MaximumAgeSeconds = 3600 }] }
             }, "guided", now), "EXECUTION_INPUT_CONTRACT_MISMATCH");
         }
+
+        var unavailable = await DeclarativeThresholdPreview.EvaluateAsync(artifact,
+            new(request.ExecutionId, "guided", asset.AssetId, now, "{}", "{}", null));
+        if (unavailable.Result is not null || unavailable.FailureCode != "MODULE_DECLARATIVE_INPUT_UNAVAILABLE" ||
+            unavailable.PackageSha256 != inspected.Sha256)
+            throw new InvalidOperationException("Unavailable input was not retained as failed preview evidence.");
 
         using (var missing = new HttpClient(new Measurement(now, null)) { BaseAddress = new("http://fixture.invalid") })
         {
@@ -99,6 +111,16 @@ internal static class DeclarativePackageChecks
         await RejectAsync(() => InspectAsync(manifest, Definition.Replace("70", "101", StringComparison.Ordinal)),
             "CONFIGURED_LOGIC_PARAMETERS_INVALID");
         await RejectAsync(() => InspectAsync(manifest, Definition, extraPayload: true), "MODULE_PACKAGE_INVALID");
+        var draft = new GuidedModuleDraft(Guid.NewGuid(), Guid.NewGuid(), 1, new(manifest, definition));
+        var edited = draft.Edit(1, draft.Content with { Definition = definition with { Default = 71 } });
+        var reviewSample = new DeclarativeThresholdSample(request.ExecutionId, "guided", asset.AssetId, now, "{}", "{}", null);
+        await RejectAsync(() => edited.PrepareSubmissionAsync(1, [reviewSample]), "GUIDED_DRAFT_REVISION_CONFLICT");
+        var submission = await edited.PrepareSubmissionAsync(2, [reviewSample]);
+        if (submission.DraftId != draft.Id || submission.DraftRevision != 2 ||
+            submission.Artifact.Package.Sha256 != changed.Package.Sha256 ||
+            submission.Evidence.Single().PackageSha256 != submission.Artifact.Package.Sha256)
+            throw new InvalidOperationException("Submission evidence was not pinned to the selected draft revision.");
+
         if (Directory.Exists(directory)) throw new InvalidOperationException("Declarative execution extracted package files.");
         Console.WriteLine("Guided package and worker parity passed for defaults, overrides, equality, missing inputs, and invalid artifacts.");
     }
