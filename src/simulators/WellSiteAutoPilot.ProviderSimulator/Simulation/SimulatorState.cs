@@ -103,6 +103,15 @@ public sealed class SimulatorState
             SetCurrent("WELL-101", "CurrentSPM", 5.5m, "spm");
             SetCurrent("WELL-101", "TargetPumpFillage", 80m, "%");
         }
+        else if (string.Equals(scenario, "pressure-differential", StringComparison.OrdinalIgnoreCase))
+        {
+            SetCurrent("WELL-101", "CasingPressure", 200m, "psi");
+            SetCurrent("WELL-102", "CasingPressure", 400m, "psi");
+            SetCurrent("WELL-103", "CasingPressure", 270m, "psi");
+            SetCurrent("WELL-104", "CasingPressure", 400m, "psi", "Bad");
+            foreach (var well in new[] { "WELL-101", "WELL-102", "WELL-103", "WELL-104" })
+                SetCurrent(well, "TubingPressure", 120m, "psi");
+        }
     }
 }
 

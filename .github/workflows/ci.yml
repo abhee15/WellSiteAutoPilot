@@ -1357,6 +1357,9 @@ jobs:
       - name: Verify bounded history and Gateway authorization
         run: python tools/ci/verify_adapter_history.py
 
+      - name: Verify paired pressure inputs through Gateway
+        run: python tools/ci/verify_pressure_differential.py
+
       - name: Verify simulated provider commands and faults
         shell: bash
         run: |
