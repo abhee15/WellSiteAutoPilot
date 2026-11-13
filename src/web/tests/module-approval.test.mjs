@@ -22,7 +22,8 @@ test('the label and colour of a retired version are neutral and say so', () => {
   const retired = { trustStatus: 'CustomerApproved', isEnabled: false };
   assert.equal(helpers.moduleStateLabel(retired), 'Retired');
   assert.equal(helpers.moduleStateToken(retired), 'Retired');
-  assert.equal(helpers.moduleStateLabel({ trustStatus: 'CustomerApproved', isEnabled: true }), 'Approved by your company');
+  assert.equal(helpers.moduleStateLabel({ trustStatus: 'CustomerApproved', isEnabled: true }), 'Approved');
+  assert.equal(helpers.moduleStateDetail({ trustStatus: 'CustomerApproved', isEnabled: true }), 'Approved by your company');
   assert.equal(helpers.moduleStateToken({ trustStatus: 'Untrusted', isEnabled: false }), 'Untrusted');
 });
 

@@ -14,9 +14,19 @@ test('statuses, trust and profiles read as words; unknown values are spaced, nev
   assert.equal(words.statusLabel('Completed'), 'Completed');
   assert.equal(words.statusLabel('SomethingNew'), 'Something new');
   assert.equal(words.statusLabel(null), 'Unknown');
-  assert.equal(words.trustLabel('CustomerApproved'), 'Approved by your company');
+  assert.equal(words.trustLabel('CustomerApproved'), 'Approved');
+  assert.equal(words.trustDetailLabel('CustomerApproved'), 'Approved by your company');
+  assert.equal(words.trustDetailLabel('TrustedPublisher'), 'Trusted publisher');
   assert.equal(words.trustLabel('Untrusted'), 'Unverified');
   assert.equal(words.profileLabel('ScheduledOneShot'), 'Runs on a schedule');
+  assert.equal(words.trustLabel('TrustedPublisher'), 'Trusted publisher');
+});
+
+test('runtimes read as people say them; unknown ones are shown as sent', () => {
+  assert.equal(words.runtimeLabel('DotNet'), '.NET');
+  assert.equal(words.runtimeLabel('Python'), 'Python');
+  assert.equal(words.runtimeLabel('Rust'), 'Rust');
+  assert.equal(words.runtimeLabel(null), '—');
 });
 
 test('outcome codes become sentences and the original code is preserved', () => {
@@ -27,7 +37,7 @@ test('outcome codes become sentences and the original code is preserved', () => 
 
 test('every closed server value has its own plain-language wording', () => {
   assert.deepEqual(['Untrusted', 'TrustedPublisher', 'CustomerApproved', 'SignatureInvalid'].map(words.trustLabel),
-    ['Unverified', 'Trusted publisher', 'Approved by your company', 'Signature invalid']);
+    ['Unverified', 'Trusted publisher', 'Approved', 'Signature invalid']);
   assert.deepEqual(['ScheduledOneShot', 'BoundedIterative', 'Reactive', 'ContinuousController', 'DurableWorkflow']
     .map(words.profileLabel),
   ['Runs on a schedule', 'Repeats until done', 'Reacts to changes', 'Runs continuously', 'Long-running workflow']);

@@ -8,7 +8,7 @@ import { describeModule } from './moduleSummary';
 import { ModuleApprovalControls } from './ModuleApprovalControls';
 import { ModulePackageState } from './ModulePackageState';
 import './logicSummary.css';
-import { moduleStateLabel } from './moduleApproval';
+import { moduleStateDetail } from './moduleApproval';
 
 export function ModulePanel({ module, configurations, onClose, canManage = false, onChanged = async () => {}, versions = [], onSelectVersion }: {
   module: LogicModuleResponse;
@@ -34,7 +34,7 @@ export function ModulePanel({ module, configurations, onClose, canManage = false
       {versions.length > 1 && onSelectVersion && <SelectField label={t('moduleGroup.version')} helper={t('moduleGroup.versionHint')}
         value={module.id ?? ''} onChange={event => onSelectVersion(event.target.value)}>
         {versions.map(version => <option key={version.id} value={version.id ?? ''}>
-          {version.version} · {moduleStateLabel(version)}
+          {version.version} · {moduleStateDetail(version)}
         </option>)}
       </SelectField>}
       <p className="logic-status-sentence">{summary.sentence}</p>

@@ -1,5 +1,5 @@
 import type { LogicModuleResponse } from '../api/generated/v1/types.gen';
-import { trustLabel } from '../words';
+import { trustDetailLabel, trustLabel } from '../words';
 
 /** Where a module version stands. A retired version was approved once and is switched off for good. */
 export type ModuleState = 'notApproved' | 'approved' | 'retired';
@@ -15,6 +15,11 @@ export function moduleState(module: Pick<LogicModuleResponse, 'trustStatus' | 'i
 /** The word for a module's standing: its approval, or "Retired" once it has been switched off. */
 export function moduleStateLabel(module: Pick<LogicModuleResponse, 'trustStatus' | 'isEnabled'>): string {
   return moduleState(module) === 'retired' ? 'Retired' : trustLabel(module.trustStatus);
+}
+
+/** The same state with room to say who approved it: for a module's own panel and summary, not the grid. */
+export function moduleStateDetail(module: Pick<LogicModuleResponse, 'trustStatus' | 'isEnabled'>): string {
+  return moduleState(module) === 'retired' ? 'Retired' : trustDetailLabel(module.trustStatus);
 }
 
 /** The value that picks the pill colour: a retired version is neutral, not green like an approved one. */

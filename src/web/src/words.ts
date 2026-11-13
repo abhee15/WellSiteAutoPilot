@@ -31,12 +31,24 @@ export function statusLabel(value?: string | null): string {
 const TRUST_LABELS: Record<LogicModuleTrustStatus, string> = {
   Untrusted: 'Unverified',
   TrustedPublisher: 'Trusted publisher',
-  CustomerApproved: 'Approved by your company',
+  CustomerApproved: 'Approved',
   SignatureInvalid: 'Signature invalid',
 };
 
 export function trustLabel(value?: string | null): string {
   return value ? (TRUST_LABELS as Record<string, string | undefined>)[value] ?? spaced(value) : 'Unknown';
+}
+
+/** For places with room, such as a module's own panel, where who approved it is worth saying. */
+export function trustDetailLabel(value?: string | null): string {
+  return value === 'CustomerApproved' ? 'Approved by your company' : trustLabel(value);
+}
+
+const RUNTIME_LABELS: Record<string, string> = { DotNet: '.NET', Python: 'Python' };
+
+/** A runtime for display: the server's code is DotNet, people say .NET. Unknown runtimes are shown as sent. */
+export function runtimeLabel(value?: string | null): string {
+  return value ? RUNTIME_LABELS[value] ?? value : '—';
 }
 
 const PROFILE_LABELS: Record<ExecutionProfile, string> = {
