@@ -67,7 +67,8 @@ it('a run address opens its details even when the run is older than the loaded l
     return response([]);
   }));
   render(<App />);
-  expect(await screen.findByText('Shadow: it calculates and records the result, and sends nothing to the equipment.')).toBeTruthy();
+  const mode = await screen.findByText('Shadow');
+  expect(mode.getAttribute('title')).toBe('Shadow: it calculates and records the result, and sends nothing to the equipment.');
 });
 
 it('a run address the server refuses is dropped instead of showing a stale panel', async () => {

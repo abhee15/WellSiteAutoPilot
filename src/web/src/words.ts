@@ -92,6 +92,12 @@ const MODE_SENTENCES: Record<ExecutionMode, string> = {
   Autonomous: 'Autonomous: it may act on the equipment without a person deciding.',
 };
 
+/** The run mode as one word for a summary line: Shadow, Recommendation or Autonomous. */
+export function modeLabel(value?: string | null): string {
+  if (!value) return '';
+  return value in MODE_SENTENCES ? value : spaced(value);
+}
+
 /** What a run mode means, in one sentence. */
 export function modeSentence(value?: string | null): string {
   if (!value) return '';

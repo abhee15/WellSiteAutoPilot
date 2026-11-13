@@ -22,6 +22,12 @@ test('statuses, trust and profiles read as words; unknown values are spaced, nev
   assert.equal(words.trustLabel('TrustedPublisher'), 'Trusted publisher');
 });
 
+test('a run mode reads as one word, with its sentence kept for a tooltip', () => {
+  assert.deepEqual(['Shadow', 'Recommendation', 'Autonomous'].map(words.modeLabel), ['Shadow', 'Recommendation', 'Autonomous']);
+  assert.equal(words.modeLabel('SomethingNew'), 'Something new');
+  assert.equal(words.modeLabel(null), '');
+});
+
 test('runtimes read as people say them; unknown ones are shown as sent', () => {
   assert.equal(words.runtimeLabel('DotNet'), '.NET');
   assert.equal(words.runtimeLabel('Python'), 'Python');

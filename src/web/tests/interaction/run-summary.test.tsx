@@ -19,12 +19,17 @@ it('says in words what the run did and links to its logic and assets', () => {
   expect(screen.getByText(/Revision 2/)).toBeTruthy();
   expect(screen.getByText('Scheduled')).toBeTruthy();
   expect(screen.queryByText(/Started by/)).toBeNull();
-  expect(screen.getByText(/sends nothing to the equipment/)).toBeTruthy();
+  const mode = screen.getByText('Shadow');
+  expect(mode.getAttribute('title')).toMatch(/sends nothing to the equipment/);
+  expect(screen.queryByText(/it calculates and records/)).toBeNull();
+  expect(screen.getByText('Module sample.module · v1.0.0')).toBeTruthy();
+  expect(screen.queryByText('Logic module')).toBeNull();
 });
 
 it('falls back to the module id and no asset links when the lists have not loaded', () => {
   render(<ExecutionDetailContent detail={{ ...detail, logicInstanceId: 'gone' } as never} />);
   expect(screen.getByText('sample.module')).toBeTruthy();
+  expect(screen.getByText('Version 1.0.0')).toBeTruthy();
   expect(screen.queryByRole('link', { name: 'North Well' })).toBeNull();
 });
 
@@ -78,4 +83,51 @@ it('shows a result as labelled rows instead of raw JSON', () => {
   expect(within(result).getByText('52.5')).toBeTruthy();
   expect(within(result).getByText('Within range')).toBeTruthy();
   expect(within(result).queryByText(/inputDiagnostics|Input diagnostics/)).toBeNull();
+});
+
+const producedRun = { ...detail, resultCode: 'WELL_INPUT_CHECK_COMPLETED', outputJson: JSON.stringify({
+  outcomeCode: 'WELL_INPUT_CHECK_COMPLETED',
+  engineeringResults: [{ id: 'observed-value', assetId: 'asset-1', quantity: 'PumpFillage', value: 99.6, unit: '%' }],
+  recommendations: [], controlIntents: [], stateUpdates: {} }) };
+
+it('shows engineering results per asset, with no raw JSON, outcome code row or empty collections', () => {
+  render(<ExecutionDetailContent detail={producedRun as never} configuredLogic={[configuration] as never} assets={assets as never} />);
+  const result = screen.getByRole('region', { name: 'Result' });
+  expect(within(result).getByText('North Well')).toBeTruthy();
+  expect(within(result).getByText('99.6 %')).toBeTruthy();
+  expect(within(result).getByText('Observed value · Pump fillage')).toBeTruthy();
+  expect(within(result).getByText('No recommendations, control intents, or state updates.')).toBeTruthy();
+  expect(within(result).queryByText(/Outcome code|WELL_INPUT_CHECK_COMPLETED/)).toBeNull();
+  expect(result.textContent).not.toMatch(/\[\]|\{\}|"id"/);
+  for (const name of ['Recommendations', 'Control intents', 'State updates']) expect(screen.queryByRole('region', { name })).toBeNull();
+});
+
+it('lists recommendations, control intents and state updates when a module produced them', () => {
+  const output = { outcomeCode: 'FILLAGE_LOW', engineeringResults: [{ id: 'pump-fillage', assetId: 'asset-1', quantity: 'PumpFillage', value: 40, unit: '%' }],
+    recommendations: [{ code: 'RAISE', assetId: 'asset-1', title: 'Raise the fillage target', detail: 'Fillage is below the threshold.', quantity: 'PumpFillage', suggestedValue: 60, unit: '%' }],
+    controlIntents: [{ code: 'SET', assetId: 'asset-1', command: 'SetFillageTarget', quantity: 'PumpFillage', requestedValue: 60, unit: '%', reasonCode: 'FILLAGE_BELOW_THRESHOLD' }],
+    stateUpdates: { 'last-checked': 'today' } };
+  render(<ExecutionDetailContent detail={{ ...detail, outputJson: JSON.stringify(output) } as never} assets={assets as never} />);
+  const recommendations = screen.getByRole('region', { name: 'Recommendations' });
+  expect(within(recommendations).getByText('Raise the fillage target')).toBeTruthy();
+  expect(within(recommendations).getByText(/Suggested 60 %/)).toBeTruthy();
+  expect(within(recommendations).getByText('Fillage is below the threshold.')).toBeTruthy();
+  const intents = screen.getByRole('region', { name: 'Control intents' });
+  expect(within(intents).getByText('Set fillage target')).toBeTruthy();
+  expect(within(intents).getByText(/Requested 60 %/)).toBeTruthy();
+  expect(within(intents).getByText('Reason: Fillage below threshold')).toBeTruthy();
+  expect(within(intents).getByText('Shown for review. Nothing was sent to the equipment.')).toBeTruthy();
+  const state = screen.getByRole('region', { name: 'State updates' });
+  expect(within(state).getByText('Last checked')).toBeTruthy();
+  expect(within(state).getByText('today')).toBeTruthy();
+  expect(screen.queryByText('No recommendations, control intents, or state updates.')).toBeNull();
+});
+
+it('leaves out an input retrieval time that was never recorded instead of showing a dash', () => {
+  const output = { inputDiagnostics: [{ requirementId: 'pump-fillage', assetId: 'asset-1', connectionId: null, quantity: 'PumpFillage',
+    value: 99.6, unit: '%', timestampUtc: '2026-10-28T02:51:35Z', retrievedAtUtc: null, timestampKind: null, quality: 'Good', outcomeCode: 'WELL_INPUT_CHECK_COMPLETED' }] };
+  render(<ExecutionDetailContent detail={{ ...detail, outputJson: JSON.stringify(output) } as never} assets={assets as never} />);
+  const inputs = screen.getByRole('region', { name: 'Inputs this run read' });
+  expect(within(inputs).queryByText('Retrieved at')).toBeNull();
+  expect(within(inputs).getByText('Measured at')).toBeTruthy();
 });
