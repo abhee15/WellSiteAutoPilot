@@ -15,9 +15,9 @@ it('custom-role sessions request and show only permitted work areas', async () =
     : url.includes('system/health') ? {} : url.includes('capabilities')
     ? { canCreateRoot: false, canCreateUnderAuthorizedParents: false } : []));
   vi.stubGlobal('fetch', http); render(<App />);
-  await screen.findByRole('link', { name: 'Assets' });
+  await screen.findByRole('link', { name: 'Assets & views' });
   expect(screen.queryByRole('link', { name: 'Runs' })).toBeNull();
-  expect(screen.queryByRole('link', { name: 'Logic' })).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Logic setup' })).toBeNull();
   expect(http.mock.calls.some(([url]) => /executions|logic-modules|configured-logic/.test(url))).toBe(false);
 });
 
@@ -33,7 +33,7 @@ it('an unrelated 403 clears that feature while preserving allowed work and the s
   render(<App />);
   await screen.findByText(/Access changed during refresh/);
   expect(screen.getByRole('link', { name: 'Runs' })).not.toBeNull();
-  expect(screen.queryByRole('link', { name: 'Assets' })).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Assets & views' })).toBeNull();
   expect(screen.getAllByText('FIELD\\custom').length).toBeGreaterThan(0);
 });
 
@@ -50,7 +50,7 @@ it('permission loss removes the page and clears old asset data even when the rol
   revoked = true; await user.click(screen.getByRole('button', { name: 'Refresh' }));
   await screen.findByRole('heading', { name: 'Waiting for access' });
   expect(screen.queryByText('Confidential Asset')).toBeNull();
-  expect(screen.queryByRole('link', { name: 'Assets' })).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Assets & views' })).toBeNull();
 });
 
 it('catalog-only access does not load configuration capabilities or expose configuration controls', async () => {
@@ -87,7 +87,7 @@ it('a 401 pauses automatic refresh and explains sign-in; manual Refresh retries 
     expect(sessionCalls()).toBe(2);
     authenticated = true;
     await user.click(screen.getByRole('button', { name: 'Refresh' }));
-    await screen.findByRole('link', { name: 'Assets' });
+    await screen.findByRole('link', { name: 'Assets & views' });
     const afterRecovery = sessionCalls();
     await vi.advanceTimersByTimeAsync(10_000);
     expect(sessionCalls()).toBeGreaterThan(afterRecovery);
@@ -118,5 +118,5 @@ it('shows the waiting-for-access page with the sign-in name when the user has no
   expect(await screen.findByRole('heading', { name: 'Waiting for access' })).toBeTruthy();
   expect(screen.getByText('FIELD\\newcomer', { selector: 'code' })).toBeTruthy();
   expect(screen.queryByText(/not available for this session|sectionDenied/i)).toBeNull();
-  expect(screen.queryByRole('link', { name: 'Assets' })).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Assets & views' })).toBeNull();
 });

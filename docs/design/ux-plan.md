@@ -456,6 +456,11 @@ design pass (palette, fonts, shared components) once the owner supplies the font
 
 **Phase 4 — Authoring and promotion (B16, B18).**
 12. Guided module authoring (6.7), dry-run, shadow evaluation, promotion approval.
+13. Under Configure, order the destinations Assets & Views, Logic Setup, and Module Authoring.
+    Keep Configurations, Modules, and Schedules in Logic Setup. Give Module Authoring a
+    dedicated page, with editing on desktop and tablet and review on phones. Preserve existing
+    review links. When live preview is available, select an authorized sample asset inside the
+    draft. Add a Reviews tab when there is a review queue to browse.
 
 **Later:** live values and trends, Recommendation/Autonomous modes, density and tablet/control-room
 layouts, dark/high-contrast themes (intentionally absent today).

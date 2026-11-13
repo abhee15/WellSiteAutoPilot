@@ -32,6 +32,9 @@ export function PageHeader({
     logic: {
       title: t('page.logicTitle'),
     },
+    authoring: {
+      title: t('nav.authoring'),
+    },
     connections: {
       title: t('connections.pageTitle'),
     },

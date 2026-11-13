@@ -20,13 +20,11 @@ import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
 import { t } from '../localization';
 import { requestNavigation, useUnsavedChangesGuard } from '../navigationGuard';
-import { hashFor } from '../routing';
+import { hashFor, useHashDetail } from '../routing';
 import { outcomeLabel } from '../words';
 import './guidedAuthoring.css';
 
 const pageSize = 25;
-export const guidedAuthoringTab = 'authoring';
-export const guidedReviewPrefix = guidedAuthoringTab + ':';
 
 const pressureEntryPoint = 'wsa.declarative.difference.v1';
 
@@ -96,6 +94,35 @@ function displayName(manifestJson: string | null | undefined): string {
   return manifestJson ? (JSON.parse(manifestJson) as { displayName: string }).displayName : '';
 }
 
+async function loadReview(reference: string, signal?: AbortSignal) {
+  const [id, revision, extra] = reference.trim().split('/');
+  if (!id || !revision || extra !== undefined || !Number.isSafeInteger(Number(revision)) || Number(revision) < 1)
+    throw new Error();
+  const { data } = await getGuidedModuleSubmission({ path: { id, revision: Number(revision) }, signal });
+  if (!data) throw new Error();
+  return data;
+}
+
+export function ModuleAuthoringWorkspace({
+  permissions,
+  onRefresh,
+}: {
+  permissions: readonly string[];
+  onRefresh: () => Promise<void>;
+}) {
+  const [reviewReference] = useHashDetail('authoring');
+  return (
+    <GuidedAuthoringPage
+      key={reviewReference}
+      initialReviewReference={reviewReference ?? ''}
+      canAuthor={permissions.includes('logic.authoring.manage')}
+      canReview={permissions.includes('logic.authoring.review')}
+      canApprove={permissions.includes('logic.manage')}
+      onRefresh={onRefresh}
+    />
+  );
+}
+
 export function GuidedAuthoringPage({
   canAuthor,
   canReview,
@@ -140,6 +167,23 @@ export function GuidedAuthoringPage({
       });
     return () => controller.abort();
   }, [canAuthor, offset, refresh]);
+
+  useEffect(() => {
+    if (!canReview || !initialReviewReference) return;
+    const controller = new AbortController();
+    setBusy(true);
+    void loadReview(initialReviewReference, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setReview(data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBusy(false);
+      });
+    return () => controller.abort();
+  }, [canReview, initialReviewReference]);
 
   function select(next: GuidedModuleDraftResponse | null, nextPressure = Boolean(isPressure(next?.manifestJson))) {
     setPressure(nextPressure);
@@ -244,13 +288,8 @@ export function GuidedAuthoringPage({
   }
 
   async function openReview() {
-    const [id, revision, extra] = reviewKey.trim().split('/');
-    if (!id || !revision || extra !== undefined || !Number.isSafeInteger(Number(revision)) || Number(revision) < 1)
-      throw new Error();
     setReview(null);
-    const { data } = await getGuidedModuleSubmission({ path: { id, revision: Number(revision) } });
-    if (!data) throw new Error();
-    setReview(data);
+    setReview(await loadReview(reviewKey));
     setReason('');
     setApproved(false);
   }
@@ -355,7 +394,7 @@ export function GuidedAuthoringPage({
             {submittedReference && (
               <TextField
                 label={t('guided.reviewLink')}
-                value={new URL(hashFor('logic', guidedReviewPrefix + submittedReference), window.location.href).href}
+                value={new URL(hashFor('authoring', submittedReference), window.location.href).href}
                 readOnly
               />
             )}

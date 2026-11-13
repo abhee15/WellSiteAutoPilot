@@ -48,7 +48,7 @@ it('saves, previews and submits the same guided draft revision', async () => {
   expect(screen.getByText('Required reading unavailable')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Submit for review' }));
   const link = await screen.findByLabelText<HTMLInputElement>('Shareable review link');
-  expect(decodeURIComponent(new URL(link.value).hash)).toBe('#logic/authoring:draft-1/1');
+  expect(decodeURIComponent(new URL(link.value).hash)).toBe('#authoring/draft-1/1');
   expect(submitGuidedModuleDraft).toHaveBeenCalledWith({
     path: { id: 'draft-1' },
     body: { expectedRevision: 1, readings: [62, 70, null] },
@@ -78,7 +78,6 @@ it('approves the immutable package shown to the reviewer', async () => {
     />,
   );
   expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Open submitted revision' }));
   expect((await screen.findByTitle('LOW_FILLAGE')).textContent).toBe('Low pump fillage');
   fireEvent.change(screen.getByLabelText('Approval reason'), { target: { value: 'Reviewed sample evidence' } });
   fireEvent.click(screen.getByRole('button', { name: 'Approve module' }));

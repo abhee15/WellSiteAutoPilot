@@ -16,6 +16,7 @@ test('landing priority follows section order and permissions', () => {
   assert.equal(routing.firstOpenableSection(user(['executions.read', 'assets.read'])), 'overview');
   assert.equal(routing.firstOpenableSection(user(['recommendations.read', 'assets.read'])), 'overview');
   assert.equal(routing.firstOpenableSection(user(['configured-logic.read'])), 'overview');
+  assert.equal(routing.firstOpenableSection(user(['logic.authoring.review'])), 'authoring');
   assert.equal(routing.firstOpenableSection(user(['security.manage'])), 'access');
   assert.equal(routing.firstOpenableSection(user([])), null);
   assert.equal(routing.firstOpenableSection(null), null);
@@ -29,4 +30,14 @@ test('addresses carry a section and an optional encoded detail', () => {
   assert.deepEqual(routing.parseHash(''), { section: '', detail: null });
   assert.equal(routing.hashFor('assets', 'a b'), '#assets/a%20b');
   assert.equal(routing.hashFor('assets', null), '#assets');
+});
+
+test('old authoring bookmarks preserve their exact review revision', () => {
+  const reference = '8f52644a-daa0-4d1b-8949-cb20942b4dc8/3';
+  assert.deepEqual(routing.parseHash('#logic/authoring'), { section: 'authoring', detail: null });
+  assert.deepEqual(routing.parseHash(routing.hashFor('logic', 'authoring:' + reference)),
+    { section: 'authoring', detail: reference });
+  assert.deepEqual(routing.parseHash(routing.hashFor('authoring', reference)),
+    { section: 'authoring', detail: reference });
+  assert.deepEqual(routing.parseHash('#logic/schedules'), { section: 'logic', detail: 'schedules' });
 });

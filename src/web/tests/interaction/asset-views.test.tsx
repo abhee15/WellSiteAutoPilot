@@ -109,7 +109,7 @@ it('keeps the form and selection when a name conflicts', async () => {
 it('readers see Connection Views without a create or edit permission', async () => {
   const requests: Request[] = []; host(requests, [{ ...saved, canEdit: false, canDelete: false }], ['assets.read', 'connections.read']);
   window.location.hash = '#assets'; const user = userEvent.setup(); render(<App />);
-  const selector = await screen.findByLabelText('View');
+  const selector = await screen.findByLabelText('Saved view');
   await waitFor(() => expect(within(selector).queryByText('ESP Wells · Houston Production')).toBeTruthy());
   expect(screen.queryByRole('button', { name: 'Create view' })).toBeNull();
   await user.selectOptions(selector, viewId);
@@ -120,7 +120,7 @@ it('readers see Connection Views without a create or edit permission', async () 
 it('a permitted non-creator edits explicit membership with the expected revision', async () => {
   const requests: Request[] = []; host(requests, [saved]); window.location.hash = '#assets';
   const user = userEvent.setup(); render(<App />);
-  const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
+  const selector = await screen.findByLabelText('Saved view'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
   await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
   const form = await screen.findByRole('form', { name: 'Edit view' });
   await within(form).findByText('Selected wells (1)');
@@ -150,7 +150,7 @@ it('allows an authorized editor to remove an unavailable well before saving', as
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => url.endsWith('/selection')
     ? response({ revision: 1, assetIds: [wellId, otherWellId], unavailableMembers: [{ id: otherWellId, name: 'South Well' }] }) : base(url, init)));
   window.location.hash = '#assets'; const user = userEvent.setup(); render(<App />);
-  const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
+  const selector = await screen.findByLabelText('Saved view'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
   await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
   const form = await screen.findByRole('form', { name: 'Edit view' }); await within(form).findByText('Selected wells (2)');
   expect((within(form).getByRole('button', { name: 'Save view' }) as HTMLButtonElement).disabled).toBe(true);
@@ -164,7 +164,7 @@ it('shows Assign logic only after selecting a saved view and preserves its ident
   host(requests, [saved], [...allPermissions, 'configured-logic.manage', 'configured-logic.read', 'logic.read']);
   window.location.hash = '#assets';
   render(<App />);
-  const selector = await screen.findByRole('combobox', { name: /View/ });
+  const selector = await screen.findByRole('combobox', { name: 'Saved view' });
   expect(screen.queryByRole('link', { name: 'Assign logic' })).toBeNull();
   await userEvent.setup().selectOptions(selector, viewId);
   const assign = await screen.findByRole('link', { name: 'Assign logic' });
@@ -180,7 +180,7 @@ it('shows Assign logic only after selecting a saved view and preserves its ident
 it('asks before deleting a view, focuses the question, and returns focus to Delete when kept', async () => {
   const requests: Request[] = []; host(requests, [saved]); window.location.hash = '#assets';
   const user = userEvent.setup(); render(<App />);
-  const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
+  const selector = await screen.findByLabelText('Saved view'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
   await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
   const form = await screen.findByRole('form', { name: 'Edit view' });
   await user.click(await within(form).findByRole('button', { name: 'Delete view' }));
@@ -193,7 +193,7 @@ it('asks before deleting a view, focuses the question, and returns focus to Dele
 async function openEditForm() {
   const requests: Request[] = []; host(requests, [saved]); window.location.hash = '#assets';
   const user = userEvent.setup(); render(<App />);
-  const selector = await screen.findByLabelText('View'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
+  const selector = await screen.findByLabelText('Saved view'); await waitFor(() => expect(within(selector).queryByText(/ESP Wells/)).toBeTruthy());
   await user.selectOptions(selector, viewId); await user.click(screen.getByRole('button', { name: 'Edit view' }));
   const form = await screen.findByRole('form', { name: 'Edit view' });
   await within(form).findByText('Selected wells (1)');

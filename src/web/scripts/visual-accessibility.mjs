@@ -54,8 +54,6 @@ try {
     await channel.send('Page.navigate', { url: `${session.origin}/tests/visual/${page}.html${query}` });
     try { await settled(); } catch (error) { problems.push(`${key}: ${error.message}`); continue; }
     if (page === 'guided-authoring') {
-      await evaluate("document.querySelector('.guided-authoring-review button').click()");
-      await settled();
       const layout = await evaluate(`(() => {
         const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
         return {
@@ -65,11 +63,16 @@ try {
           approval: visible('.guided-authoring-approval'),
           phoneMessage: visible('.guided-authoring-mobile'),
           overflow: document.documentElement.scrollWidth > innerWidth,
+          navLabels: [...document.querySelectorAll('.navigation .nav-label')].every(label => {
+            const range = document.createRange();
+            range.selectNodeContents(label);
+            return range.getClientRects().length === (innerWidth < 768 ? 0 : 1);
+          }),
         };
       })()`);
       const phone = width === 390;
       if (layout.editor === phone || !layout.review || !layout.evidence || layout.approval === phone
-        || layout.phoneMessage !== phone || layout.overflow) {
+        || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels) {
         problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
       }
     }
