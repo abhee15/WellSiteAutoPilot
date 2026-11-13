@@ -1,0 +1,89 @@
+using System.Data;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using WellSiteAutoPilot.Application.Logic;
+using WellSiteAutoPilot.Application.Security;
+using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Persistence.Audit;
+using WellSiteAutoPilot.Persistence.Security;
+
+namespace WellSiteAutoPilot.Persistence.Logic;
+
+public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, TimeProvider clock) : IGuidedModuleDraftRepository
+{
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    public async Task<GuidedModuleDraft?> FindOwnedAsync(Guid id, AccessSubject subject, CancellationToken cancellationToken = default)
+    {
+        var authorized = ScopedAccessQueries.DeploymentGrants(db, subject.UserId, WellSitePermissions.GuidedDraftManage,
+            subject.Groups, clock.GetUtcNow());
+        var entity = await db.GuidedModuleDrafts.AsNoTracking()
+            .Where(item => item.Id == id && item.OwnerUserId == subject.UserId && authorized.Any())
+            .SingleOrDefaultAsync(cancellationToken);
+        return entity is null ? null : new(entity.Id, entity.OwnerUserId, entity.Revision,
+            JsonSerializer.Deserialize<GuidedModuleDraftContent>(entity.ContentJson, Json)!);
+    }
+
+    public Task AddOwnedAsync(GuidedModuleDraft draft, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default) =>
+        WriteAsync(draft, subject, actor, "guided-draft.created", () =>
+        {
+            if (draft.Id == Guid.Empty || draft.Revision != 1) throw Conflict();
+            db.GuidedModuleDrafts.Add(new()
+            {
+                Id = draft.Id, OwnerUserId = draft.OwnerUserId, Revision = draft.Revision,
+                ContentJson = JsonSerializer.Serialize(draft.Content, Json)
+            });
+            return Task.CompletedTask;
+        }, cancellationToken);
+
+    public Task UpdateOwnedAsync(GuidedModuleDraft draft, int expectedRevision, AccessSubject subject, SecurityActorContext actor,
+        CancellationToken cancellationToken = default) =>
+        WriteAsync(draft, subject, actor, "guided-draft.edited", async () =>
+        {
+            if (expectedRevision < 1 || draft.Revision != (long)expectedRevision + 1) throw Conflict();
+            var content = JsonSerializer.Serialize(draft.Content, Json);
+            var changed = await db.GuidedModuleDrafts
+                .Where(item => item.Id == draft.Id && item.OwnerUserId == subject.UserId && item.Revision == expectedRevision)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.Revision, draft.Revision)
+                    .SetProperty(item => item.ContentJson, content), cancellationToken);
+            if (changed != 1) throw Conflict();
+        }, cancellationToken);
+
+    private async Task WriteAsync(GuidedModuleDraft draft, AccessSubject subject, SecurityActorContext actor,
+        string action, Func<Task> write, CancellationToken cancellationToken)
+    {
+        if (subject.UserId == Guid.Empty || actor.UserId != subject.UserId || draft.OwnerUserId != subject.UserId)
+            throw new WellSiteAutoPilotException("GUIDED_DRAFT_ACCESS_DENIED", FailureKind.Authorization, "Draft owner access is required.");
+
+        try
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            await GrantWriteGuard.RequireDeploymentAsync(db, subject, WellSitePermissions.GuidedDraftManage, clock, cancellationToken);
+            await write();
+            db.AuditEvents.Add(new AuditEventEntity
+            {
+                Id = Guid.NewGuid(), OccurredAtUtc = clock.GetUtcNow(), ActorUserId = subject.UserId,
+                ActorIdentity = actor.IdentityName, CorrelationId = actor.CorrelationId,
+                Action = action, TargetType = "guided-draft", TargetId = draft.Id.ToString("D"),
+                DetailsJson = JsonSerializer.Serialize(new { draft.Revision })
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception error) when (error.GetBaseException() is PostgresException postgres &&
+            postgres.SqlState is PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.UniqueViolation)
+        {
+            throw new WellSiteAutoPilotException("GUIDED_DRAFT_REVISION_CONFLICT", FailureKind.Conflict,
+                "The draft or its authority changed. Reload it before retrying.", innerException: error);
+        }
+    }
+
+    private static WellSiteAutoPilotException Conflict() =>
+        new("GUIDED_DRAFT_REVISION_CONFLICT", FailureKind.Conflict, "The guided draft changed. Reload it before retrying.");
+}

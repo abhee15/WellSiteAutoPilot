@@ -1309,6 +1309,7 @@ export const englishMessages = {
   'roles.permissionAssetsRead': 'View assets',
   'roles.permissionAssetsManage': 'Manage assets',
   'roles.permissionLogicRead': 'View logic modules',
+  'roles.permissionGuidedDraftManage': 'Create and edit guided module drafts',
   'roles.permissionLogicManage': 'Manage logic modules',
   'roles.permissionConfiguredRead': 'View configured logic',
   'roles.permissionConfiguredManage': 'Manage configured logic',

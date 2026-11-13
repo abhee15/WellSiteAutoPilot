@@ -27,6 +27,7 @@ public static class ProductPermissionCatalog
         new(WellSitePermissions.AssetsManage, "Assets", "ResourceScoped", false),
         new(WellSitePermissions.LogicRead, "Logic", "DeploymentWide", false),
         new(WellSitePermissions.LogicManage, "Logic", "DeploymentWide", false),
+        new(WellSitePermissions.GuidedDraftManage, "Logic", "DeploymentWide", false),
         new(WellSitePermissions.ConfiguredLogicRead, "ConfiguredLogic", "ResourceScoped", false),
         new(WellSitePermissions.ConfiguredLogicManage, "ConfiguredLogic", "ResourceScoped", false),
         new(WellSitePermissions.ExecutionsRead, "Executions", "ResourceScoped", false),

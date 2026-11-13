@@ -119,6 +119,35 @@ retire(operator["userId"], global_catalog)
 request("GET", "/logic-modules", OPERATOR, expected=403)
 retire(operator["userId"], resource_catalog)
 
+# Guided drafts require the deployment permission and remain private to their owner.
+author_role = role("Guided author", ["logic.authoring.manage"])
+author_grant = grant(operator["userId"], author_role, "DeploymentWide")
+other_author_grant = grant(other["userId"], author_role, "DeploymentWide")
+guided_manifest = json.loads((Path(__file__).resolve().parents[2] / "modules/authoring/dotnet/manifest.json").read_text())
+guided_manifest.update(moduleId="ci.guided-" + uuid.uuid4().hex, commandRequirements=[], dataRequirements=[
+    {"id":"fillage","assetRole":guided_manifest["assetRequirements"][0]["role"],"quantity":"PumpFillage",
+     "access":"Current","canonicalUnit":"%","maximumAgeSeconds":60,"allowUncertainQuality":False}])
+guided_manifest["assetRequirements"] = [guided_manifest["assetRequirements"][0]]
+guided_manifest["assetRequirements"][0].update(minimumCount=1, maximumCount=1)
+guided_manifest["parameterSchema"] = {"type":"object","properties":{"threshold":{"type":"number","minimum":0,"maximum":100}},
+    "additionalProperties":False}
+guided_content = {"manifestJson":json.dumps(guided_manifest), "definition":{"parameter":"threshold","default":70,
+    "outcomeCode":"LOW_FILLAGE","title":"Low fillage","detail":"Review pump fillage."}}
+request("POST", "/guided-module-drafts", GROUP_ONLY, guided_content, expected=403)
+guided = request("POST", "/guided-module-drafts", OPERATOR, guided_content)
+guided_url = "/guided-module-drafts/" + guided["id"]
+request("GET", guided_url, OTHER, expected=404)
+preview = {"expectedRevision":1,"value":62,"parametersJson":"{}"}
+assert request("POST", guided_url + "/preview", OPERATOR, preview)["outcomeCode"] == "LOW_FILLAGE"
+assert request("POST", guided_url + "/preview", OPERATOR, dict(preview, value=70))["outcomeCode"] == "THRESHOLD_NOT_MET"
+assert request("POST", guided_url + "/preview", OPERATOR, dict(preview, value=None))["failureCode"] == "MODULE_DECLARATIVE_INPUT_UNAVAILABLE"
+assert request("PUT", guided_url, OPERATOR, dict(guided_content, expectedRevision=1))["revision"] == 2
+request("PUT", guided_url, OPERATOR, dict(guided_content, expectedRevision=1), expected=409)
+request("POST", guided_url + "/preview", OPERATOR, preview, expected=409)
+retire(operator["userId"], author_grant)
+request("GET", guided_url, OPERATOR, expected=403)
+retire(other["userId"], other_author_grant)
+
 # Upload never grants trust or changes an installed version's immutable bytes.
 package_manifest = json.loads((Path(__file__).resolve().parents[2] / "modules/authoring/python/manifest.json").read_text())
 package_manifest["moduleId"] = "ci.upload-" + uuid.uuid4().hex

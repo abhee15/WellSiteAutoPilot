@@ -1258,6 +1258,29 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.ToTable("executions", "operations");
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Logic.GuidedModuleDraftEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.ToTable("guided_module_drafts", "logic");
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Logic.LogicModuleCatalogEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1985,6 +2008,15 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ExecutionId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Logic.GuidedModuleDraftEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Security.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
