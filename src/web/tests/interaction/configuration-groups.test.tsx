@@ -94,3 +94,27 @@ it('keeps saved targets and version visible without requesting restricted catalo
   expect(screen.queryByText('Last run')).toBeNull();
   expect(request.mock.calls.some(([url]) => url.includes('/connections') || url.includes('/asset-views'))).toBe(false);
 });
+
+it('marks the open configuration and its module, keeps the cue when the module is collapsed, and collapses or expands every module', async () => {
+  fixture();
+  window.location.hash = '#logic/' + b.id;
+  render(<LogicPage {...props} />);
+  const user = userEvent.setup();
+  const selectedRow = (await screen.findByRole('button', { name: 'Inspect revisions of System B deployment' }));
+  expect(selectedRow.getAttribute('aria-current')).toBe('true');
+  expect(selectedRow.closest('tr')!.getAttribute('data-selected')).toBe('true');
+  const group = screen.getAllByRole('button', { name: 'Pump Optimization' })[1].closest('tr')!;
+  expect(group.getAttribute('data-holds-selection')).toBe('true');
+  expect(screen.queryByText('1 selected')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Inspect revisions of System A deployment' }).getAttribute('aria-current')).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'Collapse all' }));
+  expect(screen.queryByRole('button', { name: /Inspect revisions/ })).toBeNull();
+  expect(screen.getByText('1 selected')).toBeTruthy();
+  expect(group.getAttribute('data-holds-selection')).toBe('true');
+  expect(window.location.hash).toBe('#logic/' + b.id);
+
+  await user.click(screen.getByRole('button', { name: 'Expand all' }));
+  expect(screen.getByRole('button', { name: 'Inspect revisions of System B deployment' })).toBeTruthy();
+  expect(screen.queryByText('1 selected')).toBeNull();
+});
