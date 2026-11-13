@@ -84,6 +84,7 @@
   --color-text-detail-label: var(--palette-slate-500);
   --color-text-warning-strong: var(--palette-amber-700);
   --color-surface-code: var(--palette-slate-150);
+  --color-surface-group-hover: var(--palette-slate-200);
   --color-text-link: var(--palette-accent-700);
   --color-border-review: var(--palette-slate-300);
   --color-border-selected: var(--palette-accent-600);

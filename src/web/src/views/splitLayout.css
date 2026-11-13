@@ -121,9 +121,55 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
     > .execution-history-panes > .split-browse { display: block; }
 }
 
+/* The whole module header is the target: the button's ::after stretches over the cell, so a click anywhere on the
+   row toggles it, hover tints the row, and the keyboard still has one real button with aria-expanded. */
 .configuration-list .configuration-group {
-  cursor: default;
+  cursor: pointer;
   background: var(--color-surface-code);
+}
+
+.configuration-list .configuration-group:hover {
+  background: var(--color-surface-group-hover);
+}
+
+.configuration-list .configuration-group td {
+  position: relative;
+}
+
+.configuration-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-control);
+  font-weight: var(--font-weight-medium);
+  text-align: start;
+  cursor: pointer;
+}
+
+.configuration-group-toggle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.configuration-group-toggle svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+/* The ring surrounds the row the keyboard is on, not just the label. */
+.configuration-group-toggle:focus-visible {
+  outline: none;
+}
+
+.configuration-list .configuration-group:has(.configuration-group-toggle:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
 .configuration-list td {
@@ -168,10 +214,6 @@ label.split-note { display: flex; align-items: center; gap: var(--space-8); }
 
 .configuration-list .status-indicator {
   overflow-wrap: normal;
-}
-
-.configuration-list .configuration-group .ui-action-button svg {
-  flex-shrink: 0;
 }
 
 @media (width <= 40em) {
