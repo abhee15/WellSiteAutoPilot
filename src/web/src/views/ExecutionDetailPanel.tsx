@@ -6,7 +6,7 @@ import { RefreshCw } from 'lucide-react';
 import { ActionButton } from '../components/ActionButton';
 import type { AssetResponse, ConfiguredLogicResponse, ExecutionResponse } from '../api/generated/v1/types.gen';
 import { hashFor } from '../routing';
-import { modeSentence, outcomeLabel, triggerLabel } from '../words';
+import { modeLabel, modeSentence, outcomeLabel, triggerLabel } from '../words';
 import { Status } from '../components/Status';
 import { useChangeRefresh, useLiveUpdates } from '../live/LiveUpdates';
 import { CopyButton } from './CopyButton';
@@ -25,6 +25,7 @@ import {
   structuredExecutionValues,
   ageWhenRead,
   describeExecutionOutput,
+  executionResultSummary,
   humanizeName,
   isGuid,
   prettyExecutionOutput,
@@ -162,6 +163,16 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
   const duration = runDuration(detail);
   const observations = executionInputObservations(detail.outputJson);
   const resultRows = describeExecutionOutput(detail.outputJson);
+  const result = executionResultSummary(detail.outputJson);
+  const hasOtherOutputs = result.recommendations.length + result.controlIntents.length + result.stateUpdates.length > 0;
+  const quantity = (value: number | null, unit: string | null) => value === null ? null
+    : new Intl.NumberFormat(undefined, { maximumSignificantDigits: 17 }).format(value) + (unit ? ` ${unit}` : '');
+  const linkedLogic = Boolean(detail.logicInstanceId && context.logicName);
+  const moduleText = linkedLogic
+    ? detail.moduleId && (detail.moduleVersion
+      ? t('execution.moduleLine', { id: detail.moduleId, version: detail.moduleVersion })
+      : t('execution.moduleOnly', { id: detail.moduleId }))
+    : detail.moduleVersion ? t('execution.moduleVersion', { version: detail.moduleVersion }) : null;
   const structuredValues = structuredExecutionValues(detail.outputJson);
   const raw = previewExecutionOutput(prettyExecutionOutput(detail.outputJson));
   const technical: Array<[string, string | null | undefined, boolean]> = [
@@ -190,6 +201,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
               ? <ContextLink appearance="record" href={hashFor('logic', detail.logicInstanceId)} label={context.logicName} />
               : (detail.moduleId ?? '—')}
             {context.revisionNumber && <small>{t('setup.revision', { number: context.revisionNumber })}</small>}
+            {moduleText && <small>{moduleText}</small>}
           </dd></div>
           {context.assetIds.length > 0 && <div><dt>{t('execution.summaryAssets')}</dt><dd>
             {context.assetIds.map((id, index) => <span key={id}>
@@ -200,9 +212,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
             {triggerLabel(detail.trigger)}
             {detail.scheduledForUtc && <small>{t('execution.scheduledFor', { time: formatDetailTimestamp(detail.scheduledForUtc) })}</small>}
           </dd></div>
-          {detail.mode && <div><dt>{t('execution.mode')}</dt><dd>{modeSentence(detail.mode)}</dd></div>}
-          <div><dt>{t('execution.module')}</dt><dd>
-            {[detail.moduleId, detail.moduleVersion].filter(Boolean).join(' · ') || '—'}</dd></div>
+          {detail.mode && <div><dt>{t('execution.mode')}</dt><dd title={modeSentence(detail.mode)}>{modeLabel(detail.mode)}</dd></div>}
           <div><dt>{t('execution.requested')}</dt><dd>{formatDetailTimestamp(detail.requestedAtUtc)}</dd></div>
           {detail.completedAtUtc && <div><dt>{t('execution.completed')}</dt><dd>
             {formatDetailTimestamp(detail.completedAtUtc)}
@@ -236,7 +246,7 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
               <div><dt>{t('execution.measuredAt')}</dt><dd>{formatDetailTimestamp(o.timestampUtc)}
                 {age && <small>{age}</small>}
                 {o.timestampKind === 'UnverifiedScan' && <small>{t('execution.unverifiedScan')}</small>}</dd></div>
-              <div><dt>{t('execution.retrieved')}</dt><dd>{formatDetailTimestamp(o.retrievedAtUtc)}</dd></div>
+              {o.retrievedAtUtc && <div><dt>{t('execution.retrieved')}</dt><dd>{formatDetailTimestamp(o.retrievedAtUtc)}</dd></div>}
               <div><dt>{t('shadow.source')}</dt><dd>{o.source === '—' ? '—' : sourceName(o.source, connectionNames)}</dd></div>
               {input.text && <div><dt>{t('execution.inputOutcome')}</dt><dd title={input.code ?? undefined}>{input.text}</dd></div>}
             </dl>
@@ -251,9 +261,43 @@ export function ExecutionDetailContent({ detail, configuredLogic = [], assets = 
         </li>)}</ul>
         {provenance.connectionsTruncated && <p>{t('execution.connectionsTruncated')}</p>}
       </section>}
-      {resultRows.length > 0 && <section className="run-section" aria-label={t('execution.result.heading')}>
+      {(result.engineering.length > 0 || resultRows.length > 0) && <section className="run-section" aria-label={t('execution.result.heading')}>
         <h4>{t('execution.result.heading')}</h4>
-        <dl className="run-facts">{resultRows.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
+        <dl className="run-facts">
+          {result.engineering.map((item, index) => <div key={`${item.id}:${item.assetId}:${index}`}>
+            <dt>{item.assetId ? assetIdentityLabel(item.assetId, assets, assetOwners) : humanizeName(item.id)}</dt>
+            <dd>{quantity(item.value, item.unit)}
+              <small>{[humanizeName(item.id), item.quantity ? humanizeName(item.quantity) : null].filter(Boolean).join(' · ')}</small></dd>
+          </div>)}
+          {resultRows.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}
+        </dl>
+        {!hasOtherOutputs && <p className="run-result-note">{t('execution.noOtherOutputs')}</p>}
+      </section>}
+      {result.recommendations.length > 0 && <section className="run-section" aria-label={t('execution.recommendations')}>
+        <h4>{t('execution.recommendations')}</h4>
+        <ul>{result.recommendations.map((item, index) => <li key={index}>
+          <strong>{item.title}</strong>
+          {item.value !== null && <> · {t('execution.suggestedValue', { value: quantity(item.value, item.unit) ?? '' })}</>}
+          {item.detail && <div className="run-result-note">{item.detail}</div>}
+          {item.assetId && <div className="run-result-note">{assetIdentityLabel(item.assetId, assets, assetOwners)}</div>}
+        </li>)}</ul>
+      </section>}
+      {result.controlIntents.length > 0 && <section className="run-section" aria-label={t('execution.controlIntents')}>
+        <h4>{t('execution.controlIntents')}</h4>
+        <ul>{result.controlIntents.map((item, index) => {
+          const reason = outcomeLabel(item.reasonCode);
+          return <li key={index}>
+            <strong>{humanizeName(item.command)}</strong>
+            {item.value !== null && <> · {t('execution.requestedValue', { value: quantity(item.value, item.unit) ?? '' })}</>}
+            {item.assetId && <div className="run-result-note">{assetIdentityLabel(item.assetId, assets, assetOwners)}</div>}
+            {reason.text && <div className="run-result-note" title={reason.code ?? undefined}>{t('execution.intentReason', { reason: reason.text })}</div>}
+          </li>;
+        })}</ul>
+        {detail.mode === 'Shadow' && <p className="run-result-note">{t('execution.intentsNotSent')}</p>}
+      </section>}
+      {result.stateUpdates.length > 0 && <section className="run-section" aria-label={t('execution.stateUpdates')}>
+        <h4>{t('execution.stateUpdates')}</h4>
+        <dl className="run-facts">{result.stateUpdates.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
       </section>}
       <CollapsibleSection title={t('execution.technical')} quiet className="run-technical">
         <dl className="execution-detail-grid">

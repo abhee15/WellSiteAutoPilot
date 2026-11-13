@@ -231,6 +231,25 @@ test('durations, input age and names read as plain words', () => {
   assert.equal(detail.humanizeName('PumpFillage'), 'Pump fillage');
 });
 
+test('a module result is split into its collections, bounded, and ignores values of the wrong shape', () => {
+  const summary = detail.executionResultSummary(JSON.stringify({
+    engineeringResults: [{ id: 'observed-value', assetId: 'a1', quantity: 'PumpFillage', value: 99.6, unit: '%' },
+      { id: 'structured', value: { schemaId: 's', data: {} } }, { id: 'bad', value: Infinity }, null, 'x'],
+    recommendations: [{ title: 'Raise', detail: 'Because', assetId: 'a1', suggestedValue: 60, unit: '%' }, { detail: 'no title' }],
+    controlIntents: [{ command: 'SetTarget', assetId: 'a1', requestedValue: 60, unit: '%', reasonCode: 'LOW' }],
+    stateUpdates: { 'last-checked': 'today', nested: { a: 1 } } }));
+  assert.deepEqual(summary.engineering, [{ id: 'observed-value', assetId: 'a1', quantity: 'PumpFillage', value: 99.6, unit: '%' }]);
+  assert.deepEqual(summary.recommendations, [{ title: 'Raise', detail: 'Because', assetId: 'a1', value: 60, unit: '%' }]);
+  assert.deepEqual(summary.controlIntents, [{ command: 'SetTarget', assetId: 'a1', value: 60, unit: '%', reasonCode: 'LOW' }]);
+  assert.deepEqual(summary.stateUpdates, [{ label: 'Last checked', value: 'today' }]);
+  const none = { engineering: [], recommendations: [], controlIntents: [], stateUpdates: [] };
+  for (const bad of [null, '', 'not json', '[1]', 'null', ' '.repeat(1048577)]) assert.deepEqual(detail.executionResultSummary(bad), none);
+  assert.deepEqual(detail.executionResultSummary(JSON.stringify({ engineeringResults: 'x', stateUpdates: [1] })), none);
+  assert.equal(detail.executionResultSummary(JSON.stringify({ engineeringResults: Array.from({ length: 100 }, (_, i) => ({ id: 'r' + i, value: i })) })).engineering.length, 64);
+  assert.deepEqual(detail.describeExecutionOutput(JSON.stringify({ outcomeCode: 'X', engineeringResults: [], recommendations: [],
+    controlIntents: [], stateUpdates: {}, other: 1 })).map(row => row.label), ['Other']);
+});
+
 test('output is shown as labelled rows, bounded, without the input readings, and never as markup', () => {
   const rows = detail.describeExecutionOutput(JSON.stringify({ recommendedFrequency: 52.5, ok: true, nothing: null,
     nested: { a: 1 }, long: 'x'.repeat(300), inputDiagnostics: [{ a: 1 }], inputObservations: [] }));

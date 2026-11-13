@@ -135,6 +135,9 @@ export function humanizeName(value: string): string {
 }
 
 export type OutputEntry = { label: string; value: string };
+/** Output fields with their own presentation (readings, and the module's result collections), so the generic rows skip them. */
+const OUTPUT_KEYS_SHOWN_ELSEWHERE = new Set(['inputDiagnostics', 'inputObservations', 'outcomeCode', 'engineeringResults',
+  'recommendations', 'controlIntents', 'stateUpdates']);
 const MAX_OUTPUT_ENTRIES = 20;
 const MAX_OUTPUT_VALUE = 200;
 /**
@@ -148,7 +151,7 @@ export function describeExecutionOutput(output?: string | null): OutputEntry[] {
     const parsed: unknown = JSON.parse(output);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
     return Object.entries(parsed as Record<string, unknown>)
-      .filter(([key]) => key !== 'inputDiagnostics' && key !== 'inputObservations')
+      .filter(([key]) => !OUTPUT_KEYS_SHOWN_ELSEWHERE.has(key))
       .slice(0, MAX_OUTPUT_ENTRIES)
       .map(([key, value]) => {
         const text = typeof value === 'string' ? value
@@ -157,6 +160,57 @@ export function describeExecutionOutput(output?: string | null): OutputEntry[] {
         return { label: humanizeName(key), value: text.length > MAX_OUTPUT_VALUE ? text.slice(0, MAX_OUTPUT_VALUE) + '…' : text };
       });
   } catch { return []; }
+}
+
+export type ResultSummary = {
+  engineering: Array<{ id: string; assetId: string | null; quantity: string | null; value: number; unit: string | null }>;
+  recommendations: Array<{ title: string; detail: string | null; assetId: string | null; value: number | null; unit: string | null }>;
+  controlIntents: Array<{ command: string; assetId: string | null; value: number | null; unit: string | null; reasonCode: string | null }>;
+  stateUpdates: OutputEntry[];
+};
+const MAX_RESULT_ITEMS = 64;
+const text = (value: unknown, maximum = 256): string | null =>
+  typeof value === 'string' && value.length > 0 && value.length <= maximum && ![...value].some(c => c.charCodeAt(0) < 32) ? value : null;
+const finite = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
+const records = (value: unknown): Array<Record<string, unknown>> => Array.isArray(value)
+  ? value.slice(0, MAX_RESULT_ITEMS).filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item)) : [];
+
+/**
+ * What a module produced, split into the collections the module contract defines: engineering results,
+ * recommendations, control intents and state updates. Bounded and defensive; a field that is missing or the wrong
+ * shape yields nothing for that collection, and the raw output stays available under Technical details.
+ */
+export function executionResultSummary(output?: string | null): ResultSummary {
+  const empty: ResultSummary = { engineering: [], recommendations: [], controlIntents: [], stateUpdates: [] };
+  if (!output || output.length > 1048576) return empty;
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return empty;
+    const body = parsed as Record<string, unknown>;
+    const stateUpdates = body.stateUpdates && typeof body.stateUpdates === 'object' && !Array.isArray(body.stateUpdates)
+      ? Object.entries(body.stateUpdates as Record<string, unknown>).slice(0, MAX_OUTPUT_ENTRIES).flatMap(([key, value]) => {
+        const shown = text(value, MAX_OUTPUT_VALUE);
+        return shown === null || key.length > 128 ? [] : [{ label: humanizeName(key), value: shown }];
+      }) : [];
+    return {
+      // A structured value (an object, not a number) is shown by the structured-evidence section instead.
+      engineering: records(body.engineeringResults).flatMap(item => {
+        const id = text(item.id, 128); const value = finite(item.value);
+        return id === null || value === null ? [] : [{ id, assetId: text(item.assetId, 64), quantity: text(item.quantity, 128), value, unit: text(item.unit, 32) }];
+      }),
+      recommendations: records(body.recommendations).flatMap(item => {
+        const title = text(item.title, 256);
+        return title === null ? [] : [{ title, detail: text(item.detail, 1024), assetId: text(item.assetId, 64),
+          value: finite(item.suggestedValue), unit: text(item.unit, 32) }];
+      }),
+      controlIntents: records(body.controlIntents).flatMap(item => {
+        const command = text(item.command, 128);
+        return command === null ? [] : [{ command, assetId: text(item.assetId, 64), value: finite(item.requestedValue),
+          unit: text(item.unit, 32), reasonCode: text(item.reasonCode, 128) }];
+      }),
+      stateUpdates,
+    };
+  } catch { return empty; }
 }
 
 /** The output as indented JSON when it parses, so the raw view is readable; otherwise unchanged. */

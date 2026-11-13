@@ -22,3 +22,4 @@
 .run-input-facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-fact-min)), 1fr)); gap: var(--space-8) var(--space-14); }
 .run-technical dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8); }
 .run-technical pre { overflow-x: auto; user-select: text; margin: var(--space-8) 0 0; padding: var(--space-12); background: var(--color-surface-code); border-radius: var(--radius-6); }
+.run-result-note { margin: var(--space-4) 0 0; color: var(--color-text-subtle); font-size: var(--font-size-body-small); }
