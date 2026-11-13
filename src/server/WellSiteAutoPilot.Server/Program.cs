@@ -1254,6 +1254,13 @@ v1.MapGet(
         StatusCodes.Status500InternalServerError,
         "application/problem+json");
 
+v1.MapGet("/guided-module-drafts",
+    async (int? offset, int? limit, GuidedModuleDraftService drafts, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+        (await drafts.ListAsync(access.Subject, offset ?? 0, limit ?? 25, cancellationToken)).Select(ToGuidedDraft).ToArray())
+    .WithName("ListGuidedModuleDrafts").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedModuleDraftResponse[]>();
+
 v1.MapPost("/guided-module-drafts",
     async (SaveGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>
@@ -1274,6 +1281,39 @@ v1.MapPut("/guided-module-drafts/{id:guid}",
             access.Subject, access.CreateActor(context), cancellationToken)))
     .WithName("EditGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModuleDraftResponse>();
+
+v1.MapGet("/guided-module-drafts/{id:guid}/submissions/{revision:int}",
+    async (Guid id, int revision, GuidedModuleDraftService drafts, RequestAccessContext access, CancellationToken cancellationToken) =>
+    {
+        var reviewed = await drafts.GetSubmissionAsync(id, revision, access.Subject, cancellationToken);
+        var definition = reviewed.Definition;
+        return new GuidedModuleReviewResponse(id, revision, reviewed.PackageSha256, reviewed.SubmittedAtUtc,
+            reviewed.ReviewedManifestJson, new(definition.Parameter, definition.Default, definition.OutcomeCode, definition.Title, definition.Detail),
+            reviewed.Evidence.Select(item => new GuidedModuleReviewCaseResponse(
+                item.Sample.Input?.Value, item.Result?.OutcomeCode, item.FailureCode)).ToArray());
+    })
+    .WithName("GetGuidedModuleSubmission").RequireAuthorization(WellSitePolicies.GuidedDraftReview)
+    .Produces<GuidedModuleReviewResponse>();
+
+v1.MapPost("/guided-module-drafts/{id:guid}/submissions/{revision:int}/approve",
+    async (Guid id, int revision, ApproveGuidedModuleSubmissionRequest request, GuidedModuleDraftService drafts,
+        RequestAccessContext access, HttpContext context, CancellationToken cancellationToken) =>
+        ToLogicModuleResponse(await drafts.ApproveSubmissionAsync(id, revision, request.PackageSha256, request.Reason,
+            access.Subject, access.CreateActor(context), cancellationToken)))
+    .WithName("ApproveGuidedModuleSubmission").RequireAuthorization(WellSitePolicies.LogicManage)
+    .NotifiesChange(ChangeArea.Modules)
+    .Produces<LogicModuleResponse>();
+
+v1.MapPost("/guided-module-drafts/{id:guid}/submit",
+    async (Guid id, SubmitGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var receipt = await drafts.SubmitAsync(id, request.ExpectedRevision, request.Readings,
+            access.Subject, access.CreateActor(context), cancellationToken);
+        return new GuidedModuleSubmissionResponse(receipt.DraftId, receipt.Revision, receipt.PackageSha256, receipt.SubmittedAtUtc);
+    })
+    .WithName("SubmitGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedModuleSubmissionResponse>();
 
 v1.MapPost("/guided-module-drafts/{id:guid}/preview",
     async (Guid id, PreviewGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,

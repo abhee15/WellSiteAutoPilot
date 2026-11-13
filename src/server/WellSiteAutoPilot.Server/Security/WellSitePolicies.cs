@@ -8,6 +8,7 @@ public static class WellSitePolicies
     public const string AssetsRead = WellSitePermissions.AssetsRead;
     public const string AssetsManage = WellSitePermissions.AssetsManage;
     public const string LogicRead = WellSitePermissions.LogicRead;
+    public const string GuidedDraftReview = WellSitePermissions.GuidedDraftReview;
     public const string GuidedDraftManage = WellSitePermissions.GuidedDraftManage;
     public const string LogicManage = WellSitePermissions.LogicManage;
     public const string ConfiguredLogicRead = WellSitePermissions.ConfiguredLogicRead;

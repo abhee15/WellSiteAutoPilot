@@ -36,6 +36,7 @@ public sealed class DeclarativeThresholdModule : ILogicModuleV1
 
     public LogicModuleIdentity Identity { get; }
     public LogicDataRequirement Input => _input;
+    public ThresholdDefinition Definition => _definition;
 
     public static bool UsesReservedEntryPoint(LogicModuleManifest manifest) =>
         manifest.EntryPoint?.StartsWith("wsa.declarative.", StringComparison.OrdinalIgnoreCase) == true;

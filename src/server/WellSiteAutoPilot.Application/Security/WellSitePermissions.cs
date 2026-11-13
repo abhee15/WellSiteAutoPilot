@@ -5,6 +5,7 @@ public static class WellSitePermissions
     public const string AssetsRead = "assets.read";
     public const string AssetsManage = "assets.manage";
     public const string LogicRead = "logic.read";
+    public const string GuidedDraftReview = "logic.authoring.review";
     public const string GuidedDraftManage = "logic.authoring.manage";
     public const string LogicManage = "logic.manage";
     public const string ConfiguredLogicRead = "configured-logic.read";
@@ -30,6 +31,7 @@ public static class WellSitePermissions
         LogicRead,
         LogicManage,
         GuidedDraftManage,
+        GuidedDraftReview,
         ConfiguredLogicRead,
         ConfiguredLogicManage,
         ExecutionsRead,

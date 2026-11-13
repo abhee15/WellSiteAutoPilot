@@ -39,6 +39,7 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
     public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
     public DbSet<LogicModulePackageEntity> LogicModulePackages => Set<LogicModulePackageEntity>();
+    public DbSet<GuidedModuleSubmissionEntity> GuidedModuleSubmissions => Set<GuidedModuleSubmissionEntity>();
     public DbSet<GuidedModuleDraftEntity> GuidedModuleDrafts => Set<GuidedModuleDraftEntity>();
     public DbSet<LogicModuleCatalogEntity> LogicModules => Set<LogicModuleCatalogEntity>();
     public DbSet<RecommendationEntity> Recommendations => Set<RecommendationEntity>();
@@ -284,6 +285,13 @@ public sealed class WellSiteAutoPilotDbContext(DbContextOptions<WellSiteAutoPilo
         guidedDraft.HasIndex(x => x.OwnerUserId);
         guidedDraft.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.Restrict);
         guidedDraft.Property(x => x.ContentJson).HasColumnType("jsonb").IsRequired();
+
+        var guidedSubmission = modelBuilder.Entity<GuidedModuleSubmissionEntity>();
+        guidedSubmission.ToTable("guided_module_submissions", "logic");
+        guidedSubmission.HasKey(x => new { x.DraftId, x.Revision });
+        guidedSubmission.HasOne<GuidedModuleDraftEntity>().WithMany().HasForeignKey(x => x.DraftId).OnDelete(DeleteBehavior.Restrict);
+        guidedSubmission.Property(x => x.PackageSha256).HasMaxLength(64).IsRequired();
+        guidedSubmission.Property(x => x.EvidenceJson).HasColumnType("jsonb").IsRequired();
 
         var modulePackage = modelBuilder.Entity<LogicModulePackageEntity>();
         modulePackage.ToTable("module_packages", "logic", table => table.HasCheckConstraint(

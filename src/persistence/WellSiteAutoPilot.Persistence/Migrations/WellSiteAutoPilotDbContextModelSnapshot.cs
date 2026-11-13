@@ -1281,6 +1281,35 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.ToTable("guided_module_drafts", "logic");
                 });
 
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Logic.GuidedModuleSubmissionEntity", b =>
+                {
+                    b.Property<Guid>("DraftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<byte[]>("PackageBytes")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("PackageSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("SubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("DraftId", "Revision");
+
+                    b.ToTable("guided_module_submissions", "logic");
+                });
+
             modelBuilder.Entity("WellSiteAutoPilot.Persistence.Logic.LogicModuleCatalogEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2016,6 +2045,15 @@ namespace WellSiteAutoPilot.Persistence.Migrations
                     b.HasOne("WellSiteAutoPilot.Persistence.Security.UserEntity", null)
                         .WithMany()
                         .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WellSiteAutoPilot.Persistence.Logic.GuidedModuleSubmissionEntity", b =>
+                {
+                    b.HasOne("WellSiteAutoPilot.Persistence.Logic.GuidedModuleDraftEntity", null)
+                        .WithMany()
+                        .HasForeignKey("DraftId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
