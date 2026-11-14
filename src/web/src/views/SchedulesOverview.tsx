@@ -74,7 +74,7 @@ export function SchedulesOverview({ configuredLogic, assets, owners = [], execut
                       <div>
                         <Status value={t('schedules.blocked')} tone="warning" />
                         {' '}<small>{t(scheduleBlockReasonKey(row.block.reasonCode), { code: row.block.reasonCode })}
-                          {' · '}{t('schedules.blockedSince', { time: formatTimestamp(row.block.sinceUtc) })}</small>
+                          {row.block.sinceUtc && <>{' · '}{t('schedules.blockedSince', { time: formatTimestamp(row.block.sinceUtc) })}</>}</small>
                       </div>
                     )}</td>
                   <td>{row.enabled && row.nextRunAtUtc

@@ -20,7 +20,7 @@ export type ScheduleRow = {
   timeZoneId: string | null;
   every?: number | null; unit?: string | null; endAtUtc?: string | null;
   /** Why the scheduler did not start the latest due run, from its last evaluation; null when nothing blocks it or it is off. */
-  block: { reasonCode: string; sinceUtc: string; occurrencesAffected: number } | null;
+  block: { reasonCode: string; sinceUtc: string | null; occurrencesAffected: number } | null;
   /** The next occurrence of the schedule, which is when a run is due, not a promise that it starts then. */
   nextRunAtUtc: string | null;
   lastRun: { requestedAtUtc: string; status: string | null } | null;
@@ -72,8 +72,8 @@ export function buildScheduleOverview(
       ...(schedule.endAtUtc ? { endAtUtc: schedule.endAtUtc } : {}),
       nextRunAtUtc: next === null ? null : new Date(next).toISOString(),
       block: schedule.enabled === true && configuration.scheduleBlock?.reasonCode
-        ? { reasonCode: configuration.scheduleBlock.reasonCode, sinceUtc: configuration.scheduleBlock.sinceUtc,
-            occurrencesAffected: configuration.scheduleBlock.occurrencesAffected }
+        ? { reasonCode: configuration.scheduleBlock.reasonCode, sinceUtc: configuration.scheduleBlock.sinceUtc ?? null,
+            occurrencesAffected: configuration.scheduleBlock.occurrencesAffected ?? 1 }
         : null,
       lastRun: lastRuns.get(configuration.id) ?? null,
     });
