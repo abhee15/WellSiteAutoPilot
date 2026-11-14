@@ -29,7 +29,7 @@ public interface IScheduleBlockStore
     /// </summary>
     bool Record(IEnumerable<ScheduledShadowDispatchDecision> decisions, DateTimeOffset nowUtc);
 
-    IReadOnlyDictionary<Guid, ScheduleBlock> Get(IReadOnlyCollection<Guid> configuredLogicIds);
+    IReadOnlyDictionary<Guid, ScheduleBlock> GetBlocks(IReadOnlyCollection<Guid> configuredLogicIds);
 }
 
 /// <summary>
@@ -70,7 +70,7 @@ public sealed class InMemoryScheduleBlockStore : IScheduleBlockStore
         return changed;
     }
 
-    public IReadOnlyDictionary<Guid, ScheduleBlock> Get(IReadOnlyCollection<Guid> configuredLogicIds)
+    public IReadOnlyDictionary<Guid, ScheduleBlock> GetBlocks(IReadOnlyCollection<Guid> configuredLogicIds)
     {
         ArgumentNullException.ThrowIfNull(configuredLogicIds);
         var result = new Dictionary<Guid, ScheduleBlock>();

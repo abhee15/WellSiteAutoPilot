@@ -987,7 +987,7 @@ v1.MapGet(
         var capabilities = (await actions.GetConfiguredLogicActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
         var now = clock.GetUtcNow();
-        var scheduleBlocks = blocks.Get(items.Select(item => item.Id).ToArray());
+        var scheduleBlocks = blocks.GetBlocks(items.Select(item => item.Id).ToArray());
         return items.Select(item => WithConfigurationActions(
             item, capabilities.GetValueOrDefault(item.Id), now, scheduleStates.GetValueOrDefault(item.Id), floors,
             scheduleBlocks.GetValueOrDefault(item.Id))).ToArray();
@@ -1024,7 +1024,7 @@ v1.MapGet(
         var item = RequireFound(await configurations.GetAuthorizedAsync(access.Subject, configuredLogicId, cancellationToken), "CONFIGURED_LOGIC_NOT_FOUND");
         var capability = (await actions.GetConfiguredLogicActionsAsync(access.Subject, [item.Id], cancellationToken)).SingleOrDefault();
         return WithConfigurationActions(item, capability, clock.GetUtcNow(), await schedules.GetAsync(item.Id, cancellationToken), floors,
-            blocks.Get([item.Id]).GetValueOrDefault(item.Id));
+            blocks.GetBlocks([item.Id]).GetValueOrDefault(item.Id));
     })
     .WithName("GetConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
