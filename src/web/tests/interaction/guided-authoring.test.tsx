@@ -9,6 +9,7 @@ import {
   listGuidedModuleDrafts,
   listPendingGuidedModuleSubmissions,
   previewGuidedModuleDraft,
+  previewGuidedModuleWithLiveInputs,
   submitGuidedModuleDraft,
 } from '../../src/api/generated/v1/sdk.gen';
 
@@ -22,6 +23,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   listGuidedModuleDrafts: vi.fn(),
   listPendingGuidedModuleSubmissions: vi.fn(),
   previewGuidedModuleDraft: vi.fn(),
+  previewGuidedModuleWithLiveInputs: vi.fn(),
   submitGuidedModuleDraft: vi.fn(),
 }));
 
@@ -205,5 +207,60 @@ it('lists the exact submitted revision for reviewers and opens its evidence', as
     expect(screen.getByRole('link', { name: 'Back to reviews' }).getAttribute('href')).toBe('#authoring/reviews');
   } finally {
     window.history.replaceState(null, '', window.location.pathname);
+  }
+});
+
+it('previews a saved revision with an imported well without enabling submission', async () => {
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
+    data: [
+      { id: 'live-draft', revision: 3, manifestJson: '{"displayName":"Live draft"}', definition: { default: 70 } },
+    ],
+  } as never);
+  const fetch = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify([
+          { id: 'manual', name: 'Manual well', isActive: true },
+          { id: 'imported', name: 'Imported well', isActive: true, ownerConnectionId: 'source' },
+        ]),
+      ),
+  );
+  vi.stubGlobal('fetch', fetch);
+  vi.mocked(previewGuidedModuleWithLiveInputs).mockResolvedValue({
+    data: {
+      outcomeCode: 'THRESHOLD_NOT_MET',
+      readings: [
+        {
+          inputId: 'fillage',
+          quantity: 'PumpFillage',
+          value: 82,
+          unit: '%',
+          quality: 'Good',
+          timestampUtc: '2026-11-12T15:00:00Z',
+        },
+      ],
+    },
+  } as never);
+  try {
+    render(
+      <GuidedAuthoringPage canAuthor canReview={false} canApprove={false} canPreviewLive onRefresh={async () => {}} />,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Live draft' }));
+    fireEvent.click(screen.getByText('Preview with a live well'));
+    fireEvent.change(screen.getByLabelText('Well name or asset ID'), { target: { value: 'well' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Find wells' }));
+    const wells = await screen.findByRole('combobox', { name: 'Sample well' });
+    expect(screen.queryByRole('option', { name: 'Manual well' })).toBeNull();
+    fireEvent.change(wells, { target: { value: 'imported' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Run live preview' }));
+    expect(await screen.findByText(/PumpFillage · 82 % · Good/)).toBeTruthy();
+    expect(vi.mocked(previewGuidedModuleWithLiveInputs)).toHaveBeenLastCalledWith({
+      path: { id: 'live-draft' },
+      body: { expectedRevision: 3, assetId: 'imported' },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+    expect((screen.getByRole('button', { name: 'Submit for review' }) as HTMLButtonElement).disabled).toBe(true);
+  } finally {
+    vi.unstubAllGlobals();
   }
 });

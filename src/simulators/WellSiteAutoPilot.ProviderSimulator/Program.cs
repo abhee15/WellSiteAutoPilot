@@ -180,6 +180,15 @@ app.MapPost("/foresite/WellConfig/GetWellAutonomousControlGroupData", (ForeSiteD
         .Select(well => new { WellId = well.Id, DeviceType = state.Scenario == "foresite-device-change" && well.Id == 102 ? "Replacement" : well.Id == 102 ? "ESP" : "RPC" }) });
 });
 
+// Current surveillance fixture for the imported sample well.
+app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContext context) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (wellId != 101) return Results.NotFound();
+    return Results.Json(new { Value = new { CurrentPumpFillage = 82m, LastGoodScanTime = DateTimeOffset.UtcNow } },
+        new System.Text.Json.JsonSerializerOptions());
+});
+
 // Recorded-shape trend stand-in for the Gateway history integration tests. This is simulated provider data.
 app.MapPost("/foresite/Surveillance/CygNetTrends/{wellId:long}/{start}/{end}",
     (long wellId, DateTimeOffset start, DateTimeOffset end, string[] quantities, HttpContext context) =>

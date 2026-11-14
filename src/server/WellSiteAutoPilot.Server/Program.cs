@@ -209,6 +209,7 @@ builder.Services.AddScoped<ManualShadowRequestService>();
 builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<LogicModulePackageService>();
 builder.Services.AddScoped<GuidedModuleDraftService>();
+builder.Services.AddScoped<GuidedLivePreviewService>();
 builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ConfiguredLogicScheduleControlService>();
@@ -1328,6 +1329,21 @@ v1.MapPost("/guided-module-drafts/{id:guid}/submit",
     })
     .WithName("SubmitGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModuleSubmissionResponse>();
+
+v1.MapPost("/guided-module-drafts/{id:guid}/live-preview",
+    async (Guid id, GuidedLivePreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
+        HttpContext context, CancellationToken cancellationToken) =>
+    {
+        var result = await preview.PreviewAsync(id, request.ExpectedRevision, request.AssetId,
+            access.CreateActor(context).CorrelationId, access.Subject, cancellationToken);
+        var evidence = result.Evidence;
+        return new GuidedLivePreviewResponse(request.ExpectedRevision, evidence.PackageSha256,
+            evidence.Result?.OutcomeCode, evidence.FailureCode, evidence.Result?.EngineeringResults.SingleOrDefault()?.Value,
+            result.Readings.Select(item => new GuidedLiveReadingResponse(item.InputId, item.Quantity, item.Value,
+                item.Unit, item.TimestampUtc, item.Quality, item.TimestampKind)).ToArray());
+    })
+    .WithName("PreviewGuidedModuleWithLiveInputs").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedLivePreviewResponse>();
 
 v1.MapPost("/guided-module-drafts/{id:guid}/preview",
     async (Guid id, PreviewGuidedModuleDraftRequest request, GuidedModuleDraftService drafts, RequestAccessContext access,
