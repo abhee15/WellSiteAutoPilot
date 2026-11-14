@@ -142,7 +142,7 @@ export function GuidedLivePreview({ draftId, revision }: { draftId: string; revi
         </div>
         {failed && <Notice tone="error">{t('guided.liveError')}</Notice>}
         {result && (
-          <div role="status">
+          <Notice tone={result.failureCode ? 'warning' : 'info'}>
             <p>{outcomeLabel(result.outcomeCode ?? result.failureCode).text}</p>
             {result.differentialPsi != null && (
               <p>
@@ -160,7 +160,7 @@ export function GuidedLivePreview({ draftId, revision }: { draftId: string; revi
                 </li>
               ))}
             </ul>
-          </div>
+          </Notice>
         )}
       </div>
     </details>
