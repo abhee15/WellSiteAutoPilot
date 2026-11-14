@@ -71,7 +71,7 @@ export async function loadAdapterOperations(signal: AbortSignal): Promise<Adapte
     typeof adapter.displayName === 'string' && typeof adapter.description === 'string' && Array.isArray(adapter.operations) &&
     adapter.operations.every(operation => object(operation) && typeof operation.key === 'string' &&
       typeof operation.displayName === 'string' && typeof operation.description === 'string' && operation.effect === 'ReadOnly' &&
-      ['CurrentData', 'HistoricalData', 'Alarms', 'Calculation', 'ConfigurationData'].includes(String(operation.capability)) && typeof operation.contractVersion === 'string' &&
+      ['CurrentData', 'HistoricalData', 'Alarms', 'Calculation', 'ConfigurationData', 'ExtensionRead'].includes(String(operation.capability)) && typeof operation.contractVersion === 'string' &&
       typeof operation.timestampSemantics === 'string' && typeof operation.qualitySemantics === 'string' &&
       schema(operation.request) && schema(operation.response) && (operation.structuredResponse == null || schema(operation.structuredResponse)) && object(operation.limits) &&
       Number.isSafeInteger(operation.limits.maximumQuantities) && Number.isSafeInteger(operation.limits.maximumValueBytes) &&

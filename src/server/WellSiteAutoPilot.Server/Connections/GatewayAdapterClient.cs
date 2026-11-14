@@ -82,12 +82,13 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         }
     }
 
-    public async Task<HistoricalReadResult> ReadAsync(ConnectionRecord connection, HistoricalReadRequest read,
+    public async Task<HistoricalReadResult> ReadAsync(ConnectionRecord connection, AdapterOperationDescriptor operation, HistoricalReadRequest read,
         CancellationToken cancellationToken = default)
     {
-        using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(connection.AdapterKey)}/history");
-        request.Content = JsonContent.Create(new ConnectionHistoryRequest(connection.Id, connection.Revision,
-            connection.Settings.ToDictionary(item => item.Key, item => (string?)item.Value, StringComparer.Ordinal), read));
+        using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(connection.AdapterKey)}/reads/{Uri.EscapeDataString(operation.Key)}");
+        request.Content = JsonContent.Create(new AdapterReadInvocation<HistoricalReadRequest>(connection.Id, connection.Revision,
+            connection.Settings.ToDictionary(item => item.Key, item => (string?)item.Value, StringComparer.Ordinal),
+            operation.ResourceKind!, read.AssetExternalId, operation.ContractVersion, read));
         using var response = await SendAsync(request, cancellationToken);
         try
         {

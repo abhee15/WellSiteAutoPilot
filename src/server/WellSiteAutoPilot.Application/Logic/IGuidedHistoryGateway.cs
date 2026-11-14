@@ -5,6 +5,6 @@ namespace WellSiteAutoPilot.Application.Logic;
 
 public interface IGuidedHistoryGateway
 {
-    Task<HistoricalReadResult> ReadAsync(ConnectionRecord connection, HistoricalReadRequest read,
+    Task<HistoricalReadResult> ReadAsync(ConnectionRecord connection, AdapterOperationDescriptor operation, HistoricalReadRequest read,
         CancellationToken cancellationToken = default);
 }

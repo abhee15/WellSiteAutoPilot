@@ -41,7 +41,8 @@ public sealed record AdapterDescriptor(
     /// <summary>Explicit read declarations only. Import and control capabilities are never Operations rows.</summary>
     public IReadOnlyList<AdapterOperationDescriptor> ReadOperations() => (Operations ?? [])
         .Where(operation => (operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData or
-            ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation or ProviderCapabilityKind.ConfigurationData) &&
+            ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation or ProviderCapabilityKind.ConfigurationData or
+            ProviderCapabilityKind.ExtensionRead) &&
             Capabilities.Any(capability => capability.Kind == operation.Capability) &&
             Version.TryParse(operation.ContractVersion, out var version) && version.Major == 1)
         .ToArray();

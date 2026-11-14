@@ -21,6 +21,16 @@ describe('Adapter reference API conformance', () => {
     expect((await loadAdapterOperations(signal))[0]?.capabilities?.[0]?.displayName).toBe('Provider-defined data');
     expect(fetch).toHaveBeenCalledExactlyOnceWith('/api/v1/connections/adapter-operations', { signal, credentials: 'same-origin', cache: 'no-store' });
   });
+  it('loads a provider-specific read alongside an adapter with no read capabilities', async () => {
+    const body = fixture();
+    body[0]!.operations[0]!.capability = 'ExtensionRead';
+    body.push({ adapterKey: 'discovery-only', displayName: 'Discovery only', description: 'Discovery',
+      capabilities: [], operations: [] });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(body)));
+    const result = await loadAdapterOperations(new AbortController().signal);
+    expect(result[0]?.capabilities?.[0]?.displayName).toBe('Provider-defined data');
+    expect(result[1]?.capabilities).toEqual([]);
+  });
   it.each(['unknown-ref', 'duplicate-group', 'duplicate-operation', 'future-version', 'malformed-example', 'workflow-unknown-operation', 'workflow-duplicate-step', 'workflow-future-version', 'workflow-executable'])('refuses %s metadata', async kind => {
     const body = fixture();
     if (kind === 'unknown-ref') body[0]!.capabilities[0]!.operationKeys = ['missing'];

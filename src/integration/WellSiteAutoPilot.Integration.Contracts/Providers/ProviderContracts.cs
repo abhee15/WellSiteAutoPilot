@@ -25,7 +25,8 @@ public enum ProviderCapabilityKind
     Calculation = 4,
     Command = 5,
     Verification = 6,
-    ConfigurationData = 7
+    ConfigurationData = 7,
+    ExtensionRead = 8
 }
 
 public sealed record ProviderHealth(
