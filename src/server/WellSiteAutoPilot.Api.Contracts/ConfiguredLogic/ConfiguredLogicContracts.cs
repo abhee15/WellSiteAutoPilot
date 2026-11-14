@@ -112,7 +112,19 @@ public sealed record ConfiguredLogicResponse(
     public ConfiguredLogicScheduleResponse? EffectiveSchedule { get; init; }
     /// <summary>The schedule in effect is faster than the logic's adapter allows, so its due runs are skipped.</summary>
     public bool BelowMinimum { get; init; }
+    /// <summary>
+    /// Why the scheduler did not start the latest due run of the live revision, from its most recent evaluation. Null
+    /// when nothing is blocking, the schedule is off, or the scheduler has not yet seen a due run since it started.
+    /// </summary>
+    public ConfiguredLogicScheduleBlockResponse? ScheduleBlock { get; init; }
 }
+
+/// <summary>A scheduled run that could not start. The reason code is stable and is what the UI words for a person.</summary>
+public sealed record ConfiguredLogicScheduleBlockResponse(
+    string ReasonCode,
+    DateTimeOffset SinceUtc,
+    DateTimeOffset LastScheduledForUtc,
+    int OccurrencesAffected);
 
 public sealed record ConfiguredLogicViewRequest(Guid ViewId, int ExpectedRevision, string Role);
 public sealed record ConfiguredLogicViewResponse(Guid ViewId, int Revision, Guid ConnectionId, string Role);
