@@ -1,0 +1,20 @@
+{
+  "probe": "empty-nuget-cache-existing-starter",
+  "status": "passed",
+  "checks": [
+    {
+      "name": "Restore with empty cache and no package feeds",
+      "passed": true
+    },
+    {
+      "name": "Compile existing starter without restore",
+      "passed": true
+    }
+  ],
+  "notEstablished": [
+    "Installing the .NET SDK on a clean customer machine",
+    "Offline CLI/Application dependencies such as NJsonSchema",
+    "Customer package/analyzer dependencies",
+    "Network-denial sandbox policy"
+  ]
+}

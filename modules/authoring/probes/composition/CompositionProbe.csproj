@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../src/server/WellSiteAutoPilot.Application/WellSiteAutoPilot.Application.csproj" />
+    <ProjectReference Include="../../../../src/modules/WellSiteAutoPilot.ModuleSdk/WellSiteAutoPilot.ModuleSdk.csproj" />
+    <Compile Include="../../../samples/structured-cards/CardCalibrationModule.cs" Link="CardCalibrationModule.cs" />
+    <Content Include="../../../samples/structured-cards/*.json" Link="fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
