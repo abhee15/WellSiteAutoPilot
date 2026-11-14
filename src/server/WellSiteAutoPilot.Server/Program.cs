@@ -210,6 +210,8 @@ builder.Services.AddScoped<LogicModuleCatalogService>();
 builder.Services.AddScoped<LogicModulePackageService>();
 builder.Services.AddScoped<GuidedModuleDraftService>();
 builder.Services.AddScoped<GuidedLivePreviewService>();
+builder.Services.AddScoped<IGuidedHistoryGateway>(services =>
+    (GatewayAdapterClient)services.GetRequiredService<IGatewayAdapters>());
 builder.Services.AddScoped<LogicModuleApprovalService>();
 builder.Services.AddScoped<ConfiguredLogicService>();
 builder.Services.AddScoped<ConfiguredLogicScheduleControlService>();
@@ -1329,6 +1331,19 @@ v1.MapPost("/guided-module-drafts/{id:guid}/submit",
     })
     .WithName("SubmitGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModuleSubmissionResponse>();
+
+v1.MapPost("/guided-module-drafts/{id:guid}/history-preview",
+    async (Guid id, GuidedHistoryPreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preview.ReadHistoryAsync(id, request.ExpectedRevision, request.AssetId, request.InputId,
+            request.StartUtc, request.EndUtc, request.MaximumSamples, access.Subject, cancellationToken);
+        return new GuidedHistoryPreviewResponse(result.Quantity, result.StartUtc, result.EndUtc, result.Truncated,
+            result.Samples.Select(item => new GuidedHistorySampleResponse(item.Value!.Value, item.Unit,
+                item.TimestampUtc, item.Quality)).ToArray());
+    })
+    .WithName("PreviewGuidedModuleInputHistory").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedHistoryPreviewResponse>();
 
 v1.MapPost("/guided-module-drafts/{id:guid}/live-preview",
     async (Guid id, GuidedLivePreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,

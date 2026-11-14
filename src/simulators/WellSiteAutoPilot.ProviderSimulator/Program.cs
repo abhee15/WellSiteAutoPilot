@@ -191,14 +191,14 @@ app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContex
 
 // Recorded-shape trend stand-in for the Gateway history integration tests. This is simulated provider data.
 app.MapPost("/foresite/Surveillance/CygNetTrends/{wellId:long}/{start}/{end}",
-    (long wellId, DateTimeOffset start, DateTimeOffset end, string[] quantities, HttpContext context) =>
+    (long wellId, DateTimeOffset start, DateTimeOffset end, string[] quantities, HttpContext context, SimulatorState state) =>
     {
         if (!HasForeSiteSession(context)) return Results.Unauthorized();
         if (wellId != 101 || quantities.Length != 1 || quantities[0] != "CurrentPumpFillage" || end <= start)
             return Results.BadRequest();
         return Results.Json(new[] { new {
             ErrorMessage = "Success", Units = "%", PointUDC = "SIMULATED-RRLPFILCUR",
-            PointValues = new[] { new { Timestamp = start.ToUniversalTime(), Value = 82m },
+            PointValues = state.Scenario == "foresite-history-empty" ? [] : new[] { new { Timestamp = start.ToUniversalTime(), Value = 82m },
                 new { Timestamp = start.AddMinutes(5).ToUniversalTime(), Value = 79m } }
         } }, new System.Text.Json.JsonSerializerOptions());
     });

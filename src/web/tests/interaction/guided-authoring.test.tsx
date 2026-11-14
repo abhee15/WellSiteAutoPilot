@@ -10,6 +10,7 @@ import {
   listPendingGuidedModuleSubmissions,
   previewGuidedModuleDraft,
   previewGuidedModuleWithLiveInputs,
+  previewGuidedModuleInputHistory,
   submitGuidedModuleDraft,
 } from '../../src/api/generated/v1/sdk.gen';
 
@@ -24,6 +25,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   listPendingGuidedModuleSubmissions: vi.fn(),
   previewGuidedModuleDraft: vi.fn(),
   previewGuidedModuleWithLiveInputs: vi.fn(),
+  previewGuidedModuleInputHistory: vi.fn(),
   submitGuidedModuleDraft: vi.fn(),
 }));
 
@@ -213,7 +215,12 @@ it('lists the exact submitted revision for reviewers and opens its evidence', as
 it('previews a saved revision with an imported well without enabling submission', async () => {
   vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
     data: [
-      { id: 'live-draft', revision: 3, manifestJson: '{"displayName":"Live draft"}', definition: { default: 70 } },
+      {
+        id: 'live-draft',
+        revision: 3,
+        manifestJson: '{"displayName":"Live draft","dataRequirements":[{"id":"fillage","quantity":"PumpFillage"}]}',
+        definition: { default: 70 },
+      },
     ],
   } as never);
   const fetch = vi.fn(
@@ -259,6 +266,27 @@ it('previews a saved revision with an imported well without enabling submission'
       body: { expectedRevision: 3, assetId: 'imported' },
       signal: expect.any(AbortSignal) as AbortSignal,
     });
+    vi.mocked(previewGuidedModuleInputHistory).mockResolvedValue({
+      data: {
+        quantity: 'PumpFillage',
+        truncated: true,
+        samples: [{ value: 79, unit: '%', quality: 'Unknown', timestampUtc: '2026-11-12T15:00:00Z' }],
+      },
+    } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Load history' }));
+    expect(await screen.findByText(/79 % · Unknown/)).toBeTruthy();
+    expect(screen.getByText(/The sample limit was reached/)).toBeTruthy();
+    expect(vi.mocked(previewGuidedModuleInputHistory)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { id: 'live-draft' },
+        body: expect.objectContaining({
+          expectedRevision: 3,
+          assetId: 'imported',
+          inputId: 'fillage',
+          maximumSamples: 100,
+        }) as unknown,
+      }),
+    );
     expect((screen.getByRole('button', { name: 'Submit for review' }) as HTMLButtonElement).disabled).toBe(true);
   } finally {
     vi.unstubAllGlobals();

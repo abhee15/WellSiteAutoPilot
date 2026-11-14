@@ -653,6 +653,29 @@ assert reading["quantity"] == "PumpFillage" and reading["value"] == 82 and readi
 assert reading["quality"] == "Good" and reading["timestampUtc"], live
 assert not {"externalId", "settings", "source"}.intersection(reading), live
 
+history_url = "/guided-module-drafts/" + live_draft["id"] + "/history-preview"
+history_body = dict(live_body, inputId="fillage", startUtc="2026-10-31T12:00:00Z",
+    endUtc="2026-10-31T13:00:00Z", maximumSamples=2)
+request("POST", history_url, ADMIN, history_body, expected=404)
+request("POST", history_url, OTHER, dict(history_body, assetId=other_alpha["id"]), expected=404)
+request("POST", history_url, OTHER, dict(history_body, expectedRevision=2), expected=409)
+request("POST", history_url, OTHER, dict(history_body, inputId="unknown"), expected=400)
+request("POST", history_url, OTHER, dict(history_body, maximumSamples=1001), expected=400)
+request("POST", history_url, OTHER, dict(history_body, endUtc=history_body["startUtc"]), expected=400)
+history = request("POST", history_url, OTHER, history_body)
+assert history["quantity"] == "PumpFillage" and not history["truncated"], history
+assert [(point["value"], point["unit"], point["quality"]) for point in history["samples"]] == [
+    (82, "%", "Unknown"), (79, "%", "Unknown")], history
+assert history["samples"][0]["timestampUtc"] < history["samples"][1]["timestampUtc"], history
+limited = request("POST", history_url, OTHER, dict(history_body, maximumSamples=1))
+assert limited["truncated"] and limited["samples"] == history["samples"][:1], limited
+foresite_scenario("foresite-history-empty")
+try:
+    empty = request("POST", history_url, OTHER, history_body)
+    assert not empty["samples"] and not empty["truncated"], empty
+finally:
+    foresite_scenario("rod-pump-normal")
+
 visible_view = request("GET", "/asset-views/" + view["id"], OTHER)
 assert visible_view["memberCount"] == 2 and not visible_view["canEdit"] and not visible_view["canDelete"], visible_view
 assert view["id"] in {item["id"] for item in request("GET", "/asset-views", OTHER)}
@@ -669,6 +692,7 @@ assert request("GET", "/asset-views/" + view["id"] + "/selection")["assetIds"] =
 updated = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 2, "name": "ESP subset", "assetIds": selection})
 retire(other["userId"], well_access)
 request("POST", live_url, OTHER, live_body, expected=404)
+request("POST", history_url, OTHER, history_body, expected=404)
 request("GET", operation_url(alpha["id"]), OTHER, expected=404)
 partial_access = grant(other["userId"], well_reader, "ExactAssets", [alpha["id"]])
 request("GET", operation_url(alpha2["id"]), OTHER, expected=404)
@@ -680,6 +704,7 @@ request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "nam
 # Losing Connection access removes all View routes, including mutations when edit is still granted.
 retire(other["userId"], connection_access)
 request("POST", live_url, OTHER, live_body, expected=403)
+request("POST", history_url, OTHER, history_body, expected=403)
 retire(other["userId"], live_author)
 request("GET", operation_url(alpha["id"]), OTHER, expected=403)
 for suffix in ["", "/members", "/selection"]:

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using WellSiteAutoPilot.Application.Executions;
+using WellSiteAutoPilot.Application.Logic;
 using System.Net.Http.Headers;
 using WellSiteAutoPilot.Application.Connections;
 using WellSiteAutoPilot.Failures;
@@ -13,7 +14,7 @@ namespace WellSiteAutoPilot.Server.Connections;
 /// Asks the Integration Gateway about adapters, presenting the Server's own caller key. The key is read when a
 /// request is made, so a Server without one still starts and only connection features report the gap.
 /// </summary>
-public sealed class GatewayAdapterClient(HttpClient client, IConfiguration configuration) : IGatewayAdapters, IExecutionMeasurementGateway
+public sealed class GatewayAdapterClient(HttpClient client, IConfiguration configuration) : IGatewayAdapters, IExecutionMeasurementGateway, IGuidedHistoryGateway
 {
     private const string Base = "api/internal/v1/adapters";
 
@@ -78,6 +79,24 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         {
             // A proxy/login page or malformed Gateway payload is not an invalid read-plan reference.
             throw ReadFailure(response.IsSuccessStatusCode ? "EXECUTION_READ_GATEWAY_INVALID" : "EXECUTION_READ_GATEWAY_FAILED");
+        }
+    }
+
+    public async Task<HistoricalReadResult> ReadAsync(ConnectionRecord connection, HistoricalReadRequest read,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(connection.AdapterKey)}/history");
+        request.Content = JsonContent.Create(new ConnectionHistoryRequest(connection.Id, connection.Revision,
+            connection.Settings.ToDictionary(item => item.Key, item => (string?)item.Value, StringComparer.Ordinal), read));
+        using var response = await SendAsync(request, cancellationToken);
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<HistoricalReadResult>(cancellationToken)
+                ?? throw ReadFailure("GUIDED_HISTORY_RESPONSE_INVALID");
+        }
+        catch (JsonException)
+        {
+            throw ReadFailure("GUIDED_HISTORY_RESPONSE_INVALID");
         }
     }
 

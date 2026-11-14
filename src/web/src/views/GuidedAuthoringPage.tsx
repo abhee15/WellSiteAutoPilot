@@ -422,7 +422,20 @@ export function GuidedAuthoringPage({
               </ul>
             )}
             {canPreviewLive && draft?.id && draft.revision && !dirty && (
-              <GuidedLivePreview key={draft.id + '/' + draft.revision} draftId={draft.id} revision={draft.revision} />
+              <GuidedLivePreview
+                key={draft.id + '/' + draft.revision}
+                draftId={draft.id}
+                revision={draft.revision}
+                inputs={
+                  draft.manifestJson
+                    ? (
+                        JSON.parse(draft.manifestJson) as {
+                          dataRequirements?: { id: string; quantity: string }[];
+                        }
+                      ).dataRequirements
+                    : undefined
+                }
+              />
             )}
             {submittedReference && (
               <TextField
