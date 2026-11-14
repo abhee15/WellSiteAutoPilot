@@ -27,3 +27,11 @@ public sealed record SubmitGuidedModuleDraftRequest(int ExpectedRevision, IReadO
     IReadOnlyList<GuidedPressureReadingRequest>? PressureReadings = null);
 
 public sealed record GuidedModuleSubmissionResponse(Guid DraftId, int Revision, string PackageSha256, DateTimeOffset SubmittedAtUtc);
+
+public sealed record GuidedLivePreviewRequest(int ExpectedRevision, Guid AssetId);
+
+public sealed record GuidedLivePreviewResponse(int Revision, string PackageSha256, string? OutcomeCode, string? FailureCode,
+    decimal? DifferentialPsi, IReadOnlyList<GuidedLiveReadingResponse> Readings);
+
+public sealed record GuidedLiveReadingResponse(string InputId, string Quantity, decimal? Value, string Unit,
+    DateTimeOffset TimestampUtc, string Quality, string? TimestampKind);

@@ -17,6 +17,7 @@ import type {
 import { ActionButton } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
 import { PageTabNav } from '../components/PageTabNav';
+import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
 import { NumberField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
@@ -137,6 +138,7 @@ export function ModuleAuthoringWorkspace({
         canReview={showReviews}
         canApprove={permissions.includes('logic.manage')}
         showReviewQueue={showReviews && !reviewReference}
+        canPreviewLive={permissions.includes('assets.read') && permissions.includes('connections.read')}
         onRefresh={onRefresh}
       />
     </>
@@ -149,6 +151,7 @@ export function GuidedAuthoringPage({
   canApprove,
   initialReviewReference = '',
   showReviewQueue = false,
+  canPreviewLive = false,
   onRefresh,
 }: {
   canAuthor: boolean;
@@ -156,6 +159,7 @@ export function GuidedAuthoringPage({
   canApprove: boolean;
   initialReviewReference?: string;
   showReviewQueue?: boolean;
+  canPreviewLive?: boolean;
   onRefresh: () => Promise<void>;
 }) {
   const [drafts, setDrafts] = useState<GuidedModuleDraftResponse[]>([]);
@@ -416,6 +420,9 @@ export function GuidedAuthoringPage({
                   </li>
                 ))}
               </ul>
+            )}
+            {canPreviewLive && draft?.id && draft.revision && !dirty && (
+              <GuidedLivePreview key={draft.id + '/' + draft.revision} draftId={draft.id} revision={draft.revision} />
             )}
             {submittedReference && (
               <TextField

@@ -39,7 +39,7 @@ public sealed record GuidedModuleDraft(
         return new(Id, Revision, artifact, evidence.AsReadOnly());
     }
 
-    private void RequireRevision(int expectedRevision)
+    internal void RequireRevision(int expectedRevision)
     {
         if (expectedRevision != Revision)
             throw new WellSiteAutoPilotException("GUIDED_DRAFT_REVISION_CONFLICT", FailureKind.Conflict,

@@ -636,6 +636,23 @@ request("GET", operation_url(alpha["id"], connection=stand_in["id"]), OTHER, exp
 request("GET", operation_url(other_alpha["id"], connection=stand_in["id"]), OTHER, expected=404)
 request("GET", f"/connections/{twin['id']}/assets/{alpha['id']}/operations", OTHER, expected=400)
 
+# Live preview binds the saved draft to one authorized imported Asset.
+live_author = grant(other["userId"], author_role, "DeploymentWide")
+live_draft = request("POST", "/guided-module-drafts", OTHER, dict(guided_content,
+    manifestJson=json.dumps(dict(guided_manifest, moduleId="ci.live-" + uuid.uuid4().hex,
+        assetRequirements=[dict(guided_manifest["assetRequirements"][0], requiredAssetTypeKey=None)]))))
+live_url = "/guided-module-drafts/" + live_draft["id"] + "/live-preview"
+live_body = {"expectedRevision": 1, "assetId": alpha["id"]}
+request("POST", live_url, ADMIN, live_body, expected=404)
+request("POST", live_url, OTHER, dict(live_body, assetId=other_alpha["id"]), expected=404)
+request("POST", live_url, OTHER, dict(live_body, expectedRevision=2), expected=409)
+live = request("POST", live_url, OTHER, live_body)
+assert live["outcomeCode"] == "THRESHOLD_NOT_MET" and live["revision"] == 1, live
+reading, = live["readings"]
+assert reading["quantity"] == "PumpFillage" and reading["value"] == 82 and reading["unit"] == "%", live
+assert reading["quality"] == "Good" and reading["timestampUtc"], live
+assert not {"externalId", "settings", "source"}.intersection(reading), live
+
 visible_view = request("GET", "/asset-views/" + view["id"], OTHER)
 assert visible_view["memberCount"] == 2 and not visible_view["canEdit"] and not visible_view["canDelete"], visible_view
 assert view["id"] in {item["id"] for item in request("GET", "/asset-views", OTHER)}
@@ -651,6 +668,7 @@ assert request("GET", "/asset-views/" + view["id"] + "/selection")["assetIds"] =
 # A restricted reader cannot obtain hidden IDs or erase the hidden portion through a replacement update.
 updated = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 2, "name": "ESP subset", "assetIds": selection})
 retire(other["userId"], well_access)
+request("POST", live_url, OTHER, live_body, expected=404)
 request("GET", operation_url(alpha["id"]), OTHER, expected=404)
 partial_access = grant(other["userId"], well_reader, "ExactAssets", [alpha["id"]])
 request("GET", operation_url(alpha2["id"]), OTHER, expected=404)
@@ -661,6 +679,8 @@ request("GET", "/asset-views/" + view["id"] + "/selection", OTHER, expected=400)
 request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "name": "Partial", "assetIds": [alpha["id"]]}, expected=400)
 # Losing Connection access removes all View routes, including mutations when edit is still granted.
 retire(other["userId"], connection_access)
+request("POST", live_url, OTHER, live_body, expected=403)
+retire(other["userId"], live_author)
 request("GET", operation_url(alpha["id"]), OTHER, expected=403)
 for suffix in ["", "/members", "/selection"]:
     request("GET", "/asset-views/" + view["id"] + suffix, OTHER, expected=403)
