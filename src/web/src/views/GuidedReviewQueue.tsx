@@ -3,7 +3,7 @@ import { listPendingGuidedModuleSubmissions } from '../api/generated/v1/sdk.gen'
 import type { GuidedModuleReviewItemResponse } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import { PanelLoading } from '../components/LoadingIndicator';
 import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
@@ -53,7 +53,7 @@ export function GuidedReviewQueue() {
       </>
     );
   }
-  if (items === null) return <LoadingIndicator label={t('guided.loadingReviews')} />;
+  if (items === null) return <PanelLoading label={t('guided.loadingReviews')} />;
 
   return (
     <>
