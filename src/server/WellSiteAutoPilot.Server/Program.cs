@@ -1282,6 +1282,15 @@ v1.MapPut("/guided-module-drafts/{id:guid}",
     .WithName("EditGuidedModuleDraft").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedModuleDraftResponse>();
 
+v1.MapGet("/guided-module-submissions",
+    async (int? offset, int? limit, GuidedModuleDraftService drafts, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+        (await drafts.ListPendingSubmissionsAsync(access.Subject, offset ?? 0, limit ?? 25, cancellationToken))
+            .Select(item => new GuidedModuleReviewItemResponse(item.DraftId, item.Revision, item.DisplayName, item.SubmittedAtUtc))
+            .ToArray())
+    .WithName("ListPendingGuidedModuleSubmissions").RequireAuthorization(WellSitePolicies.GuidedDraftReview)
+    .Produces<GuidedModuleReviewItemResponse[]>();
+
 v1.MapGet("/guided-module-drafts/{id:guid}/submissions/{revision:int}",
     async (Guid id, int revision, GuidedModuleDraftService drafts, RequestAccessContext access, CancellationToken cancellationToken) =>
     {
