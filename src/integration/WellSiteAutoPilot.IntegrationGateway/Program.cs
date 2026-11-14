@@ -132,7 +132,14 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Swagger:Enabl
 }
 
 app.MapHealthChecks("/health/live");
-app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = (context, report) => context.Response.WriteAsJsonAsync(new
+    {
+        status = report.Status.ToString(),
+        version = typeof(Program).Assembly.GetName().Version!.ToString()
+    })
+});
 
 var internalApi = app.NewVersionedApi("WellSite AutoPilot Integration Gateway API");
 var v1 = internalApi
