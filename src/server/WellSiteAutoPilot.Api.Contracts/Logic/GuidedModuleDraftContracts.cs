@@ -35,3 +35,11 @@ public sealed record GuidedLivePreviewResponse(int Revision, string PackageSha25
 
 public sealed record GuidedLiveReadingResponse(string InputId, string Quantity, decimal? Value, string Unit,
     DateTimeOffset TimestampUtc, string Quality, string? TimestampKind);
+
+public sealed record GuidedHistoryPreviewRequest(int ExpectedRevision, Guid AssetId, string InputId,
+    DateTimeOffset StartUtc, DateTimeOffset EndUtc, int MaximumSamples);
+
+public sealed record GuidedHistoryPreviewResponse(string Quantity, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
+    bool Truncated, IReadOnlyList<GuidedHistorySampleResponse> Samples);
+
+public sealed record GuidedHistorySampleResponse(decimal Value, string Unit, DateTimeOffset TimestampUtc, string Quality);

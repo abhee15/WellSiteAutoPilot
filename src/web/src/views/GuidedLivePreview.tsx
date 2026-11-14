@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { previewGuidedModuleWithLiveInputs } from '../api/generated/v1/sdk.gen';
-import type { GuidedLivePreviewResponse } from '../api/generated/v1/types.gen';
+import { previewGuidedModuleInputHistory, previewGuidedModuleWithLiveInputs } from '../api/generated/v1/sdk.gen';
+import type { GuidedHistoryPreviewResponse, GuidedLivePreviewResponse } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
@@ -9,7 +9,18 @@ import { t } from '../localization';
 import { outcomeLabel } from '../words';
 import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi';
 
-export function GuidedLivePreview({ draftId, revision }: { draftId: string; revision: number }) {
+export function GuidedLivePreview({
+  draftId,
+  revision,
+  inputs = [],
+}: {
+  draftId: string;
+  revision: number;
+  inputs?: readonly { id: string; quantity: string }[];
+}) {
+  const [inputId, setInputId] = useState(inputs[0]?.id ?? '');
+  const [hours, setHours] = useState('4');
+  const [history, setHistory] = useState<GuidedHistoryPreviewResponse | null>(null);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<SearchHit[] | null>(null);
   const [more, setMore] = useState(false);
@@ -29,6 +40,7 @@ export function GuidedLivePreview({ draftId, revision }: { draftId: string; revi
     setMatches(null);
     setAssetId('');
     setResult(null);
+    setHistory(null);
     try {
       const page = await fetchSearch(query.trim(), pageOffset, controller.signal);
       if (controller.signal.aborted) return;
@@ -48,6 +60,7 @@ export function GuidedLivePreview({ draftId, revision }: { draftId: string; revi
     setBusy(true);
     setFailed(false);
     setResult(null);
+    setHistory(null);
     try {
       const { data } = await previewGuidedModuleWithLiveInputs({
         path: { id: draftId },
@@ -57,6 +70,37 @@ export function GuidedLivePreview({ draftId, revision }: { draftId: string; revi
       if (controller.signal.aborted) return;
       if (!data) throw new Error();
       setResult(data);
+    } catch {
+      if (!controller.signal.aborted) setFailed(true);
+    } finally {
+      if (!controller.signal.aborted) setBusy(false);
+    }
+  }
+
+  async function previewHistory() {
+    const controller = new AbortController();
+    operation.current = controller;
+    setBusy(true);
+    setFailed(false);
+    setHistory(null);
+    setResult(null);
+    const end = Math.floor(Date.now() / 1000) * 1000;
+    try {
+      const { data } = await previewGuidedModuleInputHistory({
+        path: { id: draftId },
+        body: {
+          expectedRevision: revision,
+          assetId,
+          inputId,
+          maximumSamples: 100,
+          startUtc: new Date(end - Number(hours) * 3600000).toISOString(),
+          endUtc: new Date(end).toISOString(),
+        },
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      if (!data) throw new Error();
+      setHistory(data);
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -86,6 +130,7 @@ export function GuidedLivePreview({ draftId, revision }: { draftId: string; revi
               setMatches(null);
               setAssetId('');
               setResult(null);
+              setHistory(null);
               setFailed(false);
             }}
           />
@@ -101,6 +146,7 @@ export function GuidedLivePreview({ draftId, revision }: { draftId: string; revi
                 onChange={(event) => {
                   setAssetId(event.target.value);
                   setResult(null);
+                  setHistory(null);
                   setFailed(false);
                 }}
               >
@@ -140,6 +186,62 @@ export function GuidedLivePreview({ draftId, revision }: { draftId: string; revi
         <div>
           <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />
         </div>
+        {assetId && inputs.length > 0 && (
+          <div className="guided-authoring-fields">
+            <SelectField
+              label={t('guided.historyInput')}
+              value={inputId}
+              disabled={busy}
+              onChange={(event) => {
+                setInputId(event.target.value);
+                setHistory(null);
+              }}
+            >
+              {inputs.map((input) => (
+                <option key={input.id} value={input.id}>
+                  {input.quantity}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField
+              label={t('guided.historyWindow')}
+              value={hours}
+              disabled={busy}
+              onChange={(event) => {
+                setHours(event.target.value);
+                setHistory(null);
+              }}
+            >
+              <option value="1">{t('guided.historyOneHour')}</option>
+              <option value="4">{t('guided.historyFourHours')}</option>
+              <option value="24">{t('guided.historyDay')}</option>
+            </SelectField>
+            <ActionButton
+              label={t('guided.readHistory')}
+              disabled={busy || !inputId}
+              onClick={() => void previewHistory()}
+            />
+          </div>
+        )}
+        {history && (
+          <div>
+            <p>
+              {history.quantity} · {formatTimestamp(history.startUtc)} – {formatTimestamp(history.endUtc)}
+            </p>
+            {history.truncated && <Notice tone="warning">{t('guided.historyTruncated')}</Notice>}
+            {history.samples?.length ? (
+              <ul>
+                {history.samples.map((sample, index) => (
+                  <li key={index}>
+                    {formatTimestamp(sample.timestampUtc)} · {sample.value} {sample.unit} · {sample.quality}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>{t('guided.historyEmpty')}</p>
+            )}
+          </div>
+        )}
         {failed && <Notice tone="error">{t('guided.liveError')}</Notice>}
         {result && (
           <Notice tone={result.failureCode ? 'warning' : 'info'}>
