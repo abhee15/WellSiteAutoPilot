@@ -102,6 +102,9 @@ var duplicate = CygNetAdapter.MapFacilities(connection, new CygNetFacilityList([
 Expect(!duplicate.Complete && duplicate.Items.Count == 0, "duplicates fail closed");
 var down = await CygNetAdapter.DiscoverAsync(new FailingClient(new CygNetUnavailableException("No backend.")), connection, Account);
 Expect(!down.Complete && down.Items.Count == 0 && down.Warnings.Count > 0, "a failed list is an incomplete result");
+var unexpected = await CygNetAdapter.DiscoverAsync(new FailingClient(new InvalidOperationException("binder said no")), connection, Account);
+Expect(!unexpected.Complete && unexpected.Warnings.Any(w => w.Contains("InvalidOperationException") && w.Contains("binder said no")),
+    "an unexpected discovery failure names its cause instead of pointing at a log");
 
 // Reads
 var tag = "CYG_DEMO.UIS::WELL_001";
