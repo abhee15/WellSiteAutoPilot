@@ -6,6 +6,7 @@ using Npgsql;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Application.Security;
 using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Persistence.Audit;
 using WellSiteAutoPilot.Persistence.Security;
 
@@ -67,20 +68,53 @@ public sealed class GuidedModuleDraftRepository(WellSiteAutoPilotDbContext db, T
             if (changed != 1) throw Conflict();
         }, cancellationToken);
 
-    public async Task<GuidedModuleReviewSnapshot?> FindSubmissionAsync(Guid id, int revision, AccessSubject subject,
+    public async Task<IReadOnlyList<GuidedModuleReviewItem>> ListPendingSubmissionsAsync(AccessSubject subject, int offset, int limit,
         CancellationToken cancellationToken = default)
+    {
+        var reviewed = db.LogicModules.Where(module => module.TrustStatus != nameof(LogicModuleTrustStatus.Untrusted));
+        // The immutable package supplies the original name, including for existing submissions.
+        // Filter and page before fetching the bounded guided packages. Evidence stays on the detail path.
+        var page = await ReviewableSubmissions(subject)
+            .Where(item => !reviewed.Any(module => module.PackageSha256 == item.PackageSha256))
+            .OrderByDescending(item => item.SubmittedAtUtc).ThenBy(item => item.DraftId).ThenByDescending(item => item.Revision)
+            .Skip(offset).Take(limit)
+            .Select(item => new { item.DraftId, item.Revision, item.SubmittedAtUtc, item.PackageSha256, item.PackageBytes })
+            .ToArrayAsync(cancellationToken);
+        var items = new List<GuidedModuleReviewItem>(page.Length);
+        foreach (var item in page)
+        {
+            var package = await InspectSubmissionAsync(item.PackageBytes, item.PackageSha256, cancellationToken);
+            items.Add(new(item.DraftId, item.Revision, package.Manifest.DisplayName, item.SubmittedAtUtc));
+        }
+        return items;
+    }
+
+    private IQueryable<GuidedModuleSubmissionEntity> ReviewableSubmissions(AccessSubject subject)
     {
         var authorized = ScopedAccessQueries.DeploymentGrants(db, subject.UserId, WellSitePermissions.GuidedDraftReview,
             subject.Groups, clock.GetUtcNow());
-        var entity = await db.GuidedModuleSubmissions.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.DraftId == id && item.Revision == revision && authorized.Any(), cancellationToken);
-        if (entity is null) return null;
-        using var source = new MemoryStream(entity.PackageBytes);
+        return db.GuidedModuleSubmissions.AsNoTracking().Where(_ => authorized.Any());
+    }
+
+    private static async Task<InspectedLogicModulePackage> InspectSubmissionAsync(byte[] bytes, string packageSha256,
+        CancellationToken cancellationToken)
+    {
+        using var source = new MemoryStream(bytes);
         var inspected = await LogicModulePackageReader.ReadAsync(source, cancellationToken);
-        if (inspected.Sha256 != entity.PackageSha256 || inspected.DeclarativeModule is null)
+        if (inspected.Sha256 != packageSha256 || inspected.DeclarativeModule is null)
             throw new WellSiteAutoPilotException("GUIDED_SUBMISSION_INVALID", FailureKind.Conflict, "The reviewed package could not be verified.");
+        return inspected;
+    }
+
+    public async Task<GuidedModuleReviewSnapshot?> FindSubmissionAsync(Guid id, int revision, AccessSubject subject,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await ReviewableSubmissions(subject)
+            .SingleOrDefaultAsync(item => item.DraftId == id && item.Revision == revision, cancellationToken);
+        if (entity is null) return null;
+        var inspected = await InspectSubmissionAsync(entity.PackageBytes, entity.PackageSha256, cancellationToken);
         return new(id, revision, entity.PackageSha256, entity.SubmittedAtUtc, entity.PackageBytes, inspected.ManifestJson,
-            inspected.DeclarativeModule.Definition,
+            inspected.DeclarativeModule!.Definition,
             JsonSerializer.Deserialize<DeclarativeThresholdEvidence[]>(entity.EvidenceJson, Json)!,
             inspected.Manifest.EntryPoint == DeclarativeThresholdModule.DifferenceEntryPoint);
     }

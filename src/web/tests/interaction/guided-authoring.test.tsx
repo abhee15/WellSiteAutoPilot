@@ -1,12 +1,13 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { GuidedAuthoringPage } from '../../src/views/GuidedAuthoringPage';
+import { GuidedAuthoringPage, ModuleAuthoringWorkspace } from '../../src/views/GuidedAuthoringPage';
 import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt';
 import {
   approveGuidedModuleSubmission,
   getGuidedModuleSubmission,
   createGuidedModuleDraft,
   listGuidedModuleDrafts,
+  listPendingGuidedModuleSubmissions,
   previewGuidedModuleDraft,
   submitGuidedModuleDraft,
 } from '../../src/api/generated/v1/sdk.gen';
@@ -19,6 +20,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   editGuidedModuleDraft: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
   listGuidedModuleDrafts: vi.fn(),
+  listPendingGuidedModuleSubmissions: vi.fn(),
   previewGuidedModuleDraft: vi.fn(),
   submitGuidedModuleDraft: vi.fn(),
 }));
@@ -167,4 +169,41 @@ it('authors paired pressure samples and shows the reviewed differential', async 
   expect(
     await screen.findByText(/Casing pressure 400 psi · Tubing pressure 120 psi · Differential 280 psi/),
   ).toBeTruthy();
+});
+
+it('lists the exact submitted revision for reviewers and opens its evidence', async () => {
+  const id = '8f52644a-daa0-4d1b-8949-cb20942b4dc8';
+  vi.mocked(listPendingGuidedModuleSubmissions).mockResolvedValue({
+    data: [{ draftId: id, revision: 3, displayName: 'Submitted name', submittedAtUtc: '2026-11-12T15:00:00Z' }],
+  } as never);
+  vi.mocked(getGuidedModuleSubmission).mockResolvedValue({
+    data: {
+      draftId: id,
+      revision: 3,
+      reviewedManifestJson: '{"displayName":"Submitted name"}',
+      definition: { default: 70 },
+      cases: [{ value: 62, outcomeCode: 'LOW_FILLAGE' }],
+    },
+  } as never);
+  window.history.replaceState(null, '', '#authoring');
+  try {
+    render(<ModuleAuthoringWorkspace permissions={['logic.authoring.review']} onRefresh={async () => {}} />);
+    const pending = await screen.findByRole('link', { name: 'Submitted name · revision 3' });
+    expect(vi.mocked(listPendingGuidedModuleSubmissions)).toHaveBeenLastCalledWith({
+      query: { offset: 0, limit: 26 },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+    expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
+    window.history.replaceState(null, '', pending.getAttribute('href'));
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(await screen.findByRole('heading', { name: 'Submitted name' })).toBeTruthy();
+    expect(vi.mocked(getGuidedModuleSubmission)).toHaveBeenLastCalledWith({
+      path: { id, revision: 3 },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+    expect(screen.queryByRole('button', { name: 'Approve module' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Back to reviews' }).getAttribute('href')).toBe('#authoring/reviews');
+  } finally {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
 });

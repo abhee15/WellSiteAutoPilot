@@ -13,6 +13,8 @@ public sealed record PreviewGuidedModuleDraftRequest(int ExpectedRevision, decim
 public sealed record GuidedModulePreviewResponse(int Revision, string PackageSha256, string? OutcomeCode,
     string? FailureCode, string? RecommendationTitle, string? RecommendationDetail, decimal? DifferentialPsi = null);
 
+public sealed record GuidedModuleReviewItemResponse(Guid DraftId, int Revision, string DisplayName, DateTimeOffset SubmittedAtUtc);
+
 public sealed record GuidedModuleReviewResponse(Guid DraftId, int Revision, string PackageSha256, DateTimeOffset SubmittedAtUtc,
     string ReviewedManifestJson, GuidedThresholdDefinitionRequest Definition, IReadOnlyList<GuidedModuleReviewCaseResponse> Cases);
 

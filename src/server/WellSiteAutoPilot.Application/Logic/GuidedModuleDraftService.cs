@@ -36,6 +36,15 @@ public sealed class GuidedModuleDraftService(IGuidedModuleDraftRepository drafts
         return submission.Evidence.Single();
     }
 
+    public Task<IReadOnlyList<GuidedModuleReviewItem>> ListPendingSubmissionsAsync(AccessSubject subject, int offset, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset < 0 || limit is < 1 or > 100)
+            throw new WellSiteAutoPilotException("GUIDED_REVIEW_PAGE_INVALID", FailureKind.Validation,
+                "Provide a nonnegative offset and a page size from 1 to 100.");
+        return drafts.ListPendingSubmissionsAsync(subject, offset, limit, cancellationToken);
+    }
+
     public async Task<GuidedModuleReviewSnapshot> GetSubmissionAsync(Guid id, int revision, AccessSubject subject,
         CancellationToken cancellationToken = default) =>
         await drafts.FindSubmissionAsync(id, revision, subject, cancellationToken) ??

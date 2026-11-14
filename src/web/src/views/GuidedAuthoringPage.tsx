@@ -15,6 +15,9 @@ import type {
   GuidedPressureReadingRequest,
 } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
+import { ContextLink } from '../components/ContextLink';
+import { PageTabNav } from '../components/PageTabNav';
+import { GuidedReviewQueue } from './GuidedReviewQueue';
 import { NumberField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
@@ -110,16 +113,33 @@ export function ModuleAuthoringWorkspace({
   permissions: readonly string[];
   onRefresh: () => Promise<void>;
 }) {
-  const [reviewReference] = useHashDetail('authoring');
+  const [detail] = useHashDetail('authoring');
+  const canAuthor = permissions.includes('logic.authoring.manage');
+  const canReview = permissions.includes('logic.authoring.review');
+  const showReviews = canReview && (Boolean(detail) || !canAuthor);
+  const reviewReference = showReviews && detail !== 'reviews' ? (detail ?? '') : '';
   return (
-    <GuidedAuthoringPage
-      key={reviewReference}
-      initialReviewReference={reviewReference ?? ''}
-      canAuthor={permissions.includes('logic.authoring.manage')}
-      canReview={permissions.includes('logic.authoring.review')}
-      canApprove={permissions.includes('logic.manage')}
-      onRefresh={onRefresh}
-    />
+    <>
+      {canAuthor && canReview && (
+        <PageTabNav
+          label={t('guided.workspaceTabs')}
+          activeId={showReviews ? 'reviews' : 'drafts'}
+          tabs={[
+            { id: 'drafts', label: t('guided.draftsTab'), href: hashFor('authoring') },
+            { id: 'reviews', label: t('guided.reviewsTab'), href: hashFor('authoring', 'reviews') },
+          ]}
+        />
+      )}
+      <GuidedAuthoringPage
+        key={reviewReference || (showReviews ? 'reviews' : 'drafts')}
+        initialReviewReference={reviewReference}
+        canAuthor={canAuthor && !showReviews}
+        canReview={showReviews}
+        canApprove={permissions.includes('logic.manage')}
+        showReviewQueue={showReviews && !reviewReference}
+        onRefresh={onRefresh}
+      />
+    </>
   );
 }
 
@@ -128,12 +148,14 @@ export function GuidedAuthoringPage({
   canReview,
   canApprove,
   initialReviewReference = '',
+  showReviewQueue = false,
   onRefresh,
 }: {
   canAuthor: boolean;
   canReview: boolean;
   canApprove: boolean;
   initialReviewReference?: string;
+  showReviewQueue?: boolean;
   onRefresh: () => Promise<void>;
 }) {
   const [drafts, setDrafts] = useState<GuidedModuleDraftResponse[]>([]);
@@ -308,7 +330,11 @@ export function GuidedAuthoringPage({
 
   return (
     <section className="panel guided-authoring">
-      <PanelHeader title={t('guided.heading')} />
+      <PanelHeader
+        title={t(
+          showReviewQueue ? 'guided.pendingReviews' : canReview && !canAuthor ? 'guided.reviewsTab' : 'guided.heading',
+        )}
+      />
       {error && <Notice tone="error">{t('guided.error')}</Notice>}
       {notice && <Notice tone="success">{t(notice)}</Notice>}
       {canAuthor && (
@@ -404,20 +430,29 @@ export function GuidedAuthoringPage({
       )}
       {canReview && (
         <section className="guided-authoring-review" aria-label={t('guided.review')}>
-          <TextField
-            label={t('guided.reviewReference')}
-            value={reviewKey}
-            disabled={busy}
-            onChange={(event) => {
-              setReviewKey(event.target.value);
-              setReview(null);
-            }}
-          />
-          <ActionButton
-            label={t('guided.review')}
-            disabled={busy || !reviewKey.trim()}
-            onClick={() => void run(openReview)}
-          />
+          {showReviewQueue ? (
+            <GuidedReviewQueue />
+          ) : (
+            <>
+              {initialReviewReference && (
+                <ContextLink href={hashFor('authoring', 'reviews')} label={t('guided.backToReviews')} />
+              )}
+              <TextField
+                label={t('guided.reviewReference')}
+                value={reviewKey}
+                disabled={busy}
+                onChange={(event) => {
+                  setReviewKey(event.target.value);
+                  setReview(null);
+                }}
+              />
+              <ActionButton
+                label={t('guided.review')}
+                disabled={busy || !reviewKey.trim()}
+                onClick={() => void run(openReview)}
+              />
+            </>
+          )}
           {review && (
             <>
               {review.reviewedManifestJson && <h3>{displayName(review.reviewedManifestJson)}</h3>}
