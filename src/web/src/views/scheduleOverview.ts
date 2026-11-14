@@ -19,13 +19,15 @@ export type ScheduleRow = {
   cadenceSeconds: number;
   timeZoneId: string | null;
   every?: number | null; unit?: string | null; endAtUtc?: string | null;
+  /** Why the scheduler did not start the latest due run, from its last evaluation; null when nothing blocks it or it is off. */
+  block: { reasonCode: string; sinceUtc: string; occurrencesAffected: number } | null;
   /** The next occurrence of the schedule, which is when a run is due, not a promise that it starts then. */
   nextRunAtUtc: string | null;
   lastRun: { requestedAtUtc: string; status: string | null } | null;
 };
 
 export type ScheduleOverview = {
-  /** Enabled schedules first, soonest first; then the ones switched off, by name. */
+  /** Enabled schedules first, the ones that cannot start a run before the rest, then soonest first; then the ones switched off, by name. */
   rows: ScheduleRow[];
   /** Configurations that have no schedule on their live revision, so a person knows they were not forgotten. */
   unscheduledCount: number;
@@ -69,11 +71,16 @@ export function buildScheduleOverview(
       ...(schedule.unit && schedule.every ? { every: schedule.every, unit: schedule.unit } : {}),
       ...(schedule.endAtUtc ? { endAtUtc: schedule.endAtUtc } : {}),
       nextRunAtUtc: next === null ? null : new Date(next).toISOString(),
+      block: schedule.enabled === true && configuration.scheduleBlock?.reasonCode
+        ? { reasonCode: configuration.scheduleBlock.reasonCode, sinceUtc: configuration.scheduleBlock.sinceUtc,
+            occurrencesAffected: configuration.scheduleBlock.occurrencesAffected }
+        : null,
       lastRun: lastRuns.get(configuration.id) ?? null,
     });
   }
   rows.sort((a, b) => {
     if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+    if (a.enabled && Boolean(a.block) !== Boolean(b.block)) return a.block ? -1 : 1;
     const byTime = Date.parse(a.nextRunAtUtc ?? '') - Date.parse(b.nextRunAtUtc ?? '');
     return Number.isFinite(byTime) && byTime !== 0 ? byTime : a.name.localeCompare(b.name);
   });

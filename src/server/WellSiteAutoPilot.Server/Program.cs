@@ -219,6 +219,7 @@ builder.Services.AddSingleton(new ScheduledReadAuthorityOptions
 builder.Services.AddScoped<IDelegatedAuthorityAuditWriter, WellSiteAutoPilot.Persistence.Scheduling.DelegatedAuthorityAuditWriter>();
 builder.Services.AddScoped<IScheduledReadAuthorityProvider, ScheduledReadAuthorityProvider>();
 builder.Services.AddScoped<ScheduledShadowSchedulerService>();
+builder.Services.AddSingleton<IScheduleBlockStore, InMemoryScheduleBlockStore>();
 builder.Services.AddSingleton<AdapterScheduleFloorCache>();
 builder.Services.AddSingleton<IAdapterScheduleFloors>(services => services.GetRequiredService<AdapterScheduleFloorCache>());
 builder.Services.AddScoped<RecommendationMaterializer>();
@@ -978,16 +979,18 @@ v1.MapPost(
 v1.MapGet(
     "/configured-logic",
     async (int? limit, int? offset, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
-        IResourceActionRepository actions, IAdapterScheduleFloors floors, RequestAccessContext access, TimeProvider clock,
-        CancellationToken cancellationToken) =>
+        IResourceActionRepository actions, IAdapterScheduleFloors floors, IScheduleBlockStore blocks, RequestAccessContext access,
+        TimeProvider clock, CancellationToken cancellationToken) =>
     {
         var items = await configurations.ListAuthorizedAsync(access.Subject, PageLimit(limit ?? 100), PageOffset(offset), cancellationToken);
         var scheduleStates = await schedules.ListAsync(items.Select(item => item.Id).ToArray(), cancellationToken);
         var capabilities = (await actions.GetConfiguredLogicActionsAsync(access.Subject, items.Select(item => item.Id).ToArray(), cancellationToken))
             .ToDictionary(item => item.Id);
         var now = clock.GetUtcNow();
+        var scheduleBlocks = blocks.Get(items.Select(item => item.Id).ToArray());
         return items.Select(item => WithConfigurationActions(
-            item, capabilities.GetValueOrDefault(item.Id), now, scheduleStates.GetValueOrDefault(item.Id), floors)).ToArray();
+            item, capabilities.GetValueOrDefault(item.Id), now, scheduleStates.GetValueOrDefault(item.Id), floors,
+            scheduleBlocks.GetValueOrDefault(item.Id))).ToArray();
     })
     .WithName("ListConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -1015,12 +1018,13 @@ v1.MapGet(
 v1.MapGet(
     "/configured-logic/{configuredLogicId:guid}",
     async (Guid configuredLogicId, IConfiguredLogicRepository configurations, IConfiguredLogicScheduleRepository schedules,
-        IResourceActionRepository actions, IAdapterScheduleFloors floors, RequestAccessContext access, TimeProvider clock,
-        CancellationToken cancellationToken) =>
+        IResourceActionRepository actions, IAdapterScheduleFloors floors, IScheduleBlockStore blocks, RequestAccessContext access,
+        TimeProvider clock, CancellationToken cancellationToken) =>
     {
         var item = RequireFound(await configurations.GetAuthorizedAsync(access.Subject, configuredLogicId, cancellationToken), "CONFIGURED_LOGIC_NOT_FOUND");
         var capability = (await actions.GetConfiguredLogicActionsAsync(access.Subject, [item.Id], cancellationToken)).SingleOrDefault();
-        return WithConfigurationActions(item, capability, clock.GetUtcNow(), await schedules.GetAsync(item.Id, cancellationToken), floors);
+        return WithConfigurationActions(item, capability, clock.GetUtcNow(), await schedules.GetAsync(item.Id, cancellationToken), floors,
+            blocks.Get([item.Id]).GetValueOrDefault(item.Id));
     })
     .WithName("GetConfiguredLogic")
     .RequireAuthorization(WellSitePolicies.ConfiguredLogicRead)
@@ -2273,7 +2277,7 @@ static async Task<ConfiguredLogicScheduleControlResponse> ToScheduleControlRespo
 
 static ConfiguredLogicResponse WithConfigurationActions(
     ConfiguredLogicDefinition item, ConfiguredLogicActions? capability, DateTimeOffset now,
-    ConfiguredLogicScheduleState? scheduleState, IAdapterScheduleFloors floors)
+    ConfiguredLogicScheduleState? scheduleState, IAdapterScheduleFloors floors, ScheduleBlock? scheduleBlock = null)
 {
     var activeRevision = item.Revisions.SingleOrDefault(revision => revision.Id == item.ActiveRevisionId);
     var effectiveSchedule = EffectiveSchedule.Resolve(activeRevision, scheduleState);
@@ -2286,6 +2290,12 @@ static ConfiguredLogicResponse WithConfigurationActions(
         CanRequestShadow = capability?.CanRequestShadow == true,
         // The same resolver the scheduler dispatches from: a paused or re-timed logic shows what will actually happen.
         NextRunAtUtc = EffectiveSchedule.NextRunAt(activeRevision, scheduleState, now),
+        // A block belongs to the live revision it was seen on and only matters while the schedule is on.
+        ScheduleBlock = scheduleBlock is not null && activeRevision is not null && effectiveSchedule is { Enabled: true } &&
+            scheduleBlock.ConfigurationRevisionId == activeRevision.Id
+            ? new ConfiguredLogicScheduleBlockResponse(
+                scheduleBlock.ReasonCode, scheduleBlock.SinceUtc, scheduleBlock.LastScheduledForUtc, scheduleBlock.OccurrencesAffected)
+            : null,
         EffectiveSchedule = effectiveSchedule is { } effective
             ? new ConfiguredLogicScheduleResponse(effective.Enabled, effective.CadenceSeconds, effective.StartAtUtc, effective.TimeZoneId)
               { Every = effective.Recurrence?.Every, Unit = effective.Recurrence?.Unit,

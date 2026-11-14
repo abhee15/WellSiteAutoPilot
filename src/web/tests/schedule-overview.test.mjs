@@ -81,3 +81,21 @@ test('a schedule below its adapter minimum is flagged from the server answer onl
   ], assets, []);
   assert.deepEqual(result.rows.map(row => row.belowMinimum), [true, false, false]);
 });
+
+test('a run the scheduler could not start is shown with its reason, first among the schedules that are on', async () => {
+  const reasons = await vite.ssrLoadModule('/src/views/scheduleBlockReason.ts');
+  const block = { reasonCode: 'EXECUTION_READ_AUTHORITY_REQUIRED', sinceUtc: '2026-10-14T12:00:05Z', lastScheduledForUtc: '2026-10-14T12:01:00Z', occurrencesAffected: 3 };
+  const result = model.buildScheduleOverview([
+    logic('ok', 'Healthy', { schedule: schedule() }, { nextRunAtUtc: '2026-10-14T12:01:00Z' }),
+    logic('bad', 'Blocked', { schedule: schedule() }, { nextRunAtUtc: '2026-10-14T12:05:00Z', scheduleBlock: block }),
+    logic('off', 'Paused blocked', { schedule: schedule() }, { effectiveSchedule: schedule({ enabled: false }), scheduleBlock: block }),
+    logic('none', 'No reason', { schedule: schedule() }, { nextRunAtUtc: '2026-10-14T12:02:00Z', scheduleBlock: { occurrencesAffected: 1 } }),
+  ], assets, []);
+  assert.deepEqual(result.rows.map(row => row.id), ['bad', 'ok', 'none', 'off']);
+  assert.deepEqual(result.rows[0].block, { reasonCode: 'EXECUTION_READ_AUTHORITY_REQUIRED', sinceUtc: '2026-10-14T12:00:05Z', occurrencesAffected: 3 });
+  assert.equal(result.rows.find(row => row.id === 'off').block, null, 'a switched-off schedule is not "not running"');
+  assert.equal(result.rows.find(row => row.id === 'none').block, null, 'a block without a reason is ignored, not guessed');
+  assert.equal(reasons.scheduleBlockReasonKey('EXECUTION_READ_AUTHORITY_REQUIRED'), 'schedules.reason.readAuthority');
+  assert.equal(reasons.scheduleBlockReasonKey('EXECUTION_READ_PLAN_REFUSED'), 'schedules.reason.read');
+  assert.equal(reasons.scheduleBlockReasonKey('SOMETHING_NEW'), 'schedules.reason.unknown');
+});

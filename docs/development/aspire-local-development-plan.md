@@ -51,6 +51,20 @@ copy.
 - Package versions (Aspire 13.x for .NET 10) are not verifiable from the
   authoring workspace; the first CI build confirms them.
 
+## Scheduled runs need a service account
+
+A schedule that reads live provider data runs as one existing, active security user, set with
+`Scheduler:ReadAuthority:ServicePrincipalUserId` in `appsettings.Local.json` (a user id from the Access page; leave it
+empty to run only schedules that read nothing live). The AppHost passes it to the Server as
+`Scheduler__ReadAuthority__ServicePrincipalUserId` and rejects a value that is not a GUID. For local work your own user
+is the simplest choice; the user's grants bound what schedules may read, so a shared or production deployment should use
+a dedicated user with only the grants its schedules need (see `docs/implementation/authorized-connection-reads.md`).
+
+Without it every due run is refused with `EXECUTION_READ_AUTHORITY_REQUIRED`. The Schedules page shows that as
+"Not running" with the reason beside the schedule, so a missing account is visible there and not only in the server log.
+The reason is the scheduler's latest evaluation, kept in memory: it clears when a run starts, and after a Server restart
+it reappears at the next due run.
+
 ## Local configuration (database and NATS)
 
 Per-developer settings live in a gitignored `appsettings.Local.json` next to the

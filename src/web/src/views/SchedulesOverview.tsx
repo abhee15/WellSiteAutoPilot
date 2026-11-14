@@ -9,6 +9,7 @@ import { Status } from '../components/Status';
 import { formatTimestamp } from '../format';
 import { statusLabel } from '../words';
 import { scheduleText } from './logicSummary';
+import { scheduleBlockReasonKey } from './scheduleBlockReason';
 import { summarizeAssetLabels } from './runContext';
 import { buildScheduleOverview } from './scheduleOverview';
 import type { OwnerGroup } from './assetHierarchy';
@@ -68,7 +69,14 @@ export function SchedulesOverview({ configuredLogic, assets, owners = [], execut
                     ? scheduleText({ enabled: true, cadenceSeconds: row.cadenceSeconds, timeZoneId: row.timeZoneId, every: row.every, unit: row.unit, endAtUtc: row.endAtUtc })
                     : <Status value={t(row.paused ? 'schedules.paused' : 'schedules.off')} />}
                     {row.enabled && row.belowMinimum && <> <Status value={t('schedules.belowMinimum')} tone="warning" /></>}
-                    {row.changed && <> <small>{t('schedules.changed')}</small></>}</td>
+                    {row.changed && <> <small>{t('schedules.changed')}</small></>}
+                    {row.enabled && row.block && (
+                      <div>
+                        <Status value={t('schedules.blocked')} tone="warning" />
+                        {' '}<small>{t(scheduleBlockReasonKey(row.block.reasonCode), { code: row.block.reasonCode })}
+                          {' · '}{t('schedules.blockedSince', { time: formatTimestamp(row.block.sinceUtc) })}</small>
+                      </div>
+                    )}</td>
                   <td>{row.enabled && row.nextRunAtUtc
                     ? (Date.parse(row.nextRunAtUtc) <= clock ? t('schedules.dueNow') : formatTimestamp(row.nextRunAtUtc))
                     : '—'}</td>
