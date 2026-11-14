@@ -19,5 +19,8 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
 };
 
 export function scheduleBlockReasonKey(reasonCode: string): MessageKey {
-  return REASONS[reasonCode] ?? (reasonCode.startsWith('EXECUTION_READ_') ? 'schedules.reason.read' : 'schedules.reason.unknown');
+  return (
+    REASONS[reasonCode] ??
+    (reasonCode.startsWith('EXECUTION_READ_') ? 'schedules.reason.read' : 'schedules.reason.unknown')
+  );
 }
