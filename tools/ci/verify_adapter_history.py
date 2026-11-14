@@ -32,6 +32,19 @@ assert result["truncated"] and len(result["samples"]) == 1 and result["samples"]
 assert result["samples"][0]["quality"] == "Unknown" and result["samples"][0]["unit"] == "%", result
 assert result["samples"][0]["timestampUtc"].startswith("2026-11-01T06:00:00"), result
 assert result["sourcePoint"] == "SIMULATED-RRLPFILCUR" and result["aggregation"] == "Raw", result
+registered_path = "reads/history.pump-fillage"
+registered = {key: request[key] for key in ("connectionId", "connectionRevision", "settings")}
+registered |= {"resourceKind": "foresite.well", "externalId": "101", "contractVersion": "1.0", "input": read}
+registered_result = call("foresite", registered, operation=registered_path)
+for response in (result, registered_result):
+    for sample in response["samples"]:
+        assert sample.pop("retrievedAtUtc")
+assert registered_result == result, registered_result
+call("foresite", registered, caller=None, status=401, operation=registered_path)
+call("foresite", registered, caller="worker", status=403, operation=registered_path)
+call("petrovisor", registered, status=404, operation=registered_path)
+call("foresite", registered | {"externalId": "999"}, status=400, operation=registered_path)
+call("foresite", registered | {"input": read | {"quantity": "NotSupported"}}, status=400, operation=registered_path)
 call("foresite", request | {"read": read | {"maximumSamples": 1001}}, status=400)
 call("foresite", request | {"read": read | {"endUtc": read["startUtc"]}}, status=400)
 call("foresite", request | {"read": read | {"quantity": "NotSupported"}}, status=503)

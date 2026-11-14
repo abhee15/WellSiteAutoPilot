@@ -89,7 +89,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         var manifest = draft.Content.Manifest;
         await RequireMatchingAssetAsync(manifest, initial, subject, cancellationToken);
         var adapter = (await adapters.ListAsync(cancellationToken)).SingleOrDefault(item => item.Key == initial.Connection.AdapterKey);
-        var operation = adapter?.ReadOperations().SingleOrDefault(item => item.Capability == ProviderCapabilityKind.HistoricalData &&
+        var operation = adapter?.ReadOperations().SingleOrDefault(item => item.CapabilityId == "engineering.history" &&
             item.Quantity == input.Quantity && item.ResourceKind == initial.Binding.ResourceKind);
         if (operation is null || (manifest.RequiredAdapterKey is { } requiredAdapter &&
                 !string.Equals(requiredAdapter, initial.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase)) ||
@@ -102,7 +102,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         var request = new HistoricalReadRequest(initial.Binding.ExternalId, input.Quantity, startUtc.ToUniversalTime(),
             endUtc.ToUniversalTime(), maximumSamples);
         HistoricalReadLimits.Validate(request);
-        var result = await history.ReadAsync(initial.Connection, request, cancellationToken);
+        var result = await history.ReadAsync(initial.Connection, operation, request, cancellationToken);
         await RequireCurrentAsync();
         if (result.Quantity != request.Quantity || result.StartUtc != request.StartUtc || result.EndUtc != request.EndUtc ||
             result.Aggregation != "Raw" || result.Samples.Count > maximumSamples ||

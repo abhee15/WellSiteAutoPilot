@@ -116,6 +116,7 @@ builder.Services.AddWellSiteMessaging(
     builder.Configuration["Messaging:Nats:Token"]);
 
 var app = builder.Build();
+_ = app.Services.GetRequiredService<AdapterCatalog>();
 
 app.UseWellSiteHttpErrorHandling();
 app.UseAuthentication();
@@ -137,6 +138,7 @@ var internalApi = app.NewVersionedApi("WellSite AutoPilot Integration Gateway AP
 var v1 = internalApi
     .MapGroup("/api/internal/v{version:apiVersion}")
     .HasApiVersion(1.0);
+v1.MapRegisteredAdapterReads();
 
 v1.MapGet(
     "/integrations",

@@ -6,6 +6,7 @@ using WellSiteAutoPilot.Integration.ForeSite;
 // identity, which is how the installed Gateway reaches ForeSite.
 ShippedAdapterCommandChecks.Run();
 AdapterOperationChecks.Run();
+await RegisteredReadChecks.RunAsync();
 await SimulatorCommandProviderChecks.RunAsync();
 await MeasurementChecks.RunAsync();
 await SnapshotChecks.RunAsync();
