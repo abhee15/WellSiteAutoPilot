@@ -17,8 +17,8 @@ internal static class AlarmProbeChecks
             }
             catch (CygNetReadException error) when (error.Code == "CYGNET_ALARM_PROBE_SCOPE_INVALID") { }
         }
-        if (CygNetAdapter.Describe(new CygNetApiClient()).ReadOperations().Any(operation => operation.Capability == ProviderCapabilityKind.Alarms))
-            throw new InvalidOperationException("The CAS probe must not advertise a Gateway alarm operation.");
+        if (CygNetAdapter.Describe(new CygNetUnconfiguredClient()).ReadOperations().Any(operation => operation.Capability == ProviderCapabilityKind.Alarms))
+            throw new InvalidOperationException("An unavailable CygNet backend advertised a Gateway alarm operation.");
     }
 
     public static async Task<int> RunLiveAsync(string requestPath)

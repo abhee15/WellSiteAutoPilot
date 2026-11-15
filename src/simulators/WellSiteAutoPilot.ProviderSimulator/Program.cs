@@ -73,6 +73,29 @@ app.MapGet("/api/sim/v1/assets/{assetId}/current/{quantity}",
     .Produces<EngineeringValue>(StatusCodes.Status200OK)
     .Produces(StatusCodes.Status503ServiceUnavailable);
 
+// Synthetic managed-CAS records for the Gateway adapter's offline integration checks.
+app.MapGet("/cygnet/fixtures/facilities/{facilityId}/points/{udc}/alarms",
+    (string facilityId, string udc, SimulatorState state) =>
+    {
+        if (!state.ProviderAvailable) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        if (udc != "RRLPFILCUR") return Results.NotFound();
+
+        var facilityTag = "SITE.UIS::" + (facilityId == "WELL_ALARM_MISMATCH" ? "OTHER" : facilityId);
+        var set = new { IsSet = true, Priority = 2, ReportedTime = new DateTime(2023, 1, 1, 12, 0, 0, DateTimeKind.Unspecified) };
+        var cleared = new { IsSet = false, Priority = 1, ReportedTime = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc) };
+        var activeMissingTime = new { IsSet = true, Priority = 3, ReportedTime = default(DateTime) };
+        var truncated = facilityId == "WELL_ALARM_TRUNCATED";
+        var alarms = facilityId switch
+        {
+            "WELL_ALARM_EMPTY" => new[] { cleared },
+            "WELL_ALARM_TRUNCATED" => Enumerable.Repeat(set, 64).ToArray(),
+            "WELL_ALARM" or "WELL_ALARM_MISMATCH" => new[] { set, cleared, activeMissingTime },
+            _ => null
+        };
+        return alarms is null ? Results.NotFound() : Results.Ok(new { FacilityTag = facilityTag, Udc = udc, Alarms = alarms, Truncated = truncated });
+    })
+    .WithName("GetSyntheticCygNetCasRecords");
+
 // The command side of the simulated provider. A command changes the current value the read side serves, so reading it
 // back through the ordinary read path shows whether it took effect. The provider has no idempotency of its own.
 app.MapPut("/api/sim/v1/assets/{assetId}/commands/{command}",
