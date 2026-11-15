@@ -53,6 +53,46 @@ The earlier POC recorded live PNT responses. The Gateway tests for this implemen
 to cover service authorization, point scope, empty and truncated results, and malformed or mismatched responses.
 The late-bound PNT bridge still needs a smoke test on a licensed Windows Gateway.
 
+## Licensed CAS alarm evidence
+
+The CAS POC observed a set alarm with an old report time. For the production adapter, verify the
+managed alarm record's point identity and `ReportedTime` before enabling a Gateway read. On a
+licensed Windows host, run this bounded one-point read as the Gateway's Windows identity.
+
+Save a private request file with settings from the intended CygNet connection and one known point.
+This example uses placeholder connection and point values.
+
+```json
+{
+  "settings": { "domain": "1", "siteService": "SITE.UIS", "facilityFilter": "WELL_*" },
+  "facilityId": "WELL_001",
+  "udc": "POINT_001",
+  "referenceReportedAt": "2026-11-10T09:30:00-06:00"
+}
+```
+
+```pwsh
+dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests -c Release -- --alarm-probe PATH_TO_PRIVATE_REQUEST.json
+```
+
+The output counts set and cleared records, missing source times, and managed `DateTime.Kind` values.
+It also counts matches of UDC, native tag equality, and the complete rendered
+`SITE.SERVICE::FACILITY.UDC` form independently. It omits settings, point values, point and facility
+identifiers, and raw exception messages. The probe inspects up to 64 records, marks additional
+records explicitly, and uses the shared CygNet call gate with a 15-second caller budget.
+The alarm method is read-only and keeps its service slot while a timed-out native call is still running.
+
+The optional `referenceReportedAt` is the same alarm’s report time from an independent source, with
+its UTC offset. The probe compares the managed clock fields with both the reference UTC and displayed
+clock fields without printing timestamps or assigning a time zone. Supply the full precision if
+available. Omit the reference for a quiet point.
+
+Run against a point with a known CAS alarm, a quiet point, and two authorized facilities with the
+same UDC. Compare the report time convention with CygNet Explorer or managed API documentation. A
+matching UDC alone cannot establish facility identity, an Unspecified time needs an independent time
+reference, and an empty result only verifies that the read returned successfully. The Gateway does
+not advertise an alarm operation from this probe.
+
 ## Sample modules
 
 `modules/samples/cygnet/`: `pump-fillage-low-alert`, `pressure-differential-check`, `motor-load-check`

@@ -5,6 +5,15 @@ using WellSiteAutoPilot.Integration.CygNet.Adapter;
 using WellSiteAutoPilot.IntegrationGateway.Adapters;
 using WellSiteAutoPilot.ModuleSdk;
 
+if (args.Length > 0)
+{
+    if (args is ["--alarm-probe", var requestPath])
+        return await AlarmProbeChecks.RunLiveAsync(requestPath);
+    Console.Error.WriteLine("Usage: --alarm-probe <private-request.json>");
+    return 2;
+}
+
+await AlarmProbeChecks.RejectInvalidScopeAsync();
 HistoryValueChecks.Run();
 await HistoryChecks.RunAsync();
 await PointCatalogChecks.RunAsync();
