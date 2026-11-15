@@ -8,7 +8,7 @@ namespace WellSiteAutoPilot.Samples.StructuredCards;
 // and return both curves and a scalar. No provider or customer UDC knowledge here.
 public sealed class CardCalibrationModule : ILogicModuleV2
 {
-    public LogicModuleIdentity Identity { get; } = new("sample.card-calibration", "1.0.0");
+    public LogicModuleIdentity Identity { get; } = new("sample.card-calibration", "2.0.0");
 
     public ValueTask<LogicModuleExecutionResultV2> ExecuteAsync(LogicModuleExecutionContextV2 context,
         CancellationToken cancellationToken = default)
@@ -25,11 +25,11 @@ public sealed class CardCalibrationModule : ILogicModuleV2
             cancellationToken.ThrowIfCancellationRequested();
             var position = card.GetProperty("position").EnumerateArray().Select(p => p.GetDecimal()).ToArray();
             var load = card.GetProperty("load").EnumerateArray().Select(p => p.GetDecimal()).ToArray();
-            var captureText = card.GetProperty("capturedAtUtc").GetString()!;
+            var capture = card.GetProperty("capturedAtUtc");
+            var captureText = capture.GetString()!;
             if (position.Length != load.Length || !identities.Add(card.GetProperty("id").GetString()!) ||
-                !captureText.EndsWith('Z') ||
-                !DateTimeOffset.TryParse(captureText, System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.None, out var capturedAt) ||
+                !(captureText.EndsWith('Z') || captureText.EndsWith("+00:00", StringComparison.Ordinal)) ||
+                !capture.TryGetDateTimeOffset(out var capturedAt) ||
                 capturedAt > context.EvaluationTimeUtc.AddSeconds(30))
                 return ValueTask.FromResult(new LogicModuleExecutionResultV2("CARD_REJECTED", [], [], [],
                     new Dictionary<string, string>()) { FailureCode = "CARD_SAMPLES_INVALID" });
@@ -48,9 +48,9 @@ public sealed class CardCalibrationModule : ILogicModuleV2
         }
         return ValueTask.FromResult(new LogicModuleExecutionResultV2("CARD_CALIBRATION_COMPLETED",
             [new("calibrated-cards", cards.AssetId, "CalibratedCards",
-                new("sample.calibrated-cards/v1", JsonSerializer.SerializeToElement(calibrated)), null),
+                new("sample.calibrated-cards/v2", JsonSerializer.SerializeToElement(calibrated)), null),
              new("peak-load", cards.AssetId, "PeakLoad",
-                new("sample.peak-load/v1", JsonSerializer.SerializeToElement(peakLoad)), "lbf")],
+                new("sample.peak-load/v2", JsonSerializer.SerializeToElement(peakLoad)), "lb")],
             [], [], new Dictionary<string, string>()));
     }
 }

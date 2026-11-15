@@ -110,7 +110,7 @@ The current evidence supports the latest-reported operation. History browsing ne
 
 ### ForeSite Cards
 - CURRENT/FULL surface cards: GET `Dynacards/Dynacard/LatestWithUnits/Lib/{id}/{type}`, current bounded structured contract. Preserve per-card capture time and paired position/load arrays, sample order, oldest-card age, units `in`/`lb` and `Unknown` quality.
-- **Open blocker:** reviewed V2 structured-card module input rejects Unknown quality; sample manifest currently requires `lbf` but source carries `lb`. Resolve via explicit reviewed policy/conversion or fix sample, without blindly promoting quality. Downhole cards and larger payloads are separate future investigations.
+- **Open blocker:** reviewed V2 structured-card module input rejects Unknown quality. The offline calibration sample accepts the ForeSite surface-card schema, preserves `lb`, and uses synthetic quality and calibration inputs. Downhole cards and larger payloads are separate future investigations.
 
 ### ForeSite Setpoints / Alarms (read-only)
 - Passive saved setpoints: GET `Surveillance/Well/AllSavedSetPointParams?WellId={id}&scanOption=0`, group + element + original/read-only/range + device-specific map. `scanOption=0` is not a live device refresh. No `Send`, UIS command or scan-triggering operation without approved governance.
@@ -148,7 +148,7 @@ The current evidence supports the latest-reported operation. History browsing ne
 2. **Contracts-only PR:** optional workflow-guide records, DTO mapping, validated declarations, tests; existing adapter registrations remain compatible (null/empty workflows).
 3. **UI + first static ForeSite guide PR:** reusable renderer in existing tabs, correct explicit partial-readiness label, API/interaction/mobile tests, descriptive first ForeSite sequence. No live reads added.
 4. **ForeSite discovery/current PR:** provider enum mapping, authorization-preserving catalog read, applicability/available/valid separation, one execution snapshot, units and scan semantics, targeted negative fixtures. Then update guide readiness to implemented with tests.
-5. **ForeSite history + daily + card readiness PRs:** reuse #485, no duplicate history stack; historical data periods, completeness, unit/quality policy; resolve cards sample `lb`/`lbf` and Unknown quality contract before live hosted authoring claim.
+5. **ForeSite history + daily + card readiness PRs:** reuse #485, no duplicate history stack; historical data periods, completeness, unit/quality policy; the card sample preserves `lb`. Resolve the Unknown quality contract before live hosted authoring.
 6. **CygNet PNT catalog + native-read parity PRs:** native-source licensed POC port, allowlist and mapping, VHS statuses/limit reconciliation, CAS alarms, DDS passive setpoints later.
 7. **WAMI staged PRs:** typed descriptor and fake/license checks, calculation functions and model artifact contract, opt-in factory/connection tester with explicit not-installed state, live Windows acceptance, then separately governed composition runtime and multi-provider V3.
 8. **Well-test capability PR:** only after exact route and acceptance/status semantics are proven with fixture+live tests. Do not advertise rejected latest tests as usable values.
