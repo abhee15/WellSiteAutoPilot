@@ -14,11 +14,13 @@ dotnet run --project tests/WellSiteAutoPilot.ModuleSdkTests --configuration Rele
 
 `CardCalibrationModule.cs` consumes `cards.json` and a configuration record with
 `loadScale: 2` and `loadOffset: 10`. It returns the two calibrated curves and
-peak load **490 lbf**. The current card has five samples and the full card three;
+peak load **490 lb**. The current card has five samples and the full card three;
 the full card retains its older capture time. This is synthetic linear load
 calibration, **not Gibbs/Everitt-Jennings analysis or a downhole-card solver**.
-The schema deliberately restricts this example to surface cards in inches/lbf.
-Those are algorithm requirements, not universal platform/card restrictions.
+Sample version 2 uses the ForeSite surface-card schema with `in` and `lb`.
+It preserves the reported load unit and accepts UTC expressed as `Z` or `+00:00`.
+Version 2 identifies the calibrated outputs with new schema IDs because their
+unit changed from the version 1 sample.
 
 ## Validation and shape
 
@@ -64,18 +66,8 @@ recommendation/control intent is executed by this host.
 
 ## Production boundary and remaining work (#302)
 
-This is an executable SDK/authoring slice. It is **not deployable structured
-execution**. The current package host rejects V2 (including dual V1/V2 entry
-points) before construction, with `MODULE_CONTRACT_UNSUPPORTED`. Existing V1
-modules remain supported. Version 2 manifests can be validated, packaged and
-stored in the catalog, but production host compatibility and execution snapshot
-creation reject them. Declaring `structured.current` does not make any adapter
-support it. No live card endpoint, database or installer migration is added.
-
-Next work must carry these reviewed schema/capability declarations into the
-immutable authorized read plan, bounded provider/broker transport,
-worker dispatch, result persistence and inspection/export. Only then can the
-production host accept V2. Obtain the installed ForeSite card HTTP contract
-before adding its adapter; field names remain the provider contract and CygNet
-UDC mapping remains ForeSite's responsibility. Reading stored cards must not
-implicitly issue a controller scan or other command.
+This sample runs offline with synthetic calibration parameters and Good-quality
+test data. The hosted structured path reads stored ForeSite cards through the
+authorized read plan. ForeSite currently reports their quality as `Unknown`,
+which the reviewed input policy rejects. The sample's calibration input also
+uses a synthetic source. See the [structured ForeSite card implementation](../../../docs/implementation/foresite-structured-cards.md).

@@ -1,7 +1,7 @@
 {
   "manifestVersion": 2,
   "moduleId": "sample.card-calibration",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "displayName": "Synthetic card calibration",
   "publisher": "Sample",
   "runtime": "DotNet",
@@ -28,7 +28,7 @@
       "allowUncertainQuality": false,
       "requiredCapability": "structured.current",
       "valueSchema": {
-        "schemaId": "sample.cards/v1",
+        "schemaId": "foresite.surface-cards/v1",
         "schema": {
           "type": "array",
           "items": {
@@ -45,9 +45,7 @@
                 "maxLength": 128,
                 "enum": [
                   "CURRENT",
-                  "PUMPOFF",
-                  "FULL",
-                  "REFERENCE"
+                  "FULL"
                 ]
               },
               "representation": {
@@ -81,7 +79,7 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "enum": [
-                  "lbf"
+                  "lb"
                 ]
               },
               "position": {
@@ -164,7 +162,7 @@
       "quantity": "CalibratedCards",
       "unit": null,
       "valueSchema": {
-        "schemaId": "sample.calibrated-cards/v1",
+        "schemaId": "sample.calibrated-cards/v2",
         "schema": {
           "type": "array",
           "items": {
@@ -181,9 +179,7 @@
                 "maxLength": 128,
                 "enum": [
                   "CURRENT",
-                  "PUMPOFF",
-                  "FULL",
-                  "REFERENCE"
+                  "FULL"
                 ]
               },
               "representation": {
@@ -217,7 +213,7 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "enum": [
-                  "lbf"
+                  "lb"
                 ]
               },
               "position": {
@@ -271,9 +267,9 @@
     {
       "id": "peak-load",
       "quantity": "PeakLoad",
-      "unit": "lbf",
+      "unit": "lb",
       "valueSchema": {
-        "schemaId": "sample.peak-load/v1",
+        "schemaId": "sample.peak-load/v2",
         "schema": {
           "type": "number"
         }

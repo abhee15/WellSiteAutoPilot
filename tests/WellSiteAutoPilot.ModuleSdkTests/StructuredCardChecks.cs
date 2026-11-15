@@ -19,7 +19,7 @@ internal static class StructuredCardChecks
         var definition = await StructuredModuleOfflineHost.ReadDefinitionAsync(manifestStream);
         var context = new LogicModuleExecutionContextV2(Guid.NewGuid(), module.Identity, "structured-card-test", time, "{}",
             [new("well", asset, "{}")],
-            [new("cards", asset, "SurfaceCards", new("sample.cards/v1", Fixture("cards.json")), null, time.AddSeconds(-10), "Good", "synthetic-fixture"),
+            [new("cards", asset, "SurfaceCards", new("foresite.surface-cards/v1", Fixture("cards.json")), null, time.AddSeconds(-20), "Good", "synthetic-fixture"),
              new("calibration", asset, "Calibration", new("sample.calibration/v1", Json("""{"loadScale":2,"loadOffset":10}""")), null,
                  time.AddDays(-1), "Good", "synthetic-configuration")]);
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
@@ -29,8 +29,9 @@ internal static class StructuredCardChecks
         var cards = result.EngineeringResults.Single(r => r.Id == "calibrated-cards").Value.Data;
         Assert(cards.GetArrayLength() == 2 && cards[0].GetProperty("load").GetArrayLength() == 5 &&
             cards[1].GetProperty("load").GetArrayLength() == 3, "Ragged card collection was flattened.");
-        Assert(cards[0].GetProperty("load")[0].GetDecimal() == 210 &&
-            result.EngineeringResults.Single(r => r.Id == "peak-load").Value.Data.GetDecimal() == 490, "Curve/KPI calculation failed.");
+        var peakLoad = result.EngineeringResults.Single(r => r.Id == "peak-load");
+        Assert(cards[0].GetProperty("load")[0].GetDecimal() == 210 && peakLoad.Value.Data.GetDecimal() == 490 &&
+            peakLoad.Unit == "lb", "Curve/KPI calculation or load unit changed.");
         for (var i = 0; i < 2; i++)
         {
             var original = context.Inputs.First().Value.Data[i];
@@ -70,11 +71,15 @@ internal static class StructuredCardChecks
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(module, definition,
             Replace(first with { Value = first.Value with { Data = Json(mismatched.ToJsonString()) } })), "CARD_SAMPLES_INVALID");
         var unknownUnit = JsonNode.Parse(first.Value.Data.GetRawText())!;
-        unknownUnit[0]!["loadUnit"] = "kg";
+        unknownUnit[0]!["loadUnit"] = "lbf";
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(probe, definition,
             Replace(first with { Value = first.Value with { Data = Json(unknownUnit.ToJsonString()) } })), "MODULE_VALUE_INVALID");
+        var missingOffset = JsonNode.Parse(first.Value.Data.GetRawText())!;
+        missingOffset[0]!["capturedAtUtc"] = "2026-10-27T12:00:00";
+        await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(module, definition,
+            Replace(first with { Value = first.Value with { Data = Json(missingOffset.ToJsonString()) } })), "CARD_SAMPLES_INVALID");
 
-        var invalidResult = result with { EngineeringResults = [result.EngineeringResults.Last() with { Value = new("sample.peak-load/v1", Json("true")) }] };
+        var invalidResult = result with { EngineeringResults = [peakLoad with { Value = peakLoad.Value with { Data = Json("true") } }] };
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(new Probe(module.Identity, invalidResult), definition, context), "MODULE_VALUE_INVALID");
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(new Probe(module.Identity, result with { FailureCode = "CALCULATION_FAILED" }), definition, context), "CALCULATION_FAILED");
         await Reject(() => StructuredModuleOfflineHost.ExecuteAsync(new Probe(module.Identity, result with { FailureCode = "bad code" }), definition, context), "MODULE_RESULT_INVALID");
