@@ -57,8 +57,9 @@ public static class CygNetAdapter
             AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity => "current." + quantity.ToLowerInvariant()).ToArray())]);
 
     /// <summary>Installed backend support, distinct from connection and individual point availability.</summary>
-    public static AdapterDescriptor Describe(ICygNetClient? client) =>
-        client is ICygNetHistoryClient ? Descriptor with
+    public static AdapterDescriptor Describe(ICygNetClient? client)
+    {
+        var descriptor = client is ICygNetHistoryClient ? Descriptor with
         {
             Capabilities = Descriptor.Capabilities.Append(new ProviderCapability(ProviderCapabilityKind.HistoricalData, "Time-range point history")).ToArray(),
             Operations = (Descriptor.Operations ?? []).Concat(AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity =>
@@ -71,6 +72,8 @@ public static class CygNetAdapter
                 "Bounded raw historian reads supported by this installed backend. This declaration is not live native validation.", "1.0",
                 AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity => "history." + quantity.ToLowerInvariant()).ToArray())).ToArray()
         } : Descriptor;
+        return client is ICygNetPointCatalogClient ? CygNetPointCatalog.Describe(descriptor) : descriptor;
+    }
 
     /// <summary>Reads and checks the settings. Returns null with a plain-words reason when they cannot be used.</summary>
     public static CygNetConnection? ReadConnection(IReadOnlyDictionary<string, string?> settings, out string? problem)

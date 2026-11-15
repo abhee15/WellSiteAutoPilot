@@ -90,11 +90,14 @@ internal sealed class CygNetRuntime
     public object Service(ushort domain, string site, string service) =>
         Activator.CreateInstance(domainSiteService, domain, site, service)!;
 
-    /// <summary>The service of the given type (<c>FAC</c>, <c>VHS</c>) that belongs with the named service.</summary>
+    /// <summary>The service of the given type (<c>FAC</c>, <c>PNT</c>, <c>VHS</c>) that belongs with the named service.</summary>
     public object AssociatedService(object service, string type) =>
         ((dynamic)Activator.CreateInstance(serviceInformation)!).GetAssociatedService((dynamic)service, (dynamic)Enum.Parse(serviceType, type));
 
     public dynamic FacilityClient(object facilityService) => Activator.CreateInstance(facilityClient, facilityService)!;
+
+    public static object PointConfigurationClient(object configurationService) =>
+        Activator.CreateInstance(Find("CygNet.API.Points.ConfigClient", "CygNet.API.Points"), configurationService)!;
 
     public dynamic RealtimeClient(object service) => Activator.CreateInstance(realtimeClient, service)!;
 
