@@ -7,6 +7,7 @@ using WellSiteAutoPilot.ModuleSdk;
 
 HistoryValueChecks.Run();
 await HistoryChecks.RunAsync();
+await PointCatalogChecks.RunAsync();
 const string Account = @"CORP\svc-wsa";
 var clock = new FixedClock(new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero));
 var sim = new StubCygNetClient(clock);
@@ -74,7 +75,7 @@ Expect(Locate(@"D:\Cyg", @"C:\Registered", @"D:\Cyg", @"C:\Registered") == @"D:\
 Expect(Locate(null, @"C:\Registered", @"C:\Registered") == @"C:\Registered", "the folder CygNet registered is used when nothing is set");
 Expect(Locate(@"""D:\Cyg"" ", null, @"D:\Cyg") == @"D:\Cyg", "a quoted path with spaces is accepted");
 Expect(Locate(@"D:\Wrong", @"C:\Registered", @"C:\Registered") == @"C:\Registered", "a path without the CygNet API falls back to the registered folder");
-Expect(CygNetInstallLocator.Locate(_ => null, () => null, path => path == @"C:\CygNet\Support64\" + CygNetInstallLocator.MarkerAssembly,
+Expect(CygNetInstallLocator.Locate(_ => null, () => null, path => path == Path.Combine(@"C:\CygNet\Support64", CygNetInstallLocator.MarkerAssembly),
     [@"C:\CygNet\Support64", @"C:\CygNet\Support"]) == @"C:\CygNet\Support64", "the default CygNet install folder is used as a last resort");
 Expect(CygNetInstallLocator.Locate(_ => @"D:\Cyg", () => @"C:\Registered", _ => true, null, @"E:\Custom") == @"E:\Custom", "the Gateway's configured path wins over everything");
 Expect(Locate(@"D:\Wrong", @"C:\Registered") is null && Locate(null, null) is null, "no CygNet API found means not installed");

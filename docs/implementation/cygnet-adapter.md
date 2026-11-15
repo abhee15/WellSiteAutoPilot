@@ -30,6 +30,29 @@ A connection's `pointMap` replaces or adds to the defaults; there is no Gateway-
 
 Server read-source checks use the adapter-declared rules in `AdapterReadRules` rather than hard-coded ForeSite checks.
 
+## Facility point catalog
+
+The Server-authorized Gateway operation `catalog.facility-points` (contract `1.0`) returns PNT configuration
+metadata for an imported `cygnet.facility` on the selected connection. The optional operation is advertised
+by a catalog-capable CygNet backend. On Windows it requires the installed CygNet client and access to the
+associated PNT service. The non-Windows backend omits the operation.
+
+Invoke `POST /api/internal/v1/adapters/cygnet/reads/catalog.facility-points` using the standard registered-read
+envelope and the Server credential. Pass the saved connection ID, revision and settings, resource kind
+`cygnet.facility`, contract version `1.0`, and the same full facility tag in `externalId` and
+`input.assetExternalId`. The adapter checks the connection's site.service and facility filter before calling PNT.
+
+The response includes the original UDC, description and primary unit where supplied, and a normalized catalog
+key such as `cygnet.udc.PRCASXIN`. A blank unit stays blank and a missing unit stays null. The adapter reads
+up to 250 point records per call and marks the result truncated when PNT returns additional tags. The
+native tag query is scoped to the facility and has no verified paging contract. Record lookup uses the
+authorized facility tag. Catalog entries supply metadata only. Point mapping and value reads still follow
+the existing logical-quantity allowlist.
+
+The earlier POC recorded live PNT responses. The Gateway tests for this implementation use an offline backend
+to cover service authorization, point scope, empty and truncated results, and malformed or mismatched responses.
+The late-bound PNT bridge still needs a smoke test on a licensed Windows Gateway.
+
 ## Sample modules
 
 `modules/samples/cygnet/`: `pump-fillage-low-alert`, `pressure-differential-check`, `motor-load-check`

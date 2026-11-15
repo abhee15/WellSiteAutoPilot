@@ -43,8 +43,7 @@ public sealed class AdapterCatalog
             new(Simulator, []),
             RegisterForeSite(),
             new(PetroVisorAdapter.Descriptor, []),
-            RegisteredHistoryReads.Register(CygNetAdapter.Describe(cygnet), (request, services, token) =>
-                services.GetRequiredService<CygNetConnectionMeasurements>().ReadHistoryAsync(request, token))
+            RegisterCygNet(cygnet)
         }.Concat(additionalAdapters ?? []).ToArray();
 
         _adapters = registrations.ToDictionary(item => item.Descriptor.Key, StringComparer.Ordinal);
@@ -62,6 +61,24 @@ public sealed class AdapterCatalog
         }
 
         _descriptors = registrations.Select(item => item.Descriptor).ToArray();
+    }
+
+    private static AdapterRegistration RegisterCygNet(ICygNetClient? client)
+    {
+        var history = RegisteredHistoryReads.Register(CygNetAdapter.Describe(client), (request, services, token) =>
+            services.GetRequiredService<CygNetConnectionMeasurements>().ReadHistoryAsync(request, token));
+        if (client is not ICygNetPointCatalogClient pointCatalog) return history;
+
+        var points = AdapterReadRegistration.Create<CygNetPointCatalogRequest, CygNetPointCatalogResult>(
+            CygNetPointCatalog.Operation, (request, invocation, services, token) =>
+            {
+                if (request.AssetExternalId != invocation.ExternalId ||
+                    CygNetAdapter.ReadConnection(invocation.Settings, out _) is not { } connection)
+                    throw AdapterReadEndpoints.InvalidRequest();
+
+                return CygNetPointCatalog.ReadAsync(pointCatalog, connection, request, token);
+            });
+        return history with { Reads = [.. history.Reads, points] };
     }
 
     private static AdapterRegistration RegisterForeSite()
