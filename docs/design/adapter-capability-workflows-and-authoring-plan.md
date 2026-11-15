@@ -91,7 +91,13 @@ The latest-reported read uses the POC-verified `GET WellTests/GetLatestWellTestD
 
 The [ForeSite API inventory](https://github.com/abhee15/WellSiteAutoPilot/blob/3572304f4083097477afa9a6d2d4537d96c500d4/docs/implementation/provider-logic-module-gaps.md#L129) lists `WellTestTrend/...` as a lead. The [authoring POC](https://github.com/abhee15/WellSiteAutoPilot/blob/185b1e1b880d2c45c7a5b40c9ee8f8fd98bf01f8/tests/WellSiteAutoPilot.AuthoringTests/LiveChecks.cs) exercises the latest-reported route. The [time-range POC](https://github.com/abhee15/WellSiteAutoPilot/tree/c91fd329ef02b55a57441c01ef7f4968f9f55bed) exercises `Surveillance/CygNetTrends` telemetry points. The recorded Well Test fixture contains one latest-reported RRL record with a separate test ID and well ID, distinct sample and end dates, `Status: null`, and a rejection classification and validation reason. It establishes that RRL's absent test status can coexist with validation details. The simulator's status-bearing and empty responses are synthetic.
 
-Capture the following from the deployed ForeSite build using the service declarations and an authenticated Well Test history request. Record the build and sanitize the requests and responses before committing them.
+An earlier API inventory supplied `POST WellTestTrend/{wellId}/{startDate}/{endDate}` as a candidate. Use `WellTestTrend` to find the deployed operation in the service declarations or network trace. The service prefix, parameter encodings, request body and whether this route returns test records are still open.
+
+**Capture from an authenticated ForeSite host**
+
+1. In the ForeSite UI, open browser DevTools **Network**, enable **Preserve log**, and clear the log. On a single authorized well, open the Well Test history list and change its date window. If the UI displays a separate trend, capture that request too and label which action generated each request. The history list may use a different operation.
+2. For the request that returns test records, copy the HTTP method, path relative to the deployment base, query string, request body (or record that it is empty), response status and body. Record the ForeSite build, well lift type and the time zone displayed by the UI. Capture the same details for the empty result and each page. If paging is local to the UI, record whether moving to the next page generates another request and whether the initial response includes the entire list or a provider cap.
+3. Share only the selected, sanitized requests and responses. Remove hostnames, credentials, cookies, auth headers and customer names. Substitute consistent well IDs, test IDs and continuation values while preserving their JSON types, cross-page relationships, source offsets, field names and nulls. Keep responses in provider order. Use records that already exist for the paging and status comparisons.
 
 | Evidence | Verification |
 | --- | --- |
