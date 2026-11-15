@@ -181,14 +181,15 @@ app.MapPost("/foresite/WellConfig/GetWellAutonomousControlGroupData", (ForeSiteD
 });
 
 // Synthetic cases exercise the recorded ForeSite field shape without copying a provider record.
-app.MapGet("/foresite/WellTests/GetLatestWellTestData/{wellId:long}", (long wellId, HttpContext context) =>
+app.MapGet("/foresite/WellTests/GetLatestWellTestData/{wellId:long}", (long wellId, HttpContext context, SimulatorState state) =>
 {
     if (!HasForeSiteSession(context)) return Results.Unauthorized();
     if (wellId == 103) return Results.NoContent();
     if (wellId is not (101 or 102)) return Results.NotFound();
     return Results.Json(new
     {
-        Id = 8000 + wellId, WellId = wellId,
+        Id = 8000 + wellId,
+        WellId = state.Scenario == "foresite-well-test-wrong-well" ? wellId + 1 : wellId,
         SampleDate = "2025-02-01T07:00:00-06:00", TestEndDate = "2025-02-01T08:00:00-06:00",
         Status = wellId == 102 ? "Review" : null,
         SPTCode = wellId == 102 ? (int?)9 : null, SPTCodeDescription = wellId == 102 ? "RejectedTest" : null,

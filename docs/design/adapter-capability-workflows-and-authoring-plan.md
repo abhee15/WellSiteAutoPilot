@@ -87,6 +87,21 @@ Engineering values and series require explicit source time kind (controller scan
 
 The latest-reported read uses the POC-verified `GET WellTests/GetLatestWellTestData/{wellId}`. The registered Gateway operation projects one matching well/test identity, sample and end timestamps, and independent provider status and validation fields. Tests with provider status absent remain readable, including the RRL case, and the read makes no eligibility decision. The test-history route, pagination, quantity bindings and lift-specific eligibility still need provider evidence before Authoring or module execution can use them.
 
+#### Well Test history evidence
+
+The [ForeSite API inventory](https://github.com/abhee15/WellSiteAutoPilot/blob/3572304f4083097477afa9a6d2d4537d96c500d4/docs/implementation/provider-logic-module-gaps.md#L129) lists `WellTestTrend/...` as a lead. The [authoring POC](https://github.com/abhee15/WellSiteAutoPilot/blob/185b1e1b880d2c45c7a5b40c9ee8f8fd98bf01f8/tests/WellSiteAutoPilot.AuthoringTests/LiveChecks.cs) exercises the latest-reported route. The [time-range POC](https://github.com/abhee15/WellSiteAutoPilot/tree/c91fd329ef02b55a57441c01ef7f4968f9f55bed) exercises `Surveillance/CygNetTrends` telemetry points. The recorded Well Test fixture contains one latest-reported RRL record with a separate test ID and well ID, distinct sample and end dates, `Status: null`, and a rejection classification and validation reason. It establishes that RRL's absent test status can coexist with validation details. The simulator's status-bearing and empty responses are synthetic.
+
+Capture the following from the deployed ForeSite build using the service declarations and an authenticated Well Test history request. Record the build and sanitize the requests and responses before committing them.
+
+| Evidence | Verification |
+| --- | --- |
+| Request and response | Capture the complete route, verb, parameter names and locations, date formats, response envelope and an empty window. Confirm that the result carries individual test records with provider test and well identity. |
+| Dates and ordering | Use records where `SampleDate`, `TestEndDate` and revision dates differ. Query adjacent windows with an exact boundary and compare returned IDs to establish the date filter, inclusivity, sort direction and tie-breaking when timestamps match. Preserve source offsets and verify whether IDs remain stable across pages and edits. |
+| Result limits | Capture successive and terminal pages for a well with hundreds of tests. Record page size limits, continuation or total-count fields, page-boundary duplicates or gaps, and any provider cap or silent truncation. |
+| Lift-specific fields | Capture an RRL well and a lift type that uses test statuses. Preserve the status, classification and validation fields independently. Include a rejected record with measurements and obtain the provider's lift-specific rules before designing automatic selection. |
+
+The current evidence supports the latest-reported operation. History browsing needs the history request and paging evidence above before it can be registered. The browsing operation can expose reported metadata while eligibility rules and module bindings are investigated separately.
+
 ### ForeSite Cards
 - CURRENT/FULL surface cards: GET `Dynacards/Dynacard/LatestWithUnits/Lib/{id}/{type}`, current bounded structured contract. Preserve per-card capture time and paired position/load arrays, sample order, oldest-card age, units `in`/`lb` and `Unknown` quality.
 - **Open blocker:** reviewed V2 structured-card module input rejects Unknown quality; sample manifest currently requires `lbf` but source carries `lb`. Resolve via explicit reviewed policy/conversion or fix sample, without blindly promoting quality. Downhole cards and larger payloads are separate future investigations.
