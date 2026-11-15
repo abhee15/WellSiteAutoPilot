@@ -180,6 +180,22 @@ app.MapPost("/foresite/WellConfig/GetWellAutonomousControlGroupData", (ForeSiteD
         .Select(well => new { WellId = well.Id, DeviceType = state.Scenario == "foresite-device-change" && well.Id == 102 ? "Replacement" : well.Id == 102 ? "ESP" : "RPC" }) });
 });
 
+// Synthetic cases exercise the recorded ForeSite field shape without copying a provider record.
+app.MapGet("/foresite/WellTests/GetLatestWellTestData/{wellId:long}", (long wellId, HttpContext context) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (wellId == 103) return Results.NoContent();
+    if (wellId is not (101 or 102)) return Results.NotFound();
+    return Results.Json(new
+    {
+        Id = 8000 + wellId, WellId = wellId,
+        SampleDate = "2025-02-01T07:00:00-06:00", TestEndDate = "2025-02-01T08:00:00-06:00",
+        Status = wellId == 102 ? "Review" : null,
+        SPTCode = wellId == 102 ? (int?)9 : null, SPTCodeDescription = wellId == 102 ? "RejectedTest" : null,
+        ValidationStatus = wellId == 102 ? "Oil rate above acceptance limit" : null, Oil = 23.0m
+    }, new System.Text.Json.JsonSerializerOptions());
+});
+
 // Current surveillance fixture for the imported sample well.
 app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContext context) =>
 {
