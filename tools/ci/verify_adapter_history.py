@@ -1,6 +1,7 @@
 """Provider Simulator -> authenticated Gateway history checks. CygNet has no simulator: without a CygNet build it must report unavailable."""
 import json
 import os
+from datetime import datetime
 import urllib.error
 import urllib.request
 
@@ -84,6 +85,23 @@ assert rrl["test"]["status"] is None and rrl["test"]["validation"]["classificati
 review = call("foresite", latest_test("102"), operation=test_path)
 assert review["test"]["status"] == "Review", review
 assert review["test"]["validation"]["classificationDescription"] == "RejectedTest", review
-assert "oil" not in review["test"] and review["test"]["sampleDate"].endswith("-06:00"), review
+assert review["test"]["validation"]["description"] == "Oil rate above acceptance limit", review
+assert "oil" not in review["test"], review
+assert review["test"]["sampleDate"].endswith("-06:00") and review["test"]["testEndDate"].endswith("-06:00"), review
+assert datetime.fromisoformat(review["retrievedAtUtc"]) > datetime.fromisoformat(review["test"]["testEndDate"]), review
 assert call("foresite", latest_test("103"), operation=test_path)["test"] is None
-print("Gateway latest reported well test: Server-only, optional capability, exact resource, separate status and validation, and no-record paths passed (synthetic source).")
+
+def reset_simulator(scenario):
+    url = os.environ.get("WSA_SIMULATOR_BASE", "http://127.0.0.1:5091") + "/api/sim/v1/scenarios/reset"
+    request = urllib.request.Request(url, data=json.dumps({"scenario": scenario}).encode(),
+                                     headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=10) as response:
+        assert response.status == 204, response.status
+
+reset_simulator("foresite-well-test-wrong-well")
+try:
+    error = call("foresite", latest_test("101"), status=503, operation=test_path)
+    assert error["code"] == "FORESITE_WELL_TEST_IDENTITY_MISMATCH" and "test" not in error, error
+finally:
+    reset_simulator("rod-pump-normal")
+print("Gateway latest reported well test: Server-only, optional capability, request and provider identity, separate status and validation, and no-record paths passed (synthetic source).")
