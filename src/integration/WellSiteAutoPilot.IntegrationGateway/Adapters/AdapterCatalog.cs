@@ -56,6 +56,7 @@ public sealed class AdapterCatalog
                     read.Operation.Limits.MaximumReplyBytes is < 1 or > MeasurementPayloadLimits.MaximumResultBytes ||
                     read.Operation.Limits.TimeoutSeconds is null or < 1 or > 120) ||
                 operations.Any(operation => (operation.Capability == ProviderCapabilityKind.ExtensionRead ||
+                    operation.Capability == ProviderCapabilityKind.Alarms ||
                     operation.CapabilityId == "engineering.history") && !registeredKeys.ContainsKey(operation.Key)))
                 throw new InvalidOperationException($"Invalid read registration for adapter '{registration.Descriptor.Key}'.");
         }
@@ -67,18 +68,25 @@ public sealed class AdapterCatalog
     {
         var history = RegisteredHistoryReads.Register(CygNetAdapter.Describe(client), (request, services, token) =>
             services.GetRequiredService<CygNetConnectionMeasurements>().ReadHistoryAsync(request, token));
-        if (client is not ICygNetPointCatalogClient pointCatalog) return history;
+        var reads = history.Reads.ToList();
+        if (client is ICygNetPointCatalogClient pointCatalog)
+            reads.Add(AdapterReadRegistration.Create<CygNetPointCatalogRequest, CygNetPointCatalogResult>(
+                CygNetPointCatalog.Operation, (request, invocation, _, token) =>
+                    CygNetPointCatalog.ReadAsync(pointCatalog, ReadCygNetConnection(request.AssetExternalId, invocation), request, token)));
+        if (client is ICygNetAlarmClient alarms)
+            reads.Add(AdapterReadRegistration.Create<CygNetActiveAlarmRequest, CygNetActiveAlarmResult>(
+                CygNetActiveAlarms.Operation, (request, invocation, _, token) =>
+                    CygNetActiveAlarms.ReadAsync(alarms, ReadCygNetConnection(request.AssetExternalId, invocation), request, token)));
+        return history with { Reads = reads };
+    }
 
-        var points = AdapterReadRegistration.Create<CygNetPointCatalogRequest, CygNetPointCatalogResult>(
-            CygNetPointCatalog.Operation, (request, invocation, services, token) =>
-            {
-                if (request.AssetExternalId != invocation.ExternalId ||
-                    CygNetAdapter.ReadConnection(invocation.Settings, out _) is not { } connection)
-                    throw AdapterReadEndpoints.InvalidRequest();
-
-                return CygNetPointCatalog.ReadAsync(pointCatalog, connection, request, token);
-            });
-        return history with { Reads = [.. history.Reads, points] };
+    private static CygNetConnection ReadCygNetConnection(string assetExternalId,
+        AdapterReadInvocation<System.Text.Json.JsonElement> invocation)
+    {
+        if (assetExternalId != invocation.ExternalId ||
+            CygNetAdapter.ReadConnection(invocation.Settings, out _) is not { } connection)
+            throw AdapterReadEndpoints.InvalidRequest();
+        return connection;
     }
 
     private static AdapterRegistration RegisterForeSite()

@@ -9,7 +9,7 @@ public sealed record CygNetAlarmProbeResult(int RecordCount, int SetCount, int C
 
 public sealed partial class CygNetApiClient
 {
-    // Probe-only. No Gateway capability is registered until the managed alarm identity and time contract is verified.
+    // The probe reports managed identity and clock evidence without returning provider identifiers or values.
     public static Task<CygNetAlarmProbeResult> ProbePointAlarmsAsync(CygNetConnection connection, string facilityId, string udc,
         DateTimeOffset? referenceTime, CancellationToken cancellationToken)
     {
@@ -23,13 +23,10 @@ public sealed partial class CygNetApiClient
         cancellationToken.ThrowIfCancellationRequested();
         return Run(connection, () =>
         {
-            var runtime = CygNetRuntime.Require();
             var facilityTag = connection.TagFor(facilityId);
-            var facility = runtime.FacilityTag(facilityTag);
-            var requested = runtime.PointTag(facility, udc);
-            dynamic alarms = CygNetRuntime.AlarmClient(runtime.AssociatedService(Service(runtime, connection), "CAS"));
+            var (requested, records) = GetPointAlarmRecords(connection, facilityTag, udc);
             var evidence = new CygNetAlarmProbeEvidence(referenceTime);
-            foreach (dynamic record in alarms.GetAlarmsForPoints(runtime.SinglePointTagList(requested)))
+            foreach (dynamic record in records)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (evidence.Full) return evidence.Build(truncated: true);
@@ -39,7 +36,7 @@ public sealed partial class CygNetApiClient
                 evidence.Add((bool)record.IsSet, time,
                     string.Equals((string)((dynamic)tag).UDC, udc, StringComparison.OrdinalIgnoreCase),
                     tag.Equals(requested),
-                    string.Equals(tag.ToString(), facilityTag + "." + udc, StringComparison.OrdinalIgnoreCase));
+                    CygNetActiveAlarms.MatchesScopedPointTag(facilityTag, udc, tag.ToString()));
             }
             return evidence.Build(truncated: false);
         }, cancellationToken, TimeSpan.FromSeconds(15));

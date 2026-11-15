@@ -72,7 +72,8 @@ public static class CygNetAdapter
                 "Bounded raw historian reads supported by this installed backend. This declaration is not live native validation.", "1.0",
                 AdapterReadRules.CygNetQuantities.Order(StringComparer.Ordinal).Select(quantity => "history." + quantity.ToLowerInvariant()).ToArray())).ToArray()
         } : Descriptor;
-        return client is ICygNetPointCatalogClient ? CygNetPointCatalog.Describe(descriptor) : descriptor;
+        if (client is ICygNetPointCatalogClient) descriptor = CygNetPointCatalog.Describe(descriptor);
+        return client is ICygNetAlarmClient ? CygNetActiveAlarms.Describe(descriptor) : descriptor;
     }
 
     /// <summary>Reads and checks the settings. Returns null with a plain-words reason when they cannot be used.</summary>

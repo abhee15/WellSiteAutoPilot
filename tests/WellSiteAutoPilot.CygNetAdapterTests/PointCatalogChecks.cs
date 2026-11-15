@@ -20,7 +20,9 @@ internal static class PointCatalogChecks
     {
         const string serverKey = "cygnet-catalog-server";
         const string workerKey = "cygnet-catalog-worker";
-        var source = new PointClient();
+        using var simulator = Environment.GetEnvironmentVariable("WSA_CAS_SIMULATOR_ROOT") is { } url
+            ? new HttpClient { BaseAddress = new Uri(url) } : null;
+        var source = new PointClient(simulator);
         var catalog = new AdapterCatalog(source);
         var operation = CygNetPointCatalog.Operation;
         Check(catalog.Find("cygnet")!.ReadCapabilityGroups().Single(g => g.Key == "point-catalog").OperationKeys.Single() == operation.Key &&
@@ -74,6 +76,10 @@ internal static class PointCatalogChecks
             await Send(For("SITE.UIS::" + well), HttpStatusCode.ServiceUnavailable, error: "CYGNET_CATALOG_RESPONSE_INVALID");
         Check(!AdapterReadRules.Find("cygnet")!.AllowsCurrentRead("cygnet.udc.PRCASXIN", null, null),
             "Catalog presence must not enable arbitrary current reads.");
+        await CheckAlarmsAsync(http, request, serverKey, workerKey, source);
+        Console.WriteLine(simulator is null
+            ? "CygNet CAS alarms: Gateway checks passed with the offline test backend."
+            : "CygNet CAS alarms: Gateway checks passed with the HTTP Provider Simulator.");
         Console.WriteLine("CygNet point catalog: Gateway authorization, facility scope, metadata, truncation and invalid provider responses passed (test backend).");
 
         AdapterReadInvocation<CygNetPointCatalogRequest> For(string asset) => request with { ExternalId = asset, Input = new(asset) };
@@ -94,15 +100,99 @@ internal static class PointCatalogChecks
         }
     }
 
+    private static async Task CheckAlarmsAsync(HttpClient http, AdapterReadInvocation<CygNetPointCatalogRequest> catalogRequest,
+        string serverKey, string workerKey, PointClient source)
+    {
+        var operation = CygNetActiveAlarms.Operation;
+        var expected = "SITE.UIS::WELL_ALARM";
+        Check(CygNetActiveAlarms.MatchesScopedPointTag(expected, "RRLPFILCUR", "SITE.UIS::WELL_ALARM.RRLPFILCUR") &&
+            CygNetActiveAlarms.MatchesScopedPointTag(expected, "RRLPFILCUR", "site.uis.000123:LONG_TAG:WELL_ALARM.RRLPFILCUR") &&
+            !CygNetActiveAlarms.MatchesScopedPointTag(expected, "RRLPFILCUR", "SITE.UIS.000123:LONG_TAG:OTHER.RRLPFILCUR") &&
+            !CygNetActiveAlarms.MatchesScopedPointTag(expected, "RRLPFILCUR", "OTHER.UIS::WELL_ALARM.RRLPFILCUR") &&
+            !CygNetActiveAlarms.MatchesScopedPointTag(expected, "RRLPFILCUR", "RRLPFILCUR"), "Native CAS identity scope changed.");
+        var request = new AdapterReadInvocation<CygNetActiveAlarmRequest>(catalogRequest.ConnectionId, catalogRequest.ConnectionRevision,
+            catalogRequest.Settings, catalogRequest.ResourceKind, expected, operation.ContractVersion, new(expected, "RRLPFILCUR"));
+
+        await Send(request, HttpStatusCode.Unauthorized, caller: null);
+        await Send(request, HttpStatusCode.Forbidden, caller: "worker:" + workerKey);
+        await Send(request, HttpStatusCode.NotFound, adapter: "foresite");
+        await Send(request with { ContractVersion = "2.0" }, HttpStatusCode.Conflict);
+        await Send(request with { Input = new("SITE.UIS::OTHER", request.Input.Udc) }, HttpStatusCode.BadRequest);
+        await Send(request with { Input = request.Input with { Udc = "*" } }, HttpStatusCode.BadRequest);
+        await Send(For("OTHER.UIS::WELL_ALARM"), HttpStatusCode.BadRequest);
+        Check(source.AlarmCalls == 0, "Rejected alarm calls reached the provider.");
+
+        var active = await Send(request, HttpStatusCode.OK);
+        Check(active is { Alarms.Count: 2, Truncated: false } && active.AssetExternalId == expected && active.Udc == "RRLPFILCUR" &&
+            active.RetrievedAtUtc.Year > 2023 && active.Alarms[0] == new CygNetActiveAlarm(2, "2023-01-01T12:00:00.0000000", "Unspecified") &&
+            active.Alarms[1] == new CygNetActiveAlarm(3, null, null), "CAS state or source clock evidence changed.");
+        Check(await Send(For("SITE.UIS::WELL_ALARM_EMPTY"), HttpStatusCode.OK) is { Alarms.Count: 0, Truncated: false },
+            "Cleared alarms appeared in the active list.");
+        Check(await Send(For("SITE.UIS::WELL_ALARM_TRUNCATED"), HttpStatusCode.OK) is { Alarms.Count: CygNetActiveAlarms.MaximumRecords, Truncated: true },
+            "CAS truncation was lost.");
+        await Send(For("SITE.UIS::WELL_ALARM_MISMATCH"), HttpStatusCode.ServiceUnavailable, errorCode: "CYGNET_ALARM_RESPONSE_INVALID");
+        await Send(For("SITE.UIS::WELL_ALARM_MISSING"), HttpStatusCode.ServiceUnavailable, errorCode: "CYGNET_CAS_READ_FAILED");
+
+        AdapterReadInvocation<CygNetActiveAlarmRequest> For(string tag) =>
+            request with { ExternalId = tag, Input = request.Input with { AssetExternalId = tag } };
+
+        async Task<CygNetActiveAlarmResult?> Send(AdapterReadInvocation<CygNetActiveAlarmRequest> body, HttpStatusCode status,
+            string? caller = null, string adapter = "cygnet", string? errorCode = null)
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Post, $"/api/internal/v1/adapters/{adapter}/reads/{operation.Key}")
+            {
+                Content = JsonContent.Create(body)
+            };
+            if (status != HttpStatusCode.Unauthorized)
+                message.Headers.Authorization = new AuthenticationHeaderValue(ServiceCaller.Scheme, caller ?? "server:" + serverKey);
+            using var response = await http.SendAsync(message);
+            Check(response.StatusCode == status, $"CAS expected {status}, got {response.StatusCode}.");
+            if (errorCode is not null)
+                Check((await response.Content.ReadFromJsonAsync<WellSiteProblemDetails>())?.Code == errorCode, "Wrong CAS failure code.");
+            return status == HttpStatusCode.OK ? await response.Content.ReadFromJsonAsync<CygNetActiveAlarmResult>() : null;
+        }
+    }
+
     private static void Check(bool passed, string message)
     {
         if (!passed) throw new InvalidOperationException(message);
     }
 
-    private sealed class PointClient : ICygNetClient, ICygNetPointCatalogClient
+    private sealed class PointClient(HttpClient? simulator) : ICygNetClient, ICygNetPointCatalogClient, ICygNetAlarmClient
     {
         private int calls;
         public int Calls => Volatile.Read(ref calls);
+
+        private int alarmCalls;
+        public int AlarmCalls => Volatile.Read(ref alarmCalls);
+
+        public async Task<CygNetPointAlarmBatch> ReadPointAlarmsAsync(CygNetConnection connection, string facilityId, string udc,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref alarmCalls);
+            Check(connection is { Domain: 1, SiteService: "SITE.UIS", FacilityFilter: "WELL_*" } && udc == "RRLPFILCUR",
+                "CAS backend received the wrong connection or point.");
+            if (simulator is not null)
+            {
+                using var response = await simulator.GetAsync($"cygnet/fixtures/facilities/{facilityId}/points/{udc}/alarms", cancellationToken);
+                if (!response.IsSuccessStatusCode) throw Missing();
+                return await response.Content.ReadFromJsonAsync<CygNetPointAlarmBatch>(cancellationToken) ?? throw Missing();
+            }
+
+            var set = new CygNetPointAlarm(true, 2, new DateTime(2023, 1, 1, 12, 0, 0, DateTimeKind.Unspecified));
+            var cleared = new CygNetPointAlarm(false, 1, new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc));
+            var tag = connection.TagFor(facilityId);
+            return facilityId switch
+            {
+                "WELL_ALARM" => new(tag, udc, [set, cleared, new(true, 3, default)], false),
+                "WELL_ALARM_EMPTY" => new(tag, udc, [cleared], false),
+                "WELL_ALARM_TRUNCATED" => new(tag, udc, Enumerable.Repeat(set, CygNetActiveAlarms.MaximumRecords).ToArray(), true),
+                "WELL_ALARM_MISMATCH" => new(connection.TagFor("OTHER"), udc, [set], false),
+                _ => throw Missing()
+            };
+        }
+
+        private static CygNetReadException Missing() => new("CYGNET_CAS_READ_FAILED", "Synthetic CAS unavailable.");
 
         public Task<CygNetPointList> ListPointsAsync(CygNetConnection connection, string facilityId, CancellationToken cancellationToken)
         {

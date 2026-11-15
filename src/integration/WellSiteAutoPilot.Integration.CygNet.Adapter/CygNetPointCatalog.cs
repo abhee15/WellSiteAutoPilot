@@ -53,15 +53,8 @@ public static class CygNetPointCatalog
     public static async Task<CygNetPointCatalogResult> ReadAsync(ICygNetPointCatalogClient client, CygNetConnection connection,
         CygNetPointCatalogRequest request, CancellationToken cancellationToken)
     {
-        var prefix = connection.SiteService + "::";
         var externalId = request.AssetExternalId;
-        if (externalId is null || externalId.Length > CygNetAdapter.MaximumFacilityTagLength ||
-            !externalId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            throw InvalidFacility();
-
-        var facility = externalId[prefix.Length..];
-        if (!IsFacilityId(facility) || connection.FacilityFilter is { } filter && !CygNetAdapter.Matches(filter, facility))
-            throw InvalidFacility();
+        var facility = ScopedFacility(connection, externalId);
 
         cancellationToken.ThrowIfCancellationRequested();
         try
@@ -85,6 +78,20 @@ public static class CygNetPointCatalog
         catch (CygNetReadException error) { throw Failure(error.Code); }
         catch (CygNetUnavailableException) { throw Failure("CYGNET_UNAVAILABLE"); }
         catch (UnauthorizedAccessException) { throw Failure("CYGNET_CATALOG_FORBIDDEN"); }
+    }
+
+    internal static string ScopedFacility(CygNetConnection connection, string? externalId)
+    {
+        var prefix = connection.SiteService + "::";
+        if (externalId is null || externalId.Length > CygNetAdapter.MaximumFacilityTagLength ||
+            !externalId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw InvalidFacility();
+
+        var facility = externalId[prefix.Length..];
+        if (!IsFacilityId(facility) || connection.FacilityFilter is { } filter && !CygNetAdapter.Matches(filter, facility))
+            throw InvalidFacility();
+
+        return facility;
     }
 
     public static bool IsFacilityId(string facility) =>

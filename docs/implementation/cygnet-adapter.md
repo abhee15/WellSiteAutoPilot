@@ -55,9 +55,23 @@ The late-bound PNT bridge still needs a smoke test on a licensed Windows Gateway
 
 ## Licensed CAS alarm evidence
 
-The CAS POC observed a set alarm with an old report time. For the production adapter, verify the
-managed alarm record's point identity and `ReportedTime` before enabling a Gateway read. On a
-licensed Windows host, run this bounded one-point read as the Gateway's Windows identity.
+CygNet advertises `alarms.active-point` (version `1.0`) for an alarm-capable backend.
+Invoke `POST /api/internal/v1/adapters/cygnet/reads/alarms.active-point` using the standard
+Server-authorized Gateway envelope with the saved connection, resource kind `cygnet.facility`, and
+the complete facility tag in both `externalId` and `input.assetExternalId`. Supply a known point code
+in `input.udc`, for example one returned by the facility point catalog.
+
+The native adapter calls `GetAlarmsForPoints` for one point under the specified connection. It
+checks the returned point code and the full facility scope, inspects up to 64 records, and returns
+only the set alarms among those records. An incomplete scan supplies `truncated: true`. It keeps
+the source clock fields and managed time kind without assigning a time zone and records the UTC
+retrieval time independently. An old report time can belong to a set alarm. This read does not
+expose acknowledgement, alarm history, or module bindings.
+
+CI exercises the registered Gateway endpoint with synthetic HTTP responses from the Provider
+Simulator. The native POC is the basis for the late-bound call. Use the licensed Windows probe
+below to check how the installed SDK represents matching tags and alarm times. Run it as the
+Gateway's Windows identity.
 
 Save a private request file with settings from the intended CygNet connection and one known point.
 This example uses placeholder connection and point values.
@@ -77,7 +91,7 @@ dotnet run --project tests/WellSiteAutoPilot.CygNetAdapterTests -c Release -- --
 
 The output counts set and cleared records, missing source times, and managed `DateTime.Kind` values.
 It also counts matches of UDC, native tag equality, and the complete rendered
-`SITE.SERVICE::FACILITY.UDC` form independently. It omits settings, point values, point and facility
+facility or full point tag independently. It omits settings, point values, point and facility
 identifiers, and raw exception messages. The probe inspects up to 64 records, marks additional
 records explicitly, and uses the shared CygNet call gate with a 15-second caller budget.
 The alarm method is read-only and keeps its service slot while a timed-out native call is still running.
@@ -90,8 +104,10 @@ available. Omit the reference for a quiet point.
 Run against a point with a known CAS alarm, a quiet point, and two authorized facilities with the
 same UDC. Compare the report time convention with CygNet Explorer or managed API documentation. A
 matching UDC alone cannot establish facility identity, an Unspecified time needs an independent time
-reference, and an empty result only verifies that the read returned successfully. The Gateway does
-not advertise an alarm operation from this probe.
+reference, and an empty result only verifies that the read returned successfully. For live
+acceptance, also invoke `alarms.active-point` through the Gateway for the same point and compare
+the state and reported clock fields with CygNet Explorer. An unrecognized tag representation is
+rejected rather than treated as a match.
 
 ## Sample modules
 
