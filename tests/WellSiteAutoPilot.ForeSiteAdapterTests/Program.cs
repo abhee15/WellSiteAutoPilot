@@ -12,6 +12,7 @@ await MeasurementChecks.RunAsync();
 await SnapshotChecks.RunAsync();
 await ApplicableQuantityChecks.RunAsync();
 await HistoryChecks.RunAsync();
+await WellTestChecks.RunAsync();
 await ConfigurationChecks.RunAsync();
 await CardChecks.RunAsync();
 await MeasurementProbeChecks.RunAsync();

@@ -42,7 +42,8 @@ public static class ForeSiteAdapter
             new ProviderCapability(ProviderCapabilityKind.AssetDiscovery, "Wells"),
             new ProviderCapability(ProviderCapabilityKind.CurrentData, "Current well values"),
             new ProviderCapability(ProviderCapabilityKind.HistoricalData, "Time-range well history"),
-            new ProviderCapability(ProviderCapabilityKind.ConfigurationData, "Well configuration details")
+            new ProviderCapability(ProviderCapabilityKind.ConfigurationData, "Well configuration details"),
+            new ProviderCapability(ProviderCapabilityKind.ExtensionRead, "Well tests")
         ],
         [
             new DiscoveryField("assetName", "ForeSite asset", "Unassigned", AsAttribute: false, IdentityMetadataKey: "assetId"),
@@ -82,7 +83,8 @@ public static class ForeSiteAdapter
                 "Trend responses do not supply quality; returned quality is Unknown.") with
             { Documentation = AdapterReferenceExamples.History("101", "PumpFillage", "%", "foresite:trends", "Unknown") with
                 { ProviderReference = "POST Surveillance/CygNetTrends/{wellId}/{start}/{end}; requests CurrentPumpFillage. Whole-second UTC bounds, no implicit aggregation." } },
-            ForeSiteReference.ConfigurationOperation
+            ForeSiteReference.ConfigurationOperation,
+            ForeSiteWellTestReference.Latest
         ], OperationGroups:
         [
             new("surveillance", "Surveillance data", "Current controller surveillance measurements. This adapter currently exposes the supported quantities listed here, not the entire ForeSite surveillance DTO.", "1.0",
@@ -105,6 +107,7 @@ public static class ForeSiteAdapter
                     ])]),
             new("well-configuration", "Well configuration data", "Well identity and classification details read from ForeSite. Engineering model files, configuration writes and well-test data are outside this operation.", "1.0", ["configuration.well-details"]),
             new("well-trends", "Well trend data", "Bounded raw historical samples over an explicit UTC time range. Only declared series are exposed; there is no implicit daily averaging.", "1.0", ["history.pump-fillage"]),
+            new("well-test", "Well test", "Inspect the identity, dates and reported status of the latest test.", "1.0", [ForeSiteWellTestReference.Latest.Key]),
             new("cards", "Card data", "Structured CURRENT and FULL surface cards, preserving paired position/load arrays, source units and capture timestamps. Downhole cards are not exposed.", "1.0", ["current.surface-cards"])
         ]);
 

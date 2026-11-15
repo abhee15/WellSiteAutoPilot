@@ -1,6 +1,7 @@
 using System.Text.Json;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 using WellSiteAutoPilot.IntegrationGateway.Adapters;
+using WellSiteAutoPilot.Integration.ForeSite;
 
 internal static class AdapterOperationChecks
 {
@@ -14,7 +15,7 @@ internal static class AdapterOperationChecks
             Check(groups.SelectMany(group => group.OperationKeys).Order().SequenceEqual(operations.Select(operation => operation.Key).Order()), "Capability catalog lost or duplicated an operation");
             foreach (var operation in operations)
             {
-                Check(operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData or ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation or ProviderCapabilityKind.ConfigurationData, "Unsafe public operation.");
+                Check(operation.Capability is ProviderCapabilityKind.CurrentData or ProviderCapabilityKind.HistoricalData or ProviderCapabilityKind.Alarms or ProviderCapabilityKind.Calculation or ProviderCapabilityKind.ConfigurationData or ProviderCapabilityKind.ExtensionRead, "Unsafe public operation.");
                 Check(Version.TryParse(operation.ContractVersion, out var version) && version.Major == 1, "Invalid contract version.");
                 Check(operation.Request.Fields.Count > 0 && operation.Response.Fields.Count > 0, "Missing schema fields.");
                 Check(operation.Limits.MaximumQuantities == 1 && operation.Limits.MaximumReplyBytes > 0, "Missing read bounds.");
@@ -27,6 +28,9 @@ internal static class AdapterOperationChecks
                 foreach (var field in operation.Response.Fields.Where(field => field.Required && !field.Name.Contains('.')))
                     Check(output.RootElement.TryGetProperty(field.Name, out _), "Response example is missing a required field");
                 var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+                if (operation.Key == ForeSiteWellTestReference.Latest.Key)
+                    Check(JsonSerializer.Deserialize<LatestWellTestResult>(docs.ResponseExampleJson, json)?.Test?.Validation
+                        .ClassificationDescription == "RejectedTest", "Latest test example must retain provider validation.");
                 if (operation.Capability == ProviderCapabilityKind.ConfigurationData)
                     Check(JsonSerializer.Deserialize<AssetConfigurationResult>(docs.ResponseExampleJson, json)?.AssetExternalId == "101", "Configuration example type mismatch");
                 if (operation.Capability == ProviderCapabilityKind.HistoricalData)

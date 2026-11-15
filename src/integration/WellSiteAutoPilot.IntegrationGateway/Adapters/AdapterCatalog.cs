@@ -41,8 +41,7 @@ public sealed class AdapterCatalog
         var registrations = new AdapterRegistration[]
         {
             new(Simulator, []),
-            RegisteredHistoryReads.Register(ForeSiteAdapter.Descriptor, (request, services, token) =>
-                services.GetRequiredService<ForeSiteConnectionMeasurements>().ReadHistoryAsync(request, token)),
+            RegisterForeSite(),
             new(PetroVisorAdapter.Descriptor, []),
             RegisteredHistoryReads.Register(CygNetAdapter.Describe(cygnet), (request, services, token) =>
                 services.GetRequiredService<CygNetConnectionMeasurements>().ReadHistoryAsync(request, token))
@@ -63,6 +62,21 @@ public sealed class AdapterCatalog
         }
 
         _descriptors = registrations.Select(item => item.Descriptor).ToArray();
+    }
+
+    private static AdapterRegistration RegisterForeSite()
+    {
+        var history = RegisteredHistoryReads.Register(ForeSiteAdapter.Descriptor, (request, services, token) =>
+            services.GetRequiredService<ForeSiteConnectionMeasurements>().ReadHistoryAsync(request, token));
+        var latestTest = AdapterReadRegistration.Create<LatestWellTestReadRequest, LatestWellTestResult>(
+            ForeSiteWellTestReference.Latest, (request, invocation, services, token) =>
+            {
+                if (request.AssetExternalId != invocation.ExternalId) throw AdapterReadEndpoints.InvalidRequest();
+                var connection = new ConnectionMeasurementRequest(invocation.ConnectionId, invocation.ConnectionRevision,
+                    invocation.Settings.ToDictionary(StringComparer.Ordinal), invocation.ExternalId, ForeSiteWellTestReference.Latest.Key);
+                return services.GetRequiredService<ForeSiteConnectionMeasurements>().ReadLatestWellTestAsync(connection, request, token);
+            });
+        return history with { Reads = [..history.Reads, latestTest] };
     }
 
     public IReadOnlyList<AdapterDescriptor> List() => _descriptors;

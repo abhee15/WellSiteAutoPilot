@@ -67,3 +67,23 @@ call("cygnet", configuration, status=404, operation="configuration")
 call("foresite", configuration | {"connectionId": "00000000-0000-0000-0000-000000000000"}, status=503, operation="configuration")
 call("foresite", configuration | {"read": {"assetExternalId": "999"}}, status=503, operation="configuration")
 print("Gateway configuration: explicit provider, server-only authorization, typed projection and source/retrieval semantics passed (synthetic source).")
+
+# The latest reported test is read independently from history and eligibility.
+test_path = "reads/well-test.latest-reported"
+def latest_test(well):
+    return registered | {"externalId": well, "input": {"assetExternalId": well}}
+
+call("foresite", latest_test("101"), caller=None, status=401, operation=test_path)
+call("foresite", latest_test("101"), caller="worker", status=403, operation=test_path)
+call("petrovisor", latest_test("101"), status=404, operation=test_path)
+call("cygnet", latest_test("101"), status=404, operation=test_path)
+call("foresite", latest_test("101") | {"externalId": "102"}, status=400, operation=test_path)
+rrl = call("foresite", latest_test("101"), operation=test_path)
+assert rrl["assetExternalId"] == "101" and rrl["test"]["id"] == "8101", rrl
+assert rrl["test"]["status"] is None and rrl["test"]["validation"]["classificationCode"] is None, rrl
+review = call("foresite", latest_test("102"), operation=test_path)
+assert review["test"]["status"] == "Review", review
+assert review["test"]["validation"]["classificationDescription"] == "RejectedTest", review
+assert "oil" not in review["test"] and review["test"]["sampleDate"].endswith("-06:00"), review
+assert call("foresite", latest_test("103"), operation=test_path)["test"] is None
+print("Gateway latest reported well test: Server-only, optional capability, exact resource, separate status and validation, and no-record paths passed (synthetic source).")
