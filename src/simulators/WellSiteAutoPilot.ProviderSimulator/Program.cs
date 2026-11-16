@@ -220,6 +220,33 @@ app.MapGet("/foresite/WellTests/GetLatestWellTestData/{wellId:long}", (long well
     }, new System.Text.Json.JsonSerializerOptions());
 });
 
+// Synthetic current alarms shaped like the recorded ForeSite response.
+app.MapGet("/foresite/Alarms/CurrentAlarms/{wellId:long}", (long wellId, HttpContext context) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (wellId is < 101 or > 105) return Results.NotFound();
+    var numeric = new
+    {
+        Id = 9001, WellId = wellId == 102 ? 101 : wellId, AlarmTypeId = 1,
+        StartTime = wellId == 105 ? "2023-04-11T12:09:35" : "2023-04-11T12:09:35.5330000-05:00",
+        NumericValue = (decimal?)0, StringValue = (string?)null,
+        AlarmType = new { Id = 1, AlarmType = "High Rod Stress", IsDevationAlarm = false, IsAlarmManuallySuppressed = (bool?)null }
+    };
+    var text = new
+    {
+        Id = 9002, WellId = wellId, AlarmTypeId = 405, StartTime = "2023-04-11T17:09:38.0330000Z",
+        NumericValue = (decimal?)null, StringValue = (string?)"Run Time 7 days (98)",
+        AlarmType = new { Id = 405, AlarmType = "Pattern Card Match", IsDevationAlarm = true, IsAlarmManuallySuppressed = (bool?)true }
+    };
+    var records = wellId switch
+    {
+        103 => [],
+        104 => Enumerable.Repeat(numeric, 65).ToArray(),
+        _ => new[] { numeric, text }
+    };
+    return Results.Json(records, new System.Text.Json.JsonSerializerOptions());
+});
+
 // Current surveillance fixture for the imported sample well.
 app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContext context) =>
 {

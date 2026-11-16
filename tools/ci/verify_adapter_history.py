@@ -138,3 +138,32 @@ assert call("foresite", daily_for("103"), operation=daily_path)["days"] == []
 failure = call("foresite", daily_for("102"), status=503, operation=daily_path)
 assert failure["code"] == "FORESITE_DAILY_WELL_MISMATCH", failure
 print("Gateway daily averages: recorded DST boundary shape, scope, exact offset handling, empty, zero and null passed (Provider Simulator).")
+
+
+# ForeSite returns current alarm records for a well, including suppressed ones.
+alarms_path = "reads/alarms.active-well"
+def alarms_for(well):
+    return registered | {"externalId": well, "input": {"assetExternalId": well}}
+
+call("foresite", alarms_for("101"), caller=None, status=401, operation=alarms_path)
+call("foresite", alarms_for("101"), caller="worker", status=403, operation=alarms_path)
+call("cygnet", alarms_for("101"), status=404, operation=alarms_path)
+call("foresite", alarms_for("101") | {"contractVersion": "2.0"}, status=409, operation=alarms_path)
+call("foresite", alarms_for("101") | {"externalId": "102"}, status=400, operation=alarms_path)
+call("foresite", alarms_for("bad-id"), status=400, operation=alarms_path)
+result = call("foresite", alarms_for("101"), operation=alarms_path)
+assert result["assetExternalId"] == "101" and result["source"] == "foresite:current-alarms", result
+first, second = result["alarms"]
+assert first["id"] == "9001" and first["typeId"] == 1 and first["name"] == "High Rod Stress", first
+assert first["numericValue"] == 0 and first["stringValue"] is None, first
+assert first["isDeviation"] is False and first["isManuallySuppressed"] is None, first
+assert first["startedAt"].endswith("-05:00") and datetime.fromisoformat(first["startedAt"]).year == 2023, first
+assert datetime.fromisoformat(result["retrievedAtUtc"]) > datetime.fromisoformat(first["startedAt"]), result
+assert second["id"] == "9002" and second["numericValue"] is None and second["stringValue"] == "Run Time 7 days (98)", second
+assert second["isDeviation"] is True and second["isManuallySuppressed"] is True, second
+assert call("foresite", alarms_for("103"), operation=alarms_path)["alarms"] == []
+for well, code in (("102", "FORESITE_ALARM_WELL_MISMATCH"), ("104", "FORESITE_ALARM_ROW_LIMIT"),
+                   ("105", "FORESITE_ALARM_RESPONSE_INVALID")):
+    error = call("foresite", alarms_for(well), status=503, operation=alarms_path)
+    assert error["code"] == code and "alarms" not in error, error
+print("Gateway ForeSite active alarms: scoped identity, authorization, source time, flag/value semantics and bounds passed (Provider Simulator).")

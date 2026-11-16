@@ -110,7 +110,16 @@ public sealed class AdapterCatalog
                     invocation.Settings.ToDictionary(StringComparer.Ordinal), invocation.ExternalId, ForeSiteDailyAverageReader.Operation.Key);
                 return services.GetRequiredService<ForeSiteConnectionMeasurements>().ReadDailyAverageAsync(connection, request, token);
             });
-        return history with { Reads = [.. history.Reads, latestTest, daily] };
+        var alarms = AdapterReadRegistration.Create<ForeSiteActiveAlarmRequest, ForeSiteActiveAlarmResult>(
+            ForeSiteActiveAlarmReader.Operation, (request, invocation, services, token) =>
+            {
+                if (request.AssetExternalId != invocation.ExternalId || !ForeSiteActiveAlarmReader.IsValidRequest(request))
+                    throw AdapterReadEndpoints.InvalidRequest();
+                var connection = new ConnectionMeasurementRequest(invocation.ConnectionId, invocation.ConnectionRevision,
+                    invocation.Settings.ToDictionary(StringComparer.Ordinal), invocation.ExternalId, ForeSiteActiveAlarmReader.Operation.Key);
+                return services.GetRequiredService<ForeSiteConnectionMeasurements>().ReadActiveAlarmsAsync(connection, request, token);
+            });
+        return history with { Reads = [.. history.Reads, latestTest, daily, alarms] };
     }
 
     public IReadOnlyList<AdapterDescriptor> List() => _descriptors;

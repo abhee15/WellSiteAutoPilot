@@ -54,6 +54,11 @@ public sealed class ForeSiteConnectionMeasurements(IHttpClientFactory clients, T
         WithSessionAsync(connection, session => new ForeSiteDailyAverageReader(session.Session)
             .ReadAsync(request, session.Token), cancellationToken);
 
+    public Task<ForeSiteActiveAlarmResult> ReadActiveAlarmsAsync(ConnectionMeasurementRequest connection,
+        ForeSiteActiveAlarmRequest request, CancellationToken cancellationToken) =>
+        WithSessionAsync(connection, session => new ForeSiteActiveAlarmReader(session.Session)
+            .ReadAsync(request, session.Token), cancellationToken);
+
     private async Task<T> WithSessionAsync<T>(ConnectionMeasurementRequest request,
         Func<(ForeSiteSession Session, CancellationToken Token), Task<T>> read, CancellationToken cancellationToken)
     {
