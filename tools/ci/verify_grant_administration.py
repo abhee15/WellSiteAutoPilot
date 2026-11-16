@@ -679,6 +679,29 @@ try:
 finally:
     foresite_scenario("rod-pump-normal")
 
+# Production days preserve aggregate period offsets and distinguish zero from a missing value.
+production_url = "/guided-module-drafts/" + live_draft["id"] + "/production-days-preview"
+production_body = dict(live_body, startUtc="2026-11-01T00:00:00Z", endUtc="2026-11-03T06:00:00Z")
+request("POST", production_url, None, production_body, expected=401)
+request("POST", production_url, ADMIN, production_body, expected=404)
+request("POST", production_url, OTHER, dict(production_body, assetId=other_alpha["id"]), expected=404)
+request("POST", production_url, OTHER, dict(production_body, expectedRevision=2), expected=409)
+request("POST", production_url, OTHER, dict(production_body, endUtc=production_body["startUtc"]), expected=400)
+production = request("POST", production_url, OTHER, production_body)
+assert production["unit"] == "STB/d" and production["retrievedAtUtc"], production
+assert [day["value"] for day in production["days"]] == [0, None], production
+assert production["days"][1]["start"].endswith("-06:00") and production["days"][1]["end"].endswith("-06:00"), production
+assert set(production) == {"unit", "retrievedAtUtc", "days"}, production
+assert all(set(day) == {"start", "end", "value"} for day in production["days"]), production
+request("POST", production_url, OTHER, dict(production_body, assetId=alpha2["id"]), expected=503)
+foresite_scenario("foresite-history-empty")
+try:
+    empty_production = request("POST", production_url, OTHER, production_body)
+    assert not empty_production["days"], empty_production
+finally:
+    foresite_scenario("rod-pump-normal")
+
+
 visible_view = request("GET", "/asset-views/" + view["id"], OTHER)
 assert visible_view["memberCount"] == 2 and not visible_view["canEdit"] and not visible_view["canDelete"], visible_view
 assert view["id"] in {item["id"] for item in request("GET", "/asset-views", OTHER)}
@@ -696,6 +719,7 @@ updated = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision":
 retire(other["userId"], well_access)
 request("POST", live_url, OTHER, live_body, expected=404)
 request("POST", history_url, OTHER, history_body, expected=404)
+request("POST", production_url, OTHER, production_body, expected=404)
 request("GET", operation_url(alpha["id"]), OTHER, expected=404)
 partial_access = grant(other["userId"], well_reader, "ExactAssets", [alpha["id"]])
 request("GET", operation_url(alpha2["id"]), OTHER, expected=404)
@@ -708,6 +732,7 @@ request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "nam
 retire(other["userId"], connection_access)
 request("POST", live_url, OTHER, live_body, expected=403)
 request("POST", history_url, OTHER, history_body, expected=403)
+request("POST", production_url, OTHER, production_body, expected=403)
 retire(other["userId"], live_author)
 request("GET", operation_url(alpha["id"]), OTHER, expected=403)
 for suffix in ["", "/members", "/selection"]:

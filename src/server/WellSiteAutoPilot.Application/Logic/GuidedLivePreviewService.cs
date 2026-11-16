@@ -1,3 +1,4 @@
+using System.Globalization;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Connections;
 using WellSiteAutoPilot.Application.Executions;
@@ -78,10 +79,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         if (input is null || input.ValueSchema is not null)
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_INPUT_UNSUPPORTED", FailureKind.Validation,
                 "Choose a declared scalar input.");
-        if (startUtc == default || endUtc <= startUtc || endUtc > clock.GetUtcNow() ||
-            endUtc - startUtc > TimeSpan.FromDays(HistoricalReadLimits.MaximumWindowDays) ||
-            maximumSamples is < 1 or > HistoricalReadLimits.MaximumSamples ||
-            startUtc.Ticks % TimeSpan.TicksPerSecond != 0 || endUtc.Ticks % TimeSpan.TicksPerSecond != 0)
+        if (!IsValidWindow(startUtc, endUtc) || maximumSamples is < 1 or > HistoricalReadLimits.MaximumSamples)
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_WINDOW_INVALID", FailureKind.Validation,
                 "Specify an ordered history window with whole-second bounds and a supported sample limit.");
 
@@ -98,12 +96,12 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_INPUT_UNSUPPORTED", FailureKind.Validation,
                 "The selected connection does not support this input or history window.");
 
-        await RequireCurrentAsync();
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
         var request = new HistoricalReadRequest(initial.Binding.ExternalId, input.Quantity, startUtc.ToUniversalTime(),
             endUtc.ToUniversalTime(), maximumSamples);
         HistoricalReadLimits.Validate(request);
         var result = await history.ReadAsync(initial.Connection, operation, request, cancellationToken);
-        await RequireCurrentAsync();
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
         if (result.Quantity != request.Quantity || result.StartUtc != request.StartUtc || result.EndUtc != request.EndUtc ||
             result.Aggregation != "Raw" || result.Samples.Count > maximumSamples ||
             result.Samples.Any(sample => sample.Quantity != request.Quantity || sample.TimestampUtc < request.StartUtc ||
@@ -112,15 +110,60 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_RESPONSE_INVALID", FailureKind.DependencyUnavailable,
                 "The history response did not match the requested input and window.");
         return result;
+    }
 
-        async Task RequireCurrentAsync()
-        {
-            var current = await ReadContextAsync(subject, assetId, cancellationToken);
-            if (!SameSource(initial, current))
-                throw new WellSiteAutoPilotException("GUIDED_LIVE_SOURCE_CHANGED", FailureKind.Conflict,
-                    "The sample asset or connection changed. Select it again.");
-            (await drafts.GetAsync(draftId, subject, cancellationToken)).RequireRevision(expectedRevision);
-        }
+    public async Task<ForeSiteDailyAverageResult> ReadProductionDaysAsync(Guid draftId, int expectedRevision,
+        Guid assetId, DateTimeOffset startUtc, DateTimeOffset endUtc, AccessSubject subject, CancellationToken cancellationToken = default)
+    {
+        var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
+        draft.RequireRevision(expectedRevision);
+        if (!IsValidWindow(startUtc, endUtc))
+            throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_WINDOW_INVALID", FailureKind.Validation,
+                "Specify an ordered production-day window with whole-second bounds.");
+
+        var initial = await ReadContextAsync(subject, assetId, cancellationToken);
+        await RequireMatchingAssetAsync(draft.Content.Manifest, initial, subject, cancellationToken);
+        var adapter = (await adapters.ListAsync(cancellationToken)).SingleOrDefault(item => item.Key == initial.Connection.AdapterKey);
+        var operation = adapter?.ReadOperations().SingleOrDefault(item =>
+            item.Key == ForeSiteDailyAverageContract.OperationKey && item.ContractVersion == ForeSiteDailyAverageContract.Version &&
+            item.ResourceKind == initial.Binding.ResourceKind);
+        if (operation?.Limits.MaximumSamples is not { } maximum || operation.Limits.MaximumWindowDays is not { } days ||
+            endUtc - startUtc > TimeSpan.FromDays(days) ||
+            (draft.Content.Manifest.RequiredAdapterKey is { } requiredAdapter &&
+                !string.Equals(requiredAdapter, initial.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase)))
+            throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_UNSUPPORTED", FailureKind.Validation,
+                "The selected connection does not support this production-day preview.");
+
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        const string utcFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'";
+        var request = new ForeSiteDailyAverageRequest(initial.Binding.ExternalId,
+            startUtc.UtcDateTime.ToString(utcFormat, CultureInfo.InvariantCulture),
+            endUtc.UtcDateTime.ToString(utcFormat, CultureInfo.InvariantCulture));
+        var result = await history.ReadProductionDaysAsync(initial.Connection, operation, request, cancellationToken);
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        if (result.AssetExternalId != initial.Binding.ExternalId || result.Quantity != ForeSiteDailyAverageContract.Quantity ||
+            result.StartUtc != startUtc || result.EndUtc != endUtc || result.RetrievedAtUtc == default ||
+            result.Days is null || result.Days.Count > maximum ||
+            result.Days.Any(day => day is null || day.Start < startUtc || day.Start >= endUtc || day.End <= day.Start ||
+                (day.Value is not null && string.IsNullOrWhiteSpace(result.Unit))))
+            throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_RESPONSE_INVALID", FailureKind.DependencyUnavailable,
+                "The production-day response did not match the requested asset and window.");
+        return result;
+    }
+
+    private bool IsValidWindow(DateTimeOffset startUtc, DateTimeOffset endUtc) =>
+        startUtc != default && endUtc > startUtc && endUtc <= clock.GetUtcNow() &&
+        endUtc - startUtc <= TimeSpan.FromDays(HistoricalReadLimits.MaximumWindowDays) &&
+        startUtc.Ticks % TimeSpan.TicksPerSecond == 0 && endUtc.Ticks % TimeSpan.TicksPerSecond == 0;
+
+    private async Task RequireCurrentDraftSourceAsync(Guid draftId, int expectedRevision, Guid assetId, AccessSubject subject,
+        PreviewSource initial, CancellationToken cancellationToken)
+    {
+        var current = await ReadContextAsync(subject, assetId, cancellationToken);
+        if (!SameSource(initial, current))
+            throw new WellSiteAutoPilotException("GUIDED_LIVE_SOURCE_CHANGED", FailureKind.Conflict,
+                "The sample asset or connection changed. Select it again.");
+        (await drafts.GetAsync(draftId, subject, cancellationToken)).RequireRevision(expectedRevision);
     }
 
     private async Task RequireMatchingAssetAsync(WellSiteAutoPilot.Domain.Logic.LogicModuleManifest manifest,

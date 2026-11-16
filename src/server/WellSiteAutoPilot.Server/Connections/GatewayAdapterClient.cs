@@ -82,22 +82,32 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         }
     }
 
-    public async Task<HistoricalReadResult> ReadAsync(ConnectionRecord connection, AdapterOperationDescriptor operation, HistoricalReadRequest read,
-        CancellationToken cancellationToken = default)
+    public Task<HistoricalReadResult> ReadAsync(ConnectionRecord connection, AdapterOperationDescriptor operation,
+        HistoricalReadRequest read, CancellationToken cancellationToken = default) =>
+        ReadRegisteredAsync<HistoricalReadRequest, HistoricalReadResult>(connection, operation, read.AssetExternalId, read,
+            "GUIDED_HISTORY_RESPONSE_INVALID", cancellationToken);
+
+    public Task<ForeSiteDailyAverageResult> ReadProductionDaysAsync(ConnectionRecord connection, AdapterOperationDescriptor operation,
+        ForeSiteDailyAverageRequest read, CancellationToken cancellationToken = default) =>
+        ReadRegisteredAsync<ForeSiteDailyAverageRequest, ForeSiteDailyAverageResult>(connection, operation, read.AssetExternalId,
+            read, "GUIDED_PRODUCTION_DAYS_RESPONSE_INVALID", cancellationToken);
+
+    private async Task<TResult> ReadRegisteredAsync<TRequest, TResult>(ConnectionRecord connection, AdapterOperationDescriptor operation,
+        string externalId, TRequest read, string invalidResponseCode, CancellationToken cancellationToken) where TResult : class
     {
         using var request = Authorized(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(connection.AdapterKey)}/reads/{Uri.EscapeDataString(operation.Key)}");
-        request.Content = JsonContent.Create(new AdapterReadInvocation<HistoricalReadRequest>(connection.Id, connection.Revision,
+        request.Content = JsonContent.Create(new AdapterReadInvocation<TRequest>(connection.Id, connection.Revision,
             connection.Settings.ToDictionary(item => item.Key, item => (string?)item.Value, StringComparer.Ordinal),
-            operation.ResourceKind!, read.AssetExternalId, operation.ContractVersion, read));
+            operation.ResourceKind!, externalId, operation.ContractVersion, read));
         using var response = await SendAsync(request, cancellationToken);
         try
         {
-            return await response.Content.ReadFromJsonAsync<HistoricalReadResult>(cancellationToken)
-                ?? throw ReadFailure("GUIDED_HISTORY_RESPONSE_INVALID");
+            return await response.Content.ReadFromJsonAsync<TResult>(cancellationToken)
+                ?? throw ReadFailure(invalidResponseCode);
         }
         catch (JsonException)
         {
-            throw ReadFailure("GUIDED_HISTORY_RESPONSE_INVALID");
+            throw ReadFailure(invalidResponseCode);
         }
     }
 

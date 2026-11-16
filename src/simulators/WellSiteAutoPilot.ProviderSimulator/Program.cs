@@ -284,10 +284,10 @@ app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContex
 
 // Synthetic daily rows with the recorded production-day boundary shape.
 app.MapGet("/foresite/Surveillance/Well/DailyAverage/{wellId:long}/{start}/{end}",
-    (long wellId, string start, string end, HttpContext context) =>
+    (long wellId, DateTimeOffset start, DateTimeOffset end, HttpContext context, SimulatorState state) =>
     {
         if (!HasForeSiteSession(context)) return Results.Unauthorized();
-        if (wellId is not (101 or 102 or 103) || start != "2026-11-01T00:00:00Z" || end != "2026-11-03T06:00:00Z")
+        if (wellId is not (101 or 102 or 103) || end <= start)
             return Results.BadRequest();
         var returnedWell = wellId == 102 ? 101 : wellId;
         var rows = new[]
@@ -296,10 +296,19 @@ app.MapGet("/foresite/Surveillance/Well/DailyAverage/{wellId:long}/{start}/{end}
             new { Id = 7002, WellId = returnedWell, StartDateTime = "2026-11-02T00:00:00-06:00", EndDateTime = "2026-11-02T23:59:59.9900000-06:00", TotalFluidRateInferred = (decimal?)null },
             new { Id = 7001, WellId = returnedWell, StartDateTime = "2026-11-01T05:00:00Z", EndDateTime = "2026-11-02T05:59:59.9900000Z", TotalFluidRateInferred = (decimal?)0 }
         };
+        // Let the UI exercise the rolling preview window as well as the fixed DST fixture.
+        if (start >= new DateTimeOffset(2026, 11, 4, 6, 0, 0, TimeSpan.Zero))
+        {
+            var midnight = end.UtcDateTime.Date;
+            rows = [
+                new { Id = 7004, WellId = returnedWell, StartDateTime = midnight.AddDays(-1).ToString("O"),
+                    EndDateTime = midnight.AddMilliseconds(-10).ToString("O"), TotalFluidRateInferred = (decimal?)420 }
+            ];
+        }
         return Results.Json(new
         {
             Units = new { TotalFluidRateInferred = new { UnitKey = "STB/d" } },
-            Values = wellId == 103 ? [] : rows
+            Values = wellId == 103 || state.Scenario == "foresite-history-empty" ? [] : rows
         }, new System.Text.Json.JsonSerializerOptions());
     });
 

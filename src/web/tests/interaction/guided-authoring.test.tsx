@@ -11,6 +11,7 @@ import {
   previewGuidedModuleDraft,
   previewGuidedModuleWithLiveInputs,
   previewGuidedModuleInputHistory,
+  previewGuidedModuleProductionDays,
   submitGuidedModuleDraft,
 } from '../../src/api/generated/v1/sdk.gen';
 
@@ -26,6 +27,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   previewGuidedModuleDraft: vi.fn(),
   previewGuidedModuleWithLiveInputs: vi.fn(),
   previewGuidedModuleInputHistory: vi.fn(),
+  previewGuidedModuleProductionDays: vi.fn(),
   submitGuidedModuleDraft: vi.fn(),
 }));
 
@@ -330,6 +332,38 @@ it('previews a saved revision with an imported well without enabling submission'
         }) as unknown,
       }),
     );
+    vi.mocked(previewGuidedModuleProductionDays).mockResolvedValueOnce({
+      data: {
+        unit: 'STB/d',
+        retrievedAtUtc: '2026-11-12T15:00:00Z',
+        days: [
+          { start: '2026-11-01T05:00:00Z', end: '2026-11-02T05:59:59Z', value: 0 },
+          { start: '2026-11-02T00:00:00-06:00', end: '2026-11-02T23:59:59-06:00', value: null },
+        ],
+      },
+    } as never);
+    const production = screen.getByRole('button', { name: 'Read last 7 days of production' });
+    fireEvent.click(production);
+    expect(await screen.findByText(/0 STB\/d/)).toBeTruthy();
+    expect(screen.getByText('2026-11-02T00:00:00-06:00')).toBeTruthy();
+    expect(screen.getByText(/Unavailable/)).toBeTruthy();
+    expect(screen.queryByText(/79 % · Unknown/)).toBeNull();
+    expect(vi.mocked(previewGuidedModuleProductionDays)).toHaveBeenLastCalledWith({
+      path: { id: 'live-draft' },
+      body: {
+        expectedRevision: 3,
+        assetId: 'imported',
+        startUtc: expect.any(String) as string,
+        endUtc: expect.any(String) as string,
+      },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+    vi.mocked(previewGuidedModuleProductionDays).mockResolvedValueOnce({
+      error: { code: 'GUIDED_PRODUCTION_DAYS_UNSUPPORTED' },
+    } as never);
+    fireEvent.click(production);
+    expect(await screen.findByText('This connection does not support the daily production preview.')).toBeTruthy();
+    expect(screen.queryByText(/0 STB\/d/)).toBeNull();
     expect((screen.getByRole('button', { name: 'Submit for review' }) as HTMLButtonElement).disabled).toBe(true);
   } finally {
     vi.unstubAllGlobals();

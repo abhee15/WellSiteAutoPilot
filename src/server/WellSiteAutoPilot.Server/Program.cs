@@ -1345,6 +1345,18 @@ v1.MapPost("/guided-module-drafts/{id:guid}/history-preview",
     .WithName("PreviewGuidedModuleInputHistory").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedHistoryPreviewResponse>();
 
+v1.MapPost("/guided-module-drafts/{id:guid}/production-days-preview",
+    async (Guid id, GuidedProductionDaysPreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preview.ReadProductionDaysAsync(id, request.ExpectedRevision, request.AssetId,
+            request.StartUtc, request.EndUtc, access.Subject, cancellationToken);
+        return new GuidedProductionDaysPreviewResponse(result.Unit, result.RetrievedAtUtc,
+            result.Days.Select(day => new GuidedProductionDayResponse(day.Start, day.End, day.Value)).ToArray());
+    })
+    .WithName("PreviewGuidedModuleProductionDays").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedProductionDaysPreviewResponse>();
+
 v1.MapPost("/guided-module-drafts/{id:guid}/live-preview",
     async (Guid id, GuidedLivePreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>

@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { previewGuidedModuleInputHistory, previewGuidedModuleWithLiveInputs } from '../api/generated/v1/sdk.gen';
-import type { GuidedHistoryPreviewResponse, GuidedLivePreviewResponse } from '../api/generated/v1/types.gen';
+import {
+  previewGuidedModuleInputHistory,
+  previewGuidedModuleProductionDays,
+  previewGuidedModuleWithLiveInputs,
+} from '../api/generated/v1/sdk.gen';
+import type {
+  GuidedHistoryPreviewResponse,
+  GuidedLivePreviewResponse,
+  GuidedProductionDaysPreviewResponse,
+} from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
@@ -21,6 +29,9 @@ export function GuidedLivePreview({
   const [inputId, setInputId] = useState(inputs[0]?.id ?? '');
   const [hours, setHours] = useState('4');
   const [history, setHistory] = useState<GuidedHistoryPreviewResponse | null>(null);
+  const [productionDays, setProductionDays] = useState<GuidedProductionDaysPreviewResponse | 'unsupported' | null>(
+    null,
+  );
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<SearchHit[] | null>(null);
   const [more, setMore] = useState(false);
@@ -41,6 +52,7 @@ export function GuidedLivePreview({
     setAssetId('');
     setResult(null);
     setHistory(null);
+    setProductionDays(null);
     try {
       const page = await fetchSearch(query.trim(), pageOffset, controller.signal);
       if (controller.signal.aborted) return;
@@ -61,6 +73,7 @@ export function GuidedLivePreview({
     setFailed(false);
     setResult(null);
     setHistory(null);
+    setProductionDays(null);
     try {
       const { data } = await previewGuidedModuleWithLiveInputs({
         path: { id: draftId },
@@ -83,6 +96,7 @@ export function GuidedLivePreview({
     setBusy(true);
     setFailed(false);
     setHistory(null);
+    setProductionDays(null);
     setResult(null);
     const end = Math.floor(Date.now() / 1000) * 1000;
     try {
@@ -101,6 +115,45 @@ export function GuidedLivePreview({
       if (controller.signal.aborted) return;
       if (!data) throw new Error();
       setHistory(data);
+    } catch {
+      if (!controller.signal.aborted) setFailed(true);
+    } finally {
+      if (!controller.signal.aborted) setBusy(false);
+    }
+  }
+
+  async function previewProductionDays() {
+    const controller = new AbortController();
+    operation.current = controller;
+    setBusy(true);
+    setFailed(false);
+    setHistory(null);
+    setResult(null);
+    setProductionDays(null);
+    const end = Math.floor(Date.now() / 1000) * 1000;
+    try {
+      const { data, error } = await previewGuidedModuleProductionDays({
+        path: { id: draftId },
+        body: {
+          expectedRevision: revision,
+          assetId,
+          startUtc: new Date(end - 7 * 24 * 3600000).toISOString(),
+          endUtc: new Date(end).toISOString(),
+        },
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'GUIDED_PRODUCTION_DAYS_UNSUPPORTED'
+      ) {
+        setProductionDays('unsupported');
+        return;
+      }
+      if (!data) throw new Error();
+      setProductionDays(data);
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -131,6 +184,7 @@ export function GuidedLivePreview({
               setAssetId('');
               setResult(null);
               setHistory(null);
+              setProductionDays(null);
               setFailed(false);
             }}
           />
@@ -147,6 +201,7 @@ export function GuidedLivePreview({
                   setAssetId(event.target.value);
                   setResult(null);
                   setHistory(null);
+                  setProductionDays(null);
                   setFailed(false);
                 }}
               >
@@ -241,6 +296,40 @@ export function GuidedLivePreview({
               <p>{t('guided.historyEmpty')}</p>
             )}
           </div>
+        )}
+        {assetId && (
+          <div>
+            <ActionButton
+              label={t('guided.readProductionDays')}
+              disabled={busy}
+              onClick={() => void previewProductionDays()}
+            />
+          </div>
+        )}
+        {productionDays === 'unsupported' ? (
+          <Notice tone="info">{t('guided.productionDaysUnsupported')}</Notice>
+        ) : (
+          productionDays && (
+            <div aria-live="polite">
+              <p>{t('guided.productionDaysTitle')}</p>
+              {productionDays.days?.length ? (
+                <ul>
+                  {productionDays.days.map((day) => (
+                    <li key={day.start}>
+                      <time dateTime={day.start}>{day.start}</time> – <time dateTime={day.end}>{day.end}</time>
+                      {' · '}
+                      {day.value == null ? t('guided.unavailable') : day.value + ' ' + (productionDays.unit ?? '')}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{t('guided.productionDaysEmpty')}</p>
+              )}
+              <p>
+                {t('guided.productionDaysRetrieved')} {formatTimestamp(productionDays.retrievedAtUtc)}
+              </p>
+            </div>
+          )
         )}
         {failed && <Notice tone="error">{t('guided.liveError')}</Notice>}
         {result && (
