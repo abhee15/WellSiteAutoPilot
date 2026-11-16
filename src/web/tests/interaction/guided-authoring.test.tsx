@@ -61,6 +61,49 @@ it('saves, previews and submits the same guided draft revision', async () => {
   });
 });
 
+it('keeps draft edits and the selected trace when switching between Workflow and IDE', async () => {
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({
+    data: [
+      {
+        id: 'editor-draft',
+        revision: 3,
+        manifestJson: '{"displayName":"Shared draft"}',
+        definition: { default: 70 },
+      },
+    ],
+  } as never);
+  vi.mocked(previewGuidedModuleDraft)
+    .mockResolvedValueOnce({ data: { outcomeCode: 'LOW_FILLAGE' } } as never)
+    .mockResolvedValueOnce({ data: { outcomeCode: 'THRESHOLD_NOT_MET' } } as never)
+    .mockResolvedValueOnce({ data: { failureCode: 'MODULE_DECLARATIVE_INPUT_UNAVAILABLE' } } as never);
+  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Workflow' }).checked).toBe(true);
+  fireEvent.click(await screen.findByRole('button', { name: 'Shared draft' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
+  await screen.findByText('No recommendation');
+
+  fireEvent.click(screen.getByRole('radio', { name: 'IDE' }));
+  expect(screen.getByRole('navigation', { name: 'Outline' })).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Scenario'), { target: { value: '1' } });
+  expect(screen.getByText('No recommendation')).toBeTruthy();
+  expect(screen.queryByText('Low pump fillage')).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Rule' }));
+  const threshold = screen.getByLabelText<HTMLInputElement>('Pump fillage threshold (%)');
+  fireEvent.change(threshold, { target: { value: '72' } });
+  fireEvent.click(screen.getByRole('radio', { name: 'Workflow' }));
+  expect(screen.getByLabelText('Pump fillage threshold (%)')).toBe(threshold);
+  expect(threshold.value).toBe('72');
+  expect(screen.getByText(/save the draft and rerun/i)).toBeTruthy();
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Submit for review' }).disabled).toBe(true);
+
+  fireEvent.change(threshold, { target: { value: '70' } });
+  fireEvent.click(screen.getByRole('radio', { name: 'IDE' }));
+  expect(screen.getByRole('button', { name: 'Rule', pressed: true })).toBeTruthy();
+  expect(screen.getByLabelText<HTMLSelectElement>('Scenario').value).toBe('1');
+  expect(screen.getByText('No recommendation')).toBeTruthy();
+});
+
 it('approves the immutable package shown to the reviewer', async () => {
   const packageSha256 = 'a'.repeat(64);
   vi.mocked(getGuidedModuleSubmission).mockResolvedValue({

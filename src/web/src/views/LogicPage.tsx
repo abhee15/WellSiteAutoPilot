@@ -2,7 +2,7 @@ import { DataTable } from '../components/DataTable';
 import { PanelLoading } from '../components/LoadingIndicator';
 import { useSplitPaneFocus } from '../components/useSplitPaneFocus';
 import { useEffect, useMemo, useState } from 'react';
-import { ActionButton } from '../components/ActionButton';
+import { ActionButton, ActionLink } from '../components/ActionButton';
 import { PageTabNav } from '../components/PageTabNav';
 import { hashFor, useForgetVanishedSelection, useHashDetail } from '../routing';
 import type {
@@ -151,7 +151,9 @@ export function LogicPage({
           ] : []),
         ]}
         activeId={showSchedules ? SCHEDULES_TAB : showModules ? MODULES_TAB : 'configured'}
-        action={!showModules && !showSchedules && canCreate && !creating && !selectedConfiguredId
+        action={showModules && permissions.includes('logic.authoring.manage')
+          ? <ActionLink href={hashFor('authoring')} label={t('guided.newModule')} variant="primary" />
+          : !showModules && !showSchedules && canCreate && !creating && !selectedConfiguredId
           ? <ActionButton label={t('setup.heading')} variant="primary" data-split-focus-key="create" onClick={() => setCreating(true)} />
           : undefined} />
 

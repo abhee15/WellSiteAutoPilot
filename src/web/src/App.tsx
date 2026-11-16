@@ -308,6 +308,7 @@ export function App() {
             <ModuleAuthoringWorkspace
               key={JSON.stringify([currentUser?.userId, currentUser?.permissions])}
               permissions={currentUser?.permissions ?? []}
+              userId={currentUser?.userId ?? undefined}
               onRefresh={refresh}
             />
           )}
