@@ -12,6 +12,7 @@ const cases = [
   ['operator-review', '', 1440], ['operator-review', '?page=overview', 390],
   ['shared-forms', '', 1440], ['shared-forms', '', 390],
   ['guided-authoring', '', 1440], ['guided-authoring', '', 768], ['guided-authoring', '', 390],
+  ['guided-authoring', '?view=ide', 1440], ['guided-authoring', '?view=ide', 768],
 ];
 /**
  * Rules that cannot be judged on these pages. heading-order: each page renders one component without the heading
@@ -58,6 +59,7 @@ try {
         const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
         return {
           editor: visible('.guided-authoring-editor'),
+          ide: visible('.guided-authoring-workbench[data-view=ide] .guided-authoring-outline'),
           review: visible('.guided-authoring-review'),
           evidence: visible('[title="LOW_FILLAGE"]'),
           approval: visible('.guided-authoring-approval'),
@@ -71,7 +73,7 @@ try {
         };
       })()`);
       const phone = width === 390;
-      if (layout.editor === phone || !layout.review || !layout.evidence || layout.approval === phone
+      if (layout.editor === phone || layout.ide !== (query === '?view=ide') || !layout.review || !layout.evidence || layout.approval === phone
         || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels) {
         problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
       }

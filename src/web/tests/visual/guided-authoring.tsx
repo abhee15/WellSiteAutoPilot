@@ -27,6 +27,9 @@ client.setConfig({
     ),
 });
 
+const view = new URLSearchParams(window.location.search).get('view');
+if (view === 'ide') window.localStorage.setItem('wsa.authoring.view.visual-fixture', 'ide');
+
 function AuthoringFixture() {
   const nav = useNavCollapsed();
   return (
@@ -48,6 +51,7 @@ function AuthoringFixture() {
         <h1>{t('nav.authoring')}</h1>
         <GuidedAuthoringPage
           canAuthor
+          userId={view === 'ide' ? 'visual-fixture' : undefined}
           canReview
           canApprove
           initialReviewReference="8f52644a-daa0-4d1b-8949-cb20942b4dc8/1"
