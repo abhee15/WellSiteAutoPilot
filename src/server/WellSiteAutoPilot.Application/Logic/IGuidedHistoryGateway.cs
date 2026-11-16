@@ -7,4 +7,7 @@ public interface IGuidedHistoryGateway
 {
     Task<HistoricalReadResult> ReadAsync(ConnectionRecord connection, AdapterOperationDescriptor operation, HistoricalReadRequest read,
         CancellationToken cancellationToken = default);
+
+    Task<ForeSiteDailyAverageResult> ReadProductionDaysAsync(ConnectionRecord connection, AdapterOperationDescriptor operation,
+        ForeSiteDailyAverageRequest read, CancellationToken cancellationToken = default);
 }

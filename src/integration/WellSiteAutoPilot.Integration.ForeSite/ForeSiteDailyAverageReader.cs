@@ -1,30 +1,19 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.Integration.ForeSite;
 
-public sealed record ForeSiteDailyAverageRequest(
-    [property: JsonRequired] string AssetExternalId,
-    [property: JsonRequired] string StartUtc,
-    [property: JsonRequired] string EndUtc);
-
-public sealed record ForeSiteDailyAverageRecord(string Id, DateTimeOffset Start, DateTimeOffset End, decimal? Value);
-public sealed record ForeSiteDailyAverageResult(string AssetExternalId, string Quantity, string? Unit,
-    DateTimeOffset StartUtc, DateTimeOffset EndUtc, IReadOnlyList<ForeSiteDailyAverageRecord> Days,
-    DateTimeOffset RetrievedAtUtc, string Source);
-
 public sealed class ForeSiteDailyAverageReader(ForeSiteSession session)
 {
-    private const string Quantity = "TotalFluidRateInferred";
+    private const string Quantity = ForeSiteDailyAverageContract.Quantity;
     private const string Source = "foresite:daily-averages";
     private const int MaximumRows = 64;
     private const string RequestTimeFormat = "yyyy-MM-dd'T'HH:mm:ssK";
 
     public static readonly AdapterOperationDescriptor Operation = new(
-        "daily.inferred-total-fluid-rate", "Daily inferred total fluid rate", "Read ForeSite production-day values.",
-        ProviderCapabilityKind.ExtensionRead, "foresite.daily-average", "1.0",
+        ForeSiteDailyAverageContract.OperationKey, "Daily inferred total fluid rate", "Read ForeSite production-day values.",
+        ProviderCapabilityKind.ExtensionRead, "foresite.daily-average", ForeSiteDailyAverageContract.Version,
         new("foresite.daily-average-request/v1", [
             new("assetExternalId", "string", true, "Imported numeric ForeSite well ID."),
             new("startUtc", "date-time", true, "Inclusive production-day start filter, with an explicit offset and whole seconds."),

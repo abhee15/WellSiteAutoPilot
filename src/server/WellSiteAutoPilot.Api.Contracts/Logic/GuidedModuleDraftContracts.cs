@@ -43,3 +43,10 @@ public sealed record GuidedHistoryPreviewResponse(string Quantity, DateTimeOffse
     bool Truncated, IReadOnlyList<GuidedHistorySampleResponse> Samples);
 
 public sealed record GuidedHistorySampleResponse(decimal Value, string Unit, DateTimeOffset TimestampUtc, string Quality);
+
+public sealed record GuidedProductionDaysPreviewRequest(int ExpectedRevision, Guid AssetId, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+
+public sealed record GuidedProductionDaysPreviewResponse(string? Unit, DateTimeOffset RetrievedAtUtc,
+    IReadOnlyList<GuidedProductionDayResponse> Days);
+
+public sealed record GuidedProductionDayResponse(DateTimeOffset Start, DateTimeOffset End, decimal? Value);
