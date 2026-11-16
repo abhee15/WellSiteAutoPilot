@@ -22,6 +22,18 @@ internal static class HistoryChecks
         result = await provider.ReadHistoryAsync(request with { MaximumSamples = 1000 });
         Check(!result.Truncated && result.Samples.Count == 2 && result.Samples[1].TimestampUtc == start.AddHours(1),
             "DST repeated local hours must remain distinct instants, with the exclusive end filtered.");
+        // The POC's CurrentSPM trend has its own source UDC and reported unit.
+        handler.Payload = """
+            [{"ErrorMessage":"Success","PointUDC":"SPSTRN","Units":"SPM","PointValues":[
+            {"Timestamp":"2026-11-01T06:00:07.259Z","Value":10.3},
+            {"Timestamp":"2026-11-01T06:04:09.945Z","Value":11.4}]}]
+            """;
+        var strokeRate = await provider.ReadHistoryAsync(request with { Quantity = "SPM", MaximumSamples = 2 });
+        Check(handler.Body == "[\"CurrentSPM\"]" && strokeRate.Quantity == "SPM" && strokeRate.SourcePoint == "SPSTRN" &&
+            strokeRate.Samples.Count == 2 && strokeRate.Samples[0].Value == 10.3m && strokeRate.Samples[1].Value == 11.4m &&
+            strokeRate.Samples.All(sample => sample.Unit == "SPM" && sample.Quality == "Unknown"),
+            "Stroke-rate history lost its native quantity mapping, reported unit, quality or measured points.");
+        handler.Payload = null;
         foreach (var bad in new[] { request with { EndUtc = start }, request with { EndUtc = start.AddDays(32) },
             request with { MaximumSamples = 0 }, request with { MaximumSamples = 1001 } })
         {
