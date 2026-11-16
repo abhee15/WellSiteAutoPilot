@@ -81,6 +81,16 @@ jobs:
       - name: Verify authenticated external identity boundary
         run: dotnet run --project tests/WellSiteAutoPilot.IdentityBoundaryTests/WellSiteAutoPilot.IdentityBoundaryTests.csproj --configuration Release --no-build
 
+      - name: Verify selected-user AD probe without a domain bind
+        shell: pwsh
+        run: |
+          $resultText = & ./tools/ci/windows-domain/Invoke-SelectedUserMembershipProbe.ps1 -SelfTest
+          $result = $resultText | ConvertFrom-Json
+          if ($result.State -ne 'SelfTestPassed' -or $result.LiveDirectoryQueried -ne $false -or
+              $result.CanAuthorize -ne $false -or $result.CurrentWindowsTokenInspected -ne $false) {
+            throw 'The AD probe self-test made an unexpected directory or authorization claim.'
+          }
+
       - name: Verify installer settings and database connection handling
         run: dotnet run --project tests/WellSiteAutoPilot.BootstrapperTests/WellSiteAutoPilot.BootstrapperTests.csproj --configuration Release --no-build
       - name: Verify pure scoped-grant authorization isolation
