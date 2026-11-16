@@ -87,6 +87,7 @@ public static class ForeSiteAdapter
             ForeSiteDailyAverageReader.Operation,
             ForeSiteActiveAlarmReader.Operation,
             ForeSiteReference.ConfigurationOperation,
+            ForeSiteSavedSetpointReader.Operation,
             ForeSiteWellTestReference.Latest
         ], OperationGroups:
         [
@@ -108,7 +109,7 @@ public static class ForeSiteAdapter
                             Requirement: "LastScanTime is only the last scan attempt, and retrieval time is not acquisition time.",
                             OnFailure: "Reject invalid, future or stale required readings according to the reviewed module policy.")
                     ])]),
-            new("well-configuration", "Well configuration data", "Well identity and classification details read from ForeSite. Engineering model files, configuration writes and well-test data are outside this operation.", "1.0", ["configuration.well-details"]),
+            new("well-configuration", "Well configuration data", "Well identity and classification details and passive saved setpoint groups.", "1.0", ["configuration.well-details", ForeSiteSavedSetpointReader.Operation.Key]),
             new("well-trends", "Well trend data", "Raw historical samples and provider-reported production-day values.", "1.0", ["history.pump-fillage", ForeSiteDailyAverageReader.Operation.Key]),
             new("well-test", "Well test", "Inspect the identity, dates and reported status of the latest test.", "1.0", [ForeSiteWellTestReference.Latest.Key]),
             new("alarms", "Alarms", "Current well alarms as reported by ForeSite.", "1.0", [ForeSiteActiveAlarmReader.Operation.Key]),

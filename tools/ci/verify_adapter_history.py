@@ -167,3 +167,34 @@ for well, code in (("102", "FORESITE_ALARM_WELL_MISMATCH"), ("104", "FORESITE_AL
     error = call("foresite", alarms_for(well), status=503, operation=alarms_path)
     assert error["code"] == code and "alarms" not in error, error
 print("Gateway ForeSite active alarms: scoped identity, authorization, source time, flag/value semantics and bounds passed (Provider Simulator).")
+
+
+# Saved values are read through the passive provider route and retain their representation.
+saved_path = "reads/configuration.saved-setpoints"
+def setpoints_for(well):
+    return registered | {"externalId": well, "input": {"assetExternalId": well}}
+
+call("foresite", setpoints_for("101"), caller=None, status=401, operation=saved_path)
+call("foresite", setpoints_for("101"), caller="worker", status=403, operation=saved_path)
+call("cygnet", setpoints_for("101"), status=404, operation=saved_path)
+call("foresite", setpoints_for("101") | {"externalId": "102"}, status=400, operation=saved_path)
+call("foresite", setpoints_for("101") | {"contractVersion": "2.0"}, status=409, operation=saved_path)
+call("foresite", setpoints_for("bad-id"), status=400, operation=saved_path)
+call("foresite", setpoints_for("101") | {"input": {"assetExternalId": "101", "scanOption": 1}},
+     status=400, operation=saved_path)
+result = call("foresite", setpoints_for("101"), operation=saved_path)
+assert result["assetExternalId"] == "101" and result["source"] == "foresite:saved-setpoints", result
+group, = result["groups"]
+assert group["type"] == "SetPoints" and group["deviceType"] == "WellPilotRPOC" and group["isWritable"] is True, group
+assert group["ordinal"] is None and group["transactionTime"].endswith("-05:00"), group
+assert datetime.fromisoformat(result["retrievedAtUtc"]) > datetime.fromisoformat(group["transactionTime"]), result
+element, = group["setpoints"]
+assert element["elementId"] == "IdleTime" and element["displayValue"] == "00:01:00" and element["originalValue"] == "60", element
+assert element["unit"] == element["originalUnit"] == "s" and element["isReadOnly"] is False, element
+assert (element["rangeLow"], element["rangeHigh"]) == (0, 4294967295), element
+assert call("foresite", setpoints_for("103"), operation=saved_path)["groups"] == []
+for well, code in (("102", "FORESITE_SETPOINT_WELL_MISMATCH"), ("104", "FORESITE_SETPOINT_GROUP_FAILED"),
+                   ("105", "FORESITE_SETPOINT_ROW_LIMIT")):
+    error = call("foresite", setpoints_for(well), status=503, operation=saved_path)
+    assert error["code"] == code and "groups" not in error, error
+print("Gateway ForeSite saved setpoints: passive route, exact scope, group timestamps, original values, hidden elements and bounds passed (Provider Simulator).")
