@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   approveGuidedModuleSubmission,
   createGuidedModuleDraft,
@@ -29,6 +29,16 @@ import { outcomeLabel } from '../words';
 import './guidedAuthoring.css';
 
 const pageSize = 25;
+const layoutPreference = 'wsa.guided-authoring.layout';
+type AuthoringLayout = 'workflow' | 'ide';
+
+function preferredLayout(): AuthoringLayout {
+  try {
+    return localStorage.getItem(layoutPreference) === 'ide' ? 'ide' : 'workflow';
+  } catch {
+    return 'workflow';
+  }
+}
 
 const pressureEntryPoint = 'wsa.declarative.difference.v1';
 
@@ -162,6 +172,22 @@ export function GuidedAuthoringPage({
   canPreviewLive?: boolean;
   onRefresh: () => Promise<void>;
 }) {
+  const [layout, setLayout] = useState(preferredLayout);
+  const [conflict, setConflict] = useState(false);
+  const nameField = useRef<HTMLInputElement>(null);
+  const inputsHeading = useRef<HTMLHeadingElement>(null);
+  const thresholdField = useRef<HTMLInputElement>(null);
+  const samplesHeading = useRef<HTMLHeadingElement>(null);
+
+  function changeLayout(next: AuthoringLayout) {
+    setLayout(next);
+    try {
+      localStorage.setItem(layoutPreference, next);
+    } catch {
+      // The view can still be switched when browser storage is unavailable.
+    }
+  }
+
   const [drafts, setDrafts] = useState<GuidedModuleDraftResponse[]>([]);
   const [offset, setOffset] = useState(0);
   const [refresh, setRefresh] = useState(0);
@@ -220,11 +246,13 @@ export function GuidedAuthoringPage({
     setSubmittedReference('');
     setNotice(null);
     setError(false);
+    setConflict(false);
   }
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError(false);
+    setConflict(false);
     setNotice(null);
     try {
       await action();
@@ -245,8 +273,8 @@ export function GuidedAuthoringPage({
     { casingPsi: null, tubingPsi: 120 },
   ];
   const sampleCount = pressure ? pressureReadings.length : readings.length;
-  const valid =
-    name.trim().length > 0 && threshold.trim() !== '' && Number(threshold) >= 0 && Number(threshold) <= maximum;
+  const thresholdValid = threshold.trim() !== '' && Number(threshold) >= 0 && Number(threshold) <= maximum;
+  const valid = name.trim().length > 0 && thresholdValid;
   const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary);
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
@@ -269,10 +297,15 @@ export function GuidedAuthoringPage({
         default: Number(threshold),
       },
     };
-    const { data } =
+    const { data, response } =
       draft?.id && draft.revision
         ? await editGuidedModuleDraft({ path: { id: draft.id }, body: { ...body, expectedRevision: draft.revision } })
         : await createGuidedModuleDraft({ body });
+    if (!data && response?.status === 409) {
+      setConflict(true);
+      setRefresh((previous) => previous + 1);
+      return;
+    }
     if (!data) throw new Error();
     markSaved();
     select(data);
@@ -339,6 +372,7 @@ export function GuidedAuthoringPage({
           showReviewQueue ? 'guided.pendingReviews' : canReview && !canAuthor ? 'guided.reviewsTab' : 'guided.heading',
         )}
       />
+      {conflict && <Notice tone="error">{t('guided.revisionConflict')}</Notice>}
       {error && <Notice tone="error">{t('guided.error')}</Notice>}
       {notice && <Notice tone="success">{t(notice)}</Notice>}
       {canAuthor && (
@@ -366,61 +400,126 @@ export function GuidedAuthoringPage({
                 <ActionButton label={t('guided.next')} disabled={busy} onClick={() => setOffset(offset + pageSize)} />
               )}
             </div>
-            {pressure && <p>{t('guided.pressureRule')}</p>}
-            <div className="guided-authoring-fields">
-              <TextField
-                label={t('guided.name')}
-                maxLength={256}
-                value={name}
-                disabled={busy}
-                onChange={(event) => setName(event.target.value)}
+            <div
+              role="group"
+              aria-label={t('guided.editorLayout')}
+              className="guided-authoring-actions guided-layout-switch"
+            >
+              <ActionButton
+                label={t('guided.workflow')}
+                aria-pressed={layout === 'workflow'}
+                onClick={() => changeLayout('workflow')}
               />
-              <NumberField
-                label={t(pressure ? 'guided.pressureThreshold' : 'guided.threshold')}
-                min={0}
-                max={maximum}
-                step="any"
-                value={threshold}
-                disabled={busy}
-                onChange={(event) => setThreshold(event.target.value)}
+              <ActionButton
+                label={t('guided.ide')}
+                aria-pressed={layout === 'ide'}
+                onClick={() => changeLayout('ide')}
               />
             </div>
-            <div className="guided-authoring-actions">
-              <ActionButton
-                label={t('guided.save')}
-                disabled={busy || !valid || !dirty}
-                onClick={() => void run(save)}
-              />
-              <ActionButton
-                label={t('guided.preview')}
-                disabled={busy || !draft || dirty}
-                onClick={() => void run(preview)}
-              />
-              <ActionButton
-                label={t('guided.submit')}
-                disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
-                onClick={() => void run(submit)}
-              />
+            <div className="guided-workbench" data-layout={layout}>
+              {layout === 'ide' && (
+                <nav className="guided-outline" aria-label={t('guided.outline')}>
+                  <h3>{t('guided.outline')}</h3>
+                  <ActionButton
+                    label={t('guided.moduleDetails')}
+                    variant="quiet"
+                    onClick={() => nameField.current?.focus()}
+                  />
+                  <ActionButton
+                    label={t('guided.wellInputs')}
+                    variant="quiet"
+                    onClick={() => inputsHeading.current?.focus()}
+                  />
+                  <ActionButton
+                    label={t('guided.rule')}
+                    variant="quiet"
+                    onClick={() => thresholdField.current?.focus()}
+                  />
+                  <ActionButton
+                    label={t('guided.sampleTrace')}
+                    variant="quiet"
+                    onClick={() => samplesHeading.current?.focus()}
+                  />
+                </nav>
+              )}
+              <div className="guided-draft-fields">
+                <TextField
+                  label={t('guided.name')}
+                  ref={nameField}
+                  maxLength={256}
+                  value={name}
+                  disabled={busy}
+                  onChange={(event) => setName(event.target.value)}
+                />
+                <section className="guided-input-summary">
+                  <h3 ref={inputsHeading} tabIndex={-1}>
+                    {t('guided.wellInputs')}
+                  </h3>
+                  <p>{pressure ? t('guided.pressureInputs') : t('guided.fillageInput')}</p>
+                </section>
+                <section className="guided-rule-editor">
+                  <h3>{t('guided.rule')}</h3>
+                  <p>{t(pressure ? 'guided.pressureRule' : 'guided.fillageRule')}</p>
+                  <NumberField
+                    ref={thresholdField}
+                    error={!thresholdValid ? t(pressure ? 'guided.pressureRange' : 'guided.fillageRange') : undefined}
+                    label={t(pressure ? 'guided.pressureThreshold' : 'guided.threshold')}
+                    min={0}
+                    max={maximum}
+                    step="any"
+                    value={threshold}
+                    disabled={busy}
+                    onChange={(event) => setThreshold(event.target.value)}
+                  />
+                </section>
+                <div className="guided-authoring-actions">
+                  <ActionButton
+                    label={t('guided.save')}
+                    disabled={busy || !valid || !dirty || conflict}
+                    onClick={() => void run(save)}
+                  />
+                </div>
+              </div>
+              <section className="guided-sample-trace">
+                <h3 ref={samplesHeading} tabIndex={-1}>
+                  {t('guided.sampleTrace')}
+                </h3>
+                {dirty ? <p>{t('guided.sampleStale')}</p> : evidence.length === 0 && <p>{t('guided.samplePending')}</p>}
+                <div className="guided-authoring-actions">
+                  <ActionButton
+                    label={t('guided.preview')}
+                    disabled={busy || !draft || dirty || conflict}
+                    onClick={() => void run(preview)}
+                  />
+                  <ActionButton
+                    label={t('guided.submit')}
+                    disabled={
+                      busy || dirty || conflict || Boolean(submittedReference) || evidence.length !== sampleCount
+                    }
+                    onClick={() => void run(submit)}
+                  />
+                </div>
+                {!dirty && evidence.length > 0 && (
+                  <ul>
+                    {evidence.map((item, index) => (
+                      <li key={index}>
+                        {pressure ? (
+                          <PressureEvidence reading={pressureReadings[index]} differential={item.differentialPsi} />
+                        ) : readings[index] === null ? (
+                          t('guided.unavailable')
+                        ) : (
+                          readings[index] + '%'
+                        )}{' '}
+                        {' · '}
+                        <span title={item.outcomeCode ?? item.failureCode ?? undefined}>
+                          {item.recommendationTitle ?? outcomeLabel(item.outcomeCode ?? item.failureCode).text}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             </div>
-            {!dirty && evidence.length > 0 && (
-              <ul>
-                {evidence.map((item, index) => (
-                  <li key={index}>
-                    {pressure ? (
-                      <PressureEvidence reading={pressureReadings[index]} differential={item.differentialPsi} />
-                    ) : readings[index] === null ? (
-                      t('guided.unavailable')
-                    ) : (
-                      readings[index] + '%'
-                    )}{' '}
-                    {' · '}
-                    <span title={item.outcomeCode ?? item.failureCode ?? undefined}>
-                      {item.recommendationTitle ?? outcomeLabel(item.outcomeCode ?? item.failureCode).text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
             {canPreviewLive && draft?.id && draft.revision && !dirty && (
               <GuidedLivePreview
                 key={draft.id + '/' + draft.revision}

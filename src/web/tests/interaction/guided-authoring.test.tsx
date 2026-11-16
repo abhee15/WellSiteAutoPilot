@@ -6,6 +6,7 @@ import {
   approveGuidedModuleSubmission,
   getGuidedModuleSubmission,
   createGuidedModuleDraft,
+  editGuidedModuleDraft,
   listGuidedModuleDrafts,
   listPendingGuidedModuleSubmissions,
   previewGuidedModuleDraft,
@@ -14,7 +15,10 @@ import {
   submitGuidedModuleDraft,
 } from '../../src/api/generated/v1/sdk.gen';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.removeItem('wsa.guided-authoring.layout');
+});
 
 vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   approveGuidedModuleSubmission: vi.fn(),
@@ -291,4 +295,56 @@ it('previews a saved revision with an imported well without enabling submission'
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it('switches layouts with the same draft, validation, evidence and revision', async () => {
+  const { default: userEvent } = await import('@testing-library/user-event');
+  const user = userEvent.setup();
+  const existing = {
+    id: 'layout-draft',
+    revision: 3,
+    manifestJson: '{"displayName":"Shared draft"}',
+    definition: { default: 70 },
+  };
+  vi.mocked(listGuidedModuleDrafts).mockResolvedValue({ data: [existing] } as never);
+  vi.mocked(previewGuidedModuleDraft).mockResolvedValue({ data: { outcomeCode: 'LOW_FILLAGE' } } as never);
+  vi.mocked(editGuidedModuleDraft).mockResolvedValueOnce({ response: { status: 409 } } as never);
+  const page = <GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />;
+  render(page);
+  await user.click(await screen.findByRole('button', { name: 'Shared draft' }));
+  const workflow = screen.getByRole('button', { name: 'Workflow' });
+  const ide = screen.getByRole('button', { name: 'IDE' });
+  expect(workflow.getAttribute('aria-pressed')).toBe('true');
+
+  await user.click(screen.getByRole('button', { name: 'Run sample cases' }));
+  const traces = () => screen.queryAllByTitle('LOW_FILLAGE');
+  expect(await screen.findAllByTitle('LOW_FILLAGE')).toHaveLength(3);
+  await user.click(ide);
+  expect(traces()).toHaveLength(3);
+  expect(ide.getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('navigation', { name: 'Module outline' })).toBeTruthy();
+
+  const threshold = screen.getByLabelText<HTMLInputElement>('Pump fillage threshold (%)');
+  screen.getByRole('button', { name: 'Rule' }).focus();
+  await user.keyboard('{Enter}');
+  expect(document.activeElement).toBe(threshold);
+  fireEvent.change(threshold, { target: { value: '101' } });
+  await user.click(workflow);
+  expect(screen.getByLabelText<HTMLInputElement>('Pump fillage threshold (%)').value).toBe('101');
+  expect(screen.getByText('Enter a threshold from 0 to 100%.')).toBeTruthy();
+  expect(traces()).toHaveLength(0);
+
+  fireEvent.change(threshold, { target: { value: '64' } });
+  await user.click(ide);
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  expect(await screen.findByText(/A newer revision is available/)).toBeTruthy();
+  expect(threshold.value).toBe('64');
+  expect(editGuidedModuleDraft).toHaveBeenLastCalledWith({
+    path: { id: 'layout-draft' },
+    body: expect.objectContaining({ expectedRevision: 3, definition: { default: 64 } }),
+  });
+
+  cleanup();
+  render(page);
+  expect(screen.getByRole('button', { name: 'IDE' }).getAttribute('aria-pressed')).toBe('true');
 });

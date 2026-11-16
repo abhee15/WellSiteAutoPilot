@@ -12,6 +12,7 @@ const cases = [
   ['operator-review', '', 1440], ['operator-review', '?page=overview', 390],
   ['shared-forms', '', 1440], ['shared-forms', '', 390],
   ['guided-authoring', '', 1440], ['guided-authoring', '', 768], ['guided-authoring', '', 390],
+  ['guided-authoring', '?layout=ide', 1440], ['guided-authoring', '?layout=ide', 820],
 ];
 /**
  * Rules that cannot be judged on these pages. heading-order: each page renders one component without the heading
@@ -54,10 +55,13 @@ try {
     await channel.send('Page.navigate', { url: `${session.origin}/tests/visual/${page}.html${query}` });
     try { await settled(); } catch (error) { problems.push(`${key}: ${error.message}`); continue; }
     if (page === 'guided-authoring') {
+      const ide = query === '?layout=ide';
+      if (ide) await evaluate('document.querySelector(".guided-layout-switch [aria-label=IDE]").click()');
       const layout = await evaluate(`(() => {
         const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
         return {
           editor: visible('.guided-authoring-editor'),
+          outline: visible('.guided-outline'),
           review: visible('.guided-authoring-review'),
           evidence: visible('[title="LOW_FILLAGE"]'),
           approval: visible('.guided-authoring-approval'),
@@ -72,7 +76,7 @@ try {
       })()`);
       const phone = width === 390;
       if (layout.editor === phone || !layout.review || !layout.evidence || layout.approval === phone
-        || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels) {
+        || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels || layout.outline !== ide) {
         problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
       }
     }
