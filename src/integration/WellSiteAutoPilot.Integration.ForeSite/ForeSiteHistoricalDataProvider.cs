@@ -20,6 +20,7 @@ public sealed class ForeSiteHistoricalDataProvider(ForeSiteSession session) : IB
         var sourceQuantity = request.Quantity switch
         {
             "PumpFillage" => "CurrentPumpFillage",
+            "SPM" => "CurrentSPM",
             _ => throw new ForeSiteMeasurementException("FORESITE_QUANTITY_UNSUPPORTED")
         };
         static string Iso(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);

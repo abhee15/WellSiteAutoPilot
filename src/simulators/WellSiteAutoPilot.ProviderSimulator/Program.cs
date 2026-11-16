@@ -317,12 +317,14 @@ app.MapPost("/foresite/Surveillance/CygNetTrends/{wellId:long}/{start}/{end}",
     (long wellId, DateTimeOffset start, DateTimeOffset end, string[] quantities, HttpContext context, SimulatorState state) =>
     {
         if (!HasForeSiteSession(context)) return Results.Unauthorized();
-        if (wellId != 101 || quantities.Length != 1 || quantities[0] != "CurrentPumpFillage" || end <= start)
+        if (wellId != 101 || quantities.Length != 1 || quantities[0] is not ("CurrentPumpFillage" or "CurrentSPM") || end <= start)
             return Results.BadRequest();
+        var strokeRate = quantities[0] == "CurrentSPM";
         return Results.Json(new[] { new {
-            ErrorMessage = "Success", Units = "%", PointUDC = "SIMULATED-RRLPFILCUR",
-            PointValues = state.Scenario == "foresite-history-empty" ? [] : new[] { new { Timestamp = start.ToUniversalTime(), Value = 82m },
-                new { Timestamp = start.AddMinutes(5).ToUniversalTime(), Value = 79m } }
+            ErrorMessage = "Success", Units = strokeRate ? "SPM" : "%", PointUDC = strokeRate ? "SIMULATED-SPSTRN" : "SIMULATED-RRLPFILCUR",
+            PointValues = state.Scenario == "foresite-history-empty" ? [] : new[] {
+                new { Timestamp = start.ToUniversalTime(), Value = strokeRate ? 10.3m : 82m },
+                new { Timestamp = start.AddMinutes(5).ToUniversalTime(), Value = strokeRate ? 11.4m : 79m } }
         } }, new System.Text.Json.JsonSerializerOptions());
     });
 
