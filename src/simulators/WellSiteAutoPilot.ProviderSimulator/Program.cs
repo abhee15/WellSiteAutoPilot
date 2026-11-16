@@ -247,6 +247,32 @@ app.MapGet("/foresite/Alarms/CurrentAlarms/{wellId:long}", (long wellId, HttpCon
     return Results.Json(records, new System.Text.Json.JsonSerializerOptions());
 });
 
+// Synthetic saved setpoints, served only for the passive scan option.
+app.MapGet("/foresite/Surveillance/Well/AllSavedSetPointParams", (long wellId, int scanOption, HttpContext context) =>
+{
+    if (!HasForeSiteSession(context)) return Results.Unauthorized();
+    if (scanOption != 0 || wellId is < 101 or > 105) return Results.BadRequest();
+    var visible = new
+    {
+        ElementId = "IdleTime", Description = "Idle Time Following Pump Off", Value = "00:01:00", OriginalValue = "60",
+        UnitKey = "s", OriginalUnitKey = "s", RangeLow = 0L, RangeHigh = 4294967295L, IsReadOnly = false, IsHidden = false
+    };
+    var hidden = new
+    {
+        ElementId = "HiddenParameter", Description = "Hidden Parameter", Value = "9", OriginalValue = "9",
+        UnitKey = "s", OriginalUnitKey = "s", RangeLow = 0L, RangeHigh = 10L, IsReadOnly = true, IsHidden = true
+    };
+    var group = new
+    {
+        WellId = wellId == 102 ? 101 : wellId, DataGroupType = "SetPoints", DataGroupName = "Basic SetPoints Configuration",
+        DataGroupOrdinal = (int?)null, DeviceType = "WellPilotRPOC", IsWritable = true,
+        TransactionTimeStamp = "2022-09-29T11:31:27.8630000-05:00",
+        ErrorMessage = wellId == 104 ? "Controller read failed" : "success",
+        SetPointsList = wellId == 105 ? Enumerable.Repeat(hidden, 129).ToArray() : new[] { visible, hidden }
+    };
+    return Results.Json(wellId == 103 ? [] : new[] { group }, new System.Text.Json.JsonSerializerOptions());
+});
+
 // Current surveillance fixture for the imported sample well.
 app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContext context) =>
 {
