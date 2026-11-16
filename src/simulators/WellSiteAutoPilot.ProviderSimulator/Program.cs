@@ -229,6 +229,27 @@ app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContex
         new System.Text.Json.JsonSerializerOptions());
 });
 
+// Synthetic daily rows with the recorded production-day boundary shape.
+app.MapGet("/foresite/Surveillance/Well/DailyAverage/{wellId:long}/{start}/{end}",
+    (long wellId, string start, string end, HttpContext context) =>
+    {
+        if (!HasForeSiteSession(context)) return Results.Unauthorized();
+        if (wellId is not (101 or 102 or 103) || start != "2026-11-01T00:00:00Z" || end != "2026-11-03T06:00:00Z")
+            return Results.BadRequest();
+        var returnedWell = wellId == 102 ? 101 : wellId;
+        var rows = new[]
+        {
+            new { Id = 7003, WellId = returnedWell, StartDateTime = "2026-11-03T06:00:00Z", EndDateTime = "2026-11-04T05:59:59.9900000Z", TotalFluidRateInferred = (decimal?)1 },
+            new { Id = 7002, WellId = returnedWell, StartDateTime = "2026-11-02T00:00:00-06:00", EndDateTime = "2026-11-02T23:59:59.9900000-06:00", TotalFluidRateInferred = (decimal?)null },
+            new { Id = 7001, WellId = returnedWell, StartDateTime = "2026-11-01T05:00:00Z", EndDateTime = "2026-11-02T05:59:59.9900000Z", TotalFluidRateInferred = (decimal?)0 }
+        };
+        return Results.Json(new
+        {
+            Units = new { TotalFluidRateInferred = new { UnitKey = "STB/d" } },
+            Values = wellId == 103 ? [] : rows
+        }, new System.Text.Json.JsonSerializerOptions());
+    });
+
 // Recorded-shape trend stand-in for the Gateway history integration tests. This is simulated provider data.
 app.MapPost("/foresite/Surveillance/CygNetTrends/{wellId:long}/{start}/{end}",
     (long wellId, DateTimeOffset start, DateTimeOffset end, string[] quantities, HttpContext context, SimulatorState state) =>

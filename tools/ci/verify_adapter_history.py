@@ -105,3 +105,36 @@ try:
 finally:
     reset_simulator("rod-pump-normal")
 print("Gateway latest reported well test: Server-only, optional capability, request and provider identity, separate status and validation, and no-record paths passed (synthetic source).")
+
+
+# Production-day aggregates use a separate operation from raw history.
+daily_path = "reads/daily.inferred-total-fluid-rate"
+daily_read = {"assetExternalId": "101", "startUtc": "2026-10-31T19:00:00-05:00",
+              "endUtc": "2026-11-03T00:00:00-06:00"}
+daily = registered | {"input": daily_read}
+call("foresite", daily, caller=None, status=401, operation=daily_path)
+call("foresite", daily, caller="worker", status=403, operation=daily_path)
+call("cygnet", daily, status=404, operation=daily_path)
+call("foresite", daily | {"externalId": "102"}, status=400, operation=daily_path)
+call("foresite", daily | {"contractVersion": "2.0"}, status=409, operation=daily_path)
+for invalid in ({"startUtc": "2026-11-01T00:00:00"}, {"startUtc": "2026-11-01T00:00:00.001Z"},
+                {"startUtc": "2026-09-30T00:00:00Z"}):
+    call("foresite", daily | {"input": daily_read | invalid}, status=400, operation=daily_path)
+daily_result = call("foresite", daily, operation=daily_path)
+assert daily_result["source"] == "foresite:daily-averages" and daily_result["unit"] == "STB/d", daily_result
+assert daily_result["quantity"] == "TotalFluidRateInferred" and daily_result["assetExternalId"] == "101", daily_result
+assert [d["id"] for d in daily_result["days"]] == ["7001", "7002"], daily_result
+first_day, second_day = daily_result["days"]
+assert first_day["value"] == 0 and second_day["value"] is None, daily_result
+assert second_day["start"].endswith("-06:00") and second_day["end"].endswith("-06:00"), daily_result
+duration = datetime.fromisoformat(first_day["end"]) - datetime.fromisoformat(first_day["start"])
+assert duration.total_seconds() == 89999.99, duration
+assert datetime.fromisoformat(daily_result["retrievedAtUtc"]) > datetime.fromisoformat(first_day["end"]), daily_result
+
+def daily_for(well):
+    return daily | {"externalId": well, "input": daily_read | {"assetExternalId": well}}
+
+assert call("foresite", daily_for("103"), operation=daily_path)["days"] == []
+failure = call("foresite", daily_for("102"), status=503, operation=daily_path)
+assert failure["code"] == "FORESITE_DAILY_WELL_MISMATCH", failure
+print("Gateway daily averages: recorded DST boundary shape, scope, exact offset handling, empty, zero and null passed (Provider Simulator).")

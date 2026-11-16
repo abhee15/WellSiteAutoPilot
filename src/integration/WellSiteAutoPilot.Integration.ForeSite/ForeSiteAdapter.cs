@@ -83,6 +83,7 @@ public static class ForeSiteAdapter
                 "Trend responses do not supply quality; returned quality is Unknown.") with
             { Documentation = AdapterReferenceExamples.History("101", "PumpFillage", "%", "foresite:trends", "Unknown") with
                 { ProviderReference = "POST Surveillance/CygNetTrends/{wellId}/{start}/{end}; requests CurrentPumpFillage. Whole-second UTC bounds, no implicit aggregation." } },
+            ForeSiteDailyAverageReader.Operation,
             ForeSiteReference.ConfigurationOperation,
             ForeSiteWellTestReference.Latest
         ], OperationGroups:
@@ -106,7 +107,7 @@ public static class ForeSiteAdapter
                             OnFailure: "Reject invalid, future or stale required readings according to the reviewed module policy.")
                     ])]),
             new("well-configuration", "Well configuration data", "Well identity and classification details read from ForeSite. Engineering model files, configuration writes and well-test data are outside this operation.", "1.0", ["configuration.well-details"]),
-            new("well-trends", "Well trend data", "Bounded raw historical samples over an explicit UTC time range. Only declared series are exposed; there is no implicit daily averaging.", "1.0", ["history.pump-fillage"]),
+            new("well-trends", "Well trend data", "Raw historical samples and provider-reported production-day values.", "1.0", ["history.pump-fillage", ForeSiteDailyAverageReader.Operation.Key]),
             new("well-test", "Well test", "Inspect the identity, dates and reported status of the latest test.", "1.0", [ForeSiteWellTestReference.Latest.Key]),
             new("cards", "Card data", "Structured CURRENT and FULL surface cards, preserving paired position/load arrays, source units and capture timestamps. Downhole cards are not exposed.", "1.0", ["current.surface-cards"])
         ]);
