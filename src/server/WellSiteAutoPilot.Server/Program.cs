@@ -1337,7 +1337,10 @@ v1.MapPost("/guided-module-drafts/{id:guid}/history-preview",
         CancellationToken cancellationToken) =>
     {
         var result = await preview.ReadHistoryAsync(id, request.ExpectedRevision, request.AssetId, request.InputId,
-            request.StartUtc, request.EndUtc, request.MaximumSamples, access.Subject, cancellationToken);
+            request.StartUtc, request.EndUtc, request.MaximumSamples, access.Subject,
+            request.SiteWindow is { } site
+                ? new GuidedSiteHistoryWindow(site.EndLocal, site.TimeZoneId, site.DurationMinutes)
+                : null, cancellationToken);
         return new GuidedHistoryPreviewResponse(result.Quantity, result.StartUtc, result.EndUtc, result.Truncated,
             result.Samples.Select(item => new GuidedHistorySampleResponse(item.Value!.Value, item.Unit,
                 item.TimestampUtc, item.Quality)).ToArray());

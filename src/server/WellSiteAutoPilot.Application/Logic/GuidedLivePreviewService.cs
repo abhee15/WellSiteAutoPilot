@@ -71,8 +71,8 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
     }
 
     public async Task<HistoricalReadResult> ReadHistoryAsync(Guid draftId, int expectedRevision, Guid assetId, string inputId,
-        DateTimeOffset startUtc, DateTimeOffset endUtc, int maximumSamples, AccessSubject subject,
-        CancellationToken cancellationToken = default)
+        DateTimeOffset? start, DateTimeOffset? end, int maximumSamples, AccessSubject subject,
+        GuidedSiteHistoryWindow? siteWindow = null, CancellationToken cancellationToken = default)
     {
         var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
         draft.RequireRevision(expectedRevision);
@@ -80,6 +80,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         if (input is null || input.ValueSchema is not null)
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_INPUT_UNSUPPORTED", FailureKind.Validation,
                 "Choose a declared scalar input.");
+        var (startUtc, endUtc) = GuidedSiteHistoryWindow.Resolve(start, end, siteWindow);
         if (!IsValidWindow(startUtc, endUtc) || maximumSamples is < 1 or > HistoricalReadLimits.MaximumSamples)
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_WINDOW_INVALID", FailureKind.Validation,
                 "Specify an ordered history window with whole-second bounds and a supported sample limit.");

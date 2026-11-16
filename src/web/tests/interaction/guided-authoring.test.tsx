@@ -334,6 +334,37 @@ it('previews a saved revision with an imported well without enabling submission'
         }) as unknown,
       }),
     );
+    fireEvent.change(screen.getByLabelText('Window ends at'), { target: { value: 'site' } });
+    expect(screen.queryByText(/79 % · Unknown/)).toBeNull();
+    expect((screen.getByRole('button', { name: 'Load history' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('Window end at the site'), { target: { value: '2025-11-02T02:00' } });
+    fireEvent.change(screen.getByLabelText('Site time zone'), { target: { value: 'America/Chicago' } });
+    vi.mocked(previewGuidedModuleInputHistory)
+      .mockResolvedValueOnce({ error: { code: 'GUIDED_HISTORY_SITE_TIME_UNRESOLVED' } } as never)
+      .mockResolvedValueOnce({
+        data: {
+          quantity: 'PumpFillage',
+          startUtc: '2025-11-02T04:00:00Z',
+          endUtc: '2025-11-02T08:00:00Z',
+          samples: [],
+        },
+      } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Load history' }));
+    expect(await screen.findByText(/That time is skipped or repeated/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Load history' }));
+    expect(await screen.findByText('2025-11-02T08:00:00Z')).toBeTruthy();
+    expect(screen.getByText(/Ends 2025-11-02 02:00/)).toBeTruthy();
+    expect(vi.mocked(previewGuidedModuleInputHistory)).toHaveBeenLastCalledWith({
+      path: { id: 'live-draft' },
+      body: {
+        expectedRevision: 3,
+        assetId: 'imported',
+        inputId: 'fillage',
+        maximumSamples: 100,
+        siteWindow: { endLocal: '2025-11-02T02:00', timeZoneId: 'America/Chicago', durationMinutes: 240 },
+      },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
     vi.mocked(previewGuidedModuleProductionDays).mockResolvedValueOnce({
       data: {
         unit: 'STB/d',
