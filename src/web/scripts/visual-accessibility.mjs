@@ -13,6 +13,7 @@ const cases = [
   ['shared-forms', '', 1440], ['shared-forms', '', 390],
   ['guided-authoring', '', 1440], ['guided-authoring', '', 768], ['guided-authoring', '', 390],
   ['guided-authoring', '?view=ide', 1440], ['guided-authoring', '?view=ide', 768],
+  ['guided-authoring', '?view=surface-cards', 1440], ['guided-authoring', '?view=surface-cards', 768],
 ];
 /**
  * Rules that cannot be judged on these pages. heading-order: each page renders one component without the heading
@@ -54,7 +55,15 @@ try {
     await channel.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
     await channel.send('Page.navigate', { url: `${session.origin}/tests/visual/${page}.html${query}` });
     try { await settled(); } catch (error) { problems.push(`${key}: ${error.message}`); continue; }
-    if (page === 'guided-authoring') {
+    if (page === 'guided-authoring' && query === '?view=surface-cards') {
+      const plot = await evaluate(`(() => {
+        const canvas = document.querySelector('.guided-surface-card canvas');
+        if (!canvas || document.documentElement.scrollWidth > innerWidth) return false;
+        return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height)
+          .data.some((value, index) => index % 4 === 3 && value > 0);
+      })()`);
+      if (!plot) problems.push(`${key}: stored surface card chart is empty or overflows the page`);
+    } else if (page === 'guided-authoring') {
       const layout = await evaluate(`(() => {
         const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
         return {

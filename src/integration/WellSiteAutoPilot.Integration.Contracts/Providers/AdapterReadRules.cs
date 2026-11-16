@@ -25,6 +25,7 @@ public sealed record StructuredCurrentRead(string Quantity, string RequiredCapab
 /// <summary>The adapters that can serve direct current reads for saved connections.</summary>
 public static class AdapterReadRules
 {
+    public const string StructuredCurrentCapability = "structured.current";
     public const string ForeSiteKey = "foresite";
     public const string CygNetKey = "cygnet";
     public const string CygNetResourceKind = "cygnet.facility";
@@ -38,7 +39,7 @@ public static class AdapterReadRules
     private static readonly AdapterReadRule[] Rules =
     [
         new(ForeSiteKey, "foresite.well", new HashSet<string>(StringComparer.Ordinal) { "PumpFillage", "AveragePumpFillage" },
-            [new StructuredCurrentRead("SurfaceCards", "structured.current", "foresite.surface-cards/v1")]),
+            [new StructuredCurrentRead(ForeSiteSurfaceCard.Quantity, StructuredCurrentCapability, ForeSiteSurfaceCard.SchemaId)]),
         new(CygNetKey, CygNetResourceKind, CygNetQuantities)
     ];
 

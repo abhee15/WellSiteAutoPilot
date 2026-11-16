@@ -50,3 +50,9 @@ public sealed record GuidedProductionDaysPreviewResponse(string? Unit, DateTimeO
     IReadOnlyList<GuidedProductionDayResponse> Days);
 
 public sealed record GuidedProductionDayResponse(DateTimeOffset Start, DateTimeOffset End, decimal? Value);
+
+public sealed record GuidedSurfaceCardsPreviewResponse(string? Quality, DateTimeOffset? RetrievedAtUtc,
+    IReadOnlyList<GuidedSurfaceCardResponse> Cards);
+
+public sealed record GuidedSurfaceCardResponse(string Id, string Kind, string CapturedAtUtc,
+    string PositionUnit, string LoadUnit, IReadOnlyList<decimal> Position, IReadOnlyList<decimal> Load);

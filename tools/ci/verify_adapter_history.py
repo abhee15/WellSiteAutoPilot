@@ -140,6 +140,27 @@ assert failure["code"] == "FORESITE_DAILY_WELL_MISMATCH", failure
 print("Gateway daily averages: recorded DST boundary shape, scope, exact offset handling, empty, zero and null passed (Provider Simulator).")
 
 
+# The saved-connection card read preserves type, pairs, capture and retrieval evidence.
+cards = {"connectionId": registered["connectionId"], "connectionRevision": registered["connectionRevision"],
+         "settings": registered["settings"], "externalId": "101", "quantity": "SurfaceCards"}
+call("foresite", cards, caller=None, status=401, operation="current")
+call("foresite", cards, caller="worker", status=403, operation="current")
+card_value = call("foresite", cards, operation="current")
+assert card_value["value"] is None and card_value["quality"] == "Unknown", card_value
+assert card_value["timestampKind"] == "CardCapture" and card_value["retrievedAtUtc"], card_value
+assert card_value["structuredValue"]["schemaId"] == "foresite.surface-cards/v1", card_value
+surface_cards = card_value["structuredValue"]["data"]
+assert [card["kind"] for card in surface_cards] == ["CURRENT", "FULL"], surface_cards
+assert all(card["position"] == [0, 5, 12, 10, 2, 0] and len(card["load"]) == 6 for card in surface_cards)
+assert surface_cards[0]["load"] != surface_cards[1]["load"], surface_cards
+assert all(card["positionUnit"] == "in" and card["loadUnit"] == "lb" for card in surface_cards)
+assert min(datetime.fromisoformat(card["capturedAtUtc"]) for card in surface_cards) == (
+    datetime.fromisoformat(card_value["timestampUtc"])), card_value
+missing_cards = call("foresite", cards | {"externalId": "102"}, status=503, operation="current")
+assert missing_cards["code"] == "FORESITE_MEASUREMENT_MISSING", missing_cards
+print("Gateway stored surface cards: Server-only, type, paired series, units, capture, Unknown quality and empty response passed (Provider Simulator).")
+
+
 # ForeSite returns current alarm records for a well, including suppressed ones.
 alarms_path = "reads/alarms.active-well"
 def alarms_for(well):

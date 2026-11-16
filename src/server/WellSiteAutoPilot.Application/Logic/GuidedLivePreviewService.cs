@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using WellSiteAutoPilot.Application.Assets;
 using WellSiteAutoPilot.Application.Connections;
 using WellSiteAutoPilot.Application.Executions;
@@ -151,6 +152,64 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         return result;
     }
 
+    public async Task<GuidedSurfaceCards> ReadSurfaceCardsAsync(Guid draftId, int expectedRevision, Guid assetId,
+        AccessSubject subject, CancellationToken cancellationToken = default)
+    {
+        var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
+        draft.RequireRevision(expectedRevision);
+        var initial = await ReadContextAsync(subject, assetId, cancellationToken);
+        await RequireMatchingAssetAsync(draft.Content.Manifest, initial, subject, cancellationToken);
+        var rule = AdapterReadRules.Find(initial.Connection.AdapterKey);
+        if (rule is null || rule.ResourceKind != initial.Binding.ResourceKind ||
+            !rule.AllowsCurrentRead(ForeSiteSurfaceCard.Quantity, AdapterReadRules.StructuredCurrentCapability, ForeSiteSurfaceCard.SchemaId) ||
+            (draft.Content.Manifest.RequiredAdapterKey is { } requiredAdapter &&
+                !string.Equals(requiredAdapter, initial.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase)))
+            throw new WellSiteAutoPilotException("GUIDED_SURFACE_CARDS_UNSUPPORTED", FailureKind.Validation,
+                "The selected connection does not support stored surface cards.");
+
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        EngineeringValue value;
+        try
+        {
+            value = await gateway.GetCurrentAsync(new(initial.Connection.AdapterKey, initial.Connection.Id,
+                initial.Connection.Revision, initial.Binding.ExternalId, ForeSiteSurfaceCard.Quantity,
+                initial.Connection.Settings.ToDictionary(entry => entry.Key, entry => (string?)entry.Value, StringComparer.Ordinal)),
+                cancellationToken);
+        }
+        catch (WellSiteAutoPilotException exception) when (exception.Code == "FORESITE_MEASUREMENT_MISSING")
+        {
+            await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+            return new(null, null, []);
+        }
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+
+        if (value.Quantity != ForeSiteSurfaceCard.Quantity || value.Value is not null ||
+            value.StructuredValue is not { SchemaId: ForeSiteSurfaceCard.SchemaId } structured ||
+            structured.Data.ValueKind != JsonValueKind.Array ||
+            structured.Data.GetArrayLength() is < 1 or > ForeSiteSurfaceCard.MaximumCards || value.RetrievedAtUtc is null)
+            throw InvalidSurfaceCards();
+        try
+        {
+            var cards = structured.Data.Deserialize<ForeSiteSurfaceCard[]>(JsonSerializerOptions.Web) ?? throw InvalidSurfaceCards();
+            if (cards.Any(card => card is null || string.IsNullOrWhiteSpace(card.Id) || card.Representation != "SURFACE" ||
+                card.Kind is not ("CURRENT" or "FULL") ||
+                !DateTimeOffset.TryParseExact(card.CapturedAtUtc, "O", CultureInfo.InvariantCulture, DateTimeStyles.None, out var captured) ||
+                captured == default || captured.Offset != TimeSpan.Zero ||
+                card.PositionUnit != "in" || card.LoadUnit != "lb" || card.Position is null || card.Load is null ||
+                card.Position.Count is < 2 or > ForeSiteSurfaceCard.MaximumPoints || card.Position.Count != card.Load.Count) ||
+                cards.Select(card => card.Id).Distinct(StringComparer.Ordinal).Count() != cards.Length ||
+                cards.Select(card => card.CapturedAtUtc).Min(StringComparer.Ordinal) !=
+                    value.TimestampUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture))
+                throw InvalidSurfaceCards();
+            return new(value.Quality, value.RetrievedAtUtc, cards);
+        }
+        catch (JsonException) { throw InvalidSurfaceCards(); }
+    }
+
+    private static WellSiteAutoPilotException InvalidSurfaceCards() =>
+        new("GUIDED_SURFACE_CARDS_RESPONSE_INVALID", FailureKind.DependencyUnavailable,
+            "The stored surface card data did not match the requested schema.");
+
     private bool IsValidWindow(DateTimeOffset startUtc, DateTimeOffset endUtc) =>
         startUtc != default && endUtc > startUtc && endUtc <= clock.GetUtcNow() &&
         endUtc - startUtc <= TimeSpan.FromDays(HistoricalReadLimits.MaximumWindowDays) &&
@@ -207,3 +266,5 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
 public sealed record GuidedLivePreview(DeclarativeThresholdEvidence Evidence, IReadOnlyList<GuidedLiveReading> Readings);
 public sealed record GuidedLiveReading(string InputId, string Quantity, decimal? Value, string Unit,
     DateTimeOffset TimestampUtc, string Quality, string? TimestampKind);
+
+public sealed record GuidedSurfaceCards(string? Quality, DateTimeOffset? RetrievedAtUtc, IReadOnlyList<ForeSiteSurfaceCard> Cards);

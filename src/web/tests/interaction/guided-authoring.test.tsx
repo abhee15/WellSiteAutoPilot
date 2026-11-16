@@ -12,6 +12,7 @@ import {
   previewGuidedModuleWithLiveInputs,
   previewGuidedModuleInputHistory,
   previewGuidedModuleProductionDays,
+  previewGuidedModuleSurfaceCards,
   submitGuidedModuleDraft,
 } from '../../src/api/generated/v1/sdk.gen';
 
@@ -28,6 +29,7 @@ vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   previewGuidedModuleWithLiveInputs: vi.fn(),
   previewGuidedModuleInputHistory: vi.fn(),
   previewGuidedModuleProductionDays: vi.fn(),
+  previewGuidedModuleSurfaceCards: vi.fn(),
   submitGuidedModuleDraft: vi.fn(),
 }));
 
@@ -364,6 +366,46 @@ it('previews a saved revision with an imported well without enabling submission'
     fireEvent.click(production);
     expect(await screen.findByText('This connection does not support the daily production preview.')).toBeTruthy();
     expect(screen.queryByText(/0 STB\/d/)).toBeNull();
+    const draw = {
+      clearRect: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+    };
+    const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(draw as never);
+    try {
+      const current = {
+        id: 'current',
+        kind: 'CURRENT',
+        capturedAtUtc: '2026-11-12T14:59:00Z',
+        positionUnit: 'in',
+        loadUnit: 'lb',
+        position: [0, 12, 0],
+        load: [2000, 3600, 2000],
+      };
+      vi.mocked(previewGuidedModuleSurfaceCards).mockResolvedValueOnce({
+        data: {
+          quality: 'Unknown',
+          retrievedAtUtc: '2026-11-12T15:00:00Z',
+          cards: [current, { ...current, id: 'full', kind: 'FULL', load: [2200, 4200, 2200] }],
+        },
+      } as never);
+      const cards = screen.getByRole('button', { name: 'Read stored surface cards' });
+      fireEvent.click(cards);
+      expect(await screen.findByRole('img', { name: 'Surface card load by position' })).toBeTruthy();
+      expect(screen.getByText(/Load 2000–3600 lb/)).toBeTruthy();
+      expect(screen.getByText(/Quality Unknown/)).toBeTruthy();
+      fireEvent.change(screen.getByLabelText('Surface card'), { target: { value: '1' } });
+      expect(screen.getByText(/Load 2200–4200 lb/)).toBeTruthy();
+      expect(draw.lineTo).toHaveBeenCalledTimes(4);
+      vi.mocked(previewGuidedModuleSurfaceCards).mockResolvedValueOnce({ data: { cards: [] } } as never);
+      fireEvent.click(cards);
+      expect(await screen.findByText('The provider returned no stored surface cards.')).toBeTruthy();
+      expect(screen.queryByRole('img', { name: 'Surface card load by position' })).toBeNull();
+    } finally {
+      context.mockRestore();
+    }
     expect((screen.getByRole('button', { name: 'Submit for review' }) as HTMLButtonElement).disabled).toBe(true);
   } finally {
     vi.unstubAllGlobals();

@@ -4,6 +4,7 @@ import { NavigationLink } from '../../src/components/NavigationLink';
 import { useNavCollapsed } from '../../src/components/useNavCollapsed';
 import { t } from '../../src/localization';
 import { GuidedAuthoringPage } from '../../src/views/GuidedAuthoringPage';
+import { GuidedSurfaceCardsPreview } from '../../src/views/GuidedSurfaceCardsPreview';
 import '../../src/tokens.css';
 import '../../src/styles.css';
 import '@fontsource/roboto/400.css';
@@ -49,14 +50,34 @@ function AuthoringFixture() {
       </aside>
       <main className="content">
         <h1>{t('nav.authoring')}</h1>
-        <GuidedAuthoringPage
-          canAuthor
-          userId={view === 'ide' ? 'visual-fixture' : undefined}
-          canReview
-          canApprove
-          initialReviewReference="8f52644a-daa0-4d1b-8949-cb20942b4dc8/1"
-          onRefresh={async () => {}}
-        />
+        {view === 'surface-cards' ? (
+          <GuidedSurfaceCardsPreview
+            preview={{
+              quality: 'Unknown',
+              retrievedAtUtc: '2026-11-03T12:03:00Z',
+              cards: [
+                {
+                  id: 'current',
+                  kind: 'CURRENT',
+                  capturedAtUtc: '2026-11-03T12:02:00Z',
+                  positionUnit: 'in',
+                  loadUnit: 'lb',
+                  position: [0, 5, 12, 10, 2, 0],
+                  load: [2200, 3100, 3600, 2700, 1950, 2200],
+                },
+              ],
+            }}
+          />
+        ) : (
+          <GuidedAuthoringPage
+            canAuthor
+            userId={view === 'ide' ? 'visual-fixture' : undefined}
+            canReview
+            canApprove
+            initialReviewReference="8f52644a-daa0-4d1b-8949-cb20942b4dc8/1"
+            onRefresh={async () => {}}
+          />
+        )}
       </main>
     </div>
   );
