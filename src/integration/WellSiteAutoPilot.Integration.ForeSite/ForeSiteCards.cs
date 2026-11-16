@@ -30,6 +30,9 @@ public static class ForeSiteCards
                 using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 16 });
                 RejectDuplicates(document.RootElement);
                 var root = document.RootElement;
+                // A well with no stored cards of this type answers {"Value":null,"ErrorMessage":"There were no dynacards found..."}.
+                // That is an empty library, not a malformed reply; any other null Value or error stays invalid.
+                if (IsNoCardsReply(root)) continue;
                 if (root.ValueKind != JsonValueKind.Object ||
                     root.TryGetProperty("FullErrorMessage", out var error) && error.ValueKind != JsonValueKind.Null &&
                         (error.ValueKind != JsonValueKind.String || !string.IsNullOrWhiteSpace(error.GetString())) ||
@@ -80,6 +83,12 @@ public static class ForeSiteCards
         return new(Quantity, null, "", oldest.Value, "Unknown", "foresite:dynacard-library",
             DateTimeOffset.UtcNow, "CardCapture") { StructuredValue = new(SchemaId, data) };
     }
+
+    private static bool IsNoCardsReply(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object &&
+        root.TryGetProperty("Value", out var value) && value.ValueKind == JsonValueKind.Null &&
+        root.TryGetProperty("ErrorMessage", out var message) && message.ValueKind == JsonValueKind.String &&
+        message.GetString() is { } text && text.StartsWith("There were no dynacards found", StringComparison.Ordinal);
 
     private static async Task<byte[]> ReadBoundedAsync(HttpContent content, CancellationToken cancellationToken)
     {
