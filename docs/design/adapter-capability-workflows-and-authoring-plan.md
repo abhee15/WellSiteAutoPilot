@@ -114,7 +114,7 @@ The current evidence supports the latest-reported operation. History browsing ne
 
 ### ForeSite Setpoints / Alarms (read-only)
 - Passive saved setpoints: GET `Surveillance/Well/AllSavedSetPointParams?WellId={id}&scanOption=0`, group + element + original/read-only/range + device-specific map. `scanOption=0` is not a live device refresh. No `Send`, UIS command or scan-triggering operation without approved governance.
-- Active alarms: GET `Alarms/CurrentAlarms/{id}`, preserve `StartTime`, suppressed and deviation flags; no unverified auto-clear/write semantics. Active status and old event age can coexist.
+- Active alarms: `alarms.active-well` v1 reads GET `Alarms/CurrentAlarms/{id}` through the Server-authorized Gateway. It preserves alarm and type identity, start time and source offset, numeric/text values, and the provider's nullable deviation and manual-suppression flags. Current membership comes from the provider query, and old or suppressed records can appear in that result. The read rejects wrong-well rows and replies over 64 records. CI covers the recorded response shape with the Provider Simulator. This operation supports inspection; alarm writes and module bindings are outside this slice.
 
 ### CygNet Current / Catalog / Historian / Alarms
 - The PNT catalog uses `GetPointTagList` and point records for facility-scoped UDC, unit and description. The Gateway checks the requested site.service and facility; record lookup uses that facility. Data-type projection needs provider evidence. CygNet has no ForeSite-style `AvailableQuantities`. A point catalog entry alone is not grant to execute arbitrary `cygnet.udc.*` operations; introduce constrained namespaced allowlists and authorization/mapping policy.
