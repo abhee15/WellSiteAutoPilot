@@ -51,3 +51,17 @@ PR #127 completed the coordinated enterprise RBAC runtime integration and
 merged as d23ef0d after seven passing checks. The next agreed Phase 1 priority
 is the real Windows browser diagnostic under #92. Enum generation remains
 queued and does not interrupt that investigation.
+
+## Connections and asset discovery — agreed simple-first scope, 2026-10-20
+
+The owner agreed that Connections is the next foundation after authentication is completed and validated. Consolidated [design](../architecture/connections-and-asset-discovery.md) and [high-level implementation plan](connections-implementation-plan.md) supersede earlier broad installer/plugin proposals.
+
+- Connections are runtime configuration for independently installed providers.
+- Maintain each adapter in its own project inside the AutoPilot repository; explicitly register, test and release supported adapters with AutoPilot initially.
+- Deliver cohesive slices: saved connections and authorized simulator use; real read-only ForeSite validation; discovery/preview/apply; configured Shadow logic usage; then additional concrete capabilities/providers.
+- Use documented tested support profiles and targeted checks. Do not assume ForeSite/WAMI versioned contracts, automatic release detection or a compatibility graph.
+- Retain protected configuration, credentials, stable IDs, concurrency/audit, exact-Asset and Gateway authorization, and simple referenced-connection protection. No general dependency or plugin engine is required.
+- Keep the boundary extensible, but defer a public SDK, independent adapter distribution and external hosting until real adapter experience and a concrete need justify them.
+- CygNet per-person attribution/enforcement and unattended execution identity remain unresolved before writes; read-only Connections do not silently settle that requirement.
+
+PR #205 remains draft and unmerged until explicit owner approval. This documentation plan does not interrupt authentication work or claim implementation.
