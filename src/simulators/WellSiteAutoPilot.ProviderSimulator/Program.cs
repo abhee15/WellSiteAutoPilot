@@ -282,6 +282,24 @@ app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContex
         new System.Text.Json.JsonSerializerOptions());
 });
 
+// Stored, synthetic surface-card series. These GETs never trigger a scan or command.
+app.MapGet("/foresite/Dynacards/Dynacard/LatestWithUnits/Lib/{wellId:long}/{type:int}",
+    (long wellId, int type, HttpContext context) =>
+    {
+        if (!HasForeSiteSession(context)) return Results.Unauthorized();
+        if (wellId is not (101 or 102) || type is not (1 or 2)) return Results.NotFound();
+        var points = type == 1 ? ForeSiteSurfaceCardFixtures.Current : ForeSiteSurfaceCardFixtures.Full;
+        return Results.Json(new
+        {
+            Value = new
+            {
+                Timestamp = DateTimeOffset.UtcNow.AddMinutes(-type),
+                SurfaceCards = wellId == 102 ? [] : new[] { new { Points = points } }
+            },
+            Units = new { Position = new { UnitKey = "in" }, Load = new { UnitKey = "lb" } }
+        }, new System.Text.Json.JsonSerializerOptions());
+    });
+
 // Synthetic daily rows with the recorded production-day boundary shape.
 app.MapGet("/foresite/Surveillance/Well/DailyAverage/{wellId:long}/{start}/{end}",
     (long wellId, DateTimeOffset start, DateTimeOffset end, HttpContext context, SimulatorState state) =>
@@ -333,3 +351,9 @@ app.Run();
 public partial class Program;
 
 internal sealed record ForeSiteDiscoveryFilter(long[]? AssetIds);
+
+internal static class ForeSiteSurfaceCardFixtures
+{
+    public static readonly int[][] Current = [[0, 2200], [5, 3100], [12, 3600], [10, 2700], [2, 1950], [0, 2200]];
+    public static readonly int[][] Full = [[0, 2500], [5, 4200], [12, 4400], [10, 2700], [2, 2050], [0, 2500]];
+}

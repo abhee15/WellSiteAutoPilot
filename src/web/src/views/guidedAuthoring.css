@@ -100,3 +100,16 @@
     padding-inline-start: 0;
   }
 }
+
+.guided-surface-card {
+  margin: 0;
+}
+
+.guided-surface-card canvas {
+  display: block;
+  width: 100%;
+  max-width: var(--layout-form-wide);
+  height: auto;
+  border: var(--border-width-thin) solid var(--color-border-control);
+  color: var(--color-text-link);
+}

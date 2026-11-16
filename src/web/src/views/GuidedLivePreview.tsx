@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   previewGuidedModuleInputHistory,
   previewGuidedModuleProductionDays,
+  previewGuidedModuleSurfaceCards,
   previewGuidedModuleWithLiveInputs,
 } from '../api/generated/v1/sdk.gen';
 import type {
   GuidedHistoryPreviewResponse,
   GuidedLivePreviewResponse,
   GuidedProductionDaysPreviewResponse,
+  GuidedSurfaceCardsPreviewResponse,
 } from '../api/generated/v1/types.gen';
 import { ActionButton } from '../components/ActionButton';
 import { SelectField, TextField } from '../components/FormFields';
@@ -15,7 +17,15 @@ import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import { outcomeLabel } from '../words';
+import { GuidedSurfaceCardsPreview } from './GuidedSurfaceCardsPreview';
 import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi';
+
+type WellPreview =
+  | { kind: 'current'; data: GuidedLivePreviewResponse }
+  | { kind: 'history'; data: GuidedHistoryPreviewResponse }
+  | { kind: 'productionDays'; data: GuidedProductionDaysPreviewResponse }
+  | { kind: 'surfaceCards'; data: GuidedSurfaceCardsPreviewResponse }
+  | { kind: 'unsupported'; preview: 'productionDays' | 'surfaceCards' };
 
 export function GuidedLivePreview({
   draftId,
@@ -28,16 +38,12 @@ export function GuidedLivePreview({
 }) {
   const [inputId, setInputId] = useState(inputs[0]?.id ?? '');
   const [hours, setHours] = useState('4');
-  const [history, setHistory] = useState<GuidedHistoryPreviewResponse | null>(null);
-  const [productionDays, setProductionDays] = useState<GuidedProductionDaysPreviewResponse | 'unsupported' | null>(
-    null,
-  );
+  const [wellPreview, setWellPreview] = useState<WellPreview | null>(null);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState<SearchHit[] | null>(null);
   const [more, setMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [assetId, setAssetId] = useState('');
-  const [result, setResult] = useState<GuidedLivePreviewResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const operation = useRef<AbortController | null>(null);
@@ -50,9 +56,7 @@ export function GuidedLivePreview({
     setFailed(false);
     setMatches(null);
     setAssetId('');
-    setResult(null);
-    setHistory(null);
-    setProductionDays(null);
+    setWellPreview(null);
     try {
       const page = await fetchSearch(query.trim(), pageOffset, controller.signal);
       if (controller.signal.aborted) return;
@@ -71,9 +75,7 @@ export function GuidedLivePreview({
     operation.current = controller;
     setBusy(true);
     setFailed(false);
-    setResult(null);
-    setHistory(null);
-    setProductionDays(null);
+    setWellPreview(null);
     try {
       const { data } = await previewGuidedModuleWithLiveInputs({
         path: { id: draftId },
@@ -82,7 +84,7 @@ export function GuidedLivePreview({
       });
       if (controller.signal.aborted) return;
       if (!data) throw new Error();
-      setResult(data);
+      setWellPreview({ kind: 'current', data });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -95,9 +97,7 @@ export function GuidedLivePreview({
     operation.current = controller;
     setBusy(true);
     setFailed(false);
-    setHistory(null);
-    setProductionDays(null);
-    setResult(null);
+    setWellPreview(null);
     const end = Math.floor(Date.now() / 1000) * 1000;
     try {
       const { data } = await previewGuidedModuleInputHistory({
@@ -114,7 +114,7 @@ export function GuidedLivePreview({
       });
       if (controller.signal.aborted) return;
       if (!data) throw new Error();
-      setHistory(data);
+      setWellPreview({ kind: 'history', data });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
@@ -127,9 +127,7 @@ export function GuidedLivePreview({
     operation.current = controller;
     setBusy(true);
     setFailed(false);
-    setHistory(null);
-    setResult(null);
-    setProductionDays(null);
+    setWellPreview(null);
     const end = Math.floor(Date.now() / 1000) * 1000;
     try {
       const { data, error } = await previewGuidedModuleProductionDays({
@@ -149,17 +147,47 @@ export function GuidedLivePreview({
         'code' in error &&
         error.code === 'GUIDED_PRODUCTION_DAYS_UNSUPPORTED'
       ) {
-        setProductionDays('unsupported');
+        setWellPreview({ kind: 'unsupported', preview: 'productionDays' });
         return;
       }
       if (!data) throw new Error();
-      setProductionDays(data);
+      setWellPreview({ kind: 'productionDays', data });
     } catch {
       if (!controller.signal.aborted) setFailed(true);
     } finally {
       if (!controller.signal.aborted) setBusy(false);
     }
   }
+
+  async function previewSurfaceCards() {
+    const controller = new AbortController();
+    operation.current = controller;
+    setBusy(true);
+    setFailed(false);
+    setWellPreview(null);
+    try {
+      const { data, error } = await previewGuidedModuleSurfaceCards({
+        path: { id: draftId },
+        body: { expectedRevision: revision, assetId },
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'GUIDED_SURFACE_CARDS_UNSUPPORTED') {
+        setWellPreview({ kind: 'unsupported', preview: 'surfaceCards' });
+        return;
+      }
+      if (!data) throw new Error();
+      setWellPreview({ kind: 'surfaceCards', data });
+    } catch {
+      if (!controller.signal.aborted) setFailed(true);
+    } finally {
+      if (!controller.signal.aborted) setBusy(false);
+    }
+  }
+
+  const history = wellPreview?.kind === 'history' ? wellPreview.data : null;
+  const result = wellPreview?.kind === 'current' ? wellPreview.data : null;
+  const productionDays = wellPreview?.kind === 'productionDays' ? wellPreview.data : null;
 
   return (
     <details>
@@ -182,9 +210,7 @@ export function GuidedLivePreview({
               setQuery(event.target.value);
               setMatches(null);
               setAssetId('');
-              setResult(null);
-              setHistory(null);
-              setProductionDays(null);
+              setWellPreview(null);
               setFailed(false);
             }}
           />
@@ -199,9 +225,7 @@ export function GuidedLivePreview({
                 disabled={busy}
                 onChange={(event) => {
                   setAssetId(event.target.value);
-                  setResult(null);
-                  setHistory(null);
-                  setProductionDays(null);
+                  setWellPreview(null);
                   setFailed(false);
                 }}
               >
@@ -249,7 +273,7 @@ export function GuidedLivePreview({
               disabled={busy}
               onChange={(event) => {
                 setInputId(event.target.value);
-                setHistory(null);
+                if (wellPreview?.kind === 'history') setWellPreview(null);
               }}
             >
               {inputs.map((input) => (
@@ -264,7 +288,7 @@ export function GuidedLivePreview({
               disabled={busy}
               onChange={(event) => {
                 setHours(event.target.value);
-                setHistory(null);
+                if (wellPreview?.kind === 'history') setWellPreview(null);
               }}
             >
               <option value="1">{t('guided.historyOneHour')}</option>
@@ -298,39 +322,48 @@ export function GuidedLivePreview({
           </div>
         )}
         {assetId && (
-          <div>
+          <div className="guided-authoring-actions">
             <ActionButton
               label={t('guided.readProductionDays')}
               disabled={busy}
               onClick={() => void previewProductionDays()}
             />
+            <ActionButton
+              label={t('guided.readSurfaceCards')}
+              disabled={busy}
+              onClick={() => void previewSurfaceCards()}
+            />
           </div>
         )}
-        {productionDays === 'unsupported' ? (
-          <Notice tone="info">{t('guided.productionDaysUnsupported')}</Notice>
-        ) : (
-          productionDays && (
-            <div aria-live="polite">
-              <p>{t('guided.productionDaysTitle')}</p>
-              {productionDays.days?.length ? (
-                <ul>
-                  {productionDays.days.map((day) => (
-                    <li key={day.start}>
-                      <time dateTime={day.start}>{day.start}</time> – <time dateTime={day.end}>{day.end}</time>
-                      {' · '}
-                      {day.value == null ? t('guided.unavailable') : day.value + ' ' + (productionDays.unit ?? '')}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>{t('guided.productionDaysEmpty')}</p>
-              )}
-              <p>
-                {t('guided.productionDaysRetrieved')} {formatTimestamp(productionDays.retrievedAtUtc)}
-              </p>
-            </div>
-          )
+        {productionDays && (
+          <div aria-live="polite">
+            <p>{t('guided.productionDaysTitle')}</p>
+            {productionDays.days?.length ? (
+              <ul>
+                {productionDays.days.map((day) => (
+                  <li key={day.start}>
+                    <time dateTime={day.start}>{day.start}</time> – <time dateTime={day.end}>{day.end}</time>
+                    {' · '}
+                    {day.value == null ? t('guided.unavailable') : day.value + ' ' + (productionDays.unit ?? '')}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>{t('guided.productionDaysEmpty')}</p>
+            )}
+            <p>
+              {t('guided.previewRetrieved')} {formatTimestamp(productionDays.retrievedAtUtc)}
+            </p>
+          </div>
         )}
+        {wellPreview?.kind === 'unsupported' && (
+          <Notice tone="info">
+            {wellPreview.preview === 'productionDays'
+              ? t('guided.productionDaysUnsupported')
+              : t('guided.surfaceCardsUnsupported')}
+          </Notice>
+        )}
+        {wellPreview?.kind === 'surfaceCards' && <GuidedSurfaceCardsPreview preview={wellPreview.data} />}
         {failed && <Notice tone="error">{t('guided.liveError')}</Notice>}
         {result && (
           <Notice tone={result.failureCode ? 'warning' : 'info'}>

@@ -7,11 +7,9 @@ namespace WellSiteAutoPilot.Integration.ForeSite;
 /// <summary>Stored surface-card library reads; never initiates a controller scan.</summary>
 public static class ForeSiteCards
 {
-    public const string Quantity = "SurfaceCards";
-    public const string SchemaId = "foresite.surface-cards/v1";
+    public const string Quantity = ForeSiteSurfaceCard.Quantity;
+    public const string SchemaId = ForeSiteSurfaceCard.SchemaId;
     private static readonly (int Type, string Kind)[] Kinds = [(1, "CURRENT"), (2, "FULL")];
-    private const int MaximumCards = 16;
-    private const int MaximumPoints = 1024;
 
     public static async Task<EngineeringValue> ReadAsync(ForeSiteSession session, string externalId,
         CancellationToken cancellationToken)
@@ -19,7 +17,7 @@ public static class ForeSiteCards
         ArgumentNullException.ThrowIfNull(session);
         if (!long.TryParse(externalId, NumberStyles.None, CultureInfo.InvariantCulture, out var wellId) || wellId <= 0)
             throw Failure("FORESITE_WELL_ID_INVALID");
-        var cards = new List<object>();
+        var cards = new List<ForeSiteSurfaceCard>();
         DateTimeOffset? oldest = null;
         foreach (var (type, kind) in Kinds)
         {
@@ -50,9 +48,9 @@ public static class ForeSiteCards
                 var index = 0;
                 foreach (var card in surface.EnumerateArray())
                 {
-                    if (cards.Count >= MaximumCards) throw Failure("FORESITE_PAYLOAD_TOO_LARGE");
+                    if (cards.Count >= ForeSiteSurfaceCard.MaximumCards) throw Failure("FORESITE_PAYLOAD_TOO_LARGE");
                     if (card.ValueKind != JsonValueKind.Object || !card.TryGetProperty("Points", out var points) ||
-                        points.ValueKind != JsonValueKind.Array || points.GetArrayLength() is < 2 or > MaximumPoints)
+                        points.ValueKind != JsonValueKind.Array || points.GetArrayLength() is < 2 or > ForeSiteSurfaceCard.MaximumPoints)
                         throw Failure("FORESITE_CARD_POINTS_INVALID");
                     var position = new List<decimal>();
                     var load = new List<decimal>();
@@ -66,19 +64,16 @@ public static class ForeSiteCards
                             throw Failure("FORESITE_CARD_POINTS_INVALID");
                         position.Add(x); load.Add(y);
                     }
-                    cards.Add(new
-                    {
-                        id = $"{kind}-{captured:yyyyMMddTHHmmssfffffffZ}-{index++}", kind, representation = "SURFACE",
-                        capturedAtUtc = captured.ToString("O", CultureInfo.InvariantCulture),
-                        source = "foresite:dynacard-library", positionUnit, loadUnit, position, load
-                    });
+                    cards.Add(new($"{kind}-{captured:yyyyMMddTHHmmssfffffffZ}-{index++}", kind, "SURFACE",
+                        captured.ToString("O", CultureInfo.InvariantCulture),
+                        "foresite:dynacard-library", positionUnit, loadUnit, position, load));
                 }
                 if (oldest is null || captured < oldest) oldest = captured;
             }
             catch (JsonException) { throw Failure("FORESITE_RESPONSE_INVALID"); }
         }
         if (cards.Count == 0 || oldest is null) throw Failure("FORESITE_MEASUREMENT_MISSING");
-        var data = JsonSerializer.SerializeToElement(cards);
+        var data = JsonSerializer.SerializeToElement(cards, JsonSerializerOptions.Web);
         if (System.Text.Encoding.UTF8.GetByteCount(data.GetRawText()) > MeasurementPayloadLimits.MaximumValueBytes)
             throw Failure("FORESITE_PAYLOAD_TOO_LARGE");
         // Library availability supplies no quality code. The host's existing policy rejects Unknown.

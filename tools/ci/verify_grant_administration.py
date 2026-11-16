@@ -702,6 +702,22 @@ finally:
     foresite_scenario("rod-pump-normal")
 
 
+# Stored cards retain the paired arrays, source capture times and Unknown quality.
+cards_url = "/guided-module-drafts/" + live_draft["id"] + "/surface-cards-preview"
+request("POST", cards_url, None, live_body, expected=401)
+request("POST", cards_url, ADMIN, live_body, expected=404)
+request("POST", cards_url, OTHER, dict(live_body, assetId=other_alpha["id"]), expected=404)
+request("POST", cards_url, OTHER, dict(live_body, expectedRevision=2), expected=409)
+card_preview = request("POST", cards_url, OTHER, live_body)
+assert card_preview["quality"] == "Unknown" and card_preview["retrievedAtUtc"], card_preview
+assert [card["kind"] for card in card_preview["cards"]] == ["CURRENT", "FULL"], card_preview
+for card in card_preview["cards"]:
+    assert card["position"] == [0, 5, 12, 10, 2, 0] and len(card["load"]) == 6, card
+    assert card["positionUnit"] == "in" and card["loadUnit"] == "lb" and card["capturedAtUtc"], card
+    assert not {"source", "externalId", "settings"}.intersection(card), card
+empty_cards = request("POST", cards_url, OTHER, dict(live_body, assetId=alpha2["id"]))
+assert empty_cards == {"quality": None, "retrievedAtUtc": None, "cards": []}, empty_cards
+
 visible_view = request("GET", "/asset-views/" + view["id"], OTHER)
 assert visible_view["memberCount"] == 2 and not visible_view["canEdit"] and not visible_view["canDelete"], visible_view
 assert view["id"] in {item["id"] for item in request("GET", "/asset-views", OTHER)}
@@ -720,6 +736,7 @@ retire(other["userId"], well_access)
 request("POST", live_url, OTHER, live_body, expected=404)
 request("POST", history_url, OTHER, history_body, expected=404)
 request("POST", production_url, OTHER, production_body, expected=404)
+request("POST", cards_url, OTHER, live_body, expected=404)
 request("GET", operation_url(alpha["id"]), OTHER, expected=404)
 partial_access = grant(other["userId"], well_reader, "ExactAssets", [alpha["id"]])
 request("GET", operation_url(alpha2["id"]), OTHER, expected=404)
@@ -733,6 +750,7 @@ retire(other["userId"], connection_access)
 request("POST", live_url, OTHER, live_body, expected=403)
 request("POST", history_url, OTHER, history_body, expected=403)
 request("POST", production_url, OTHER, production_body, expected=403)
+request("POST", cards_url, OTHER, live_body, expected=403)
 retire(other["userId"], live_author)
 request("GET", operation_url(alpha["id"]), OTHER, expected=403)
 for suffix in ["", "/members", "/selection"]:
