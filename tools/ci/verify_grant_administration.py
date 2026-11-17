@@ -711,6 +711,34 @@ try:
 finally:
     foresite_scenario("rod-pump-normal")
 
+# Discovery probes only registered reads for the saved draft's authorized imported well.
+quantity_url = "/guided-module-drafts/" + live_draft["id"] + "/quantity-discovery"
+trend_body = dict(live_body, capability="WellTrend", startUtc=history_body["startUtc"], endUtc=history_body["endUtc"])
+request("POST", quantity_url, None, trend_body, expected=401)
+request("POST", quantity_url, ADMIN, trend_body, expected=404)
+request("POST", quantity_url, OTHER, dict(trend_body, assetId=other_alpha["id"]), expected=404)
+request("POST", quantity_url, OTHER, dict(trend_body, expectedRevision=2), expected=409)
+request("POST", quantity_url, OTHER, dict(trend_body, capability="Unknown"), expected=400)
+request("POST", quantity_url, OTHER, dict(trend_body, endUtc=trend_body["startUtc"]), expected=400)
+trend_quantities = request("POST", quantity_url, OTHER, trend_body)
+assert trend_quantities["supported"], trend_quantities
+assert {(row["quantity"], row["unit"], row["status"]) for row in trend_quantities["quantities"]} == {
+    ("PumpFillage", "%", "Observed"), ("SPM", "SPM", "Observed")}, trend_quantities
+daily_body = dict(live_body, capability="DailyAverages", startUtc="2026-11-01T00:00:00Z", endUtc="2026-11-03T06:00:00Z")
+daily_quantities = request("POST", quantity_url, OTHER, daily_body)
+assert daily_quantities == {"supported": True, "quantities": [
+    {"quantity": "TotalFluidRateInferred", "unit": "STB/d", "status": "Observed"}]}, daily_quantities
+wrong_well = request("POST", quantity_url, OTHER, dict(daily_body, assetId=alpha2["id"]))
+assert wrong_well["quantities"][0]["status"] == "Unavailable", wrong_well
+foresite_scenario("foresite-history-empty")
+try:
+    for body in (trend_body, daily_body):
+        empty_catalog = request("POST", quantity_url, OTHER, body)
+        assert empty_catalog["supported"] and empty_catalog["quantities"], empty_catalog
+        assert all(row["status"] == "NoSamples" for row in empty_catalog["quantities"]), empty_catalog
+finally:
+    foresite_scenario("rod-pump-normal")
+
 # Production days preserve aggregate period offsets and distinguish zero from a missing value.
 production_url = "/guided-module-drafts/" + live_draft["id"] + "/production-days-preview"
 production_body = dict(live_body, startUtc="2026-11-01T00:00:00Z", endUtc="2026-11-03T06:00:00Z")

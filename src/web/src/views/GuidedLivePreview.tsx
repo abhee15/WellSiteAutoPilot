@@ -19,6 +19,7 @@ import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import { outcomeLabel } from '../words';
+import { GuidedQuantityDiscovery } from './GuidedQuantityDiscovery';
 import { GuidedSurfaceCardsPreview } from './GuidedSurfaceCardsPreview';
 import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi';
 
@@ -367,6 +368,9 @@ export function GuidedLivePreview({
           (compatibility?.kind === 'result' &&
             compatibility.inputs.some((input) => input.status === 'Unavailable'))) && (
           <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkWell(assetId)} />
+        )}
+        {assetId && (
+          <GuidedQuantityDiscovery key={`${draftId}:${revision}:${assetId}`} {...{ draftId, revision, assetId }} />
         )}
         <div>
           <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />

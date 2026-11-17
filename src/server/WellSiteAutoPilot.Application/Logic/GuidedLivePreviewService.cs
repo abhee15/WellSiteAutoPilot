@@ -164,11 +164,18 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                 "The selected connection does not support this input or history window.");
 
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
-        var request = new HistoricalReadRequest(initial.Binding.ExternalId, input.Quantity, startUtc.ToUniversalTime(),
+        var result = await ReadHistoryOperationAsync(initial, operation, input.Quantity, startUtc, endUtc, maximumSamples, cancellationToken);
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        return result;
+    }
+
+    private async Task<HistoricalReadResult> ReadHistoryOperationAsync(PreviewSource initial, AdapterOperationDescriptor operation,
+        string quantity, DateTimeOffset startUtc, DateTimeOffset endUtc, int maximumSamples, CancellationToken cancellationToken)
+    {
+        var request = new HistoricalReadRequest(initial.Binding.ExternalId, quantity, startUtc.ToUniversalTime(),
             endUtc.ToUniversalTime(), maximumSamples);
         HistoricalReadLimits.Validate(request);
         var result = await history.ReadAsync(initial.Connection, operation, request, cancellationToken);
-        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
         if (result.Quantity != request.Quantity || result.StartUtc != request.StartUtc || result.EndUtc != request.EndUtc ||
             result.Aggregation != "Raw" || result.Samples.Count > maximumSamples ||
             result.Samples.Any(sample => sample.Quantity != request.Quantity || sample.TimestampUtc < request.StartUtc ||
@@ -202,12 +209,19 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                 "The selected connection does not support this production-day preview.");
 
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        var result = await ReadDailyOperationAsync(initial, operation, startUtc, endUtc, maximum, cancellationToken);
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        return result;
+    }
+
+    private async Task<ForeSiteDailyAverageResult> ReadDailyOperationAsync(PreviewSource initial, AdapterOperationDescriptor operation,
+        DateTimeOffset startUtc, DateTimeOffset endUtc, int maximum, CancellationToken cancellationToken)
+    {
         const string utcFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'";
         var request = new ForeSiteDailyAverageRequest(initial.Binding.ExternalId,
             startUtc.UtcDateTime.ToString(utcFormat, CultureInfo.InvariantCulture),
             endUtc.UtcDateTime.ToString(utcFormat, CultureInfo.InvariantCulture));
         var result = await history.ReadProductionDaysAsync(initial.Connection, operation, request, cancellationToken);
-        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
         if (result.AssetExternalId != initial.Binding.ExternalId || result.Quantity != ForeSiteDailyAverageContract.Quantity ||
             result.StartUtc != startUtc || result.EndUtc != endUtc || result.RetrievedAtUtc == default ||
             result.Days is null || result.Days.Count > maximum ||
@@ -216,6 +230,69 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
             throw new WellSiteAutoPilotException("GUIDED_PRODUCTION_DAYS_RESPONSE_INVALID", FailureKind.DependencyUnavailable,
                 "The production-day response did not match the requested asset and window.");
         return result;
+    }
+
+    public async Task<GuidedQuantityDiscovery> DiscoverHistoryQuantitiesAsync(Guid draftId, int expectedRevision,
+        Guid assetId, string capability, DateTimeOffset startUtc, DateTimeOffset endUtc, AccessSubject subject,
+        CancellationToken cancellationToken = default)
+    {
+        if (capability is not ("DailyAverages" or "WellTrend") || !IsValidWindow(startUtc, endUtc))
+            throw new WellSiteAutoPilotException("GUIDED_QUANTITY_DISCOVERY_REQUEST_INVALID", FailureKind.Validation,
+                "Choose a supported quantity source and an ordered whole-second window.");
+
+        var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
+        draft.RequireRevision(expectedRevision);
+        var initial = await ReadContextAsync(subject, assetId, cancellationToken);
+        await RequireMatchingAssetAsync(draft.Content.Manifest, initial, subject, cancellationToken);
+        if (draft.Content.Manifest.RequiredAdapterKey is { } requiredAdapter &&
+            !string.Equals(requiredAdapter, initial.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase))
+            return new(false, []);
+
+        var adapter = (await adapters.ListAsync(cancellationToken)).SingleOrDefault(item => item.Key == initial.Connection.AdapterKey);
+        var operations = adapter?.ReadOperations().Where(item =>
+            item.ResourceKind == initial.Binding.ResourceKind &&
+            item.Limits.MaximumWindowDays is { } days && endUtc - startUtc <= TimeSpan.FromDays(days) &&
+            item.Limits.MaximumSamples is > 0 &&
+            (capability == "WellTrend"
+                ? item.CapabilityId == "engineering.history" && item.Quantity is not null
+                : initial.Connection.AdapterKey == "foresite" && item.Key == ForeSiteDailyAverageContract.OperationKey &&
+                  item.ContractVersion == ForeSiteDailyAverageContract.Version)).ToArray() ?? [];
+
+        // Keep provider work bounded even if a later adapter registers a large number of historical reads.
+        const int maximumOperations = 8;
+        if (operations.Length > maximumOperations)
+            throw new WellSiteAutoPilotException("GUIDED_QUANTITY_DISCOVERY_LIMIT", FailureKind.DependencyUnavailable,
+                "This adapter needs a bounded quantity catalog operation.");
+        var quantities = new List<GuidedDiscoveredQuantity>(operations.Length);
+        foreach (var operation in operations)
+        {
+            await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+            try
+            {
+                if (capability == "DailyAverages")
+                {
+                    var daily = await ReadDailyOperationAsync(initial, operation, startUtc, endUtc,
+                        operation.Limits.MaximumSamples!.Value, cancellationToken);
+                    quantities.Add(new(daily.Quantity, daily.Unit, daily.Days.Any(day => day.Value is not null)
+                        ? "Observed" : "NoSamples"));
+                }
+                else
+                {
+                    var trend = await ReadHistoryOperationAsync(initial, operation, operation.Quantity!, startUtc, endUtc, 1, cancellationToken);
+                    quantities.Add(trend.Samples.Count > 0
+                        ? new(trend.Quantity, trend.Samples[0].Unit, "Observed")
+                        : new(trend.Quantity, null, "NoSamples"));
+                }
+            }
+            catch (WellSiteAutoPilotException exception) when (exception.Kind is FailureKind.DependencyUnavailable or FailureKind.DependencyTimeout)
+            {
+                quantities.Add(new(capability == "DailyAverages" ? ForeSiteDailyAverageContract.Quantity : operation.Quantity!,
+                    null, "Unavailable"));
+            }
+        }
+
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        return new(operations.Length > 0, quantities);
     }
 
     public async Task<GuidedSurfaceCards> ReadSurfaceCardsAsync(Guid draftId, int expectedRevision, Guid assetId,
@@ -334,6 +411,9 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
     private static WellSiteAutoPilotException SourceUnavailable() => new("GUIDED_LIVE_SOURCE_UNAVAILABLE",
         FailureKind.NotFound, "An active, authorized imported asset with one source is required.");
 }
+
+public sealed record GuidedQuantityDiscovery(bool Supported, IReadOnlyList<GuidedDiscoveredQuantity> Quantities);
+public sealed record GuidedDiscoveredQuantity(string Quantity, string? Unit, string Status);
 
 public sealed record GuidedInputCompatibility(string InputId, string Quantity, string Status, string? ReasonCode);
 
