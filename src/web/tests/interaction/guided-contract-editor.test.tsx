@@ -64,7 +64,7 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
   vi.mocked(createGuidedModuleDraft).mockImplementation((async ({ body }: { body: { manifestJson: string } }) => ({
     data: { id: 'contract-1', revision: 1, manifestJson: body.manifestJson },
   })) as never);
-  render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
+  render(<GuidedAuthoringPage canAuthor canPreviewLive canReview={false} canApprove={false} onRefresh={async () => {}} />);
   startContract();
 
   // No logic exists, so no preview, sample-case or submit affordance is offered.
@@ -139,6 +139,11 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
     { quantity: 'PeakLoad', valueSchema: { schema: { type: 'string' } } },
   ]);
   expect(submitGuidedModuleDraft).not.toHaveBeenCalled();
+
+  // Sample-asset inspection is available for the saved revision, but nothing can be run because there is no logic.
+  fireEvent.click(screen.getByText('Preview with a sample asset'));
+  expect(screen.getByLabelText('Asset name or ID')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Run live preview' })).toBeNull();
 
   // After saving, the IDE shows the saved contract read-only and the draft is no longer dirty.
   fireEvent.click(screen.getByRole('tab', { name: 'IDE' }));

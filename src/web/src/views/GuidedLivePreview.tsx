@@ -49,7 +49,10 @@ export function GuidedLivePreview({
   draftId,
   revision,
   inputs = [],
+  canRun = true,
 }: {
+  /** False for a draft with no logic: inspection and compatibility stay available, running does not. */
+  canRun?: boolean;
   draftId: string;
   revision: number;
   inputs?: readonly { id: string; quantity: string }[];
@@ -363,7 +366,9 @@ export function GuidedLivePreview({
             compatibility.inputs.some((input) => input.status === 'Unavailable'))) && (
           <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkAsset(assetId)} />
         )}
-        <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />
+        {canRun && (
+          <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />
+        )}
         {assetId && (
           <GuidedQuantityDiscovery
             key={`${draftId}:${revision}:${assetId}`}

@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using WellSiteAutoPilot.Application.Logic;
 using WellSiteAutoPilot.Domain.Logic;
 using WellSiteAutoPilot.Failures;
+using WellSiteAutoPilot.Integration.Contracts.Providers;
 
 namespace WellSiteAutoPilot.ExecutionContractV2Tests;
 
@@ -106,6 +107,21 @@ internal static class GuidedContractDraftChecks
 
         // No logic exists, so preparing a submission is an explicit unavailable state, never a passing test.
         await RejectAsync(() => draft.PrepareSubmissionAsync(1, []), "GUIDED_DRAFT_LOGIC_UNSUPPORTED");
+
+        // A V2 scalar declaration is recognised for authoring-time checks only; assignment rules stay strict until the worker runs it.
+        var foresite = AdapterReadRules.Find("foresite")!;
+        var cygnet = AdapterReadRules.Find("cygnet")!;
+        Assert(foresite.AllowsScalarCurrentDeclaration("PumpFillage", "engineering.current", "number") &&
+            cygnet.AllowsScalarCurrentDeclaration("CasingPressure", "engineering.current", "number"),
+            "A registered scalar current quantity was not recognised for authoring.");
+        Assert(!foresite.AllowsScalarCurrentDeclaration("CasingPressure", "engineering.current", "number") &&
+            !foresite.AllowsScalarCurrentDeclaration("PumpFillage", "structured.current", "number") &&
+            !foresite.AllowsScalarCurrentDeclaration("PumpFillage", "engineering.current", "string") &&
+            !foresite.AllowsScalarCurrentDeclaration("SurfaceCards", "engineering.current", "number") &&
+            !foresite.AllowsScalarCurrentDeclaration(null, "engineering.current", "number"),
+            "An unregistered, wrong-capability, wrong-type or structured quantity was accepted for authoring.");
+        Assert(!foresite.AllowsCurrentRead("PumpFillage", "engineering.current", "authoring.input-1.number/v1"),
+            "Assignment-time read rules must not accept V2 scalar declarations before the worker can run them.");
 
         Console.WriteLine("Contract-only guided drafts passed typed round trip, validation, fencing and unsupported-execution checks.");
     }

@@ -125,10 +125,17 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
     }
 
     private static bool SupportsCurrentInput(LogicModuleManifest manifest, PreviewSource source, LogicDataRequirement input) =>
-        input.Access == "Current" && input.ValueSchema is null &&
+        input.Access == "Current" &&
         (manifest.RequiredAdapterKey is null || string.Equals(manifest.RequiredAdapterKey, source.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase)) &&
         AdapterReadRules.Find(source.Connection.AdapterKey) is { } rule && source.Binding.ResourceKind == rule.ResourceKind &&
-        rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, null);
+        (input.ValueSchema is null
+            ? rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, null)
+            : rule.AllowsScalarCurrentDeclaration(input.Quantity, input.RequiredCapability, RootType(input.ValueSchema)));
+
+    private static string? RootType(LogicValueSchema schema) =>
+        schema.Schema.ValueKind == JsonValueKind.Object &&
+        schema.Schema.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
+            ? type.GetString() : null;
 
     private Task<EngineeringValue> ReadCurrentAsync(PreviewSource source, string quantity, CancellationToken cancellationToken) =>
         gateway.GetCurrentAsync(new(source.Connection.AdapterKey, source.Connection.Id, source.Connection.Revision,

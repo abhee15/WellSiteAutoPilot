@@ -314,9 +314,7 @@ export function GuidedAuthoringPage({
   const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary) || contractChanged;
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
-  const showLivePreview = Boolean(
-    canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly && !contractOnly,
-  );
+  const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly);
   const activeSection =
     editorSection === 'live' && !showLivePreview ? (inspectOnly ? 'module' : 'rule') : editorSection;
 
@@ -595,7 +593,7 @@ export function GuidedAuthoringPage({
                 </nav>
               )}
               <div className="guided-authoring-main">
-                <section id={moduleSectionId} hidden={view === 'ide' && activeSection !== 'module'}>
+                <section id={moduleSectionId} hidden={view === 'ide' && !contractOnly && activeSection !== 'module'}>
                   {!inspectOnly && (
                     <>
                       <PanelHeader title={t('guided.moduleDetails')} level={3} />
@@ -659,11 +657,12 @@ export function GuidedAuthoringPage({
                   </section>
                 )}
                 {showLivePreview && draft?.id && draft.revision && (
-                  <div id={liveSectionId} hidden={view === 'ide' && activeSection !== 'live'}>
+                  <div id={liveSectionId} hidden={view === 'ide' && !contractOnly && activeSection !== 'live'}>
                     <GuidedLivePreview
                       key={draft.id + '/' + draft.revision}
                       draftId={draft.id}
                       revision={draft.revision}
+                      canRun={!contractOnly}
                       inputs={
                         draft.manifestJson
                           ? (
