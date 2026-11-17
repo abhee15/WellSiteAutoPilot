@@ -1373,6 +1373,18 @@ v1.MapPost("/guided-module-drafts/{id:guid}/surface-cards-preview",
     .WithName("PreviewGuidedModuleSurfaceCards").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedSurfaceCardsPreviewResponse>();
 
+v1.MapPost("/guided-module-drafts/{id:guid}/asset-compatibility",
+    async (Guid id, GuidedLivePreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var inputs = await preview.CheckCompatibilityAsync(id, request.ExpectedRevision, request.AssetId,
+            access.Subject, cancellationToken);
+        return new GuidedAssetCompatibilityResponse(inputs.Select(item => new GuidedInputCompatibilityResponse(
+            item.InputId, item.Quantity, item.Status, item.ReasonCode)).ToArray());
+    })
+    .WithName("CheckGuidedModuleAssetCompatibility").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedAssetCompatibilityResponse>();
+
 v1.MapPost("/guided-module-drafts/{id:guid}/live-preview",
     async (Guid id, GuidedLivePreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
         HttpContext context, CancellationToken cancellationToken) =>
