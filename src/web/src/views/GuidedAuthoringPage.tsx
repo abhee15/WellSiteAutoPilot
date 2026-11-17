@@ -392,9 +392,11 @@ export function GuidedAuthoringPage({
   return (
     <section className="panel guided-authoring">
       <PanelHeader
-        title={t(
-          showReviewQueue ? 'guided.pendingReviews' : canReview && !canAuthor ? 'guided.reviewsTab' : 'guided.newModule',
-        )}
+        title={
+          canAuthor && draft
+            ? name.trim() || t('guided.newModule')
+            : t(showReviewQueue ? 'guided.pendingReviews' : canReview && !canAuthor ? 'guided.reviewsTab' : 'guided.newModule')
+        }
       />
       {error && <Notice tone="error">{t('guided.error')}</Notice>}
       {notice && <Notice tone="success">{t(notice)}</Notice>}
@@ -403,7 +405,7 @@ export function GuidedAuthoringPage({
           <div className="guided-authoring-editor">
             <div className="guided-authoring-entry">
               <details className="guided-authoring-starters" ref={starterChooser}>
-                <summary>{t('guided.newModule')}</summary>
+                <summary className="ui-action-button secondary-button">{t('guided.newModule')}</summary>
                 <div className="guided-authoring-actions">
                   <ActionButton
                     label={t('guided.new')}
