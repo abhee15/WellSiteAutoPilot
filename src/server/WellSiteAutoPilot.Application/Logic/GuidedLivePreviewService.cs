@@ -232,11 +232,14 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         return result;
     }
 
-    public async Task<GuidedQuantityDiscovery> DiscoverHistoryQuantitiesAsync(Guid draftId, int expectedRevision,
-        Guid assetId, string capability, DateTimeOffset startUtc, DateTimeOffset endUtc, AccessSubject subject,
+    public async Task<GuidedQuantityDiscovery> DiscoverQuantitiesAsync(Guid draftId, int expectedRevision,
+        Guid assetId, string capability, DateTimeOffset? startUtc, DateTimeOffset? endUtc, AccessSubject subject,
         CancellationToken cancellationToken = default)
     {
-        if (capability is not ("DailyAverages" or "WellTrend") || !IsValidWindow(startUtc, endUtc))
+        var usesWindow = capability is "DailyAverages" or "WellTrend";
+        if (usesWindow
+            ? startUtc is null || endUtc is null || !IsValidWindow(startUtc.Value, endUtc.Value)
+            : capability is not ("Surveillance" or "WellTest") || startUtc is not null || endUtc is not null)
             throw new WellSiteAutoPilotException("GUIDED_QUANTITY_DISCOVERY_REQUEST_INVALID", FailureKind.Validation,
                 "Choose a supported quantity source and an ordered whole-second window.");
 
@@ -248,7 +251,26 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
             !string.Equals(requiredAdapter, initial.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase))
             return new(false, []);
 
+        if (capability == "Surveillance")
+            return await DiscoverSurveillanceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+
         var adapter = (await adapters.ListAsync(cancellationToken)).SingleOrDefault(item => item.Key == initial.Connection.AdapterKey);
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        if (capability == "WellTest")
+        {
+            var result = await DiscoverWellTestAsync(initial, adapter, cancellationToken);
+            await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+            return result;
+        }
+
+        return await DiscoverWindowQuantitiesAsync(draftId, expectedRevision, assetId, capability,
+            startUtc!.Value, endUtc!.Value, subject, initial, adapter, cancellationToken);
+    }
+
+    private async Task<GuidedQuantityDiscovery> DiscoverWindowQuantitiesAsync(Guid draftId, int expectedRevision,
+        Guid assetId, string capability, DateTimeOffset startUtc, DateTimeOffset endUtc, AccessSubject subject,
+        PreviewSource initial, AdapterDescriptor? adapter, CancellationToken cancellationToken)
+    {
         var operations = adapter?.ReadOperations().Where(item =>
             item.ResourceKind == initial.Binding.ResourceKind &&
             item.Limits.MaximumWindowDays is { } days && endUtc - startUtc <= TimeSpan.FromDays(days) &&
@@ -294,6 +316,70 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
         return new(operations.Length > 0, quantities);
     }
+
+    private async Task<GuidedQuantityDiscovery> DiscoverSurveillanceAsync(Guid draftId, int expectedRevision,
+        Guid assetId, AccessSubject subject, PreviewSource initial, CancellationToken cancellationToken)
+    {
+        if (initial.Connection.AdapterKey != AdapterReadRules.ForeSiteKey ||
+            AdapterReadRules.Find(initial.Connection.AdapterKey) is not { } rule || rule.ResourceKind != initial.Binding.ResourceKind)
+            return new(false, []);
+
+        var quantities = new List<GuidedDiscoveredQuantity>(rule.CurrentQuantities.Count);
+        foreach (var quantity in rule.CurrentQuantities.Order(StringComparer.Ordinal))
+        {
+            await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+            try
+            {
+                var reading = await ReadCurrentAsync(initial, quantity, cancellationToken);
+                quantities.Add(reading.Quantity != quantity || reading.StructuredValue is not null
+                    ? new(quantity, null, "Unavailable")
+                    : reading.Value is null
+                        ? new(quantity, null, "NoReading")
+                        : new(quantity, reading.Unit, "CurrentObserved"));
+            }
+            catch (WellSiteAutoPilotException exception) when (exception.Kind is FailureKind.DependencyUnavailable or FailureKind.DependencyTimeout)
+            {
+                quantities.Add(new(quantity, null, exception.Code == "FORESITE_MEASUREMENT_MISSING" ? "NoReading" : "Unavailable"));
+            }
+        }
+
+        await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
+        return new(true, quantities, "ApplicabilityUnverified");
+    }
+
+    private async Task<GuidedQuantityDiscovery> DiscoverWellTestAsync(PreviewSource initial, AdapterDescriptor? adapter,
+        CancellationToken cancellationToken)
+    {
+        var operation = adapter?.ReadOperations().SingleOrDefault(item =>
+            item.Key == ForeSiteLatestWellTestContract.OperationKey && item.ContractVersion == ForeSiteLatestWellTestContract.Version &&
+            item.ResourceKind == initial.Binding.ResourceKind);
+        if (initial.Connection.AdapterKey != "foresite" || operation is null)
+            return new(false, []);
+
+        var request = new LatestWellTestReadRequest(initial.Binding.ExternalId);
+        var report = await history.ReadLatestWellTestAsync(initial.Connection, operation, request, cancellationToken);
+        if (report.AssetExternalId != request.AssetExternalId || report.RetrievedAtUtc == default)
+            throw InvalidWellTest();
+        if (report.Test is not { } test)
+            return new(true, [], "NoTest");
+        if (test.Validation is null || string.IsNullOrWhiteSpace(test.Id))
+            throw InvalidWellTest();
+        if (test.ReportedQuantityFields is not { } fields)
+            return new(true, [], "DiscoveryUnavailable");
+        if (fields.Count > ForeSiteLatestWellTestContract.QuantityFields.Count ||
+            fields.Any(field => !ForeSiteLatestWellTestContract.QuantityFields.Contains(field, StringComparer.Ordinal)) ||
+            fields.Distinct(StringComparer.Ordinal).Count() != fields.Count)
+            throw InvalidWellTest();
+
+        var summary = new GuidedReportedWellTest(test.SampleDate, test.TestEndDate, test.Status,
+            test.Validation.ClassificationDescription, test.Validation.Description);
+        return new(true, fields.Select(field => new GuidedDiscoveredQuantity(field, null, "Reported")).ToArray(),
+            WellTest: summary);
+    }
+
+    private static WellSiteAutoPilotException InvalidWellTest() =>
+        new("GUIDED_WELL_TEST_RESPONSE_INVALID", FailureKind.DependencyUnavailable,
+            "The well test response did not match the requested asset or contract.");
 
     public async Task<GuidedSurfaceCards> ReadSurfaceCardsAsync(Guid draftId, int expectedRevision, Guid assetId,
         AccessSubject subject, CancellationToken cancellationToken = default)
@@ -412,7 +498,10 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         FailureKind.NotFound, "An active, authorized imported asset with one source is required.");
 }
 
-public sealed record GuidedQuantityDiscovery(bool Supported, IReadOnlyList<GuidedDiscoveredQuantity> Quantities);
+public sealed record GuidedQuantityDiscovery(bool Supported, IReadOnlyList<GuidedDiscoveredQuantity> Quantities,
+    string? EvidenceStatus = null, GuidedReportedWellTest? WellTest = null);
+public sealed record GuidedReportedWellTest(DateTimeOffset? SampleDate, DateTimeOffset? TestEndDate,
+    string? Status, string? Classification, string? Validation);
 public sealed record GuidedDiscoveredQuantity(string Quantity, string? Unit, string Status);
 
 public sealed record GuidedInputCompatibility(string InputId, string Quantity, string Status, string? ReasonCode);

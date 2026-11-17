@@ -92,6 +92,11 @@ public sealed class GatewayAdapterClient(HttpClient client, IConfiguration confi
         ReadRegisteredAsync<ForeSiteDailyAverageRequest, ForeSiteDailyAverageResult>(connection, operation, read.AssetExternalId,
             read, "GUIDED_PRODUCTION_DAYS_RESPONSE_INVALID", cancellationToken);
 
+    public Task<LatestWellTestResult> ReadLatestWellTestAsync(ConnectionRecord connection, AdapterOperationDescriptor operation,
+        LatestWellTestReadRequest read, CancellationToken cancellationToken = default) =>
+        ReadRegisteredAsync<LatestWellTestReadRequest, LatestWellTestResult>(connection, operation, read.AssetExternalId, read,
+            "GUIDED_WELL_TEST_RESPONSE_INVALID", cancellationToken);
+
     private async Task<TResult> ReadRegisteredAsync<TRequest, TResult>(ConnectionRecord connection, AdapterOperationDescriptor operation,
         string externalId, TRequest read, string invalidResponseCode, CancellationToken cancellationToken) where TResult : class
     {

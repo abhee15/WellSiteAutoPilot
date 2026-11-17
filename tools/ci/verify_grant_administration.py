@@ -739,6 +739,39 @@ try:
 finally:
     foresite_scenario("rod-pump-normal")
 
+well_test_body = dict(live_body, capability="WellTest")
+request("POST", quantity_url, OTHER, dict(well_test_body, startUtc=trend_body["startUtc"]), expected=400)
+rrl_discovery = request("POST", quantity_url, OTHER, well_test_body)
+assert rrl_discovery["wellTest"]["status"] is None, rrl_discovery
+assert rrl_discovery["quantities"] == [{"quantity": "Oil", "unit": None, "status": "Reported"}], rrl_discovery
+test_discovery = request("POST", quantity_url, OTHER, dict(well_test_body, assetId=alpha2["id"]))
+assert test_discovery["wellTest"]["sampleDate"].endswith("-06:00"), test_discovery
+assert test_discovery["wellTest"]["status"] == "Review", test_discovery
+assert test_discovery["wellTest"]["classification"] == "RejectedTest", test_discovery
+assert test_discovery["wellTest"]["validation"] == "Oil rate above acceptance limit", test_discovery
+assert test_discovery["quantities"] == [
+    {"quantity": quantity, "unit": None, "status": "Reported"} for quantity in ("Oil", "Water")], test_discovery
+bravo = next(item for item in after if item["name"] == "Bravo 1" and item.get("ownerConnectionId") == twin["id"])
+bravo_body = dict(well_test_body, assetId=bravo["id"])
+request("POST", quantity_url, OTHER, bravo_body, expected=404)
+bravo_access = grant(other["userId"], well_reader, "ExactAssets", [bravo["id"]])
+try:
+    no_test = request("POST", quantity_url, OTHER, bravo_body)
+    assert no_test == {"supported": True, "quantities": [], "evidenceStatus": "NoTest"}, no_test
+finally:
+    retire(other["userId"], bravo_access)
+foresite_scenario("foresite-well-test-wrong-well")
+try:
+    request("POST", quantity_url, OTHER, well_test_body, expected=503)
+finally:
+    foresite_scenario("rod-pump-normal")
+surveillance_body = dict(live_body, capability="Surveillance")
+for asset, fillage_status in ((alpha, "CurrentObserved"), (alpha2, "NoReading")):
+    surveillance = request("POST", quantity_url, OTHER, dict(surveillance_body, assetId=asset["id"]))
+    assert surveillance["supported"] and surveillance["evidenceStatus"] == "ApplicabilityUnverified", surveillance
+    fillage = next(row for row in surveillance["quantities"] if row["quantity"] == "PumpFillage")
+    assert fillage["status"] == fillage_status, surveillance
+
 # Production days preserve aggregate period offsets and distinguish zero from a missing value.
 production_url = "/guided-module-drafts/" + live_draft["id"] + "/production-days-preview"
 production_body = dict(live_body, startUtc="2026-11-01T00:00:00Z", endUtc="2026-11-03T06:00:00Z")
@@ -793,6 +826,9 @@ assert request("GET", "/asset-views/" + view["id"] + "/selection")["assetIds"] =
 # A restricted reader cannot obtain hidden IDs or erase the hidden portion through a replacement update.
 updated = request("PUT", "/asset-views/" + view["id"], body={"expectedRevision": 2, "name": "ESP subset", "assetIds": selection})
 retire(other["userId"], well_access)
+request("POST", quantity_url, OTHER, well_test_body, expected=404)
+request("POST", quantity_url, OTHER, trend_body, expected=404)
+
 request("POST", live_url, OTHER, live_body, expected=404)
 request("POST", compatibility_url, OTHER, live_body, expected=404)
 request("POST", history_url, OTHER, history_body, expected=404)
@@ -808,6 +844,7 @@ request("GET", "/asset-views/" + view["id"] + "/selection", OTHER, expected=400)
 request("PUT", "/asset-views/" + view["id"], OTHER, {"expectedRevision": 3, "name": "Partial", "assetIds": [alpha["id"]]}, expected=400)
 # Losing Connection access removes all View routes, including mutations when edit is still granted.
 retire(other["userId"], connection_access)
+request("POST", quantity_url, OTHER, well_test_body, expected=403)
 request("POST", live_url, OTHER, live_body, expected=403)
 request("POST", compatibility_url, OTHER, live_body, expected=403)
 request("POST", history_url, OTHER, history_body, expected=403)

@@ -7,11 +7,32 @@ import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
 
-type Capability = 'DailyAverages' | 'WellTrend';
+const sources = [
+  { key: 'Surveillance', label: 'guided.surveillanceQuantities' },
+  { key: 'DailyAverages', label: 'guided.dailyAverageQuantities' },
+  { key: 'WellTrend', label: 'guided.wellTrendQuantities' },
+  { key: 'WellTest', label: 'guided.wellTestQuantities' },
+] as const;
+type Capability = (typeof sources)[number]['key'];
+type HistoryWindow = { startUtc: string; endUtc: string };
+
+const evidenceNotices = {
+  ApplicabilityUnverified: 'guided.surveillanceApplicabilityUnverified',
+  DiscoveryUnavailable: 'guided.quantityDiscoveryFailed',
+  NoTest: 'guided.noReportedWellTest',
+} as const;
+const quantityStatuses = {
+  Observed: 'guided.quantityObserved',
+  NoSamples: 'guided.quantityNoSamples',
+  CurrentObserved: 'guided.quantityCurrentObserved',
+  NoReading: 'guided.quantityNoReading',
+  Reported: 'guided.quantityReportedOnTest',
+} as const;
+
 type Discovery =
   | { kind: 'loading' }
   | { kind: 'error' }
-  | { kind: 'result'; data: GuidedQuantityDiscoveryResponse; startUtc: string; endUtc: string };
+  | { kind: 'result'; data: GuidedQuantityDiscoveryResponse; window?: HistoryWindow };
 
 export function GuidedQuantityDiscovery({
   draftId,
@@ -33,21 +54,29 @@ export function GuidedQuantityDiscovery({
     request.current = controller;
     setResult({ kind: 'loading' });
     const end = Math.floor(Date.now() / 1000) * 1000;
-    const startUtc = new Date(end - (capability === 'DailyAverages' ? 7 : 1) * 86400000).toISOString();
-    const endUtc = new Date(end).toISOString();
+    const window =
+      capability === 'DailyAverages' || capability === 'WellTrend'
+        ? {
+            startUtc: new Date(end - (capability === 'DailyAverages' ? 7 : 1) * 86400000).toISOString(),
+            endUtc: new Date(end).toISOString(),
+          }
+        : undefined;
     try {
       const { data } = await discoverGuidedModuleQuantities({
         path: { id: draftId },
-        body: { expectedRevision: revision, assetId, capability, startUtc, endUtc },
+        body: { expectedRevision: revision, assetId, capability, ...window },
         signal: controller.signal,
       });
       if (!controller.signal.aborted) {
-        setResult(data ? { kind: 'result', data, startUtc, endUtc } : { kind: 'error' });
+        setResult(data ? { kind: 'result', data, window } : { kind: 'error' });
       }
     } catch {
       if (!controller.signal.aborted) setResult({ kind: 'error' });
     }
   }
+
+  const evidenceStatus = result?.kind === 'result' ? result.data.evidenceStatus : undefined;
+  const evidenceNotice = evidenceStatus ? evidenceNotices[evidenceStatus as keyof typeof evidenceNotices] : undefined;
 
   return (
     <details>
@@ -58,12 +87,15 @@ export function GuidedQuantityDiscovery({
           value={capability}
           onChange={(event) => {
             request.current?.abort();
-            setCapability(event.target.value === 'DailyAverages' ? 'DailyAverages' : 'WellTrend');
+            setCapability(event.target.value as Capability);
             setResult(null);
           }}
         >
-          <option value="WellTrend">{t('guided.wellTrendQuantities')}</option>
-          <option value="DailyAverages">{t('guided.dailyAverageQuantities')}</option>
+          {sources.map((source) => (
+            <option key={source.key} value={source.key}>
+              {t(source.label)}
+            </option>
+          ))}
         </SelectField>
         <ActionButton
           label={t('guided.discoverQuantityAction')}
@@ -74,31 +106,81 @@ export function GuidedQuantityDiscovery({
       <div aria-live="polite">
         {result?.kind === 'error' && <Notice tone="warning">{t('guided.quantityDiscoveryFailed')}</Notice>}
         {result?.kind === 'result' &&
-          (result.data.supported ? (
-            <>
-              <p>
-                {t('guided.quantityWindow')} {formatTimestamp(result.startUtc)} – {formatTimestamp(result.endUtc)}
-              </p>
-              <ul>
-                {result.data.quantities?.map((entry) => (
-                  <li key={entry.quantity}>
-                    {entry.quantity}
-                    {entry.unit && <> ({entry.unit})</>} ·{' '}
-                    {t(
-                      entry.status === 'Observed'
-                        ? 'guided.quantityObserved'
-                        : entry.status === 'NoSamples'
-                          ? 'guided.quantityNoSamples'
-                          : 'guided.quantityUnavailable',
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : (
+          (!result.data.supported ? (
             <Notice>{t('guided.quantityUnsupported')}</Notice>
+          ) : (
+            <>
+              {evidenceNotice && <Notice>{t(evidenceNotice)}</Notice>}
+              {result.window && (
+                <p>
+                  {t('guided.quantityWindow')} {formatTimestamp(result.window.startUtc)} –{' '}
+                  {formatTimestamp(result.window.endUtc)}
+                </p>
+              )}
+              {result.data.wellTest && <ReportedWellTest test={result.data.wellTest} />}
+              {result.data.quantities?.length ? (
+                <ul>
+                  {result.data.quantities.map((entry) => (
+                    <li key={entry.quantity}>
+                      {entry.quantity}
+                      {entry.unit && <> ({entry.unit})</>} ·{' '}
+                      {t(
+                        quantityStatuses[entry.status as keyof typeof quantityStatuses] ?? 'guided.quantityUnavailable',
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : result.data.wellTest ? (
+                <Notice>{t('guided.noWellTestQuantities')}</Notice>
+              ) : null}
+            </>
           ))}
       </div>
     </details>
+  );
+}
+
+function ReportedWellTest({ test }: { test: NonNullable<GuidedQuantityDiscoveryResponse['wellTest']> }) {
+  const { status: reportedStatus } = test;
+  return (
+    <div>
+      <p>{t('guided.reportedWellTestEvidence')}</p>
+      <dl>
+        {test.sampleDate && (
+          <>
+            <dt>{t('guided.wellTestSampleDate')}</dt>
+            <dd>
+              <time dateTime={test.sampleDate}>{test.sampleDate}</time>
+            </dd>
+          </>
+        )}
+        {test.testEndDate && (
+          <>
+            <dt>{t('guided.wellTestEndDate')}</dt>
+            <dd>
+              <time dateTime={test.testEndDate}>{test.testEndDate}</time>
+            </dd>
+          </>
+        )}
+        {reportedStatus && (
+          <>
+            <dt>{t('guided.wellTestStatus')}</dt>
+            <dd>{reportedStatus}</dd>
+          </>
+        )}
+        {test.classification && (
+          <>
+            <dt>{t('guided.wellTestClassification')}</dt>
+            <dd>{test.classification}</dd>
+          </>
+        )}
+        {test.validation && (
+          <>
+            <dt>{t('guided.wellTestValidation')}</dt>
+            <dd>{test.validation}</dd>
+          </>
+        )}
+      </dl>
+    </div>
   );
 }

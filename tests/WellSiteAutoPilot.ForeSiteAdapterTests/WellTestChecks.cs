@@ -7,7 +7,7 @@ internal static class WellTestChecks
     private const string RecordedShape = """
         {"Id":7,"WellId":101,"SampleDate":"2025-02-01T10:00:00-06:00","TestEndDate":"2025-02-01T17:00:00Z",
         "Status":null,"SPTCode":9,"SPTCodeDescription":"RejectedTest","ValidationStatusCode":0,
-        "ValidationStatus":"Oil rate above acceptance limit","Oil":23,"LastChangedDT":"2025-02-08T17:00:00Z"}
+        "ValidationStatus":"Oil rate above acceptance limit","Oil":23,"Water":0,"Gas":null,"TotalFluid":"invalid","StrokePerMinute":1e40,"LastChangedDT":"2025-02-08T17:00:00Z"}
         """;
 
     public static async Task RunAsync()
@@ -20,6 +20,9 @@ internal static class WellTestChecks
             test.SampleDate?.Offset != TimeSpan.FromHours(-6) || test.TestEndDate?.Hour != 17 ||
             result.AssetExternalId != "101" || result.RetrievedAtUtc <= test.TestEndDate)
             throw new InvalidOperationException("Well test metadata changed provider identity, timestamps or status semantics.");
+
+        if (test.ReportedQuantityFields is not { } fields || !fields.SequenceEqual(["Oil", "Water"]))
+            throw new InvalidOperationException("Reported quantities must retain zero and exclude null, malformed and metadata fields.");
 
         using var empty = NewClient("null");
         if ((await new ForeSiteLatestWellTestReader(new ForeSiteSession(empty)).ReadAsync(new("101"))).Test is not null)

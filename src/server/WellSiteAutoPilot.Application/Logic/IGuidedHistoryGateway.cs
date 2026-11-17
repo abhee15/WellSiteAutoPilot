@@ -10,4 +10,7 @@ public interface IGuidedHistoryGateway
 
     Task<ForeSiteDailyAverageResult> ReadProductionDaysAsync(ConnectionRecord connection, AdapterOperationDescriptor operation,
         ForeSiteDailyAverageRequest read, CancellationToken cancellationToken = default);
+
+    Task<LatestWellTestResult> ReadLatestWellTestAsync(ConnectionRecord connection, AdapterOperationDescriptor operation,
+        LatestWellTestReadRequest read, CancellationToken cancellationToken = default);
 }

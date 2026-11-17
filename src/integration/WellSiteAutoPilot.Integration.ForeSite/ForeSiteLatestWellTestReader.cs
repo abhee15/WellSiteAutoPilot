@@ -60,10 +60,17 @@ public sealed class ForeSiteLatestWellTestReader(ForeSiteSession session)
             !record.TryGetInt64(out var testId) || testId <= 0)
             throw InvalidResponse();
 
+        var quantities = ForeSiteLatestWellTestContract.QuantityFields.Where(name =>
+            root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number &&
+            value.TryGetDecimal(out _)).ToArray();
+
         return new(testId.ToString(CultureInfo.InvariantCulture), ReadDate("SampleDate"), ReadDate("TestEndDate"),
             ReadField("Status", allowCode: true),
             new(ReadField("SPTCode", allowCode: true), ReadField("SPTCodeDescription"),
-                ReadField("ValidationStatusCode", allowCode: true), ReadField("ValidationStatus")));
+                ReadField("ValidationStatusCode", allowCode: true), ReadField("ValidationStatus")))
+        {
+            ReportedQuantityFields = quantities
+        };
 
         DateTimeOffset? ReadDate(string name)
         {
