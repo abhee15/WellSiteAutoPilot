@@ -43,6 +43,17 @@ function readEditorView(userId: string | undefined): EditorView {
 }
 
 const pressureEntryPoint = 'wsa.declarative.difference.v1';
+const thresholdEntryPoint = 'wsa.declarative.threshold.v1';
+
+function supportsGuidedRule(manifestJson: string | null | undefined): boolean {
+  if (!manifestJson) return true;
+  try {
+    const entry = (JSON.parse(manifestJson) as { entryPoint?: string }).entryPoint;
+    return entry === thresholdEntryPoint || entry === pressureEntryPoint;
+  } catch {
+    return false;
+  }
+}
 
 function isPressure(manifestJson: string | null | undefined) {
   return manifestJson && (JSON.parse(manifestJson) as { entryPoint?: string }).entryPoint === pressureEntryPoint;
@@ -276,13 +287,14 @@ export function GuidedAuthoringPage({
     { casingPsi: null, tubingPsi: 120 },
   ];
   const sampleCount = pressure ? pressureReadings.length : readings.length;
+  const inspectOnly = Boolean(draft && !supportsGuidedRule(draft.manifestJson));
   const valid =
-    name.trim().length > 0 && threshold.trim() !== '' && Number(threshold) >= 0 && Number(threshold) <= maximum;
+    !inspectOnly && name.trim().length > 0 && threshold.trim() !== '' && Number(threshold) >= 0 && Number(threshold) <= maximum;
   const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary);
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
-  const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty);
-  const activeSection = editorSection === 'live' && !showLivePreview ? 'rule' : editorSection;
+  const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty && !inspectOnly);
+  const activeSection = editorSection === 'live' && !showLivePreview ? (inspectOnly ? 'module' : 'rule') : editorSection;
 
   function changeView(next: EditorView) {
     setView(next);
@@ -485,7 +497,7 @@ export function GuidedAuthoringPage({
                 />
                 <ActionButton
                   label={t('guided.submit')}
-                  disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
+                  disabled={busy || inspectOnly || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
                   onClick={() => void run(submit)}
                 />
               </div>
@@ -507,7 +519,7 @@ export function GuidedAuthoringPage({
                     onClick={() => setEditorSection('module')}
                   />
                   <ActionButton
-                    label={t('guided.rule')}
+                    label={t(inspectOnly ? 'guided.calculationContract' : 'guided.rule')}
                     aria-controls={ruleSectionId}
                     aria-pressed={activeSection === 'rule'}
                     onClick={() => setEditorSection('rule')}
@@ -530,26 +542,32 @@ export function GuidedAuthoringPage({
                       label={t('guided.name')}
                       maxLength={256}
                       value={name}
-                      disabled={busy}
+                      disabled={busy || inspectOnly}
                       onChange={(event) => setName(event.target.value)}
                     />
                   </div>
                   <GuidedModuleContract manifestJson={draft?.manifestJson} />
                 </section>
                 <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
-                  <PanelHeader title={t('guided.rule')} level={3} />
-                  <p>{t(pressure ? 'guided.pressureRule' : 'guided.fillageRule')}</p>
-                  <div className="guided-authoring-fields">
-                    <NumberField
-                      label={t(pressure ? 'guided.pressureThreshold' : 'guided.threshold')}
-                      min={0}
-                      max={maximum}
-                      step="any"
-                      value={threshold}
-                      disabled={busy}
-                      onChange={(event) => setThreshold(event.target.value)}
-                    />
-                  </div>
+                  <PanelHeader title={t(inspectOnly ? 'guided.calculationContract' : 'guided.rule')} level={3} />
+                  {inspectOnly ? (
+                    <Notice tone="info" announce={false}>{t('guided.inspectOnlyContract')}</Notice>
+                  ) : (
+                    <>
+                      <p>{t(pressure ? 'guided.pressureRule' : 'guided.fillageRule')}</p>
+                      <div className="guided-authoring-fields">
+                        <NumberField
+                          label={t(pressure ? 'guided.pressureThreshold' : 'guided.threshold')}
+                          min={0}
+                          max={maximum}
+                          step="any"
+                          value={threshold}
+                          disabled={busy}
+                          onChange={(event) => setThreshold(event.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
                 </section>
                 {showLivePreview && draft?.id && draft.revision && (
                   <div id={liveSectionId} hidden={view === 'ide' && activeSection !== 'live'}>
@@ -575,10 +593,11 @@ export function GuidedAuthoringPage({
                 <div className="guided-authoring-actions">
                   <ActionButton
                     label={t('guided.preview')}
-                    disabled={busy || !draft || dirty}
+                    disabled={busy || !draft || dirty || inspectOnly}
                     onClick={() => void run(preview)}
                   />
                 </div>
+                {inspectOnly && <p>{t('guided.inspectOnlySamples')}</p>}
                 {dirty && evidence.length > 0 && <p>{t('guided.staleScenarios')}</p>}
                 {!dirty &&
                   evidence.length > 0 &&
