@@ -53,6 +53,20 @@ internal static class GuidedContractDraftChecks
         await RejectAsync(() => GuidedContractDraft.ValidateAsync(blank with { OutputRequirements = null }), "MODULE_CONTRACT_INVALID");
         await RejectAsync(() => GuidedContractDraft.ValidateAsync(blank with { AssetRequirements = [] }), "MODULE_ASSET_REQUIREMENTS_EMPTY");
 
+        // The save route reads the posted manifest text: a blank or one-sided draft must read as a draft yet never as an executable module.
+        foreach (var partial in new[] { blank, blank with { DataRequirements = manifest.DataRequirements } })
+        {
+            var text = JsonSerializer.Serialize(partial, Options);
+            using (var draftStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text)))
+                Assert((await LogicModuleManifestReader.ReadDraftAsync(draftStream)).EntryPoint == GuidedContractDraft.UnsetEntryPoint,
+                    "A blank contract-only manifest could not be read as a draft.");
+            await RejectAsync(async () =>
+            {
+                using var strict = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text));
+                await LogicModuleManifestReader.ReadAsync(strict);
+            }, "MODULE_CONTRACT_INVALID");
+        }
+
         // Persisted content round-trips unchanged and is still contract-only; threshold content from before this change still reads.
         var content = new GuidedModuleDraftContent(manifest);
         var restored = JsonSerializer.Deserialize<GuidedModuleDraftContent>(JsonSerializer.Serialize(content, Options), Options)!;

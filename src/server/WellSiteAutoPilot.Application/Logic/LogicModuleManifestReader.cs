@@ -15,10 +15,19 @@ public static class LogicModuleManifestReader
     // Shared by standalone CLI manifests and manifests inside inspected archives.
     public static async Task<LogicModuleManifest> ReadAsync(
         Stream source, CancellationToken cancellationToken = default) =>
-        (await ReadDocumentAsync(source, cancellationToken)).Manifest;
+        (await ReadDocumentAsync(source, allowEmptyPorts: false, cancellationToken)).Manifest;
 
-    internal static async Task<(LogicModuleManifest Manifest, string NormalizedJson)> ReadDocumentAsync(
-        Stream source, CancellationToken cancellationToken = default)
+    // Authoring drafts are saved while being built, so they may declare zero inputs or outputs.
+    public static async Task<LogicModuleManifest> ReadDraftAsync(
+        Stream source, CancellationToken cancellationToken = default) =>
+        (await ReadDocumentAsync(source, allowEmptyPorts: true, cancellationToken)).Manifest;
+
+    internal static Task<(LogicModuleManifest Manifest, string NormalizedJson)> ReadDocumentAsync(
+        Stream source, CancellationToken cancellationToken = default) =>
+        ReadDocumentAsync(source, allowEmptyPorts: false, cancellationToken);
+
+    private static async Task<(LogicModuleManifest Manifest, string NormalizedJson)> ReadDocumentAsync(
+        Stream source, bool allowEmptyPorts, CancellationToken cancellationToken)
     {
         using var document = await JsonDocument.ParseAsync(source, cancellationToken: cancellationToken);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
@@ -36,7 +45,7 @@ public static class LogicModuleManifestReader
         // retain their existing optional semantics when omitted.
         var manifest = document.RootElement.Deserialize<LogicModuleManifest>(SerializerOptions)
             ?? throw new JsonException("Module manifest is empty.");
-        await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, cancellationToken);
+        await LogicModuleManifestValidator.ValidateSchemasAsync(manifest, allowEmptyPorts, cancellationToken);
         return (manifest, JsonSerializer.Serialize(document.RootElement));
     }
     // DTO names are case-insensitive; schema property names are case-sensitive data.
