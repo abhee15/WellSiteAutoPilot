@@ -83,3 +83,17 @@ Not tested: ESP/PCP quantities (no fillage by design), commands, structured inpu
 - Checked: Server Release build and ExecutionContractV2Tests pass on the P4 tree. The fix was verified live by API on the fix branch before it merged (blank manifest POST returned 200, revision 1). It was not re-run through the UI on the P4 tree.
 - Mirror note: Program.cs merged with existing local differences (the P4 copy is 6 lines shorter than GitHub: it lacks the Audit and Changes usings). This difference predates this CL; worth a diff review of P4 Program.cs against develop.
 - No new product gaps from this CL.
+
+## Live verification of #640 (CL 1108677)
+
+Visible Edge, maximized, P4 tree, Negotiate auth.
+
+Works:
+- Rule drafts show "Declared data contract · 1 input · 0 outputs" and "2 inputs · 0 outputs" (plurals correct).
+- Scalar ports show "Number" and the unit, not "Shape not declared".
+- The no-outputs text reads "No typed outputs are declared. The rule below still produces the recommendation."
+
+Not seen: the panel does not render on contract-only drafts (the contract editor replaces it), so the new wording is only visible on rule drafts. Structured-port shapes (cards) were not opened in this panel.
+
+New observations:
+- P23: the draft picker now lists 30+ drafts with duplicate names (several "CL638 sample check", "Live check pressure differential"). With no delete (P6) and no search, the list becomes unusable. The extra drafts here came from the breadth tests.
