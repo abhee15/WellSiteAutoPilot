@@ -124,8 +124,11 @@ public static partial class LogicModuleManifestValidator
             Fail("MODULE_VALUE_SCHEMA_INVALID", "A value schema requires an identity and explicit root type.");
     }
 
-    public static async Task ValidateSchemasAsync(LogicModuleManifest manifest, CancellationToken cancellationToken = default,
-        bool allowEmptyPorts = false)
+    public static Task ValidateSchemasAsync(LogicModuleManifest manifest, CancellationToken cancellationToken = default) =>
+        ValidateSchemasAsync(manifest, allowEmptyPorts: false, cancellationToken);
+
+    public static async Task ValidateSchemasAsync(LogicModuleManifest manifest, bool allowEmptyPorts,
+        CancellationToken cancellationToken = default)
     {
         Validate(manifest, allowEmptyPorts);
         await ValidateParameterSchemaAsync(manifest, cancellationToken);
