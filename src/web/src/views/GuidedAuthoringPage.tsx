@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   approveGuidedModuleSubmission,
   createGuidedModuleDraft,
@@ -182,6 +182,7 @@ export function GuidedAuthoringPage({
   const [editorSection, setEditorSection] = useState<'module' | 'rule' | 'live'>('module');
   const [scenario, setScenario] = useState(0);
   const editorId = useId();
+  const starterChooser = useRef<HTMLDetailsElement>(null);
   const moduleSectionId = useId();
   const ruleSectionId = useId();
   const liveSectionId = useId();
@@ -388,38 +389,79 @@ export function GuidedAuthoringPage({
     await onRefresh();
   }
 
+  let pageTitle = t('guided.untitledModule');
+  if (showReviewQueue) pageTitle = t('guided.pendingReviews');
+  else if (canReview && !canAuthor) pageTitle = t('guided.reviewsTab');
+  else if (draft) pageTitle = name.trim() || t('guided.untitledModule');
+
   return (
     <section className="panel guided-authoring">
-      <PanelHeader
-        title={t(
-          showReviewQueue ? 'guided.pendingReviews' : canReview && !canAuthor ? 'guided.reviewsTab' : 'guided.heading',
-        )}
-      />
+      <PanelHeader title={pageTitle} />
       {error && <Notice tone="error">{t('guided.error')}</Notice>}
       {notice && <Notice tone="success">{t(notice)}</Notice>}
       {canAuthor && (
         <>
           <div className="guided-authoring-editor">
-            <div className="guided-authoring-actions">
-              <ActionButton label={t('guided.new')} disabled={busy} onClick={() => changeDraft(null)} />
-              <ActionButton label={t('guided.newPressure')} disabled={busy} onClick={() => changeDraft(null, true)} />
-              {drafts.map((item) => (
-                <ActionButton
-                  key={item.id}
-                  label={displayName(item.manifestJson)}
-                  disabled={busy}
-                  onClick={() => changeDraft(item)}
-                />
-              ))}
-              {offset > 0 && (
-                <ActionButton
-                  label={t('guided.previous')}
-                  disabled={busy}
-                  onClick={() => setOffset(offset - pageSize)}
-                />
-              )}
-              {drafts.length === pageSize && (
-                <ActionButton label={t('guided.next')} disabled={busy} onClick={() => setOffset(offset + pageSize)} />
+            <div className="guided-authoring-entry">
+              <details className="guided-authoring-starters" ref={starterChooser}>
+                <summary className="ui-action-button secondary-button">{t('guided.newModule')}</summary>
+                <div className="guided-authoring-actions">
+                  <ActionButton
+                    label={t('guided.new')}
+                    disabled={busy}
+                    onClick={() => {
+                      changeDraft(null);
+                      if (starterChooser.current) starterChooser.current.open = false;
+                    }}
+                  />
+                  <ActionButton
+                    label={t('guided.newPressure')}
+                    disabled={busy}
+                    onClick={() => {
+                      changeDraft(null, true);
+                      if (starterChooser.current) starterChooser.current.open = false;
+                    }}
+                  />
+                </div>
+              </details>
+              <div className="guided-authoring-draft-picker">
+                <SelectField
+                  label={t('guided.openDraft')}
+                  value={draft?.id ?? ''}
+                  disabled={busy || (drafts.length === 0 && !draft)}
+                  onChange={(event) => {
+                    const selected = drafts.find((item) => item.id === event.target.value);
+                    if (selected) changeDraft(selected);
+                  }}
+                >
+                  <option value="">{t('guided.chooseDraft')}</option>
+                  {draft && !drafts.some((item) => item.id === draft.id) && (
+                    <option value={draft.id}>{displayName(draft.manifestJson)}</option>
+                  )}
+                  {drafts.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {displayName(item.manifestJson)}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+              {(offset > 0 || drafts.length === pageSize) && (
+                <div className="guided-authoring-actions">
+                  {offset > 0 && (
+                    <ActionButton
+                      label={t('guided.previous')}
+                      disabled={busy}
+                      onClick={() => setOffset(offset - pageSize)}
+                    />
+                  )}
+                  {drafts.length === pageSize && (
+                    <ActionButton
+                      label={t('guided.next')}
+                      disabled={busy}
+                      onClick={() => setOffset(offset + pageSize)}
+                    />
+                  )}
+                </div>
               )}
             </div>
             <div className="guided-authoring-view-bar">
