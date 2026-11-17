@@ -5,16 +5,22 @@ namespace WellSiteAutoPilot.Api.Contracts.Logic;
 public sealed record GuidedThresholdDefinitionRequest(string Parameter, decimal Default, string OutcomeCode, string Title, string Detail);
 
 /// <summary>A null Definition saves a contract-only draft: a typed manifest with no logic to preview or submit.</summary>
-public sealed record SaveGuidedModuleDraftRequest(string ManifestJson, GuidedThresholdDefinitionRequest? Definition, int? ExpectedRevision);
+public sealed record SaveGuidedModuleDraftRequest(string ManifestJson, GuidedThresholdDefinitionRequest? Definition, int? ExpectedRevision,
+    IReadOnlyList<GuidedSampleCaseRequest>? SampleCases = null);
 
-public sealed record GuidedModuleDraftResponse(Guid Id, int Revision, string ManifestJson, GuidedThresholdDefinitionRequest? Definition);
+/// <summary>An authored sample. ExpectedOutcome is the author's assertion: null for none, NONE for not triggered, else the rule outcome code.</summary>
+public sealed record GuidedSampleCaseRequest(string Name, decimal? Value, decimal? CasingPsi, decimal? TubingPsi, string? ExpectedOutcome);
+
+public sealed record GuidedModuleDraftResponse(Guid Id, int Revision, string ManifestJson, GuidedThresholdDefinitionRequest? Definition,
+    IReadOnlyList<GuidedSampleCaseRequest>? SampleCases = null);
 
 public sealed record GuidedPressureReadingRequest(decimal? CasingPsi, decimal? TubingPsi);
 
 public sealed record PreviewGuidedModuleDraftRequest(int ExpectedRevision, decimal? Value, string ParametersJson, GuidedPressureReadingRequest? Pressure = null);
 
 public sealed record GuidedModulePreviewResponse(int Revision, string PackageSha256, string? OutcomeCode,
-    string? FailureCode, string? RecommendationTitle, string? RecommendationDetail, decimal? DifferentialPsi = null);
+    string? FailureCode, string? RecommendationTitle, string? RecommendationDetail, decimal? DifferentialPsi = null,
+    string? ObservedOutcome = null);
 
 public sealed record GuidedModuleReviewItemResponse(Guid DraftId, int Revision, string DisplayName, DateTimeOffset SubmittedAtUtc);
 
