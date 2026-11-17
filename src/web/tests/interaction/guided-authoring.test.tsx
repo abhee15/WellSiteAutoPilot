@@ -88,6 +88,7 @@ it('keeps unknown complex module calculations read-only in the guided editor', a
   render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
   await screen.findByRole('option', { name: 'Surface-card calibration' });
   fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'complex-draft' } });
+  expect(document.querySelector<HTMLDetailsElement>('.guided-authoring-contract')?.open).toBe(true);
   expect(screen.getByText(/does not support changing or executing those calculations yet/i)).toBeTruthy();
   expect(screen.queryByLabelText('Pump fillage threshold (%)')).toBeNull();
   for (const label of ['Save draft', 'Submit for review']) {
