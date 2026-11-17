@@ -137,6 +137,20 @@ internal static class GuidedContractDraftChecks
         Assert(!foresite.AllowsCurrentRead("PumpFillage", "engineering.current", "authoring.input-1.number/v1"),
             "Assignment-time read rules must not accept V2 scalar declarations before the worker can run them.");
 
+        // Unsupported inputs say why, so the author knows whether to change the quantity, the access mode or the type.
+        LogicDataRequirement Input(string quantity, string access = "Current", string? capability = "engineering.current", string type = "number") =>
+            new("input-1", "well", quantity, access, null, null, false,
+                new("authoring.input-1.test/v1", Json("{\"type\":\"" + type + "\"}")), capability);
+        string? Reason(LogicDataRequirement input, string adapter = "foresite") =>
+            GuidedInputSupport.UnsupportedReason(null, adapter, AdapterReadRules.Find(adapter)!.ResourceKind, input);
+        Assert(Reason(Input("PumpFillage")) is null, "A registered scalar input was reported unsupported.");
+        Assert(Reason(Input("Quantity1")) == GuidedInputSupport.QuantityUnregistered, "An unregistered quantity was not named.");
+        Assert(Reason(Input("PumpFillage", "History")) == GuidedInputSupport.AccessUnsupported, "A non-current access mode was not named.");
+        Assert(Reason(Input("PumpFillage", capability: "structured.current")) == GuidedInputSupport.CapabilityUnsupported, "A wrong capability was not named.");
+        Assert(Reason(Input("PumpFillage", type: "string")) == GuidedInputSupport.ValueTypeUnsupported, "A wrong value type was not named.");
+        Assert(GuidedInputSupport.UnsupportedReason("cygnet", "foresite", AdapterReadRules.Find("foresite")!.ResourceKind, Input("PumpFillage")) == GuidedInputSupport.AdapterMismatch,
+            "A module pinned to another adapter was not named.");
+
         Console.WriteLine("Contract-only guided drafts passed typed round trip, validation, fencing and unsupported-execution checks.");
     }
 

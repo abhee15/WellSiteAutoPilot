@@ -65,6 +65,13 @@ export function profileLabel(value?: string | null): string {
 
 const OUTCOME_LABELS: Record<string, string> = {
   RecommendationProduced: 'Produced a recommendation',
+  GUIDED_LIVE_QUANTITY_UNREGISTERED: 'No configured connection registers this quantity',
+  GUIDED_LIVE_ACCESS_UNSUPPORTED: 'Only current readings can be checked here',
+  GUIDED_LIVE_CAPABILITY_UNSUPPORTED: 'The input’s capability is not one this connection serves',
+  GUIDED_LIVE_VALUE_TYPE_UNSUPPORTED: 'The input’s value type does not match this quantity',
+  GUIDED_LIVE_ADAPTER_MISMATCH: 'The module requires a different provider than this asset uses',
+  GUIDED_LIVE_ASSET_UNSUPPORTED: 'This asset does not match the draft’s asset role',
+  GUIDED_LIVE_INPUT_UNSUPPORTED: 'This connection cannot check the input',
   EXECUTION_INPUT_STALE: 'An input was too old',
   EXECUTION_INPUT_QUALITY_REJECTED: 'An input’s data quality was not good enough',
   EXECUTION_INPUT_QUANTITY_MISMATCH: 'An input measured the wrong quantity',

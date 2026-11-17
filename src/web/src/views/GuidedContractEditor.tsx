@@ -142,7 +142,8 @@ function nextId(ports: Json[], kind: PortKind): string {
 
 function newPort(manifest: Json, kind: PortKind, ports: Json[]): Json {
   const id = nextId(ports, kind);
-  const quantity = 'Quantity' + id.slice(id.lastIndexOf('-') + 1);
+  // Starts empty: a made-up default name could never be saved, so every new port would begin in an error state.
+  const quantity = '';
   const valueSchema = scalarSchema(id, 'number');
   if (kind === 'output') return { id, quantity, unit: null, valueSchema };
   const roles = Array.isArray(manifest.assetRequirements) ? manifest.assetRequirements.filter(isObject) : [];
@@ -245,6 +246,7 @@ export function GuidedContractEditor({
 
   function quantityMessage(): { error?: string; helper?: string } {
     if (!port) return {};
+    if (textValue(port.quantity) === '') return { helper: t('guided.portQuantityPrompt') };
     if (!identifier.test(textValue(port.quantity))) return { error: t('guided.portIdentifierInvalid') };
     if (!registryInput) return {};
     if (matched) return { helper: t('guided.portAvailableFrom', { adapters: matched.adapters.join(', ') }) };

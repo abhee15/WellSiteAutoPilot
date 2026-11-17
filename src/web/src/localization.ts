@@ -1354,6 +1354,7 @@ export const englishMessages = {
   'guided.portMaxAge': 'Maximum age (seconds)',
   'guided.portUncertain': 'Allow uncertain quality',
   'guided.portCapability': 'Provider capability',
+  'guided.portQuantityPrompt': 'Choose a registered quantity, or type one.',
   'guided.portIdentifierInvalid': 'Use letters, digits, dot, dash or underscore, starting with a letter or digit.',
   'guided.portAvailableFrom': 'Registered by: {adapters}',
   'guided.portNoSource': 'No registered source provides this quantity yet. Choose a registered quantity to save this input.',

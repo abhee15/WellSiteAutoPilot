@@ -76,6 +76,11 @@ it('authors, saves and reopens a typed contract without an asset, in Workflow an
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Card calibration' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add input' }));
 
+  // A new port starts empty with a prompt, not an unsaveable placeholder name in an error state.
+  expect(screen.getByLabelText<HTMLInputElement>('Quantity').value).toBe('');
+  expect(screen.getByText('Choose a registered quantity, or type one.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Save draft' }).hasAttribute('disabled')).toBe(true);
+
   // A quantity no adapter registers cannot be saved, because it has no capability that could ever be satisfied.
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: 'SurfaceLoad' } });
   expect(await screen.findByText(/No registered source provides this quantity/i)).toBeTruthy();

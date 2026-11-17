@@ -80,8 +80,8 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         {
             if (!matchesAsset)
                 results.Add(new(input.Id, input.Quantity, "Unsupported", "GUIDED_LIVE_ASSET_UNSUPPORTED"));
-            else if (!SupportsCurrentInput(manifest, source, input))
-                results.Add(new(input.Id, input.Quantity, "Unsupported", "GUIDED_LIVE_INPUT_UNSUPPORTED"));
+            else if (UnsupportedReason(manifest, source, input) is { } reason)
+                results.Add(new(input.Id, input.Quantity, "Unsupported", reason));
             else
             {
                 await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, source, cancellationToken);
@@ -124,18 +124,11 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         }
     }
 
-    private static bool SupportsCurrentInput(LogicModuleManifest manifest, PreviewSource source, LogicDataRequirement input) =>
-        input.Access == "Current" &&
-        (manifest.RequiredAdapterKey is null || string.Equals(manifest.RequiredAdapterKey, source.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase)) &&
-        AdapterReadRules.Find(source.Connection.AdapterKey) is { } rule && source.Binding.ResourceKind == rule.ResourceKind &&
-        (input.ValueSchema is null
-            ? rule.AllowsCurrentRead(input.Quantity, input.RequiredCapability, null)
-            : rule.AllowsScalarCurrentDeclaration(input.Quantity, input.RequiredCapability, RootType(input.ValueSchema)));
+    private static string? UnsupportedReason(LogicModuleManifest manifest, PreviewSource source, LogicDataRequirement input) =>
+        GuidedInputSupport.UnsupportedReason(manifest.RequiredAdapterKey, source.Connection.AdapterKey, source.Binding.ResourceKind, input);
 
-    private static string? RootType(LogicValueSchema schema) =>
-        schema.Schema.ValueKind == JsonValueKind.Object &&
-        schema.Schema.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
-            ? type.GetString() : null;
+    private static bool SupportsCurrentInput(LogicModuleManifest manifest, PreviewSource source, LogicDataRequirement input) =>
+        UnsupportedReason(manifest, source, input) is null;
 
     private Task<EngineeringValue> ReadCurrentAsync(PreviewSource source, string quantity, CancellationToken cancellationToken) =>
         gateway.GetCurrentAsync(new(source.Connection.AdapterKey, source.Connection.Id, source.Connection.Revision,
