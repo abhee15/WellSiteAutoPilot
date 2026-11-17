@@ -133,8 +133,8 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
             : rule.AllowsScalarCurrentDeclaration(input.Quantity, input.RequiredCapability, RootType(input.ValueSchema)));
 
     private static string? RootType(LogicValueSchema schema) =>
-        schema.Schema.ValueKind == System.Text.Json.JsonValueKind.Object &&
-        schema.Schema.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String
+        schema.Schema.ValueKind == JsonValueKind.Object &&
+        schema.Schema.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
             ? type.GetString() : null;
 
     private Task<EngineeringValue> ReadCurrentAsync(PreviewSource source, string quantity, CancellationToken cancellationToken) =>
