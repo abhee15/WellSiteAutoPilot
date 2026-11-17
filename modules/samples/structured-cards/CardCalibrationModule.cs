@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using WellSiteAutoPilot.ModuleSdk;
 
@@ -18,6 +19,8 @@ public sealed class CardCalibrationModule : ILogicModuleV2
         var scale = configuration.GetProperty("loadScale").GetDecimal();
         var offset = configuration.GetProperty("loadOffset").GetDecimal();
         var calibrated = new List<object>();
+        var traceSteps = new List<StructuredCalculationStepV1>();
+        var cardStepIds = new List<string>();
         decimal? peakLoad = null;
         var identities = new HashSet<string>(StringComparer.Ordinal);
         foreach (var card in cards.Value.Data.EnumerateArray())
@@ -36,6 +39,10 @@ public sealed class CardCalibrationModule : ILogicModuleV2
             var adjusted = load.Select(v => checked(v * scale + offset)).ToArray();
             var peak = adjusted.Max();
             peakLoad = peakLoad is null ? peak : Math.Max(peakLoad.Value, peak);
+            var stepId = "calibrate-card-" + (calibrated.Count + 1).ToString(CultureInfo.InvariantCulture);
+            cardStepIds.Add(stepId);
+            traceSteps.Add(new(stepId, "Transform", ["cards", "calibration"], [],
+                [new("peakLoad", peak, "lb"), new("sampleCount", adjusted.Length, null)]));
             calibrated.Add(new
             {
                 id = card.GetProperty("id").GetString(), kind = card.GetProperty("kind").GetString(),
@@ -46,11 +53,13 @@ public sealed class CardCalibrationModule : ILogicModuleV2
                 calculationMethod = "LinearLoadCalibration"
             });
         }
+        traceSteps.Add(new("aggregate-peak-load", "Aggregate", [], cardStepIds,
+            [new("peakLoad", peakLoad!.Value, "lb")]));
         return ValueTask.FromResult(new LogicModuleExecutionResultV2("CARD_CALIBRATION_COMPLETED",
             [new("calibrated-cards", cards.AssetId, "CalibratedCards",
                 new("sample.calibrated-cards/v2", JsonSerializer.SerializeToElement(calibrated)), null),
              new("peak-load", cards.AssetId, "PeakLoad",
                 new("sample.peak-load/v2", JsonSerializer.SerializeToElement(peakLoad)), "lb")],
-            [], [], new Dictionary<string, string>()));
+            [], [], new Dictionary<string, string>()) { CalculationTrace = new(1, traceSteps) });
     }
 }
