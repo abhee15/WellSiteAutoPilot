@@ -84,6 +84,20 @@ try {
         continue;
       }
       await settled();
+      const accurate = await evaluate(`(() => {
+        const text = document.body.innerText;
+        const action = name => [...document.querySelectorAll('button')].find(button => button.textContent.trim() === name);
+        return text.includes('SurfaceCards') && text.includes('Calibration')
+          && text.includes('This module declares structured or code-backed calculations')
+          && !text.includes('Recommend a review when pump fillage is below the threshold')
+          && action('Save draft')?.disabled === true
+          && action('Submit for review')?.disabled === true
+          && action('Run sample cases')?.disabled === true;
+      })()`);
+      if (!accurate) {
+        problems.push(`${key}: complex module exposes unsupported edits or invented guided-rule evaluation`);
+        continue;
+      }
     }
     if (page === 'guided-authoring' && query === '?view=surface-cards') {
       const plot = await evaluate(`(() => {
