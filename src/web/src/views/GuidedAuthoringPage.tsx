@@ -455,7 +455,11 @@ export function GuidedAuthoringPage({
                     />
                   )}
                   {drafts.length === pageSize && (
-                    <ActionButton label={t('guided.next')} disabled={busy} onClick={() => setOffset(offset + pageSize)} />
+                    <ActionButton
+                      label={t('guided.next')}
+                      disabled={busy}
+                      onClick={() => setOffset(offset + pageSize)}
+                    />
                   )}
                 </div>
               )}
