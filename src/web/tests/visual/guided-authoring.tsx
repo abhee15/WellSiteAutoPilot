@@ -18,6 +18,10 @@ const calibrationFixture = {
   revision: 1,
   manifestJson: JSON.stringify({
     displayName: 'Surface-card calibration · sample',
+    moduleId: 'sample.card-calibration',
+    version: '2.0.0',
+    runtime: 'DotNet',
+    entryPoint: 'WellSiteAutoPilot.Samples.StructuredCards.CardCalibrationModule',
     dataRequirements: [
       {
         id: 'cards',
