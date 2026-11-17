@@ -494,20 +494,20 @@ export function GuidedAuthoringPage({
                 ]}
                 onSelect={changeView}
               />
-              <div className="guided-authoring-actions">
-                <ActionButton
-                  label={t('guided.save')}
-                  disabled={busy || !valid || !dirty}
-                  onClick={() => void run(save)}
-                />
-                <ActionButton
-                  label={t('guided.submit')}
-                  disabled={
-                    busy || inspectOnly || dirty || Boolean(submittedReference) || evidence.length !== sampleCount
-                  }
-                  onClick={() => void run(submit)}
-                />
-              </div>
+              {!inspectOnly && (
+                <div className="guided-authoring-actions">
+                  <ActionButton
+                    label={t('guided.save')}
+                    disabled={busy || !valid || !dirty}
+                    onClick={() => void run(save)}
+                  />
+                  <ActionButton
+                    label={t('guided.submit')}
+                    disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
+                    onClick={() => void run(submit)}
+                  />
+                </div>
+              )}
             </div>
             <div
               className="guided-authoring-workbench"
@@ -517,7 +517,7 @@ export function GuidedAuthoringPage({
               role="tabpanel"
               aria-labelledby={editorId + '-tab-' + view}
             >
-              {view === 'ide' && (
+              {view === 'ide' && !inspectOnly && (
                 <nav className="guided-authoring-outline" aria-label={t('guided.outline')}>
                   <PanelHeader title={t('guided.outline')} level={3} />
                   <ActionButton
@@ -546,16 +546,20 @@ export function GuidedAuthoringPage({
               )}
               <div className="guided-authoring-main">
                 <section id={moduleSectionId} hidden={view === 'ide' && activeSection !== 'module'}>
-                  <PanelHeader title={t('guided.moduleDetails')} level={3} />
-                  <div className="guided-authoring-fields">
-                    <TextField
-                      label={t('guided.name')}
-                      maxLength={256}
-                      value={name}
-                      disabled={busy || inspectOnly}
-                      onChange={(event) => setName(event.target.value)}
-                    />
-                  </div>
+                  {!inspectOnly && (
+                    <>
+                      <PanelHeader title={t('guided.moduleDetails')} level={3} />
+                      <div className="guided-authoring-fields">
+                        <TextField
+                          label={t('guided.name')}
+                          maxLength={256}
+                          value={name}
+                          disabled={busy}
+                          onChange={(event) => setName(event.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
                   {inspectOnly && (
                     <Notice tone="info" announce={false}>
                       {t('guided.inspectOnlyContract')}

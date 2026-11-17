@@ -90,20 +90,20 @@ it('keeps unknown complex module calculations read-only in the guided editor', a
   fireEvent.change(screen.getByLabelText('Open draft'), { target: { value: 'complex-draft' } });
   const contract = document.querySelector<HTMLDetailsElement>('.guided-authoring-contract');
   expect(contract?.open).toBe(true);
-  expect(screen.getByText(/does not support changing or executing those calculations yet/i)).toBeTruthy();
+  expect(screen.getByText(/View-only complex module/i)).toBeTruthy();
   expect(screen.queryByLabelText('Pump fillage threshold (%)')).toBeNull();
-  for (const label of ['Save draft', 'Submit for review']) {
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: label }).disabled).toBe(true);
-  }
+  expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Submit for review' })).toBeNull();
+  expect(screen.queryByLabelText('Module name')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Run sample cases' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Sample cases' })).toBeNull();
   expect(screen.queryByRole('heading', { name: 'Rule' })).toBeNull();
   expect(document.querySelector('.guided-authoring-workbench')?.getAttribute('data-inspect-only')).toBe('true');
   fireEvent.click(screen.getByRole('tab', { name: 'IDE' }));
-  expect(screen.getByRole('navigation', { name: 'Outline' })).toBeTruthy();
+  expect(screen.queryByRole('navigation', { name: 'Outline' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Calculations' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Sample cases' })).toBeNull();
-  expect(screen.getByText(/does not support changing or executing those calculations yet/i)).toBeTruthy();
+  expect(screen.getByText(/View-only complex module/i)).toBeTruthy();
 });
 
 it('keeps draft edits and the selected trace when switching between Workflow and IDE', async () => {
