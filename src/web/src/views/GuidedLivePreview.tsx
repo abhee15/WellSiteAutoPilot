@@ -19,7 +19,7 @@ import { Notice } from '../components/Notice';
 import { formatTimestamp } from '../format';
 import { t } from '../localization';
 import { outcomeLabel } from '../words';
-import { GuidedQuantityDiscovery } from './GuidedQuantityDiscovery';
+import { GuidedQuantityDiscovery, type FillageQuantity, type HistoryWindow } from './GuidedQuantityDiscovery';
 import { GuidedSurfaceCardsPreview } from './GuidedSurfaceCardsPreview';
 import { fetchSearch, SEARCH_PAGE_SIZE, type SearchHit } from './assetBrowseApi';
 
@@ -48,10 +48,14 @@ export function GuidedLivePreview({
   draftId,
   revision,
   inputs = [],
+  fillageChoice,
+  onSelectFillage,
 }: {
   draftId: string;
   revision: number;
   inputs?: readonly { id: string; quantity: string }[];
+  fillageChoice?: FillageQuantity;
+  onSelectFillage?: (quantity: FillageQuantity) => void;
 }) {
   const [inputId, setInputId] = useState(inputs[0]?.id ?? '');
   const [hours, setHours] = useState('4');
@@ -145,7 +149,7 @@ export function GuidedLivePreview({
     }
   }
 
-  async function previewHistory() {
+  async function previewHistory(trend?: HistoryWindow & { quantity: string }) {
     const controller = new AbortController();
     operation.current = controller;
     setBusy(true);
@@ -153,21 +157,23 @@ export function GuidedLivePreview({
     setWellPreview(null);
     const end = Math.floor(Date.now() / 1000) * 1000;
     const siteWindow =
-      historyAnchor === 'site'
+      !trend && historyAnchor === 'site'
         ? { endLocal, timeZoneId: timeZoneId.trim(), durationMinutes: Number(hours) * 60 }
         : undefined;
-    const bounds = siteWindow
-      ? { siteWindow }
-      : { startUtc: new Date(end - Number(hours) * 3600000).toISOString(), endUtc: new Date(end).toISOString() };
+    const selection = trend ?? {
+      inputId,
+      ...(siteWindow
+        ? { siteWindow }
+        : { startUtc: new Date(end - Number(hours) * 3600000).toISOString(), endUtc: new Date(end).toISOString() }),
+    };
     try {
       const { data, error } = await previewGuidedModuleInputHistory({
         path: { id: draftId },
         body: {
           expectedRevision: revision,
           assetId,
-          inputId,
           maximumSamples: 100,
-          ...bounds,
+          ...selection,
         },
         signal: controller.signal,
       });
@@ -370,7 +376,14 @@ export function GuidedLivePreview({
           <ActionButton label={t('guided.recheckAsset')} disabled={busy} onClick={() => void checkWell(assetId)} />
         )}
         {assetId && (
-          <GuidedQuantityDiscovery key={`${draftId}:${revision}:${assetId}`} {...{ draftId, revision, assetId }} />
+          <GuidedQuantityDiscovery
+            key={`${draftId}:${revision}:${assetId}`}
+            {...{ draftId, revision, assetId, fillageChoice, onSelectFillage }}
+            inspectBusy={busy}
+            onInspectTrend={(quantity, window) => {
+              void previewHistory({ quantity, ...window });
+            }}
+          />
         )}
         <div>
           <ActionButton label={t('guided.runLive')} disabled={busy || !assetId} onClick={() => void preview()} />

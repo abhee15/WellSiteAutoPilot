@@ -282,7 +282,7 @@ app.MapGet("/foresite/Surveillance/well/{wellId:long}", (long wellId, HttpContex
         return Results.Json(new { Value = new { CurrentSPM = 5.5m, LastGoodScanTime = DateTimeOffset.UtcNow } },
             new System.Text.Json.JsonSerializerOptions());
     if (wellId != 101) return Results.NotFound();
-    return Results.Json(new { Value = new { CurrentPumpFillage = 82m, LastGoodScanTime = DateTimeOffset.UtcNow } },
+    return Results.Json(new { Value = new { CurrentPumpFillage = 82m, AveragePumpFillage = 64m, LastGoodScanTime = DateTimeOffset.UtcNow } },
         new System.Text.Json.JsonSerializerOptions());
 });
 

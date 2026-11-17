@@ -8,6 +8,7 @@ import {
   discoverGuidedModuleQuantities,
   getGuidedModuleSubmission,
   createGuidedModuleDraft,
+  editGuidedModuleDraft,
   listGuidedModuleDrafts,
   listPendingGuidedModuleSubmissions,
   previewGuidedModuleDraft,
@@ -85,12 +86,27 @@ it('keeps draft edits and the selected trace when switching between Workflow and
     .mockResolvedValueOnce({ data: { outcomeCode: 'THRESHOLD_NOT_MET' } } as never)
     .mockResolvedValueOnce({ data: { failureCode: 'MODULE_DECLARATIVE_INPUT_UNAVAILABLE' } } as never);
   render(<GuidedAuthoringPage canAuthor canReview={false} canApprove={false} onRefresh={async () => {}} />);
-  expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Workflow' }).checked).toBe(true);
+  vi.mocked(editGuidedModuleDraft).mockResolvedValue({
+    data: {
+      id: 'editor-draft',
+      revision: 4,
+      manifestJson: '{"displayName":"Shared draft"}',
+      definition: { default: 72 },
+    },
+  } as never);
+  const workflow = screen.getByRole('tab', { name: 'Workflow', selected: true });
+  const ide = screen.getByRole('tab', { name: 'IDE', selected: false });
+  expect(workflow.getAttribute('aria-controls')).toBe(screen.getByRole('tabpanel', { name: 'Workflow' }).id);
   fireEvent.click(await screen.findByRole('button', { name: 'Shared draft' }));
   fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
   await screen.findByText('No recommendation');
 
-  fireEvent.click(screen.getByRole('radio', { name: 'IDE' }));
+  workflow.focus();
+  fireEvent.keyDown(workflow, { key: 'ArrowRight' });
+  expect(document.activeElement).toBe(ide);
+  expect(screen.getByRole('tab', { selected: true })).toBe(workflow);
+  fireEvent.click(ide);
+  expect(screen.getByRole('tabpanel', { name: 'IDE' }).id).toBe(ide.getAttribute('aria-controls'));
   expect(screen.getByRole('navigation', { name: 'Outline' })).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Scenario'), { target: { value: '1' } });
   expect(screen.getByText('No recommendation')).toBeTruthy();
@@ -99,17 +115,24 @@ it('keeps draft edits and the selected trace when switching between Workflow and
   fireEvent.click(screen.getByRole('button', { name: 'Rule' }));
   const threshold = screen.getByLabelText<HTMLInputElement>('Pump fillage threshold (%)');
   fireEvent.change(threshold, { target: { value: '72' } });
-  fireEvent.click(screen.getByRole('radio', { name: 'Workflow' }));
+  fireEvent.click(workflow);
   expect(screen.getByLabelText('Pump fillage threshold (%)')).toBe(threshold);
   expect(threshold.value).toBe('72');
   expect(screen.getByText(/save the draft and rerun/i)).toBeTruthy();
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Submit for review' }).disabled).toBe(true);
 
   fireEvent.change(threshold, { target: { value: '70' } });
-  fireEvent.click(screen.getByRole('radio', { name: 'IDE' }));
+  fireEvent.click(ide);
   expect(screen.getByRole('button', { name: 'Rule', pressed: true })).toBeTruthy();
   expect(screen.getByLabelText<HTMLSelectElement>('Scenario').value).toBe('1');
   expect(screen.getByText('No recommendation')).toBeTruthy();
+
+  fireEvent.change(threshold, { target: { value: '72' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await screen.findByText('Draft saved.');
+  expect(screen.getByRole('button', { name: 'Rule', pressed: true })).toBeTruthy();
+  expect(screen.getByLabelText<HTMLInputElement>('Pump fillage threshold (%)').value).toBe('72');
+  expect(screen.queryByText('No recommendation')).toBeNull();
 });
 
 it('approves the immutable package shown to the reviewer', async () => {
@@ -269,7 +292,8 @@ it('previews a saved revision with an imported well without enabling submission'
       {
         id: 'live-draft',
         revision: 3,
-        manifestJson: '{"displayName":"Live draft","dataRequirements":[{"id":"fillage","quantity":"PumpFillage"}]}',
+        manifestJson:
+          '{"displayName":"Live draft","dataRequirements":[{"id":"fillage","quantity":"PumpFillage","access":"Current","canonicalUnit":"%"}]}',
         definition: { default: 70 },
       },
     ],
@@ -365,6 +389,25 @@ it('previews a saved revision with an imported well without enabling submission'
         }) as unknown,
       }),
     );
+    const trendDiscovery = vi.mocked(discoverGuidedModuleQuantities).mock.lastCall?.[0].body;
+    vi.mocked(previewGuidedModuleInputHistory).mockResolvedValueOnce({
+      data: {
+        quantity: 'SPM',
+        startUtc: trendDiscovery?.startUtc,
+        endUtc: trendDiscovery?.endUtc,
+        samples: [{ value: 5.5, unit: 'SPM', quality: 'Unknown', timestampUtc: trendDiscovery?.startUtc }],
+      },
+    } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect SPM trend' }));
+    expect(await screen.findByText(/5\.5 SPM · Unknown/)).toBeTruthy();
+    expect(vi.mocked(previewGuidedModuleInputHistory).mock.lastCall?.[0].body).toEqual({
+      expectedRevision: 3,
+      assetId: 'imported',
+      maximumSamples: 100,
+      quantity: 'SPM',
+      startUtc: trendDiscovery?.startUtc,
+      endUtc: trendDiscovery?.endUtc,
+    });
     fireEvent.change(screen.getByLabelText('Quantity source'), { target: { value: 'DailyAverages' } });
     expect(screen.queryByText(/Observed in this window/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
@@ -531,6 +574,35 @@ it('previews a saved revision with an imported well without enabling submission'
       context.mockRestore();
     }
     expect((screen.getByRole('button', { name: 'Submit for review' }) as HTMLButtonElement).disabled).toBe(true);
+
+    vi.mocked(discoverGuidedModuleQuantities).mockResolvedValueOnce({
+      data: {
+        supported: true,
+        evidenceStatus: 'ApplicabilityUnverified',
+        quantities: [
+          { quantity: 'PumpFillage', unit: '%', status: 'CurrentObserved' },
+          { quantity: 'AveragePumpFillage', unit: '%', status: 'CurrentObserved' },
+        ],
+      },
+    } as never);
+    const requirement = { id: 'fillage', quantity: 'AveragePumpFillage', access: 'Current', canonicalUnit: '%' };
+    const updatedManifest = JSON.stringify({ displayName: 'Live draft', dataRequirements: [requirement] });
+    vi.mocked(editGuidedModuleDraft).mockResolvedValueOnce({
+      data: { id: 'live-draft', revision: 4, manifestJson: updatedManifest, definition: { default: 70 } },
+    } as never);
+    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
+    const useAverage = await screen.findByRole('button', { name: 'Use average pump fillage as input' });
+    expect(screen.queryByRole('button', { name: 'Use current pump fillage as input' })).toBeNull();
+    fireEvent.click(useAverage);
+    expect(screen.getByLabelText<HTMLSelectElement>('Fillage input').value).toBe('AveragePumpFillage');
+    expect(screen.queryByText('Preview with a live well')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await screen.findByText('Draft saved.');
+    const edit = vi.mocked(editGuidedModuleDraft).mock.lastCall?.[0];
+    expect(edit?.path).toEqual({ id: 'live-draft' });
+    expect(edit?.body.expectedRevision).toBe(3);
+    expect(JSON.parse(edit?.body.manifestJson ?? '').dataRequirements).toEqual([requirement]);
+    expect(screen.getByLabelText('Average pump fillage threshold (%)')).toBeTruthy();
   } finally {
     vi.unstubAllGlobals();
   }

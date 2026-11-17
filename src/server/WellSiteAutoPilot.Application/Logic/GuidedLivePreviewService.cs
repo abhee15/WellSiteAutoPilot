@@ -135,16 +135,17 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
             source.Connection.Settings.ToDictionary(entry => entry.Key, entry => (string?)entry.Value, StringComparer.Ordinal)),
             cancellationToken);
 
-    public async Task<HistoricalReadResult> ReadHistoryAsync(Guid draftId, int expectedRevision, Guid assetId, string inputId,
+    public async Task<HistoricalReadResult> ReadHistoryAsync(Guid draftId, int expectedRevision, Guid assetId, string? inputId,
         DateTimeOffset? start, DateTimeOffset? end, int maximumSamples, AccessSubject subject,
-        GuidedSiteHistoryWindow? siteWindow = null, CancellationToken cancellationToken = default)
+        GuidedSiteHistoryWindow? siteWindow = null, string? quantity = null, CancellationToken cancellationToken = default)
     {
         var draft = await drafts.GetAsync(draftId, subject, cancellationToken);
         draft.RequireRevision(expectedRevision);
         var input = draft.Content.Manifest.DataRequirements.SingleOrDefault(item => item.Id == inputId);
-        if (input is null || input.ValueSchema is not null)
+        var historyQuantity = inputId is null ? quantity : input is { ValueSchema: null } && quantity is null ? input.Quantity : null;
+        if (string.IsNullOrWhiteSpace(historyQuantity) || historyQuantity.Length > 128)
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_INPUT_UNSUPPORTED", FailureKind.Validation,
-                "Choose a declared scalar input.");
+                "Choose one declared scalar input or adapter trend quantity.");
         var (startUtc, endUtc) = GuidedSiteHistoryWindow.Resolve(start, end, siteWindow);
         if (!IsValidWindow(startUtc, endUtc) || maximumSamples is < 1 or > HistoricalReadLimits.MaximumSamples)
             throw new WellSiteAutoPilotException("GUIDED_HISTORY_WINDOW_INVALID", FailureKind.Validation,
@@ -155,7 +156,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
         await RequireMatchingAssetAsync(manifest, initial, subject, cancellationToken);
         var adapter = (await adapters.ListAsync(cancellationToken)).SingleOrDefault(item => item.Key == initial.Connection.AdapterKey);
         var operation = adapter?.ReadOperations().SingleOrDefault(item => item.CapabilityId == "engineering.history" &&
-            item.Quantity == input.Quantity && item.ResourceKind == initial.Binding.ResourceKind);
+            item.Quantity == historyQuantity && item.ResourceKind == initial.Binding.ResourceKind);
         if (operation is null || (manifest.RequiredAdapterKey is { } requiredAdapter &&
                 !string.Equals(requiredAdapter, initial.Connection.AdapterKey, StringComparison.OrdinalIgnoreCase)) ||
             operation.Limits.MaximumWindowDays is not { } days || endUtc - startUtc > TimeSpan.FromDays(days) ||
@@ -164,7 +165,7 @@ public sealed class GuidedLivePreviewService(GuidedModuleDraftService drafts, IA
                 "The selected connection does not support this input or history window.");
 
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
-        var result = await ReadHistoryOperationAsync(initial, operation, input.Quantity, startUtc, endUtc, maximumSamples, cancellationToken);
+        var result = await ReadHistoryOperationAsync(initial, operation, historyQuantity, startUtc, endUtc, maximumSamples, cancellationToken);
         await RequireCurrentDraftSourceAsync(draftId, expectedRevision, assetId, subject, initial, cancellationToken);
         return result;
     }

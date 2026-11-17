@@ -17,9 +17,11 @@ import type {
 import { ActionButton } from '../components/ActionButton';
 import { ContextLink } from '../components/ContextLink';
 import { PageTabNav } from '../components/PageTabNav';
+import { SectionTabs } from '../components/SectionTabs';
 import { GuidedLivePreview } from './GuidedLivePreview';
 import { GuidedReviewQueue } from './GuidedReviewQueue';
-import { NumberField, RadioGroup, SelectField, TextField } from '../components/FormFields';
+import { isFillageQuantity, type FillageQuantity } from './GuidedQuantityDiscovery';
+import { NumberField, SelectField, TextField } from '../components/FormFields';
 import { Notice } from '../components/Notice';
 import { PanelHeader } from '../components/common';
 import { t } from '../localization';
@@ -46,13 +48,33 @@ function isPressure(manifestJson: string | null | undefined) {
   return manifestJson && (JSON.parse(manifestJson) as { entryPoint?: string }).entryPoint === pressureEntryPoint;
 }
 
-function draftManifest(name: string, pressure: boolean) {
+function fillageQuantity(manifestJson: string | null | undefined): FillageQuantity | undefined {
+  const inputs = manifestJson
+    ? (
+        JSON.parse(manifestJson) as {
+          dataRequirements?: {
+            quantity?: string;
+            access?: string;
+            canonicalUnit?: string;
+            requiredCapability?: string | null;
+            valueSchema?: object | null;
+          }[];
+        }
+      ).dataRequirements
+    : undefined;
+  const input = inputs?.length === 1 ? inputs[0] : undefined;
+  if (input?.access !== 'Current' || input.canonicalUnit !== '%' || input.requiredCapability || input.valueSchema)
+    return undefined;
+  return isFillageQuantity(input.quantity) ? input.quantity : undefined;
+}
+
+function draftManifest(name: string, pressure: boolean, fillage: FillageQuantity) {
   const quantities = pressure
     ? [
         { id: 'casing-pressure', quantity: 'CasingPressure' },
         { id: 'tubing-pressure', quantity: 'TubingPressure' },
       ]
-    : [{ id: 'fillage', quantity: 'PumpFillage' }];
+    : [{ id: 'fillage', quantity: fillage }];
   return JSON.stringify({
     manifestVersion: 1,
     moduleId: 'guided.' + crypto.randomUUID(),
@@ -180,14 +202,17 @@ export function GuidedAuthoringPage({
   const [view, setView] = useState(() => readEditorView(userId));
   const [editorSection, setEditorSection] = useState<'module' | 'rule' | 'live'>('module');
   const [scenario, setScenario] = useState(0);
+  const editorId = useId();
   const moduleSectionId = useId();
   const ruleSectionId = useId();
+  const fillageFieldId = useId();
   const liveSectionId = useId();
   const [drafts, setDrafts] = useState<GuidedModuleDraftResponse[]>([]);
   const [offset, setOffset] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [draft, setDraft] = useState<GuidedModuleDraftResponse | null>(null);
   const [pressure, setPressure] = useState(false);
+  const [fillage, setFillage] = useState<FillageQuantity>('PumpFillage');
   const [name, setName] = useState('');
   const [threshold, setThreshold] = useState('70');
   const [evidence, setEvidence] = useState<GuidedModulePreviewResponse[]>([]);
@@ -232,14 +257,19 @@ export function GuidedAuthoringPage({
     return () => controller.abort();
   }, [canReview, initialReviewReference]);
 
-  function select(next: GuidedModuleDraftResponse | null, nextPressure = Boolean(isPressure(next?.manifestJson))) {
+  function select(
+    next: GuidedModuleDraftResponse | null,
+    nextPressure = Boolean(isPressure(next?.manifestJson)),
+    section: typeof editorSection = 'module',
+  ) {
     setPressure(nextPressure);
+    setFillage(fillageQuantity(next?.manifestJson) ?? 'PumpFillage');
     setDraft(next);
     setName(displayName(next?.manifestJson));
     setThreshold(String(next?.definition?.default ?? (nextPressure ? 150 : 70)));
     setEvidence([]);
     setScenario(0);
-    setEditorSection('module');
+    setEditorSection(section);
     setSubmittedReference('');
     setNotice(null);
     setError(false);
@@ -270,14 +300,26 @@ export function GuidedAuthoringPage({
   const sampleCount = pressure ? pressureReadings.length : readings.length;
   const valid =
     name.trim().length > 0 && threshold.trim() !== '' && Number(threshold) >= 0 && Number(threshold) <= maximum;
-  const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary);
+  const savedFillage = fillageQuantity(draft?.manifestJson);
+  const fillageChanged = !pressure && fillage !== (savedFillage ?? 'PumpFillage');
+  const canChooseFillage = !pressure && (!draft || savedFillage !== undefined);
+  const thresholdLabel = pressure
+    ? 'guided.pressureThreshold'
+    : fillage === 'AveragePumpFillage'
+      ? 'guided.averageThreshold'
+      : 'guided.threshold';
+  const ruleLabel = pressure
+    ? 'guided.pressureRule'
+    : fillage === 'AveragePumpFillage'
+      ? 'guided.averageFillageRule'
+      : 'guided.fillageRule';
+  const dirty = name !== displayName(draft?.manifestJson) || threshold !== String(boundary) || fillageChanged;
   const markSaved = useUnsavedChangesGuard(canAuthor && dirty);
 
   const showLivePreview = Boolean(canPreviewLive && draft?.id && draft.revision && !dirty);
   const activeSection = editorSection === 'live' && !showLivePreview ? 'rule' : editorSection;
 
-  function changeView(value: string) {
-    const next = value === 'ide' ? 'ide' : 'workflow';
+  function changeView(next: EditorView) {
     setView(next);
     if (!userId) return;
     try {
@@ -305,11 +347,20 @@ export function GuidedAuthoringPage({
     requestNavigation(() => select(next, nextPressure));
   }
 
+  function saveManifest() {
+    if (!draft?.manifestJson) return draftManifest(name.trim(), pressure, fillage);
+    const manifest = JSON.parse(draft.manifestJson) as {
+      displayName: string;
+      dataRequirements: { quantity: string }[];
+    };
+    manifest.displayName = name.trim();
+    if (savedFillage && fillageChanged) manifest.dataRequirements[0].quantity = fillage;
+    return JSON.stringify(manifest);
+  }
+
   async function save() {
     const body = {
-      manifestJson: draft?.manifestJson
-        ? JSON.stringify({ ...(JSON.parse(draft.manifestJson) as object), displayName: name.trim() })
-        : draftManifest(name.trim(), pressure),
+      manifestJson: saveManifest(),
       definition: {
         ...(draft?.definition ?? {
           parameter: 'threshold',
@@ -326,7 +377,7 @@ export function GuidedAuthoringPage({
         : await createGuidedModuleDraft({ body });
     if (!data) throw new Error();
     markSaved();
-    select(data);
+    select(data, pressure, activeSection);
     setRefresh((previous) => previous + 1);
     setNotice('guided.saved');
   }
@@ -417,16 +468,38 @@ export function GuidedAuthoringPage({
                 <ActionButton label={t('guided.next')} disabled={busy} onClick={() => setOffset(offset + pageSize)} />
               )}
             </div>
-            <RadioGroup
-              label={t('guided.editorView')}
-              value={view}
-              options={[
-                { value: 'workflow', label: t('guided.workflow') },
-                { value: 'ide', label: t('guided.ide') },
-              ]}
-              onChange={changeView}
-            />
-            <div className="guided-authoring-workbench" data-view={view}>
+            <div className="guided-authoring-view-bar">
+              <SectionTabs<EditorView>
+                prefix={editorId}
+                panelId={editorId + '-editor'}
+                label={t('guided.editorView')}
+                selected={view}
+                tabs={[
+                  { id: 'workflow', label: t('guided.workflow') },
+                  { id: 'ide', label: t('guided.ide') },
+                ]}
+                onSelect={changeView}
+              />
+              <div className="guided-authoring-actions">
+                <ActionButton
+                  label={t('guided.save')}
+                  disabled={busy || !valid || !dirty}
+                  onClick={() => void run(save)}
+                />
+                <ActionButton
+                  label={t('guided.submit')}
+                  disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
+                  onClick={() => void run(submit)}
+                />
+              </div>
+            </div>
+            <div
+              className="guided-authoring-workbench"
+              data-view={view}
+              id={editorId + '-editor'}
+              role="tabpanel"
+              aria-labelledby={editorId + '-tab-' + view}
+            >
               {view === 'ide' && (
                 <nav className="guided-authoring-outline" aria-label={t('guided.outline')}>
                   <PanelHeader title={t('guided.outline')} level={3} />
@@ -467,10 +540,24 @@ export function GuidedAuthoringPage({
                 </section>
                 <section id={ruleSectionId} hidden={view === 'ide' && activeSection !== 'rule'}>
                   <PanelHeader title={t('guided.rule')} level={3} />
-                  <p>{t(pressure ? 'guided.pressureRule' : 'guided.fillageRule')}</p>
+                  <p>{t(ruleLabel)}</p>
                   <div className="guided-authoring-fields">
+                    {canChooseFillage && (
+                      <SelectField
+                        id={fillageFieldId}
+                        label={t('guided.fillageInput')}
+                        value={fillage}
+                        disabled={busy}
+                        onChange={(event) => {
+                          if (isFillageQuantity(event.target.value)) setFillage(event.target.value);
+                        }}
+                      >
+                        <option value="PumpFillage">{t('guided.currentFillage')}</option>
+                        <option value="AveragePumpFillage">{t('guided.averageFillage')}</option>
+                      </SelectField>
+                    )}
                     <NumberField
-                      label={t(pressure ? 'guided.pressureThreshold' : 'guided.threshold')}
+                      label={t(thresholdLabel)}
                       min={0}
                       max={maximum}
                       step="any"
@@ -486,6 +573,12 @@ export function GuidedAuthoringPage({
                       key={draft.id + '/' + draft.revision}
                       draftId={draft.id}
                       revision={draft.revision}
+                      fillageChoice={canChooseFillage ? fillage : undefined}
+                      onSelectFillage={(quantity) => {
+                        setFillage(quantity);
+                        setEditorSection('rule');
+                        requestAnimationFrame(() => document.getElementById(fillageFieldId)?.focus());
+                      }}
                       inputs={
                         draft.manifestJson
                           ? (
@@ -540,18 +633,6 @@ export function GuidedAuthoringPage({
                   ))}
               </section>
             </div>
-            <div className="guided-authoring-actions">
-              <ActionButton
-                label={t('guided.save')}
-                disabled={busy || !valid || !dirty}
-                onClick={() => void run(save)}
-              />
-              <ActionButton
-                label={t('guided.submit')}
-                disabled={busy || dirty || Boolean(submittedReference) || evidence.length !== sampleCount}
-                onClick={() => void run(submit)}
-              />
-            </div>
             {submittedReference && (
               <TextField
                 label={t('guided.reviewLink')}
@@ -594,7 +675,14 @@ export function GuidedAuthoringPage({
               <p>
                 {isPressure(review.reviewedManifestJson)
                   ? t('guided.pressureThreshold') + ' ' + review.definition?.default + ' psi'
-                  : t('guided.threshold') + ' ' + review.definition?.default + '%'}
+                  : t(
+                      fillageQuantity(review.reviewedManifestJson) === 'AveragePumpFillage'
+                        ? 'guided.averageThreshold'
+                        : 'guided.threshold',
+                    ) +
+                    ' ' +
+                    review.definition?.default +
+                    '%'}
               </p>
               <p>{review.definition?.title}</p>
               <ul>
