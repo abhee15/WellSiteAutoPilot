@@ -125,10 +125,10 @@ internal static class DeclarativePackageChecks
         GuidedSampleCase[] cases = [new("Low fillage", 62, null, null, "LOW_FILLAGE"), new("At boundary", 70, null, null, "NONE"), new("Unchecked", 80, null, null, null)];
         GuidedSampleCases.Validate(draft.Content with { SampleCases = cases });
         Task Invalid(params GuidedSampleCase[] bad) { GuidedSampleCases.Validate(draft.Content with { SampleCases = bad }); return Task.CompletedTask; }
-        await RejectAsync(() => Invalid(new("", 1, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
-        await RejectAsync(() => Invalid(new("A", 1, null, null, null), new("a", 2, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
-        await RejectAsync(() => Invalid(new("Pair", null, 100, 50, null)), "GUIDED_SAMPLE_CASES_INVALID");
-        await RejectAsync(() => Invalid(new("Wrong code", 1, null, null, "OTHER")), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new GuidedSampleCase("", 1, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new GuidedSampleCase("A", 1, null, null, null), new GuidedSampleCase("a", 2, null, null, null)), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new GuidedSampleCase("Pair", null, 100, 50, null)), "GUIDED_SAMPLE_CASES_INVALID");
+        await RejectAsync(() => Invalid(new GuidedSampleCase("Wrong code", 1, null, null, "OTHER")), "GUIDED_SAMPLE_CASES_INVALID");
         await RejectAsync(() => Task.Run(() => GuidedSampleCases.Validate(new GuidedModuleDraftContent(manifest) with { SampleCases = cases })), "GUIDED_SAMPLE_CASES_INVALID");
         var observedCases = new List<DeclarativeThresholdEvidence>();
         foreach (var item in cases)
