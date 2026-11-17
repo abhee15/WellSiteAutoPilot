@@ -57,6 +57,8 @@ it('saves, previews and submits the same guided draft revision', async () => {
   fireEvent.change(screen.getByLabelText('Module name'), { target: { value: 'Fillage check' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await screen.findByText('Draft saved.');
+  expect(screen.getByRole('region', { name: 'Sample cases' })).toBeTruthy();
+  expect(document.querySelector('.guided-authoring-workbench')?.getAttribute('data-inspect-only')).toBe('false');
   fireEvent.click(screen.getByRole('button', { name: 'Run sample cases' }));
   expect((await screen.findByTitle('LOW_FILLAGE')).textContent).toBe('Low pump fillage');
   expect(screen.getByText('No recommendation')).toBeTruthy();
