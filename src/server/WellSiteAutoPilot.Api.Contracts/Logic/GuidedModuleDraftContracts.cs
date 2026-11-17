@@ -50,6 +50,13 @@ public sealed record GuidedHistoryPreviewResponse(string Quantity, DateTimeOffse
 
 public sealed record GuidedHistorySampleResponse(decimal Value, string Unit, DateTimeOffset TimestampUtc, string Quality);
 
+public sealed record GuidedQuantityDiscoveryRequest(int ExpectedRevision, Guid AssetId, string Capability,
+    DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+
+public sealed record GuidedQuantityDiscoveryResponse(bool Supported, IReadOnlyList<GuidedDiscoveredQuantityResponse> Quantities);
+
+public sealed record GuidedDiscoveredQuantityResponse(string Quantity, string? Unit, string Status);
+
 public sealed record GuidedProductionDaysPreviewRequest(int ExpectedRevision, Guid AssetId, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
 public sealed record GuidedProductionDaysPreviewResponse(string? Unit, DateTimeOffset RetrievedAtUtc,

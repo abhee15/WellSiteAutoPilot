@@ -1348,6 +1348,18 @@ v1.MapPost("/guided-module-drafts/{id:guid}/history-preview",
     .WithName("PreviewGuidedModuleInputHistory").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
     .Produces<GuidedHistoryPreviewResponse>();
 
+v1.MapPost("/guided-module-drafts/{id:guid}/quantity-discovery",
+    async (Guid id, GuidedQuantityDiscoveryRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await preview.DiscoverHistoryQuantitiesAsync(id, request.ExpectedRevision, request.AssetId,
+            request.Capability, request.StartUtc, request.EndUtc, access.Subject, cancellationToken);
+        return new GuidedQuantityDiscoveryResponse(result.Supported, result.Quantities.Select(item =>
+            new GuidedDiscoveredQuantityResponse(item.Quantity, item.Unit, item.Status)).ToArray());
+    })
+    .WithName("DiscoverGuidedModuleQuantities").RequireAuthorization(WellSitePolicies.GuidedDraftManage)
+    .Produces<GuidedQuantityDiscoveryResponse>();
+
 v1.MapPost("/guided-module-drafts/{id:guid}/production-days-preview",
     async (Guid id, GuidedProductionDaysPreviewRequest request, GuidedLivePreviewService preview, RequestAccessContext access,
         CancellationToken cancellationToken) =>

@@ -5,6 +5,7 @@ import { UnsavedChangesPrompt } from '../../src/components/UnsavedChangesPrompt'
 import {
   approveGuidedModuleSubmission,
   checkGuidedModuleAssetCompatibility,
+  discoverGuidedModuleQuantities,
   getGuidedModuleSubmission,
   createGuidedModuleDraft,
   listGuidedModuleDrafts,
@@ -22,6 +23,7 @@ afterEach(cleanup);
 vi.mock('../../src/api/generated/v1/sdk.gen', () => ({
   approveGuidedModuleSubmission: vi.fn(),
   checkGuidedModuleAssetCompatibility: vi.fn(),
+  discoverGuidedModuleQuantities: vi.fn(),
   createGuidedModuleDraft: vi.fn(),
   editGuidedModuleDraft: vi.fn(),
   getGuidedModuleSubmission: vi.fn(),
@@ -340,6 +342,33 @@ it('previews a saved revision with an imported well without enabling submission'
     });
     expect(screen.queryByText('PumpFillage · Reading missing')).toBeNull();
     expect(screen.getByText('PumpFillage · Meets requirement')).toBeTruthy();
+    vi.mocked(discoverGuidedModuleQuantities)
+      .mockResolvedValueOnce({
+        data: { supported: true, quantities: [{ quantity: 'SPM', unit: 'SPM', status: 'Observed' }] },
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          supported: true,
+          quantities: [{ quantity: 'TotalFluidRateInferred', status: 'NoSamples' }],
+        },
+      } as never);
+    fireEvent.click(screen.getByText('Discover well quantities'));
+    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
+    expect(await screen.findByText(/SPM \(SPM\) · Observed in this window/)).toBeTruthy();
+    expect(vi.mocked(discoverGuidedModuleQuantities)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        path: { id: 'live-draft' },
+        body: expect.objectContaining({
+          expectedRevision: 3,
+          assetId: 'imported',
+          capability: 'WellTrend',
+        }) as unknown,
+      }),
+    );
+    fireEvent.change(screen.getByLabelText('Quantity source'), { target: { value: 'DailyAverages' } });
+    expect(screen.queryByText(/Observed in this window/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Discover' }));
+    expect(await screen.findByText('TotalFluidRateInferred · No samples in this window')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Run live preview' }));
     expect(await screen.findByText(/PumpFillage · 82 % · Good/)).toBeTruthy();
     expect(vi.mocked(previewGuidedModuleWithLiveInputs)).toHaveBeenLastCalledWith({
