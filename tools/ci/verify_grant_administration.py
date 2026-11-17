@@ -754,7 +754,8 @@ assert test_discovery["quantities"] == [
 bravo = next(item for item in after if item["name"] == "Bravo 1" and item.get("ownerConnectionId") == twin["id"])
 bravo_body = dict(well_test_body, assetId=bravo["id"])
 request("POST", quantity_url, OTHER, bravo_body, expected=404)
-bravo_access = grant(other["userId"], well_reader, "ExactAssets", [bravo["id"]])
+bravo_reader = role("Well test empty fixture reader", ["assets.read"])
+bravo_access = grant(other["userId"], bravo_reader, "ExactAssets", [bravo["id"]])
 try:
     no_test = request("POST", quantity_url, OTHER, bravo_body)
     assert no_test == {"supported": True, "quantities": [], "evidenceStatus": "NoTest"}, no_test
