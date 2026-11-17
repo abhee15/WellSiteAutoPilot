@@ -29,3 +29,10 @@ Script: D:\WellSiteAutoPilot\authoring-poc\poc\complex-modules\run-api-tests.ps1
 - P8 (bug): the blank starter and any draft with 0 inputs or 0 outputs cannot be saved. POST /guided-module-drafts -> 400 MODULE_CONTRACT_INVALID "Structured modules require .NET, 1-64 inputs and 1-64 outputs." Cause: Program.cs ReadGuidedDraftAsync calls LogicModuleManifestReader.ReadAsync, which validates strictly (allowEmptyPorts=false); the #636 allowEmptyPorts path is only used by GuidedContractDraft. The PR text says zero ports may be saved while building. Unit checks pass because they bypass the route.
 - P9 (UX): the 400 above surfaces only as "The operation could not be completed. Check access or reopen the latest draft and try again." - misleading; the real reason (add at least one input and output) is not shown.
 - P10: new inputs default to capability structured.current, which adapter read rules cannot serve (addressed by #637, not yet verified live).
+
+## Live verification of #637 (CL 1108674), Edge visible, 2026-11-17
+- P10 resolved: the quantity field offers registered scalar quantities from the adapter operations registry (AveragePumpFillage [ForeSite], CasingPressure [CygNet], MotorAmps [CygNet], PumpFillage [ForeSite, CygNet], RodLoad [CygNet], TubingPressure [CygNet]); choosing one fills the unit (AveragePumpFillage -> %) and sets the capability to engineering.current (read-only). An input saved (HTTP 200).
+- An unregistered quantity (including the default "Quantity1") shows "No registered source provides this quantity yet..." and Save draft is disabled. No overflow at 760px.
+- P11 (UX): a new input starts with the default quantity "Quantity1", which can never be saved, so every new input starts in an error state; consider starting empty with a prompt. Registered quantity list shows no units until chosen.
+- P12: the registry lists only quantities a configured adapter registers; structured inputs (cards, calibration) have no picker, so card contracts still cannot be authored from the UI (see P1/P2).
+- Not verified: Unit/capability behaviour for CygNet-only quantities and saving after switching quantity on an existing saved draft.
