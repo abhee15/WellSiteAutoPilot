@@ -23,3 +23,9 @@ Script: D:\WellSiteAutoPilot\authoring-poc\poc\complex-modules\run-api-tests.ps1
 ## Not verified
 - IDE tab and New module flow in UI (click timed out).
 - Any execution of a complex module end to end (server rejects by design).
+
+## Live verification of #636 (CL 1108673), Edge visible, 2026-11-17
+- Works: New module -> "New contract-only module" starter, Add input/output, per-port editor (quantity, unit, value type Number/Text, access Current/History, max age, uncertain quality, provider capability), Save-only toolbar, IDE tab, no overflow at 760px. Input+output draft saves ("Draft saved.", HTTP 200).
+- P8 (bug): the blank starter and any draft with 0 inputs or 0 outputs cannot be saved. POST /guided-module-drafts -> 400 MODULE_CONTRACT_INVALID "Structured modules require .NET, 1-64 inputs and 1-64 outputs." Cause: Program.cs ReadGuidedDraftAsync calls LogicModuleManifestReader.ReadAsync, which validates strictly (allowEmptyPorts=false); the #636 allowEmptyPorts path is only used by GuidedContractDraft. The PR text says zero ports may be saved while building. Unit checks pass because they bypass the route.
+- P9 (UX): the 400 above surfaces only as "The operation could not be completed. Check access or reopen the latest draft and try again." - misleading; the real reason (add at least one input and output) is not shown.
+- P10: new inputs default to capability structured.current, which adapter read rules cannot serve (addressed by #637, not yet verified live).
