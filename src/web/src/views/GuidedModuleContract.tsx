@@ -174,7 +174,13 @@ function ContractPortDetails({ port }: { port: ContractPort }) {
   );
 }
 
-export function GuidedModuleContract({ manifestJson }: { manifestJson: string | null | undefined }) {
+export function GuidedModuleContract({
+  manifestJson,
+  initiallyOpen = false,
+}: {
+  manifestJson: string | null | undefined;
+  initiallyOpen?: boolean;
+}) {
   const [selection, setSelection] = useState<PortSelection>({ kind: 'input', index: 0 });
   if (!manifestJson) return null;
   const contract = parseContract(manifestJson);
@@ -185,7 +191,7 @@ export function GuidedModuleContract({ manifestJson }: { manifestJson: string | 
   const firstPort = contract.inputs[0] ?? contract.outputs[0];
 
   return (
-    <details className="guided-authoring-contract">
+    <details className="guided-authoring-contract" open={initiallyOpen}>
       <summary>
         {t('guided.contractHeading')} ·{' '}
         {t('guided.contractCounts', {
