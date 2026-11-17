@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { delay, root, startVisualBrowser } from './lib/visual-browser.mjs';
@@ -12,7 +13,9 @@ const cases = [
   ['operator-review', '', 1440], ['operator-review', '?page=overview', 390],
   ['shared-forms', '', 1440], ['shared-forms', '', 390],
   ['guided-authoring', '', 1440], ['guided-authoring', '', 768], ['guided-authoring', '', 390],
+  ['guided-authoring', '?view=review', 390], ['guided-authoring', '?view=review', 1440],
   ['guided-authoring', '?view=ide', 1440], ['guided-authoring', '?view=ide', 768],
+  ['guided-authoring', '?view=ide', 820], ['guided-authoring', '?view=ide', 1024], ['guided-authoring', '?view=ide', 1180],
   ['guided-authoring', '?view=surface-cards', 1440], ['guided-authoring', '?view=surface-cards', 768],
 ];
 /**
@@ -64,9 +67,31 @@ try {
       })()`);
       if (!plot) problems.push(`${key}: stored surface card chart is empty or overflows the page`);
     } else if (page === 'guided-authoring') {
+      const phone = width === 390;
+      const review = query === '?view=review';
+      if (!phone && !review) {
+        await evaluate(`(() => {
+          const button = label => [...document.querySelectorAll('button')].find(item => item.textContent.trim() === label);
+          button('Fillage check').click();
+        })()`);
+        if (query === '?view=ide') {
+          await evaluate(`[...document.querySelectorAll('.guided-authoring-outline button')]
+            .find(item => item.textContent.trim() === 'Rule').click()`);
+        }
+        await evaluate(`document.querySelector('.guided-authoring-inspector button').click()`);
+        await settled();
+      }
       const layout = await evaluate(`(() => {
         const visible = selector => Boolean(document.querySelector(selector)?.getClientRects().length);
+        const bounds = selector => document.querySelector(selector)?.getBoundingClientRect();
+        const editor = bounds('.guided-authoring-main');
+        const inspector = bounds('.guided-authoring-inspector');
+        const tabs = document.querySelector('.guided-authoring-view-bar .tab-strip');
+        const tools = bounds('.guided-authoring-view-bar > .guided-authoring-actions');
         return {
+          sideBySide: Boolean(editor && inspector && editor.right <= inspector.left && editor.top === inspector.top),
+          actionsAboveEditor: Boolean(tools && editor && tools.bottom <= editor.top),
+          tabOverflow: Boolean(tabs && tabs.scrollWidth > tabs.clientWidth),
           editor: visible('.guided-authoring-editor'),
           ide: visible('.guided-authoring-workbench[data-view=ide] .guided-authoring-outline'),
           review: visible('.guided-authoring-review'),
@@ -81,11 +106,19 @@ try {
           }),
         };
       })()`);
-      const phone = width === 390;
-      if (layout.editor === phone || layout.ide !== (query === '?view=ide') || !layout.review || !layout.evidence || layout.approval === phone
-        || layout.phoneMessage !== phone || layout.overflow || !layout.navLabels) {
+      const editing = !phone && !review;
+      if (layout.editor !== editing || layout.ide !== (query === '?view=ide') || layout.review !== review
+        || layout.evidence !== (editing || review) || layout.approval !== (review && !phone)
+        || layout.phoneMessage !== (phone && !review) || layout.overflow || !layout.navLabels
+        || (editing && (layout.sideBySide !== (width > 896) || !layout.actionsAboveEditor || layout.tabOverflow))) {
         problems.push(`${key}: unexpected authoring layout ${JSON.stringify(layout)}`);
       }
+    }
+    if (page === 'guided-authoring') {
+      await evaluate('document.fonts.ready');
+      const screenshot = await channel.send('Page.captureScreenshot', { format: 'png' });
+      const view = query.split('=')[1] ?? 'workflow';
+      writeFileSync(join(output, `guided-authoring-${view}-${width}.png`), Buffer.from(screenshot.data, 'base64'));
     }
     await evaluate(axeSource);
     const violations = await evaluate(`axe.run(document, { resultTypes: ['violations'], rules: ${JSON.stringify(fixtureRules)} }).then(result =>

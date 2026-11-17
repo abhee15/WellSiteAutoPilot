@@ -724,6 +724,17 @@ trend_quantities = request("POST", quantity_url, OTHER, trend_body)
 assert trend_quantities["supported"], trend_quantities
 assert {(row["quantity"], row["unit"], row["status"]) for row in trend_quantities["quantities"]} == {
     ("PumpFillage", "%", "Observed"), ("SPM", "SPM", "Observed")}, trend_quantities
+stroke_trend_body = {key: value for key, value in history_body.items() if key != "inputId"}
+stroke_trend_body["quantity"] = "SPM"
+for denied_user in (None, ADMIN):
+    request("POST", history_url, denied_user, stroke_trend_body, expected=401 if denied_user is None else 404)
+request("POST", history_url, OTHER, dict(stroke_trend_body, expectedRevision=2), expected=409)
+request("POST", history_url, OTHER, dict(stroke_trend_body, assetId=other_alpha["id"]), expected=404)
+request("POST", history_url, OTHER, dict(stroke_trend_body, inputId="fillage"), expected=400)
+request("POST", history_url, OTHER, dict(stroke_trend_body, quantity="CasingPressure"), expected=400)
+stroke_trend = request("POST", history_url, OTHER, stroke_trend_body)
+assert stroke_trend["quantity"] == "SPM" and stroke_trend["samples"], stroke_trend
+assert all(sample["quality"] == "Unknown" and sample["unit"] == "SPM" for sample in stroke_trend["samples"]), stroke_trend
 daily_body = dict(live_body, capability="DailyAverages", startUtc="2026-11-01T00:00:00Z", endUtc="2026-11-03T06:00:00Z")
 daily_quantities = request("POST", quantity_url, OTHER, daily_body)
 assert daily_quantities == {"supported": True, "quantities": [
@@ -773,6 +784,29 @@ for asset, fillage_status in ((alpha, "CurrentObserved"), (alpha2, "NoReading"))
     assert surveillance["supported"] and surveillance["evidenceStatus"] == "ApplicabilityUnverified", surveillance
     fillage = next(row for row in surveillance["quantities"] if row["quantity"] == "PumpFillage")
     assert fillage["status"] == fillage_status, surveillance
+
+# A reported current quantity can become a portable input on a new revision.
+average = next(row for row in request("POST", quantity_url, OTHER, surveillance_body)["quantities"]
+    if row["quantity"] == "AveragePumpFillage")
+assert average == {"quantity": "AveragePumpFillage", "unit": "%", "status": "CurrentObserved"}, average
+average_manifest = json.loads(live_draft["manifestJson"])
+average_manifest["moduleId"] = "ci.average-" + uuid.uuid4().hex
+average_draft = request("POST", "/guided-module-drafts", OTHER,
+    dict(guided_content, manifestJson=json.dumps(average_manifest)))
+average_draft_path = "/guided-module-drafts/" + average_draft["id"]
+average_manifest["dataRequirements"][0]["quantity"] = average["quantity"]
+updated_average = request("PUT", average_draft_path, OTHER, dict(guided_content,
+    expectedRevision=1, manifestJson=json.dumps(average_manifest)))
+assert updated_average["revision"] == 2, updated_average
+request("POST", average_draft_path + "/live-preview", OTHER, live_body, expected=409)
+average_body = dict(live_body, expectedRevision=2)
+average_check, = request("POST", average_draft_path + "/asset-compatibility", OTHER, average_body)["inputs"]
+assert average_check["quantity"] == average["quantity"] and average_check["status"] == "Satisfied", average_check
+average_preview = request("POST", average_draft_path + "/live-preview", OTHER, average_body)
+assert average_preview["outcomeCode"] == "LOW_FILLAGE" and average_preview["revision"] == 2, average_preview
+average_reading, = average_preview["readings"]
+assert (average_reading["quantity"], average_reading["value"], average_reading["unit"]) == (
+    average["quantity"], 64, "%"), average_reading
 
 # Production days preserve aggregate period offsets and distinguish zero from a missing value.
 production_url = "/guided-module-drafts/" + live_draft["id"] + "/production-days-preview"

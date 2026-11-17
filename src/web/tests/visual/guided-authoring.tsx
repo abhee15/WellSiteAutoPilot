@@ -11,24 +11,40 @@ import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 
+const view = new URLSearchParams(window.location.search).get('view');
+const id = '8f52644a-daa0-4d1b-8949-cb20942b4dc8';
+const manifestJson = JSON.stringify({
+  displayName: 'Fillage check',
+  dataRequirements: [{ id: 'fillage', quantity: 'PumpFillage', access: 'Current', canonicalUnit: '%' }],
+});
+const definition = { default: 70, title: 'Low pump fillage' };
+
 client.setConfig({
   baseUrl: window.location.origin,
-  fetch: async (request: Request) =>
-    Response.json(
-      request.url.endsWith('/submissions/1')
-        ? {
-            draftId: '8f52644a-daa0-4d1b-8949-cb20942b4dc8',
-            revision: 1,
-            packageSha256: 'a'.repeat(64),
-            reviewedManifestJson: '{"displayName":"Fillage check"}',
-            definition: { default: 70, title: 'Low pump fillage' },
-            cases: [{ value: 62, outcomeCode: 'LOW_FILLAGE' }],
-          }
-        : [],
-    ),
+  fetch: async (request: Request) => {
+    const url = new URL(request.url);
+    if (url.pathname.endsWith('/submissions/1')) {
+      return Response.json({
+        draftId: id,
+        revision: 1,
+        packageSha256: 'a'.repeat(64),
+        reviewedManifestJson: manifestJson,
+        definition,
+        cases: [{ value: 62, outcomeCode: 'LOW_FILLAGE' }],
+      });
+    }
+    if (url.pathname.endsWith('/preview')) {
+      const { value } = (await request.json()) as { value: number | null };
+      return Response.json(
+        value === null
+          ? { failureCode: 'MODULE_DECLARATIVE_INPUT_UNAVAILABLE' }
+          : { outcomeCode: value < 70 ? 'LOW_FILLAGE' : 'THRESHOLD_NOT_MET' },
+      );
+    }
+    return Response.json([{ id, revision: 1, manifestJson, definition }]);
+  },
 });
 
-const view = new URLSearchParams(window.location.search).get('view');
 if (view === 'ide') window.localStorage.setItem('wsa.authoring.view.visual-fixture', 'ide');
 
 function AuthoringFixture() {
@@ -70,11 +86,11 @@ function AuthoringFixture() {
           />
         ) : (
           <GuidedAuthoringPage
-            canAuthor
+            canAuthor={view !== 'review'}
             userId={view === 'ide' ? 'visual-fixture' : undefined}
-            canReview
+            canReview={view === 'review'}
             canApprove
-            initialReviewReference="8f52644a-daa0-4d1b-8949-cb20942b4dc8/1"
+            initialReviewReference={view === 'review' ? id + '/1' : undefined}
             onRefresh={async () => {}}
           />
         )}
